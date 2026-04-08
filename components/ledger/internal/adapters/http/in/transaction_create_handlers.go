@@ -20,44 +20,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// CreateTransactionInflow method that creates a transaction without specifying a source
-//
-//	@Summary		Create a Transaction without passing from source
-//	@Description	Create a Transaction with the input payload
-//	@Tags			Transactions
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string							true	"Authorization Bearer Token"
-//	@Param			X-Request-Id	header		string							false	"Request ID"
-//	@Param			organization_id	path		string							true	"Organization ID"
-//	@Param			ledger_id		path		string							true	"Ledger ID"
-//	@Param			transaction		body		transaction.CreateTransactionInflowInput	true	"Transaction Input"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow [post]
-func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.create_transaction_inflow")
-	defer span.End()
-
-	c.SetUserContext(ctx)
-
-	input := p.(*pkgTransaction.CreateTransactionInflowInput)
-	transactionInput := input.BuildInflowEntry()
-	logSafePayload(ctx, logger, "Request to create a transaction inflow", transactionInput)
-
-	recordSafePayloadAttributes(span, transactionInput)
-
-	return handler.createTransaction(c, *transactionInput, transactionInput.InitialStatus())
-}
-
 // CreateTransactionOutflow method that creates a transaction without specifying a distribution
 //
 //	@Summary		Create a Transaction without passing to distribution
