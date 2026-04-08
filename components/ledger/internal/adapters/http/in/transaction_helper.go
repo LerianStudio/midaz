@@ -82,6 +82,29 @@ func getAliasWithoutKey(array []string) []string {
 	return result
 }
 
+// handleAccountFields transforms account aliases in FromTo entries.
+// When isConcat is true, aliases are prefixed with index and balance key for
+// unique lookup (e.g. "0#@person1#default"). When false, the prefixed alias
+// is split back to the original form.
+func handleAccountFields(entries []pkgTransaction.FromTo, isConcat bool) []pkgTransaction.FromTo {
+	result := make([]pkgTransaction.FromTo, 0, len(entries))
+
+	for i := range entries {
+		var newAlias string
+		if isConcat {
+			newAlias = entries[i].ConcatAlias(i)
+		} else {
+			newAlias = entries[i].SplitAlias()
+		}
+
+		entries[i].AccountAlias = newAlias
+
+		result = append(result, entries[i])
+	}
+
+	return result
+}
+
 // applyDefaultBalanceKeys sets the balance key to "default" for any entry
 // where the caller did not specify one. Midaz supports multiple balances per
 // account (e.g. "default", "asset-freeze", "rewards"), each tracked independently.

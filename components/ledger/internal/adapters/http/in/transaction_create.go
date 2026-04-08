@@ -41,25 +41,6 @@ type transactionIdempotencyState struct {
 	replay      *transaction.Transaction
 }
 
-func (handler *TransactionHandler) HandleAccountFields(entries []pkgTransaction.FromTo, isConcat bool) []pkgTransaction.FromTo {
-	result := make([]pkgTransaction.FromTo, 0, len(entries))
-
-	for i := range entries {
-		var newAlias string
-		if isConcat {
-			newAlias = entries[i].ConcatAlias(i)
-		} else {
-			newAlias = entries[i].SplitAlias()
-		}
-
-		entries[i].AccountAlias = newAlias
-
-		result = append(result, entries[i])
-	}
-
-	return result
-}
-
 func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
 	balances []*mmodel.Balance,
@@ -757,8 +738,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	var fromTo []pkgTransaction.FromTo
 
-	fromTo = append(fromTo, handler.HandleAccountFields(transactionInput.Send.Source.From, true)...)
-	to := handler.HandleAccountFields(transactionInput.Send.Distribute.To, true)
+	fromTo = append(fromTo, handleAccountFields(transactionInput.Send.Source.From, true)...)
+	to := handleAccountFields(transactionInput.Send.Distribute.To, true)
 
 	if transactionStatus != constant.PENDING {
 		fromTo = append(fromTo, to...)
@@ -820,8 +801,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	spanGetBalances.End()
 
-	fromTo = append(fromTo, handler.HandleAccountFields(transactionInput.Send.Source.From, false)...)
-	to = handler.HandleAccountFields(transactionInput.Send.Distribute.To, false)
+	fromTo = append(fromTo, handleAccountFields(transactionInput.Send.Source.From, false)...)
+	to = handleAccountFields(transactionInput.Send.Distribute.To, false)
 
 	if transactionStatus != constant.PENDING {
 		fromTo = append(fromTo, to...)
