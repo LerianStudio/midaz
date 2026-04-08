@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+
 	"github.com/shopspring/decimal"
 )
 
@@ -188,6 +190,17 @@ type Transaction struct {
 	TransactionDate *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
 	Send            Send             `json:"send" validate:"required"`
 } // @name TransactionInput
+
+// InitialStatus returns the transaction status derived from the Pending flag.
+// PENDING when the transaction is held for later commit/cancel, CREATED otherwise.
+// Callers may override this for special cases (e.g. NOTED for annotations).
+func (t Transaction) InitialStatus() string {
+	if t.Pending {
+		return constant.PENDING
+	}
+
+	return constant.CREATED
+}
 
 // IsEmpty is a func that validate if transaction is Empty.
 func (t Transaction) IsEmpty() bool {

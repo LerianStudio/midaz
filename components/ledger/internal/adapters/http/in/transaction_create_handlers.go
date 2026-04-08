@@ -92,9 +92,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 
 	recordSafePayloadAttributes(span, transactionInput)
 
-	response := handler.createTransaction(c, *transactionInput, constant.CREATED)
-
-	return response
+	return handler.createTransaction(c, *transactionInput, transactionInput.InitialStatus())
 }
 
 // CreateTransactionOutflow method that creates a transaction without specifying a distribution
@@ -130,14 +128,9 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 	transactionInput := input.BuildOutflowEntry()
 	logSafePayload(ctx, logger, "Request to create a transaction outflow", transactionInput)
 
-	transactionStatus := constant.CREATED
-	if transactionInput.Pending {
-		transactionStatus = constant.PENDING
-	}
-
 	recordSafePayloadAttributes(span, transactionInput)
 
-	return handler.createTransaction(c, *transactionInput, transactionStatus)
+	return handler.createTransaction(c, *transactionInput, transactionInput.InitialStatus())
 }
 
 // CreateTransactionDSL method that create transaction using DSL
@@ -219,7 +212,5 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	recordSafePayloadAttributes(span, transactionInput.Send)
 
-	response := handler.createTransaction(c, transactionInput, constant.CREATED)
-
-	return response
+	return handler.createTransaction(c, transactionInput, transactionInput.InitialStatus())
 }

@@ -7,6 +7,8 @@ package transaction
 import (
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 )
@@ -240,6 +242,36 @@ func TestFromTo_ConcatSplitAlias_BalanceKeyContainsHash(t *testing.T) {
 
 	// Alias should still be extracted correctly regardless of balanceKey content
 	assert.Equal(t, ft.AccountAlias, extractedAlias)
+}
+
+func TestTransaction_InitialStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		pending bool
+		want    string
+	}{
+		{
+			name:    "returns CREATED when not pending",
+			pending: false,
+			want:    constant.CREATED,
+		},
+		{
+			name:    "returns PENDING when pending",
+			pending: true,
+			want:    constant.PENDING,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tx := Transaction{Pending: tt.pending}
+			assert.Equal(t, tt.want, tx.InitialStatus())
+		})
+	}
 }
 
 func TestTransaction_IsEmpty(t *testing.T) {

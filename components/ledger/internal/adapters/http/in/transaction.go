@@ -9,7 +9,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 
 	"github.com/gofiber/fiber/v2"
@@ -53,12 +52,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 	transactionInput := input.BuildTransaction()
 	logSafePayload(ctx, logger, "Request to create a transaction", transactionInput)
 
-	transactionStatus := constant.CREATED
-	if transactionInput.Pending {
-		transactionStatus = constant.PENDING
-	}
-
 	recordSafePayloadAttributes(span, transactionInput)
 
-	return handler.createTransaction(c, *transactionInput, transactionStatus)
+	return handler.createTransaction(c, *transactionInput, transactionInput.InitialStatus())
 }
