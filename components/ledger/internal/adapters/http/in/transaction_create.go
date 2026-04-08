@@ -742,7 +742,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "handler.create_transaction")
+	_, span := tracer.Start(ctx, "handler.create_transaction.orchestrate")
 	defer span.End()
 
 	params, err := readPathParams(c)
