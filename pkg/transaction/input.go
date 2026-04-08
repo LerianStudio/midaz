@@ -43,7 +43,7 @@ type CreateTransactionInput struct {
 	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: "00000000-0000-0000-0000-000000000000"
 	// maxLength: 250
-	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
+	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
 
 	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
 	// example: 00000000-0000-0000-0000-000000000000
@@ -58,12 +58,16 @@ type CreateTransactionInput struct {
 	// Send operation details including source and distribution
 	// required: true
 	// swagger:type object
-	Send *Send `json:"send,omitempty" validate:"required,dive"`
+	Send Send `json:"send" validate:"required,dive"`
 } // @name CreateTransactionInput
 
 // BuildTransaction converts a CreateTransactionInput to a Transaction.
 func (cti *CreateTransactionInput) BuildTransaction() *Transaction {
-	dsl := &Transaction{
+	for i := range cti.Send.Source.From {
+		cti.Send.Source.From[i].IsFrom = true
+	}
+
+	return &Transaction{
 		ChartOfAccountsGroupName: cti.ChartOfAccountsGroupName,
 		Description:              cti.Description,
 		Code:                     cti.Code,
@@ -72,17 +76,8 @@ func (cti *CreateTransactionInput) BuildTransaction() *Transaction {
 		TransactionDate:          cti.TransactionDate,
 		Route:                    cti.Route,
 		RouteID:                  cti.RouteID,
+		Send:                     cti.Send,
 	}
-
-	if cti.Send != nil {
-		for i := range cti.Send.Source.From {
-			cti.Send.Source.From[i].IsFrom = true
-		}
-
-		dsl.Send = *cti.Send
-	}
-
-	return dsl
 }
 
 // SendInflow structure for marshaling/unmarshalling JSON for inflow transactions.
@@ -123,7 +118,7 @@ type CreateTransactionInflowInput struct {
 	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
-	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
+	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
 
 	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
 	// example: 00000000-0000-0000-0000-000000000000
@@ -138,13 +133,11 @@ type CreateTransactionInflowInput struct {
 	// Send operation details including distribution only (no source)
 	// required: true
 	// swagger:type object
-	Send *SendInflow `json:"send,omitempty" validate:"required,dive"`
+	Send SendInflow `json:"send" validate:"required,dive"`
 } // @name CreateTransactionInflowInput
 
 // BuildInflowEntry converts a CreateTransactionInflowInput to a Transaction.
 func (c *CreateTransactionInflowInput) BuildInflowEntry() *Transaction {
-	listFrom := make([]FromTo, 0, 1)
-
 	from := FromTo{
 		IsFrom:       true,
 		AccountAlias: cn.DefaultExternalAccountAliasPrefix + c.Send.Asset,
@@ -153,8 +146,6 @@ func (c *CreateTransactionInflowInput) BuildInflowEntry() *Transaction {
 			Value: c.Send.Value,
 		},
 	}
-
-	listFrom = append(listFrom, from)
 
 	return &Transaction{
 		ChartOfAccountsGroupName: c.ChartOfAccountsGroupName,
@@ -169,7 +160,7 @@ func (c *CreateTransactionInflowInput) BuildInflowEntry() *Transaction {
 			Value:      c.Send.Value,
 			Distribute: c.Send.Distribute,
 			Source: Source{
-				From: listFrom,
+				From: []FromTo{from},
 			},
 		},
 	}
@@ -218,7 +209,7 @@ type CreateTransactionOutflowInput struct {
 	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
-	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
+	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
 
 	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
 	// example: 00000000-0000-0000-0000-000000000000
@@ -233,13 +224,11 @@ type CreateTransactionOutflowInput struct {
 	// Send operation details including source only (no distribution)
 	// required: true
 	// swagger:type object
-	Send *SendOutflow `json:"send,omitempty" validate:"required,dive"`
+	Send SendOutflow `json:"send" validate:"required,dive"`
 } // @name CreateTransactionOutflowInput
 
 // BuildOutflowEntry converts a CreateTransactionOutflowInput to a Transaction.
 func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *Transaction {
-	listTo := make([]FromTo, 0, 1)
-
 	to := FromTo{
 		IsFrom:       false,
 		AccountAlias: cn.DefaultExternalAccountAliasPrefix + c.Send.Asset,
@@ -249,9 +238,11 @@ func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *Transaction {
 		},
 	}
 
-	listTo = append(listTo, to)
+	for i := range c.Send.Source.From {
+		c.Send.Source.From[i].IsFrom = true
+	}
 
-	dsl := &Transaction{
+	return &Transaction{
 		ChartOfAccountsGroupName: c.ChartOfAccountsGroupName,
 		Description:              c.Description,
 		Code:                     c.Code,
@@ -261,19 +252,12 @@ func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *Transaction {
 		Route:                    c.Route,
 		RouteID:                  c.RouteID,
 		Send: Send{
-			Asset: c.Send.Asset,
-			Value: c.Send.Value,
+			Asset:  c.Send.Asset,
+			Value:  c.Send.Value,
+			Source: c.Send.Source,
 			Distribute: Distribute{
-				To: listTo,
+				To: []FromTo{to},
 			},
 		},
 	}
-
-	for i := range c.Send.Source.From {
-		c.Send.Source.From[i].IsFrom = true
-	}
-
-	dsl.Send.Source = c.Send.Source
-
-	return dsl
 }

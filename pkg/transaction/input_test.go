@@ -62,7 +62,7 @@ func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 			name: "input with send and from entries",
 			input: CreateTransactionInput{
 				Description: "Transaction with send",
-				Send: &Send{
+				Send: Send{
 					Asset: "USD",
 					Value: decimal.NewFromInt(1000),
 					Source: Source{
@@ -114,10 +114,9 @@ func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 			},
 		},
 		{
-			name: "input with nil send",
+			name: "input with zero-value send",
 			input: CreateTransactionInput{
 				Description: "No send",
-				Send:        nil,
 			},
 			validate: func(t *testing.T, result *Transaction) {
 				assert.Equal(t, "No send", result.Description)
@@ -153,7 +152,7 @@ func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 			name: "minimal inflow",
 			input: CreateTransactionInflowInput{
 				Description: "Minimal inflow",
-				Send: &SendInflow{
+				Send: SendInflow{
 					Asset: "USD",
 					Value: decimal.NewFromInt(500),
 					Distribute: Distribute{
@@ -197,7 +196,7 @@ func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 				Metadata:                 map[string]any{"source": "external"},
 				Route:                    "inflow-route",
 				TransactionDate:          transactionDate,
-				Send: &SendInflow{
+				Send: SendInflow{
 					Asset: "BRL",
 					Value: decimal.NewFromInt(1000),
 					Distribute: Distribute{
@@ -244,7 +243,7 @@ func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 			name: "inflow with different asset",
 			input: CreateTransactionInflowInput{
 				Description: "EUR inflow",
-				Send: &SendInflow{
+				Send: SendInflow{
 					Asset: "EUR",
 					Value: decimal.NewFromInt(250),
 					Distribute: Distribute{
@@ -295,7 +294,7 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 			name: "minimal outflow",
 			input: CreateTransactionOutflowInput{
 				Description: "Minimal outflow",
-				Send: &SendOutflow{
+				Send: SendOutflow{
 					Asset: "USD",
 					Value: decimal.NewFromInt(500),
 					Source: Source{
@@ -340,7 +339,7 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 				Metadata:                 map[string]any{"destination": "external"},
 				Route:                    "outflow-route",
 				TransactionDate:          transactionDate,
-				Send: &SendOutflow{
+				Send: SendOutflow{
 					Asset: "BRL",
 					Value: decimal.NewFromInt(1000),
 					Source: Source{
@@ -391,7 +390,7 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 			name: "outflow with different asset",
 			input: CreateTransactionOutflowInput{
 				Description: "EUR outflow",
-				Send: &SendOutflow{
+				Send: SendOutflow{
 					Asset: "EUR",
 					Value: decimal.NewFromInt(250),
 					Source: Source{
@@ -419,7 +418,7 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 			input: CreateTransactionOutflowInput{
 				Description: "Non-pending outflow",
 				Pending:     false,
-				Send: &SendOutflow{
+				Send: SendOutflow{
 					Asset: "USD",
 					Value: decimal.NewFromInt(100),
 					Source: Source{
