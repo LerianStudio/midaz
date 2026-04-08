@@ -29,16 +29,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
-
-type transactionScope struct {
-	OrganizationID uuid.UUID
-	LedgerID       uuid.UUID
-	ParentID       uuid.UUID
-}
 
 type transactionIdempotencyState struct {
 	key         string
@@ -46,59 +39,6 @@ type transactionIdempotencyState struct {
 	ttl         time.Duration
 	internalKey *string
 	replay      *transaction.Transaction
-}
-
-func readTransactionScope(c *fiber.Ctx) (*transactionScope, error) {
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return nil, err
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return nil, err
-	}
-
-	parentID := uuid.Nil
-	if c.Locals("transaction_id") != nil {
-		parentID, err = http.GetUUIDFromLocals(c, "transaction_id")
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &transactionScope{
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		ParentID:       parentID,
-	}, nil
-}
-
-func generateTransactionID(ctx context.Context, logger libLog.Logger, span trace.Span) (uuid.UUID, error) {
-	transactionID, err := libCommons.GenerateUUIDv7()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate transaction id: %v", err))
-
-		return uuid.Nil, pkg.InternalServerError{
-			Code:    "INTERNAL_SERVER_ERROR",
-			Title:   "Internal Server Error",
-			Message: "Failed to generate transaction id",
-			Err:     err,
-		}
-	}
-
-	return transactionID, nil
-}
-
-func buildParentTransactionID(parentID uuid.UUID) *string {
-	if parentID == uuid.Nil {
-		return nil
-	}
-
-	parentTransactionID := parentID.String()
-
-	return &parentTransactionID
 }
 
 func (handler *TransactionHandler) HandleAccountFields(entries []pkgTransaction.FromTo, isConcat bool) []pkgTransaction.FromTo {
@@ -805,7 +745,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	_, span := tracer.Start(ctx, "handler.create_transaction")
 	defer span.End()
 
-	scope, err := readTransactionScope(c)
+	scope, err := readPathParams(c)
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -915,7 +855,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	tran := &transaction.Transaction{
 		ID:                       transactionID.String(),
-		ParentTransactionID:      buildParentTransactionID(scope.ParentID),
+		ParentTransactionID:      buildParentTransactionID(scope.TransactionID),
 		OrganizationID:           scope.OrganizationID.String(),
 		LedgerID:                 scope.LedgerID.String(),
 		Description:              transactionInput.Description,
@@ -1065,15 +1005,4 @@ func (handler *TransactionHandler) ApplyDefaultBalanceKeys(entries []pkgTransact
 			entries[i].BalanceKey = constant.DefaultBalanceKey
 		}
 	}
-}
-
-func getAliasWithoutKey(array []string) []string {
-	result := make([]string, len(array))
-
-	for i, str := range array {
-		parts := strings.Split(str, "#")
-		result[i] = parts[0]
-	}
-
-	return result
 }

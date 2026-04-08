@@ -290,32 +290,22 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_transaction")
 	defer span.End()
 
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	scope, err := readPathParams(c)
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	if wbTran, wbErr := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID); wbErr == nil {
+	if wbTran, wbErr := handler.Query.GetWriteBehindTransaction(ctx, scope.OrganizationID, scope.LedgerID, scope.TransactionID); wbErr == nil {
 		c.Set("X-Cache-Hit", "true")
 
 		return http.OK(c, wbTran)
 	}
 
-	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+	tran, err := handler.Query.GetTransactionByID(ctx, scope.OrganizationID, scope.LedgerID, scope.TransactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction on query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error()))
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Transaction with ID: %s, Error: %s", scope.TransactionID.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -333,18 +323,18 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 
 	headerParams.Metadata = &bson.M{}
 
-	tran, err = handler.Query.GetOperationsByTransaction(ctxGetTransaction, organizationID, ledgerID, tran, *headerParams)
+	tran, err = handler.Query.GetOperationsByTransaction(ctxGetTransaction, scope.OrganizationID, scope.LedgerID, tran, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetTransaction, "Failed to retrieve Operations", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Operations with ID: %s, Error: %s", transactionID.String(), err.Error()))
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Operations with ID: %s, Error: %s", scope.TransactionID.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
 	spanGetTransaction.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Transaction with ID: %s", transactionID.String()))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Transaction with ID: %s", scope.TransactionID.String()))
 
 	return http.OK(c, tran)
 }
