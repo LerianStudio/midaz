@@ -290,22 +290,28 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_transaction")
 	defer span.End()
 
-	scope, err := readPathParams(c)
+	params, err := readPathParams(c)
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	if wbTran, wbErr := handler.Query.GetWriteBehindTransaction(ctx, scope.OrganizationID, scope.LedgerID, scope.TransactionID); wbErr == nil {
+	if wbTran, wbErr := handler.Query.GetWriteBehindTransaction(ctx, params.OrganizationID, params.LedgerID, params.TransactionID); wbErr == nil {
 		c.Set("X-Cache-Hit", "true")
 
 		return http.OK(c, wbTran)
+	} else {
+		logger.Log(ctx, libLog.LevelDebug, "Write-behind cache miss, falling back to database",
+			libLog.String("transaction_id", params.TransactionID.String()), libLog.Err(wbErr))
 	}
 
-	tran, err := handler.Query.GetTransactionByID(ctx, scope.OrganizationID, scope.LedgerID, scope.TransactionID)
+	c.Set("X-Cache-Hit", "false")
+
+	tran, err := handler.Query.GetTransactionByID(ctx, params.OrganizationID, params.LedgerID, params.TransactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction on query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Transaction with ID: %s, Error: %s", scope.TransactionID.String(), err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to retrieve transaction",
+			libLog.String("transaction_id", params.TransactionID.String()), libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
@@ -315,26 +321,26 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to validate query parameters", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
 
 	headerParams.Metadata = &bson.M{}
 
-	tran, err = handler.Query.GetOperationsByTransaction(ctxGetTransaction, scope.OrganizationID, scope.LedgerID, tran, *headerParams)
+	tran, err = handler.Query.GetOperationsByTransaction(ctxGetTransaction, params.OrganizationID, params.LedgerID, tran, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetTransaction, "Failed to retrieve Operations", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Operations with ID: %s, Error: %s", scope.TransactionID.String(), err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to retrieve operations",
+			libLog.String("transaction_id", params.TransactionID.String()), libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
 
 	spanGetTransaction.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Transaction with ID: %s", scope.TransactionID.String()))
+	logger.Log(ctx, libLog.LevelInfo, "Transaction retrieved",
+		libLog.String("transaction_id", params.TransactionID.String()))
 
 	return http.OK(c, tran)
 }

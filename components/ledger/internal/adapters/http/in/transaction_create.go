@@ -745,7 +745,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	_, span := tracer.Start(ctx, "handler.create_transaction")
 	defer span.End()
 
-	scope, err := readPathParams(c)
+	params, err := readPathParams(c)
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -790,7 +790,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		fromTo = append(fromTo, to...)
 	}
 
-	idempotencyState, err := handler.prepareIdempotency(ctx, c, scope.OrganizationID, scope.LedgerID, transactionInput)
+	idempotencyState, err := handler.prepareIdempotency(ctx, c, params.OrganizationID, params.LedgerID, transactionInput)
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -812,7 +812,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		return http.WithError(c, err)
 	}
 
-	ledgerSettings := handler.Query.GetParsedLedgerSettings(ctx, scope.OrganizationID, scope.LedgerID)
+	ledgerSettings := handler.Query.GetParsedLedgerSettings(ctx, params.OrganizationID, params.LedgerID)
 	if ledgerSettings.Accounting.ValidateRoutes {
 		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
 	}
@@ -823,14 +823,14 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		action = actionOverride[0]
 	}
 
-	err = handler.sendTransactionToRedisQueue(ctx, scope.OrganizationID, scope.LedgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, idempotencyState.internalKey)
+	err = handler.sendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, idempotencyState.internalKey)
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
-	balancesBefore, balancesAfter, routeCache, err := handler.Query.GetBalances(ctx, scope.OrganizationID, scope.LedgerID, transactionID, &transactionInput, validate, transactionStatus, action)
+	balancesBefore, balancesAfter, routeCache, err := handler.Query.GetBalances(ctx, params.OrganizationID, params.LedgerID, transactionID, &transactionInput, validate, transactionStatus, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetBalances, "Failed to get balances", err)
 
@@ -838,7 +838,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 		handler.deleteIdempotencyKey(ctx, idempotencyState.internalKey)
 
-		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, scope.OrganizationID, scope.LedgerID, transactionID.String())
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
 		spanGetBalances.End()
 
 		return http.WithError(c, err)
@@ -855,9 +855,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	tran := &transaction.Transaction{
 		ID:                       transactionID.String(),
-		ParentTransactionID:      buildParentTransactionID(scope.TransactionID),
-		OrganizationID:           scope.OrganizationID.String(),
-		LedgerID:                 scope.LedgerID.String(),
+		ParentTransactionID:      buildParentTransactionID(params.TransactionID),
+		OrganizationID:           params.OrganizationID.String(),
+		LedgerID:                 params.LedgerID.String(),
 		Description:              transactionInput.Description,
 		Amount:                   &transactionInput.Send.Value,
 		AssetCode:                transactionInput.Send.Asset,
@@ -886,7 +886,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
 
-	handler.Command.UpdateTransactionBackupOperations(ctx, scope.OrganizationID, scope.LedgerID, transactionID.String(), operations, action)
+	handler.Command.UpdateTransactionBackupOperations(ctx, params.OrganizationID, params.LedgerID, transactionID.String(), operations, action)
 
 	originalStatus := tran.Status
 
@@ -895,9 +895,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		tran.Status = transaction.Status{Code: approved, Description: &approved}
 	}
 
-	handler.Command.CreateWriteBehindTransaction(ctx, scope.OrganizationID, scope.LedgerID, tran, transactionInput)
+	handler.Command.CreateWriteBehindTransaction(ctx, params.OrganizationID, params.LedgerID, tran, transactionInput)
 
-	err = handler.Command.WriteTransaction(ctx, scope.OrganizationID, scope.LedgerID, &transactionInput, validate, balancesBefore, balancesAfter, tran)
+	err = handler.Command.WriteTransaction(ctx, params.OrganizationID, params.LedgerID, &transactionInput, validate, balancesBefore, balancesAfter, tran)
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
 
@@ -910,9 +910,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	tran.Status = originalStatus
 
-	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, scope.OrganizationID, scope.LedgerID, idempotencyState.key, idempotencyState.hash, *tran, idempotencyState.ttl)
+	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, params.OrganizationID, params.LedgerID, idempotencyState.key, idempotencyState.hash, *tran, idempotencyState.ttl)
 
-	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, scope.OrganizationID, scope.LedgerID, tran.IDtoUUID())
+	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, params.OrganizationID, params.LedgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
 }
