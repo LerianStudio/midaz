@@ -60,31 +60,6 @@ func (handler *TransactionHandler) HandleAccountFields(entries []pkgTransaction.
 	return result
 }
 
-func (handler *TransactionHandler) checkTransactionDate(ctx context.Context, logger libLog.Logger, transactionInput pkgTransaction.Transaction, transactionStatus string) (time.Time, error) {
-	now := time.Now()
-	transactionDate := now
-
-	if transactionInput.TransactionDate != nil && !transactionInput.TransactionDate.IsZero() {
-		if transactionInput.TransactionDate.After(now) {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidFutureTransactionDate, "validateTransactionDate")
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("transaction date cannot be a future date: %v", err.Error()))
-
-			return time.Time{}, err
-		} else if transactionStatus == constant.PENDING {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidPendingFutureTransactionDate, "validateTransactionDate")
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("pending transaction cannot be used together a transaction date: %v", err.Error()))
-
-			return time.Time{}, err
-		} else {
-			transactionDate = transactionInput.TransactionDate.Time()
-		}
-	}
-
-	return transactionDate, nil
-}
-
 func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
 	balances []*mmodel.Balance,
@@ -760,7 +735,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	c.Set(libConstants.IdempotencyReplayed, "false")
 
-	transactionDate, err := handler.checkTransactionDate(ctx, logger, transactionInput, transactionStatus)
+	transactionDate, err := checkTransactionDate(ctx, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to check transaction date", err)
 

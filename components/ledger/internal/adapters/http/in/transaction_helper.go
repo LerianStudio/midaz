@@ -5,9 +5,17 @@
 package in
 
 import (
+	"context"
 	"strings"
+	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -72,4 +80,33 @@ func getAliasWithoutKey(array []string) []string {
 	}
 
 	return result
+}
+
+// checkTransactionDate validates and resolves the transaction date.
+// Returns time.Now() when no date is provided. Rejects future dates
+// and dates combined with pending status.
+func checkTransactionDate(ctx context.Context, transactionInput pkgTransaction.Transaction, transactionStatus string) (time.Time, error) {
+	now := time.Now()
+
+	if transactionInput.TransactionDate == nil || transactionInput.TransactionDate.IsZero() {
+		return now, nil
+	}
+
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	if transactionInput.TransactionDate.After(now) {
+		err := pkg.ValidateBusinessError(constant.ErrInvalidFutureTransactionDate, constant.EntityTransaction)
+		logger.Log(ctx, libLog.LevelWarn, "Transaction date cannot be a future date", libLog.Err(err))
+
+		return time.Time{}, err
+	}
+
+	if transactionStatus == constant.PENDING {
+		err := pkg.ValidateBusinessError(constant.ErrInvalidPendingFutureTransactionDate, constant.EntityTransaction)
+		logger.Log(ctx, libLog.LevelWarn, "Pending transaction cannot have a custom transaction date", libLog.Err(err))
+
+		return time.Time{}, err
+	}
+
+	return transactionInput.TransactionDate.Time(), nil
 }
