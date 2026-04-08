@@ -737,9 +737,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	transactionDate, err := checkTransactionDate(ctx, transactionInput, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to check transaction date", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to check transaction date: %v", err))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction date validation failed", err)
 
 		return http.WithError(c, err)
 	}
