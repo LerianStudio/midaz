@@ -5513,7 +5513,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+              $ref: '#/components/schemas/CreateTransactionInput'
         description: Transaction Input
         required: true
       responses:
@@ -5667,7 +5667,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel'
+              $ref: '#/components/schemas/CreateTransactionInflowInput'
         description: Transaction Input
         required: true
       responses:
@@ -5742,7 +5742,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+              $ref: '#/components/schemas/CreateTransactionInput'
         description: Transaction Input
         required: true
       responses:
@@ -5911,7 +5911,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel'
+              $ref: '#/components/schemas/CreateTransactionOutflowInput'
         description: Transaction Input
         required: true
       responses:
@@ -6929,16 +6929,15 @@ components:
         credit:
           allOf:
           - $ref: '#/components/schemas/AccountingRubric'
-          description: The credit rubric for this entry.
+          description: The credit rubric for this entry. Required based on operationType/scenario
+            matrix.
           type: object
         debit:
           allOf:
           - $ref: '#/components/schemas/AccountingRubric'
-          description: The debit rubric for this entry.
+          description: The debit rubric for this entry. Required based on operationType/scenario
+            matrix.
           type: object
-      required:
-      - credit
-      - debit
       type: object
     AccountingRubric:
       description: AccountingRubric object containing the code and description for
@@ -7978,190 +7977,11 @@ components:
       required:
       - name
       type: object
-    CreateTransactionInflowSwaggerModel:
-      description: Schema for creating inflow transaction with the complete SendInflow
-        operation structure defined inline
-      example:
-        metadata:
-          key: '{}'
-        code: code
-        route: 00000000-0000-0000-0000-000000000000
-        routeId: 00000000-0000-0000-0000-000000000000
-        description: description
-        transactionDate: 2021-01-01T00:00:00Z
-        chartOfAccountsGroupName: chartOfAccountsGroupName
-        send:
-          distribute:
-            to:
-            - accountAlias: accountAlias
-              amount:
-                asset: asset
-                value: value
-              metadata:
-                key: '{}'
-              chartOfAccounts: chartOfAccounts
-              description: description
-            - accountAlias: accountAlias
-              amount:
-                asset: asset
-                value: value
-              metadata:
-                key: '{}'
-              chartOfAccounts: chartOfAccounts
-              description: description
-          asset: asset
-          value: value
-      properties:
-        chartOfAccountsGroupName:
-          description: |-
-            Chart of accounts group name for accounting purposes
-            example: FUNDING
-            maxLength: 256
-          type: string
-        code:
-          description: |-
-            Transaction code for reference
-            example: TR12345
-            maxLength: 100
-          type: string
-        description:
-          description: |-
-            Human-readable description of the transaction
-            example: New Inflow Transaction
-            maxLength: 256
-          type: string
-        metadata:
-          additionalProperties:
-            type: object
-          description: |-
-            Additional custom attributes
-            example: {"reference": "TRANSACTION-001", "source": "api"}
-          type: object
-        route:
-          description: |-
-            Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
-            example: 00000000-0000-0000-0000-000000000000
-            maxLength: 250
-            deprecated: true
-          example: 00000000-0000-0000-0000-000000000000
-          maxLength: 250
-          type: string
-        routeId:
-          description: |-
-            UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
-        send:
-          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send'
-        transactionDate:
-          description: |-
-            TransactionDate Period from transaction creation date until now
-            Example "2021-01-01T00:00:00Z"
-            swagger: type string
-            required: false
-          example: 2021-01-01T00:00:00Z
-          format: date-time
-          type: string
+    CreateTransactionInflowInput:
       type: object
-    CreateTransactionOutflowSwaggerModel:
-      description: Schema for creating outflow transaction with the complete SendOutflow
-        operation structure defined inline
-      example:
-        metadata:
-          key: '{}'
-        code: code
-        route: 00000000-0000-0000-0000-000000000000
-        routeId: 00000000-0000-0000-0000-000000000000
-        pending: true
-        description: description
-        transactionDate: 2021-01-01T00:00:00Z
-        chartOfAccountsGroupName: chartOfAccountsGroupName
-        send:
-          source:
-            from:
-            - accountAlias: accountAlias
-              amount:
-                asset: asset
-                value: value
-              metadata:
-                key: '{}'
-              chartOfAccounts: chartOfAccounts
-              description: description
-            - accountAlias: accountAlias
-              amount:
-                asset: asset
-                value: value
-              metadata:
-                key: '{}'
-              chartOfAccounts: chartOfAccounts
-              description: description
-          asset: asset
-          value: value
-      properties:
-        chartOfAccountsGroupName:
-          description: |-
-            Chart of accounts group name for accounting purposes
-            example: WITHDRAWAL
-            maxLength: 256
-          type: string
-        code:
-          description: |-
-            Transaction code for reference
-            example: TR12345
-            maxLength: 100
-          type: string
-        description:
-          description: |-
-            Human-readable description of the transaction
-            example: New Outflow Transaction
-            maxLength: 256
-          type: string
-        metadata:
-          additionalProperties:
-            type: object
-          description: |-
-            Additional custom attributes
-            example: {"reference": "TRANSACTION-001", "source": "api"}
-          type: object
-        pending:
-          default: false
-          description: |-
-            Whether the transaction should be created in pending state
-            example: true
-            swagger: type boolean
-          example: true
-          type: boolean
-        route:
-          description: |-
-            Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
-            example: 00000000-0000-0000-0000-000000000000
-            maxLength: 250
-            deprecated: true
-          example: 00000000-0000-0000-0000-000000000000
-          maxLength: 250
-          type: string
-        routeId:
-          description: |-
-            UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
-        send:
-          $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send'
-        transactionDate:
-          description: |-
-            TransactionDate Period from transaction creation date until now
-            Example "2021-01-01T00:00:00Z"
-            swagger: type string
-            required: false
-          example: 2021-01-01T00:00:00Z
-          format: date-time
-          type: string
+    CreateTransactionInput:
+      type: object
+    CreateTransactionOutflowInput:
       type: object
     CreateTransactionRouteInput:
       description: CreateTransactionRouteInput payload
@@ -9709,72 +9529,6 @@ components:
           maxLength: 255
           type: string
       type: object
-    github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
-      description: Schema for creating transaction with the complete Send operation
-        structure defined inline
-      properties:
-        chartOfAccountsGroupName:
-          description: |-
-            Chart of accounts group name for accounting purposes
-            example: FUNDING
-            maxLength: 256
-          type: string
-        code:
-          description: |-
-            Transaction code for reference
-            example: TR12345
-            maxLength: 100
-          type: string
-        description:
-          description: |-
-            Human-readable description of the transaction
-            example: New Transaction
-            maxLength: 256
-          type: string
-        metadata:
-          additionalProperties:
-            type: object
-          description: |-
-            Additional custom attributes
-            example: {"reference": "TRANSACTION-001", "source": "api"}
-          type: object
-        pending:
-          default: false
-          description: |-
-            Whether the transaction should be created in pending state
-            example: true
-            swagger: type boolean
-          example: true
-          type: boolean
-        route:
-          description: |-
-            Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
-            example: 00000000-0000-0000-0000-000000000000
-            maxLength: 250
-            deprecated: true
-          example: 00000000-0000-0000-0000-000000000000
-          maxLength: 250
-          type: string
-        routeId:
-          description: |-
-            UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
-        send:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send'
-        transactionDate:
-          description: |-
-            TransactionDate Period from transaction creation date until now
-            Example "2021-01-01T00:00:00Z"
-            swagger: type string
-            required: false
-          example: 2021-01-01T00:00:00Z
-          format: date-time
-          type: string
-      type: object
     http.Pagination:
       example:
         prev_cursor: prev_cursor
@@ -10748,307 +10502,5 @@ components:
           items:
             $ref: '#/components/schemas/Transaction'
           type: array
-      type: object
-    CreateTransactionInflowSwaggerModel_send_distribute_amount:
-      description: |-
-        Amount details for the operation
-        required: true
-      example:
-        asset: asset
-        value: value
-      properties:
-        asset:
-          description: |-
-            Asset code
-            example: USD
-            required: true
-          type: string
-        value:
-          description: |-
-            Amount value in smallest unit
-            example: "100.00"
-            required: true
-          type: string
-      type: object
-    CreateTransactionInflowSwaggerModel_send_distribute_to:
-      example:
-        accountAlias: accountAlias
-        amount:
-          asset: asset
-          value: value
-        metadata:
-          key: '{}'
-        chartOfAccounts: chartOfAccounts
-        description: description
-      properties:
-        accountAlias:
-          description: |-
-            Account identifier or alias
-            example: @myAccount
-            required: true
-          type: string
-        amount:
-          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
-        chartOfAccounts:
-          description: |-
-            Chart of accounts code
-            example: FUNDING_CREDIT
-          type: string
-        description:
-          description: |-
-            Operation description
-            example: Credit Operation
-          type: string
-        metadata:
-          additionalProperties:
-            type: object
-          description: |-
-            Additional metadata
-            example: {"operation": "funding", "type": "account"}
-          type: object
-      type: object
-    CreateTransactionInflowSwaggerModel_send_distribute:
-      description: |-
-        Destination accounts and amounts for the transaction
-        required: true
-      example:
-        to:
-        - accountAlias: accountAlias
-          amount:
-            asset: asset
-            value: value
-          metadata:
-            key: '{}'
-          chartOfAccounts: chartOfAccounts
-          description: description
-        - accountAlias: accountAlias
-          amount:
-            asset: asset
-            value: value
-          metadata:
-            key: '{}'
-          chartOfAccounts: chartOfAccounts
-          description: description
-      properties:
-        to:
-          description: |-
-            List of destination operations
-            required: true
-          items:
-            $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_to'
-          type: array
-      type: object
-    CreateTransactionInflowSwaggerModel_send:
-      description: |-
-        Send operation details including distribution only
-        required: true
-      example:
-        distribute:
-          to:
-          - accountAlias: accountAlias
-            amount:
-              asset: asset
-              value: value
-            metadata:
-              key: '{}'
-            chartOfAccounts: chartOfAccounts
-            description: description
-          - accountAlias: accountAlias
-            amount:
-              asset: asset
-              value: value
-            metadata:
-              key: '{}'
-            chartOfAccounts: chartOfAccounts
-            description: description
-        asset: asset
-        value: value
-      properties:
-        asset:
-          description: |-
-            Asset code for the transaction
-            example: USD
-            required: true
-          type: string
-        distribute:
-          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute'
-        value:
-          description: |-
-            Transaction amount value in the smallest unit of the asset
-            example: "100.00"
-            required: true
-          type: string
-      type: object
-    CreateTransactionOutflowSwaggerModel_send_source_from:
-      example:
-        accountAlias: accountAlias
-        amount:
-          asset: asset
-          value: value
-        metadata:
-          key: '{}'
-        chartOfAccounts: chartOfAccounts
-        description: description
-      properties:
-        accountAlias:
-          description: |-
-            Account identifier or alias
-            example: @myAccount
-            required: true
-          type: string
-        amount:
-          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
-        chartOfAccounts:
-          description: |-
-            Chart of accounts code
-            example: WITHDRAWAL_DEBIT
-          type: string
-        description:
-          description: |-
-            Operation description
-            example: Debit Operation
-          type: string
-        metadata:
-          additionalProperties:
-            type: object
-          description: |-
-            Additional metadata
-            example: {"operation": "withdrawal", "type": "account"}
-          type: object
-      type: object
-    CreateTransactionOutflowSwaggerModel_send_source:
-      description: |-
-        Source accounts and amounts for the transaction
-        required: true
-      example:
-        from:
-        - accountAlias: accountAlias
-          amount:
-            asset: asset
-            value: value
-          metadata:
-            key: '{}'
-          chartOfAccounts: chartOfAccounts
-          description: description
-        - accountAlias: accountAlias
-          amount:
-            asset: asset
-            value: value
-          metadata:
-            key: '{}'
-          chartOfAccounts: chartOfAccounts
-          description: description
-      properties:
-        from:
-          description: |-
-            List of source operations
-            required: true
-          items:
-            $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send_source_from'
-          type: array
-      type: object
-    CreateTransactionOutflowSwaggerModel_send:
-      description: |-
-        Send operation details including source only
-        required: true
-      example:
-        source:
-          from:
-          - accountAlias: accountAlias
-            amount:
-              asset: asset
-              value: value
-            metadata:
-              key: '{}'
-            chartOfAccounts: chartOfAccounts
-            description: description
-          - accountAlias: accountAlias
-            amount:
-              asset: asset
-              value: value
-            metadata:
-              key: '{}'
-            chartOfAccounts: chartOfAccounts
-            description: description
-        asset: asset
-        value: value
-      properties:
-        asset:
-          description: |-
-            Asset code for the transaction
-            example: USD
-            required: true
-          type: string
-        source:
-          $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send_source'
-        value:
-          description: |-
-            Transaction amount value in the smallest unit of the asset
-            example: "100.00"
-            required: true
-          type: string
-      type: object
-    ? github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from
-    : properties:
-        accountAlias:
-          description: |-
-            Account identifier or alias
-            example: @external/USD
-            required: true
-          type: string
-        amount:
-          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
-        chartOfAccounts:
-          description: |-
-            Chart of accounts code
-            example: FUNDING_DEBIT
-          type: string
-        description:
-          description: |-
-            Operation description
-            example: Debit Operation
-          type: string
-        metadata:
-          additionalProperties:
-            type: object
-          description: |-
-            Additional metadata
-            example: {"operation": "funding", "type": "external"}
-          type: object
-      type: object
-    ? github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source
-    : description: |-
-        Source accounts and amounts for the transaction
-        required: true
-      properties:
-        from:
-          description: |-
-            List of source operations
-            required: true
-          items:
-            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from'
-          type: array
-      type: object
-    github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send:
-      description: |-
-        Send operation details including source and distribution
-        required: true
-      properties:
-        asset:
-          description: |-
-            Asset code for the transaction
-            example: USD
-            required: true
-          type: string
-        distribute:
-          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute'
-        source:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source'
-        value:
-          description: |-
-            Transaction amount value in the smallest unit of the asset
-            example: "100.00"
-            required: true
-          type: string
       type: object
 x-original-swagger-version: "2.0"

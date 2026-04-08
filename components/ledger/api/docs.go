@@ -6727,7 +6727,7 @@ const docTemplate = `
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
+              "$ref": "#/definitions/CreateTransactionInput"
             }
           }
         ],
@@ -6907,7 +6907,7 @@ const docTemplate = `
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/CreateTransactionInflowSwaggerModel"
+              "$ref": "#/definitions/CreateTransactionInflowInput"
             }
           }
         ],
@@ -6998,7 +6998,7 @@ const docTemplate = `
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
+              "$ref": "#/definitions/CreateTransactionInput"
             }
           }
         ],
@@ -7197,7 +7197,7 @@ const docTemplate = `
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/CreateTransactionOutflowSwaggerModel"
+              "$ref": "#/definitions/CreateTransactionOutflowInput"
             }
           }
         ],
@@ -8316,13 +8316,9 @@ const docTemplate = `
     "AccountingEntry": {
       "description": "AccountingEntry object containing debit and credit rubrics for a specific action.",
       "type": "object",
-      "required": [
-        "credit",
-        "debit"
-      ],
       "properties": {
         "credit": {
-          "description": "The credit rubric for this entry.",
+          "description": "The credit rubric for this entry. Required based on operationType/scenario matrix.",
           "allOf": [
             {
               "$ref": "#/definitions/AccountingRubric"
@@ -8330,7 +8326,7 @@ const docTemplate = `
           ]
         },
         "debit": {
-          "description": "The debit rubric for this entry.",
+          "description": "The debit rubric for this entry. Required based on operationType/scenario matrix.",
           "allOf": [
             {
               "$ref": "#/definitions/AccountingRubric"
@@ -9147,213 +9143,14 @@ const docTemplate = `
         }
       }
     },
-    "CreateTransactionInflowSwaggerModel": {
-      "description": "Schema for creating inflow transaction with the complete SendInflow operation structure defined inline",
-      "type": "object",
-      "properties": {
-        "chartOfAccountsGroupName": {
-          "description": "Chart of accounts group name for accounting purposes\nexample: FUNDING\nmaxLength: 256",
-          "type": "string"
-        },
-        "code": {
-          "description": "Transaction code for reference\nexample: TR12345\nmaxLength: 100",
-          "type": "string"
-        },
-        "description": {
-          "description": "Human-readable description of the transaction\nexample: New Inflow Transaction\nmaxLength: 256",
-          "type": "string"
-        },
-        "metadata": {
-          "description": "Additional custom attributes\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}",
-          "type": "object",
-          "additionalProperties": {}
-        },
-        "route": {
-          "description": "Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
-          "type": "string",
-          "maxLength": 250,
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "routeId": {
-          "description": "UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "send": {
-          "description": "Send operation details including distribution only\nrequired: true",
-          "type": "object",
-          "properties": {
-            "asset": {
-              "description": "Asset code for the transaction\nexample: USD\nrequired: true",
-              "type": "string"
-            },
-            "distribute": {
-              "description": "Destination accounts and amounts for the transaction\nrequired: true",
-              "type": "object",
-              "properties": {
-                "to": {
-                  "description": "List of destination operations\nrequired: true",
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "accountAlias": {
-                        "description": "Account identifier or alias\nexample: @myAccount\nrequired: true",
-                        "type": "string"
-                      },
-                      "amount": {
-                        "description": "Amount details for the operation\nrequired: true",
-                        "type": "object",
-                        "properties": {
-                          "asset": {
-                            "description": "Asset code\nexample: USD\nrequired: true",
-                            "type": "string"
-                          },
-                          "value": {
-                            "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "chartOfAccounts": {
-                        "description": "Chart of accounts code\nexample: FUNDING_CREDIT",
-                        "type": "string"
-                      },
-                      "description": {
-                        "description": "Operation description\nexample: Credit Operation",
-                        "type": "string"
-                      },
-                      "metadata": {
-                        "description": "Additional metadata\nexample: {\"operation\": \"funding\", \"type\": \"account\"}",
-                        "type": "object",
-                        "additionalProperties": {}
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "value": {
-              "description": "Transaction amount value in the smallest unit of the asset\nexample: \"100.00\"\nrequired: true",
-              "type": "string"
-            }
-          }
-        },
-        "transactionDate": {
-          "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        }
-      }
+    "CreateTransactionInflowInput": {
+      "type": "object"
     },
-    "CreateTransactionOutflowSwaggerModel": {
-      "description": "Schema for creating outflow transaction with the complete SendOutflow operation structure defined inline",
-      "type": "object",
-      "properties": {
-        "chartOfAccountsGroupName": {
-          "description": "Chart of accounts group name for accounting purposes\nexample: WITHDRAWAL\nmaxLength: 256",
-          "type": "string"
-        },
-        "code": {
-          "description": "Transaction code for reference\nexample: TR12345\nmaxLength: 100",
-          "type": "string"
-        },
-        "description": {
-          "description": "Human-readable description of the transaction\nexample: New Outflow Transaction\nmaxLength: 256",
-          "type": "string"
-        },
-        "metadata": {
-          "description": "Additional custom attributes\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}",
-          "type": "object",
-          "additionalProperties": {}
-        },
-        "pending": {
-          "description": "Whether the transaction should be created in pending state\nexample: true\nswagger: type boolean",
-          "type": "boolean",
-          "default": false,
-          "example": true
-        },
-        "route": {
-          "description": "Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
-          "type": "string",
-          "maxLength": 250,
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "routeId": {
-          "description": "UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "send": {
-          "description": "Send operation details including source only\nrequired: true",
-          "type": "object",
-          "properties": {
-            "asset": {
-              "description": "Asset code for the transaction\nexample: USD\nrequired: true",
-              "type": "string"
-            },
-            "source": {
-              "description": "Source accounts and amounts for the transaction\nrequired: true",
-              "type": "object",
-              "properties": {
-                "from": {
-                  "description": "List of source operations\nrequired: true",
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "accountAlias": {
-                        "description": "Account identifier or alias\nexample: @myAccount\nrequired: true",
-                        "type": "string"
-                      },
-                      "amount": {
-                        "description": "Amount details for the operation\nrequired: true",
-                        "type": "object",
-                        "properties": {
-                          "asset": {
-                            "description": "Asset code\nexample: USD\nrequired: true",
-                            "type": "string"
-                          },
-                          "value": {
-                            "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "chartOfAccounts": {
-                        "description": "Chart of accounts code\nexample: WITHDRAWAL_DEBIT",
-                        "type": "string"
-                      },
-                      "description": {
-                        "description": "Operation description\nexample: Debit Operation",
-                        "type": "string"
-                      },
-                      "metadata": {
-                        "description": "Additional metadata\nexample: {\"operation\": \"withdrawal\", \"type\": \"account\"}",
-                        "type": "object",
-                        "additionalProperties": {}
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "value": {
-              "description": "Transaction amount value in the smallest unit of the asset\nexample: \"100.00\"\nrequired: true",
-              "type": "string"
-            }
-          }
-        },
-        "transactionDate": {
-          "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        }
-      }
+    "CreateTransactionInput": {
+      "type": "object"
+    },
+    "CreateTransactionOutflowInput": {
+      "type": "object"
     },
     "CreateTransactionRouteInput": {
       "description": "CreateTransactionRouteInput payload",
@@ -10549,159 +10346,6 @@ const docTemplate = `
           "type": "string",
           "maxLength": 255,
           "example": "Charge Settlement"
-        }
-      }
-    },
-    "github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel": {
-      "description": "Schema for creating transaction with the complete Send operation structure defined inline",
-      "type": "object",
-      "properties": {
-        "chartOfAccountsGroupName": {
-          "description": "Chart of accounts group name for accounting purposes\nexample: FUNDING\nmaxLength: 256",
-          "type": "string"
-        },
-        "code": {
-          "description": "Transaction code for reference\nexample: TR12345\nmaxLength: 100",
-          "type": "string"
-        },
-        "description": {
-          "description": "Human-readable description of the transaction\nexample: New Transaction\nmaxLength: 256",
-          "type": "string"
-        },
-        "metadata": {
-          "description": "Additional custom attributes\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}",
-          "type": "object",
-          "additionalProperties": {}
-        },
-        "pending": {
-          "description": "Whether the transaction should be created in pending state\nexample: true\nswagger: type boolean",
-          "type": "boolean",
-          "default": false,
-          "example": true
-        },
-        "route": {
-          "description": "Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
-          "type": "string",
-          "maxLength": 250,
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "routeId": {
-          "description": "UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "send": {
-          "description": "Send operation details including source and distribution\nrequired: true",
-          "type": "object",
-          "properties": {
-            "asset": {
-              "description": "Asset code for the transaction\nexample: USD\nrequired: true",
-              "type": "string"
-            },
-            "distribute": {
-              "description": "Destination accounts and amounts for the transaction\nrequired: true",
-              "type": "object",
-              "properties": {
-                "to": {
-                  "description": "List of destination operations\nrequired: true",
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "accountAlias": {
-                        "description": "Account identifier or alias\nexample: @myAccount\nrequired: true",
-                        "type": "string"
-                      },
-                      "amount": {
-                        "description": "Amount details for the operation\nrequired: true",
-                        "type": "object",
-                        "properties": {
-                          "asset": {
-                            "description": "Asset code\nexample: USD\nrequired: true",
-                            "type": "string"
-                          },
-                          "value": {
-                            "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "chartOfAccounts": {
-                        "description": "Chart of accounts code\nexample: FUNDING_CREDIT",
-                        "type": "string"
-                      },
-                      "description": {
-                        "description": "Operation description\nexample: Credit Operation",
-                        "type": "string"
-                      },
-                      "metadata": {
-                        "description": "Additional metadata\nexample: {\"operation\": \"funding\", \"type\": \"account\"}",
-                        "type": "object",
-                        "additionalProperties": {}
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "source": {
-              "description": "Source accounts and amounts for the transaction\nrequired: true",
-              "type": "object",
-              "properties": {
-                "from": {
-                  "description": "List of source operations\nrequired: true",
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "accountAlias": {
-                        "description": "Account identifier or alias\nexample: @external/USD\nrequired: true",
-                        "type": "string"
-                      },
-                      "amount": {
-                        "description": "Amount details for the operation\nrequired: true",
-                        "type": "object",
-                        "properties": {
-                          "asset": {
-                            "description": "Asset code\nexample: USD\nrequired: true",
-                            "type": "string"
-                          },
-                          "value": {
-                            "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "chartOfAccounts": {
-                        "description": "Chart of accounts code\nexample: FUNDING_DEBIT",
-                        "type": "string"
-                      },
-                      "description": {
-                        "description": "Operation description\nexample: Debit Operation",
-                        "type": "string"
-                      },
-                      "metadata": {
-                        "description": "Additional metadata\nexample: {\"operation\": \"funding\", \"type\": \"external\"}",
-                        "type": "object",
-                        "additionalProperties": {}
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "value": {
-              "description": "Transaction amount value in the smallest unit of the asset\nexample: \"100.00\"\nrequired: true",
-              "type": "string"
-            }
-          }
-        },
-        "transactionDate": {
-          "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
         }
       }
     },
