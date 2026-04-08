@@ -22,6 +22,7 @@ import (
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 
 	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 type TransactionHandler struct {
@@ -261,4 +262,89 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	recordSafePayloadAttributes(span, transactionInput.Send)
 
 	return handler.createTransaction(c, transactionInput, transactionInput.InitialStatus())
+}
+
+// GetTransaction method that get transaction created before
+//
+//	@Summary		Get a Transaction by ID
+//	@Description	Get a Transaction with the input ID
+//	@Tags			Transactions
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			transaction_id	path		string	true	"Transaction ID"
+//	@Success		200				{object}	Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [get]
+func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_transaction")
+	defer span.End()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	if wbTran, wbErr := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID); wbErr == nil {
+		c.Set("X-Cache-Hit", "true")
+
+		return http.OK(c, wbTran)
+	}
+
+	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction on query", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error()))
+
+		return http.WithError(c, err)
+	}
+
+	ctxGetTransaction, spanGetTransaction := tracer.Start(ctx, "handler.get_transaction.get_operations")
+
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
+
+		return http.WithError(c, err)
+	}
+
+	headerParams.Metadata = &bson.M{}
+
+	tran, err = handler.Query.GetOperationsByTransaction(ctxGetTransaction, organizationID, ledgerID, tran, *headerParams)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetTransaction, "Failed to retrieve Operations", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Operations with ID: %s, Error: %s", transactionID.String(), err.Error()))
+
+		return http.WithError(c, err)
+	}
+
+	spanGetTransaction.End()
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Transaction with ID: %s", transactionID.String()))
+
+	return http.OK(c, tran)
 }
