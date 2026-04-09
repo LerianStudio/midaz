@@ -356,13 +356,15 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 
 	var parentTransactionID *string
 
+	amount := m.TransactionInput.Send.Value
+
 	tran := &postgreTransaction.Transaction{
 		ID:                       m.TransactionID.String(),
 		ParentTransactionID:      parentTransactionID,
 		OrganizationID:           m.OrganizationID.String(),
 		LedgerID:                 m.LedgerID.String(),
 		Description:              m.TransactionInput.Description,
-		Amount:                   &m.TransactionInput.Send.Value,
+		Amount:                   &amount,
 		AssetCode:                m.TransactionInput.Send.Asset,
 		ChartOfAccountsGroupName: m.TransactionInput.ChartOfAccountsGroupName,
 		CreatedAt:                m.TransactionDate,

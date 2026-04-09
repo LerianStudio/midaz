@@ -808,13 +808,15 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		fromTo = append(fromTo, to...)
 	}
 
+	amount := transactionInput.Send.Value
+
 	tran := &transaction.Transaction{
 		ID:                       transactionID.String(),
 		ParentTransactionID:      buildParentTransactionID(params.TransactionID),
 		OrganizationID:           params.OrganizationID.String(),
 		LedgerID:                 params.LedgerID.String(),
 		Description:              transactionInput.Description,
-		Amount:                   &transactionInput.Send.Value,
+		Amount:                   &amount,
 		AssetCode:                transactionInput.Send.Asset,
 		ChartOfAccountsGroupName: transactionInput.ChartOfAccountsGroupName,
 		CreatedAt:                transactionDate,

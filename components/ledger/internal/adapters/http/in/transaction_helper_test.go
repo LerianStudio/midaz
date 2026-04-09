@@ -130,7 +130,7 @@ func TestApplyDefaultBalanceKeys(t *testing.T) {
 		{AccountAlias: "@destination", BalanceKey: "custom-key"},
 	}
 
-	applyDefaultBalanceKeys(entries)
+	pkgTransaction.ApplyDefaultBalanceKeys(entries)
 
 	assert.Equal(t, constant.DefaultBalanceKey, entries[0].BalanceKey)
 	assert.Equal(t, "custom-key", entries[1].BalanceKey)
