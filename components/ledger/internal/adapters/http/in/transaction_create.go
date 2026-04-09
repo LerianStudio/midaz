@@ -127,19 +127,6 @@ func (handler *TransactionHandler) BuildOperations(
 
 // statusToAction maps a transaction status code to the corresponding accounting
 // action used for looking up the correct AccountingEntries rubric.
-func statusToAction(statusCode string) string {
-	switch statusCode {
-	case constant.PENDING:
-		return constant.ActionHold
-	case constant.APPROVED:
-		return constant.ActionCommit
-	case constant.CANCELED:
-		return constant.ActionCancel
-	default:
-		return constant.ActionDirect
-	}
-}
-
 // resolveRouteCodesFromCache populates the RouteCode and RouteDescription fields
 // on each operation by looking up the operation's RouteID in the transaction route
 // cache for the given accounting action (direct, hold, commit, cancel, revert).
@@ -745,7 +732,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		pkgTransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
 	}
 
-	action := statusToAction(transactionStatus)
+	action := pkgTransaction.StatusToAction(transactionStatus)
 
 	if len(actionOverride) > 0 && actionOverride[0] != "" {
 		action = actionOverride[0]

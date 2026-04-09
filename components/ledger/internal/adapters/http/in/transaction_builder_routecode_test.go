@@ -429,12 +429,12 @@ func TestResolveRouteCodesFromCache_CommitAction(t *testing.T) {
 
 // TestStatusToAction verifies the mapping from transaction status to accounting action.
 func TestStatusToAction(t *testing.T) {
-	assert.Equal(t, "direct", statusToAction("CREATED"))
-	assert.Equal(t, "hold", statusToAction("PENDING"))
-	assert.Equal(t, "commit", statusToAction("APPROVED"))
-	assert.Equal(t, "cancel", statusToAction("CANCELED"))
-	assert.Equal(t, "direct", statusToAction("NOTED"))
-	assert.Equal(t, "direct", statusToAction(""))
+	assert.Equal(t, "direct", pkgTransaction.StatusToAction("CREATED"))
+	assert.Equal(t, "hold", pkgTransaction.StatusToAction("PENDING"))
+	assert.Equal(t, "commit", pkgTransaction.StatusToAction("APPROVED"))
+	assert.Equal(t, "cancel", pkgTransaction.StatusToAction("CANCELED"))
+	assert.Equal(t, "direct", pkgTransaction.StatusToAction("NOTED"))
+	assert.Equal(t, "direct", pkgTransaction.StatusToAction(""))
 }
 
 // TestResolveAccountingRubric verifies the resolveAccountingRubric helper function.

@@ -370,6 +370,21 @@ func PropagateRouteValidation(ctx context.Context, validate *Responses, transact
 		libLog.String("transactionStatus", transactionStatus))
 }
 
+// StatusToAction maps a transaction status code to its corresponding accounting
+// action label used by operation route lookups and balance mutations.
+func StatusToAction(statusCode string) string {
+	switch statusCode {
+	case constant.PENDING:
+		return pkgConstant.ActionHold
+	case constant.APPROVED:
+		return pkgConstant.ActionCommit
+	case constant.CANCELED:
+		return pkgConstant.ActionCancel
+	default:
+		return pkgConstant.ActionDirect
+	}
+}
+
 // CalculateTotal Calculate total for sources/destinations based on shares, amounts and remains
 func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType string, t chan decimal.Decimal, ft chan map[string]Amount, sd chan []string, or chan map[string]string) {
 	fmto := make(map[string]Amount)
