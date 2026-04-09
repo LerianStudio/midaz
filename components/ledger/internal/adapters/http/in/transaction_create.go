@@ -6,10 +6,8 @@ package in
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -32,14 +30,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
-
-type transactionIdempotencyState struct {
-	key         string
-	hash        string
-	ttl         time.Duration
-	internalKey *string
-	replay      *transaction.Transaction
-}
 
 func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
@@ -745,13 +735,24 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		fromTo = append(fromTo, to...)
 	}
 
-	idempotencyState, err := handler.prepareIdempotency(ctx, c, params.OrganizationID, params.LedgerID, transactionInput)
+	// Idempotency: extract key/TTL from HTTP headers, hash the request body,
+	// then check or claim the idempotency slot in Redis.
+	idempotencyKey, idempotencyTTL := http.GetIdempotencyKeyAndTTL(c)
+
+	ts, _ := libCommons.StructToJSONString(transactionInput)
+	idempotencyHash := libCommons.HashSHA256(ts)
+
+	c.Set(libConstants.IdempotencyReplayed, "false")
+
+	idempotencyResult, err := handler.Command.CreateOrCheckTransactionIdempotency(ctx, params.OrganizationID, params.LedgerID, idempotencyKey, idempotencyHash, idempotencyTTL)
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	if idempotencyState.replay != nil {
-		return http.Created(c, *idempotencyState.replay)
+	if idempotencyResult.Replay != nil {
+		c.Set(libConstants.IdempotencyReplayed, "true")
+
+		return http.Created(c, *idempotencyResult.Replay)
 	}
 
 	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
@@ -762,7 +763,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
 
-		handler.deleteIdempotencyKey(ctx, idempotencyState.internalKey)
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 
 		return http.WithError(c, err)
 	}
@@ -778,7 +779,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		action = actionOverride[0]
 	}
 
-	err = handler.sendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, idempotencyState.internalKey)
+	err = handler.sendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, idempotencyResult.InternalKey)
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -791,7 +792,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balances: %v", err.Error()))
 
-		handler.deleteIdempotencyKey(ctx, idempotencyState.internalKey)
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
 		spanGetBalances.End()
@@ -868,57 +869,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		return http.WithError(c, err)
 	}
 
-	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, params.OrganizationID, params.LedgerID, idempotencyState.key, idempotencyState.hash, *tran, idempotencyState.ttl)
+	go handler.Command.SetTransactionIdempotencyValue(ctx, params.OrganizationID, params.LedgerID, idempotencyKey, idempotencyHash, *tran, idempotencyTTL)
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, params.OrganizationID, params.LedgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
-}
-
-func (handler *TransactionHandler) prepareIdempotency(
-	ctx context.Context,
-	c *fiber.Ctx,
-	organizationID, ledgerID uuid.UUID,
-	transactionInput pkgTransaction.Transaction,
-) (*transactionIdempotencyState, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctxIdempotency, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
-	defer spanIdempotency.End()
-
-	ts, _ := libCommons.StructToJSONString(transactionInput)
-	state := &transactionIdempotencyState{
-		hash: libCommons.HashSHA256(ts),
-	}
-
-	state.key, state.ttl = http.GetIdempotencyKeyAndTTL(c)
-
-	value, internalKey, err := handler.Command.CreateOrCheckIdempotencyKey(ctxIdempotency, organizationID, ledgerID, state.key, state.hash, state.ttl)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanIdempotency, "Error on create or check redis idempotency key", err)
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Error on create or check redis idempotency key: %v", err.Error()))
-
-		return nil, err
-	}
-
-	state.internalKey = internalKey
-	if libCommons.IsNilOrEmpty(value) {
-		return state, nil
-	}
-
-	replay := &transaction.Transaction{}
-	if err := json.Unmarshal([]byte(*value), replay); err != nil {
-		libOpentelemetry.HandleSpanError(spanIdempotency, "Error to deserialization idempotency transaction json on redis", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error to deserialization idempotency transaction json on redis: %v", err))
-
-		return nil, err
-	}
-
-	c.Set(libConstants.IdempotencyReplayed, "true")
-
-	state.replay = replay
-
-	return state, nil
 }
 
 func (handler *TransactionHandler) sendTransactionToRedisQueue(
@@ -948,7 +903,7 @@ func (handler *TransactionHandler) sendTransactionToRedisQueue(
 		handler.deleteIdempotencyKey(ctxSendTransactionToRedisQueue, internalKey)
 	}
 
-	return pkg.ValidateBusinessError(err, reflect.TypeOf(transaction.Transaction{}).Name())
+	return pkg.ValidateBusinessError(err, constant.EntityTransaction)
 }
 
 func (handler *TransactionHandler) deleteIdempotencyKey(ctx context.Context, internalKey *string) {

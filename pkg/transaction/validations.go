@@ -14,6 +14,7 @@ import (
 	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 )
@@ -35,14 +36,14 @@ func CheckTransactionDate(ctx context.Context, transactionInput Transaction, tra
 	logger, _, _, _ := commons.NewTrackingFromContext(ctx)
 
 	if transactionInput.TransactionDate.After(now) {
-		err := commons.ValidateBusinessError(pkgConstant.ErrInvalidFutureTransactionDate, pkgConstant.EntityTransaction)
+		err := pkg.ValidateBusinessError(pkgConstant.ErrInvalidFutureTransactionDate, pkgConstant.EntityTransaction)
 		logger.Log(ctx, libLog.LevelWarn, "Transaction date cannot be a future date", libLog.Err(err))
 
 		return time.Time{}, err
 	}
 
 	if transactionStatus == constant.PENDING {
-		err := commons.ValidateBusinessError(pkgConstant.ErrInvalidPendingFutureTransactionDate, pkgConstant.EntityTransaction)
+		err := pkg.ValidateBusinessError(pkgConstant.ErrInvalidPendingFutureTransactionDate, pkgConstant.EntityTransaction)
 		logger.Log(ctx, libLog.LevelWarn, "Pending transaction cannot have a custom transaction date", libLog.Err(err))
 
 		return time.Time{}, err

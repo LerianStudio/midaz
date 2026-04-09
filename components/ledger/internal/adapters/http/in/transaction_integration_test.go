@@ -2102,7 +2102,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 		"first request should have X-Idempotency-Replayed=false, got %q", replayed1)
 
 	// Wait for async goroutine to save the result to Redis
-	// The SetValueOnExistingIdempotencyKey is called in a goroutine after success
+	// The SetTransactionIdempotencyValue is called in a goroutine after success
 	time.Sleep(200 * time.Millisecond)
 
 	// Second request with same idempotency key and payload
@@ -2160,7 +2160,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 //
 // SKIPPED: This test documents EXPECTED behavior, but conflict detection is NOT implemented.
 // Current behavior: same key + different payload returns 201 with cached response (replay).
-// The hash parameter in CreateOrCheckIdempotencyKey is only used as fallback key when
+// The hash parameter in CreateOrCheckTransactionIdempotency is only used as fallback key when
 // X-Idempotency header is not provided - it is never stored or compared.
 func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
 	t.Skip("PENDING: Conflict detection not implemented - same key returns cached response regardless of payload")
@@ -2244,7 +2244,7 @@ func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
 		"first request should return 201, got %d: %s", resp1.StatusCode, string(body1))
 
 	// Wait for async goroutine to save the result to Redis
-	// The SetValueOnExistingIdempotencyKey is called in a goroutine after success
+	// The SetTransactionIdempotencyValue is called in a goroutine after success
 	time.Sleep(200 * time.Millisecond)
 
 	// Second request with same key but different payload
