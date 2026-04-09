@@ -8,6 +8,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/LerianStudio/lib-commons/v4/commons"
 	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
@@ -16,6 +17,39 @@ import (
 	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 )
+
+// CheckTransactionDate validates the transactionDate field and returns the
+// effective timestamp to use for CreatedAt. Rules:
+//
+//   - If transactionDate is nil or zero, the current time is returned (server-assigned).
+//   - If transactionDate is in the future, it is rejected (error 0121).
+//   - If the transaction is pending, a custom transactionDate is rejected (error 0122)
+//     because pending transactions are committed later with their own timestamp.
+func CheckTransactionDate(ctx context.Context, transactionInput Transaction, transactionStatus string) (time.Time, error) {
+	now := time.Now()
+
+	if transactionInput.TransactionDate == nil || transactionInput.TransactionDate.IsZero() {
+		return now, nil
+	}
+
+	logger, _, _, _ := commons.NewTrackingFromContext(ctx)
+
+	if transactionInput.TransactionDate.After(now) {
+		err := commons.ValidateBusinessError(pkgConstant.ErrInvalidFutureTransactionDate, pkgConstant.EntityTransaction)
+		logger.Log(ctx, libLog.LevelWarn, "Transaction date cannot be a future date", libLog.Err(err))
+
+		return time.Time{}, err
+	}
+
+	if transactionStatus == constant.PENDING {
+		err := commons.ValidateBusinessError(pkgConstant.ErrInvalidPendingFutureTransactionDate, pkgConstant.EntityTransaction)
+		logger.Log(ctx, libLog.LevelWarn, "Pending transaction cannot have a custom transaction date", libLog.Err(err))
+
+		return time.Time{}, err
+	}
+
+	return transactionInput.TransactionDate.Time(), nil
+}
 
 // ValidateBalancesRules function with some validates in accounts operations
 func ValidateBalancesRules(ctx context.Context, transaction Transaction, validate Responses, balances []*Balance) error {

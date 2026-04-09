@@ -785,11 +785,12 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 		return err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Setting binary data with TTL: %v", ttl*time.Second))
+	logger.Log(ctx, libLog.LevelDebug, "Setting binary data", libLog.String("ttl", (ttl*time.Second).String()))
 
 	err = rds.Set(ctx, key, value, ttl*time.Second).Err()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to set bytes on redis", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to set bytes on redis", libLog.Err(err))
 
 		return err
 	}

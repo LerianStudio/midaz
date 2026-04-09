@@ -716,7 +716,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	c.Set(libConstants.IdempotencyReplayed, "false")
 
-	transactionDate, err := checkTransactionDate(ctx, transactionInput, transactionStatus)
+	transactionDate, err := pkgTransaction.CheckTransactionDate(ctx, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction date validation failed", err)
 
