@@ -43,28 +43,6 @@ const TransactionBackupQueue = "backup_queue:{transactions}"
 // to prevent oversized payloads. Operations with more items are split into chunks.
 const maxRedisBatchSize = 1000
 
-type redisClientProvider interface {
-	GetClient(ctx context.Context) (redis.UniversalClient, error)
-}
-
-func tenantKeyFromContextOrError(ctx context.Context, key string) (string, error) {
-	return tmvalkey.GetKeyContext(ctx, key)
-}
-
-func tenantKeysFromContext(ctx context.Context, keys []string) ([]string, error) {
-	prefixedKeys := make([]string, len(keys))
-	for i, key := range keys {
-		prefixedKey, err := tenantKeyFromContextOrError(ctx, key)
-		if err != nil {
-			return nil, err
-		}
-
-		prefixedKeys[i] = prefixedKey
-	}
-
-	return prefixedKeys, nil
-}
-
 // RedisRepository provides an interface for redis.
 // It defines methods for setting, getting keys, and incrementing values.
 //
@@ -794,6 +772,8 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 	key, err := tenantKeyFromContextOrError(ctx, key)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace redis key", libLog.Err(err))
+
 		return err
 	}
 
@@ -1400,4 +1380,42 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Removed %d balance keys from sync schedule", totalRemoved))
 
 	return totalRemoved, nil
+}
+
+// ---------------------------------------------------------------------------
+// Unexported helpers
+// ---------------------------------------------------------------------------
+
+type redisClientProvider interface {
+	GetClient(ctx context.Context) (redis.UniversalClient, error)
+}
+
+// tenantKeyFromContextOrError prefixes a Redis key with the tenant namespace
+// when running in multi-tenant mode (e.g. "tenant:{tenantID}:{key}").
+//
+// In single-tenant mode the context carries no tenantID, so the key is
+// returned unchanged — no prefix, no error. This makes every Redis operation
+// transparently tenant-aware without callers needing to branch on the
+// deployment mode.
+//
+// The only error case is a malformed tenantID that contains the ":" delimiter,
+// which would corrupt the key namespace structure.
+func tenantKeyFromContextOrError(ctx context.Context, key string) (string, error) {
+	return tmvalkey.GetKeyContext(ctx, key)
+}
+
+// tenantKeysFromContext applies tenantKeyFromContextOrError to each key in the
+// slice, returning the prefixed keys or the first error encountered.
+func tenantKeysFromContext(ctx context.Context, keys []string) ([]string, error) {
+	prefixedKeys := make([]string, len(keys))
+	for i, key := range keys {
+		prefixedKey, err := tenantKeyFromContextOrError(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+
+		prefixedKeys[i] = prefixedKey
+	}
+
+	return prefixedKeys, nil
 }
