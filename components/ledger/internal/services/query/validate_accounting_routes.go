@@ -117,6 +117,11 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 		}
 	}
 
+	// For "cancel", only the source side is involved (releasing held funds).
+	// The destination never participates in cancel, so skip destination
+	// route validation entirely.
+	isSourceOnlyAction := action == constant.ActionCancel
+
 	// Reject operations missing a per-operation route ID.
 	// When validateRoutes is active, each operation must explicitly specify
 	// which operation route it belongs to.
@@ -169,44 +174,59 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 		}
 	}
 
-	totalCacheRoutes := sourceRoutesCount + destinationRoutesCount + bidirectionalRoutesCount
-	totalUsedRoutes := uniqueFromCount + uniqueToCount - len(sharedBidirectionalRoutes)
+	// For source-only actions (cancel), only the source side participates.
+	// Skip count validation and counterpart checks — the destination never
+	// participates in cancel, so its routes are irrelevant.
+	if !isSourceOnlyAction {
+		totalCacheRoutes := sourceRoutesCount + destinationRoutesCount + bidirectionalRoutesCount
+		totalUsedRoutes := uniqueFromCount + uniqueToCount - len(sharedBidirectionalRoutes)
 
-	if totalUsedRoutes != totalCacheRoutes || uniqueFromCount < sourceRoutesCount || uniqueToCount < destinationRoutesCount {
-		err := pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting route count mismatch", err)
+		if totalUsedRoutes != totalCacheRoutes || uniqueFromCount < sourceRoutesCount || uniqueToCount < destinationRoutesCount {
+			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting route count mismatch", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Route count mismatch: from=%d to=%d, cache has source=%d destination=%d bidirectional=%d shared=%d", uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount, len(sharedBidirectionalRoutes)))
-
-		return nil, err
-	}
-
-	mergedRouteMap := make(map[string]string)
-
-	for alias, routeID := range validate.OperationRoutesFrom {
-		if sharedBidirectionalRoutes[routeID] {
-			mergedRouteMap[alias] = routeID
-		}
-	}
-
-	for alias, routeID := range validate.OperationRoutesTo {
-		if sharedBidirectionalRoutes[routeID] {
-			mergedRouteMap[alias] = routeID
-		}
-	}
-
-	if len(mergedRouteMap) > 0 {
-		if err := validateCounterparts(operations, mergedRouteMap); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Route missing counterpart", err)
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Route counterpart validation failed: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Route count mismatch: from=%d to=%d, cache has source=%d destination=%d bidirectional=%d shared=%d", uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount, len(sharedBidirectionalRoutes)))
 
 			return nil, err
 		}
+
+		mergedRouteMap := make(map[string]string)
+
+		for alias, routeID := range validate.OperationRoutesFrom {
+			if sharedBidirectionalRoutes[routeID] {
+				mergedRouteMap[alias] = routeID
+			}
+		}
+
+		for alias, routeID := range validate.OperationRoutesTo {
+			if sharedBidirectionalRoutes[routeID] {
+				mergedRouteMap[alias] = routeID
+			}
+		}
+
+		if len(mergedRouteMap) > 0 {
+			if err := validateCounterparts(operations, mergedRouteMap); err != nil {
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Route missing counterpart", err)
+
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Route counterpart validation failed: %v", err))
+
+				return nil, err
+			}
+		}
 	}
 
-	// Pass ledgerSettings and action-filtered routes to validateAccountRules for account type validation control
-	err = validateAccountRules(ctx, sourceRoutes, destinationRoutes, bidirectionalRoutes, validate, operations, ledgerSettings)
+	// Pass ledgerSettings and action-filtered routes to validateAccountRules for account type validation control.
+	// For source-only actions (cancel) and hold, only validate source-side operations.
+	// The destination doesn't participate in hold (reservation is source-only) or cancel (release is source-only).
+	validateFrom := validate
+	if isSourceOnlyAction || action == constant.ActionHold {
+		validateFrom = &pkgTransaction.Responses{
+			From:                validate.From,
+			OperationRoutesFrom: validate.OperationRoutesFrom,
+		}
+	}
+
+	err = validateAccountRules(ctx, sourceRoutes, destinationRoutes, bidirectionalRoutes, validateFrom, operations, ledgerSettings)
 	if err != nil {
 		return nil, err
 	}
