@@ -758,8 +758,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to validate send source and distribute: %v", err.Error()))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
 
