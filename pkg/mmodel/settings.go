@@ -91,23 +91,6 @@ func LedgerSettingsIsDefault(s *LedgerSettings) bool {
 	return *s == DefaultLedgerSettings()
 }
 
-// FillDefaultSettings ensures a settings map from the database or cache has all
-// expected fields. Missing fields are filled with their default values; existing
-// fields are preserved. Extra keys not in the schema are also preserved.
-//
-// Returns a new map -- the input is never mutated.
-func FillDefaultSettings(settings map[string]any) map[string]any {
-	defaults := DefaultLedgerSettingsMap()
-
-	if len(settings) == 0 {
-		return defaults
-	}
-
-	result := DeepMergeSettings(defaults, settings)
-
-	return result
-}
-
 // ParseLedgerSettings extracts and parses ledger settings from a settings map.
 // Returns default settings if the map is nil, empty, or missing the "accounting" key.
 // This function never returns an error - it falls back to safe defaults on any parse issue.

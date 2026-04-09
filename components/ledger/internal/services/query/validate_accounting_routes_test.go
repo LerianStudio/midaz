@@ -250,7 +250,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("Returns nil when LedgerRepo returns error (graceful degradation)", func(t *testing.T) {
+	t.Run("Returns error when LedgerRepo returns error", func(t *testing.T) {
 		mockLedgerRepo := ledger.NewMockRepository(ctrl)
 		mockLedgerRepo.EXPECT().
 			GetSettings(gomock.Any(), organizationID, ledgerID).
@@ -276,7 +276,8 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 
 		_, err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 
-		assert.NoError(t, err)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "connection error")
 	})
 
 	t.Run("Returns error when validateRoutes is true and transaction route is empty", func(t *testing.T) {
@@ -347,7 +348,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 		assert.Contains(t, err.Error(), "0115")
 	})
 
-	t.Run("Returns nil when settings fetch fails (graceful degradation)", func(t *testing.T) {
+	t.Run("Returns error when settings fetch fails", func(t *testing.T) {
 		mockLedgerRepo := ledger.NewMockRepository(ctrl)
 		mockLedgerRepo.EXPECT().
 			GetSettings(gomock.Any(), organizationID, ledgerID).
@@ -373,7 +374,8 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 
 		_, err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 
-		assert.NoError(t, err, "must return nil when settings fetch fails (graceful degradation)")
+		assert.Error(t, err, "must return error when settings fetch fails")
+		assert.Contains(t, err.Error(), "connection error")
 	})
 }
 

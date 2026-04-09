@@ -21,8 +21,10 @@ import (
 // SettingsCacheTTL is the TTL for cached ledger settings (5 minutes).
 const SettingsCacheTTL = 5 * time.Minute
 
-// GetLedgerSettings retrieves the settings for a specific ledger, merged with
-// default values so callers always receive a complete settings object.
+// GetLedgerSettings retrieves the raw settings map for a specific ledger.
+// The returned map reflects exactly what is stored in the database -- no default
+// injection. Callers should use ParseLedgerSettings to convert to the typed
+// LedgerSettings struct, which applies defaults for any missing fields.
 //
 // Uses a cache-aside pattern: checks Redis first, falls back to the database on
 // miss, and populates the cache after a successful DB read. Cache errors are
@@ -48,8 +50,6 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 
 		return nil, err
 	}
-
-	settings = mmodel.FillDefaultSettings(settings)
 
 	// Cache write (best-effort)
 	uc.writeSettingsToCache(ctx, tracer, logger, cacheKey, settings, ledgerID)
@@ -89,15 +89,14 @@ func (uc *UseCase) readSettingsFromCache(ctx context.Context, tracer trace.Trace
 		return nil, false
 	}
 
-	merged := mmodel.FillDefaultSettings(settings)
-	parsed := mmodel.ParseLedgerSettings(merged)
+	parsed := mmodel.ParseLedgerSettings(settings)
 
 	logger.Log(ctx, libLog.LevelDebug, "Cache hit for ledger settings",
 		libLog.String("ledgerId", ledgerID.String()),
 		libLog.Bool("validateAccountType", parsed.Accounting.ValidateAccountType),
 		libLog.Bool("validateRoutes", parsed.Accounting.ValidateRoutes))
 
-	return merged, true
+	return settings, true
 }
 
 // writeSettingsToCache stores ledger settings in Redis for future reads.
