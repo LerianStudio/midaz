@@ -55,13 +55,21 @@ func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, led
 	ctx, span := tracer.Start(ctx, "query.get_balances.cache_read")
 	defer span.End()
 
-	cached := make([]*mmodel.Balance, 0)
-	misses := make([]string, 0)
+	cached := make([]*mmodel.Balance, 0, len(aliases))
+	misses := make([]string, 0, len(aliases))
 
 	for _, alias := range aliases {
 		internalKey := utils.BalanceInternalKey(organizationID, ledgerID, alias)
 
-		value, _ := uc.TransactionRedisRepo.Get(ctx, internalKey)
+		value, err := uc.TransactionRedisRepo.Get(ctx, internalKey)
+		if err != nil {
+			logger.Log(ctx, libLog.LevelWarn, "Failed to read balance from cache, falling back to database", libLog.String("alias", alias), libLog.Err(err))
+
+			misses = append(misses, alias)
+
+			continue
+		}
+
 		if libCommons.IsNilOrEmpty(&value) {
 			misses = append(misses, alias)
 
@@ -69,21 +77,20 @@ func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, led
 		}
 
 		var b mmodel.BalanceRedis
-		if err := json.Unmarshal([]byte(value), &b); err != nil {
+		if err = json.Unmarshal([]byte(value), &b); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to deserialize cached balance", err)
-			logger.Log(ctx, libLog.LevelWarn, "Failed to deserialize cached balance, falling back to database",
-				libLog.String("alias", alias), libLog.Err(err))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to deserialize cached balance, falling back to database", libLog.String("alias", alias), libLog.Err(err))
 
 			misses = append(misses, alias)
 
 			continue
 		}
 
-		aliasAndKey := strings.Split(alias, "#")
+		balanceAlias, balanceKey, _ := strings.Cut(alias, "#")
 
-		balanceKey := constant.DefaultBalanceKey
-		if len(aliasAndKey) > 1 && strings.TrimSpace(aliasAndKey[1]) != "" {
-			balanceKey = aliasAndKey[1]
+		balanceKey = strings.TrimSpace(balanceKey)
+		if balanceKey == "" {
+			balanceKey = constant.DefaultBalanceKey
 		}
 
 		cached = append(cached, &mmodel.Balance{
@@ -91,7 +98,7 @@ func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, led
 			AccountID:      b.AccountID,
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
-			Alias:          aliasAndKey[0],
+			Alias:          balanceAlias,
 			Key:            balanceKey,
 			Available:      b.Available,
 			OnHold:         b.OnHold,
