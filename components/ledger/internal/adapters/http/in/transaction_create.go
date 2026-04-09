@@ -765,11 +765,9 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 	balancesBefore, balancesAfter, routeCache, err := handler.Query.GetBalances(ctx, params.OrganizationID, params.LedgerID, transactionID, &transactionInput, validate, transactionStatus, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetBalances, "Failed to get balances", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balances: %v", err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to get balances", libLog.Err(err))
 
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
 		spanGetBalances.End()
 
