@@ -837,8 +837,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to iterate rows: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to iterate rows", libLog.Err(err))
 
 		return nil, err
 	}
