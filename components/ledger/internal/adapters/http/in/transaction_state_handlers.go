@@ -450,7 +450,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	}
 
 	if ledgerSettings.Accounting.ValidateRoutes {
-		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
+		propagateRouteValidation(ctx, validate, transactionStatus)
 	}
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")

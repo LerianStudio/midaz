@@ -257,7 +257,19 @@ func zeroAnnotationBalances(balance, balanceAfter *operation.Balance) {
 // propagateRouteValidation sets RouteValidationEnabled on Amount entries in the
 // validate response maps when the transaction is pending or canceled. This flag controls how
 // OperateBalances splits balance effects between Available and OnHold fields.
-func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Responses, isPending bool, transactionStatus string) {
+// propagateRouteValidation enables RouteValidationEnabled on every source
+// (From) amount entry so that downstream balance operations use the correct
+// double-entry logic. Only sources are affected because destinations always
+// use plain CREDIT regardless of route validation.
+//
+// For APPROVED (commit) transactions, source DEBIT operations are swapped to
+// ON_HOLD so that the commit decrements onHold instead of available. This
+// keeps ON_HOLD ops invisible to TransactionRevert, which only considers
+// DEBIT/CREDIT, naturally avoiding double-counting.
+//
+// Skipped for CREATED transactions because their balance operations (simple
+// DEBIT/CREDIT) do not branch on RouteValidationEnabled.
+func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Responses, transactionStatus string) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.propagate_route_validation")
@@ -267,6 +279,7 @@ func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Resp
 		return
 	}
 
+	isPending := transactionStatus == constant.PENDING
 	isCanceled := transactionStatus == constant.CANCELED
 	isApproved := transactionStatus == constant.APPROVED
 
@@ -274,27 +287,20 @@ func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Resp
 		return
 	}
 
-	count := 0
-
 	for key, amt := range validate.From {
 		amt.RouteValidationEnabled = true
 
-		// COMMIT with route validation: source uses ON_HOLD (debit) instead of DEBIT
-		// to decrement onHold. This keeps ON_HOLD ops invisible to TransactionRevert,
-		// which only considers DEBIT/CREDIT, naturally avoiding double-counting.
+		// COMMIT: swap DEBIT → ON_HOLD to decrement onHold instead of available.
 		if isApproved && amt.Operation == constant.DEBIT {
 			amt.Operation = constant.ONHOLD
 		}
 
 		validate.From[key] = amt
-		count++
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Propagated route validation to source entries",
-		libLog.Int("count", count),
-		libLog.Bool("pending", isPending),
-		libLog.Bool("canceled", isCanceled),
-		libLog.Bool("approved", isApproved))
+	logger.Log(ctx, libLog.LevelDebug, "Propagated route validation to source entries",
+		libLog.Int("count", len(validate.From)),
+		libLog.String("transactionStatus", transactionStatus))
 }
 
 // buildDoubleEntryPendingOps generates two operations for a PENDING source entry
@@ -782,7 +788,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	}
 
 	if ledgerSettings.Accounting.ValidateRoutes {
-		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
+		propagateRouteValidation(ctx, validate, transactionStatus)
 	}
 
 	action := statusToAction(transactionStatus)
