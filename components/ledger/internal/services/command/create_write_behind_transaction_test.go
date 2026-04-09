@@ -39,7 +39,7 @@ func TestCreateWriteBehindTransaction_Success(t *testing.T) {
 		AssetCode:      "BRL",
 	}
 
-	parserDSL := pkgTransaction.Transaction{
+	transactionInput := pkgTransaction.Transaction{
 		Description: "Test transaction",
 		Send: pkgTransaction.Send{
 			Asset: "BRL",
@@ -53,7 +53,7 @@ func TestCreateWriteBehindTransaction_Success(t *testing.T) {
 		Return(nil).
 		Times(1)
 
-	uc.CreateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran, parserDSL)
+	uc.CreateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran, transactionInput)
 }
 
 func TestCreateWriteBehindTransaction_SetBytesError(t *testing.T) {
@@ -74,7 +74,7 @@ func TestCreateWriteBehindTransaction_SetBytesError(t *testing.T) {
 		LedgerID:       ledgerID.String(),
 	}
 
-	parserDSL := pkgTransaction.Transaction{
+	transactionInput := pkgTransaction.Transaction{
 		Description: "Test transaction",
 	}
 
@@ -86,7 +86,7 @@ func TestCreateWriteBehindTransaction_SetBytesError(t *testing.T) {
 		Times(1)
 
 	// Should not panic on error
-	uc.CreateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran, parserDSL)
+	uc.CreateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran, transactionInput)
 }
 
 func TestCreateWriteBehindTransaction_MsgpackIncludesBody(t *testing.T) {
@@ -108,8 +108,8 @@ func TestCreateWriteBehindTransaction_MsgpackIncludesBody(t *testing.T) {
 		AssetCode:      "BRL",
 	}
 
-	parserDSL := pkgTransaction.Transaction{
-		Description: "DSL body content",
+	transactionInput := pkgTransaction.Transaction{
+		Description: "Transaction body content",
 		Send: pkgTransaction.Send{
 			Asset: "BRL",
 		},
@@ -125,13 +125,13 @@ func TestCreateWriteBehindTransaction_MsgpackIncludesBody(t *testing.T) {
 		}).
 		Times(1)
 
-	uc.CreateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran, parserDSL)
+	uc.CreateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran, transactionInput)
 
 	// Verify that msgpack data includes Body
 	var decoded transaction.Transaction
 	err := msgpack.Unmarshal(capturedData, &decoded)
 	assert.NoError(t, err)
-	assert.Equal(t, "DSL body content", decoded.Body.Description)
+	assert.Equal(t, "Transaction body content", decoded.Body.Description)
 	assert.Equal(t, "BRL", decoded.Body.Send.Asset)
 	assert.Equal(t, tran.ID, decoded.ID)
 }
