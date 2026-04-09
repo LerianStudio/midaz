@@ -7,128 +7,129 @@ package query
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sort"
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
-
-	// GetBalances methods responsible to get balances from a database.
-	// Returns two slices: before (pre-mutation) and after (post-mutation) balance states.
-	// Before is used by BuildOperations for operation snapshots.
-	// After is used by UpdateBalances for PostgreSQL persistence.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus string, action string) (before []*mmodel.Balance, after []*mmodel.Balance, transactionRouteCache *mmodel.TransactionRouteCache, err error) {
+// GetBalances retrieves balances for the given aliases using a cache-aside
+// pattern: checks Redis first, falls back to PostgreSQL for cache misses.
+// This is a pure read -- it does not mutate balances or execute any Lua scripts.
+func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "usecase.get_balances")
+	ctx, span := tracer.Start(ctx, "query.get_balances")
 	defer span.End()
 
 	balances := make([]*mmodel.Balance, 0)
 
-	balancesRedis, aliases := uc.ValidateIfBalanceExistsOnRedis(ctx, organizationID, ledgerID, validate.Aliases)
+	balancesRedis, remainingAliases := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
 	if len(balancesRedis) > 0 {
 		balances = append(balances, balancesRedis...)
 	}
 
-	if len(aliases) > 0 {
-		balancesByAliases, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliases)
+	if len(remainingAliases) > 0 {
+		balancesDB, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, remainingAliases)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get account by alias on balance database", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances from database", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to get balances from database", libLog.Err(err))
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get account by alias on balance database: %v", err))
-
-			return nil, nil, nil, err
+			return nil, err
 		}
 
-		balances = append(balances, balancesByAliases...)
+		balances = append(balances, balancesDB...)
 	}
 
-	result, routeCache, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, transactionInput, validate, balances, transactionStatus, action)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances and update on redis", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balances and update on redis: %v", err))
-
-		return nil, nil, nil, err
-	}
-
-	return result.Before, result.After, routeCache, nil
+	return balances, nil
 }
 
-// ValidateIfBalanceExistsOnRedis func that validate if balance exists on redis before to get on database.
-func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []string) {
+// getBalancesFromCache checks Redis for cached balances. Returns two slices:
+// the balances found in cache, and the aliases that were not found (cache misses)
+// which need to be fetched from the database.
+func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []string) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "usecase.validate_if_balance_exists_on_redis")
+	ctx, span := tracer.Start(ctx, "query.get_balances.cache_read")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, "Checking if balances exists on redis")
-
-	newBalances := make([]*mmodel.Balance, 0)
-
-	newAliases := make([]string, 0)
+	cached := make([]*mmodel.Balance, 0)
+	misses := make([]string, 0)
 
 	for _, alias := range aliases {
 		internalKey := utils.BalanceInternalKey(organizationID, ledgerID, alias)
 
 		value, _ := uc.TransactionRedisRepo.Get(ctx, internalKey)
-		if !libCommons.IsNilOrEmpty(&value) {
-			b := mmodel.BalanceRedis{}
+		if libCommons.IsNilOrEmpty(&value) {
+			misses = append(misses, alias)
 
-			if err := json.Unmarshal([]byte(value), &b); err != nil {
-				libOpentelemetry.HandleSpanError(span, "Error to Deserialization json", err)
-
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error to Deserialization json: %v", err))
-
-				continue
-			}
-
-			aliasAndKey := strings.Split(alias, "#")
-
-			balanceKey := constant.DefaultBalanceKey
-			if len(aliasAndKey) > 1 && strings.TrimSpace(aliasAndKey[1]) != "" {
-				balanceKey = aliasAndKey[1]
-			}
-
-			newBalances = append(newBalances, &mmodel.Balance{
-				ID:             b.ID,
-				AccountID:      b.AccountID,
-				OrganizationID: organizationID.String(),
-				LedgerID:       ledgerID.String(),
-				Alias:          aliasAndKey[0],
-				Key:            balanceKey,
-				Available:      b.Available,
-				OnHold:         b.OnHold,
-				Version:        b.Version,
-				AccountType:    b.AccountType,
-				AllowSending:   b.AllowSending == 1,
-				AllowReceiving: b.AllowReceiving == 1,
-				AssetCode:      b.AssetCode,
-			})
-		} else {
-			newAliases = append(newAliases, alias)
+			continue
 		}
+
+		var b mmodel.BalanceRedis
+		if err := json.Unmarshal([]byte(value), &b); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to deserialize cached balance", err)
+			logger.Log(ctx, libLog.LevelWarn, "Failed to deserialize cached balance, falling back to database",
+				libLog.String("alias", alias), libLog.Err(err))
+
+			misses = append(misses, alias)
+
+			continue
+		}
+
+		aliasAndKey := strings.Split(alias, "#")
+
+		balanceKey := constant.DefaultBalanceKey
+		if len(aliasAndKey) > 1 && strings.TrimSpace(aliasAndKey[1]) != "" {
+			balanceKey = aliasAndKey[1]
+		}
+
+		cached = append(cached, &mmodel.Balance{
+			ID:             b.ID,
+			AccountID:      b.AccountID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          aliasAndKey[0],
+			Key:            balanceKey,
+			Available:      b.Available,
+			OnHold:         b.OnHold,
+			Version:        b.Version,
+			AccountType:    b.AccountType,
+			AllowSending:   b.AllowSending == 1,
+			AllowReceiving: b.AllowReceiving == 1,
+			AssetCode:      b.AssetCode,
+		})
 	}
 
-	return newBalances, newAliases
+	logger.Log(ctx, libLog.LevelDebug, "Balance cache lookup complete",
+		libLog.Int("cached", len(cached)),
+		libLog.Int("misses", len(misses)))
+
+	return cached, misses
 }
 
-// GetAccountAndLock func responsible to integrate core business logic to redis.
-func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, balances []*mmodel.Balance, transactionStatus string, action string) (*mmodel.BalanceAtomicResult, *mmodel.TransactionRouteCache, error) {
+// ProcessBalanceOperations builds balance operations from the validated
+// transaction entries, validates accounting and balance rules, and executes
+// the atomic Lua script that mutates balances in Redis.
+//
+// Returns the before/after balance snapshots (for operation building and
+// PostgreSQL persistence) and the transaction route cache (for operation
+// route code resolution).
+func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, balances []*mmodel.Balance, transactionStatus string, action string) (*mmodel.BalanceAtomicResult, *mmodel.TransactionRouteCache, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "usecase.get_account_and_lock")
+	ctx, span := tracer.Start(ctx, "query.process_balance_operations")
 	defer span.End()
 
+	// Build balance operations from the From/To entries, including double-entry
+	// splitting for pending/canceled transactions with route validation enabled.
 	balanceOperations := make([]mmodel.BalanceOperation, 0)
 
 	for _, balance := range balances {
@@ -181,19 +182,21 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		}
 	}
 
+	// Sort by internal key to prevent deadlocks in the Lua script.
 	sort.Slice(balanceOperations, func(i, j int) bool {
 		return balanceOperations[i].InternalKey < balanceOperations[j].InternalKey
 	})
 
+	// Validate accounting rules (route validation).
 	transactionRouteCache, err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, balanceOperations, validate, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate accounting rules", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate accounting rules: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to validate accounting rules", libLog.Err(err))
 
 		return nil, nil, err
 	}
 
+	// Validate balance rules (eligibility, asset codes, sending/receiving permissions).
 	if transactionInput != nil {
 		seen := make(map[string]bool)
 		txBalances := make([]*pkgTransaction.Balance, 0, len(balanceOperations))
@@ -215,18 +218,17 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 			txBalances,
 		); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate balances", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate balances: %v", err.Error()))
+			logger.Log(ctx, libLog.LevelError, "Failed to validate balances", libLog.Err(err))
 
 			return nil, nil, err
 		}
 	}
 
+	// Execute the atomic Lua script that mutates balances in Redis.
 	result, err := uc.TransactionRedisRepo.ProcessBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID, transactionStatus, validate.Pending, balanceOperations)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to lock balance", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to lock balance: %v", err))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute atomic balance operation", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to execute atomic balance operation", libLog.Err(err))
 
 		return nil, nil, err
 	}

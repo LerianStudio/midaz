@@ -188,24 +188,30 @@ func TestGetBalances(t *testing.T) {
 			}, nil).
 			Times(1)
 
-		transactionID := uuid.New()
-		balancesBefore, balancesAfter, _, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED, constant.ActionDirect)
+		// Step 1: GetBalances (pure read)
+		allBalances, err := uc.GetBalances(ctx, organizationID, ledgerID, aliases)
 		assert.NoError(t, err)
-		assert.Len(t, balancesBefore, 3)
-		assert.NotNil(t, balancesAfter, "after balances should not be nil")
+		assert.Len(t, allBalances, 3)
 
-		sort.Slice(balancesBefore, func(i, j int) bool {
-			return balancesBefore[i].Alias < balancesBefore[j].Alias
+		sort.Slice(allBalances, func(i, j int) bool {
+			return allBalances[i].Alias < allBalances[j].Alias
 		})
 
-		assert.Equal(t, "alias1", balancesBefore[0].Alias)
-		assert.Equal(t, balanceRedis.ID, balancesBefore[0].ID)
+		assert.Equal(t, "alias1", allBalances[0].Alias)
+		assert.Equal(t, balanceRedis.ID, allBalances[0].ID)
 
-		assert.Equal(t, "alias2", balancesBefore[1].Alias)
-		assert.Equal(t, databaseBalances[0].ID, balancesBefore[1].ID)
+		assert.Equal(t, "alias2", allBalances[1].Alias)
+		assert.Equal(t, databaseBalances[0].ID, allBalances[1].ID)
 
-		assert.Equal(t, "alias3", balancesBefore[2].Alias)
-		assert.Equal(t, databaseBalances[1].ID, balancesBefore[2].ID)
+		assert.Equal(t, "alias3", allBalances[2].Alias)
+		assert.Equal(t, databaseBalances[1].ID, allBalances[2].ID)
+
+		// Step 2: ProcessBalanceOperations (mutation)
+		transactionID := uuid.New()
+		result, _, err := uc.ProcessBalanceOperations(ctx, organizationID, ledgerID, transactionID, nil, validate, allBalances, constant.CREATED, constant.ActionDirect)
+		assert.NoError(t, err)
+		assert.Len(t, result.Before, 3)
+		assert.NotNil(t, result.After, "after balances should not be nil")
 	})
 
 	t.Run("all balances from redis", func(t *testing.T) {
@@ -317,15 +323,18 @@ func TestGetBalances(t *testing.T) {
 			}, nil).
 			Times(1)
 
-		transactionID := uuid.New()
-		balances, _, _, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED, constant.ActionDirect)
-
+		allBalances, err := uc.GetBalances(ctx, organizationID, ledgerID, aliases)
 		assert.NoError(t, err)
-		assert.Len(t, balances, 2)
+		assert.Len(t, allBalances, 2)
+
+		transactionID := uuid.New()
+		result, _, err := uc.ProcessBalanceOperations(ctx, organizationID, ledgerID, transactionID, nil, validate, allBalances, constant.CREATED, constant.ActionDirect)
+		assert.NoError(t, err)
+		assert.Len(t, result.Before, 2)
 	})
 }
 
-func TestGetAccountAndLock(t *testing.T) {
+func TestProcessBalanceOperations(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -395,14 +404,14 @@ func TestGetAccountAndLock(t *testing.T) {
 			Return(&mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil)
 
 		transactionID := uuid.New()
-		result, _, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, constant.CREATED, constant.ActionDirect)
+		result, _, err := uc.ProcessBalanceOperations(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, constant.CREATED, constant.ActionDirect)
 
 		assert.NoError(t, err)
 		assert.Len(t, result.Before, 1)
 	})
 }
 
-func TestGetAccountAndLock_DoubleEntrySplitting(t *testing.T) {
+func TestProcessBalanceOperations_DoubleEntrySplitting(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("ad0032e5-ccf5-45f4-a3b2-12045e71b38a")
@@ -536,7 +545,7 @@ func TestGetAccountAndLock_DoubleEntrySplitting(t *testing.T) {
 				})
 
 			transactionID := uuid.New()
-			result, _, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, tt.transactionType, constant.ActionDirect)
+			result, _, err := uc.ProcessBalanceOperations(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, tt.transactionType, constant.ActionDirect)
 
 			require.NoError(t, err)
 			require.NotNil(t, result)
@@ -558,7 +567,7 @@ func TestGetAccountAndLock_DoubleEntrySplitting(t *testing.T) {
 	}
 }
 
-func TestGetAccountAndLock_DoubleEntry_SeenDeduplication(t *testing.T) {
+func TestProcessBalanceOperations_DoubleEntry_SeenDeduplication(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -642,7 +651,7 @@ func TestGetAccountAndLock_DoubleEntry_SeenDeduplication(t *testing.T) {
 		})
 
 	transactionID := uuid.New()
-	result, _, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, transactionInput, validate, balances, constant.PENDING, constant.ActionHold)
+	result, _, err := uc.ProcessBalanceOperations(ctx, organizationID, ledgerID, transactionID, transactionInput, validate, balances, constant.PENDING, constant.ActionHold)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -656,7 +665,7 @@ func TestGetAccountAndLock_DoubleEntry_SeenDeduplication(t *testing.T) {
 		"both operations should reference the same alias")
 }
 
-func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
+func TestGetBalancesFromCache(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -704,7 +713,7 @@ func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
 			Return("", nil).
 			Times(1)
 
-		balances, remainingAliases := uc.ValidateIfBalanceExistsOnRedis(ctx, organizationID, ledgerID, aliases)
+		balances, remainingAliases := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
 
 		assert.Len(t, balances, 1)
 		assert.Equal(t, balance1.ID, balances[0].ID)

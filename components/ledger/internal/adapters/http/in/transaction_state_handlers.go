@@ -453,24 +453,32 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		pkgTransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
 	}
 
-	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
-
 	action := constant.ActionCommit
 	if transactionStatus == constant.CANCELED {
 		action = constant.ActionCancel
 	}
 
-	balancesBefore, balancesAfter, routeCache, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, transactionStatus, action)
+	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate.Aliases)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetBalances, "Failed to get balances", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balances: %v", err.Error()))
-		spanGetBalances.End()
+		libOpentelemetry.HandleSpanError(span, "Failed to get balances", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get balances", libLog.Err(err))
 
 		deleteLockOnError()
 
 		return http.WithError(c, err)
 	}
+
+	result, routeCache, err := handler.Query.ProcessBalanceOperations(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, balances, transactionStatus, action)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to process balance operations", libLog.Err(err))
+
+		deleteLockOnError()
+
+		return http.WithError(c, err)
+	}
+
+	balancesBefore, balancesAfter := result.Before, result.After
 
 	fromTo = append(fromTo, pkgTransaction.MutateSplitAliases(transactionInput.Send.Source.From)...)
 	to = pkgTransaction.MutateSplitAliases(transactionInput.Send.Distribute.To)

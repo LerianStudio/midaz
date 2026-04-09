@@ -760,21 +760,28 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, pkg.ValidateBusinessError(err, constant.EntityTransaction))
 	}
 
-	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
-
-	balancesBefore, balancesAfter, routeCache, err := handler.Query.GetBalances(ctx, params.OrganizationID, params.LedgerID, transactionID, &transactionInput, validate, transactionStatus, action)
+	balances, err := handler.Query.GetBalances(ctx, params.OrganizationID, params.LedgerID, validate.Aliases)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetBalances, "Failed to get balances", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get balances", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to get balances", libLog.Err(err))
 
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
-		spanGetBalances.End()
 
 		return http.WithError(c, err)
 	}
 
-	spanGetBalances.End()
+	result, routeCache, err := handler.Query.ProcessBalanceOperations(ctx, params.OrganizationID, params.LedgerID, transactionID, &transactionInput, validate, balances, transactionStatus, action)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to process balance operations", libLog.Err(err))
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+
+		return http.WithError(c, err)
+	}
+
+	balancesBefore, balancesAfter := result.Before, result.After
 
 	fromTo = append(fromTo, pkgTransaction.MutateSplitAliases(transactionInput.Send.Source.From)...)
 	to = pkgTransaction.MutateSplitAliases(transactionInput.Send.Distribute.To)
