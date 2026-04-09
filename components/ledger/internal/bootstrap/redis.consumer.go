@@ -397,7 +397,12 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 			fromTo = append(fromTo, to...)
 		}
 
-		ledgerSettings := r.TransactionHandler.Query.GetParsedLedgerSettings(msgCtxWithSpan, m.OrganizationID, m.LedgerID)
+		ledgerSettings, err := r.TransactionHandler.Query.GetParsedLedgerSettings(msgCtxWithSpan, m.OrganizationID, m.LedgerID)
+		if err != nil {
+			logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to get ledger settings, aborting backup consumer message", libLog.String("transactionId", m.TransactionID.String()), libLog.Err(err))
+
+			return
+		}
 
 		var routeCache *mmodel.TransactionRouteCache
 

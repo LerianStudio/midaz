@@ -290,7 +290,11 @@ func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Resp
 		count++
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Propagated route validation to %d source entries (pending=%t, canceled=%t, approved=%t)", count, isPending, isCanceled, isApproved))
+	logger.Log(ctx, libLog.LevelInfo, "Propagated route validation to source entries",
+		libLog.Int("count", count),
+		libLog.Bool("pending", isPending),
+		libLog.Bool("canceled", isCanceled),
+		libLog.Bool("approved", isApproved))
 }
 
 // buildDoubleEntryPendingOps generates two operations for a PENDING source entry
@@ -767,7 +771,16 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		return http.WithError(c, err)
 	}
 
-	ledgerSettings := handler.Query.GetParsedLedgerSettings(ctx, params.OrganizationID, params.LedgerID)
+	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, params.OrganizationID, params.LedgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+
+		return http.WithError(c, err)
+	}
+
 	if ledgerSettings.Accounting.ValidateRoutes {
 		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
 	}

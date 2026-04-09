@@ -6,55 +6,38 @@ package query
 
 import (
 	"context"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-
-	// GetLedgerSettings retrieves and parses ledger settings for a ledger.
-	// Returns default settings if:
-	//   - SettingsPort is nil (settings functionality not enabled)
-	//   - Settings fetch fails (graceful degradation)
-	//   - Settings are empty or missing accounting section
-	//
-	// This function never returns an error - it always returns valid settings.
-	// Errors are logged but do not propagate to callers.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-func (uc *UseCase) GetParsedLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) mmodel.LedgerSettings {
+// GetParsedLedgerSettings retrieves and parses ledger settings for a ledger.
+// Returns an error if the settings cannot be fetched -- callers must not
+// proceed without knowing whether route validation or account type validation
+// is enabled, as skipping those checks could allow invalid transactions.
+func (uc *UseCase) GetParsedLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (mmodel.LedgerSettings, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_ledger_settings")
 	defer span.End()
 
-	// Fetch settings directly (uses cache internally)
 	settings, err := uc.GetLedgerSettings(ctx, organizationID, ledgerID)
 	if err != nil {
-		// Log error but don't fail - use defaults for graceful degradation
-		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings, using defaults", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.String("ledgerId", ledgerID.String()), libLog.Err(err))
 
-		// Error details captured in span; log only ledger ID to avoid exposing internal error messages
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get ledger settings for %s, using defaults", ledgerID.String()))
-
-		return mmodel.DefaultLedgerSettings()
+		return mmodel.LedgerSettings{}, err
 	}
 
-	// Parse settings into typed struct
 	ledgerSettings := mmodel.ParseLedgerSettings(settings)
 
-	logger.Log(
-		ctx,
-		libLog.LevelDebug,
-		fmt.Sprintf(
-			"Retrieved ledger settings for ledger %s: validateAccountType=%v, validateRoutes=%v",
-			ledgerID.String(),
-			ledgerSettings.Accounting.ValidateAccountType,
-			ledgerSettings.Accounting.ValidateRoutes,
-		),
-	)
+	logger.Log(ctx, libLog.LevelDebug, "Retrieved ledger settings",
+		libLog.String("ledgerId", ledgerID.String()),
+		libLog.Bool("validateAccountType", ledgerSettings.Accounting.ValidateAccountType),
+		libLog.Bool("validateRoutes", ledgerSettings.Accounting.ValidateRoutes))
 
-	return ledgerSettings
+	return ledgerSettings, nil
 }

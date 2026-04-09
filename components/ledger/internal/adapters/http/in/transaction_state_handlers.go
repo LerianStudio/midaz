@@ -441,7 +441,14 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	ledgerSettings := handler.Query.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
+	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
+
+		return http.WithError(c, err)
+	}
+
 	if ledgerSettings.Accounting.ValidateRoutes {
 		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
 	}

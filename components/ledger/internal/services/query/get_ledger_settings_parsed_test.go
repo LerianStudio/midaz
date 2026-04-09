@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -25,7 +26,7 @@ func TestGetParsedLedgerSettings(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	ctx := context.Background()
 
-	t.Run("returns defaults when GetLedgerSettings fails", func(t *testing.T) {
+	t.Run("returns error when GetLedgerSettings fails", func(t *testing.T) {
 		mockLedgerRepo := ledger.NewMockRepository(ctrl)
 		mockLedgerRepo.EXPECT().
 			GetSettings(gomock.Any(), organizationID, ledgerID).
@@ -35,9 +36,10 @@ func TestGetParsedLedgerSettings(t *testing.T) {
 			LedgerRepo: mockLedgerRepo,
 		}
 
-		result := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
+		_, err := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
 
-		assert.Equal(t, mmodel.DefaultLedgerSettings(), result)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "connection error")
 	})
 
 	t.Run("returns defaults when settings are empty", func(t *testing.T) {
@@ -50,8 +52,9 @@ func TestGetParsedLedgerSettings(t *testing.T) {
 			LedgerRepo: mockLedgerRepo,
 		}
 
-		result := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
+		result, err := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
 
+		require.NoError(t, err)
 		assert.Equal(t, mmodel.DefaultLedgerSettings(), result)
 	})
 
@@ -70,8 +73,9 @@ func TestGetParsedLedgerSettings(t *testing.T) {
 			LedgerRepo: mockLedgerRepo,
 		}
 
-		result := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
+		result, err := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
 
+		require.NoError(t, err)
 		assert.True(t, result.Accounting.ValidateAccountType)
 		assert.True(t, result.Accounting.ValidateRoutes)
 	})
@@ -90,8 +94,9 @@ func TestGetParsedLedgerSettings(t *testing.T) {
 			LedgerRepo: mockLedgerRepo,
 		}
 
-		result := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
+		result, err := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
 
+		require.NoError(t, err)
 		assert.True(t, result.Accounting.ValidateAccountType)
 		assert.False(t, result.Accounting.ValidateRoutes)
 	})

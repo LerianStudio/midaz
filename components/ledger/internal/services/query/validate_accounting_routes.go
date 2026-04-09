@@ -35,10 +35,14 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
 	defer span.End()
 
-	// Get ledger settings for this ledger
-	ledgerSettings := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
+	ledgerSettings, err := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
 
-	// If route validation is disabled, skip all route-related validation
+		return nil, err
+	}
+
 	if !ledgerSettings.Accounting.ValidateRoutes {
 		logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Route validation disabled for ledger %s, skipping accounting rules validation", ledgerID.String()))
 
@@ -48,10 +52,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Route validation enabled for ledger %s, validating accounting rules", ledgerID.String()))
 
 	// Resolve the transaction route UUID: prefer the new routeId field, fall back to the deprecated route string.
-	var (
-		transactionRouteID uuid.UUID
-		err                error
-	)
+	var transactionRouteID uuid.UUID
 
 	if !libCommons.IsNilOrEmpty(validate.TransactionRouteID) {
 		transactionRouteID, err = uuid.Parse(*validate.TransactionRouteID)
