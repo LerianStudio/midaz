@@ -784,8 +784,8 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
+		spanQuery.End()
+		logger.Log(ctx, libLog.LevelError, "Failed to execute query", libLog.Err(err))
 
 		return nil, err
 	}
