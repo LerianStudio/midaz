@@ -386,7 +386,7 @@ func TestGetLedgerSettings_CacheMiss_PopulatesCache(t *testing.T) {
 
 	// Cache should be populated with merged settings (validateAccountType=true from persisted, validateRoutes=false from defaults)
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), cacheKey, matchSettingsJSON(true, false), DefaultSettingsCacheTTL).
+		Set(gomock.Any(), cacheKey, matchSettingsJSON(true, false), SettingsCacheTTL).
 		Return(nil)
 
 	settings, err := uc.GetLedgerSettings(ctx, orgID, ledgerID)
@@ -434,7 +434,7 @@ func TestGetLedgerSettings_CacheErrorOnRead_FallsBackToDatabase(t *testing.T) {
 
 	// Should still try to populate cache with defaults (no accounting in persisted, so both false)
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), cacheKey, matchSettingsJSON(false, false), DefaultSettingsCacheTTL).
+		Set(gomock.Any(), cacheKey, matchSettingsJSON(false, false), SettingsCacheTTL).
 		Return(nil)
 
 	settings, err := uc.GetLedgerSettings(ctx, orgID, ledgerID)
@@ -480,7 +480,7 @@ func TestGetLedgerSettings_InvalidCacheJSON_FallsBackToDatabase(t *testing.T) {
 
 	// Should try to populate cache with valid data (defaults since no accounting persisted)
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), cacheKey, matchSettingsJSON(false, false), DefaultSettingsCacheTTL).
+		Set(gomock.Any(), cacheKey, matchSettingsJSON(false, false), SettingsCacheTTL).
 		Return(nil)
 
 	settings, err := uc.GetLedgerSettings(ctx, orgID, ledgerID)
@@ -526,7 +526,7 @@ func TestGetLedgerSettings_CacheSetError_DoesNotFailOperation(t *testing.T) {
 
 	// Cache set fails - operation should still succeed (defaults since no accounting persisted)
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), cacheKey, matchSettingsJSON(false, false), DefaultSettingsCacheTTL).
+		Set(gomock.Any(), cacheKey, matchSettingsJSON(false, false), SettingsCacheTTL).
 		Return(errors.New("redis write error"))
 
 	settings, err := uc.GetLedgerSettings(ctx, orgID, ledgerID)
@@ -536,78 +536,4 @@ func TestGetLedgerSettings_CacheSetError_DoesNotFailOperation(t *testing.T) {
 	assert.Equal(t, "customValue", settings["customKey"], "persisted custom key should be preserved")
 	_, hasAccounting := settings["accounting"]
 	assert.True(t, hasAccounting, "accounting defaults should be added")
-}
-
-func TestGetLedgerSettings_CustomCacheTTL(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLedgerRepo := ledger.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-	// Custom TTL of 10 minutes instead of default 5 minutes
-	customTTL := 2 * DefaultSettingsCacheTTL
-
-	uc := &UseCase{
-		LedgerRepo:          mockLedgerRepo,
-		OnboardingRedisRepo: mockRedisRepo,
-		SettingsCacheTTL:    customTTL,
-	}
-
-	ctx := context.Background()
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	persistedSettings := map[string]any{
-		"customKey": "customValue",
-	}
-	cacheKey := utils.LedgerSettingsInternalKey(orgID, ledgerID)
-
-	// Cache miss
-	mockRedisRepo.EXPECT().
-		Get(gomock.Any(), cacheKey).
-		Return("", nil)
-
-	// Database returns data
-	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), orgID, ledgerID).
-		Return(persistedSettings, nil)
-
-	// Cache should be set with custom TTL, not default (defaults since no accounting persisted)
-	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), cacheKey, matchSettingsJSON(false, false), customTTL).
-		Return(nil)
-
-	settings, err := uc.GetLedgerSettings(ctx, orgID, ledgerID)
-
-	require.NoError(t, err)
-	// Should have merged with defaults
-	assert.Equal(t, "customValue", settings["customKey"], "persisted custom key should be preserved")
-	_, hasAccounting := settings["accounting"]
-	assert.True(t, hasAccounting, "accounting defaults should be added")
-}
-
-func TestGetSettingsCacheTTL_DefaultValue(t *testing.T) {
-	t.Parallel()
-
-	uc := &UseCase{}
-
-	ttl := uc.getSettingsCacheTTL()
-
-	assert.Equal(t, DefaultSettingsCacheTTL, ttl)
-}
-
-func TestGetSettingsCacheTTL_CustomValue(t *testing.T) {
-	t.Parallel()
-
-	customTTL := 15 * DefaultSettingsCacheTTL
-
-	uc := &UseCase{
-		SettingsCacheTTL: customTTL,
-	}
-
-	ttl := uc.getSettingsCacheTTL()
-
-	assert.Equal(t, customTTL, ttl)
 }

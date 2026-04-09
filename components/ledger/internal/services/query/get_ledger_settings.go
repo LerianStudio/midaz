@@ -7,100 +7,125 @@ package query
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
-
-	// DefaultSettingsCacheTTL is the default TTL for cached ledger settings (5 minutes).
-	// Can be overridden via UseCase.SettingsCacheTTL or SETTINGS_CACHE_TTL env var.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	"go.opentelemetry.io/otel/trace"
 )
 
-const DefaultSettingsCacheTTL = 5 * time.Minute
+// SettingsCacheTTL is the TTL for cached ledger settings (5 minutes).
+const SettingsCacheTTL = 5 * time.Minute
 
-// getSettingsCacheTTL returns the configured cache TTL or the default if not set.
-func (uc *UseCase) getSettingsCacheTTL() time.Duration {
-	if uc.SettingsCacheTTL > 0 {
-		return uc.SettingsCacheTTL
-	}
-
-	return DefaultSettingsCacheTTL
-}
-
-// GetLedgerSettings retrieves the settings for a specific ledger merged with default values.
-// Uses cache-aside pattern: checks cache first, falls back to database on miss.
-// Returns default settings if no settings are persisted, ensuring clients always receive
-// a complete settings object with all expected fields.
-// Returns an error if the ledger does not exist.
+// GetLedgerSettings retrieves the settings for a specific ledger, merged with
+// default values so callers always receive a complete settings object.
+//
+// Uses a cache-aside pattern: checks Redis first, falls back to the database on
+// miss, and populates the cache after a successful DB read. Cache errors are
+// non-blocking -- only the DB fetch is required to succeed.
 func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (map[string]any, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_ledger_settings")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Retrieving settings for ledger: %s", ledgerID.String()))
-
 	cacheKey := utils.LedgerSettingsInternalKey(organizationID, ledgerID)
 
-	// Try to get from cache first
-	if uc.OnboardingRedisRepo != nil {
-		cached, err := uc.OnboardingRedisRepo.Get(ctx, cacheKey)
-		if err != nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Cache error, falling back to database: %v", err))
-		} else if cached != "" {
-			// Cache hit - unmarshal and return
-			var settings map[string]any
-			if err := json.Unmarshal([]byte(cached), &settings); err != nil {
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to unmarshal cached settings, falling back to database: %v", err))
-			} else {
-				logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Cache hit for ledger settings: %s", ledgerID.String()))
-
-				// Merge with defaults to ensure complete settings object
-				mergedSettings := mmodel.MergeSettingsWithDefaults(settings)
-
-				return mergedSettings, nil
-			}
-		}
+	// Cache read (best-effort)
+	if settings, ok := uc.readSettingsFromCache(ctx, tracer, logger, cacheKey, ledgerID); ok {
+		return settings, nil
 	}
 
-	// Cache miss or error - get from database
+	// DB fallback
 	settings, err := uc.LedgerRepo.GetSettings(ctx, organizationID, ledgerID)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting ledger settings: %v", err))
-
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings from database", libLog.Err(err))
 
 		return nil, err
 	}
 
-	// Merge with defaults to ensure complete settings object
-	settings = mmodel.MergeSettingsWithDefaults(settings)
+	settings = mmodel.FillDefaultSettings(settings)
 
-	// Populate cache for future reads
-	if uc.OnboardingRedisRepo != nil {
-		cacheCtx, cacheSpan := tracer.Start(ctx, "cache.set_ledger_settings")
-		defer cacheSpan.End()
-
-		settingsJSON, err := json.Marshal(settings)
-		if err != nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to marshal settings for cache: %v", err))
-		} else {
-			if err := uc.OnboardingRedisRepo.Set(cacheCtx, cacheKey, string(settingsJSON), uc.getSettingsCacheTTL()); err != nil {
-				libOpentelemetry.HandleSpanError(cacheSpan, "Failed to cache ledger settings", err)
-
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to cache ledger settings: %v", err))
-			} else {
-				logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Cached ledger settings: %s", ledgerID.String()))
-			}
-		}
-	}
-
-	logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Successfully retrieved settings for ledger: %s", ledgerID.String()))
+	// Cache write (best-effort)
+	uc.writeSettingsToCache(ctx, tracer, logger, cacheKey, settings, ledgerID)
 
 	return settings, nil
+}
+
+// readSettingsFromCache attempts to read ledger settings from Redis.
+// Returns (settings, true) on a cache hit, or (nil, false) on miss or error.
+// Errors are logged but never propagated -- a cache failure simply means the
+// caller falls through to the database.
+func (uc *UseCase) readSettingsFromCache(ctx context.Context, tracer trace.Tracer, logger libLog.Logger, cacheKey string, ledgerID uuid.UUID) (map[string]any, bool) {
+	if uc.OnboardingRedisRepo == nil {
+		return nil, false
+	}
+
+	cacheCtx, cacheSpan := tracer.Start(ctx, "query.get_ledger_settings.cache_read")
+	defer cacheSpan.End()
+
+	cached, err := uc.OnboardingRedisRepo.Get(cacheCtx, cacheKey)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(cacheSpan, "Cache read error", err)
+		logger.Log(ctx, libLog.LevelWarn, "Cache read error, falling back to database", libLog.Err(err))
+
+		return nil, false
+	}
+
+	if cached == "" {
+		return nil, false
+	}
+
+	var settings map[string]any
+	if err := json.Unmarshal([]byte(cached), &settings); err != nil {
+		libOpentelemetry.HandleSpanError(cacheSpan, "Failed to unmarshal cached settings", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to unmarshal cached settings, falling back to database", libLog.Err(err))
+
+		return nil, false
+	}
+
+	merged := mmodel.FillDefaultSettings(settings)
+	parsed := mmodel.ParseLedgerSettings(merged)
+
+	logger.Log(ctx, libLog.LevelDebug, "Cache hit for ledger settings",
+		libLog.String("ledgerId", ledgerID.String()),
+		libLog.Bool("validateAccountType", parsed.Accounting.ValidateAccountType),
+		libLog.Bool("validateRoutes", parsed.Accounting.ValidateRoutes))
+
+	return merged, true
+}
+
+// writeSettingsToCache stores ledger settings in Redis for future reads.
+// Errors are logged but never propagated -- a cache write failure does not
+// affect the transaction flow.
+func (uc *UseCase) writeSettingsToCache(ctx context.Context, tracer trace.Tracer, logger libLog.Logger, cacheKey string, settings map[string]any, ledgerID uuid.UUID) {
+	if uc.OnboardingRedisRepo == nil {
+		return
+	}
+
+	cacheCtx, cacheSpan := tracer.Start(ctx, "query.get_ledger_settings.cache_write")
+	defer cacheSpan.End()
+
+	settingsJSON, err := json.Marshal(settings)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(cacheSpan, "Failed to marshal settings for cache", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to marshal settings for cache", libLog.Err(err))
+
+		return
+	}
+
+	if err := uc.OnboardingRedisRepo.Set(cacheCtx, cacheKey, string(settingsJSON), SettingsCacheTTL); err != nil {
+		libOpentelemetry.HandleSpanError(cacheSpan, "Failed to cache ledger settings", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to cache ledger settings", libLog.Err(err))
+
+		return
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Cached ledger settings",
+		libLog.String("ledgerId", ledgerID.String()))
 }

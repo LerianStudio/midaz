@@ -43,7 +43,7 @@ func TestDefaultLedgerSettingsMap(t *testing.T) {
 	assert.Equal(t, false, accounting["validateRoutes"])
 }
 
-func TestMergeSettingsWithDefaults(t *testing.T) {
+func TestFillDefaultSettings(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    map[string]any
@@ -160,7 +160,7 @@ func TestMergeSettingsWithDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := MergeSettingsWithDefaults(tt.input)
+			result := FillDefaultSettings(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -852,8 +852,8 @@ func FuzzParseLedgerSettings(f *testing.F) {
 	})
 }
 
-// FuzzMergeSettingsWithDefaults verifies MergeSettingsWithDefaults never panics.
-func FuzzMergeSettingsWithDefaults(f *testing.F) {
+// FuzzFillDefaultSettings verifies FillDefaultSettings never panics.
+func FuzzFillDefaultSettings(f *testing.F) {
 	// Seed corpus with edge cases
 	seeds := []string{
 		`null`,
@@ -880,16 +880,16 @@ func FuzzMergeSettingsWithDefaults(f *testing.F) {
 		}
 
 		// The function must not panic
-		result := MergeSettingsWithDefaults(settings)
+		result := FillDefaultSettings(settings)
 
 		// Result must contain at least the defaults
 		if result == nil {
-			t.Error("MergeSettingsWithDefaults returned nil, expected non-nil map")
+			t.Error("FillDefaultSettings returned nil, expected non-nil map")
 		}
 
 		// Accounting section must always exist in result
 		if _, exists := result["accounting"]; !exists {
-			t.Error("MergeSettingsWithDefaults result missing 'accounting' section")
+			t.Error("FillDefaultSettings result missing 'accounting' section")
 		}
 	})
 }
