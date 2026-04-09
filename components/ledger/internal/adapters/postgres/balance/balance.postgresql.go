@@ -729,6 +729,10 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_aliases_with_keys")
 	defer span.End()
 
+	if len(aliasesWithKeys) == 0 {
+		return []*mmodel.Balance{}, nil
+	}
+
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
@@ -736,10 +740,6 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
-	}
-
-	if len(aliasesWithKeys) == 0 {
-		return []*mmodel.Balance{}, nil
 	}
 
 	orConditions := squirrel.Or{}
