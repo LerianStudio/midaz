@@ -580,6 +580,8 @@ Full rules in `docs/PROJECT_RULES.md` (1130 lines). Key points:
 14. **Query builder**: Use `squirrel` for all SQL query construction (SELECT, INSERT, UPDATE). Do not use raw SQL string concatenation with `strconv.Itoa` for parameter placeholders.
 15. **Entity name constants**: Use `constant.Entity*` instead of `reflect.TypeOf(mmodel.Foo{}).Name()`. See `pkg/constant/entity.go`.
 16. **Timestamps on create**: Capture `time.Now()` once and reuse for both `CreatedAt` and `UpdatedAt` to guarantee identical values.
+17. **Declaration order**: Within a file, declare in this order: exported interface → exported types → constructor → exported methods → unexported helpers. The interface is the contract readers look for first.
+18. **Repository tests**: Repository/adapter code (thin wrappers around Redis, Postgres, etc.) should be covered by integration tests with testcontainers, not unit tests. Unit-testing mock interactions only verifies you called the mock correctly — it does not catch real issues like key format mismatches, TTL semantics, or Lua script behavior. Unit tests in adapter packages should be reserved for pure functions and business logic branches that don't require external dependencies.
 
 ## Observability Conventions
 

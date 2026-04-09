@@ -780,6 +780,7 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get redis client", libLog.Err(err))
 
 		return err
 	}
@@ -1386,6 +1387,16 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 // Unexported helpers
 // ---------------------------------------------------------------------------
 
+// redisClientProvider abstracts the Redis client acquisition so the repository
+// works transparently in both deployment modes:
+//
+//   - Single-tenant: *libRedis.Client satisfies this interface and always returns
+//     the same shared connection.
+//   - Multi-tenant: the tenant-aware Redis manager (tmredis.Manager) also satisfies
+//     it, using the tenantID in ctx to resolve the correct per-tenant connection pool.
+//
+// The repository never imports or depends on either concrete type — it only calls
+// GetClient(ctx) and receives a ready-to-use client.
 type redisClientProvider interface {
 	GetClient(ctx context.Context) (redis.UniversalClient, error)
 }
