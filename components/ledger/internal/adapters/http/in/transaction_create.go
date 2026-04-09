@@ -25,7 +25,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -749,9 +748,16 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		action = constant.ActionRevert
 	}
 
-	err = handler.sendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, idempotencyResult.InternalKey)
+	err = handler.Command.SendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, nil)
 	if err != nil {
-		return http.WithError(c, err)
+		libOpentelemetry.HandleSpanError(span, "Failed to send transaction to backup cache", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to send transaction to backup cache", libLog.Err(err))
+
+		if errors.Is(err, constant.ErrTransactionBackupCacheMarshalFailed) {
+			handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		}
+
+		return http.WithError(c, pkg.ValidateBusinessError(err, constant.EntityTransaction))
 	}
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
@@ -844,36 +850,6 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, params.OrganizationID, params.LedgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
-}
-
-func (handler *TransactionHandler) sendTransactionToRedisQueue(
-	ctx context.Context,
-	organizationID, ledgerID, transactionID uuid.UUID,
-	transactionInput pkgTransaction.Transaction,
-	validate *pkgTransaction.Responses,
-	transactionStatus string,
-	action string,
-	transactionDate time.Time,
-	internalKey *string,
-) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctxSendTransactionToRedisQueue, spanSendTransactionToRedisQueue := tracer.Start(ctx, "handler.create_transaction.send_transaction_to_redis_queue")
-	defer spanSendTransactionToRedisQueue.End()
-
-	err := handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, nil)
-	if err == nil {
-		return nil
-	}
-
-	libOpentelemetry.HandleSpanError(spanSendTransactionToRedisQueue, "Failed to send transaction to backup cache", err)
-	logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to send transaction to backup cache: %v", err.Error()))
-
-	if errors.Is(err, constant.ErrTransactionBackupCacheMarshalFailed) {
-		handler.deleteIdempotencyKey(ctxSendTransactionToRedisQueue, internalKey)
-	}
-
-	return pkg.ValidateBusinessError(err, constant.EntityTransaction)
 }
 
 func (handler *TransactionHandler) deleteIdempotencyKey(ctx context.Context, internalKey *string) {
