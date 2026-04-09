@@ -741,20 +741,18 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 		return nil, err
 	}
 
-	orConditions := squirrel.Or{}
+	orConditions := make(squirrel.Or, 0, len(aliasesWithKeys))
 
 	for _, aliasWithKey := range aliasesWithKeys {
-		parts := strings.Split(aliasWithKey, "#")
-		if len(parts) != 2 {
-			libOpentelemetry.HandleSpanError(span, "Invalid alias#key format", errors.New("expected format: alias#key"))
+		alias, key, ok := strings.Cut(aliasWithKey, "#")
+		if !ok {
+			err := fmt.Errorf("invalid alias#key format: %s", aliasWithKey)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid alias#key format: %s", aliasWithKey))
+			libOpentelemetry.HandleSpanError(span, "Invalid alias#key format", err)
+			logger.Log(ctx, libLog.LevelError, "Invalid alias#key format", libLog.String("alias_with_key", aliasWithKey))
 
-			return nil, errors.New("invalid alias#key format")
+			return nil, err
 		}
-
-		alias := parts[0]
-		key := parts[1]
 
 		orConditions = append(orConditions, squirrel.And{
 			squirrel.Eq{"alias": alias},
@@ -774,8 +772,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 	query, args, err := findQuery.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to build query", libLog.Err(err))
 
 		return nil, err
 	}
