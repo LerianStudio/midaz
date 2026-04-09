@@ -12,7 +12,6 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
@@ -89,12 +88,7 @@ func (uc *UseCase) readSettingsFromCache(ctx context.Context, tracer trace.Trace
 		return nil, false
 	}
 
-	parsed := mmodel.ParseLedgerSettings(settings)
-
-	logger.Log(ctx, libLog.LevelDebug, "Cache hit for ledger settings",
-		libLog.String("ledgerId", ledgerID.String()),
-		libLog.Bool("validateAccountType", parsed.Accounting.ValidateAccountType),
-		libLog.Bool("validateRoutes", parsed.Accounting.ValidateRoutes))
+	logger.Log(ctx, libLog.LevelDebug, "Cache hit for ledger settings", libLog.String("ledgerId", ledgerID.String()))
 
 	return settings, true
 }
@@ -125,6 +119,5 @@ func (uc *UseCase) writeSettingsToCache(ctx context.Context, tracer trace.Tracer
 		return
 	}
 
-	logger.Log(ctx, libLog.LevelDebug, "Cached ledger settings",
-		libLog.String("ledgerId", ledgerID.String()))
+	logger.Log(ctx, libLog.LevelDebug, "Cached ledger settings", libLog.String("ledgerId", ledgerID.String()))
 }
