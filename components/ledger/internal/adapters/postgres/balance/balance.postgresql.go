@@ -55,7 +55,7 @@ var balanceColumnList = []string{
 //
 //go:generate mockgen --destination=balance.postgresql_mock.go --package=balance . Repository
 type Repository interface {
-	Create(ctx context.Context, balance *mmodel.Balance) error
+	Create(ctx context.Context, balance *mmodel.Balance) (*mmodel.Balance, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Balance, error)
 	FindByAccountIDAndKey(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, key string) (*mmodel.Balance, error)
 	ExistsByAccountIDAndKey(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, key string) (bool, error)
@@ -120,74 +120,87 @@ func (r *BalancePostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB,
 	return r.connection.Resolver(ctx)
 }
 
-func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmodel.Balance) error {
+func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmodel.Balance) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.create_balances")
+	ctx, span := tracer.Start(ctx, "postgres.create_balance")
 	defer span.End()
 
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
-
-		return err
+		return nil, err
 	}
 
 	record := &BalancePostgreSQLModel{}
 	record.FromEntity(balance)
 
-	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
+	insert := squirrel.Insert(r.tableName).
+		Columns(balanceColumnList...).
+		Values(
+			record.ID,
+			record.OrganizationID,
+			record.LedgerID,
+			record.AccountID,
+			record.Alias,
+			record.AssetCode,
+			record.Available,
+			record.OnHold,
+			record.Version,
+			record.AccountType,
+			record.AllowSending,
+			record.AllowReceiving,
+			record.CreatedAt,
+			record.UpdatedAt,
+			record.DeletedAt,
+			record.Key,
+		).
+		Suffix("RETURNING " + strings.Join(balanceColumnList, ", ")).
+		PlaceholderFormat(squirrel.Dollar)
 
-	result, err := db.ExecContext(ctx, `INSERT INTO balance VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
-		record.ID,
-		record.OrganizationID,
-		record.LedgerID,
-		record.AccountID,
-		record.Alias,
-		record.AssetCode,
-		record.Available,
-		record.OnHold,
-		record.Version,
-		record.AccountType,
-		record.AllowSending,
-		record.AllowReceiving,
-		record.CreatedAt,
-		record.UpdatedAt,
-		record.DeletedAt,
-		record.Key,
-	)
+	query, args, err := insert.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build insert query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build insert query", libLog.Err(err))
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
+		return nil, err
+	}
 
-		return err
+	ctx, spanExec := tracer.Start(ctx, "postgres.create_balance.exec")
+
+	row := db.QueryRowContext(ctx, query, args...)
+
+	var created BalancePostgreSQLModel
+	if err = row.Scan(
+		&created.ID,
+		&created.OrganizationID,
+		&created.LedgerID,
+		&created.AccountID,
+		&created.Alias,
+		&created.AssetCode,
+		&created.Available,
+		&created.OnHold,
+		&created.Version,
+		&created.AccountType,
+		&created.AllowSending,
+		&created.AllowReceiving,
+		&created.CreatedAt,
+		&created.UpdatedAt,
+		&created.DeletedAt,
+		&created.Key,
+	); err != nil {
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute insert query", err)
+		spanExec.End()
+		logger.Log(ctx, libLog.LevelError, "Failed to execute insert query", libLog.Err(err))
+
+		return nil, err
 	}
 
 	spanExec.End()
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
-
-		return err
-	}
-
-	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create balance. Rows affected is 0", err)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to create balance. Rows affected is 0: %v", err))
-
-		return err
-	}
-
-	return nil
+	return created.ToEntity(), nil
 }
 
 // ListByAccountIDs list Balances entity from the database using the provided accountIDs.
@@ -814,8 +827,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 			&balance.Key,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to scan row", libLog.Err(err))
 
 			return nil, err
 		}

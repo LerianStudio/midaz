@@ -79,12 +79,12 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		UpdatedAt:      time.Now(),
 	}
 
-	err = uc.BalanceRepo.Create(ctx, additionalBalance)
+	created, err := uc.BalanceRepo.Create(ctx, additionalBalance)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating additional balance on repo: %v", err))
 
 		return nil, err
 	}
 
-	return additionalBalance, nil
+	return created, nil
 }
