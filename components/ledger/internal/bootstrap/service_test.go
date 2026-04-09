@@ -196,6 +196,8 @@ func TestMidazErrorMapper(t *testing.T) {
 			req, err := http.NewRequest(http.MethodPost, "/test", nil)
 			require.NoError(t, err)
 
+			req.Host = "localhost"
+
 			resp, err := app.Test(req)
 			require.NoError(t, err)
 
