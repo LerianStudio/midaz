@@ -845,16 +845,19 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	handler.Command.UpdateTransactionBackupOperations(ctx, params.OrganizationID, params.LedgerID, transactionID.String(), operations, action)
 
-	originalStatus := tran.Status
-
+	// Build a shallow copy with the promoted status for persistence and cache.
+	// CREATED is a transient status that the DB layer promotes to APPROVED;
+	// the cache must reflect the final status for consistent GET reads.
+	// The original tran keeps CREATED for the HTTP response and idempotency key.
+	writeTran := *tran
 	if transactionStatus == constant.CREATED {
 		approved := constant.APPROVED
-		tran.Status = transaction.Status{Code: approved, Description: &approved}
+		writeTran.Status = transaction.Status{Code: approved, Description: &approved}
 	}
 
-	handler.Command.CreateWriteBehindTransaction(ctx, params.OrganizationID, params.LedgerID, tran, transactionInput)
+	handler.Command.CreateWriteBehindTransaction(ctx, params.OrganizationID, params.LedgerID, &writeTran, transactionInput)
 
-	err = handler.Command.WriteTransaction(ctx, params.OrganizationID, params.LedgerID, &transactionInput, validate, balancesBefore, balancesAfter, tran)
+	err = handler.Command.WriteTransaction(ctx, params.OrganizationID, params.LedgerID, &transactionInput, validate, balancesBefore, balancesAfter, &writeTran)
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
 
@@ -864,8 +867,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 		return http.WithError(c, err)
 	}
-
-	tran.Status = originalStatus
 
 	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, params.OrganizationID, params.LedgerID, idempotencyState.key, idempotencyState.hash, *tran, idempotencyState.ttl)
 
