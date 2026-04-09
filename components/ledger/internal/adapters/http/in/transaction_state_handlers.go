@@ -283,7 +283,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		}
 	}
 
-	response := handler.createTransaction(c, transactionReverted, constant.CREATED, constant.ActionRevert)
+	response := handler.createRevertTransaction(c, transactionReverted, constant.CREATED)
 
 	return response
 }

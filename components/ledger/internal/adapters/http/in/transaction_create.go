@@ -635,7 +635,19 @@ func (handler *TransactionHandler) buildStandardOp(
 	}, nil
 }
 
-func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string, actionOverride ...string) error {
+// createTransaction creates a new transaction with the given status.
+func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string) error {
+	return handler.executeCreateTransaction(c, transactionInput, transactionStatus, false)
+}
+
+// createRevertTransaction creates a reversal transaction. The action is forced
+// to "revert" so that accounting route lookups use the revert rubrics instead
+// of the status-derived action.
+func (handler *TransactionHandler) createRevertTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string) error {
+	return handler.executeCreateTransaction(c, transactionInput, transactionStatus, true)
+}
+
+func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string, isRevert bool) error {
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -733,9 +745,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	}
 
 	action := pkgTransaction.StatusToAction(transactionStatus)
-
-	if len(actionOverride) > 0 && actionOverride[0] != "" {
-		action = actionOverride[0]
+	if isRevert {
+		action = constant.ActionRevert
 	}
 
 	err = handler.sendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, idempotencyResult.InternalKey)
