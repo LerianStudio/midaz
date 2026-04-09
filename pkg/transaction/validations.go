@@ -56,12 +56,11 @@ func CheckTransactionDate(ctx context.Context, transactionInput Transaction, tra
 func ValidateBalancesRules(ctx context.Context, transaction Transaction, validate Responses, balances []*Balance) error {
 	logger, tracer, _, _ := commons.NewTrackingFromContext(ctx)
 
-	_, spanValidateBalances := tracer.Start(ctx, "validations.validate_balances_rules")
+	_, spanValidateBalances := tracer.Start(ctx, "transaction.validate_balances_rules")
 	defer spanValidateBalances.End()
 
 	if len(balances) != (len(validate.From) + len(validate.To)) {
-		err := commons.ValidateBusinessError(constant.ErrAccountIneligibility, "ValidateAccounts")
-
+		err := pkg.ValidateBusinessError(pkgConstant.ErrAccountIneligibility, "ValidateAccounts")
 		opentelemetry.HandleSpanBusinessErrorEvent(spanValidateBalances, "validations.validate_balances_rules", err)
 
 		return err
@@ -69,17 +68,15 @@ func ValidateBalancesRules(ctx context.Context, transaction Transaction, validat
 
 	for _, balance := range balances {
 		if err := validateFromBalances(balance, validate.From, validate.Asset, validate.Pending); err != nil {
-			opentelemetry.HandleSpanBusinessErrorEvent(spanValidateBalances, "validations.validate_from_balances_", err)
-
-			logger.Log(ctx, libLog.LevelError, "validations.validate_from_balances_err", libLog.Err(err))
+			opentelemetry.HandleSpanBusinessErrorEvent(spanValidateBalances, "Failed to validate source balance", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to validate source balance", libLog.Err(err))
 
 			return err
 		}
 
 		if err := validateToBalances(balance, validate.To, validate.Asset); err != nil {
-			opentelemetry.HandleSpanBusinessErrorEvent(spanValidateBalances, "validations.validate_to_balances_", err)
-
-			logger.Log(ctx, libLog.LevelError, "validations.validate_to_balances_err", libLog.Err(err))
+			opentelemetry.HandleSpanBusinessErrorEvent(spanValidateBalances, "Failed to validate destination balance", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to validate destination balance", libLog.Err(err))
 
 			return err
 		}
@@ -93,15 +90,15 @@ func validateFromBalances(balance *Balance, from map[string]Amount, asset string
 		balanceAliasKey := AliasKey(balance.Alias, balance.Key)
 		if key == balance.ID || SplitAliasWithKey(key) == balanceAliasKey {
 			if balance.AssetCode != asset {
-				return commons.ValidateBusinessError(constant.ErrAssetCodeNotFound, "validateFromAccounts")
+				return pkg.ValidateBusinessError(pkgConstant.ErrAssetCodeNotFound, "validateFromAccounts")
 			}
 
 			if !balance.AllowSending {
-				return commons.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateFromAccounts")
+				return pkg.ValidateBusinessError(pkgConstant.ErrAccountStatusTransactionRestriction, "validateFromAccounts")
 			}
 
 			if pending && balance.AccountType == constant.ExternalAccountType {
-				return commons.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance", balance.Alias)
+				return pkg.ValidateBusinessError(pkgConstant.ErrOnHoldExternalAccount, "validateBalance", balance.Alias)
 			}
 		}
 	}
@@ -114,11 +111,11 @@ func validateToBalances(balance *Balance, to map[string]Amount, asset string) er
 	for key := range to {
 		if key == balance.ID || SplitAliasWithKey(key) == balanceAliasKey {
 			if balance.AssetCode != asset {
-				return commons.ValidateBusinessError(constant.ErrAssetCodeNotFound, "validateToAccounts")
+				return pkg.ValidateBusinessError(pkgConstant.ErrAssetCodeNotFound, "validateToAccounts")
 			}
 
 			if !balance.AllowReceiving {
-				return commons.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
+				return pkg.ValidateBusinessError(pkgConstant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
 			}
 		}
 	}
@@ -423,7 +420,27 @@ func AppendIfNotExist(slice []string, s []string) []string {
 	return slice
 }
 
-// ValidateSendSourceAndDistribute Validate send and distribute totals
+// ValidateSendSourceAndDistribute resolves the amounts for each source and
+// destination entry, then verifies that the transaction is balanced:
+//
+//  1. For each source (From) and destination (To) entry, CalculateTotal runs in
+//     a goroutine to compute the resolved amount per account. Each entry can
+//     specify an explicit amount, a percentage share, or a "remaining" flag:
+//     - Explicit amount: used as-is.
+//     - Share: percentage (and optional percentage-of-percentage) of the total
+//     send value.
+//     - Remaining: whatever is left after all other entries are subtracted.
+//
+//  2. Ambiguity check: the same account alias must not appear as both source
+//     and destination within the same positional index. This prevents
+//     self-transfer loops that would be no-ops.
+//
+//  3. Balance check: sourcesTotal == destinationsTotal == transaction.Send.Value.
+//     If any mismatch is found, the transaction is rejected.
+//
+// The returned Responses struct carries the resolved per-account amounts, the
+// alias lists (for balance lookups), and route information (for accounting
+// validation).
 func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transaction, transactionType string) (*Responses, error) {
 	var (
 		sourcesTotal      decimal.Decimal
@@ -432,7 +449,7 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 
 	logger, tracer, _, _ := commons.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "commons.transaction.ValidateSendSourceAndDistribute")
+	_, span := tracer.Start(ctx, "transaction.validate_send_source_and_distribute")
 	defer span.End()
 
 	sizeFrom := len(transaction.Send.Source.From)
@@ -453,10 +470,12 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 		OperationRoutesTo:   make(map[string]string, sizeTo),
 	}
 
-	tFrom := make(chan decimal.Decimal, sizeFrom)
-	ftFrom := make(chan map[string]Amount, sizeFrom)
-	sdFrom := make(chan []string, sizeFrom)
-	orFrom := make(chan map[string]string, sizeFrom)
+	// Resolve source amounts concurrently. CalculateTotal aggregates all entries
+	// and sends one value per channel after the loop completes.
+	tFrom := make(chan decimal.Decimal, 1)
+	ftFrom := make(chan map[string]Amount, 1)
+	sdFrom := make(chan []string, 1)
+	orFrom := make(chan map[string]string, 1)
 
 	go CalculateTotal(transaction.Send.Source.From, transaction, transactionType, tFrom, ftFrom, sdFrom, orFrom)
 
@@ -466,10 +485,11 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 	response.OperationRoutesFrom = <-orFrom
 	response.Aliases = AppendIfNotExist(response.Aliases, response.Sources)
 
-	tTo := make(chan decimal.Decimal, sizeTo)
-	ftTo := make(chan map[string]Amount, sizeTo)
-	sdTo := make(chan []string, sizeTo)
-	orTo := make(chan map[string]string, sizeTo)
+	// Resolve destination amounts concurrently.
+	tTo := make(chan decimal.Decimal, 1)
+	ftTo := make(chan map[string]Amount, 1)
+	sdTo := make(chan []string, 1)
+	orTo := make(chan map[string]string, 1)
 
 	go CalculateTotal(transaction.Send.Distribute.To, transaction, transactionType, tTo, ftTo, sdTo, orTo)
 
@@ -479,26 +499,31 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 	response.OperationRoutesTo = <-orTo
 	response.Aliases = AppendIfNotExist(response.Aliases, response.Destinations)
 
+	// Ambiguity check: reject if the same alias appears as both source and destination.
 	for i, source := range response.Sources {
 		if _, ok := response.To[ConcatAlias(i, source)]; ok {
-			logger.Log(ctx, libLog.LevelError, "ValidateSendSourceAndDistribute: Ambiguous transaction source and destination")
+			logger.Log(ctx, libLog.LevelError, "Ambiguous transaction: source alias also appears as destination", libLog.String("alias", source))
 
-			return nil, commons.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+			return nil, pkg.ValidateBusinessError(pkgConstant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
 		}
 	}
 
 	for i, destination := range response.Destinations {
 		if _, ok := response.From[ConcatAlias(i, destination)]; ok {
-			logger.Log(ctx, libLog.LevelError, "ValidateSendSourceAndDistribute: Ambiguous transaction source and destination")
+			logger.Log(ctx, libLog.LevelError, "Ambiguous transaction: destination alias also appears as source", libLog.String("alias", destination))
 
-			return nil, commons.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+			return nil, pkg.ValidateBusinessError(pkgConstant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
 		}
 	}
 
+	// Balance check: all three totals must agree.
 	if !sourcesTotal.Equal(destinationsTotal) || !destinationsTotal.Equal(response.Total) {
-		logger.Log(ctx, libLog.LevelError, "ValidateSendSourceAndDistribute: Transaction value mismatch")
+		logger.Log(ctx, libLog.LevelError, "Transaction value mismatch",
+			libLog.String("sourcesTotal", sourcesTotal.String()),
+			libLog.String("destinationsTotal", destinationsTotal.String()),
+			libLog.String("sendValue", response.Total.String()))
 
-		return nil, commons.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
+		return nil, pkg.ValidateBusinessError(pkgConstant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
 	}
 
 	return response, nil
