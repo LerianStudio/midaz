@@ -29,15 +29,10 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 	ctx, span := tracer.Start(ctx, "query.get_balances")
 	defer span.End()
 
-	balances := make([]*mmodel.Balance, 0)
+	balances, uncachedAliases := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
 
-	balancesRedis, remainingAliases := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
-	if len(balancesRedis) > 0 {
-		balances = append(balances, balancesRedis...)
-	}
-
-	if len(remainingAliases) > 0 {
-		balancesDB, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, remainingAliases)
+	if len(uncachedAliases) > 0 {
+		balancesDB, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, uncachedAliases)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances from database", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to get balances from database", libLog.Err(err))
