@@ -15,8 +15,10 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -378,6 +380,137 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 		assert.Contains(t, err.Error(), "connection error")
 	})
 }
+
+// TestValidateAccountingRules_PendingDestinationWithCommitOnly verifies that a
+// pending transaction is accepted when the source route has hold but the
+// destination route only has direct+commit (no hold). The destination only
+// participates at confirmation time (commit), not during the hold.
+func TestValidateAccountingRules_PendingDestinationWithCommitOnly(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+
+	// Enable route validation
+	mockLedgerRepo.EXPECT().
+		GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]any{
+			"accounting": map[string]any{
+				"validateRoutes": true,
+			},
+		}, nil)
+
+	srcRouteID := uuid.New().String()
+	dstRouteID := uuid.New().String()
+	transactionRouteID := uuid.New()
+
+	// Build a cache where:
+	// - Source has: direct, hold, commit, cancel
+	// - Destination has: direct, commit (NO hold, NO cancel)
+	cache := mmodel.TransactionRouteCache{
+		Actions: map[string]mmodel.ActionRouteCache{
+			"direct": {
+				Source: map[string]mmodel.OperationRouteCache{
+					srcRouteID: {OperationType: "source"},
+				},
+				Destination: map[string]mmodel.OperationRouteCache{
+					dstRouteID: {OperationType: "destination"},
+				},
+				Bidirectional: make(map[string]mmodel.OperationRouteCache),
+			},
+			"hold": {
+				Source: map[string]mmodel.OperationRouteCache{
+					srcRouteID: {OperationType: "source"},
+				},
+				// Destination does NOT have "hold"
+				Destination:   make(map[string]mmodel.OperationRouteCache),
+				Bidirectional: make(map[string]mmodel.OperationRouteCache),
+			},
+			"commit": {
+				Source: map[string]mmodel.OperationRouteCache{
+					srcRouteID: {OperationType: "source"},
+				},
+				Destination: map[string]mmodel.OperationRouteCache{
+					dstRouteID: {OperationType: "destination"},
+				},
+				Bidirectional: make(map[string]mmodel.OperationRouteCache),
+			},
+			"cancel": {
+				Source: map[string]mmodel.OperationRouteCache{
+					srcRouteID: {OperationType: "source"},
+				},
+				Destination:   make(map[string]mmodel.OperationRouteCache),
+				Bidirectional: make(map[string]mmodel.OperationRouteCache),
+			},
+		},
+	}
+
+	cacheBytes, err := cache.ToMsgpack()
+	require.NoError(t, err)
+
+	cacheKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), cacheKey).
+		Return(cacheBytes, nil)
+
+	uc := &UseCase{
+		TransactionRedisRepo: mockRedisRepo,
+		LedgerRepo:           mockLedgerRepo,
+	}
+
+	validate := &pkgTransaction.Responses{
+		TransactionRouteID: strPtr(transactionRouteID.String()),
+		OperationRoutesFrom: map[string]string{
+			"0#@sender#default": srcRouteID,
+		},
+		OperationRoutesTo: map[string]string{
+			"0#@receiver#default": dstRouteID,
+		},
+		From: map[string]pkgTransaction.Amount{
+			"0#@sender#default": {
+				Operation: "ON_HOLD",
+				Direction: "debit",
+			},
+		},
+		To: map[string]pkgTransaction.Amount{
+			"0#@receiver#default": {
+				Operation: "CREDIT",
+				Direction: "credit",
+			},
+		},
+	}
+
+	operations := []mmodel.BalanceOperation{
+		{
+			Alias:   "0#@sender#default",
+			Balance: &mmodel.Balance{AccountType: "deposit"},
+			Amount: pkgTransaction.Amount{
+				Operation: "ON_HOLD",
+				Direction: "debit",
+			},
+		},
+		{
+			Alias:   "0#@receiver#default",
+			Balance: &mmodel.Balance{AccountType: "deposit"},
+			Amount: pkgTransaction.Amount{
+				Operation: "CREDIT",
+				Direction: "credit",
+			},
+		},
+	}
+
+	_, err = uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionHold)
+
+	assert.NoError(t, err, "pending transaction should be accepted when destination has commit but not hold")
+}
+
+func strPtr(s string) *string { return &s }
 
 func TestValidateAccountRules(t *testing.T) {
 	ctx := context.Background()

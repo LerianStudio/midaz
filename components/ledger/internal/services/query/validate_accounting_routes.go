@@ -108,6 +108,15 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	destinationRoutes := actionCache.Destination
 	bidirectionalRoutes := actionCache.Bidirectional
 
+	// For "hold" (pending) transactions, the destination only participates at
+	// confirmation time — it needs a "commit" entry, not a "hold" entry.
+	// Look up destination routes from the "commit" action cache instead.
+	if action == constant.ActionHold {
+		if commitCache, ok := transactionRouteCache.Actions[constant.ActionCommit]; ok {
+			destinationRoutes = commitCache.Destination
+		}
+	}
+
 	// Reject operations missing a per-operation route ID.
 	// When validateRoutes is active, each operation must explicitly specify
 	// which operation route it belongs to.
