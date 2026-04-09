@@ -97,7 +97,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 				mockBalance.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).AnyTimes()
+					Return(nil, nil).AnyTimes()
 			},
 			expectedErr:  "",
 			expectedName: "Test Account",
@@ -146,7 +146,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 				mockBalance.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).AnyTimes()
+					Return(nil, nil).AnyTimes()
 			},
 			expectedErr:  "",
 			expectedName: "Test Account",
@@ -192,7 +192,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 				mockBalance.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).AnyTimes()
+					Return(nil, nil).AnyTimes()
 			},
 			expectedErr:  "",
 			expectedName: "External Account",
@@ -238,7 +238,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 				mockBalance.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).AnyTimes()
+					Return(nil, nil).AnyTimes()
 			},
 			expectedErr:  "",
 			expectedName: "External Account",
@@ -313,7 +313,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 				mockBalance.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).AnyTimes()
+					Return(nil, nil).AnyTimes()
 			},
 			expectedErr:  "",
 			expectedName: "USD deposit account",
@@ -355,7 +355,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 				mockBalance.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).AnyTimes()
+					Return(nil, nil).AnyTimes()
 			},
 			expectedErr:  "",
 			expectedName: "Test Account",
@@ -528,7 +528,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 				mockBalance.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).AnyTimes()
+					Return(nil, nil).AnyTimes()
 			},
 			expectedErr:  "",
 			expectedName: "Test Account",
@@ -599,7 +599,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 				mockBalance.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).AnyTimes()
+					Return(nil, nil).AnyTimes()
 			},
 			expectedErr:  "",
 			expectedName: "Test Account",
@@ -690,7 +690,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 				mockBalance.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).AnyTimes()
+					Return(nil, nil).AnyTimes()
 			},
 			expectError:  true,
 			expectedErr:  "metadata creation error",
@@ -731,7 +731,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 				mockBalance.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(errors.New("grpc create balance error")).Times(1)
+					Return(nil, errors.New("grpc create balance error")).Times(1)
 
 				mockAccountRepo.EXPECT().
 					Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -780,7 +780,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 				mockBalance.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).AnyTimes()
+					Return(nil, nil).AnyTimes()
 			},
 			expectedErr:  "",
 			expectedName: "Test Account",
@@ -894,7 +894,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 
 				mockBalance.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).AnyTimes()
+					Return(nil, nil).AnyTimes()
 			},
 			expectedErr:  "",
 			expectedName: "Test Account",
@@ -944,7 +944,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 
 				mockBalance.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).AnyTimes()
+					Return(nil, nil).AnyTimes()
 			},
 			expectedErr:  "",
 			expectedName: "Test Account",
@@ -1060,7 +1060,7 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any()).
-		Return(nil).AnyTimes()
+		Return(nil, nil).AnyTimes()
 
 	// Input with blocked=true
 	blocked := true

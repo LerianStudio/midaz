@@ -86,7 +86,7 @@ func TestHandler_CreateAsset(t *testing.T) {
 
 				balanceRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).
+					Return(nil, nil).
 					Times(1)
 			},
 			expectedStatus: 201,

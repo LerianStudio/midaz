@@ -74,7 +74,7 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 
 				balanceRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).
+					Return(nil, nil).
 					Times(1)
 
 				// No metadata in request, so MetadataRepo.Create won't be called

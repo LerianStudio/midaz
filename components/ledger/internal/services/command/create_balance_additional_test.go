@@ -73,7 +73,7 @@ func TestCreateAdditionalBalance(t *testing.T) {
 
 		mockBalanceRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, b *mmodel.Balance) error {
+			DoAndReturn(func(_ context.Context, b *mmodel.Balance) (*mmodel.Balance, error) {
 				assert.Equal(t, alias, b.Alias)
 				assert.Equal(t, "asset-freeze", b.Key)
 				assert.Equal(t, organizationID.String(), b.OrganizationID)
@@ -83,7 +83,7 @@ func TestCreateAdditionalBalance(t *testing.T) {
 				assert.Equal(t, "deposit", b.AccountType)
 				assert.True(t, b.AllowSending)
 				assert.False(t, b.AllowReceiving)
-				return nil
+				return b, nil
 			}).
 			Times(1)
 
@@ -175,7 +175,7 @@ func TestCreateAdditionalBalance(t *testing.T) {
 
 		mockBalanceRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
-			Return(errors.New("database error")).
+			Return(nil, errors.New("database error")).
 			Times(1)
 
 		result, err := uc.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, cbi)
@@ -209,9 +209,9 @@ func TestCreateAdditionalBalance(t *testing.T) {
 
 		mockBalanceRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, b *mmodel.Balance) error {
+			DoAndReturn(func(_ context.Context, b *mmodel.Balance) (*mmodel.Balance, error) {
 				assert.Equal(t, "upper-case-key", b.Key)
-				return nil
+				return b, nil
 			}).
 			Times(1)
 

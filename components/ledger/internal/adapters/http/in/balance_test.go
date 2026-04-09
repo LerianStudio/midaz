@@ -5,6 +5,7 @@
 package in
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http/httptest"
@@ -1144,7 +1145,9 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 				// Create the additional balance
 				balanceRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).
+					DoAndReturn(func(_ context.Context, b *mmodel.Balance) (*mmodel.Balance, error) {
+						return b, nil
+					}).
 					Times(1)
 			},
 			expectedStatus: 201,
@@ -1307,7 +1310,7 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 				// Create fails with internal error
 				balanceRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(pkg.InternalServerError{
+					Return(nil, pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
 						Message: "Database connection failed",

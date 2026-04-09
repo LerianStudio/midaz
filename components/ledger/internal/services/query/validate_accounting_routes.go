@@ -370,10 +370,23 @@ func uniqueValues(m map[string]string) int {
 // validateDirectionRouteMatch validates that an operation's direction is compatible with the route's operation type.
 // Source routes only accept debit, destination routes only accept credit, bidirectional routes accept both.
 func validateDirectionRouteMatch(operation mmodel.BalanceOperation, routeCache mmodel.OperationRouteCache) error {
-	// PENDING transactions use ON_HOLD and RELEASE which invert the normal
-	// direction-route mapping, so skip validation for these operation types.
+	// Double-entry split operations use ON_HOLD, RELEASE, and reversal CREDIT/DEBIT
+	// that intentionally cross the normal direction-route mapping. Skip validation
+	// for these:
+	//   - ON_HOLD: pending hold on source (credit direction on source)
+	//   - RELEASE: cancel release on source (debit direction, already OK)
+	//   - CREDIT during CANCELED: restores available balance on source
+	//   - DEBIT during APPROVED commit: decrements onHold on source
 	opAmount := strings.ToUpper(operation.Amount.Operation)
+	txType := strings.ToUpper(operation.Amount.TransactionType)
+
 	if opAmount == constant.ONHOLD || opAmount == constant.RELEASE {
+		return nil
+	}
+
+	// Cancel produces RELEASE + CREDIT on the source. The CREDIT restores
+	// the available balance and is a reversal, not a regular credit.
+	if txType == constant.CANCELED && operation.Amount.RouteValidationEnabled {
 		return nil
 	}
 
