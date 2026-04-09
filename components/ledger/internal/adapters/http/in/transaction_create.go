@@ -30,6 +30,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+//nolint:gocognit // Will be refactored into smaller functions.
 func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
 	balances []*mmodel.Balance,
@@ -832,6 +833,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 	// the cache must reflect the final status for consistent GET reads.
 	// The original tran keeps CREATED for the HTTP response and idempotency key.
 	writeTran := *tran
+
 	if transactionStatus == constant.CREATED {
 		approved := constant.APPROVED
 		writeTran.Status = transaction.Status{Code: approved, Description: &approved}

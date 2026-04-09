@@ -230,6 +230,8 @@ func InitServers() (*Service, error) {
 // InitServersWithOptions initializes the unified ledger service with optional dependency injection.
 // It directly initializes all infrastructure (PG, Mongo, Redis, RabbitMQ) instead of delegating
 // to onboarding/transaction sub-modules.
+//
+//nolint:gocognit,gocyclo // Will be refactored into smaller initialization functions.
 func InitServersWithOptions(opts *Options) (*Service, error) {
 	cfg := &Config{}
 
@@ -991,6 +993,8 @@ func buildUnifiedRouteSetup(
 // midazErrorMapper converts tenant-manager errors into Midaz-specific HTTP responses.
 // It uses the standard midazhttp response helpers to ensure a consistent error format
 // across all Midaz endpoints (code/title/message JSON envelope).
+//
+//nolint:unused // Will be wired into the multi-tenant middleware error handler.
 func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 	if err == nil {
 		return nil

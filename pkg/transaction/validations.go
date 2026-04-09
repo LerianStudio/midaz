@@ -33,7 +33,7 @@ func CheckTransactionDate(ctx context.Context, transactionInput Transaction, tra
 		return now, nil
 	}
 
-	logger, _, _, _ := commons.NewTrackingFromContext(ctx)
+	logger := commons.NewLoggerFromContext(ctx)
 
 	if transactionInput.TransactionDate.After(now) {
 		err := pkg.ValidateBusinessError(pkgConstant.ErrInvalidFutureTransactionDate, pkgConstant.EntityTransaction)
