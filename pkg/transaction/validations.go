@@ -324,6 +324,52 @@ func DetermineOperation(isPending bool, isFrom bool, transactionType string) (st
 	}
 }
 
+// PropagateRouteValidation enables RouteValidationEnabled on every source
+// (From) amount entry so that downstream balance operations use the correct
+// double-entry logic. Only sources are affected because destinations always
+// use plain CREDIT regardless of route validation.
+//
+// For APPROVED (commit) transactions, source DEBIT operations are swapped to
+// ON_HOLD so that the commit decrements onHold instead of available. This
+// keeps ON_HOLD ops invisible to TransactionRevert, which only considers
+// DEBIT/CREDIT, naturally avoiding double-counting.
+//
+// Skipped for CREATED transactions because their balance operations (simple
+// DEBIT/CREDIT) do not branch on RouteValidationEnabled.
+func PropagateRouteValidation(ctx context.Context, validate *Responses, transactionStatus string) {
+	logger, tracer, _, _ := commons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "transaction.propagate_route_validation")
+	defer span.End()
+
+	if validate == nil {
+		return
+	}
+
+	isPending := transactionStatus == constant.PENDING
+	isCanceled := transactionStatus == constant.CANCELED
+	isApproved := transactionStatus == constant.APPROVED
+
+	if !isPending && !isCanceled && !isApproved {
+		return
+	}
+
+	for key, amt := range validate.From {
+		amt.RouteValidationEnabled = true
+
+		// COMMIT: swap DEBIT → ON_HOLD to decrement onHold instead of available.
+		if isApproved && amt.Operation == constant.DEBIT {
+			amt.Operation = constant.ONHOLD
+		}
+
+		validate.From[key] = amt
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Propagated route validation to source entries",
+		libLog.Int("count", len(validate.From)),
+		libLog.String("transactionStatus", transactionStatus))
+}
+
 // CalculateTotal Calculate total for sources/destinations based on shares, amounts and remains
 func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType string, t chan decimal.Decimal, ft chan map[string]Amount, sd chan []string, or chan map[string]string) {
 	fmto := make(map[string]Amount)

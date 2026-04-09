@@ -3472,7 +3472,7 @@ func TestPropagateRouteValidation(t *testing.T) {
 				transactionStatus = cn.PENDING
 			}
 
-			propagateRouteValidation(ctx, validate, transactionStatus)
+			pkgTransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
 
 			for key, expectedFlag := range tt.expectedFromFlags {
 				amt, exists := validate.From[key]
@@ -3879,7 +3879,7 @@ func TestPropagateRouteValidation_Canceled(t *testing.T) {
 				To:   tt.to,
 			}
 
-			propagateRouteValidation(ctx, validate, tt.transactionStatus)
+			pkgTransaction.PropagateRouteValidation(ctx, validate, tt.transactionStatus)
 
 			for key, expectedFlag := range tt.expectedFromFlags {
 				amt, exists := validate.From[key]

@@ -257,52 +257,6 @@ func zeroAnnotationBalances(balance, balanceAfter *operation.Balance) {
 // propagateRouteValidation sets RouteValidationEnabled on Amount entries in the
 // validate response maps when the transaction is pending or canceled. This flag controls how
 // OperateBalances splits balance effects between Available and OnHold fields.
-// propagateRouteValidation enables RouteValidationEnabled on every source
-// (From) amount entry so that downstream balance operations use the correct
-// double-entry logic. Only sources are affected because destinations always
-// use plain CREDIT regardless of route validation.
-//
-// For APPROVED (commit) transactions, source DEBIT operations are swapped to
-// ON_HOLD so that the commit decrements onHold instead of available. This
-// keeps ON_HOLD ops invisible to TransactionRevert, which only considers
-// DEBIT/CREDIT, naturally avoiding double-counting.
-//
-// Skipped for CREATED transactions because their balance operations (simple
-// DEBIT/CREDIT) do not branch on RouteValidationEnabled.
-func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Responses, transactionStatus string) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "handler.propagate_route_validation")
-	defer span.End()
-
-	if validate == nil {
-		return
-	}
-
-	isPending := transactionStatus == constant.PENDING
-	isCanceled := transactionStatus == constant.CANCELED
-	isApproved := transactionStatus == constant.APPROVED
-
-	if !isPending && !isCanceled && !isApproved {
-		return
-	}
-
-	for key, amt := range validate.From {
-		amt.RouteValidationEnabled = true
-
-		// COMMIT: swap DEBIT → ON_HOLD to decrement onHold instead of available.
-		if isApproved && amt.Operation == constant.DEBIT {
-			amt.Operation = constant.ONHOLD
-		}
-
-		validate.From[key] = amt
-	}
-
-	logger.Log(ctx, libLog.LevelDebug, "Propagated route validation to source entries",
-		libLog.Int("count", len(validate.From)),
-		libLog.String("transactionStatus", transactionStatus))
-}
-
 // buildDoubleEntryPendingOps generates two operations for a PENDING source entry
 // when route validation is enabled:
 // Op1: DEBIT (debit direction) - decreases Available only
@@ -788,7 +742,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	}
 
 	if ledgerSettings.Accounting.ValidateRoutes {
-		propagateRouteValidation(ctx, validate, transactionStatus)
+		pkgTransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
 	}
 
 	action := statusToAction(transactionStatus)
