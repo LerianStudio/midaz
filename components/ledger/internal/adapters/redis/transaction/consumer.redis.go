@@ -551,9 +551,17 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(
 	transactionStatus string,
 	pending bool,
 	balancesOperation []mmodel.BalanceOperation,
-	logger libLog.Logger,
-	span trace.Span,
 ) (*balanceAtomicOperationPlan, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "redis.build_balance_atomic_operation_plan")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.Int("app.balance_operations_count", len(balancesOperation)),
+		attribute.String("app.transaction_status", transactionStatus),
+	)
+
 	isPending := 0
 	if pending {
 		isPending = 1
@@ -641,11 +649,14 @@ func mapBalanceAtomicScriptError(span trace.Span, err error) error {
 func (rr *RedisConsumerRepository) runBalanceAtomicScript(
 	ctx context.Context,
 	rds redis.UniversalClient,
-	logger libLog.Logger,
-	span trace.Span,
 	keys []string,
 	finalArgs []any,
 ) (any, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "redis.run_balance_atomic_script")
+	defer span.End()
+
 	script := redis.NewScript(balanceAtomicOperationLua)
 
 	result, err := script.Run(ctx, rds, keys, finalArgs...).Result()
@@ -669,8 +680,10 @@ func normalizeBalanceAtomicResult(result any) ([]byte, error) {
 	}
 }
 
-func collectBalanceSnapshots(ctx context.Context, logger libLog.Logger, balances balanceRedisList, mapBalances map[string]*mmodel.Balance, phase string,
+func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, mapBalances map[string]*mmodel.Balance, phase string,
 ) []*mmodel.Balance {
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
+
 	collected := make([]*mmodel.Balance, 0, len(balances))
 	for _, balanceRedis := range balances {
 		balance := balanceRedisToBalance(balanceRedis, mapBalances)
@@ -692,11 +705,14 @@ func collectBalanceSnapshots(ctx context.Context, logger libLog.Logger, balances
 
 func decodeBalanceAtomicResult(
 	ctx context.Context,
-	logger libLog.Logger,
-	span trace.Span,
 	result any,
 	mapBalances map[string]*mmodel.Balance,
 ) (*mmodel.BalanceAtomicResult, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "redis.decode_balance_atomic_result")
+	defer span.End()
+
 	balanceJSON, err := normalizeBalanceAtomicResult(result)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Unexpected result type from Lua script", libLog.Err(err))
@@ -713,8 +729,8 @@ func decodeBalanceAtomicResult(
 	}
 
 	return &mmodel.BalanceAtomicResult{
-		Before: collectBalanceSnapshots(ctx, logger, atomicResp.Before, mapBalances, "before"),
-		After:  collectBalanceSnapshots(ctx, logger, atomicResp.After, mapBalances, "after"),
+		Before: collectBalanceSnapshots(ctx, atomicResp.Before, mapBalances, "before"),
+		After:  collectBalanceSnapshots(ctx, atomicResp.After, mapBalances, "after"),
 	}, nil
 }
 
@@ -741,7 +757,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		return nil, err
 	}
 
-	plan, err := rr.buildBalanceAtomicOperationPlan(ctx, transactionStatus, pending, balancesOperation, logger, span)
+	plan, err := rr.buildBalanceAtomicOperationPlan(ctx, transactionStatus, pending, balancesOperation)
 	if err != nil {
 		return nil, err
 	}
@@ -750,9 +766,6 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		return &mmodel.BalanceAtomicResult{Before: plan.notedBalances, After: plan.notedBalances}, nil
 	}
 
-	ctx, spanScript := tracer.Start(ctx, "redis.process_balance_atomic_operation.script")
-	defer spanScript.End()
-
 	prefixedKeys, err := resolveBalanceAtomicKeys(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		return nil, err
@@ -760,7 +773,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 
 	finalArgs := append([]any{balanceSyncScheduleFlag}, plan.args...)
 
-	result, err := rr.runBalanceAtomicScript(ctx, rds, logger, spanScript, prefixedKeys, finalArgs)
+	result, err := rr.runBalanceAtomicScript(ctx, rds, prefixedKeys, finalArgs)
 	if err != nil {
 		return nil, err
 	}
@@ -770,7 +783,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		libLog.String("transaction_key", prefixedKeys[1]),
 	)
 
-	return decodeBalanceAtomicResult(ctx, logger, span, result, plan.mapBalances)
+	return decodeBalanceAtomicResult(ctx, result, plan.mapBalances)
 }
 
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
