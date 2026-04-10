@@ -20,6 +20,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -784,7 +785,15 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
-	result, err := handler.Command.ProcessBalanceOperations(ctx, params.OrganizationID, params.LedgerID, transactionID, &transactionInput, validate, balanceOps, transactionStatus)
+	result, err := handler.Command.ProcessBalanceOperations(ctx, command.ProcessBalanceOperationsInput{
+		OrganizationID:    params.OrganizationID,
+		LedgerID:          params.LedgerID,
+		TransactionID:     transactionID,
+		TransactionInput:  &transactionInput,
+		Validate:          validate,
+		BalanceOperations: balanceOps,
+		TransactionStatus: transactionStatus,
+	})
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to process balance operations", libLog.Err(err))

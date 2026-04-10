@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
@@ -91,7 +92,15 @@ func TestProcessBalanceOperations(t *testing.T) {
 			Return(&mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil)
 
 		transactionID := uuid.New()
-		result, err := uc.ProcessBalanceOperations(ctx, organizationID, ledgerID, transactionID, nil, validate, balanceOps, constant.CREATED)
+		result, err := uc.ProcessBalanceOperations(ctx, ProcessBalanceOperationsInput{
+			OrganizationID:    organizationID,
+			LedgerID:          ledgerID,
+			TransactionID:     transactionID,
+			TransactionInput:  nil,
+			Validate:          validate,
+			BalanceOperations: balanceOps,
+			TransactionStatus: constant.CREATED,
+		})
 
 		assert.NoError(t, err)
 		assert.Len(t, result.Before, 1)
@@ -292,7 +301,15 @@ func TestProcessBalanceOperations_DoubleEntrySplitting(t *testing.T) {
 				})
 
 			transactionID := uuid.New()
-			result, err := uc.ProcessBalanceOperations(ctx, organizationID, ledgerID, transactionID, nil, validate, balanceOps, tt.transactionType)
+			result, err := uc.ProcessBalanceOperations(ctx, ProcessBalanceOperationsInput{
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				TransactionID:     transactionID,
+				TransactionInput:  nil,
+				Validate:          validate,
+				BalanceOperations: balanceOps,
+				TransactionStatus: tt.transactionType,
+			})
 
 			require.NoError(t, err)
 			require.NotNil(t, result)
@@ -402,7 +419,15 @@ func TestProcessBalanceOperations_DoubleEntry_SeenDeduplication(t *testing.T) {
 		})
 
 	transactionID := uuid.New()
-	result, err := uc.ProcessBalanceOperations(ctx, organizationID, ledgerID, transactionID, transactionInput, validate, balanceOps, constant.PENDING)
+	result, err := uc.ProcessBalanceOperations(ctx, ProcessBalanceOperationsInput{
+		OrganizationID:    organizationID,
+		LedgerID:          ledgerID,
+		TransactionID:     transactionID,
+		TransactionInput:  transactionInput,
+		Validate:          validate,
+		BalanceOperations: balanceOps,
+		TransactionStatus: constant.PENDING,
+	})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -414,4 +439,264 @@ func TestProcessBalanceOperations_DoubleEntry_SeenDeduplication(t *testing.T) {
 	// txBalance entry is created despite two operations for the same alias.
 	assert.Equal(t, capturedOps[0].Alias, capturedOps[1].Alias,
 		"both operations should reference the same alias")
+}
+
+func TestProcessBalanceOperations_ValidateBalancesRulesFailure(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	organizationID := uuid.MustParse("ad0032e5-ccf5-45f4-a3b2-12045e71b38a")
+	ledgerID := uuid.MustParse("5d8ac48a-af68-4544-9bf8-80c3cc0715f4")
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := UseCase{
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	// transactionInput is non-nil so balance rules are validated.
+	// Asset mismatch between transaction ("EUR") and balance ("USD") will
+	// trigger ErrAssetCodeNotFound inside ValidateBalancesRules.
+	transactionInput := &pkgTransaction.Transaction{
+		Send: pkgTransaction.Send{Asset: "EUR"},
+	}
+
+	fromAmount := pkgTransaction.Amount{
+		Asset:     "EUR",
+		Value:     decimal.NewFromFloat(50),
+		Operation: constant.DEBIT,
+	}
+
+	validate := &pkgTransaction.Responses{
+		Aliases: []string{"alias1#default"},
+		Asset:   "EUR",
+		From: map[string]pkgTransaction.Amount{
+			"0#alias1#default": fromAmount,
+		},
+	}
+
+	balances := []*mmodel.Balance{
+		{
+			ID:             uuid.New().String(),
+			AccountID:      uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          "alias1",
+			Key:            "default",
+			Available:      decimal.NewFromFloat(100),
+			OnHold:         decimal.NewFromFloat(0),
+			Version:        1,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+			AssetCode:      "USD", // Mismatch: balance is USD, transaction is EUR
+		},
+	}
+
+	balanceOps := []mmodel.BalanceOperation{
+		{
+			Balance:     balances[0],
+			Alias:       "0#alias1#default",
+			Amount:      fromAmount,
+			InternalKey: utils.BalanceInternalKey(organizationID, ledgerID, "alias1#default"),
+		},
+	}
+
+	// Redis should NOT be called since validation fails first.
+	// No EXPECT on mockRedisRepo — any call would cause test to fail.
+
+	transactionID := uuid.New()
+	result, err := uc.ProcessBalanceOperations(ctx, ProcessBalanceOperationsInput{
+		OrganizationID:    organizationID,
+		LedgerID:          ledgerID,
+		TransactionID:     transactionID,
+		TransactionInput:  transactionInput,
+		Validate:          validate,
+		BalanceOperations: balanceOps,
+		TransactionStatus: constant.CREATED,
+	})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "asset code", "expected ErrAssetCodeNotFound error")
+}
+
+func TestProcessBalanceOperations_RedisAtomicOperationFailure(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	organizationID := uuid.MustParse("ad0032e5-ccf5-45f4-a3b2-12045e71b38a")
+	ledgerID := uuid.MustParse("5d8ac48a-af68-4544-9bf8-80c3cc0715f4")
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := UseCase{
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	fromAmount := pkgTransaction.Amount{
+		Asset:     "USD",
+		Value:     decimal.NewFromFloat(50),
+		Operation: constant.DEBIT,
+	}
+
+	validate := &pkgTransaction.Responses{
+		Aliases: []string{"alias1#default"},
+		From: map[string]pkgTransaction.Amount{
+			"0#alias1#default": fromAmount,
+		},
+	}
+
+	balances := []*mmodel.Balance{
+		{
+			ID:             uuid.New().String(),
+			AccountID:      uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          "alias1",
+			Key:            "default",
+			Available:      decimal.NewFromFloat(100),
+			OnHold:         decimal.NewFromFloat(0),
+			Version:        1,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+			AssetCode:      "USD",
+		},
+	}
+
+	balanceOps := []mmodel.BalanceOperation{
+		{
+			Balance:     balances[0],
+			Alias:       "0#alias1#default",
+			Amount:      fromAmount,
+			InternalKey: utils.BalanceInternalKey(organizationID, ledgerID, "alias1#default"),
+		},
+	}
+
+	redisErr := errors.New("redis connection refused")
+
+	mockRedisRepo.EXPECT().
+		ProcessBalanceAtomicOperation(
+			gomock.Any(),
+			organizationID,
+			ledgerID,
+			gomock.Any(),
+			constant.CREATED,
+			false,
+			gomock.Any(),
+		).
+		Return(nil, redisErr)
+
+	transactionID := uuid.New()
+	// TransactionInput is nil — skip balance validation, go straight to Redis
+	result, err := uc.ProcessBalanceOperations(ctx, ProcessBalanceOperationsInput{
+		OrganizationID:    organizationID,
+		LedgerID:          ledgerID,
+		TransactionID:     transactionID,
+		TransactionInput:  nil,
+		Validate:          validate,
+		BalanceOperations: balanceOps,
+		TransactionStatus: constant.CREATED,
+	})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, redisErr)
+}
+
+func TestProcessBalanceOperations_SkipsValidationWhenTransactionInputNil(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	organizationID := uuid.MustParse("ad0032e5-ccf5-45f4-a3b2-12045e71b38a")
+	ledgerID := uuid.MustParse("5d8ac48a-af68-4544-9bf8-80c3cc0715f4")
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := UseCase{
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	// Even with an asset mismatch, validation should be skipped when
+	// TransactionInput is nil (state transition path).
+	fromAmount := pkgTransaction.Amount{
+		Asset:     "EUR",
+		Value:     decimal.NewFromFloat(50),
+		Operation: constant.DEBIT,
+	}
+
+	validate := &pkgTransaction.Responses{
+		Aliases: []string{"alias1#default"},
+		Asset:   "EUR",
+		From: map[string]pkgTransaction.Amount{
+			"0#alias1#default": fromAmount,
+		},
+	}
+
+	balances := []*mmodel.Balance{
+		{
+			ID:             uuid.New().String(),
+			AccountID:      uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          "alias1",
+			Key:            "default",
+			Available:      decimal.NewFromFloat(100),
+			OnHold:         decimal.NewFromFloat(0),
+			Version:        1,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+			AssetCode:      "USD", // Mismatch — but validation is skipped
+		},
+	}
+
+	balanceOps := []mmodel.BalanceOperation{
+		{
+			Balance:     balances[0],
+			Alias:       "0#alias1#default",
+			Amount:      fromAmount,
+			InternalKey: utils.BalanceInternalKey(organizationID, ledgerID, "alias1#default"),
+		},
+	}
+
+	mockRedisRepo.EXPECT().
+		ProcessBalanceAtomicOperation(
+			gomock.Any(),
+			organizationID,
+			ledgerID,
+			gomock.Any(),
+			constant.APPROVED,
+			false,
+			gomock.Any(),
+		).
+		Return(&mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil)
+
+	transactionID := uuid.New()
+	result, err := uc.ProcessBalanceOperations(ctx, ProcessBalanceOperationsInput{
+		OrganizationID:    organizationID,
+		LedgerID:          ledgerID,
+		TransactionID:     transactionID,
+		TransactionInput:  nil, // State transition — skip validation
+		Validate:          validate,
+		BalanceOperations: balanceOps,
+		TransactionStatus: constant.APPROVED,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Len(t, result.Before, 1)
 }
