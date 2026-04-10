@@ -286,8 +286,8 @@ func resolveTransactionRouteID(validate *pkgTransaction.Responses) (uuid.UUID, e
 }
 
 // validateAccountRules validates each operation against its corresponding route rule.
-// Route existence and direction matching are always enforced when validateRoutes is active.
-// Account type checks (alias/account_type rules) are only enforced when validateAccountType is also active.
+// Route existence, direction matching, and account rules (alias/account_type) are
+// always enforced when validateRoutes is active.
 func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, bidirectionalRoutes map[string]mmodel.OperationRouteCache, validate *pkgTransaction.Responses, operations []mmodel.BalanceOperation) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
