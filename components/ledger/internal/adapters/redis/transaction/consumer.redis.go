@@ -25,6 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -568,7 +569,7 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(
 		prefixedInternalKey, err := tenantKeyFromContextOrError(ctx, blcs.InternalKey)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to namespace balance key", err)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace balance key: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to namespace balance key", libLog.Err(err))
 
 			return nil, err
 		}
@@ -649,7 +650,7 @@ func (rr *RedisConsumerRepository) runBalanceAtomicScript(
 
 	result, err := script.Run(ctx, rds, keys, finalArgs...).Result()
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed run lua script on redis: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to run Lua script on Redis", libLog.Err(err))
 
 		return nil, mapBalanceAtomicScriptError(span, err)
 	}
@@ -668,18 +669,17 @@ func normalizeBalanceAtomicResult(result any) ([]byte, error) {
 	}
 }
 
-func collectBalanceSnapshots(
-	ctx context.Context,
-	logger libLog.Logger,
-	balances balanceRedisList,
-	mapBalances map[string]*mmodel.Balance,
-	missingMessage string,
+func collectBalanceSnapshots(ctx context.Context, logger libLog.Logger, balances balanceRedisList, mapBalances map[string]*mmodel.Balance, phase string,
 ) []*mmodel.Balance {
 	collected := make([]*mmodel.Balance, 0, len(balances))
 	for _, balanceRedis := range balances {
 		balance := balanceRedisToBalance(balanceRedis, mapBalances)
 		if balance == nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(missingMessage, balanceRedis.Alias, balanceRedis.ID))
+			logger.Log(ctx, libLog.LevelWarn, "Balance not found in map during snapshot collection",
+				libLog.String("phase", phase),
+				libLog.String("alias", balanceRedis.Alias),
+				libLog.String("balance_id", balanceRedis.ID),
+			)
 
 			continue
 		}
@@ -699,22 +699,22 @@ func decodeBalanceAtomicResult(
 ) (*mmodel.BalanceAtomicResult, error) {
 	balanceJSON, err := normalizeBalanceAtomicResult(result)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Warning: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Unexpected result type from Lua script", libLog.Err(err))
 
 		return nil, err
 	}
 
 	var atomicResp balanceAtomicResponse
 	if err := json.Unmarshal(balanceJSON, &atomicResp); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Error to Deserialization json", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error to Deserialization json: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to deserialize Lua script response", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to deserialize Lua script response", libLog.Err(err))
 
 		return nil, err
 	}
 
 	return &mmodel.BalanceAtomicResult{
-		Before: collectBalanceSnapshots(ctx, logger, atomicResp.Before, mapBalances, "Failed to find balance for alias: %v, id: %v"),
-		After:  collectBalanceSnapshots(ctx, logger, atomicResp.After, mapBalances, "Failed to find after balance for alias: %v, id: %v"),
+		Before: collectBalanceSnapshots(ctx, logger, atomicResp.Before, mapBalances, "before"),
+		After:  collectBalanceSnapshots(ctx, logger, atomicResp.After, mapBalances, "after"),
 	}, nil
 }
 
@@ -724,11 +724,19 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	ctx, span := tracer.Start(ctx, "redis.process_balance_atomic_operation")
 	defer span.End()
 
+	isNoted := transactionStatus == constant.NOTED
+
+	span.SetAttributes(
+		attribute.String("app.transaction_status", transactionStatus),
+		attribute.Int("app.balance_operations_count", len(balancesOperation)),
+		attribute.Bool("app.is_noted", isNoted),
+		attribute.Bool("app.is_pending", pending),
+	)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get redis: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
 
 		return nil, err
 	}
@@ -738,7 +746,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		return nil, err
 	}
 
-	if transactionStatus == constant.NOTED {
+	if isNoted {
 		return &mmodel.BalanceAtomicResult{Before: plan.notedBalances, After: plan.notedBalances}, nil
 	}
 
@@ -757,8 +765,10 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		return nil, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: transaction written to %s with key %s", prefixedKeys[0], prefixedKeys[1]))
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("result value: %v", result))
+	logger.Log(ctx, libLog.LevelDebug, "Lua script executed successfully",
+		libLog.String("backup_queue", prefixedKeys[0]),
+		libLog.String("transaction_key", prefixedKeys[1]),
+	)
 
 	return decodeBalanceAtomicResult(ctx, logger, span, result, plan.mapBalances)
 }
