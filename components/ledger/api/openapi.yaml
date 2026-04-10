@@ -6923,20 +6923,27 @@ components:
           type: object
       type: object
     AccountingEntry:
-      description: AccountingEntry object containing debit and credit rubrics for
-        a specific action.
+      description: 'AccountingEntry object containing debit and credit rubrics for
+        a specific action.  Field requirements depend on the parent operationType
+        and scenario: - source + direct or commit: debit is REQUIRED, credit is optional.
+        - source + hold or cancel: both debit AND credit are REQUIRED. - destination
+        + direct or commit: credit is REQUIRED, debit is optional. - destination +
+        hold or cancel: both debit AND credit are REQUIRED. - bidirectional (all scenarios):
+        both debit AND credit are REQUIRED. - revert: only allowed on bidirectional
+        routes; both debit AND credit are REQUIRED.  An entry with neither debit nor
+        credit is always rejected.'
       properties:
         credit:
           allOf:
           - $ref: '#/components/schemas/AccountingRubric'
           description: The credit rubric for this entry. Required based on operationType/scenario
-            matrix.
+            matrix (see type description).
           type: object
         debit:
           allOf:
           - $ref: '#/components/schemas/AccountingRubric'
           description: The debit rubric for this entry. Required based on operationType/scenario
-            matrix.
+            matrix (see type description).
           type: object
       type: object
     AccountingRubric:
