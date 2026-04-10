@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -221,41 +220,52 @@ func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status
 	return status
 }
 
-// applyAccountingValidations applies the accounting validations to the account.
-func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) error {
+// applyAccountingValidations validates the account type against the registered
+// account types for this ledger. Only runs when validateAccountType is enabled
+// in the ledger settings. External accounts are always allowed.
+func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationID, ledgerID uuid.UUID, accountType string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.apply_accounting_validations")
 	defer span.End()
 
-	accountingValidation := os.Getenv("ACCOUNT_TYPE_VALIDATION")
-	if !strings.Contains(accountingValidation, organizationID.String()+":"+ledgerID.String()) {
-		logger.Log(ctx, libLog.LevelInfo, "Accounting validations are disabled")
+	rawSettings, err := uc.LedgerRepo.GetSettings(ctx, organizationID, ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings for account type validation", libLog.Err(err))
+
+		return err
+	}
+
+	ledgerSettings := mmodel.ParseLedgerSettings(rawSettings)
+
+	if !ledgerSettings.Accounting.ValidateAccountType {
+		logger.Log(ctx, libLog.LevelDebug, "Account type validation disabled, skipping",
+			libLog.String("ledger_id", ledgerID.String()))
 
 		return nil
 	}
 
-	if strings.ToLower(key) == "external" {
-		logger.Log(ctx, libLog.LevelInfo, "External account type, skipping validation")
+	if strings.ToLower(accountType) == "external" {
+		logger.Log(ctx, libLog.LevelDebug, "External account type, skipping validation")
 
 		return nil
 	}
 
-	_, err := uc.AccountTypeRepo.FindByKey(ctx, organizationID, ledgerID, key)
+	_, err = uc.AccountTypeRepo.FindByKey(ctx, organizationID, ledgerID, accountType)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountType, reflect.TypeOf(mmodel.AccountType{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Not found, invalid account type", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Account type not found, invalid account type")
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account type not registered", err)
+			logger.Log(ctx, libLog.LevelWarn, "Account type not found in registered types",
+				libLog.String("account_type", accountType))
 
 			return err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find account type", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error finding account type: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to find account type", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to find account type", libLog.Err(err))
 
 		return err
 	}
