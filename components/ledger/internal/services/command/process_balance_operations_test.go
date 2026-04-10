@@ -9,16 +9,17 @@ import (
 	"errors"
 	"testing"
 
-	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 func TestProcessBalanceOperations(t *testing.T) {

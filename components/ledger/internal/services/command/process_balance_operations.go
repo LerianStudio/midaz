@@ -10,10 +10,11 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 )
 
 // ProcessBalanceOperationsInput groups all parameters required by

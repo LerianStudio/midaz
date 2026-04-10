@@ -63,9 +63,15 @@ type CreateTransactionInput struct {
 
 // BuildTransaction converts a CreateTransactionInput to a Transaction.
 func (cti *CreateTransactionInput) BuildTransaction() *Transaction {
-	for i := range cti.Send.Source.From {
-		cti.Send.Source.From[i].IsFrom = true
+	fromClone := make([]FromTo, len(cti.Send.Source.From))
+	copy(fromClone, cti.Send.Source.From)
+
+	for i := range fromClone {
+		fromClone[i].IsFrom = true
 	}
+
+	send := cti.Send
+	send.Source.From = fromClone
 
 	return &Transaction{
 		ChartOfAccountsGroupName: cti.ChartOfAccountsGroupName,
@@ -76,7 +82,7 @@ func (cti *CreateTransactionInput) BuildTransaction() *Transaction {
 		TransactionDate:          cti.TransactionDate,
 		Route:                    cti.Route,
 		RouteID:                  cti.RouteID,
-		Send:                     cti.Send,
+		Send:                     send,
 	}
 }
 
@@ -238,8 +244,11 @@ func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *Transaction {
 		},
 	}
 
-	for i := range c.Send.Source.From {
-		c.Send.Source.From[i].IsFrom = true
+	fromClone := make([]FromTo, len(c.Send.Source.From))
+	copy(fromClone, c.Send.Source.From)
+
+	for i := range fromClone {
+		fromClone[i].IsFrom = true
 	}
 
 	return &Transaction{
@@ -252,9 +261,11 @@ func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *Transaction {
 		Route:                    c.Route,
 		RouteID:                  c.RouteID,
 		Send: Send{
-			Asset:  c.Send.Asset,
-			Value:  c.Send.Value,
-			Source: c.Send.Source,
+			Asset: c.Send.Asset,
+			Value: c.Send.Value,
+			Source: Source{
+				From: fromClone,
+			},
 			Distribute: Distribute{
 				To: []FromTo{to},
 			},

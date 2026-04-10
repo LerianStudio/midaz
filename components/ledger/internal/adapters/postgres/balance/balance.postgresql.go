@@ -758,7 +758,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 
 	for _, aliasWithKey := range aliasesWithKeys {
 		alias, key, ok := strings.Cut(aliasWithKey, "#")
-		if !ok {
+		if !ok || alias == "" || key == "" || strings.Contains(key, "#") {
 			err := fmt.Errorf("invalid alias#key format: %s", aliasWithKey)
 
 			libOpentelemetry.HandleSpanError(span, "Invalid alias#key format", err)

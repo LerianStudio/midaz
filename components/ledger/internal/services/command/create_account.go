@@ -229,6 +229,15 @@ func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "command.apply_accounting_validations")
 	defer span.End()
 
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	// External accounts bypass all accounting validations.
+	if strings.ToLower(accountType) == "external" {
+		return nil
+	}
+
 	rawSettings, err := uc.LedgerRepo.GetSettings(ctx, organizationID, ledgerID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
@@ -242,12 +251,6 @@ func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationI
 	if !ledgerSettings.Accounting.ValidateAccountType {
 		logger.Log(ctx, libLog.LevelDebug, "Account type validation disabled, skipping",
 			libLog.String("ledger_id", ledgerID.String()))
-
-		return nil
-	}
-
-	if strings.ToLower(accountType) == "external" {
-		logger.Log(ctx, libLog.LevelDebug, "External account type, skipping validation")
 
 		return nil
 	}

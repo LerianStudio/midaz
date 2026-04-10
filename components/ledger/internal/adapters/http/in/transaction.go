@@ -6,13 +6,11 @@ package in
 
 import (
 	"fmt"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -217,9 +215,10 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 		"/ledgers/"+c.Params("ledger_id")+
 		"/transactions/json>; rel=\"successor-version\"")
 
-	logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("DEPRECATED ENDPOINT: POST /transactions/dsl called. "+
-		"request_id=%s. Use POST /transactions/json instead. "+
-		"Sunset date: 2026-08-01", c.Get("X-Request-Id")))
+	logger.Log(ctx, libLog.LevelWarn, "DEPRECATED ENDPOINT: POST /transactions/dsl called, use POST /transactions/json instead",
+		libLog.String("request_id", c.Get("X-Request-Id")),
+		libLog.String("sunset_date", "2026-08-01"),
+	)
 
 	_, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -241,7 +240,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	errListener := goldTransaction.Validate(dsl)
 	if errListener != nil && len(errListener.Errors) > 0 {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name(), errListener.Errors)
+		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, constant.EntityTransaction, errListener.Errors)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate script in DSL", err)
 
@@ -252,7 +251,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	transactionInput, ok := parsed.(pkgTransaction.Transaction)
 	if !ok {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, constant.EntityTransaction)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse script in DSL", err)
 
@@ -317,6 +316,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	}
 
 	ctxGetTransaction, spanGetTransaction := tracer.Start(ctx, "handler.get_transaction.get_operations")
+	defer spanGetTransaction.End()
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -336,8 +336,6 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 
 		return http.WithError(c, err)
 	}
-
-	spanGetTransaction.End()
 
 	logger.Log(ctx, libLog.LevelInfo, "Transaction retrieved",
 		libLog.String("transaction_id", params.TransactionID.String()))

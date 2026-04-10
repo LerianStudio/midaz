@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -59,7 +60,7 @@ func (uc *UseCase) CreateOrCheckTransactionIdempotency(ctx context.Context, orga
 		libOpentelemetry.HandleSpanError(span, "Failed to lock idempotency key in redis", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to lock idempotency key in redis", libLog.Err(err))
 
-		return result, err
+		return result, fmt.Errorf("failed to lock idempotency key: %w", err)
 	}
 
 	if !success {
@@ -68,7 +69,7 @@ func (uc *UseCase) CreateOrCheckTransactionIdempotency(ctx context.Context, orga
 			libOpentelemetry.HandleSpanError(span, "Failed to get idempotency key from redis", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to get idempotency key from redis", libLog.Err(err))
 
-			return result, err
+			return result, fmt.Errorf("failed to get idempotency value: %w", err)
 		}
 
 		if !libCommons.IsNilOrEmpty(&value) {
@@ -114,6 +115,7 @@ func (uc *UseCase) SetTransactionIdempotencyValue(ctx context.Context, organizat
 	value, err := libCommons.StructToJSONString(t)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Failed to serialize transaction for idempotency", libLog.Err(err))
+		return // Do not store invalid data
 	}
 
 	err = uc.TransactionRedisRepo.Set(ctx, internalKey, value, ttl)

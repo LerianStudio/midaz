@@ -7,7 +7,6 @@ package in
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +17,7 @@ import (
 	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
@@ -55,7 +55,7 @@ func (handler *TransactionHandler) BuildOperations(
 	defer span.End()
 
 	if routeValidationEnabled {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Route validation enabled for ledger %s, applying double-entry operations", tran.LedgerID))
+		logger.Log(ctx, libLog.LevelInfo, "Route validation enabled for ledger", libLog.String("ledger_id", tran.LedgerID))
 
 		span.SetAttributes(attribute.Bool("app.route_validation_enabled", true))
 	}
@@ -67,7 +67,7 @@ func (handler *TransactionHandler) BuildOperations(
 	for _, blc := range balances {
 		for i := range fromTo {
 			if blc.Alias == fromTo[i].AccountAlias {
-				logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Creating operation for account id: %s and account alias: %s", blc.ID, blc.Alias))
+				logger.Log(ctx, libLog.LevelInfo, "Creating operation for account", libLog.String("account_id", blc.ID), libLog.String("account_alias", blc.Alias))
 
 				preBalances = append(preBalances, blc)
 
@@ -75,7 +75,7 @@ func (handler *TransactionHandler) BuildOperations(
 				if err != nil {
 					libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 
-					logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate balance: %v", err.Error()))
+					logger.Log(ctx, libLog.LevelWarn, "Failed to validate balance", libLog.Err(err))
 
 					return nil, nil, err
 				}
@@ -266,7 +266,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	_, span := tracer.Start(ctx, "handler.build_double_entry_pending_ops")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Building double-entry pending ops for balance %s: DEBIT(debit) + ONHOLD(credit)", blc.ID))
+	logger.Log(ctx, libLog.LevelInfo, "Building double-entry pending ops", libLog.String("balance_id", blc.ID))
 
 	description := ft.Description
 	if libCommons.IsNilOrEmpty(&ft.Description) {
@@ -401,7 +401,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 	_, span := tracer.Start(ctx, "handler.build_double_entry_canceled_ops")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Building double-entry canceled ops for balance %s: RELEASE(debit) + CREDIT(credit)", blc.ID))
+	logger.Log(ctx, libLog.LevelInfo, "Building double-entry canceled ops", libLog.String("balance_id", blc.ID))
 
 	description := ft.Description
 	if libCommons.IsNilOrEmpty(&ft.Description) {
@@ -668,8 +668,6 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
-	c.Set(libConstants.IdempotencyReplayed, "false")
-
 	transactionDate, err := pkgTransaction.CheckTransactionDate(ctx, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction date validation failed", err)
@@ -839,7 +837,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate balance: %v", err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to validate balance", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
@@ -869,14 +867,16 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "failed to update BTO", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("failed to update BTO - transaction: %s - Error: %v", tran.ID, err))
+		logger.Log(ctx, libLog.LevelError, "Failed to update BTO", libLog.String("transaction_id", tran.ID), libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
 
-	go handler.Command.SetTransactionIdempotencyValue(ctx, params.OrganizationID, params.LedgerID, idempotencyKey, idempotencyHash, *tran, idempotencyTTL)
+	bgCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
 
-	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, params.OrganizationID, params.LedgerID, tran.IDtoUUID())
+	go handler.Command.SetTransactionIdempotencyValue(bgCtx, params.OrganizationID, params.LedgerID, idempotencyKey, idempotencyHash, *tran, idempotencyTTL)
+
+	go handler.Command.SendLogTransactionAuditQueue(bgCtx, operations, params.OrganizationID, params.LedgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
 }

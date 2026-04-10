@@ -12,9 +12,10 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 // SettingsCacheTTL is the TTL for cached ledger settings (5 minutes).
@@ -71,7 +72,7 @@ func (uc *UseCase) readSettingsFromCache(ctx context.Context, tracer trace.Trace
 	cached, err := uc.OnboardingRedisRepo.Get(cacheCtx, cacheKey)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(cacheSpan, "Cache read error", err)
-		logger.Log(ctx, libLog.LevelWarn, "Cache read error, falling back to database", libLog.Err(err))
+		logger.Log(cacheCtx, libLog.LevelWarn, "Cache read error, falling back to database", libLog.Err(err))
 
 		return nil, false
 	}
@@ -83,12 +84,12 @@ func (uc *UseCase) readSettingsFromCache(ctx context.Context, tracer trace.Trace
 	var settings map[string]any
 	if err := json.Unmarshal([]byte(cached), &settings); err != nil {
 		libOpentelemetry.HandleSpanError(cacheSpan, "Failed to unmarshal cached settings", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to unmarshal cached settings, falling back to database", libLog.Err(err))
+		logger.Log(cacheCtx, libLog.LevelWarn, "Failed to unmarshal cached settings, falling back to database", libLog.Err(err))
 
 		return nil, false
 	}
 
-	logger.Log(ctx, libLog.LevelDebug, "Cache hit for ledger settings", libLog.String("ledgerId", ledgerID.String()))
+	logger.Log(cacheCtx, libLog.LevelDebug, "Cache hit for ledger settings", libLog.String("ledgerId", ledgerID.String()))
 
 	return settings, true
 }
@@ -107,17 +108,17 @@ func (uc *UseCase) writeSettingsToCache(ctx context.Context, tracer trace.Tracer
 	settingsJSON, err := json.Marshal(settings)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(cacheSpan, "Failed to marshal settings for cache", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to marshal settings for cache", libLog.Err(err))
+		logger.Log(cacheCtx, libLog.LevelWarn, "Failed to marshal settings for cache", libLog.Err(err))
 
 		return
 	}
 
 	if err := uc.OnboardingRedisRepo.Set(cacheCtx, cacheKey, string(settingsJSON), SettingsCacheTTL); err != nil {
 		libOpentelemetry.HandleSpanError(cacheSpan, "Failed to cache ledger settings", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to cache ledger settings", libLog.Err(err))
+		logger.Log(cacheCtx, libLog.LevelWarn, "Failed to cache ledger settings", libLog.Err(err))
 
 		return
 	}
 
-	logger.Log(ctx, libLog.LevelDebug, "Cached ledger settings", libLog.String("ledgerId", ledgerID.String()))
+	logger.Log(cacheCtx, libLog.LevelDebug, "Cached ledger settings", libLog.String("ledgerId", ledgerID.String()))
 }

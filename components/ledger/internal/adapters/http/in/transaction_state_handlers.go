@@ -447,6 +447,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
 
+		deleteLockOnError()
+
 		return http.WithError(c, err)
 	}
 

@@ -10,15 +10,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 )
 
 func TestBuildParentTransactionID(t *testing.T) {

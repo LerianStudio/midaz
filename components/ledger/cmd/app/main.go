@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -28,7 +29,7 @@ import (
 func main() {
 	libCommons.InitLocalEnvConfig()
 
-	logLevel := os.Getenv("LOG_LEVEL")
+	logLevel := strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL")))
 	if logLevel == "" {
 		logLevel = "info"
 	}

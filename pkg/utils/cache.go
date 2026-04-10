@@ -26,7 +26,7 @@ const (
 func TransactionInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
 	var builder strings.Builder
 
-	builder.Grow(65 + len(key)) // "transaction:{transactions}:" + 2×UUID + ":" + key
+	builder.Grow(101 + len(key)) // "transaction:{transactions}:" + 2×UUID + ":" + key
 
 	builder.WriteString("transaction")
 	builder.WriteString(keySeparator)
@@ -48,7 +48,7 @@ func TransactionInternalKey(organizationID, ledgerID uuid.UUID, key string) stri
 func BalanceInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
 	var builder strings.Builder
 
-	builder.Grow(61 + len(key)) // "balance:{transactions}:" + 2×UUID + ":" + key
+	builder.Grow(97 + len(key)) // "balance:{transactions}:" + 2×UUID + ":" + key
 
 	builder.WriteString("balance")
 	builder.WriteString(keySeparator)
@@ -197,7 +197,7 @@ func LedgerSettingsInternalKey(organizationID, ledgerID uuid.UUID) string {
 func WriteBehindTransactionKey(organizationID, ledgerID uuid.UUID, transactionID string) string {
 	var builder strings.Builder
 
-	builder.Grow(55 + len(transactionID)) // "wb_transaction:{" + 2×UUID + ":" + transactionID + "}"
+	builder.Grow(91 + len(transactionID)) // "wb_transaction:{" + 2×UUID + ":" + transactionID + "}"
 
 	builder.WriteString("wb_transaction")
 	builder.WriteString(keySeparator)

@@ -10,14 +10,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
+	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 func TestCreateOrCheckTransactionIdempotency(t *testing.T) {
@@ -177,7 +178,7 @@ func TestCreateOrCheckTransactionIdempotency(t *testing.T) {
 		result, err := uc.CreateOrCheckTransactionIdempotency(ctx, organizationID, ledgerID, key, hash, ttl)
 
 		assert.Error(t, err)
-		assert.Equal(t, expectedErr, err)
+		assert.ErrorIs(t, err, expectedErr)
 		assert.Nil(t, result.Replay)
 		assert.Equal(t, &internalKey, result.InternalKey)
 	})
@@ -200,7 +201,7 @@ func TestCreateOrCheckTransactionIdempotency(t *testing.T) {
 		result, err := uc.CreateOrCheckTransactionIdempotency(ctx, organizationID, ledgerID, key, hash, ttl)
 
 		assert.Error(t, err)
-		assert.Equal(t, expectedErr, err)
+		assert.ErrorIs(t, err, expectedErr)
 		assert.Nil(t, result.Replay)
 		assert.Equal(t, &internalKey, result.InternalKey)
 	})
