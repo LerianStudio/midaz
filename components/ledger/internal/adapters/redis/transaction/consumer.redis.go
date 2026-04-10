@@ -543,9 +543,6 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 	}
 }
 
-// balanceSyncScheduleFlag is always 1 (enabled). Balance sync is always active.
-const balanceSyncScheduleFlag = 1
-
 // luaArgsPerOperation is the number of ARGV entries appended per balance
 // operation. It must match the stride used in the Lua script's parsing loop
 // (balance_atomic_operation.lua: `for i = 2, #ARGV, groupSize do`).
@@ -793,7 +790,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		return nil, err
 	}
 
-	finalArgs := append([]any{balanceSyncScheduleFlag}, plan.args...)
+	finalArgs := plan.args
 
 	result, err := rr.runBalanceAtomicScript(ctx, rds, prefixedKeys, finalArgs)
 	if err != nil {

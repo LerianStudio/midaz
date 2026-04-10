@@ -239,9 +239,6 @@ local function main()
     local transactionKey = KEYS[2]
     local scheduleKey = KEYS[3]
 
-    -- First argument: whether to schedule balance sync (1 = enabled, 0 = disabled)
-    local scheduleSync = tonumber(ARGV[1]) or 1
-
     -- Schedule balance sync immediately (eligible for worker pickup right away).
     -- The worker uses a dual-trigger (size OR timeout) to batch multiple keys
     -- before flushing to PostgreSQL, so immediate eligibility does not mean
@@ -252,8 +249,7 @@ local function main()
     local timeNow = redis.call("TIME")
     local dueAt = tonumber(timeNow[1]) * 1000000 + tonumber(timeNow[2])
 
-    -- Start from index 2 since ARGV[1] is the scheduleSync flag
-    for i = 2, #ARGV, groupSize do
+    for i = 1, #ARGV, groupSize do
         local redisBalanceKey = ARGV[i]
         local isPending = tonumber(ARGV[i + 1])
         local transactionStatus = ARGV[i + 2]
@@ -390,10 +386,7 @@ local function main()
             redisBalance = cjson.encode(balance)
             redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl)
 
-            -- Only schedule balance sync if enabled (scheduleSync == 1)
-            if scheduleSync == 1 then
-                redis.call("ZADD", scheduleKey, dueAt, redisBalanceKey)
-            end
+            redis.call("ZADD", scheduleKey, dueAt, redisBalanceKey)
         end
     end
 
