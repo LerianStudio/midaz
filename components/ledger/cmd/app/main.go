@@ -2,7 +2,6 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-
 package main
 
 import (
@@ -29,9 +28,14 @@ import (
 func main() {
 	libCommons.InitLocalEnvConfig()
 
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "info"
+	}
+
 	logger, err := libZap.New(libZap.Config{
 		Environment:     libZap.EnvironmentDevelopment,
-		Level:           "info",
+		Level:           logLevel,
 		OTelLibraryName: "midaz-ledger",
 	})
 	if err != nil {
