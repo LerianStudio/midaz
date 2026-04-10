@@ -546,6 +546,11 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 // balanceSyncScheduleFlag is always 1 (enabled). Balance sync is always active.
 const balanceSyncScheduleFlag = 1
 
+// luaArgsPerOperation is the number of ARGV entries appended per balance
+// operation. It must match the stride used in the Lua script's parsing loop
+// (balance_atomic_operation.lua: `for i = 2, #ARGV, groupSize do`).
+const luaArgsPerOperation = 17
+
 func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(
 	ctx context.Context,
 	transactionStatus string,
@@ -568,7 +573,7 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(
 	}
 
 	plan := &balanceAtomicOperationPlan{
-		args:          make([]any, 0, len(balancesOperation)*17),
+		args:          make([]any, 0, len(balancesOperation)*luaArgsPerOperation),
 		mapBalances:   make(map[string]*mmodel.Balance, len(balancesOperation)),
 		notedBalances: make([]*mmodel.Balance, 0, len(balancesOperation)),
 	}
@@ -582,24 +587,27 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(
 			return nil, err
 		}
 
+		// Each group of luaArgsPerOperation (17) values maps to one iteration
+		// of the Lua script's `for i = 2, #ARGV, groupSize` loop.
+		// See: scripts/balance_atomic_operation.lua lines 256-300.
 		plan.args = append(plan.args,
-			prefixedInternalKey,
-			isPending,
-			transactionStatus,
-			blcs.Amount.Operation,
-			blcs.Amount.Value.String(),
-			blcs.Alias,
-			boolToInt(blcs.Amount.RouteValidationEnabled),
-			blcs.Balance.ID,
-			blcs.Balance.Available.String(),
-			blcs.Balance.OnHold.String(),
-			strconv.FormatInt(blcs.Balance.Version, 10),
-			blcs.Balance.AccountType,
-			blcs.Balance.AccountID,
-			blcs.Balance.AssetCode,
-			boolToInt(blcs.Balance.AllowSending),
-			boolToInt(blcs.Balance.AllowReceiving),
-			blcs.Balance.Key,
+			prefixedInternalKey,        // ARGV[i+0]  → redisBalanceKey
+			isPending,                  // ARGV[i+1]  → isPending
+			transactionStatus,          // ARGV[i+2]  → transactionStatus
+			blcs.Amount.Operation,      // ARGV[i+3]  → operation
+			blcs.Amount.Value.String(), // ARGV[i+4]  → amount
+			blcs.Alias,                 // ARGV[i+5]  → alias
+			boolToInt(blcs.Amount.RouteValidationEnabled), // ARGV[i+6]  → routeValidationEnabled
+			blcs.Balance.ID,                             // ARGV[i+7]  → balance.ID
+			blcs.Balance.Available.String(),             // ARGV[i+8]  → balance.Available
+			blcs.Balance.OnHold.String(),                // ARGV[i+9]  → balance.OnHold
+			strconv.FormatInt(blcs.Balance.Version, 10), // ARGV[i+10] → balance.Version
+			blcs.Balance.AccountType,                    // ARGV[i+11] → balance.AccountType
+			blcs.Balance.AccountID,                      // ARGV[i+12] → balance.AccountID
+			blcs.Balance.AssetCode,                      // ARGV[i+13] → balance.AssetCode       (cache-only)
+			boolToInt(blcs.Balance.AllowSending),        // ARGV[i+14] → balance.AllowSending    (cache-only)
+			boolToInt(blcs.Balance.AllowReceiving),      // ARGV[i+15] → balance.AllowReceiving  (cache-only)
+			blcs.Balance.Key,                            // ARGV[i+16] → balance.Key             (cache-only)
 		)
 
 		plan.mapBalances[blcs.Alias] = blcs.Balance
@@ -619,6 +627,20 @@ func resolveBalanceAtomicKeys(ctx context.Context, organizationID, ledgerID, tra
 	return tenantKeysFromContext(ctx, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey})
 }
 
+// mapBalanceAtomicScriptError translates raw Lua script errors into typed Go errors.
+//
+// Redis Lua scripts signal errors via redis.error_reply(code), which arrives on
+// the Go side as a plain string inside the redis.Error message (e.g. "0018").
+// Since there is no structured error channel across the Go↔Redis↔Lua boundary,
+// we rely on string matching against the known error codes.
+//
+// If the Lua error format changes (e.g. from bare codes to prefixed messages),
+// this mapping must be updated accordingly.
+//
+// Lua error codes emitted by balance_atomic_operation.lua:
+//   - "0018" → ErrInsufficientFunds (negative available on non-external, or positive on external CREDIT)
+//   - "0098" → ErrOnHoldExternalAccount (external account used in pending source)
+//   - "0061" → ErrTransactionBackupCacheRetrievalFailed (balance key vanished mid-script)
 func mapBalanceAtomicScriptError(span trace.Span, err error) error {
 	if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
