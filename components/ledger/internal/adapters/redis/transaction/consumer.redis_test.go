@@ -470,9 +470,10 @@ func TestProcessBalanceAtomicOperation_NotedStatus(t *testing.T) {
 				assert.True(t, bal.Available.Equal(tc.balanceAmounts[i]),
 					"available should be unchanged (Lua script was skipped), got %s", bal.Available)
 
-				// Verify same pointer (no copy/modification)
-				assert.Same(t, balanceOps[i].Balance, bal,
-					"returned balance should be same pointer as input (early return, no processing)")
+				// The returned balance is a clone (not the same pointer) to avoid
+				// mutating the caller's BalanceOperation.
+				assert.NotSame(t, balanceOps[i].Balance, bal,
+					"returned balance should be a clone, not the same pointer as input")
 			}
 		})
 	}

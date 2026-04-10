@@ -631,8 +631,12 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(
 		plan.mapBalances[blcs.Alias] = blcs.Balance
 
 		if transactionStatus == constant.NOTED {
-			blcs.Balance.Alias = blcs.Alias
-			plan.notedBalances = append(plan.notedBalances, blcs.Balance)
+			// Clone the balance so we don't mutate the caller's data.
+			// The Alias field is only needed for the NOTED early-return path
+			// and is not part of the original BalanceOperation.Balance.
+			notedBalance := *blcs.Balance
+			notedBalance.Alias = blcs.Alias
+			plan.notedBalances = append(plan.notedBalances, &notedBalance)
 		}
 	}
 
