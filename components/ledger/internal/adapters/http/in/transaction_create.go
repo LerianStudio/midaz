@@ -771,7 +771,20 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
-	result, routeCache, err := handler.Query.ProcessBalanceOperations(ctx, params.OrganizationID, params.LedgerID, transactionID, &transactionInput, validate, balances, transactionStatus, action)
+	balanceOps := buildBalanceOperations(params.OrganizationID, params.LedgerID, validate, balances)
+
+	routeCache, err := handler.Query.ValidateAccountingRules(ctx, params.OrganizationID, params.LedgerID, balanceOps, validate, action)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate accounting rules", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to validate accounting rules", libLog.Err(err))
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+
+		return http.WithError(c, err)
+	}
+
+	result, err := handler.Command.ProcessBalanceOperations(ctx, params.OrganizationID, params.LedgerID, transactionID, &transactionInput, validate, balanceOps, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to process balance operations", libLog.Err(err))

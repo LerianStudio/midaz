@@ -468,7 +468,19 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	result, routeCache, err := handler.Query.ProcessBalanceOperations(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, balances, transactionStatus, action)
+	balanceOps := buildBalanceOperations(organizationID, ledgerID, validate, balances)
+
+	routeCache, err := handler.Query.ValidateAccountingRules(ctx, organizationID, ledgerID, balanceOps, validate, action)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate accounting rules", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to validate accounting rules", libLog.Err(err))
+
+		deleteLockOnError()
+
+		return http.WithError(c, err)
+	}
+
+	result, err := handler.Command.ProcessBalanceOperations(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, balanceOps, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to process balance operations", libLog.Err(err))
