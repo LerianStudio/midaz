@@ -124,7 +124,7 @@ var (
 	ErrNoAccountTypesFound                      = errors.New("0110")
 	ErrInvalidAccountRuleType                   = errors.New("0111")
 	ErrInvalidAccountRuleValue                  = errors.New("0112")
-	ErrInvalidAccountingRoute                   = errors.New("0113")
+	ErrCorruptedAccountRule                     = errors.New("0113")
 	ErrTransactionRouteNotInformed              = errors.New("0114")
 	ErrInvalidTransactionRouteID                = errors.New("0115")
 	ErrAccountingRouteCountMismatch             = errors.New("0116")

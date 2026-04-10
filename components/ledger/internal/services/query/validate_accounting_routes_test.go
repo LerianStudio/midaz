@@ -522,7 +522,6 @@ func TestValidateAccountRules(t *testing.T) {
 		transactionRouteCache mmodel.TransactionRouteCache
 		validate              *pkgTransaction.Responses
 		operations            []mmodel.BalanceOperation
-		ledgerSettings        mmodel.LedgerSettings
 		expectError           bool
 		errorCode             string
 	}{
@@ -554,11 +553,7 @@ func TestValidateAccountRules(t *testing.T) {
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
-			ledgerSettings: mmodel.LedgerSettings{
-				Accounting: mmodel.AccountingValidation{
-					ValidateAccountType: false,
-				},
-			},
+
 			expectError: false,
 		},
 		{
@@ -593,11 +588,7 @@ func TestValidateAccountRules(t *testing.T) {
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
-			ledgerSettings: mmodel.LedgerSettings{
-				Accounting: mmodel.AccountingValidation{
-					ValidateAccountType: true,
-				},
-			},
+
 			expectError: false,
 		},
 		{
@@ -632,11 +623,7 @@ func TestValidateAccountRules(t *testing.T) {
 					Balance: &mmodel.Balance{AccountType: "liability"},
 				},
 			},
-			ledgerSettings: mmodel.LedgerSettings{
-				Accounting: mmodel.AccountingValidation{
-					ValidateAccountType: true,
-				},
-			},
+
 			expectError: false,
 		},
 		{
@@ -663,11 +650,7 @@ func TestValidateAccountRules(t *testing.T) {
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
-			ledgerSettings: mmodel.LedgerSettings{
-				Accounting: mmodel.AccountingValidation{
-					ValidateAccountType: true,
-				},
-			},
+
 			expectError: false,
 		},
 		{
@@ -694,11 +677,7 @@ func TestValidateAccountRules(t *testing.T) {
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
-			ledgerSettings: mmodel.LedgerSettings{
-				Accounting: mmodel.AccountingValidation{
-					ValidateAccountType: true,
-				},
-			},
+
 			expectError: true,
 			errorCode:   "0117",
 		},
@@ -734,11 +713,7 @@ func TestValidateAccountRules(t *testing.T) {
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
-			ledgerSettings: mmodel.LedgerSettings{
-				Accounting: mmodel.AccountingValidation{
-					ValidateAccountType: true,
-				},
-			},
+
 			expectError: false,
 		},
 	}
@@ -746,7 +721,7 @@ func TestValidateAccountRules(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			actionCache := tt.transactionRouteCache.Actions["direct"]
-			err := validateAccountRules(ctx, actionCache.Source, actionCache.Destination, actionCache.Bidirectional, tt.validate, tt.operations, tt.ledgerSettings)
+			err := validateAccountRules(ctx, actionCache.Source, actionCache.Destination, actionCache.Bidirectional, tt.validate, tt.operations)
 
 			if tt.expectError {
 				assert.Error(t, err)
