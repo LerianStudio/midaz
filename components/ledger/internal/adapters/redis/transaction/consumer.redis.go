@@ -154,7 +154,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 		return err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("value of ttl: %v", ttl*time.Second))
+	logger.Log(ctx, libLog.LevelDebug, "Setting key", libLog.String("ttl", (ttl*time.Second).String()))
 
 	err = rds.Set(ctx, key, value, ttl*time.Second).Err()
 	if err != nil {
@@ -185,7 +185,7 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 		return false, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("value of ttl: %v", ttl*time.Second))
+	logger.Log(ctx, libLog.LevelDebug, "Setting key with NX", libLog.String("ttl", (ttl*time.Second).String()))
 
 	isLocked, err := rds.SetNX(ctx, key, value, ttl*time.Second).Result()
 	if err != nil {
@@ -206,7 +206,7 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	key, err := tenantKeyFromContextOrError(ctx, key)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis key: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key", libLog.Err(err))
 
 		return "", err
 	}
@@ -215,7 +215,7 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to connect on redis: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to connect to Redis", libLog.Err(err))
 
 		return "", err
 	}
@@ -224,12 +224,10 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	if err != nil && !errors.Is(err, redis.Nil) {
 		libOpentelemetry.HandleSpanError(span, "Failed to get on redis", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get on redis: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get key from Redis", libLog.Err(err))
 
 		return "", err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("value : %v", val))
 
 	return val, nil
 }
@@ -252,7 +250,7 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get redis: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
 
 		return nil, err
 	}
@@ -260,7 +258,7 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 	prefixedKeys, err := tenantKeysFromContext(ctx, keys)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis keys", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis keys: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis keys", libLog.Err(err))
 
 		return nil, err
 	}
@@ -277,7 +275,7 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to mget on redis", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to mget on redis: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to MGET from Redis", libLog.Err(err))
 
 			return nil, err
 		}
@@ -298,7 +296,7 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 		}
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("mget retrieved %d/%d values", len(out), len(keys)))
+	logger.Log(ctx, libLog.LevelDebug, "MGET completed", libLog.Int("retrieved", len(out)), libLog.Int("requested", len(keys)))
 
 	return out, nil
 }
@@ -312,7 +310,7 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	key, err := tenantKeyFromContextOrError(ctx, key)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis key: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key", libLog.Err(err))
 
 		return err
 	}
@@ -321,7 +319,7 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to connect on redis: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to connect to Redis", libLog.Err(err))
 
 		return err
 	}
@@ -330,12 +328,12 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to del on redis", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to del on redis: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to delete key from Redis", libLog.Err(err))
 
 		return err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("deleted keys count: %v", val))
+	logger.Log(ctx, libLog.LevelDebug, "Key deleted from Redis", libLog.Any("deleted_count", val))
 
 	return nil
 }
@@ -350,7 +348,7 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis key: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key", libLog.Err(err))
 
 		return 0
 	}
@@ -359,7 +357,7 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get redis: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
 
 		return 0
 	}
@@ -569,12 +567,7 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 // (balance_atomic_operation.lua: `for i = 2, #ARGV, groupSize do`).
 const luaArgsPerOperation = 17
 
-func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(
-	ctx context.Context,
-	transactionStatus string,
-	pending bool,
-	balancesOperation []mmodel.BalanceOperation,
-) (*balanceAtomicOperationPlan, error) {
+func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.Context, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*balanceAtomicOperationPlan, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "redis.build_balance_atomic_operation_plan")
@@ -643,12 +636,6 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(
 	return plan, nil
 }
 
-func resolveBalanceAtomicKeys(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) ([]string, error) {
-	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
-
-	return tenantKeysFromContext(ctx, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey})
-}
-
 // mapBalanceAtomicScriptError translates raw Lua script errors into typed Go errors.
 //
 // Redis Lua scripts signal errors via redis.error_reply(code), which arrives on
@@ -690,12 +677,7 @@ func mapBalanceAtomicScriptError(span trace.Span, err error) error {
 	return err
 }
 
-func (rr *RedisConsumerRepository) runBalanceAtomicScript(
-	ctx context.Context,
-	rds redis.UniversalClient,
-	keys []string,
-	finalArgs []any,
-) (any, error) {
+func (rr *RedisConsumerRepository) runBalanceAtomicScript(ctx context.Context, rds redis.UniversalClient, keys []string, finalArgs []any) (any, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "redis.run_balance_atomic_script")
@@ -724,8 +706,7 @@ func normalizeBalanceAtomicResult(result any) ([]byte, error) {
 	}
 }
 
-func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, mapBalances map[string]*mmodel.Balance, phase string,
-) []*mmodel.Balance {
+func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, mapBalances map[string]*mmodel.Balance, phase string) []*mmodel.Balance {
 	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	collected := make([]*mmodel.Balance, 0, len(balances))
@@ -747,11 +728,7 @@ func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, map
 	return collected
 }
 
-func decodeBalanceAtomicResult(
-	ctx context.Context,
-	result any,
-	mapBalances map[string]*mmodel.Balance,
-) (*mmodel.BalanceAtomicResult, error) {
+func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[string]*mmodel.Balance) (*mmodel.BalanceAtomicResult, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "redis.decode_balance_atomic_result")
@@ -810,7 +787,9 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		return &mmodel.BalanceAtomicResult{Before: plan.notedBalances, After: plan.notedBalances}, nil
 	}
 
-	prefixedKeys, err := resolveBalanceAtomicKeys(ctx, organizationID, ledgerID, transactionID)
+	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+
+	prefixedKeys, err := tenantKeysFromContext(ctx, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey})
 	if err != nil {
 		return nil, err
 	}
@@ -891,7 +870,7 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 		return nil, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieved binary data of length: %d bytes", len(val)))
+	logger.Log(ctx, libLog.LevelDebug, "Retrieved binary data from Redis", libLog.Int("bytes", len(val)))
 
 	return val, nil
 }
@@ -915,18 +894,18 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get redis client: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to get Redis client", libLog.Err(err))
 
 		return err
 	}
 
 	if err := rds.HSet(ctx, prefixedQueue, key, msg).Err(); err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to hset message: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to add message to queue", libLog.Err(err))
 
 		return err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Mensagem save on redis queue with ID: %s", key))
+	logger.Log(ctx, libLog.LevelDebug, "Message added to Redis queue", libLog.String("key", key))
 
 	return nil
 }
@@ -950,19 +929,19 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get redis client: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to get Redis client", libLog.Err(err))
 
 		return nil, err
 	}
 
 	data, err := rds.HGet(ctx, prefixedQueue, key).Bytes()
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to hgetall: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to read message from queue", libLog.Err(err))
 
 		return nil, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Message read on redis queue with ID: %s", key))
+	logger.Log(ctx, libLog.LevelDebug, "Message read from Redis queue", libLog.String("key", key))
 
 	return data, nil
 }
@@ -981,14 +960,14 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get redis client: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to get Redis client", libLog.Err(err))
 
 		return nil, err
 	}
 
 	data, err := rds.HGetAll(ctx, prefixedQueue).Result()
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to hgetall: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to read all messages from queue", libLog.Err(err))
 
 		return nil, err
 	}
@@ -1017,18 +996,18 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get redis client: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to get Redis client", libLog.Err(err))
 
 		return err
 	}
 
 	if err := rds.HDel(ctx, prefixedQueue, key).Err(); err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to hdel: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to remove message from queue", libLog.Err(err))
 
 		return err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Message with ID %s is removed from redis queue", key))
+	logger.Log(ctx, libLog.LevelDebug, "Message removed from Redis queue", libLog.String("key", key))
 
 	return nil
 }
@@ -1160,7 +1139,7 @@ func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context,
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get redis client: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
 
 		return err
 	}
@@ -1168,7 +1147,7 @@ func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context,
 	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKey)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis key: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key", libLog.Err(err))
 
 		return err
 	}
@@ -1204,7 +1183,7 @@ func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context,
 		if err := cmd.Err(); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to batch schedule balance sync", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to batch schedule balance sync: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to batch schedule balance sync", libLog.Err(err))
 
 			return err
 		}
@@ -1212,7 +1191,7 @@ func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context,
 		totalAdded += cmd.Val()
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Scheduled balance keys for sync (input: %d, unique: %d, added: %d)", len(members), len(deduped), totalAdded))
+	logger.Log(ctx, libLog.LevelDebug, "Scheduled balance keys for sync", libLog.Int("input", len(members)), libLog.Int("unique", len(deduped)), libLog.Any("added", totalAdded))
 
 	return nil
 }
@@ -1227,7 +1206,7 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to connect on redis: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to connect to Redis", libLog.Err(err))
 
 		return nil, err
 	}
@@ -1237,7 +1216,7 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 	internalKey, err = tenantKeyFromContextOrError(ctx, internalKey)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis key: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key", libLog.Err(err))
 
 		return nil, err
 	}
@@ -1246,7 +1225,7 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get balance on redis", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balance on redis: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get balance from Redis", libLog.Err(err))
 
 		return nil, err
 	}
@@ -1256,7 +1235,7 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 	if err := json.Unmarshal([]byte(value), &balanceRedis); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to unmarshal balance on redis", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal balance on redis: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to unmarshal balance from Redis", libLog.Err(err))
 
 		return nil, err
 	}
@@ -1387,7 +1366,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get redis client: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
 
 		return 0, err
 	}
@@ -1395,7 +1374,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKey)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis key: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key", libLog.Err(err))
 
 		return 0, err
 	}
@@ -1403,7 +1382,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 	prefixedLockPrefix, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncLockPrefix)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis key: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key", libLog.Err(err))
 
 		return 0, err
 	}
@@ -1427,7 +1406,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to batch remove balance sync keys", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to batch remove balance sync keys: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to batch remove balance sync keys", libLog.Err(err))
 
 			return totalRemoved, err
 		}
@@ -1438,7 +1417,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 
 			libOpentelemetry.HandleSpanError(span, "Unexpected result type", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Unexpected result type from remove script: %T", result))
+			logger.Log(ctx, libLog.LevelError, "Unexpected result type from remove script", libLog.String("type", fmt.Sprintf("%T", result)))
 
 			return totalRemoved, err
 		}
@@ -1446,7 +1425,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 		totalRemoved += removed
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Removed %d balance keys from sync schedule", totalRemoved))
+	logger.Log(ctx, libLog.LevelDebug, "Removed balance keys from sync schedule", libLog.Any("removed", totalRemoved))
 
 	return totalRemoved, nil
 }
