@@ -393,7 +393,14 @@ type balanceAtomicOperationPlan struct {
 }
 
 // balanceRedisList accepts either a JSON array or a single JSON object.
-// Some Lua script paths return one object when only one balance is processed.
+//
+// cjson (Lua's JSON encoder) has two quirks this type handles:
+//   - An empty Lua table is encoded as {} (object) instead of [] (array).
+//   - A single-element result may arrive as a bare object instead of a 1-element array.
+//
+// The implementation uses json.RawMessage to keep each element's raw bytes and
+// unmarshal directly into BalanceRedis, avoiding the double marshal/unmarshal
+// round-trip of parsing into any and re-serializing.
 type balanceRedisList []mmodel.BalanceRedis
 
 func (l *balanceRedisList) UnmarshalJSON(data []byte) error {
@@ -404,62 +411,76 @@ func (l *balanceRedisList) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	var parsed any
-	if err := json.Unmarshal(trimmed, &parsed); err != nil {
-		return err
-	}
-
-	decodeBalance := func(value any) (mmodel.BalanceRedis, bool) {
-		payload, err := json.Marshal(value)
-		if err != nil {
-			return mmodel.BalanceRedis{}, false
+	// Fast path: standard JSON array — try direct unmarshal first.
+	if trimmed[0] == '[' {
+		var items []json.RawMessage
+		if err := json.Unmarshal(trimmed, &items); err != nil {
+			return err
 		}
 
-		var balance mmodel.BalanceRedis
-		if err := json.Unmarshal(payload, &balance); err != nil {
-			return mmodel.BalanceRedis{}, false
-		}
+		result := make([]mmodel.BalanceRedis, 0, len(items))
 
-		return balance, true
-	}
-
-	result := make([]mmodel.BalanceRedis, 0)
-
-	switch value := parsed.(type) {
-	case []any:
-		for _, item := range value {
-			if item == nil {
+		for _, raw := range items {
+			if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 				continue
 			}
 
-			if balance, ok := decodeBalance(item); ok {
-				result = append(result, balance)
+			var b mmodel.BalanceRedis
+			if err := json.Unmarshal(raw, &b); err != nil {
+				continue
 			}
-		}
-	case map[string]any:
-		// Empty map {} is cjson's encoding of an empty array — skip it.
-		if len(value) == 0 {
-			break
+
+			result = append(result, b)
 		}
 
-		if decodedBalance, ok := decodeBalance(value); ok {
-			result = append(result, decodedBalance)
-		} else {
-			for _, nested := range value {
-				if nested == nil {
-					continue
-				}
+		*l = result
 
-				if nestedBalance, ok := decodeBalance(nested); ok {
-					result = append(result, nestedBalance)
-				}
-			}
-		}
+		return nil
 	}
 
-	*l = result
+	// Slow path: cjson returned an object instead of an array.
+	// Empty object {} means empty array — return early.
+	if trimmed[0] == '{' {
+		if bytes.Equal(trimmed, []byte("{}")) {
+			*l = nil
+			return nil
+		}
 
-	return nil
+		// Try as a single BalanceRedis object.
+		var single mmodel.BalanceRedis
+		if err := json.Unmarshal(trimmed, &single); err == nil && single.ID != "" {
+			*l = balanceRedisList{single}
+			return nil
+		}
+
+		// Fallback: object with numeric keys wrapping nested balance objects.
+		// cjson may encode a Lua array-table as {"1":{...},"2":{...}}.
+		var nested map[string]json.RawMessage
+		if err := json.Unmarshal(trimmed, &nested); err != nil {
+			return err
+		}
+
+		result := make([]mmodel.BalanceRedis, 0, len(nested))
+
+		for _, raw := range nested {
+			if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+				continue
+			}
+
+			var b mmodel.BalanceRedis
+			if err := json.Unmarshal(raw, &b); err != nil {
+				continue
+			}
+
+			result = append(result, b)
+		}
+
+		*l = result
+
+		return nil
+	}
+
+	return fmt.Errorf("balanceRedisList: unexpected JSON token %q", trimmed[0])
 }
 
 // UnmarshalJSON handles cjson's empty-array-as-object encoding quirk.
