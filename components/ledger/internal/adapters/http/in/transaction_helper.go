@@ -5,9 +5,12 @@
 package in
 
 import (
+	"context"
 	"sort"
 	"strings"
 
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -79,65 +82,103 @@ func getAliasWithoutKey(array []string) []string {
 	return result
 }
 
+// balanceRef holds a pre-computed balance reference for O(1) lookup by aliasKey.
+type balanceRef struct {
+	balance     *mmodel.Balance
+	internalKey string
+}
+
 // buildBalanceOperations constructs and sorts balance operations from the
 // validated transaction entries. This is pure logic with no I/O dependencies.
 // Operations are sorted by internal key to prevent deadlocks in the Lua script.
-func buildBalanceOperations(organizationID, ledgerID uuid.UUID, validate *pkgTransaction.Responses, balances []*mmodel.Balance) []mmodel.BalanceOperation {
-	balanceOperations := make([]mmodel.BalanceOperation, 0)
+//
+// Alias format arriving from the DSL parser: "index#alias#balanceKey"
+// (e.g. "0#@sender#default", "1#@sender#default" for same account appearing twice).
+// SplitAliasWithKey strips the index prefix, returning "alias#balanceKey" for balance lookup.
+func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *pkgTransaction.Responses, balances []*mmodel.Balance) []mmodel.BalanceOperation {
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	for _, balance := range balances {
-		balanceKey := balance.Key
-		if balanceKey == "" {
-			balanceKey = constant.DefaultBalanceKey
+	// Index balances by aliasKey for O(1) lookup instead of O(balances * entries).
+	balanceByAliasKey := make(map[string]balanceRef, len(balances))
+
+	for _, b := range balances {
+		key := b.Key
+		if key == "" {
+			key = constant.DefaultBalanceKey
 		}
 
-		aliasKey := balance.Alias + "#" + balanceKey
-		internalKey := utils.BalanceInternalKey(organizationID, ledgerID, aliasKey)
+		aliasKey := b.Alias + "#" + key
 
-		for k, v := range validate.From {
-			if pkgTransaction.SplitAliasWithKey(k) == aliasKey {
-				if pkgTransaction.IsDoubleEntrySource(v) {
-					op1, op2 := pkgTransaction.SplitDoubleEntryOps(v)
-
-					balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
-						Balance:     balance,
-						Alias:       k,
-						Amount:      op1,
-						InternalKey: internalKey,
-					})
-
-					balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
-						Balance:     balance,
-						Alias:       k,
-						Amount:      op2,
-						InternalKey: internalKey,
-					})
-				} else {
-					balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
-						Balance:     balance,
-						Alias:       k,
-						Amount:      v,
-						InternalKey: internalKey,
-					})
-				}
-			}
-		}
-
-		for k, v := range validate.To {
-			if pkgTransaction.SplitAliasWithKey(k) == aliasKey {
-				balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
-					Balance:     balance,
-					Alias:       k,
-					Amount:      v,
-					InternalKey: internalKey,
-				})
-			}
+		balanceByAliasKey[aliasKey] = balanceRef{
+			balance:     b,
+			internalKey: utils.BalanceInternalKey(organizationID, ledgerID, aliasKey),
 		}
 	}
 
-	sort.Slice(balanceOperations, func(i, j int) bool {
-		return balanceOperations[i].InternalKey < balanceOperations[j].InternalKey
+	logger.Log(ctx, libLog.LevelDebug, "Building balance operations",
+		libLog.Int("balances_indexed", len(balanceByAliasKey)),
+		libLog.Int("from_entries", len(validate.From)),
+		libLog.Int("to_entries", len(validate.To)))
+
+	ops := make([]mmodel.BalanceOperation, 0, len(validate.From)+len(validate.To))
+
+	for alias, amount := range validate.From {
+		resolvedKey := pkgTransaction.SplitAliasWithKey(alias)
+
+		ref, ok := balanceByAliasKey[resolvedKey]
+		if !ok {
+			logger.Log(ctx, libLog.LevelDebug, "From entry has no matching balance, skipping",
+				libLog.String("raw_alias", alias),
+				libLog.String("alias_balance", resolvedKey))
+
+			continue
+		}
+
+		logger.Log(ctx, libLog.LevelDebug, "Matched From entry to balance",
+			libLog.String("raw_alias", alias),
+			libLog.String("alias_balance", resolvedKey),
+			libLog.String("direction", amount.Direction),
+			libLog.String("operation", amount.Operation),
+			libLog.Bool("double_entry", pkgTransaction.IsDoubleEntrySource(amount)))
+
+		if pkgTransaction.IsDoubleEntrySource(amount) {
+			op1, op2 := pkgTransaction.SplitDoubleEntryOps(amount)
+
+			ops = append(ops,
+				mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: op1, InternalKey: ref.internalKey},
+				mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: op2, InternalKey: ref.internalKey},
+			)
+		} else {
+			ops = append(ops, mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: amount, InternalKey: ref.internalKey})
+		}
+	}
+
+	for alias, amount := range validate.To {
+		resolvedKey := pkgTransaction.SplitAliasWithKey(alias)
+
+		ref, ok := balanceByAliasKey[resolvedKey]
+		if !ok {
+			logger.Log(ctx, libLog.LevelDebug, "To entry has no matching balance, skipping",
+				libLog.String("raw_alias", alias),
+				libLog.String("alias_balance", resolvedKey))
+
+			continue
+		}
+
+		logger.Log(ctx, libLog.LevelDebug, "Matched To entry to balance",
+			libLog.String("raw_alias", alias),
+			libLog.String("alias_balance", resolvedKey),
+			libLog.String("direction", amount.Direction))
+
+		ops = append(ops, mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: amount, InternalKey: ref.internalKey})
+	}
+
+	sort.Slice(ops, func(i, j int) bool {
+		return ops[i].InternalKey < ops[j].InternalKey
 	})
 
-	return balanceOperations
+	logger.Log(ctx, libLog.LevelDebug, "Balance operations built",
+		libLog.Int("total_ops", len(ops)))
+
+	return ops
 }

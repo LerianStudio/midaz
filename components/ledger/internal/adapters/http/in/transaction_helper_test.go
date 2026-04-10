@@ -178,7 +178,7 @@ func TestBuildBalanceOperations(t *testing.T) {
 			},
 		}
 
-		ops := buildBalanceOperations(organizationID, ledgerID, validate, balances)
+		ops := buildBalanceOperations(context.Background(), organizationID, ledgerID, validate, balances)
 		require.Len(t, ops, 1)
 		assert.Equal(t, "0#alias1#default", ops[0].Alias)
 		assert.Equal(t, constant.DEBIT, ops[0].Amount.Operation)
@@ -220,7 +220,7 @@ func TestBuildBalanceOperations(t *testing.T) {
 			},
 		}
 
-		ops := buildBalanceOperations(organizationID, ledgerID, validate, balances)
+		ops := buildBalanceOperations(context.Background(), organizationID, ledgerID, validate, balances)
 		require.Len(t, ops, 2)
 		assert.Equal(t, ops[0].Alias, ops[1].Alias, "both operations should reference the same alias")
 	})
@@ -259,7 +259,7 @@ func TestBuildBalanceOperations(t *testing.T) {
 			},
 		}
 
-		ops := buildBalanceOperations(organizationID, ledgerID, validate, balances)
+		ops := buildBalanceOperations(context.Background(), organizationID, ledgerID, validate, balances)
 		require.Len(t, ops, 2)
 
 		// Verify sorted by internal key

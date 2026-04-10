@@ -468,7 +468,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	balanceOps := buildBalanceOperations(organizationID, ledgerID, validate, balances)
+	balanceOps := buildBalanceOperations(ctx, organizationID, ledgerID, validate, balances)
 
 	routeCache, err := handler.Query.ValidateAccountingRules(ctx, organizationID, ledgerID, balanceOps, validate, action)
 	if err != nil {
