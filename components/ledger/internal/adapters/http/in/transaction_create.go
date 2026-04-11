@@ -6,7 +6,6 @@ package in
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -760,9 +759,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		libOpentelemetry.HandleSpanError(span, "Failed to send transaction to backup cache", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to send transaction to backup cache", libLog.Err(err))
 
-		if errors.Is(err, constant.ErrTransactionBackupCacheMarshalFailed) {
-			handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-		}
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 
 		return http.WithError(c, pkg.ValidateBusinessError(err, constant.EntityTransaction))
 	}
