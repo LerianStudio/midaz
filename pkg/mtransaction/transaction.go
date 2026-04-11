@@ -192,9 +192,14 @@ func isConcatedAlias(alias string) bool {
 	return false
 }
 
-// MutateConcatAliases rewrites each entry's AccountAlias to the composite
-// "index#alias#balanceKey" format in-place. Entries that are already concat'd
-// are left untouched (idempotent). Returns copies of all entries.
+// MutateConcatAliases rewrites each entry's AccountAlias IN-PLACE to the
+// composite "index#alias#balanceKey" format. Entries that are already concat'd
+// are left untouched (idempotent).
+//
+// The in-place mutation is intentional: ValidateSendSourceAndDistribute (called
+// after this function) reads the mutated AccountAlias as map keys in
+// Responses.From/To, and buildBalanceOperations depends on those keys being
+// in concat format for balance resolution.
 func MutateConcatAliases(entries []FromTo) []FromTo {
 	result := make([]FromTo, 0, len(entries))
 
@@ -209,9 +214,10 @@ func MutateConcatAliases(entries []FromTo) []FromTo {
 	return result
 }
 
-// MutateSplitAliases restores clean aliases by stripping the index prefix
-// added by MutateConcatAliases. Entries that are not concat'd are left
-// untouched (idempotent). Returns copies of all entries.
+// MutateSplitAliases restores clean aliases IN-PLACE by stripping the index
+// prefix added by MutateConcatAliases. Entries that are not concat'd are left
+// untouched (idempotent). Called after ValidateSendSourceAndDistribute has
+// consumed the concat'd keys.
 func MutateSplitAliases(entries []FromTo) []FromTo {
 	result := make([]FromTo, 0, len(entries))
 
