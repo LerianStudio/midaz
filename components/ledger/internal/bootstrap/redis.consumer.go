@@ -26,7 +26,7 @@ import (
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
@@ -356,13 +356,15 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 
 	var parentTransactionID *string
 
+	amount := m.TransactionInput.Send.Value
+
 	tran := &postgreTransaction.Transaction{
 		ID:                       m.TransactionID.String(),
 		ParentTransactionID:      parentTransactionID,
 		OrganizationID:           m.OrganizationID.String(),
 		LedgerID:                 m.LedgerID.String(),
 		Description:              m.TransactionInput.Description,
-		Amount:                   &m.TransactionInput.Send.Value,
+		Amount:                   &amount,
 		AssetCode:                m.TransactionInput.Send.Asset,
 		ChartOfAccountsGroupName: m.TransactionInput.ChartOfAccountsGroupName,
 		CreatedAt:                m.TransactionDate,
@@ -386,16 +388,21 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 
 		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Using %d materialized operations from backup", len(operations)))
 	} else {
-		var fromTo []pkgTransaction.FromTo
+		var fromTo []mtransaction.FromTo
 
-		fromTo = append(fromTo, r.TransactionHandler.HandleAccountFields(m.TransactionInput.Send.Source.From, true)...)
-		to := r.TransactionHandler.HandleAccountFields(m.TransactionInput.Send.Distribute.To, true)
+		fromTo = append(fromTo, mtransaction.MutateConcatAliases(m.TransactionInput.Send.Source.From)...)
+		to := mtransaction.MutateConcatAliases(m.TransactionInput.Send.Distribute.To)
 
 		if m.TransactionStatus != constant.PENDING && m.TransactionStatus != constant.CANCELED {
 			fromTo = append(fromTo, to...)
 		}
 
-		ledgerSettings := r.TransactionHandler.Query.GetParsedLedgerSettings(msgCtxWithSpan, m.OrganizationID, m.LedgerID)
+		ledgerSettings, err := r.TransactionHandler.Query.GetParsedLedgerSettings(msgCtxWithSpan, m.OrganizationID, m.LedgerID)
+		if err != nil {
+			logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to get ledger settings, aborting backup consumer message", libLog.String("transactionId", m.TransactionID.String()), libLog.Err(err))
+
+			return
+		}
 
 		var routeCache *mmodel.TransactionRouteCache
 

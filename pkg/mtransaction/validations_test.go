@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package transaction
+package mtransaction
 
 import (
 	"context"
@@ -13,11 +13,30 @@ import (
 	"github.com/LerianStudio/lib-commons/v4/commons"
 	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	"github.com/LerianStudio/lib-commons/v4/commons/log"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel"
 )
+
+// codeFromError extracts the business error code from the structured error types
+// returned by pkg.ValidateBusinessError (ValidationError, UnprocessableOperationError,
+// EntityNotFoundError, etc.). Returns empty string if the error is not a known type.
+func codeFromError(err error) string {
+	switch e := err.(type) {
+	case pkg.ValidationError:
+		return e.Code
+	case pkg.UnprocessableOperationError:
+		return e.Code
+	case pkg.EntityNotFoundError:
+		return e.Code
+	case pkg.EntityConflictError:
+		return e.Code
+	default:
+		return ""
+	}
+}
 
 func TestValidateBalancesRules(t *testing.T) {
 	t.Parallel()
@@ -239,12 +258,7 @@ func TestValidateBalancesRules(t *testing.T) {
 			if tt.expectError {
 				assert.Error(t, err)
 				if tt.errorCode != "" {
-					// Check if the error is a Response type and contains the error code
-					if respErr, ok := err.(commons.Response); ok {
-						assert.Equal(t, tt.errorCode, respErr.Code)
-					} else {
-						assert.Contains(t, err.Error(), tt.errorCode)
-					}
+					assert.Equal(t, tt.errorCode, codeFromError(err), "error code mismatch: %v", err)
 				}
 			} else {
 				assert.NoError(t, err)
@@ -345,12 +359,7 @@ func TestValidateFromBalances(t *testing.T) {
 			if tt.expectError {
 				assert.Error(t, err)
 				if tt.errorCode != "" {
-					// Check if the error is a Response type and contains the error code
-					if respErr, ok := err.(commons.Response); ok {
-						assert.Equal(t, tt.errorCode, respErr.Code)
-					} else {
-						assert.Contains(t, err.Error(), tt.errorCode)
-					}
+					assert.Equal(t, tt.errorCode, codeFromError(err), "error code mismatch: %v", err)
 				}
 			} else {
 				assert.NoError(t, err)
@@ -434,12 +443,7 @@ func TestValidateToBalances(t *testing.T) {
 			if tt.expectError {
 				assert.Error(t, err)
 				if tt.errorCode != "" {
-					// Check if the error is a Response type and contains the error code
-					if respErr, ok := err.(commons.Response); ok {
-						assert.Equal(t, tt.errorCode, respErr.Code)
-					} else {
-						assert.Contains(t, err.Error(), tt.errorCode)
-					}
+					assert.Equal(t, tt.errorCode, codeFromError(err), "error code mismatch: %v", err)
 				}
 			} else {
 				assert.NoError(t, err)
@@ -1011,12 +1015,7 @@ func TestValidateSendSourceAndDistribute(t *testing.T) {
 			if tt.expectError {
 				assert.Error(t, err)
 				if tt.errorCode != "" {
-					// Check if the error is a Response type and contains the error code
-					if respErr, ok := err.(commons.Response); ok {
-						assert.Equal(t, tt.errorCode, respErr.Code)
-					} else {
-						assert.Contains(t, err.Error(), tt.errorCode)
-					}
+					assert.Equal(t, tt.errorCode, codeFromError(err), "error code mismatch: %v", err)
 				}
 			} else {
 				assert.NoError(t, err)

@@ -11,17 +11,12 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -31,21 +26,10 @@ func TestGetBalances(t *testing.T) {
 
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
-	mockLedgerRepo := ledger.NewMockRepository(ctrl)
-
-	// LedgerRepo.GetSettings is called by GetParsedLedgerSettings (via ValidateAccountingRules).
-	// Return empty settings (routes validation disabled) so tests focus on balance logic.
-	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(map[string]any{}, nil).
-		AnyTimes()
 
 	uc := &UseCase{
 		BalanceRepo:          mockBalanceRepo,
 		TransactionRedisRepo: mockRedisRepo,
-		RabbitMQRepo:         mockRabbitMQRepo,
-		LedgerRepo:           mockLedgerRepo,
 	}
 
 	ctx := context.Background()
@@ -54,33 +38,6 @@ func TestGetBalances(t *testing.T) {
 
 	t.Run("get balances from redis and database", func(t *testing.T) {
 		aliases := []string{"alias1#default", "alias2#default", "alias3#default"}
-
-		fromAmount := pkgTransaction.Amount{
-			Asset:     "USD",
-			Value:     decimal.NewFromFloat(50),
-			Operation: constant.DEBIT,
-		}
-		toAmount2 := pkgTransaction.Amount{
-			Asset:     "EUR",
-			Value:     decimal.NewFromFloat(40),
-			Operation: constant.CREDIT,
-		}
-		toAmount3 := pkgTransaction.Amount{
-			Asset:     "GBP",
-			Value:     decimal.NewFromFloat(30),
-			Operation: constant.CREDIT,
-		}
-
-		validate := &pkgTransaction.Responses{
-			Aliases: aliases,
-			From: map[string]pkgTransaction.Amount{
-				"alias1": fromAmount,
-			},
-			To: map[string]pkgTransaction.Amount{
-				"alias2": toAmount2,
-				"alias3": toAmount3,
-			},
-		}
 
 		balanceRedis := mmodel.BalanceRedis{
 			ID:             uuid.New().String(),
@@ -154,83 +111,26 @@ func TestGetBalances(t *testing.T) {
 			Return(databaseBalances, nil).
 			Times(1)
 
-		mockRedisRepo.
-			EXPECT().
-			ProcessBalanceAtomicOperation(
-				gomock.Any(),
-				organizationID,
-				ledgerID,
-				gomock.Any(), // transactionID
-				constant.CREATED,
-				false,
-				gomock.Any(), // balance operations
-			).
-			Return(&mmodel.BalanceAtomicResult{
-				Before: []*mmodel.Balance{
-					{
-						ID:             balanceRedis.ID,
-						AccountID:      balanceRedis.AccountID,
-						OrganizationID: organizationID.String(),
-						LedgerID:       ledgerID.String(),
-						Alias:          "alias1",
-						Available:      balanceRedis.Available,
-						OnHold:         balanceRedis.OnHold,
-						Version:        balanceRedis.Version,
-						AccountType:    balanceRedis.AccountType,
-						AllowSending:   balanceRedis.AllowSending == 1,
-						AllowReceiving: balanceRedis.AllowReceiving == 1,
-						AssetCode:      balanceRedis.AssetCode,
-					},
-					databaseBalances[0],
-					databaseBalances[1],
-				},
-				After: []*mmodel.Balance{},
-			}, nil).
-			Times(1)
-
-		transactionID := uuid.New()
-		balancesBefore, balancesAfter, _, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED, constant.ActionDirect)
+		allBalances, err := uc.GetBalances(ctx, organizationID, ledgerID, aliases)
 		assert.NoError(t, err)
-		assert.Len(t, balancesBefore, 3)
-		assert.NotNil(t, balancesAfter, "after balances should not be nil")
+		assert.Len(t, allBalances, 3)
 
-		sort.Slice(balancesBefore, func(i, j int) bool {
-			return balancesBefore[i].Alias < balancesBefore[j].Alias
+		sort.Slice(allBalances, func(i, j int) bool {
+			return allBalances[i].Alias < allBalances[j].Alias
 		})
 
-		assert.Equal(t, "alias1", balancesBefore[0].Alias)
-		assert.Equal(t, balanceRedis.ID, balancesBefore[0].ID)
+		assert.Equal(t, "alias1", allBalances[0].Alias)
+		assert.Equal(t, balanceRedis.ID, allBalances[0].ID)
 
-		assert.Equal(t, "alias2", balancesBefore[1].Alias)
-		assert.Equal(t, databaseBalances[0].ID, balancesBefore[1].ID)
+		assert.Equal(t, "alias2", allBalances[1].Alias)
+		assert.Equal(t, databaseBalances[0].ID, allBalances[1].ID)
 
-		assert.Equal(t, "alias3", balancesBefore[2].Alias)
-		assert.Equal(t, databaseBalances[1].ID, balancesBefore[2].ID)
+		assert.Equal(t, "alias3", allBalances[2].Alias)
+		assert.Equal(t, databaseBalances[1].ID, allBalances[2].ID)
 	})
 
 	t.Run("all balances from redis", func(t *testing.T) {
 		aliases := []string{"alias1#default", "alias2#default"}
-		fromAmount := pkgTransaction.Amount{
-			Asset:     "USD",
-			Value:     decimal.NewFromFloat(50),
-			Operation: constant.DEBIT,
-		}
-
-		toAmount := pkgTransaction.Amount{
-			Asset:     "EUR",
-			Value:     decimal.NewFromFloat(40),
-			Operation: constant.CREDIT,
-		}
-
-		validate := &pkgTransaction.Responses{
-			Aliases: aliases,
-			From: map[string]pkgTransaction.Amount{
-				"alias1": fromAmount,
-			},
-			To: map[string]pkgTransaction.Amount{
-				"alias2": toAmount,
-			},
-		}
 
 		balance1 := mmodel.BalanceRedis{
 			ID:        uuid.New().String(),
@@ -272,391 +172,13 @@ func TestGetBalances(t *testing.T) {
 			Return(string(balance2JSON), nil).
 			Times(1)
 
-		mockRedisRepo.EXPECT().
-			ProcessBalanceAtomicOperation(
-				gomock.Any(),
-				organizationID,
-				ledgerID,
-				gomock.Any(), // transactionID
-				constant.CREATED,
-				false,
-				gomock.Any(), // balance operations
-			).
-			Return(&mmodel.BalanceAtomicResult{
-				Before: []*mmodel.Balance{
-					{
-						ID:             balance1.ID,
-						AccountID:      balance1.AccountID,
-						OrganizationID: organizationID.String(),
-						LedgerID:       ledgerID.String(),
-						Alias:          "alias1",
-						Available:      balance1.Available,
-						OnHold:         balance1.OnHold,
-						Version:        balance1.Version,
-						AccountType:    balance1.AccountType,
-						AllowSending:   balance1.AllowSending == 1,
-						AllowReceiving: balance1.AllowReceiving == 1,
-						AssetCode:      balance1.AssetCode,
-					},
-					{
-						ID:             balance2.ID,
-						AccountID:      balance2.AccountID,
-						OrganizationID: organizationID.String(),
-						LedgerID:       ledgerID.String(),
-						Alias:          "alias2",
-						Available:      balance2.Available,
-						OnHold:         balance2.OnHold,
-						Version:        balance2.Version,
-						AccountType:    balance2.AccountType,
-						AllowSending:   balance2.AllowSending == 1,
-						AllowReceiving: balance2.AllowReceiving == 1,
-						AssetCode:      balance2.AssetCode,
-					},
-				},
-				After: []*mmodel.Balance{},
-			}, nil).
-			Times(1)
-
-		transactionID := uuid.New()
-		balances, _, _, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED, constant.ActionDirect)
-
+		allBalances, err := uc.GetBalances(ctx, organizationID, ledgerID, aliases)
 		assert.NoError(t, err)
-		assert.Len(t, balances, 2)
+		assert.Len(t, allBalances, 2)
 	})
 }
 
-func TestGetAccountAndLock(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-	mockLedgerRepo := ledger.NewMockRepository(ctrl)
-
-	// LedgerRepo.GetSettings is called by GetParsedLedgerSettings (via ValidateAccountingRules).
-	// Return empty settings (routes validation disabled) so tests focus on lock logic.
-	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(map[string]any{}, nil).
-		AnyTimes()
-
-	organizationID := uuid.MustParse("ad0032e5-ccf5-45f4-a3b2-12045e71b38a")
-	ledgerID := uuid.MustParse("5d8ac48a-af68-4544-9bf8-80c3cc0715f4")
-	uc := UseCase{
-		TransactionRedisRepo: mockRedisRepo,
-		LedgerRepo:           mockLedgerRepo,
-	}
-
-	t.Run("lock balances successfully", func(t *testing.T) {
-		balanceID1 := uuid.MustParse("c7d0fa07-3e11-4105-a0fc-6fa46834ce66")
-		accountID1 := uuid.MustParse("bad0ddef-d697-4a4e-840d-1f5380de4607")
-
-		fromAmount := pkgTransaction.Amount{
-			Asset:     "USD",
-			Value:     decimal.NewFromFloat(50),
-			Operation: constant.DEBIT,
-		}
-
-		validate := &pkgTransaction.Responses{
-			Aliases: []string{"alias1"},
-			From: map[string]pkgTransaction.Amount{
-				"alias1": fromAmount,
-			},
-		}
-
-		balances := []*mmodel.Balance{
-			{
-				ID:             balanceID1.String(),
-				AccountID:      accountID1.String(),
-				OrganizationID: organizationID.String(),
-				LedgerID:       ledgerID.String(),
-				Alias:          "alias1",
-				Available:      decimal.NewFromFloat(100),
-				OnHold:         decimal.NewFromFloat(0),
-				Version:        1,
-				AccountType:    "deposit",
-				AllowSending:   true,
-				AllowReceiving: true,
-				AssetCode:      "USD",
-			},
-		}
-
-		mockRedisRepo.EXPECT().
-			ProcessBalanceAtomicOperation(
-				gomock.Any(),
-				organizationID,
-				ledgerID,
-				gomock.Any(), // transactionID
-				constant.CREATED,
-				false,
-				gomock.Any(), // balance operations
-			).
-			Return(&mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil)
-
-		transactionID := uuid.New()
-		result, _, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, constant.CREATED, constant.ActionDirect)
-
-		assert.NoError(t, err)
-		assert.Len(t, result.Before, 1)
-	})
-}
-
-func TestGetAccountAndLock_DoubleEntrySplitting(t *testing.T) {
-	t.Parallel()
-
-	organizationID := uuid.MustParse("ad0032e5-ccf5-45f4-a3b2-12045e71b38a")
-	ledgerID := uuid.MustParse("5d8ac48a-af68-4544-9bf8-80c3cc0715f4")
-
-	tests := []struct {
-		name             string
-		fromAmount       pkgTransaction.Amount
-		transactionType  string
-		expectedOpsCount int
-		expectedOp1      string
-		expectedOp2      string
-	}{
-		{
-			name: "CANCELED with RouteValidationEnabled produces 2 ops (RELEASE + CREDIT)",
-			fromAmount: pkgTransaction.Amount{
-				Asset:                  "USD",
-				Value:                  decimal.NewFromFloat(50),
-				Operation:              constant.RELEASE,
-				TransactionType:        constant.CANCELED,
-				RouteValidationEnabled: true,
-			},
-			transactionType:  constant.CANCELED,
-			expectedOpsCount: 2,
-			expectedOp1:      constant.RELEASE,
-			expectedOp2:      constant.CREDIT,
-		},
-		{
-			name: "CANCELED without route flag produces 1 op (RELEASE)",
-			fromAmount: pkgTransaction.Amount{
-				Asset:           "USD",
-				Value:           decimal.NewFromFloat(50),
-				Operation:       constant.RELEASE,
-				TransactionType: constant.CANCELED,
-			},
-			transactionType:  constant.CANCELED,
-			expectedOpsCount: 1,
-			expectedOp1:      constant.RELEASE,
-		},
-		{
-			name: "PENDING with RouteValidationEnabled produces 2 ops (DEBIT + ONHOLD)",
-			fromAmount: pkgTransaction.Amount{
-				Asset:                  "USD",
-				Value:                  decimal.NewFromFloat(50),
-				Operation:              constant.ONHOLD,
-				TransactionType:        constant.PENDING,
-				RouteValidationEnabled: true,
-			},
-			transactionType:  constant.PENDING,
-			expectedOpsCount: 2,
-			expectedOp1:      constant.DEBIT,
-			expectedOp2:      constant.ONHOLD,
-		},
-		{
-			name: "PENDING without route flag produces 1 op (ONHOLD)",
-			fromAmount: pkgTransaction.Amount{
-				Asset:           "USD",
-				Value:           decimal.NewFromFloat(50),
-				Operation:       constant.ONHOLD,
-				TransactionType: constant.PENDING,
-			},
-			transactionType:  constant.PENDING,
-			expectedOpsCount: 1,
-			expectedOp1:      constant.ONHOLD,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			ctx := context.Background()
-			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-			mockLedgerRepo := ledger.NewMockRepository(ctrl)
-			mockLedgerRepo.EXPECT().
-				GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(map[string]any{}, nil).
-				AnyTimes()
-
-			uc := UseCase{
-				TransactionRedisRepo: mockRedisRepo,
-				LedgerRepo:           mockLedgerRepo,
-			}
-
-			balanceID := uuid.New().String()
-			accountID := uuid.New().String()
-
-			validate := &pkgTransaction.Responses{
-				Aliases: []string{"alias1#default"},
-				From: map[string]pkgTransaction.Amount{
-					"0#alias1#default": tt.fromAmount,
-				},
-			}
-
-			balances := []*mmodel.Balance{
-				{
-					ID:             balanceID,
-					AccountID:      accountID,
-					OrganizationID: organizationID.String(),
-					LedgerID:       ledgerID.String(),
-					Alias:          "alias1",
-					Key:            "default",
-					Available:      decimal.NewFromFloat(100),
-					OnHold:         decimal.NewFromFloat(50),
-					Version:        1,
-					AccountType:    "deposit",
-					AllowSending:   true,
-					AllowReceiving: true,
-					AssetCode:      "USD",
-				},
-			}
-
-			var capturedOps []mmodel.BalanceOperation
-
-			mockRedisRepo.EXPECT().
-				ProcessBalanceAtomicOperation(
-					gomock.Any(),
-					organizationID,
-					ledgerID,
-					gomock.Any(),
-					tt.transactionType,
-					false,
-					gomock.Any(),
-				).
-				DoAndReturn(func(_ context.Context, _, _ uuid.UUID, _ uuid.UUID, _ string, _ bool, ops []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
-					capturedOps = ops
-					return &mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil
-				})
-
-			transactionID := uuid.New()
-			result, _, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, tt.transactionType, constant.ActionDirect)
-
-			require.NoError(t, err)
-			require.NotNil(t, result)
-			require.Len(t, capturedOps, tt.expectedOpsCount,
-				"expected %d balance operations, got %d", tt.expectedOpsCount, len(capturedOps))
-
-			assert.Equal(t, tt.expectedOp1, capturedOps[0].Amount.Operation,
-				"first operation should be %s", tt.expectedOp1)
-
-			if tt.expectedOpsCount == 2 {
-				assert.Equal(t, tt.expectedOp2, capturedOps[1].Amount.Operation,
-					"second operation should be %s", tt.expectedOp2)
-
-				// Both operations reference the same balance alias
-				assert.Equal(t, capturedOps[0].Alias, capturedOps[1].Alias,
-					"both operations should reference the same alias")
-			}
-		})
-	}
-}
-
-func TestGetAccountAndLock_DoubleEntry_SeenDeduplication(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-
-	organizationID := uuid.MustParse("ad0032e5-ccf5-45f4-a3b2-12045e71b38a")
-	ledgerID := uuid.MustParse("5d8ac48a-af68-4544-9bf8-80c3cc0715f4")
-
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-	mockLedgerRepo := ledger.NewMockRepository(ctrl)
-	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(map[string]any{}, nil).
-		AnyTimes()
-
-	uc := UseCase{
-		TransactionRedisRepo: mockRedisRepo,
-		LedgerRepo:           mockLedgerRepo,
-	}
-
-	balanceID := uuid.New().String()
-	accountID := uuid.New().String()
-
-	// Use a transactionInput to trigger the "seen" deduplication path.
-	// Asset must match the balance's AssetCode to pass validateFromBalances.
-	transactionInput := &pkgTransaction.Transaction{
-		Pending: true,
-		Send:    pkgTransaction.Send{Asset: "USD"},
-	}
-
-	validate := &pkgTransaction.Responses{
-		Aliases: []string{"alias1#default"},
-		Asset:   "USD",
-		Pending: true,
-		From: map[string]pkgTransaction.Amount{
-			"0#alias1#default": {
-				Asset:                  "USD",
-				Value:                  decimal.NewFromFloat(50),
-				Operation:              constant.ONHOLD,
-				TransactionType:        constant.PENDING,
-				RouteValidationEnabled: true,
-			},
-		},
-	}
-
-	balances := []*mmodel.Balance{
-		{
-			ID:             balanceID,
-			AccountID:      accountID,
-			OrganizationID: organizationID.String(),
-			LedgerID:       ledgerID.String(),
-			Alias:          "alias1",
-			Key:            "default",
-			Available:      decimal.NewFromFloat(100),
-			OnHold:         decimal.NewFromFloat(0),
-			Version:        1,
-			AccountType:    "deposit",
-			AllowSending:   true,
-			AllowReceiving: true,
-			AssetCode:      "USD",
-		},
-	}
-
-	var capturedOps []mmodel.BalanceOperation
-
-	mockRedisRepo.EXPECT().
-		ProcessBalanceAtomicOperation(
-			gomock.Any(),
-			organizationID,
-			ledgerID,
-			gomock.Any(),
-			constant.PENDING,
-			true, // validate.Pending
-			gomock.Any(),
-		).
-		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, _ uuid.UUID, _ string, _ bool, ops []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
-			capturedOps = ops
-			return &mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil
-		})
-
-	transactionID := uuid.New()
-	result, _, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, transactionInput, validate, balances, constant.PENDING, constant.ActionHold)
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	// Double-entry splitting produces 2 operations (DEBIT + ONHOLD) for the same alias
-	require.Len(t, capturedOps, 2, "expected 2 balance operations for double-entry PENDING")
-
-	// Both share the same alias -- the "seen" deduplication ensures only one
-	// txBalance entry is created despite two operations for the same alias.
-	assert.Equal(t, capturedOps[0].Alias, capturedOps[1].Alias,
-		"both operations should reference the same alias")
-}
-
-func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
+func TestGetBalancesFromCache(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -704,7 +226,7 @@ func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
 			Return("", nil).
 			Times(1)
 
-		balances, remainingAliases := uc.ValidateIfBalanceExistsOnRedis(ctx, organizationID, ledgerID, aliases)
+		balances, remainingAliases := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
 
 		assert.Len(t, balances, 1)
 		assert.Equal(t, balance1.ID, balances[0].ID)

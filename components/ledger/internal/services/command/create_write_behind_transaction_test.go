@@ -12,7 +12,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -39,9 +39,9 @@ func TestCreateWriteBehindTransaction_Success(t *testing.T) {
 		AssetCode:      "BRL",
 	}
 
-	parserDSL := pkgTransaction.Transaction{
+	transactionInput := mtransaction.Transaction{
 		Description: "Test transaction",
-		Send: pkgTransaction.Send{
+		Send: mtransaction.Send{
 			Asset: "BRL",
 		},
 	}
@@ -53,7 +53,7 @@ func TestCreateWriteBehindTransaction_Success(t *testing.T) {
 		Return(nil).
 		Times(1)
 
-	uc.CreateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran, parserDSL)
+	uc.CreateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran, transactionInput)
 }
 
 func TestCreateWriteBehindTransaction_SetBytesError(t *testing.T) {
@@ -74,7 +74,7 @@ func TestCreateWriteBehindTransaction_SetBytesError(t *testing.T) {
 		LedgerID:       ledgerID.String(),
 	}
 
-	parserDSL := pkgTransaction.Transaction{
+	transactionInput := mtransaction.Transaction{
 		Description: "Test transaction",
 	}
 
@@ -86,7 +86,7 @@ func TestCreateWriteBehindTransaction_SetBytesError(t *testing.T) {
 		Times(1)
 
 	// Should not panic on error
-	uc.CreateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran, parserDSL)
+	uc.CreateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran, transactionInput)
 }
 
 func TestCreateWriteBehindTransaction_MsgpackIncludesBody(t *testing.T) {
@@ -108,9 +108,9 @@ func TestCreateWriteBehindTransaction_MsgpackIncludesBody(t *testing.T) {
 		AssetCode:      "BRL",
 	}
 
-	parserDSL := pkgTransaction.Transaction{
-		Description: "DSL body content",
-		Send: pkgTransaction.Send{
+	transactionInput := mtransaction.Transaction{
+		Description: "Transaction body content",
+		Send: mtransaction.Send{
 			Asset: "BRL",
 		},
 	}
@@ -125,13 +125,13 @@ func TestCreateWriteBehindTransaction_MsgpackIncludesBody(t *testing.T) {
 		}).
 		Times(1)
 
-	uc.CreateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran, parserDSL)
+	uc.CreateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran, transactionInput)
 
 	// Verify that msgpack data includes Body
 	var decoded transaction.Transaction
 	err := msgpack.Unmarshal(capturedData, &decoded)
 	assert.NoError(t, err)
-	assert.Equal(t, "DSL body content", decoded.Body.Description)
+	assert.Equal(t, "Transaction body content", decoded.Body.Description)
 	assert.Equal(t, "BRL", decoded.Body.Send.Asset)
 	assert.Equal(t, tran.ID, decoded.ID)
 }

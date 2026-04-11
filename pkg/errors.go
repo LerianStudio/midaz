@@ -129,6 +129,10 @@ type UnprocessableOperationError struct {
 }
 
 func (e UnprocessableOperationError) Error() string {
+	if strings.TrimSpace(e.Code) != "" {
+		return fmt.Sprintf("%s - %s", e.Code, e.Message)
+	}
+
 	return e.Message
 }
 
@@ -961,13 +965,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Account Rule Value",
 			Message:    "The provided 'account.validIf' is not valid. Please provide a string for 'alias' or an array of strings for 'account_type'.",
 		},
-		constant.ErrInvalidAccountingRoute: ValidationError{
+		constant.ErrCorruptedAccountRule: UnprocessableOperationError{
 			EntityType: entityType,
-			Code:       constant.ErrInvalidAccountingRoute.Error(),
-			Title:      "Invalid Accounting Route",
-			Message:    "The transaction does not comply with the defined accounting route rules. Please verify that the transaction matches the expected operation types and account validation rules.",
+			Code:       constant.ErrCorruptedAccountRule.Error(),
+			Title:      "Corrupted Account Rule",
+			Message:    "The account rule data in the operation route is internally inconsistent (unknown rule type or malformed validIf value). This indicates a data integrity issue — please verify the operation route configuration.",
 		},
-		constant.ErrTransactionRouteNotInformed: ValidationError{
+		constant.ErrTransactionRouteNotInformed: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionRouteNotInformed.Error(),
 			Title:      "Transaction Route Not Informed",
@@ -985,25 +989,25 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Transaction Value",
 			Message:    "Negative or zero transaction values are not allowed. The 'send.value' must be greater than zero.",
 		},
-		constant.ErrAccountingRouteCountMismatch: ValidationError{
+		constant.ErrAccountingRouteCountMismatch: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountingRouteCountMismatch.Error(),
 			Title:      "Accounting Route Count Mismatch",
 			Message:    fmt.Sprintf("The operation routes count does not match the transaction route cache. Expected %v source and %v destination operations, but the route has %v source, %v destination, and %v bidirectional operation routes.", args...),
 		},
-		constant.ErrAccountingRouteNotFound: ValidationError{
+		constant.ErrAccountingRouteNotFound: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountingRouteNotFound.Error(),
 			Title:      "Accounting Route Not Found",
 			Message:    fmt.Sprintf("The operation route ID '%v' was not found in the transaction route cache for operation '%v'. Please verify the route configuration.", args...),
 		},
-		constant.ErrAccountingAliasValidationFailed: ValidationError{
+		constant.ErrAccountingAliasValidationFailed: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountingAliasValidationFailed.Error(),
 			Title:      "Accounting Alias Validation Failed",
 			Message:    fmt.Sprintf("The operation alias '%v' does not match the expected alias '%v' defined in the accounting route rule.", args...),
 		},
-		constant.ErrAccountingAccountTypeValidationFailed: ValidationError{
+		constant.ErrAccountingAccountTypeValidationFailed: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountingAccountTypeValidationFailed.Error(),
 			Title:      "Accounting Account Type Validation Failed",
@@ -1273,13 +1277,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Route Not Bidirectional",
 			Message:    "The operation route does not allow bidirectional transactions. Only routes with operation type 'bidirectional' can be reverted.",
 		},
-		constant.ErrMissingCounterpart: ValidationError{
+		constant.ErrMissingCounterpart: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrMissingCounterpart.Error(),
 			Title:      "Missing Counterpart",
 			Message:    fmt.Sprintf("Route '%v' requires at least one debit and one credit operation (counterpart validation).", args...),
 		},
-		constant.ErrDirectionRouteMismatch: ValidationError{
+		constant.ErrDirectionRouteMismatch: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrDirectionRouteMismatch.Error(),
 			Title:      "Direction Route Mismatch",
@@ -1309,7 +1313,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicate Action Route",
 			Message:    fmt.Sprintf("The operation route '%v' is already assigned to the action '%v'. Please remove the duplicate entry.", args...),
 		},
-		constant.ErrNoRoutesForAction: ValidationError{
+		constant.ErrNoRoutesForAction: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrNoRoutesForAction.Error(),
 			Title:      "No Routes for Action",

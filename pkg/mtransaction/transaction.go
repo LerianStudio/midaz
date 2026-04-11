@@ -2,12 +2,14 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package transaction
+package mtransaction
 
 import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 
 	"github.com/shopspring/decimal"
 )
@@ -65,12 +67,13 @@ type Metadata struct {
 // swagger:model Amount
 // @Description Amount is the struct designed to represent the amount of an operation.
 type Amount struct {
-	Asset                  string          `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value                  decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
-	Operation              string          `json:"operation,omitempty"`
-	TransactionType        string          `json:"transactionType,omitempty"`
-	Direction              string          `json:"direction,omitempty"`
-	RouteValidationEnabled bool            `json:"routeValidationEnabled,omitempty"`
+	Asset string          `json:"asset,omitempty" validate:"required" example:"BRL"`
+	Value decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
+	// Internal fields — populated during transaction processing, not part of the API contract.
+	Operation              string `json:"operation,omitempty" swaggerignore:"true"`
+	TransactionType        string `json:"transactionType,omitempty" swaggerignore:"true"`
+	Direction              string `json:"direction,omitempty" swaggerignore:"true"`
+	RouteValidationEnabled bool   `json:"routeValidationEnabled,omitempty" swaggerignore:"true"`
 } // @name Amount
 
 // Share structure for marshaling/unmarshalling JSON.
@@ -136,7 +139,8 @@ type FromTo struct {
 	// Deprecated: passive field kept for backward compatibility. Accepted from client and persisted, but not used in any validation or business logic. Use routeId instead.
 	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
 	// UUID of the operation route. Primary field used for route validation and accounting rules.
-	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 } // @name FromTo
 
 // SplitAlias function to split alias with index.
@@ -157,9 +161,85 @@ func SplitAliasWithKey(alias string) string {
 	return alias
 }
 
-// ConcatAlias function to concat alias with index.
+// ConcatAlias builds a composite key from the entry's index, alias, and balance key.
+// If BalanceKey is empty, it defaults to "default" to stay consistent with AliasKey.
 func (ft FromTo) ConcatAlias(i int) string {
-	return strconv.Itoa(i) + "#" + ft.AccountAlias + "#" + ft.BalanceKey
+	balanceKey := ft.BalanceKey
+	if balanceKey == "" {
+		balanceKey = constant.DefaultBalanceKey
+	}
+
+	return strconv.Itoa(i) + "#" + ft.AccountAlias + "#" + balanceKey
+}
+
+// isConcatedAlias returns true if the alias is already in the composite
+// "index#alias#balanceKey" format (starts with a digit followed by #).
+func isConcatedAlias(alias string) bool {
+	if len(alias) < 2 {
+		return false
+	}
+
+	for i, c := range alias {
+		if c == '#' {
+			return i > 0
+		}
+
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+
+	return false
+}
+
+// MutateConcatAliases rewrites each entry's AccountAlias IN-PLACE to the
+// composite "index#alias#balanceKey" format. Entries that are already concat'd
+// are left untouched (idempotent).
+//
+// The in-place mutation is intentional: ValidateSendSourceAndDistribute (called
+// after this function) reads the mutated AccountAlias as map keys in
+// Responses.From/To, and buildBalanceOperations depends on those keys being
+// in concat format for balance resolution.
+func MutateConcatAliases(entries []FromTo) []FromTo {
+	result := make([]FromTo, 0, len(entries))
+
+	for i := range entries {
+		if !isConcatedAlias(entries[i].AccountAlias) {
+			entries[i].AccountAlias = entries[i].ConcatAlias(i)
+		}
+
+		result = append(result, entries[i])
+	}
+
+	return result
+}
+
+// MutateSplitAliases restores clean aliases IN-PLACE by stripping the index
+// prefix added by MutateConcatAliases. Entries that are not concat'd are left
+// untouched (idempotent). Called after ValidateSendSourceAndDistribute has
+// consumed the concat'd keys.
+func MutateSplitAliases(entries []FromTo) []FromTo {
+	result := make([]FromTo, 0, len(entries))
+
+	for i := range entries {
+		if isConcatedAlias(entries[i].AccountAlias) {
+			entries[i].AccountAlias = entries[i].SplitAlias()
+		}
+
+		result = append(result, entries[i])
+	}
+
+	return result
+}
+
+// ApplyDefaultBalanceKeys sets the balance key to "default" for any entry
+// where the caller did not specify one.
+func ApplyDefaultBalanceKeys(entries []FromTo) {
+	for i := range entries {
+		if entries[i].BalanceKey == "" {
+			entries[i].BalanceKey = constant.DefaultBalanceKey
+		}
+	}
 }
 
 // Distribute structure for marshaling/unmarshalling JSON.
@@ -184,10 +264,22 @@ type Transaction struct {
 	// Deprecated: legacy route identifier, contains the transaction route UUID as a string. Use routeId instead.
 	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
 	// UUID of the transaction route. Primary field replacing the deprecated Route string.
-	RouteID         *string          `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	// format: uuid
+	RouteID         *string          `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 	TransactionDate *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
 	Send            Send             `json:"send" validate:"required"`
 } // @name TransactionInput
+
+// InitialStatus returns the transaction status derived from the Pending flag.
+// PENDING when the transaction is held for later commit/cancel, CREATED otherwise.
+// Callers may override this for special cases (e.g. NOTED for annotations).
+func (t Transaction) InitialStatus() string {
+	if t.Pending {
+		return constant.PENDING
+	}
+
+	return constant.CREATED
+}
 
 // IsEmpty is a func that validate if transaction is Empty.
 func (t Transaction) IsEmpty() bool {

@@ -60,8 +60,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 			return nil, err
 		}
 
-		merged := mmodel.MergeSettingsWithDefaults(settingsMap)
-		parsed := mmodel.ParseLedgerSettings(merged)
+		parsed := mmodel.ParseLedgerSettings(settingsMap)
 		settingsToPersist = &parsed
 	}
 

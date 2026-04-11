@@ -16,10 +16,11 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -283,7 +284,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		}
 	}
 
-	response := handler.createTransaction(c, transactionReverted, constant.CREATED, constant.ActionRevert)
+	response := handler.createRevertTransaction(c, transactionReverted, constant.CREATED)
 
 	return response
 }
@@ -404,13 +405,13 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	transactionInput := tran.Body
 
-	handler.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
-	handler.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
+	mtransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
 
-	var fromTo []pkgTransaction.FromTo
+	var fromTo []mtransaction.FromTo
 
-	fromTo = append(fromTo, handler.HandleAccountFields(transactionInput.Send.Source.From, true)...)
-	to := handler.HandleAccountFields(transactionInput.Send.Distribute.To, true)
+	fromTo = append(fromTo, mtransaction.MutateConcatAliases(transactionInput.Send.Source.From)...)
+	to := mtransaction.MutateConcatAliases(transactionInput.Send.Distribute.To)
 
 	if transactionStatus != constant.CANCELED {
 		fromTo = append(fromTo, to...)
@@ -428,7 +429,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
+	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
 
@@ -441,32 +442,69 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	ledgerSettings := handler.Query.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
-	if ledgerSettings.Accounting.ValidateRoutes {
-		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
-	}
-
-	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
-
-	action := constant.ActionCommit
-	if transactionStatus == constant.CANCELED {
-		action = constant.ActionCancel
-	}
-
-	balancesBefore, balancesAfter, routeCache, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, transactionStatus, action)
+	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetBalances, "Failed to get balances", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balances: %v", err.Error()))
-		spanGetBalances.End()
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
 
 		deleteLockOnError()
 
 		return http.WithError(c, err)
 	}
 
-	fromTo = append(fromTo, handler.HandleAccountFields(transactionInput.Send.Source.From, false)...)
-	to = handler.HandleAccountFields(transactionInput.Send.Distribute.To, false)
+	if ledgerSettings.Accounting.ValidateRoutes {
+		mtransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
+	}
+
+	action := constant.ActionCommit
+	if transactionStatus == constant.CANCELED {
+		action = constant.ActionCancel
+	}
+
+	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate.Aliases)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get balances", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get balances", libLog.Err(err))
+
+		deleteLockOnError()
+
+		return http.WithError(c, err)
+	}
+
+	balanceOps := buildBalanceOperations(ctx, organizationID, ledgerID, validate, balances)
+
+	routeCache, err := handler.Query.ValidateAccountingRules(ctx, organizationID, ledgerID, balanceOps, validate, action)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate accounting rules", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to validate accounting rules", libLog.Err(err))
+
+		deleteLockOnError()
+
+		return http.WithError(c, err)
+	}
+
+	result, err := handler.Command.ProcessBalanceOperations(ctx, command.ProcessBalanceOperationsInput{
+		OrganizationID:    organizationID,
+		LedgerID:          ledgerID,
+		TransactionID:     tran.IDtoUUID(),
+		TransactionInput:  nil, // State transitions skip balance-rule re-validation
+		Validate:          validate,
+		BalanceOperations: balanceOps,
+		TransactionStatus: transactionStatus,
+	})
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to process balance operations", libLog.Err(err))
+
+		deleteLockOnError()
+
+		return http.WithError(c, err)
+	}
+
+	balancesBefore, balancesAfter := result.Before, result.After
+
+	fromTo = append(fromTo, mtransaction.MutateSplitAliases(transactionInput.Send.Source.From)...)
+	to = mtransaction.MutateSplitAliases(transactionInput.Send.Distribute.To)
 
 	if transactionStatus != constant.CANCELED {
 		fromTo = append(fromTo, to...)
@@ -480,9 +518,10 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	operations, preBalances, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, time.Now(), false, ledgerSettings.Accounting.ValidateRoutes, routeCache, action)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build operations", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build operations", libLog.Err(err))
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate balance: %v", err.Error()))
+		deleteLockOnError()
 
 		return http.WithError(c, err)
 	}

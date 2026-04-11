@@ -6,10 +6,6 @@ package in
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -20,138 +16,28 @@ import (
 	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-type transactionScope struct {
-	OrganizationID uuid.UUID
-	LedgerID       uuid.UUID
-	ParentID       uuid.UUID
-}
-
-type transactionIdempotencyState struct {
-	key         string
-	hash        string
-	ttl         time.Duration
-	internalKey *string
-	replay      *transaction.Transaction
-}
-
-func readTransactionScope(c *fiber.Ctx) (*transactionScope, error) {
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return nil, err
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return nil, err
-	}
-
-	parentID := uuid.Nil
-	if c.Locals("transaction_id") != nil {
-		parentID, err = http.GetUUIDFromLocals(c, "transaction_id")
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &transactionScope{
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		ParentID:       parentID,
-	}, nil
-}
-
-func generateTransactionID(ctx context.Context, logger libLog.Logger, span trace.Span) (uuid.UUID, error) {
-	transactionID, err := libCommons.GenerateUUIDv7()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate transaction id: %v", err))
-
-		return uuid.Nil, pkg.InternalServerError{
-			Code:    "INTERNAL_SERVER_ERROR",
-			Title:   "Internal Server Error",
-			Message: "Failed to generate transaction id",
-			Err:     err,
-		}
-	}
-
-	return transactionID, nil
-}
-
-func buildParentTransactionID(parentID uuid.UUID) *string {
-	if parentID == uuid.Nil {
-		return nil
-	}
-
-	parentTransactionID := parentID.String()
-
-	return &parentTransactionID
-}
-
-func (handler *TransactionHandler) HandleAccountFields(entries []pkgTransaction.FromTo, isConcat bool) []pkgTransaction.FromTo {
-	result := make([]pkgTransaction.FromTo, 0, len(entries))
-
-	for i := range entries {
-		var newAlias string
-		if isConcat {
-			newAlias = entries[i].ConcatAlias(i)
-		} else {
-			newAlias = entries[i].SplitAlias()
-		}
-
-		entries[i].AccountAlias = newAlias
-
-		result = append(result, entries[i])
-	}
-
-	return result
-}
-
-func (handler *TransactionHandler) checkTransactionDate(ctx context.Context, logger libLog.Logger, transactionInput pkgTransaction.Transaction, transactionStatus string) (time.Time, error) {
-	now := time.Now()
-	transactionDate := now
-
-	if transactionInput.TransactionDate != nil && !transactionInput.TransactionDate.IsZero() {
-		if transactionInput.TransactionDate.After(now) {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidFutureTransactionDate, "validateTransactionDate")
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("transaction date cannot be a future date: %v", err.Error()))
-
-			return time.Time{}, err
-		} else if transactionStatus == constant.PENDING {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidPendingFutureTransactionDate, "validateTransactionDate")
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("pending transaction cannot be used together a transaction date: %v", err.Error()))
-
-			return time.Time{}, err
-		} else {
-			transactionDate = transactionInput.TransactionDate.Time()
-		}
-	}
-
-	return transactionDate, nil
-}
-
+//nolint:gocognit // Will be refactored into smaller functions.
 func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
 	balances []*mmodel.Balance,
-	fromTo []pkgTransaction.FromTo,
-	transactionInput pkgTransaction.Transaction,
+	fromTo []mtransaction.FromTo,
+	transactionInput mtransaction.Transaction,
 	tran transaction.Transaction,
-	validate *pkgTransaction.Responses,
+	validate *mtransaction.Responses,
 	transactionDate time.Time,
 	isAnnotation bool,
 	routeValidationEnabled bool,
@@ -168,7 +54,7 @@ func (handler *TransactionHandler) BuildOperations(
 	defer span.End()
 
 	if routeValidationEnabled {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Route validation enabled for ledger %s, applying double-entry operations", tran.LedgerID))
+		logger.Log(ctx, libLog.LevelInfo, "Route validation enabled for ledger", libLog.String("ledger_id", tran.LedgerID))
 
 		span.SetAttributes(attribute.Bool("app.route_validation_enabled", true))
 	}
@@ -180,15 +66,15 @@ func (handler *TransactionHandler) BuildOperations(
 	for _, blc := range balances {
 		for i := range fromTo {
 			if blc.Alias == fromTo[i].AccountAlias {
-				logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Creating operation for account id: %s and account alias: %s", blc.ID, blc.Alias))
+				logger.Log(ctx, libLog.LevelInfo, "Creating operation for account", libLog.String("account_id", blc.ID), libLog.String("account_alias", blc.Alias))
 
 				preBalances = append(preBalances, blc)
 
-				amt, bat, err := pkgTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ToTransactionBalance())
+				amt, bat, err := mtransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ToTransactionBalance())
 				if err != nil {
 					libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 
-					logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate balance: %v", err.Error()))
+					logger.Log(ctx, libLog.LevelWarn, "Failed to validate balance", libLog.Err(err))
 
 					return nil, nil, err
 				}
@@ -241,19 +127,6 @@ func (handler *TransactionHandler) BuildOperations(
 
 // statusToAction maps a transaction status code to the corresponding accounting
 // action used for looking up the correct AccountingEntries rubric.
-func statusToAction(statusCode string) string {
-	switch statusCode {
-	case constant.PENDING:
-		return constant.ActionHold
-	case constant.APPROVED:
-		return constant.ActionCommit
-	case constant.CANCELED:
-		return constant.ActionCancel
-	default:
-		return constant.ActionDirect
-	}
-}
-
 // resolveRouteCodesFromCache populates the RouteCode and RouteDescription fields
 // on each operation by looking up the operation's RouteID in the transaction route
 // cache for the given accounting action (direct, hold, commit, cancel, revert).
@@ -371,42 +244,6 @@ func zeroAnnotationBalances(balance, balanceAfter *operation.Balance) {
 // propagateRouteValidation sets RouteValidationEnabled on Amount entries in the
 // validate response maps when the transaction is pending or canceled. This flag controls how
 // OperateBalances splits balance effects between Available and OnHold fields.
-func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Responses, isPending bool, transactionStatus string) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "handler.propagate_route_validation")
-	defer span.End()
-
-	if validate == nil {
-		return
-	}
-
-	isCanceled := transactionStatus == constant.CANCELED
-	isApproved := transactionStatus == constant.APPROVED
-
-	if !isPending && !isCanceled && !isApproved {
-		return
-	}
-
-	count := 0
-
-	for key, amt := range validate.From {
-		amt.RouteValidationEnabled = true
-
-		// COMMIT with route validation: source uses ON_HOLD (debit) instead of DEBIT
-		// to decrement onHold. This keeps ON_HOLD ops invisible to TransactionRevert,
-		// which only considers DEBIT/CREDIT, naturally avoiding double-counting.
-		if isApproved && amt.Operation == constant.DEBIT {
-			amt.Operation = constant.ONHOLD
-		}
-
-		validate.From[key] = amt
-		count++
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Propagated route validation to %d source entries (pending=%t, canceled=%t, approved=%t)", count, isPending, isCanceled, isApproved))
-}
-
 // buildDoubleEntryPendingOps generates two operations for a PENDING source entry
 // when route validation is enabled:
 // Op1: DEBIT (debit direction) - decreases Available only
@@ -415,11 +252,11 @@ func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Resp
 func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	ctx context.Context,
 	blc *mmodel.Balance,
-	ft pkgTransaction.FromTo,
-	amt pkgTransaction.Amount,
-	_ pkgTransaction.Balance,
+	ft mtransaction.FromTo,
+	amt mtransaction.Amount,
+	_ mtransaction.Balance,
 	tran transaction.Transaction,
-	transactionInput pkgTransaction.Transaction,
+	transactionInput mtransaction.Transaction,
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, error) {
@@ -428,7 +265,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	_, span := tracer.Start(ctx, "handler.build_double_entry_pending_ops")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Building double-entry pending ops for balance %s: DEBIT(debit) + ONHOLD(credit)", blc.ID))
+	logger.Log(ctx, libLog.LevelInfo, "Building double-entry pending ops", libLog.String("balance_id", blc.ID))
 
 	description := ft.Description
 	if libCommons.IsNilOrEmpty(&ft.Description) {
@@ -474,7 +311,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		BalanceAfter:    debitBalanceAfter,
 		BalanceID:       blc.ID,
 		AccountID:       blc.AccountID,
-		AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
+		AccountAlias:    mtransaction.SplitAlias(blc.Alias),
 		BalanceKey:      blc.Key,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
@@ -526,7 +363,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		BalanceAfter:    onholdBalanceAfter,
 		BalanceID:       blc.ID,
 		AccountID:       blc.AccountID,
-		AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
+		AccountAlias:    mtransaction.SplitAlias(blc.Alias),
 		BalanceKey:      blc.Key,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
@@ -550,11 +387,11 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 	ctx context.Context,
 	blc *mmodel.Balance,
-	ft pkgTransaction.FromTo,
-	amt pkgTransaction.Amount,
-	_ pkgTransaction.Balance,
+	ft mtransaction.FromTo,
+	amt mtransaction.Amount,
+	_ mtransaction.Balance,
 	tran transaction.Transaction,
-	transactionInput pkgTransaction.Transaction,
+	transactionInput mtransaction.Transaction,
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, error) {
@@ -563,7 +400,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 	_, span := tracer.Start(ctx, "handler.build_double_entry_canceled_ops")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Building double-entry canceled ops for balance %s: RELEASE(debit) + CREDIT(credit)", blc.ID))
+	logger.Log(ctx, libLog.LevelInfo, "Building double-entry canceled ops", libLog.String("balance_id", blc.ID))
 
 	description := ft.Description
 	if libCommons.IsNilOrEmpty(&ft.Description) {
@@ -609,7 +446,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		BalanceAfter:    releaseBalanceAfter,
 		BalanceID:       blc.ID,
 		AccountID:       blc.AccountID,
-		AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
+		AccountAlias:    mtransaction.SplitAlias(blc.Alias),
 		BalanceKey:      blc.Key,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
@@ -661,7 +498,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		BalanceAfter:    creditBalanceAfter,
 		BalanceID:       blc.ID,
 		AccountID:       blc.AccountID,
-		AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
+		AccountAlias:    mtransaction.SplitAlias(blc.Alias),
 		BalanceKey:      blc.Key,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
@@ -683,11 +520,11 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 func (handler *TransactionHandler) tryBuildDoubleEntryOps(
 	ctx context.Context,
 	blc *mmodel.Balance,
-	ft pkgTransaction.FromTo,
-	amt pkgTransaction.Amount,
-	bat pkgTransaction.Balance,
+	ft mtransaction.FromTo,
+	amt mtransaction.Amount,
+	bat mtransaction.Balance,
 	tran transaction.Transaction,
-	transactionInput pkgTransaction.Transaction,
+	transactionInput mtransaction.Transaction,
 	transactionDate time.Time,
 	isAnnotation bool,
 	routeValidationEnabled bool,
@@ -698,7 +535,7 @@ func (handler *TransactionHandler) tryBuildDoubleEntryOps(
 		return nil, false, nil
 	}
 
-	if !pkgTransaction.IsDoubleEntrySource(amt) {
+	if !mtransaction.IsDoubleEntrySource(amt) {
 		return nil, false, nil
 	}
 
@@ -734,11 +571,11 @@ func (handler *TransactionHandler) tryBuildDoubleEntryOps(
 // buildStandardOp creates a single operation for a standard (non-double-entry) balance entry.
 func (handler *TransactionHandler) buildStandardOp(
 	blc *mmodel.Balance,
-	ft pkgTransaction.FromTo,
-	amt pkgTransaction.Amount,
-	bat pkgTransaction.Balance,
+	ft mtransaction.FromTo,
+	amt mtransaction.Amount,
+	bat mtransaction.Balance,
 	tran transaction.Transaction,
-	transactionInput pkgTransaction.Transaction,
+	transactionInput mtransaction.Transaction,
 	transactionDate time.Time,
 	isAnnotation bool,
 ) (*operation.Operation, error) {
@@ -784,7 +621,7 @@ func (handler *TransactionHandler) buildStandardOp(
 		BalanceAfter:    balanceAfter,
 		BalanceID:       blc.ID,
 		AccountID:       blc.AccountID,
-		AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
+		AccountAlias:    mtransaction.SplitAlias(blc.Alias),
 		BalanceKey:      blc.Key,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
@@ -798,30 +635,41 @@ func (handler *TransactionHandler) buildStandardOp(
 	}, nil
 }
 
-func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string, actionOverride ...string) error {
+// createTransaction creates a new transaction with the given status.
+func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string) error {
+	return handler.executeCreateTransaction(c, transactionInput, transactionStatus, false)
+}
+
+// createRevertTransaction creates a reversal transaction. The action is forced
+// to "revert" so that accounting route lookups use the revert rubrics instead
+// of the status-derived action.
+func (handler *TransactionHandler) createRevertTransaction(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string) error {
+	return handler.executeCreateTransaction(c, transactionInput, transactionStatus, true)
+}
+
+func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool) error {
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "handler.create_transaction")
+	_, span := tracer.Start(ctx, "handler.create_transaction.orchestrate")
 	defer span.End()
 
-	scope, err := readTransactionScope(c)
+	params, err := readPathParams(c)
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	transactionID, err := generateTransactionID(ctx, logger, span)
+	transactionID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
+
 		return http.WithError(c, err)
 	}
 
-	c.Set(libConstants.IdempotencyReplayed, "false")
-
-	transactionDate, err := handler.checkTransactionDate(ctx, logger, transactionInput, transactionStatus)
+	transactionDate, err := mtransaction.CheckTransactionDate(ctx, transactionInput, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to check transaction date", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to check transaction date: %v", err))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction date validation failed", err)
 
 		return http.WithError(c, err)
 	}
@@ -829,97 +677,154 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	recordSafePayloadAttributes(span, transactionInput)
 
 	if transactionInput.Send.Value.LessThanOrEqual(decimal.Zero) {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, reflect.TypeOf(transaction.Transaction{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction with non-positive value", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Transaction value must be greater than zero")
+		err := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction value must be greater than zero", err)
+		logger.Log(ctx, libLog.LevelWarn, "Transaction value must be greater than zero", libLog.String("value", transactionInput.Send.Value.String()))
 
 		return http.WithError(c, err)
 	}
 
-	handler.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
-	handler.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
+	mtransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
 
-	var fromTo []pkgTransaction.FromTo
+	var fromTo []mtransaction.FromTo
 
-	fromTo = append(fromTo, handler.HandleAccountFields(transactionInput.Send.Source.From, true)...)
-	to := handler.HandleAccountFields(transactionInput.Send.Distribute.To, true)
+	fromTo = append(fromTo, mtransaction.MutateConcatAliases(transactionInput.Send.Source.From)...)
+	to := mtransaction.MutateConcatAliases(transactionInput.Send.Distribute.To)
 
 	if transactionStatus != constant.PENDING {
 		fromTo = append(fromTo, to...)
 	}
 
-	idempotencyState, err := handler.prepareIdempotency(ctx, c, scope.OrganizationID, scope.LedgerID, transactionInput)
+	// Idempotency: extract key/TTL from HTTP headers, hash the request body,
+	// then check or claim the idempotency slot in Redis.
+	idempotencyKey, idempotencyTTL := http.GetIdempotencyKeyAndTTL(c)
+
+	ts, err := libCommons.StructToJSONString(transactionInput)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to serialize transaction for idempotency hash", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to serialize transaction for idempotency hash", libLog.Err(err))
+
+		return http.WithError(c, err)
+	}
+
+	idempotencyHash := libCommons.HashSHA256(ts)
+
+	c.Set(libConstants.IdempotencyReplayed, "false")
+
+	idempotencyResult, err := handler.Command.CreateOrCheckTransactionIdempotency(ctx, params.OrganizationID, params.LedgerID, idempotencyKey, idempotencyHash, idempotencyTTL)
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	if idempotencyState.replay != nil {
-		return http.Created(c, *idempotencyState.replay)
+	if idempotencyResult.Replay != nil {
+		c.Set(libConstants.IdempotencyReplayed, "true")
+
+		return http.Created(c, *idempotencyResult.Replay)
 	}
 
-	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
+	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to validate send source and distribute: %v", err.Error()))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
 
-		handler.deleteIdempotencyKey(ctx, idempotencyState.internalKey)
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 
 		return http.WithError(c, err)
 	}
 
-	ledgerSettings := handler.Query.GetParsedLedgerSettings(ctx, scope.OrganizationID, scope.LedgerID)
+	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, params.OrganizationID, params.LedgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+
+		return http.WithError(c, err)
+	}
+
 	if ledgerSettings.Accounting.ValidateRoutes {
-		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
+		mtransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
 	}
 
-	action := statusToAction(transactionStatus)
-
-	if len(actionOverride) > 0 && actionOverride[0] != "" {
-		action = actionOverride[0]
+	action := mtransaction.StatusToAction(transactionStatus)
+	if isRevert {
+		action = constant.ActionRevert
 	}
 
-	err = handler.sendTransactionToRedisQueue(ctx, scope.OrganizationID, scope.LedgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, idempotencyState.internalKey)
+	err = handler.Command.SendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, nil)
 	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to send transaction to backup cache", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to send transaction to backup cache", libLog.Err(err))
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+
+		return http.WithError(c, pkg.ValidateBusinessError(err, constant.EntityTransaction))
+	}
+
+	balances, err := handler.Query.GetBalances(ctx, params.OrganizationID, params.LedgerID, validate.Aliases)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get balances", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get balances", libLog.Err(err))
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+
 		return http.WithError(c, err)
 	}
 
-	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
+	balanceOps := buildBalanceOperations(ctx, params.OrganizationID, params.LedgerID, validate, balances)
 
-	balancesBefore, balancesAfter, routeCache, err := handler.Query.GetBalances(ctx, scope.OrganizationID, scope.LedgerID, transactionID, &transactionInput, validate, transactionStatus, action)
+	routeCache, err := handler.Query.ValidateAccountingRules(ctx, params.OrganizationID, params.LedgerID, balanceOps, validate, action)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetBalances, "Failed to get balances", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate accounting rules", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate accounting rules", libLog.Err(err))
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balances: %v", err.Error()))
-
-		handler.deleteIdempotencyKey(ctx, idempotencyState.internalKey)
-
-		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, scope.OrganizationID, scope.LedgerID, transactionID.String())
-		spanGetBalances.End()
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
 
 		return http.WithError(c, err)
 	}
 
-	spanGetBalances.End()
+	result, err := handler.Command.ProcessBalanceOperations(ctx, command.ProcessBalanceOperationsInput{
+		OrganizationID:    params.OrganizationID,
+		LedgerID:          params.LedgerID,
+		TransactionID:     transactionID,
+		TransactionInput:  &transactionInput,
+		Validate:          validate,
+		BalanceOperations: balanceOps,
+		TransactionStatus: transactionStatus,
+	})
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to process balance operations", libLog.Err(err))
 
-	fromTo = append(fromTo, handler.HandleAccountFields(transactionInput.Send.Source.From, false)...)
-	to = handler.HandleAccountFields(transactionInput.Send.Distribute.To, false)
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+
+		return http.WithError(c, err)
+	}
+
+	balancesBefore, balancesAfter := result.Before, result.After
+
+	fromTo = append(fromTo, mtransaction.MutateSplitAliases(transactionInput.Send.Source.From)...)
+	to = mtransaction.MutateSplitAliases(transactionInput.Send.Distribute.To)
 
 	if transactionStatus != constant.PENDING {
 		fromTo = append(fromTo, to...)
 	}
 
+	amount := transactionInput.Send.Value
+
 	tran := &transaction.Transaction{
 		ID:                       transactionID.String(),
-		ParentTransactionID:      buildParentTransactionID(scope.ParentID),
-		OrganizationID:           scope.OrganizationID.String(),
-		LedgerID:                 scope.LedgerID.String(),
+		ParentTransactionID:      buildParentTransactionID(params.TransactionID),
+		OrganizationID:           params.OrganizationID.String(),
+		LedgerID:                 params.LedgerID.String(),
 		Description:              transactionInput.Description,
-		Amount:                   &transactionInput.Send.Value,
+		Amount:                   &amount,
 		AssetCode:                transactionInput.Send.Asset,
 		ChartOfAccountsGroupName: transactionInput.ChartOfAccountsGroupName,
 		CreatedAt:                transactionDate,
@@ -935,10 +840,14 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build operations", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build operations", libLog.Err(err))
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate balance: %v", err.Error()))
-
+		// Idempotency key and backup queue entry are intentionally preserved here.
+		// Balances were already mutated by the Lua script (ProcessBalanceOperations),
+		// so the backup queue is the recovery mechanism — the Kiwi consumer will
+		// reconstruct and persist the transaction from the backup entry.
+		// Deleting the idempotency key would allow duplicate balance mutations on retry.
 		return http.WithError(c, err)
 	}
 
@@ -946,134 +855,49 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
 
-	handler.Command.UpdateTransactionBackupOperations(ctx, scope.OrganizationID, scope.LedgerID, transactionID.String(), operations, action)
+	handler.Command.UpdateTransactionBackupOperations(ctx, params.OrganizationID, params.LedgerID, transactionID.String(), operations, action)
 
-	originalStatus := tran.Status
+	// Build a shallow copy with the promoted status for persistence and cache.
+	// CREATED is a transient status that the DB layer promotes to APPROVED;
+	// the cache must reflect the final status for consistent GET reads.
+	// The original tran keeps CREATED for the HTTP response and idempotency key.
+	writeTran := *tran
 
 	if transactionStatus == constant.CREATED {
 		approved := constant.APPROVED
-		tran.Status = transaction.Status{Code: approved, Description: &approved}
+		writeTran.Status = transaction.Status{Code: approved, Description: &approved}
 	}
 
-	handler.Command.CreateWriteBehindTransaction(ctx, scope.OrganizationID, scope.LedgerID, tran, transactionInput)
+	handler.Command.CreateWriteBehindTransaction(ctx, params.OrganizationID, params.LedgerID, &writeTran, transactionInput)
 
-	err = handler.Command.WriteTransaction(ctx, scope.OrganizationID, scope.LedgerID, &transactionInput, validate, balancesBefore, balancesAfter, tran)
+	err = handler.Command.WriteTransaction(ctx, params.OrganizationID, params.LedgerID, &transactionInput, validate, balancesBefore, balancesAfter, &writeTran)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
+		// Log the original error for debugging. WriteTransaction may fail due to:
+		// - msgpack serialization error
+		// - RabbitMQ publish failure + DB fallback failure (async mode)
+		// - Direct DB write failure (sync mode)
+		// The sanitized error uses ErrMessageBrokerUnavailable as a generic
+		// "persistence failed" signal — a more accurate error code should be
+		// introduced to cover the sync/DB failure cases as well.
+		libOpentelemetry.HandleSpanError(span, "Failed to write transaction", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to write transaction", libLog.String("transaction_id", tran.ID), libLog.Err(err))
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "failed to update BTO", err)
+		sanitizedErr := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, constant.EntityTransaction)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("failed to update BTO - transaction: %s - Error: %v", tran.ID, err))
-
-		return http.WithError(c, err)
+		return http.WithError(c, sanitizedErr)
 	}
 
-	tran.Status = originalStatus
+	bgCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
 
-	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, scope.OrganizationID, scope.LedgerID, idempotencyState.key, idempotencyState.hash, *tran, idempotencyState.ttl)
+	go handler.Command.SetTransactionIdempotencyValue(bgCtx, params.OrganizationID, params.LedgerID, idempotencyKey, idempotencyHash, *tran, idempotencyTTL)
 
-	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, scope.OrganizationID, scope.LedgerID, tran.IDtoUUID())
+	go handler.Command.SendLogTransactionAuditQueue(bgCtx, operations, params.OrganizationID, params.LedgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
-}
-
-func (handler *TransactionHandler) prepareIdempotency(
-	ctx context.Context,
-	c *fiber.Ctx,
-	organizationID, ledgerID uuid.UUID,
-	transactionInput pkgTransaction.Transaction,
-) (*transactionIdempotencyState, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctxIdempotency, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
-	defer spanIdempotency.End()
-
-	ts, _ := libCommons.StructToJSONString(transactionInput)
-	state := &transactionIdempotencyState{
-		hash: libCommons.HashSHA256(ts),
-	}
-
-	state.key, state.ttl = http.GetIdempotencyKeyAndTTL(c)
-
-	value, internalKey, err := handler.Command.CreateOrCheckIdempotencyKey(ctxIdempotency, organizationID, ledgerID, state.key, state.hash, state.ttl)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanIdempotency, "Error on create or check redis idempotency key", err)
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Error on create or check redis idempotency key: %v", err.Error()))
-
-		return nil, err
-	}
-
-	state.internalKey = internalKey
-	if libCommons.IsNilOrEmpty(value) {
-		return state, nil
-	}
-
-	replay := &transaction.Transaction{}
-	if err := json.Unmarshal([]byte(*value), replay); err != nil {
-		libOpentelemetry.HandleSpanError(spanIdempotency, "Error to deserialization idempotency transaction json on redis", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error to deserialization idempotency transaction json on redis: %v", err))
-
-		return nil, err
-	}
-
-	c.Set(libConstants.IdempotencyReplayed, "true")
-
-	state.replay = replay
-
-	return state, nil
-}
-
-func (handler *TransactionHandler) sendTransactionToRedisQueue(
-	ctx context.Context,
-	organizationID, ledgerID, transactionID uuid.UUID,
-	transactionInput pkgTransaction.Transaction,
-	validate *pkgTransaction.Responses,
-	transactionStatus string,
-	action string,
-	transactionDate time.Time,
-	internalKey *string,
-) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctxSendTransactionToRedisQueue, spanSendTransactionToRedisQueue := tracer.Start(ctx, "handler.create_transaction.send_transaction_to_redis_queue")
-	defer spanSendTransactionToRedisQueue.End()
-
-	err := handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, nil)
-	if err == nil {
-		return nil
-	}
-
-	libOpentelemetry.HandleSpanError(spanSendTransactionToRedisQueue, "Failed to send transaction to backup cache", err)
-	logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to send transaction to backup cache: %v", err.Error()))
-
-	if errors.Is(err, constant.ErrTransactionBackupCacheMarshalFailed) {
-		handler.deleteIdempotencyKey(ctxSendTransactionToRedisQueue, internalKey)
-	}
-
-	return pkg.ValidateBusinessError(err, reflect.TypeOf(transaction.Transaction{}).Name())
 }
 
 func (handler *TransactionHandler) deleteIdempotencyKey(ctx context.Context, internalKey *string) {
 	if internalKey != nil {
 		_ = handler.Command.TransactionRedisRepo.Del(ctx, *internalKey)
 	}
-}
-
-func (handler *TransactionHandler) ApplyDefaultBalanceKeys(entries []pkgTransaction.FromTo) {
-	for i := range entries {
-		if entries[i].BalanceKey == "" {
-			entries[i].BalanceKey = constant.DefaultBalanceKey
-		}
-	}
-}
-
-func getAliasWithoutKey(array []string) []string {
-	result := make([]string, len(array))
-
-	for i, str := range array {
-		parts := strings.Split(str, "#")
-		result[i] = parts[0]
-	}
-
-	return result
 }

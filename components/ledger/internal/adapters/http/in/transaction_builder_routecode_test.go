@@ -12,7 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,19 +35,19 @@ func TestBuildStandardOp_ReturnsOperation(t *testing.T) {
 		Version:        1,
 	}
 
-	ft := pkgTransaction.FromTo{
+	ft := mtransaction.FromTo{
 		AccountAlias: "@sender",
 		IsFrom:       true,
 	}
 
-	amt := pkgTransaction.Amount{
+	amt := mtransaction.Amount{
 		Asset:     "BRL",
 		Value:     decimal.NewFromInt(100),
 		Operation: "DEBIT",
 		Direction: "debit",
 	}
 
-	bat := pkgTransaction.Balance{
+	bat := mtransaction.Balance{
 		Available: decimal.NewFromInt(900),
 		OnHold:    decimal.Zero,
 		Version:   2,
@@ -57,9 +57,9 @@ func TestBuildStandardOp_ReturnsOperation(t *testing.T) {
 		ID: "txn-1",
 	}
 
-	transactionInput := pkgTransaction.Transaction{
+	transactionInput := mtransaction.Transaction{
 		Description: "test txn",
-		Send:        pkgTransaction.Send{Asset: "BRL"},
+		Send:        mtransaction.Send{Asset: "BRL"},
 	}
 
 	op, err := handler.buildStandardOp(
@@ -91,27 +91,27 @@ func TestBuildDoubleEntryPendingOps_ReturnsTwoOperations(t *testing.T) {
 		Version:        1,
 	}
 
-	ft := pkgTransaction.FromTo{
+	ft := mtransaction.FromTo{
 		AccountAlias: "@sender",
 		IsFrom:       true,
 	}
 
-	amt := pkgTransaction.Amount{
+	amt := mtransaction.Amount{
 		Asset:     "BRL",
 		Value:     decimal.NewFromInt(100),
 		Operation: "DEBIT",
 		Direction: "debit",
 	}
 
-	bat := pkgTransaction.Balance{}
+	bat := mtransaction.Balance{}
 
 	tran := transaction.Transaction{
 		ID: "txn-1",
 	}
 
-	transactionInput := pkgTransaction.Transaction{
+	transactionInput := mtransaction.Transaction{
 		Description: "test txn",
-		Send:        pkgTransaction.Send{Asset: "BRL"},
+		Send:        mtransaction.Send{Asset: "BRL"},
 	}
 
 	ops, err := handler.buildDoubleEntryPendingOps(
@@ -143,27 +143,27 @@ func TestBuildDoubleEntryCanceledOps_ReturnsTwoOperations(t *testing.T) {
 		Version:        1,
 	}
 
-	ft := pkgTransaction.FromTo{
+	ft := mtransaction.FromTo{
 		AccountAlias: "@sender",
 		IsFrom:       true,
 	}
 
-	amt := pkgTransaction.Amount{
+	amt := mtransaction.Amount{
 		Asset:     "BRL",
 		Value:     decimal.NewFromInt(100),
 		Operation: "RELEASE",
 		Direction: "debit",
 	}
 
-	bat := pkgTransaction.Balance{}
+	bat := mtransaction.Balance{}
 
 	tran := transaction.Transaction{
 		ID: "txn-1",
 	}
 
-	transactionInput := pkgTransaction.Transaction{
+	transactionInput := mtransaction.Transaction{
 		Description: "test txn",
-		Send:        pkgTransaction.Send{Asset: "BRL"},
+		Send:        mtransaction.Send{Asset: "BRL"},
 	}
 
 	ops, err := handler.buildDoubleEntryCanceledOps(
@@ -429,12 +429,12 @@ func TestResolveRouteCodesFromCache_CommitAction(t *testing.T) {
 
 // TestStatusToAction verifies the mapping from transaction status to accounting action.
 func TestStatusToAction(t *testing.T) {
-	assert.Equal(t, "direct", statusToAction("CREATED"))
-	assert.Equal(t, "hold", statusToAction("PENDING"))
-	assert.Equal(t, "commit", statusToAction("APPROVED"))
-	assert.Equal(t, "cancel", statusToAction("CANCELED"))
-	assert.Equal(t, "direct", statusToAction("NOTED"))
-	assert.Equal(t, "direct", statusToAction(""))
+	assert.Equal(t, "direct", mtransaction.StatusToAction("CREATED"))
+	assert.Equal(t, "hold", mtransaction.StatusToAction("PENDING"))
+	assert.Equal(t, "commit", mtransaction.StatusToAction("APPROVED"))
+	assert.Equal(t, "cancel", mtransaction.StatusToAction("CANCELED"))
+	assert.Equal(t, "direct", mtransaction.StatusToAction("NOTED"))
+	assert.Equal(t, "direct", mtransaction.StatusToAction(""))
 }
 
 // TestResolveAccountingRubric verifies the resolveAccountingRubric helper function.

@@ -14,7 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -259,7 +259,7 @@ func TestUpdateBalances_PrimaryPath_UsesAfterDirectly(t *testing.T) {
 		BalanceRepo: mockBalanceRepo,
 	}
 
-	validate := pkgTransaction.Responses{}
+	validate := mtransaction.Responses{}
 
 	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, validate, balancesBefore, balancesAfter)
 
@@ -305,8 +305,8 @@ func TestUpdateBalances_FallbackPath_NilAfter(t *testing.T) {
 		BalanceRepo: mockBalanceRepo,
 	}
 
-	validate := pkgTransaction.Responses{
-		From: map[string]pkgTransaction.Amount{
+	validate := mtransaction.Responses{
+		From: map[string]mtransaction.Amount{
 			"@alice": {
 				Value:           decimal.NewFromInt(100),
 				Operation:       "DEBIT",
@@ -345,7 +345,7 @@ func TestUpdateBalances_PrimaryPath_FailsOnMissingAlias(t *testing.T) {
 
 	uc := UseCase{BalanceRepo: mockBalanceRepo}
 
-	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, pkgTransaction.Responses{}, balancesBefore, balancesAfter)
+	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, mtransaction.Responses{}, balancesBefore, balancesAfter)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing AFTER state for alias @bob")
@@ -376,7 +376,7 @@ func TestUpdateBalances_BalancesUpdateError(t *testing.T) {
 
 	uc := UseCase{BalanceRepo: mockBalanceRepo}
 
-	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, pkgTransaction.Responses{}, balancesBefore, balancesAfter)
+	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, mtransaction.Responses{}, balancesBefore, balancesAfter)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "database connection error")

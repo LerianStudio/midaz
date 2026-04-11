@@ -32,7 +32,7 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
@@ -677,7 +677,7 @@ func buildApprovedBalanceOps(
 		direction = libConstants.CREDIT
 	}
 
-	amount := pkgTransaction.Amount{
+	amount := mtransaction.Amount{
 		Asset:                  "BRL",
 		Value:                  decimal.NewFromInt(100),
 		Operation:              operation,
@@ -686,7 +686,7 @@ func buildApprovedBalanceOps(
 		RouteValidationEnabled: false, // APPROVED does not use route flag for per-field atomicity
 	}
 
-	internalKey := utils.BalanceInternalKey(orgID, ledgerID, pkgTransaction.AliasKey(alias, balanceKey))
+	internalKey := utils.BalanceInternalKey(orgID, ledgerID, mtransaction.AliasKey(alias, balanceKey))
 
 	return []mmodel.BalanceOperation{
 		{
@@ -740,7 +740,7 @@ func buildCanceledBalanceOps(
 		direction = libConstants.CREDIT
 	}
 
-	amount := pkgTransaction.Amount{
+	amount := mtransaction.Amount{
 		Asset:                  "BRL",
 		Value:                  decimal.NewFromInt(100),
 		Operation:              operation,
@@ -749,7 +749,7 @@ func buildCanceledBalanceOps(
 		RouteValidationEnabled: routeEnabled,
 	}
 
-	internalKey := utils.BalanceInternalKey(orgID, ledgerID, pkgTransaction.AliasKey(alias, balanceKey))
+	internalKey := utils.BalanceInternalKey(orgID, ledgerID, mtransaction.AliasKey(alias, balanceKey))
 
 	return []mmodel.BalanceOperation{
 		{
@@ -791,7 +791,7 @@ func buildTestBalanceOps(
 		LedgerID:       ledgerID.String(),
 	}
 
-	amount := pkgTransaction.Amount{
+	amount := mtransaction.Amount{
 		Asset:                  "BRL",
 		Value:                  decimal.NewFromInt(100),
 		Operation:              libConstants.ONHOLD,
@@ -800,7 +800,7 @@ func buildTestBalanceOps(
 		RouteValidationEnabled: routeEnabled,
 	}
 
-	internalKey := utils.BalanceInternalKey(orgID, ledgerID, pkgTransaction.AliasKey(alias, balanceKey))
+	internalKey := utils.BalanceInternalKey(orgID, ledgerID, mtransaction.AliasKey(alias, balanceKey))
 
 	return []mmodel.BalanceOperation{
 		{
@@ -938,7 +938,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnDoubleEntry(t *testing.
 	t.Logf("Phase 3: received expected error: %v", chaosErr)
 
 	// Verify balance in Redis is unchanged from Phase 1 (via direct client, bypassing proxy)
-	balanceKey := pkgTransaction.AliasKey(alias, constant.DefaultBalanceKey)
+	balanceKey := mtransaction.AliasKey(alias, constant.DefaultBalanceKey)
 	internalKey := utils.BalanceInternalKey(orgID, ledgerID, balanceKey)
 
 	verifyRedisBalance(t, infra, internalKey, expectedAvailableAfterPhase1, expectedOnHoldAfterPhase1, expectedVersionAfterPhase1)
@@ -1096,7 +1096,7 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnDoubleEntry(t *testing.T) 
 	// cancelled, the balance should remain at Phase 1 state. If the script DID
 	// complete (Redis processed it before timeout), the balance may have advanced --
 	// either outcome is acceptable as long as the Go code returned an error.
-	balanceKey := pkgTransaction.AliasKey(alias, constant.DefaultBalanceKey)
+	balanceKey := mtransaction.AliasKey(alias, constant.DefaultBalanceKey)
 	internalKey := utils.BalanceInternalKey(orgID, ledgerID, balanceKey)
 
 	raw, rawErr := infra.redisContainer.Client.Get(context.Background(), internalKey).Result()
@@ -1231,7 +1231,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionResetOnDoubleEntry(t *testing
 		phase1After.Version, phase1After.Available.String(), phase1After.OnHold.String())
 
 	// Record balance key for direct verification
-	balanceKey := pkgTransaction.AliasKey(alias, constant.DefaultBalanceKey)
+	balanceKey := mtransaction.AliasKey(alias, constant.DefaultBalanceKey)
 	internalKey := utils.BalanceInternalKey(orgID, ledgerID, balanceKey)
 
 	// --- Phase 2: Inject ---
@@ -1404,7 +1404,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnApprovedSource(t *testi
 	t.Logf("Phase 1: version=%d, available=%s, onHold=%s",
 		phase1After.Version, phase1After.Available.String(), phase1After.OnHold.String())
 
-	balanceKey := pkgTransaction.AliasKey(alias, constant.DefaultBalanceKey)
+	balanceKey := mtransaction.AliasKey(alias, constant.DefaultBalanceKey)
 	internalKey := utils.BalanceInternalKey(orgID, ledgerID, balanceKey)
 
 	// --- Phase 2: Inject ---
@@ -1548,7 +1548,7 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnApprovedDestination(t *tes
 	t.Logf("Phase 1: version=%d, available=%s, onHold=%s",
 		phase1After.Version, phase1After.Available.String(), phase1After.OnHold.String())
 
-	balanceKey := pkgTransaction.AliasKey(alias, constant.DefaultBalanceKey)
+	balanceKey := mtransaction.AliasKey(alias, constant.DefaultBalanceKey)
 	internalKey := utils.BalanceInternalKey(orgID, ledgerID, balanceKey)
 
 	// --- Phase 2: Inject ---
@@ -1739,7 +1739,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnCanceledRelease(t *test
 	t.Logf("Phase 1: version=%d, available=%s, onHold=%s",
 		phase1After.Version, phase1After.Available.String(), phase1After.OnHold.String())
 
-	balanceKey := pkgTransaction.AliasKey(alias, constant.DefaultBalanceKey)
+	balanceKey := mtransaction.AliasKey(alias, constant.DefaultBalanceKey)
 	internalKey := utils.BalanceInternalKey(orgID, ledgerID, balanceKey)
 
 	// --- Phase 2: Inject ---
@@ -1891,7 +1891,7 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnCanceledCredit(t *testing.
 	t.Logf("Phase 1: version=%d, available=%s, onHold=%s",
 		phase1After.Version, phase1After.Available.String(), phase1After.OnHold.String())
 
-	balanceKey := pkgTransaction.AliasKey(alias, constant.DefaultBalanceKey)
+	balanceKey := mtransaction.AliasKey(alias, constant.DefaultBalanceKey)
 	internalKey := utils.BalanceInternalKey(orgID, ledgerID, balanceKey)
 
 	// --- Phase 2: Inject ---
@@ -2065,7 +2065,7 @@ func TestIntegration_Chaos_BalanceAtomic_TimeoutOnApprovedOperation(t *testing.T
 	t.Logf("Phase 1: version=%d, available=%s, onHold=%s",
 		phase1After.Version, phase1After.Available.String(), phase1After.OnHold.String())
 
-	balanceKey := pkgTransaction.AliasKey(alias, constant.DefaultBalanceKey)
+	balanceKey := mtransaction.AliasKey(alias, constant.DefaultBalanceKey)
 	internalKey := utils.BalanceInternalKey(orgID, ledgerID, balanceKey)
 
 	// --- Phase 2: Inject ---
@@ -2274,7 +2274,7 @@ func TestIntegration_Chaos_BalanceAtomic_RecoveryAfterReconnectCanceled(t *testi
 	t.Logf("Phase 1: final state -- version=%d, available=%s, onHold=%s",
 		afterCredit.Version, afterCredit.Available.String(), afterCredit.OnHold.String())
 
-	balanceKey := pkgTransaction.AliasKey(alias, constant.DefaultBalanceKey)
+	balanceKey := mtransaction.AliasKey(alias, constant.DefaultBalanceKey)
 	internalKey := utils.BalanceInternalKey(orgID, ledgerID, balanceKey)
 
 	// Now set up for a second PENDING+CANCEL cycle to test chaos during CANCEL

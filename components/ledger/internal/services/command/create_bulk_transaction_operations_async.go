@@ -18,8 +18,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/repository"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/vmihailenco/msgpack/v5"
@@ -159,7 +159,7 @@ func (uc *UseCase) classifyAndExtractEntities(
 		if uc.isStatusTransition(payload) {
 			// Status transition: PENDING -> APPROVED/CANCELED
 			// Clear body for status updates - not needed for UPDATE query
-			txCopy.Body = pkgTransaction.Transaction{}
+			txCopy.Body = mtransaction.Transaction{}
 			toUpdate.transactions = append(toUpdate.transactions, &txCopy)
 
 			// Also collect operations for status transitions (commit/cancel flows)
@@ -222,7 +222,7 @@ func (uc *UseCase) prepareTransactionForInsert(tx *transaction.Transaction) {
 	switch tx.Status.Code {
 	case constant.CREATED:
 		// CREATED transactions are auto-approved and body is not needed
-		tx.Body = pkgTransaction.Transaction{}
+		tx.Body = mtransaction.Transaction{}
 		description := constant.APPROVED
 		tx.Status = transaction.Status{
 			Code:        description,
@@ -233,7 +233,7 @@ func (uc *UseCase) prepareTransactionForInsert(tx *transaction.Transaction) {
 		// Body is required for later approval/cancellation processing
 	default:
 		// Clear body for other statuses (e.g., NOTED)
-		tx.Body = pkgTransaction.Transaction{}
+		tx.Body = mtransaction.Transaction{}
 	}
 }
 

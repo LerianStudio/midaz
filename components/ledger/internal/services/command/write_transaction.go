@@ -14,7 +14,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
 
@@ -23,7 +23,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) error {
+func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) error {
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
 		return uc.WriteTransactionAsync(ctx, organizationID, ledgerID, transactionInput, validate, blc, blcAfter, tran)
 	} else {
@@ -33,7 +33,7 @@ func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerI
 
 // WriteTransactionAsync publishes the transaction payload to RabbitMQ
 // for asynchronous processing. Falls back to direct DB write if queue fails.
-func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) error {
+func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.write_transaction_async")
@@ -113,7 +113,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 
 // WriteTransactionSync performs direct database writes for balance updates,
 // transaction record creation, and operation records.
-func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) error {
+func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.write_transaction_sync")

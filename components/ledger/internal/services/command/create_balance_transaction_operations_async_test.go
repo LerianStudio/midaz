@@ -18,7 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
@@ -70,15 +70,15 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		transactionID := uuid.New().String()
 
 		// Mock transaction data with correct types
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			Aliases: []string{"alias1", "alias2"},
-			From: map[string]pkgTransaction.Amount{
+			From: map[string]mtransaction.Amount{
 				"alias1": {
 					Asset: "USD",
 					Value: decimal.NewFromInt(50),
 				},
 			},
-			To: map[string]pkgTransaction.Amount{
+			To: map[string]mtransaction.Amount{
 				"alias2": {
 					Asset: "EUR",
 					Value: decimal.NewFromInt(40),
@@ -125,7 +125,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Metadata:       map[string]interface{}{},
 		}
 
-		transactionInput := &pkgTransaction.Transaction{}
+		transactionInput := &mtransaction.Transaction{}
 
 		// Create a transaction queue with the necessary fields
 		transactionQueue := transaction.TransactionProcessingPayload{
@@ -215,9 +215,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		transactionID := uuid.New().String()
 
 		// Mock transaction data with correct types
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			Aliases: []string{"alias1"},
-			From: map[string]pkgTransaction.Amount{
+			From: map[string]mtransaction.Amount{
 				"alias1": {
 					Asset: "USD",
 					Value: decimal.NewFromInt(50),
@@ -250,7 +250,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Metadata:       map[string]interface{}{},
 		}
 
-		transactionInput := &pkgTransaction.Transaction{}
+		transactionInput := &mtransaction.Transaction{}
 
 		transactionQueue := transaction.TransactionProcessingPayload{
 			Transaction: tran,
@@ -339,15 +339,15 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		transactionID := uuid.New().String()
 
 		// Mock transaction data with correct types
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			Aliases: []string{"alias1", "alias2"},
-			From: map[string]pkgTransaction.Amount{
+			From: map[string]mtransaction.Amount{
 				"alias1": {
 					Asset: "USD",
 					Value: decimal.NewFromInt(50),
 				},
 			},
-			To: map[string]pkgTransaction.Amount{
+			To: map[string]mtransaction.Amount{
 				"alias2": {
 					Asset: "EUR",
 					Value: decimal.NewFromInt(40),
@@ -437,7 +437,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
 		}
 
-		transactionInput := &pkgTransaction.Transaction{}
+		transactionInput := &mtransaction.Transaction{}
 
 		// Create a transaction queue with the necessary fields
 		transactionQueue := transaction.TransactionProcessingPayload{
@@ -550,15 +550,15 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		transactionID := uuid.New().String()
 
 		// Mock transaction data with correct types
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			Aliases: []string{"alias1", "alias2"},
-			From: map[string]pkgTransaction.Amount{
+			From: map[string]mtransaction.Amount{
 				"alias1": {
 					Asset: "USD",
 					Value: decimal.NewFromInt(50),
 				},
 			},
-			To: map[string]pkgTransaction.Amount{
+			To: map[string]mtransaction.Amount{
 				"alias2": {
 					Asset: "EUR",
 					Value: decimal.NewFromInt(40),
@@ -622,7 +622,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
 		}
 
-		transactionInput := &pkgTransaction.Transaction{}
+		transactionInput := &mtransaction.Transaction{}
 
 		// Create a transaction queue with the necessary fields
 		transactionQueue := transaction.TransactionProcessingPayload{
@@ -702,15 +702,15 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		transactionID := uuid.New().String()
 
 		// Mock transaction data with correct types
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			Aliases: []string{"alias1", "alias2"},
-			From: map[string]pkgTransaction.Amount{
+			From: map[string]mtransaction.Amount{
 				"alias1": {
 					Asset: "USD",
 					Value: decimal.NewFromInt(50),
 				},
 			},
-			To: map[string]pkgTransaction.Amount{
+			To: map[string]mtransaction.Amount{
 				"alias2": {
 					Asset: "EUR",
 					Value: decimal.NewFromInt(40),
@@ -774,7 +774,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
 		}
 
-		transactionInput := &pkgTransaction.Transaction{}
+		transactionInput := &mtransaction.Transaction{}
 
 		// Create a transaction queue with the necessary fields
 		transactionQueue := transaction.TransactionProcessingPayload{
@@ -883,9 +883,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		transactionID := uuid.New().String()
 
 		// Mock transaction data with correct types
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			Aliases: []string{"alias1"},
-			From: map[string]pkgTransaction.Amount{
+			From: map[string]mtransaction.Amount{
 				"alias1": {
 					Asset: "USD",
 					Value: decimal.NewFromInt(50),
@@ -934,7 +934,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
 		}
 
-		transactionInput := &pkgTransaction.Transaction{}
+		transactionInput := &mtransaction.Transaction{}
 
 		// Create a transaction queue with the necessary fields
 		transactionQueue := transaction.TransactionProcessingPayload{
@@ -1064,9 +1064,9 @@ func TestCreateBTOAsync(t *testing.T) {
 	ledgerID := uuid.New()
 
 	// Create a transaction queue with valid data
-	validate := &pkgTransaction.Responses{
+	validate := &mtransaction.Responses{
 		Aliases: []string{"alias1"},
-		From: map[string]pkgTransaction.Amount{
+		From: map[string]mtransaction.Amount{
 			"alias1": {
 				Asset: "USD",
 				Value: decimal.NewFromInt(50),
@@ -1099,7 +1099,7 @@ func TestCreateBTOAsync(t *testing.T) {
 		Metadata:       map[string]interface{}{},
 	}
 
-	transactionInput := &pkgTransaction.Transaction{}
+	transactionInput := &mtransaction.Transaction{}
 
 	transactionQueue := transaction.TransactionProcessingPayload{
 		Transaction: tran,
@@ -1466,7 +1466,7 @@ func TestTransactionProcessingPayloadMsgpackRoundtrip(t *testing.T) {
 			Operations:     []*operation.Operation{op1, op2},
 		}
 
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			Aliases: []string{"@src", "@dst"},
 		}
 

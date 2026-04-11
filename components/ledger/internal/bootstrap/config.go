@@ -199,9 +199,6 @@ type Config struct {
 	BalanceSyncBatchSize      int `env:"BALANCE_SYNC_BATCH_SIZE"`
 	BalanceSyncFlushTimeoutMs int `env:"BALANCE_SYNC_FLUSH_TIMEOUT_MS"`
 	BalanceSyncPollIntervalMs int `env:"BALANCE_SYNC_POLL_INTERVAL_MS"`
-
-	// --- Settings ---
-	SettingsCacheTTL string `env:"SETTINGS_CACHE_TTL"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -233,6 +230,8 @@ func InitServers() (*Service, error) {
 // InitServersWithOptions initializes the unified ledger service with optional dependency injection.
 // It directly initializes all infrastructure (PG, Mongo, Redis, RabbitMQ) instead of delegating
 // to onboarding/transaction sub-modules.
+//
+//nolint:gocognit,gocyclo // Will be refactored into smaller initialization functions.
 func InitServersWithOptions(opts *Options) (*Service, error) {
 	cfg := &Config{}
 
@@ -579,8 +578,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Use cases ===
 
-	settingsCacheTTL := resolveSettingsCacheTTL(cfg, logger)
-
 	commandUseCase := &command.UseCase{
 		// Onboarding domain
 		OrganizationRepo:       onbPG.organizationRepo,
@@ -602,8 +599,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMetadataRepo: txnMgo.metadataRepo,
 		RabbitMQRepo:            rmq.producerRepo,
 		TransactionRedisRepo:    txnRedisRepo,
-		// Settings
-		SettingsCacheTTL: settingsCacheTTL,
 	}
 
 	queryUseCase := &query.UseCase{
@@ -627,8 +622,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMetadataRepo: txnMgo.metadataRepo,
 		RabbitMQRepo:            rmq.producerRepo,
 		TransactionRedisRepo:    txnRedisRepo,
-		// Settings
-		SettingsCacheTTL: settingsCacheTTL,
 	}
 
 	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
@@ -747,26 +740,6 @@ func resolveLoggerEnvironment(env string) libZap.Environment {
 	default:
 		return libZap.EnvironmentDevelopment
 	}
-}
-
-// resolveSettingsCacheTTL parses the SETTINGS_CACHE_TTL configuration value.
-func resolveSettingsCacheTTL(cfg *Config, logger libLog.Logger) time.Duration {
-	const defaultSettingsCacheTTL = 5 * time.Minute
-
-	if cfg.SettingsCacheTTL == "" {
-		return defaultSettingsCacheTTL
-	}
-
-	parsed, err := time.ParseDuration(cfg.SettingsCacheTTL)
-	if err != nil || parsed <= 0 {
-		logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("Invalid SETTINGS_CACHE_TTL value '%s', using default %v", cfg.SettingsCacheTTL, defaultSettingsCacheTTL))
-
-		return defaultSettingsCacheTTL
-	}
-
-	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Settings cache TTL configured: %v", parsed))
-
-	return parsed
 }
 
 // buildRedisConfig creates a Redis configuration from Config fields.
@@ -1020,6 +993,8 @@ func buildUnifiedRouteSetup(
 // midazErrorMapper converts tenant-manager errors into Midaz-specific HTTP responses.
 // It uses the standard midazhttp response helpers to ensure a consistent error format
 // across all Midaz endpoints (code/title/message JSON envelope).
+//
+//nolint:unused // Will be wired into the multi-tenant middleware error handler.
 func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 	if err == nil {
 		return nil

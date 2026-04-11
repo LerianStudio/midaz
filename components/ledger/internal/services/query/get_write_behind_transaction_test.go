@@ -12,7 +12,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -38,9 +38,9 @@ func TestGetWriteBehindTransaction_Hit(t *testing.T) {
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
 		AssetCode:      "BRL",
-		Body: pkgTransaction.Transaction{
+		Body: mtransaction.Transaction{
 			Description: "DSL body content",
-			Send: pkgTransaction.Send{
+			Send: mtransaction.Send{
 				Asset: "BRL",
 			},
 		},

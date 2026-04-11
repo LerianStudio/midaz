@@ -4,12 +4,12 @@
 
 package utils
 
-import pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+import "github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 
 // SanitizeAccountAliases cleans the AccountAlias fields in a Transaction's FromTo entries.
 // This is necessary because HandleAccountFields mutates aliases in-place using ConcatAlias,
 // producing formats like "0#@alias#key". SplitAlias extracts the original alias back.
-func SanitizeAccountAliases(transactionInput *pkgTransaction.Transaction) {
+func SanitizeAccountAliases(transactionInput *mtransaction.Transaction) {
 	if transactionInput == nil {
 		return
 	}

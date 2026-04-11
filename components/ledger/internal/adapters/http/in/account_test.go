@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -74,7 +75,7 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 
 				balanceRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).
+					Return(nil, nil).
 					Times(1)
 
 				// No metadata in request, so MetadataRepo.Create won't be called
@@ -165,6 +166,8 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 			mockAssetRepo := asset.NewMockRepository(ctrl)
 			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 			mockBalanceRepo := balance.NewMockRepository(ctrl)
+			mockLedgerRepo := ledger.NewMockRepository(ctrl)
+			mockLedgerRepo.EXPECT().GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 			tt.setupMocks(mockAccountRepo, mockAssetRepo, mockMetadataRepo, mockBalanceRepo, orgID, ledgerID)
 
 			cmdUC := &command.UseCase{
@@ -172,6 +175,7 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 				AssetRepo:              mockAssetRepo,
 				OnboardingMetadataRepo: mockMetadataRepo,
 				BalanceRepo:            mockBalanceRepo,
+				LedgerRepo:             mockLedgerRepo,
 			}
 			handler := &AccountHandler{Command: cmdUC}
 

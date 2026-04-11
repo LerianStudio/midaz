@@ -580,6 +580,8 @@ Full rules in `docs/PROJECT_RULES.md` (1130 lines). Key points:
 14. **Query builder**: Use `squirrel` for all SQL query construction (SELECT, INSERT, UPDATE). Do not use raw SQL string concatenation with `strconv.Itoa` for parameter placeholders.
 15. **Entity name constants**: Use `constant.Entity*` instead of `reflect.TypeOf(mmodel.Foo{}).Name()`. See `pkg/constant/entity.go`.
 16. **Timestamps on create**: Capture `time.Now()` once and reuse for both `CreatedAt` and `UpdatedAt` to guarantee identical values.
+17. **Declaration order**: Within a file, declare in this order: exported interface → exported types → constructor → exported methods → unexported helpers. The interface is the contract readers look for first.
+18. **Repository tests**: Repository/adapter code (thin wrappers around Redis, Postgres, etc.) should be covered by integration tests with testcontainers, not unit tests. Unit-testing mock interactions only verifies you called the mock correctly — it does not catch real issues like key format mismatches, TTL semantics, or Lua script behavior. Unit tests in adapter packages should be reserved for pure functions and business logic branches that don't require external dependencies.
 
 ## Observability Conventions
 
@@ -595,6 +597,33 @@ logger.Log(ctx, libLog.LevelInfo, "Organization created", libLog.String("id", or
 
 // Bad — fmt.Sprintf buries fields in the message
 logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create organization: %v", err))
+```
+
+### Log Level Guidelines
+
+**Never log sensitive data (balances, financial values, PII) at any log level.**
+
+Use the correct log level based on **who caused the problem**, not just what went wrong:
+
+| Level | When to use | Example |
+|-------|------------|---------|
+| **Debug** | Operational details useful only during development or troubleshooting. | Cache key written, Lua script completed, batch stats |
+| **Info** | Significant state changes or milestones in a business flow. Should be sparse enough to read in production without filtering. | Transaction created, balance sync flushed, idempotency key claimed |
+| **Warn** | **Business validation failures** (the caller sent invalid data, not a system fault). The system is healthy; the request was rejected. Also used for degraded-but-recoverable situations (e.g., cache connection error with DB fallback). Note: a normal cache miss (TTL expiry) is not a warning — it is the expected flow and needs no log at all. | Insufficient funds, asset mismatch, account sending disabled, accounting rule violation, Redis connection error with DB fallback |
+| **Error** | **Infrastructure or system failures** that indicate something is broken and may need operator attention. The system could not fulfill a valid request. | Redis connection refused, DB query failed, Lua script execution error, message broker unavailable |
+
+Key principle: if the fix requires the **caller** to change their request → **Warn**. If the fix requires an **operator** to investigate the system → **Error**.
+
+```go
+// Business validation failure — Warn (caller's problem)
+logger.Log(ctx, libLog.LevelWarn, "Balance rule validation failed", libLog.Err(err))
+
+// Infrastructure failure — Error (system's problem)
+logger.Log(ctx, libLog.LevelError, "Failed to execute atomic balance operation", libLog.Err(err))
+
+// Operational detail — Debug (development only)
+logger.Log(ctx, libLog.LevelDebug, "Lua script executed successfully",
+    libLog.String("backup_queue", prefixedKeys[0]))
 ```
 
 ### Span Lifecycle

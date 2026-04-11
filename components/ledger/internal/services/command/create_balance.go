@@ -99,7 +99,8 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 		UpdatedAt:      time.Now(),
 	}
 
-	if err := uc.BalanceRepo.Create(ctx, newBalance); err != nil {
+	created, err := uc.BalanceRepo.Create(ctx, newBalance)
+	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create balance on repo", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create balance on repo: %v", err))
@@ -107,5 +108,5 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 		return nil, err
 	}
 
-	return newBalance, nil
+	return created, nil
 }

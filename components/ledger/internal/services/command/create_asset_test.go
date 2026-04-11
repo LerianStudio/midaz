@@ -104,7 +104,7 @@ func TestCreateAsset(t *testing.T) {
 
 				mockBalanceRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil).
+					Return(nil, nil).
 					Times(1)
 			},
 			expectedErr: nil,
@@ -197,7 +197,7 @@ func TestCreateAsset(t *testing.T) {
 
 				mockBalanceRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(errors.New("grpc create balance error")).
+					Return(nil, errors.New("grpc create balance error")).
 					Times(1)
 			},
 			expectedErr: errors.New("default balance could not be created"),

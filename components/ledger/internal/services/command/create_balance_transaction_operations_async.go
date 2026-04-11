@@ -20,7 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -147,7 +147,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 	logger.Log(ctx, libLog.LevelInfo, "Trying to create new transaction")
 
 	tran := t.Transaction
-	tran.Body = pkgTransaction.Transaction{}
+	tran.Body = mtransaction.Transaction{}
 
 	switch tran.Status.Code {
 	case constant.CREATED:
@@ -243,7 +243,7 @@ func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger l
 // When balances is non-nil (e.g. commit/cancel flows), the snapshot is included
 // directly in the backup message so the Redis consumer can retry without relying
 // on the Lua script to populate them.
-func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus, action string, transactionDate time.Time, balances []*mmodel.Balance) error {
+func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput mtransaction.Transaction, validate *mtransaction.Responses, transactionStatus, action string, transactionDate time.Time, balances []*mmodel.Balance) error {
 	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 

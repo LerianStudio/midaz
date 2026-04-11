@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -196,9 +196,9 @@ func (b *Balance) ToHistoryResponse() *BalanceHistory {
 	}
 }
 
-// ToTransactionBalance converts mmodel.Balance to pkgTransaction.Balance
-func (b *Balance) ToTransactionBalance() *pkgTransaction.Balance {
-	return &pkgTransaction.Balance{
+// ToTransactionBalance converts mmodel.Balance to mtransaction.Balance
+func (b *Balance) ToTransactionBalance() *mtransaction.Balance {
+	return &mtransaction.Balance{
 		ID:             b.ID,
 		OrganizationID: b.OrganizationID,
 		LedgerID:       b.LedgerID,
@@ -490,7 +490,7 @@ type BalanceErrorResponse struct {
 type BalanceOperation struct {
 	Balance     *Balance
 	Alias       string
-	Amount      pkgTransaction.Amount
+	Amount      mtransaction.Amount
 	InternalKey string
 }
 
@@ -505,17 +505,17 @@ type BalanceAtomicResult struct {
 
 // TransactionRedisQueue represents a transaction queue for cache-aside
 type TransactionRedisQueue struct {
-	HeaderID          string                     `json:"header_id"`
-	TransactionID     uuid.UUID                  `json:"transaction_id"`
-	OrganizationID    uuid.UUID                  `json:"organization_id"`
-	LedgerID          uuid.UUID                  `json:"ledger_id"`
-	Balances          []BalanceRedis             `json:"balances"`
-	BalancesAfter     []BalanceRedis             `json:"balancesAfter,omitempty"`
-	TransactionInput  pkgTransaction.Transaction `json:"parserDSL"`
-	TTL               time.Time                  `json:"ttl"`
-	Validate          *pkgTransaction.Responses  `json:"validate"`
-	TransactionStatus string                     `json:"transaction_status"`
-	Action            string                     `json:"action,omitempty"`
-	TransactionDate   time.Time                  `json:"transaction_date"`
-	Operations        []OperationRedis           `json:"operations,omitempty"`
+	HeaderID          string                   `json:"header_id"`
+	TransactionID     uuid.UUID                `json:"transaction_id"`
+	OrganizationID    uuid.UUID                `json:"organization_id"`
+	LedgerID          uuid.UUID                `json:"ledger_id"`
+	Balances          []BalanceRedis           `json:"balances"`
+	BalancesAfter     []BalanceRedis           `json:"balancesAfter,omitempty"`
+	TransactionInput  mtransaction.Transaction `json:"parserDSL"`
+	TTL               time.Time                `json:"ttl"`
+	Validate          *mtransaction.Responses  `json:"validate"`
+	TransactionStatus string                   `json:"transaction_status"`
+	Action            string                   `json:"action,omitempty"`
+	TransactionDate   time.Time                `json:"transaction_date"`
+	Operations        []OperationRedis         `json:"operations,omitempty"`
 }

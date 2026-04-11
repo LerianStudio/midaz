@@ -60,7 +60,7 @@ func TestCreateBalanceSync(t *testing.T) {
 
 		mockBalanceRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, b *mmodel.Balance) error {
+			DoAndReturn(func(_ context.Context, b *mmodel.Balance) (*mmodel.Balance, error) {
 				assert.Equal(t, "test-alias", b.Alias)
 				assert.Equal(t, "default", b.Key)
 				assert.Equal(t, organizationID.String(), b.OrganizationID)
@@ -70,7 +70,7 @@ func TestCreateBalanceSync(t *testing.T) {
 				assert.Equal(t, "deposit", b.AccountType)
 				assert.True(t, b.AllowSending)
 				assert.True(t, b.AllowReceiving)
-				return nil
+				return b, nil
 			}).
 			Times(1)
 
@@ -111,9 +111,9 @@ func TestCreateBalanceSync(t *testing.T) {
 
 		mockBalanceRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, b *mmodel.Balance) error {
+			DoAndReturn(func(_ context.Context, b *mmodel.Balance) (*mmodel.Balance, error) {
 				assert.Equal(t, "upper-case-key", b.Key)
-				return nil
+				return b, nil
 			}).
 			Times(1)
 
@@ -307,7 +307,7 @@ func TestCreateBalanceSync(t *testing.T) {
 
 		mockBalanceRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, b *mmodel.Balance) error {
+			DoAndReturn(func(_ context.Context, b *mmodel.Balance) (*mmodel.Balance, error) {
 				assert.Equal(t, "test-alias", b.Alias)
 				assert.Equal(t, "custom-key", b.Key)
 				assert.Equal(t, organizationID.String(), b.OrganizationID)
@@ -317,7 +317,7 @@ func TestCreateBalanceSync(t *testing.T) {
 				assert.Equal(t, "deposit", b.AccountType)
 				assert.False(t, b.AllowSending)
 				assert.True(t, b.AllowReceiving)
-				return nil
+				return b, nil
 			}).
 			Times(1)
 
@@ -353,7 +353,7 @@ func TestCreateBalanceSync(t *testing.T) {
 		expectedErr := errors.New("database error")
 		mockBalanceRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
-			Return(expectedErr).
+			Return(nil, expectedErr).
 			Times(1)
 
 		result, err := uc.CreateBalanceSync(ctx, input)
@@ -386,7 +386,7 @@ func TestCreateBalanceSync(t *testing.T) {
 
 		mockBalanceRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, b *mmodel.Balance) error {
+			DoAndReturn(func(_ context.Context, b *mmodel.Balance) (*mmodel.Balance, error) {
 				// Verify all input fields are mapped correctly
 				assert.NotEmpty(t, b.ID)
 				assert.Equal(t, "my-alias", b.Alias)
@@ -400,7 +400,7 @@ func TestCreateBalanceSync(t *testing.T) {
 				assert.False(t, b.AllowReceiving)
 				assert.False(t, b.CreatedAt.IsZero())
 				assert.False(t, b.UpdatedAt.IsZero())
-				return nil
+				return b, nil
 			}).
 			Times(1)
 

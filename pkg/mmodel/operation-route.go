@@ -24,11 +24,21 @@ type AccountingRubric struct {
 // AccountingEntry represents a single accounting entry with debit and credit rubrics.
 //
 // @Description AccountingEntry object containing debit and credit rubrics for a specific action.
-// Field requirements depend on operationType and scenario - validated by validateEntryFieldRequirements.
+// @Description
+// @Description Field requirements depend on the parent operationType and scenario:
+// @Description   - source + direct or commit: debit is REQUIRED, credit is optional.
+// @Description   - source + hold or cancel: both debit AND credit are REQUIRED.
+// @Description   - destination + direct or commit: credit is REQUIRED, debit is optional.
+// @Description   - destination + hold or cancel: NOT ALLOWED (rejected at creation).
+// @Description   - destination + revert: NOT ALLOWED (rejected at creation).
+// @Description   - source + revert: NOT ALLOWED (rejected at creation).
+// @Description   - bidirectional (all scenarios including revert): both debit AND credit are REQUIRED.
+// @Description
+// @Description An entry with neither debit nor credit is always rejected.
 type AccountingEntry struct {
-	// The debit rubric for this entry. Required based on operationType/scenario matrix.
+	// The debit rubric for this entry. Required based on operationType/scenario matrix (see type description).
 	Debit *AccountingRubric `json:"debit" validate:"omitempty" msgpack:"debit"`
-	// The credit rubric for this entry. Required based on operationType/scenario matrix.
+	// The credit rubric for this entry. Required based on operationType/scenario matrix (see type description).
 	Credit *AccountingRubric `json:"credit" validate:"omitempty" msgpack:"credit"`
 } // @name AccountingEntry
 
