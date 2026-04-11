@@ -168,7 +168,8 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 		return nil, err
 	}
 
-	ctx, spanExec := tracer.Start(ctx, "postgres.create_balance.exec")
+	_, spanExec := tracer.Start(ctx, "postgres.create_balance.exec")
+	defer spanExec.End()
 
 	row := db.QueryRowContext(ctx, query, args...)
 
@@ -192,13 +193,10 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 		&created.Key,
 	); err != nil {
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute insert query", err)
-		spanExec.End()
 		logger.Log(ctx, libLog.LevelError, "Failed to execute insert query", libLog.Err(err))
 
 		return nil, err
 	}
-
-	spanExec.End()
 
 	return created.ToEntity(), nil
 }
@@ -792,19 +790,17 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 
 	var balances []*mmodel.Balance
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_aliases_with_keys.query")
+	_, spanQuery := tracer.Start(ctx, "postgres.list_by_aliases_with_keys.query")
+	defer spanQuery.End()
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
-		spanQuery.End()
 		logger.Log(ctx, libLog.LevelError, "Failed to execute query", libLog.Err(err))
 
 		return nil, err
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var balance BalancePostgreSQLModel
