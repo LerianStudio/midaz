@@ -840,10 +840,14 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 
 	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build operations", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build operations", libLog.Err(err))
 
-		logger.Log(ctx, libLog.LevelError, "Failed to validate balance", libLog.Err(err))
-
+		// Idempotency key and backup queue entry are intentionally preserved here.
+		// Balances were already mutated by the Lua script (ProcessBalanceOperations),
+		// so the backup queue is the recovery mechanism — the Kiwi consumer will
+		// reconstruct and persist the transaction from the backup entry.
+		// Deleting the idempotency key would allow duplicate balance mutations on retry.
 		return http.WithError(c, err)
 	}
 
