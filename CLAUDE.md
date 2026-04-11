@@ -601,11 +601,13 @@ logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create organization: %
 
 ### Log Level Guidelines
 
+**Never log sensitive data (balances, financial values, PII) at any log level.**
+
 Use the correct log level based on **who caused the problem**, not just what went wrong:
 
 | Level | When to use | Example |
 |-------|------------|---------|
-| **Debug** | Operational details useful only during development or troubleshooting. Never log sensitive data (balances, financial values, PII). | Cache key written, Lua script completed, batch stats |
+| **Debug** | Operational details useful only during development or troubleshooting. | Cache key written, Lua script completed, batch stats |
 | **Info** | Significant state changes or milestones in a business flow. Should be sparse enough to read in production without filtering. | Transaction created, balance sync flushed, idempotency key claimed |
 | **Warn** | **Business validation failures** (the caller sent invalid data, not a system fault). The system is healthy; the request was rejected. Also used for degraded-but-recoverable situations (e.g., cache connection error with DB fallback). Note: a normal cache miss (TTL expiry) is not a warning — it is the expected flow and needs no log at all. | Insufficient funds, asset mismatch, account sending disabled, accounting rule violation, Redis connection error with DB fallback |
 | **Error** | **Infrastructure or system failures** that indicate something is broken and may need operator attention. The system could not fulfill a valid request. | Redis connection refused, DB query failed, Lua script execution error, message broker unavailable |
