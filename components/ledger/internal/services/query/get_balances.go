@@ -33,7 +33,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 	if len(uncachedAliases) > 0 {
 		balancesDB, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, uncachedAliases)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances from database", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to get balances from database", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to get balances from database", libLog.Err(err))
 
 			return nil, err
