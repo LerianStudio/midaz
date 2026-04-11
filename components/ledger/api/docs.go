@@ -8418,18 +8418,6 @@ const docTemplate = `
           "type": "string",
           "example": "BRL"
         },
-        "direction": {
-          "type": "string"
-        },
-        "operation": {
-          "type": "string"
-        },
-        "routeValidationEnabled": {
-          "type": "boolean"
-        },
-        "transactionType": {
-          "type": "string"
-        },
         "value": {
           "type": "number",
           "example": 1000

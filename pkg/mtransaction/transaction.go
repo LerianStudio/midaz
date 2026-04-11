@@ -67,12 +67,13 @@ type Metadata struct {
 // swagger:model Amount
 // @Description Amount is the struct designed to represent the amount of an operation.
 type Amount struct {
-	Asset                  string          `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value                  decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
-	Operation              string          `json:"operation,omitempty"`
-	TransactionType        string          `json:"transactionType,omitempty"`
-	Direction              string          `json:"direction,omitempty"`
-	RouteValidationEnabled bool            `json:"routeValidationEnabled,omitempty"`
+	Asset string          `json:"asset,omitempty" validate:"required" example:"BRL"`
+	Value decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
+	// Internal fields — populated during transaction processing, not part of the API contract.
+	Operation              string `json:"operation,omitempty" swaggerignore:"true"`
+	TransactionType        string `json:"transactionType,omitempty" swaggerignore:"true"`
+	Direction              string `json:"direction,omitempty" swaggerignore:"true"`
+	RouteValidationEnabled bool   `json:"routeValidationEnabled,omitempty" swaggerignore:"true"`
 } // @name Amount
 
 // Share structure for marshaling/unmarshalling JSON.

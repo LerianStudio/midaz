@@ -7035,14 +7035,6 @@ components:
         asset:
           example: BRL
           type: string
-        direction:
-          type: string
-        operation:
-          type: string
-        routeValidationEnabled:
-          type: boolean
-        transactionType:
-          type: string
         value:
           example: 1000.0
           type: number
