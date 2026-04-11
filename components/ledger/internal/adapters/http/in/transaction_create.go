@@ -701,7 +701,14 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 	// then check or claim the idempotency slot in Redis.
 	idempotencyKey, idempotencyTTL := http.GetIdempotencyKeyAndTTL(c)
 
-	ts, _ := libCommons.StructToJSONString(transactionInput)
+	ts, err := libCommons.StructToJSONString(transactionInput)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to serialize transaction for idempotency hash", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to serialize transaction for idempotency hash", libLog.Err(err))
+
+		return http.WithError(c, err)
+	}
+
 	idempotencyHash := libCommons.HashSHA256(ts)
 
 	c.Set(libConstants.IdempotencyReplayed, "false")
