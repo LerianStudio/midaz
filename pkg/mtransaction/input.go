@@ -32,7 +32,6 @@ type CreateTransactionInput struct {
 
 	// Whether the transaction should be created in pending state
 	// example: true
-	// swagger: type boolean
 	Pending bool `json:"pending" example:"true" default:"false"`
 
 	// Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.
@@ -56,7 +55,6 @@ type CreateTransactionInput struct {
 
 	// Send operation details including source and distribution
 	// required: true
-	// swagger:type object
 	Send Send `json:"send" validate:"required,dive"`
 } // @name CreateTransactionInput
 
@@ -136,7 +134,6 @@ type CreateTransactionInflowInput struct {
 
 	// Send operation details including distribution only (no source)
 	// required: true
-	// swagger:type object
 	Send SendInflow `json:"send" validate:"required,dive"`
 } // @name CreateTransactionInflowInput
 
@@ -202,7 +199,6 @@ type CreateTransactionOutflowInput struct {
 
 	// Whether the transaction should be created in pending state
 	// example: true
-	// swagger: type boolean
 	Pending bool `json:"pending" example:"true" default:"false"`
 
 	// Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.
@@ -226,7 +222,6 @@ type CreateTransactionOutflowInput struct {
 
 	// Send operation details including source only (no distribution)
 	// required: true
-	// swagger:type object
 	Send SendOutflow `json:"send" validate:"required,dive"`
 } // @name CreateTransactionOutflowInput
 

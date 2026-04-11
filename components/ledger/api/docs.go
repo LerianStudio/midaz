@@ -9192,7 +9192,7 @@ const docTemplate = `
           "example": "00000000-0000-0000-0000-000000000000"
         },
         "send": {
-          "description": "Send operation details including distribution only (no source)\nrequired: true\nswagger:type object",
+          "description": "Send operation details including distribution only (no source)\nrequired: true",
           "allOf": [
             {
               "$ref": "#/definitions/SendInflow"
@@ -9238,7 +9238,7 @@ const docTemplate = `
           "additionalProperties": {}
         },
         "pending": {
-          "description": "Whether the transaction should be created in pending state\nexample: true\nswagger: type boolean",
+          "description": "Whether the transaction should be created in pending state\nexample: true",
           "type": "boolean",
           "default": false,
           "example": true
@@ -9256,7 +9256,7 @@ const docTemplate = `
           "example": "00000000-0000-0000-0000-000000000000"
         },
         "send": {
-          "description": "Send operation details including source and distribution\nrequired: true\nswagger:type object",
+          "description": "Send operation details including source and distribution\nrequired: true",
           "allOf": [
             {
               "$ref": "#/definitions/Send"
@@ -9302,7 +9302,7 @@ const docTemplate = `
           "additionalProperties": {}
         },
         "pending": {
-          "description": "Whether the transaction should be created in pending state\nexample: true\nswagger: type boolean",
+          "description": "Whether the transaction should be created in pending state\nexample: true",
           "type": "boolean",
           "default": false,
           "example": true
@@ -9320,7 +9320,7 @@ const docTemplate = `
           "example": "00000000-0000-0000-0000-000000000000"
         },
         "send": {
-          "description": "Send operation details including source only (no distribution)\nrequired: true\nswagger:type object",
+          "description": "Send operation details including source only (no distribution)\nrequired: true",
           "allOf": [
             {
               "$ref": "#/definitions/SendOutflow"

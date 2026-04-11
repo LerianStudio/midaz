@@ -8053,7 +8053,6 @@ components:
           description: |-
             Send operation details including distribution only (no source)
             required: true
-            swagger:type object
           type: object
         transactionDate:
           description: |-
@@ -8118,7 +8117,6 @@ components:
           description: |-
             Whether the transaction should be created in pending state
             example: true
-            swagger: type boolean
           example: true
           type: boolean
         route:
@@ -8143,7 +8141,6 @@ components:
           description: |-
             Send operation details including source and distribution
             required: true
-            swagger:type object
           type: object
         transactionDate:
           description: |-
@@ -8208,7 +8205,6 @@ components:
           description: |-
             Whether the transaction should be created in pending state
             example: true
-            swagger: type boolean
           example: true
           type: boolean
         route:
@@ -8233,7 +8229,6 @@ components:
           description: |-
             Send operation details including source only (no distribution)
             required: true
-            swagger:type object
           type: object
         transactionDate:
           description: |-
