@@ -773,6 +773,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		logger.Log(ctx, libLog.LevelError, "Failed to get balances", libLog.Err(err))
 
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
 
 		return http.WithError(c, err)
 	}
