@@ -35,9 +35,8 @@ type CreateTransactionInput struct {
 	// swagger: type boolean
 	Pending bool `json:"pending" example:"true" default:"false"`
 
-	// Additional custom attributes
+	// Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
-	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 
 	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
@@ -116,9 +115,8 @@ type CreateTransactionInflowInput struct {
 	// maxLength: 100
 	Code string `json:"code,omitempty" validate:"max=100" example:"TR12345" maxLength:"100"`
 
-	// Additional custom attributes
+	// Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
-	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 
 	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
@@ -207,9 +205,8 @@ type CreateTransactionOutflowInput struct {
 	// swagger: type boolean
 	Pending bool `json:"pending" example:"true" default:"false"`
 
-	// Additional custom attributes
+	// Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
-	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 
 	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.

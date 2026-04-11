@@ -8036,9 +8036,8 @@ components:
           additionalProperties:
             type: object
           description: |-
-            Additional custom attributes
+            Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.
             example: {"reference": "TRANSACTION-001", "source": "api"}
-            swagger:type object
           type: object
         route:
           description: |-
@@ -8119,9 +8118,8 @@ components:
           additionalProperties:
             type: object
           description: |-
-            Additional custom attributes
+            Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.
             example: {"reference": "TRANSACTION-001", "source": "api"}
-            swagger:type object
           type: object
         pending:
           default: false
@@ -8210,9 +8208,8 @@ components:
           additionalProperties:
             type: object
           description: |-
-            Additional custom attributes
+            Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.
             example: {"reference": "TRANSACTION-001", "source": "api"}
-            swagger:type object
           type: object
         pending:
           default: false

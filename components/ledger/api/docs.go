@@ -9187,7 +9187,7 @@ const docTemplate = `
           "example": "New Transaction"
         },
         "metadata": {
-          "description": "Additional custom attributes\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}\nswagger:type object",
+          "description": "Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}",
           "type": "object",
           "additionalProperties": {}
         },
@@ -9245,7 +9245,7 @@ const docTemplate = `
           "example": "New Transaction"
         },
         "metadata": {
-          "description": "Additional custom attributes\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}\nswagger:type object",
+          "description": "Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}",
           "type": "object",
           "additionalProperties": {}
         },
@@ -9309,7 +9309,7 @@ const docTemplate = `
           "example": "New Outflow Transaction"
         },
         "metadata": {
-          "description": "Additional custom attributes\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}\nswagger:type object",
+          "description": "Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}",
           "type": "object",
           "additionalProperties": {}
         },
