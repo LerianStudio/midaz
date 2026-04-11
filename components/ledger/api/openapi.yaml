@@ -8392,9 +8392,11 @@ components:
           maxLength: 250
           type: string
         routeId:
-          description: UUID of the operation route. Primary field used for route validation
-            and accounting rules.
+          description: |-
+            UUID of the operation route. Primary field used for route validation and accounting rules.
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         share:
           $ref: '#/components/schemas/Share'

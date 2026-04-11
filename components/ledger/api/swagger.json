@@ -9458,8 +9458,9 @@
           "example": "00000000-0000-0000-0000-000000000000"
         },
         "routeId": {
-          "description": "UUID of the operation route. Primary field used for route validation and accounting rules.",
+          "description": "UUID of the operation route. Primary field used for route validation and accounting rules.\nformat: uuid",
           "type": "string",
+          "format": "uuid",
           "example": "00000000-0000-0000-0000-000000000000"
         },
         "share": {

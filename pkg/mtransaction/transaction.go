@@ -138,7 +138,8 @@ type FromTo struct {
 	// Deprecated: passive field kept for backward compatibility. Accepted from client and persisted, but not used in any validation or business logic. Use routeId instead.
 	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
 	// UUID of the operation route. Primary field used for route validation and accounting rules.
-	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 } // @name FromTo
 
 // SplitAlias function to split alias with index.
@@ -256,7 +257,8 @@ type Transaction struct {
 	// Deprecated: legacy route identifier, contains the transaction route UUID as a string. Use routeId instead.
 	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
 	// UUID of the transaction route. Primary field replacing the deprecated Route string.
-	RouteID         *string          `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	// format: uuid
+	RouteID         *string          `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 	TransactionDate *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
 	Send            Send             `json:"send" validate:"required"`
 } // @name TransactionInput
