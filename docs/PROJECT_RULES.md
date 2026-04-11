@@ -253,10 +253,13 @@ logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 ctx, span := tracer.Start(ctx, "layer.operation_name")
 defer span.End()
 
-// On error: instrument span AND log with structured fields
+// On error: instrument span AND log with structured fields.
+// Use LevelWarn for business validation failures (caller's problem),
+// LevelError for infrastructure failures (system's problem).
+// See CLAUDE.md "Log Level Guidelines" for the full matrix.
 if err != nil {
     libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation description", err)
-    logger.Log(ctx, libLog.LevelError, "Operation failed", libLog.Err(err))
+    logger.Log(ctx, libLog.LevelWarn, "Operation failed", libLog.Err(err))
     return nil, err
 }
 ```

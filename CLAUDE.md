@@ -599,6 +599,31 @@ logger.Log(ctx, libLog.LevelInfo, "Organization created", libLog.String("id", or
 logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create organization: %v", err))
 ```
 
+### Log Level Guidelines
+
+Use the correct log level based on **who caused the problem**, not just what went wrong:
+
+| Level | When to use | Example |
+|-------|------------|---------|
+| **Debug** | Operational details useful only during development or troubleshooting. Never log sensitive data (balances, financial values, PII). | Cache key written, Lua script completed, batch stats |
+| **Info** | Significant state changes or milestones in a business flow. Should be sparse enough to read in production without filtering. | Transaction created, balance sync flushed, idempotency key claimed |
+| **Warn** | **Business validation failures** (the caller sent invalid data, not a system fault). The system is healthy; the request was rejected. Also used for degraded-but-recoverable situations (e.g., cache connection error with DB fallback). Note: a normal cache miss (TTL expiry) is not a warning — it is the expected flow and needs no log at all. | Insufficient funds, asset mismatch, account sending disabled, accounting rule violation, Redis connection error with DB fallback |
+| **Error** | **Infrastructure or system failures** that indicate something is broken and may need operator attention. The system could not fulfill a valid request. | Redis connection refused, DB query failed, Lua script execution error, message broker unavailable |
+
+Key principle: if the fix requires the **caller** to change their request → **Warn**. If the fix requires an **operator** to investigate the system → **Error**.
+
+```go
+// Business validation failure — Warn (caller's problem)
+logger.Log(ctx, libLog.LevelWarn, "Balance rule validation failed", libLog.Err(err))
+
+// Infrastructure failure — Error (system's problem)
+logger.Log(ctx, libLog.LevelError, "Failed to execute atomic balance operation", libLog.Err(err))
+
+// Operational detail — Debug (development only)
+logger.Log(ctx, libLog.LevelDebug, "Lua script executed successfully",
+    libLog.String("backup_queue", prefixedKeys[0]))
+```
+
 ### Span Lifecycle
 - Always use `defer span.End()` immediately after `tracer.Start`.
 - Child spans for I/O operations (DB exec, external calls) should use `defer` and must not

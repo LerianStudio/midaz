@@ -783,7 +783,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 	routeCache, err := handler.Query.ValidateAccountingRules(ctx, params.OrganizationID, params.LedgerID, balanceOps, validate, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate accounting rules", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to validate accounting rules", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate accounting rules", libLog.Err(err))
 
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
