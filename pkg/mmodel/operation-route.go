@@ -29,9 +29,10 @@ type AccountingRubric struct {
 // @Description   - source + direct or commit: debit is REQUIRED, credit is optional.
 // @Description   - source + hold or cancel: both debit AND credit are REQUIRED.
 // @Description   - destination + direct or commit: credit is REQUIRED, debit is optional.
-// @Description   - destination + hold or cancel: both debit AND credit are REQUIRED.
-// @Description   - bidirectional (all scenarios): both debit AND credit are REQUIRED.
-// @Description   - revert: only allowed on bidirectional routes; both debit AND credit are REQUIRED.
+// @Description   - destination + hold or cancel: NOT ALLOWED (rejected at creation).
+// @Description   - destination + revert: NOT ALLOWED (rejected at creation).
+// @Description   - source + revert: NOT ALLOWED (rejected at creation).
+// @Description   - bidirectional (all scenarios including revert): both debit AND credit are REQUIRED.
 // @Description
 // @Description An entry with neither debit nor credit is always rejected.
 type AccountingEntry struct {

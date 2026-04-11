@@ -8314,7 +8314,7 @@ const docTemplate = `
       }
     },
     "AccountingEntry": {
-      "description": "AccountingEntry object containing debit and credit rubrics for a specific action.  Field requirements depend on the parent operationType and scenario: - source + direct or commit: debit is REQUIRED, credit is optional. - source + hold or cancel: both debit AND credit are REQUIRED. - destination + direct or commit: credit is REQUIRED, debit is optional. - destination + hold or cancel: both debit AND credit are REQUIRED. - bidirectional (all scenarios): both debit AND credit are REQUIRED. - revert: only allowed on bidirectional routes; both debit AND credit are REQUIRED.  An entry with neither debit nor credit is always rejected.",
+      "description": "AccountingEntry object containing debit and credit rubrics for a specific action.  Field requirements depend on the parent operationType and scenario: - source + direct or commit: debit is REQUIRED, credit is optional. - source + hold or cancel: both debit AND credit are REQUIRED. - destination + direct or commit: credit is REQUIRED, debit is optional. - destination + hold or cancel: NOT ALLOWED (rejected at creation). - destination + revert: NOT ALLOWED (rejected at creation). - source + revert: NOT ALLOWED (rejected at creation). - bidirectional (all scenarios including revert): both debit AND credit are REQUIRED.  An entry with neither debit nor credit is always rejected.",
       "type": "object",
       "properties": {
         "credit": {
