@@ -11,14 +11,14 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 )
 
 // transactionPathParams holds the IDs extracted from URL path parameters.
