@@ -7030,16 +7030,24 @@ components:
       type: object
     Amount:
       description: Amount is the struct designed to represent the amount of an operation.
-        Contains the value and scale (decimal places) of an operation amount.
       properties:
+        asset:
+          example: BRL
+          type: string
+        direction:
+          type: string
+        operation:
+          type: string
+        routeValidationEnabled:
+          type: boolean
+        transactionType:
+          type: string
         value:
-          description: |-
-            The amount value in the smallest unit of the asset (e.g., cents)
-            example: 1500
-            minimum: 0
-          example: 1500.0
-          minimum: 0
+          example: 1000.0
           type: number
+      required:
+      - asset
+      - value
       type: object
     Asset:
       description: Asset represents a financial instrument within a ledger, such as
@@ -7985,10 +7993,268 @@ components:
       - name
       type: object
     CreateTransactionInflowInput:
+      description: CreateTransactionInflowInput is the input payload to create an
+        inflow transaction. Contains all necessary fields to create a financial transaction
+        without source information, only destination.
+      example:
+        metadata:
+          key: '{}'
+        code: TR12345
+        route: 00000000-0000-0000-0000-000000000000
+        routeId: 00000000-0000-0000-0000-000000000000
+        description: New Transaction
+        transactionDate: 2021-01-01T00:00:00Z
+        chartOfAccountsGroupName: FUNDING
+        send: '{}'
+      properties:
+        chartOfAccountsGroupName:
+          description: |-
+            Chart of accounts group name for accounting purposes
+            example: FUNDING
+            maxLength: 256
+          example: FUNDING
+          maxLength: 256
+          type: string
+        code:
+          description: |-
+            Transaction code for reference
+            example: TR12345
+            maxLength: 100
+          example: TR12345
+          maxLength: 100
+          type: string
+        description:
+          description: |-
+            Human-readable description of the transaction
+            example: New Transaction
+            maxLength: 256
+          example: New Transaction
+          maxLength: 256
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: |-
+            Additional custom attributes
+            example: {"reference": "TRANSACTION-001", "source": "api"}
+            swagger:type object
+          type: object
+        route:
+          description: |-
+            Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
+            example: 00000000-0000-0000-0000-000000000000
+            maxLength: 250
+          example: 00000000-0000-0000-0000-000000000000
+          maxLength: 250
+          type: string
+        routeId:
+          description: |-
+            UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        send:
+          allOf:
+          - $ref: '#/components/schemas/SendInflow'
+          description: |-
+            Send operation details including distribution only (no source)
+            required: true
+            swagger:type object
+          type: object
+        transactionDate:
+          description: |-
+            TransactionDate Period from transaction creation date until now
+            Example "2021-01-01T00:00:00Z"
+            format: date-time
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+          type: string
+      required:
+      - send
       type: object
     CreateTransactionInput:
+      description: CreateTransactionInput is the input payload to create a transaction.
+        Contains all necessary fields to create a financial transaction, including
+        source and destination information.
+      example:
+        metadata:
+          key: '{}'
+        code: TR12345
+        route: 00000000-0000-0000-0000-000000000000
+        routeId: 00000000-0000-0000-0000-000000000000
+        pending: true
+        description: New Transaction
+        transactionDate: 2021-01-01T00:00:00Z
+        chartOfAccountsGroupName: FUNDING
+        send: '{}'
+      properties:
+        chartOfAccountsGroupName:
+          description: |-
+            Chart of accounts group name for accounting purposes
+            example: FUNDING
+            maxLength: 256
+          example: FUNDING
+          maxLength: 256
+          type: string
+        code:
+          description: |-
+            Transaction code for reference
+            example: TR12345
+            maxLength: 100
+          example: TR12345
+          maxLength: 100
+          type: string
+        description:
+          description: |-
+            Human-readable description of the transaction
+            example: New Transaction
+            maxLength: 256
+          example: New Transaction
+          maxLength: 256
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: |-
+            Additional custom attributes
+            example: {"reference": "TRANSACTION-001", "source": "api"}
+            swagger:type object
+          type: object
+        pending:
+          default: false
+          description: |-
+            Whether the transaction should be created in pending state
+            example: true
+            swagger: type boolean
+          example: true
+          type: boolean
+        route:
+          description: |-
+            Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
+            example: "00000000-0000-0000-0000-000000000000"
+            maxLength: 250
+          example: 00000000-0000-0000-0000-000000000000
+          maxLength: 250
+          type: string
+        routeId:
+          description: |-
+            UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        send:
+          allOf:
+          - $ref: '#/components/schemas/Send'
+          description: |-
+            Send operation details including source and distribution
+            required: true
+            swagger:type object
+          type: object
+        transactionDate:
+          description: |-
+            TransactionDate Period from transaction creation date until now
+            Example "2021-01-01T00:00:00Z"
+            format: date-time
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+          type: string
+      required:
+      - send
       type: object
     CreateTransactionOutflowInput:
+      description: CreateTransactionOutflowInput is the input payload to create an
+        outflow transaction. Contains all necessary fields to create a financial transaction
+        with source information only, without destination.
+      example:
+        metadata:
+          key: '{}'
+        code: TR12345
+        route: 00000000-0000-0000-0000-000000000000
+        routeId: 00000000-0000-0000-0000-000000000000
+        pending: true
+        description: New Outflow Transaction
+        transactionDate: 2021-01-01T00:00:00Z
+        chartOfAccountsGroupName: WITHDRAWAL
+        send: '{}'
+      properties:
+        chartOfAccountsGroupName:
+          description: |-
+            Chart of accounts group name for accounting purposes
+            example: WITHDRAWAL
+            maxLength: 256
+          example: WITHDRAWAL
+          maxLength: 256
+          type: string
+        code:
+          description: |-
+            Transaction code for reference
+            example: TR12345
+            maxLength: 100
+          example: TR12345
+          maxLength: 100
+          type: string
+        description:
+          description: |-
+            Human-readable description of the transaction
+            example: New Outflow Transaction
+            maxLength: 256
+          example: New Outflow Transaction
+          maxLength: 256
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: |-
+            Additional custom attributes
+            example: {"reference": "TRANSACTION-001", "source": "api"}
+            swagger:type object
+          type: object
+        pending:
+          default: false
+          description: |-
+            Whether the transaction should be created in pending state
+            example: true
+            swagger: type boolean
+          example: true
+          type: boolean
+        route:
+          description: |-
+            Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
+            example: 00000000-0000-0000-0000-000000000000
+            maxLength: 250
+          example: 00000000-0000-0000-0000-000000000000
+          maxLength: 250
+          type: string
+        routeId:
+          description: |-
+            UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        send:
+          allOf:
+          - $ref: '#/components/schemas/SendOutflow'
+          description: |-
+            Send operation details including source only (no distribution)
+            required: true
+            swagger:type object
+          type: object
+        transactionDate:
+          description: |-
+            TransactionDate Period from transaction creation date until now
+            Example "2021-01-01T00:00:00Z"
+            format: date-time
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+          type: string
+      required:
+      - send
       type: object
     CreateTransactionRouteInput:
       description: CreateTransactionRouteInput payload
@@ -8027,6 +8293,19 @@ components:
       required:
       - operationRoutes
       - title
+      type: object
+    Distribute:
+      description: Distribute is the struct designed to represent the distribution
+        fields of an operation.
+      properties:
+        remaining:
+          type: string
+        to:
+          items:
+            $ref: '#/components/schemas/FromTo'
+          type: array
+      required:
+      - to
       type: object
     Error:
       description: Standardized error response format used across all API endpoints
@@ -8073,6 +8352,51 @@ components:
           example: Bad Request
           maxLength: 100
           type: string
+      type: object
+    FromTo:
+      description: FromTo is the struct designed to represent the from/to fields of
+        an operation.
+      properties:
+        accountAlias:
+          example: '@person1'
+          type: string
+        amount:
+          $ref: '#/components/schemas/Amount'
+        balanceKey:
+          example: asset-freeze
+          type: string
+        chartOfAccounts:
+          example: "1000"
+          type: string
+        description:
+          example: description
+          type: string
+        isFrom:
+          example: true
+          type: boolean
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        rate:
+          $ref: '#/components/schemas/Rate'
+        remaining:
+          example: remaining
+          type: string
+        route:
+          description: 'Deprecated: passive field kept for backward compatibility.
+            Accepted from client and persisted, but not used in any validation or
+            business logic. Use routeId instead.'
+          example: 00000000-0000-0000-0000-000000000000
+          maxLength: 250
+          type: string
+        routeId:
+          description: UUID of the operation route. Primary field used for route validation
+            and accounting rules.
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        share:
+          $ref: '#/components/schemas/Share'
       type: object
     IndexStats:
       description: Usage statistics collected by MongoDB for an index
@@ -8703,6 +9027,28 @@ components:
           format: date-time
           type: string
       type: object
+    Rate:
+      description: Rate is the struct designed to represent the rate fields of an
+        operation.
+      properties:
+        externalId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        from:
+          example: BRL
+          type: string
+        to:
+          example: USDe
+          type: string
+        value:
+          example: 1000.0
+          type: number
+      required:
+      - externalId
+      - from
+      - to
+      - value
+      type: object
     Segment:
       description: Segment represents a logical division within a ledger such as a
         business area, product line, or customer category.
@@ -8763,6 +9109,85 @@ components:
           example: 2021-01-01T00:00:00Z
           format: date-time
           type: string
+      type: object
+    Send:
+      description: Send is the struct designed to represent the sending fields of
+        an operation.
+      properties:
+        asset:
+          example: BRL
+          type: string
+        distribute:
+          $ref: '#/components/schemas/Distribute'
+        source:
+          $ref: '#/components/schemas/Source'
+        value:
+          example: 1000.0
+          type: number
+      required:
+      - asset
+      - distribute
+      - source
+      - value
+      type: object
+    SendInflow:
+      description: SendInflow is the struct designed to represent the sending fields
+        of an inflow operation without source information.
+      properties:
+        asset:
+          example: BRL
+          type: string
+        distribute:
+          $ref: '#/components/schemas/Distribute'
+        value:
+          example: 1000.0
+          type: number
+      required:
+      - asset
+      - distribute
+      - value
+      type: object
+    SendOutflow:
+      description: SendOutflow is the struct designed to represent the sending fields
+        of an outflow operation without distribution information.
+      properties:
+        asset:
+          example: BRL
+          type: string
+        source:
+          $ref: '#/components/schemas/Source'
+        value:
+          example: 1000.0
+          type: number
+      required:
+      - asset
+      - source
+      - value
+      type: object
+    Share:
+      description: Share is the struct designed to represent the sharing fields of
+        an operation.
+      properties:
+        percentage:
+          type: integer
+        percentageOfPercentage:
+          type: integer
+      required:
+      - percentage
+      type: object
+    Source:
+      description: Source is the struct designed to represent the source fields of
+        an operation.
+      properties:
+        from:
+          items:
+            $ref: '#/components/schemas/FromTo'
+          type: array
+        remaining:
+          example: remaining
+          type: string
+      required:
+      - from
       type: object
     Status:
       description: Status is the struct designed to represent the status of a transaction.

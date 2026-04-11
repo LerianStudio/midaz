@@ -14,7 +14,7 @@ import (
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -243,7 +243,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 			},
 		}
 
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			TransactionRoute: transactionRouteID.String(),
 		}
 
@@ -272,7 +272,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 			},
 		}
 
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			TransactionRoute: transactionRouteID.String(),
 		}
 
@@ -306,7 +306,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 			},
 		}
 
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			TransactionRoute: "",
 		}
 
@@ -340,7 +340,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 			},
 		}
 
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			TransactionRoute: "invalid-uuid-format",
 		}
 
@@ -370,7 +370,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 			},
 		}
 
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			TransactionRoute: transactionRouteID.String(),
 		}
 
@@ -464,7 +464,7 @@ func TestValidateAccountingRules_PendingDestinationWithCommitOnly(t *testing.T) 
 		LedgerRepo:           mockLedgerRepo,
 	}
 
-	validate := &pkgTransaction.Responses{
+	validate := &mtransaction.Responses{
 		TransactionRouteID: strPtr(transactionRouteID.String()),
 		OperationRoutesFrom: map[string]string{
 			"0#@sender#default": srcRouteID,
@@ -472,13 +472,13 @@ func TestValidateAccountingRules_PendingDestinationWithCommitOnly(t *testing.T) 
 		OperationRoutesTo: map[string]string{
 			"0#@receiver#default": dstRouteID,
 		},
-		From: map[string]pkgTransaction.Amount{
+		From: map[string]mtransaction.Amount{
 			"0#@sender#default": {
 				Operation: "ON_HOLD",
 				Direction: "debit",
 			},
 		},
-		To: map[string]pkgTransaction.Amount{
+		To: map[string]mtransaction.Amount{
 			"0#@receiver#default": {
 				Operation: "CREDIT",
 				Direction: "credit",
@@ -490,7 +490,7 @@ func TestValidateAccountingRules_PendingDestinationWithCommitOnly(t *testing.T) 
 		{
 			Alias:   "0#@sender#default",
 			Balance: &mmodel.Balance{AccountType: "deposit"},
-			Amount: pkgTransaction.Amount{
+			Amount: mtransaction.Amount{
 				Operation: "ON_HOLD",
 				Direction: "debit",
 			},
@@ -498,7 +498,7 @@ func TestValidateAccountingRules_PendingDestinationWithCommitOnly(t *testing.T) 
 		{
 			Alias:   "0#@receiver#default",
 			Balance: &mmodel.Balance{AccountType: "deposit"},
-			Amount: pkgTransaction.Amount{
+			Amount: mtransaction.Amount{
 				Operation: "CREDIT",
 				Direction: "credit",
 			},
@@ -520,7 +520,7 @@ func TestValidateAccountRules(t *testing.T) {
 	tests := []struct {
 		name                  string
 		transactionRouteCache mmodel.TransactionRouteCache
-		validate              *pkgTransaction.Responses
+		validate              *mtransaction.Responses
 		operations            []mmodel.BalanceOperation
 		expectError           bool
 		errorCode             string
@@ -540,16 +540,16 @@ func TestValidateAccountRules(t *testing.T) {
 					},
 				},
 			},
-			validate: &pkgTransaction.Responses{
-				From:                map[string]pkgTransaction.Amount{"op-alias": {}},
-				To:                  map[string]pkgTransaction.Amount{},
+			validate: &mtransaction.Responses{
+				From:                map[string]mtransaction.Amount{"op-alias": {}},
+				To:                  map[string]mtransaction.Amount{},
 				OperationRoutesFrom: map[string]string{"op-alias": routeID},
 				OperationRoutesTo:   map[string]string{},
 			},
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias:   "op-alias",
-					Amount:  pkgTransaction.Amount{Direction: "debit"},
+					Amount:  mtransaction.Amount{Direction: "debit"},
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
@@ -575,16 +575,16 @@ func TestValidateAccountRules(t *testing.T) {
 					},
 				},
 			},
-			validate: &pkgTransaction.Responses{
-				From:                map[string]pkgTransaction.Amount{"op-alias": {}},
-				To:                  map[string]pkgTransaction.Amount{},
+			validate: &mtransaction.Responses{
+				From:                map[string]mtransaction.Amount{"op-alias": {}},
+				To:                  map[string]mtransaction.Amount{},
 				OperationRoutesFrom: map[string]string{"op-alias": routeID},
 				OperationRoutesTo:   map[string]string{},
 			},
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias:   "op-alias",
-					Amount:  pkgTransaction.Amount{Direction: "debit"},
+					Amount:  mtransaction.Amount{Direction: "debit"},
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
@@ -610,16 +610,16 @@ func TestValidateAccountRules(t *testing.T) {
 					},
 				},
 			},
-			validate: &pkgTransaction.Responses{
-				From:                map[string]pkgTransaction.Amount{},
-				To:                  map[string]pkgTransaction.Amount{"op-alias": {}},
+			validate: &mtransaction.Responses{
+				From:                map[string]mtransaction.Amount{},
+				To:                  map[string]mtransaction.Amount{"op-alias": {}},
 				OperationRoutesFrom: map[string]string{},
 				OperationRoutesTo:   map[string]string{"op-alias": routeID},
 			},
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias:   "op-alias",
-					Amount:  pkgTransaction.Amount{Direction: "credit"},
+					Amount:  mtransaction.Amount{Direction: "credit"},
 					Balance: &mmodel.Balance{AccountType: "liability"},
 				},
 			},
@@ -637,16 +637,16 @@ func TestValidateAccountRules(t *testing.T) {
 					},
 				},
 			},
-			validate: &pkgTransaction.Responses{
-				From:                map[string]pkgTransaction.Amount{},
-				To:                  map[string]pkgTransaction.Amount{},
+			validate: &mtransaction.Responses{
+				From:                map[string]mtransaction.Amount{},
+				To:                  map[string]mtransaction.Amount{},
 				OperationRoutesFrom: map[string]string{},
 				OperationRoutesTo:   map[string]string{},
 			},
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias:   "unknown-alias",
-					Amount:  pkgTransaction.Amount{Direction: "debit"},
+					Amount:  mtransaction.Amount{Direction: "debit"},
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
@@ -664,16 +664,16 @@ func TestValidateAccountRules(t *testing.T) {
 					},
 				},
 			},
-			validate: &pkgTransaction.Responses{
-				From:                map[string]pkgTransaction.Amount{"op-alias": {}},
-				To:                  map[string]pkgTransaction.Amount{},
+			validate: &mtransaction.Responses{
+				From:                map[string]mtransaction.Amount{"op-alias": {}},
+				To:                  map[string]mtransaction.Amount{},
 				OperationRoutesFrom: map[string]string{"op-alias": routeID},
 				OperationRoutesTo:   map[string]string{},
 			},
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias:   "op-alias",
-					Amount:  pkgTransaction.Amount{Direction: "debit"},
+					Amount:  mtransaction.Amount{Direction: "debit"},
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
@@ -700,16 +700,16 @@ func TestValidateAccountRules(t *testing.T) {
 					},
 				},
 			},
-			validate: &pkgTransaction.Responses{
-				From:                map[string]pkgTransaction.Amount{"op-alias": {}},
-				To:                  map[string]pkgTransaction.Amount{},
+			validate: &mtransaction.Responses{
+				From:                map[string]mtransaction.Amount{"op-alias": {}},
+				To:                  map[string]mtransaction.Amount{},
 				OperationRoutesFrom: map[string]string{"op-alias": routeID},
 				OperationRoutesTo:   map[string]string{},
 			},
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias:   "op-alias",
-					Amount:  pkgTransaction.Amount{Direction: "debit"},
+					Amount:  mtransaction.Amount{Direction: "debit"},
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
@@ -808,7 +808,7 @@ func TestValidateDirectionRouteMatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			operation := mmodel.BalanceOperation{
 				Alias: "test-alias",
-				Amount: pkgTransaction.Amount{
+				Amount: mtransaction.Amount{
 					Direction: tt.direction,
 				},
 				Balance: &mmodel.Balance{
@@ -837,7 +837,7 @@ func TestValidateDirectionRouteMatch(t *testing.T) {
 	t.Run("ON_HOLD operation skips direction validation", func(t *testing.T) {
 		operation := mmodel.BalanceOperation{
 			Alias: "test-alias",
-			Amount: pkgTransaction.Amount{
+			Amount: mtransaction.Amount{
 				Direction: "credit",
 				Operation: "ON_HOLD",
 			},
@@ -857,7 +857,7 @@ func TestValidateDirectionRouteMatch(t *testing.T) {
 	t.Run("RELEASE operation skips direction validation", func(t *testing.T) {
 		operation := mmodel.BalanceOperation{
 			Alias: "test-alias",
-			Amount: pkgTransaction.Amount{
+			Amount: mtransaction.Amount{
 				Direction: "debit",
 				Operation: "RELEASE",
 			},
@@ -888,13 +888,13 @@ func TestValidateCounterparts(t *testing.T) {
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias: "sender",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "debit",
 					},
 				},
 				{
 					Alias: "receiver",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "credit",
 					},
 				},
@@ -910,13 +910,13 @@ func TestValidateCounterparts(t *testing.T) {
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias: "sender-1",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "debit",
 					},
 				},
 				{
 					Alias: "sender-2",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "debit",
 					},
 				},
@@ -933,13 +933,13 @@ func TestValidateCounterparts(t *testing.T) {
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias: "receiver-1",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "credit",
 					},
 				},
 				{
 					Alias: "receiver-2",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "credit",
 					},
 				},
@@ -956,25 +956,25 @@ func TestValidateCounterparts(t *testing.T) {
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias: "sender-a",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "debit",
 					},
 				},
 				{
 					Alias: "receiver-a",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "credit",
 					},
 				},
 				{
 					Alias: "sender-b",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "debit",
 					},
 				},
 				{
 					Alias: "receiver-b",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "credit",
 					},
 				},
@@ -992,19 +992,19 @@ func TestValidateCounterparts(t *testing.T) {
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias: "sender-a",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "debit",
 					},
 				},
 				{
 					Alias: "receiver-a",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "credit",
 					},
 				},
 				{
 					Alias: "sender-b",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "debit",
 					},
 				},
@@ -1019,13 +1019,13 @@ func TestValidateCounterparts(t *testing.T) {
 		},
 		{
 			name:        "nil routeMap passes with no routes to validate",
-			operations:  []mmodel.BalanceOperation{{Alias: "sender", Amount: pkgTransaction.Amount{Direction: "debit"}}},
+			operations:  []mmodel.BalanceOperation{{Alias: "sender", Amount: mtransaction.Amount{Direction: "debit"}}},
 			routeMap:    nil,
 			expectError: false,
 		},
 		{
 			name:        "empty routeMap passes with no routes to validate",
-			operations:  []mmodel.BalanceOperation{{Alias: "sender", Amount: pkgTransaction.Amount{Direction: "debit"}}},
+			operations:  []mmodel.BalanceOperation{{Alias: "sender", Amount: mtransaction.Amount{Direction: "debit"}}},
 			routeMap:    map[string]string{},
 			expectError: false,
 		},
@@ -1043,13 +1043,13 @@ func TestValidateCounterparts(t *testing.T) {
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias: "sender",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "DEBIT",
 					},
 				},
 				{
 					Alias: "receiver",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "CREDIT",
 					},
 				},
@@ -1065,13 +1065,13 @@ func TestValidateCounterparts(t *testing.T) {
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias: "sender",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "",
 					},
 				},
 				{
 					Alias: "receiver",
-					Amount: pkgTransaction.Amount{
+					Amount: mtransaction.Amount{
 						Direction: "credit",
 					},
 				},

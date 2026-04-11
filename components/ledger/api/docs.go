@@ -8407,14 +8407,32 @@ const docTemplate = `
       }
     },
     "Amount": {
-      "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
+      "description": "Amount is the struct designed to represent the amount of an operation.",
       "type": "object",
+      "required": [
+        "asset",
+        "value"
+      ],
       "properties": {
+        "asset": {
+          "type": "string",
+          "example": "BRL"
+        },
+        "direction": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "routeValidationEnabled": {
+          "type": "boolean"
+        },
+        "transactionType": {
+          "type": "string"
+        },
         "value": {
-          "description": "The amount value in the smallest unit of the asset (e.g., cents)\nexample: 1500\nminimum: 0",
           "type": "number",
-          "minimum": 0,
-          "example": 1500
+          "example": 1000
         }
       }
     },
@@ -9144,13 +9162,190 @@ const docTemplate = `
       }
     },
     "CreateTransactionInflowInput": {
-      "type": "object"
+      "description": "CreateTransactionInflowInput is the input payload to create an inflow transaction. Contains all necessary fields to create a financial transaction without source information, only destination.",
+      "type": "object",
+      "required": [
+        "send"
+      ],
+      "properties": {
+        "chartOfAccountsGroupName": {
+          "description": "Chart of accounts group name for accounting purposes\nexample: FUNDING\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "FUNDING"
+        },
+        "code": {
+          "description": "Transaction code for reference\nexample: TR12345\nmaxLength: 100",
+          "type": "string",
+          "maxLength": 100,
+          "example": "TR12345"
+        },
+        "description": {
+          "description": "Human-readable description of the transaction\nexample: New Transaction\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "New Transaction"
+        },
+        "metadata": {
+          "description": "Additional custom attributes\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}\nswagger:type object",
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "route": {
+          "description": "Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250",
+          "type": "string",
+          "maxLength": 250,
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "routeId": {
+          "description": "UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "send": {
+          "description": "Send operation details including distribution only (no source)\nrequired: true\nswagger:type object",
+          "allOf": [
+            {
+              "$ref": "#/definitions/SendInflow"
+            }
+          ]
+        },
+        "transactionDate": {
+          "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        }
+      }
     },
     "CreateTransactionInput": {
-      "type": "object"
+      "description": "CreateTransactionInput is the input payload to create a transaction. Contains all necessary fields to create a financial transaction, including source and destination information.",
+      "type": "object",
+      "required": [
+        "send"
+      ],
+      "properties": {
+        "chartOfAccountsGroupName": {
+          "description": "Chart of accounts group name for accounting purposes\nexample: FUNDING\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "FUNDING"
+        },
+        "code": {
+          "description": "Transaction code for reference\nexample: TR12345\nmaxLength: 100",
+          "type": "string",
+          "maxLength": 100,
+          "example": "TR12345"
+        },
+        "description": {
+          "description": "Human-readable description of the transaction\nexample: New Transaction\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "New Transaction"
+        },
+        "metadata": {
+          "description": "Additional custom attributes\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}\nswagger:type object",
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "pending": {
+          "description": "Whether the transaction should be created in pending state\nexample: true\nswagger: type boolean",
+          "type": "boolean",
+          "default": false,
+          "example": true
+        },
+        "route": {
+          "description": "Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.\nexample: \"00000000-0000-0000-0000-000000000000\"\nmaxLength: 250",
+          "type": "string",
+          "maxLength": 250,
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "routeId": {
+          "description": "UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "send": {
+          "description": "Send operation details including source and distribution\nrequired: true\nswagger:type object",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Send"
+            }
+          ]
+        },
+        "transactionDate": {
+          "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        }
+      }
     },
     "CreateTransactionOutflowInput": {
-      "type": "object"
+      "description": "CreateTransactionOutflowInput is the input payload to create an outflow transaction. Contains all necessary fields to create a financial transaction with source information only, without destination.",
+      "type": "object",
+      "required": [
+        "send"
+      ],
+      "properties": {
+        "chartOfAccountsGroupName": {
+          "description": "Chart of accounts group name for accounting purposes\nexample: WITHDRAWAL\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "WITHDRAWAL"
+        },
+        "code": {
+          "description": "Transaction code for reference\nexample: TR12345\nmaxLength: 100",
+          "type": "string",
+          "maxLength": 100,
+          "example": "TR12345"
+        },
+        "description": {
+          "description": "Human-readable description of the transaction\nexample: New Outflow Transaction\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "New Outflow Transaction"
+        },
+        "metadata": {
+          "description": "Additional custom attributes\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}\nswagger:type object",
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "pending": {
+          "description": "Whether the transaction should be created in pending state\nexample: true\nswagger: type boolean",
+          "type": "boolean",
+          "default": false,
+          "example": true
+        },
+        "route": {
+          "description": "Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250",
+          "type": "string",
+          "maxLength": 250,
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "routeId": {
+          "description": "UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "send": {
+          "description": "Send operation details including source only (no distribution)\nrequired: true\nswagger:type object",
+          "allOf": [
+            {
+              "$ref": "#/definitions/SendOutflow"
+            }
+          ]
+        },
+        "transactionDate": {
+          "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        }
+      }
     },
     "CreateTransactionRouteInput": {
       "description": "CreateTransactionRouteInput payload",
@@ -9184,6 +9379,24 @@ const docTemplate = `
           "type": "string",
           "maxLength": 255,
           "example": "Charge Settlement"
+        }
+      }
+    },
+    "Distribute": {
+      "description": "Distribute is the struct designed to represent the distribution fields of an operation.",
+      "type": "object",
+      "required": [
+        "to"
+      ],
+      "properties": {
+        "remaining": {
+          "type": "string"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FromTo"
+          }
         }
       }
     },
@@ -9221,6 +9434,60 @@ const docTemplate = `
           "type": "string",
           "maxLength": 100,
           "example": "Bad Request"
+        }
+      }
+    },
+    "FromTo": {
+      "description": "FromTo is the struct designed to represent the from/to fields of an operation.",
+      "type": "object",
+      "properties": {
+        "accountAlias": {
+          "type": "string",
+          "example": "@person1"
+        },
+        "amount": {
+          "$ref": "#/definitions/Amount"
+        },
+        "balanceKey": {
+          "type": "string",
+          "example": "asset-freeze"
+        },
+        "chartOfAccounts": {
+          "type": "string",
+          "example": "1000"
+        },
+        "description": {
+          "type": "string",
+          "example": "description"
+        },
+        "isFrom": {
+          "type": "boolean",
+          "example": true
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "rate": {
+          "$ref": "#/definitions/Rate"
+        },
+        "remaining": {
+          "type": "string",
+          "example": "remaining"
+        },
+        "route": {
+          "description": "Deprecated: passive field kept for backward compatibility. Accepted from client and persisted, but not used in any validation or business logic. Use routeId instead.",
+          "type": "string",
+          "maxLength": 250,
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "routeId": {
+          "description": "UUID of the operation route. Primary field used for route validation and accounting rules.",
+          "type": "string",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "share": {
+          "$ref": "#/definitions/Share"
         }
       }
     },
@@ -9743,6 +10010,34 @@ const docTemplate = `
         }
       }
     },
+    "Rate": {
+      "description": "Rate is the struct designed to represent the rate fields of an operation.",
+      "type": "object",
+      "required": [
+        "externalId",
+        "from",
+        "to",
+        "value"
+      ],
+      "properties": {
+        "externalId": {
+          "type": "string",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "from": {
+          "type": "string",
+          "example": "BRL"
+        },
+        "to": {
+          "type": "string",
+          "example": "USDe"
+        },
+        "value": {
+          "type": "number",
+          "example": 1000
+        }
+      }
+    },
     "Segment": {
       "description": "Segment represents a logical division within a ledger such as a business area, product line, or customer category.",
       "type": "object",
@@ -9801,6 +10096,110 @@ const docTemplate = `
           "type": "string",
           "format": "date-time",
           "example": "2021-01-01T00:00:00Z"
+        }
+      }
+    },
+    "Send": {
+      "description": "Send is the struct designed to represent the sending fields of an operation.",
+      "type": "object",
+      "required": [
+        "asset",
+        "distribute",
+        "source",
+        "value"
+      ],
+      "properties": {
+        "asset": {
+          "type": "string",
+          "example": "BRL"
+        },
+        "distribute": {
+          "$ref": "#/definitions/Distribute"
+        },
+        "source": {
+          "$ref": "#/definitions/Source"
+        },
+        "value": {
+          "type": "number",
+          "example": 1000
+        }
+      }
+    },
+    "SendInflow": {
+      "description": "SendInflow is the struct designed to represent the sending fields of an inflow operation without source information.",
+      "type": "object",
+      "required": [
+        "asset",
+        "distribute",
+        "value"
+      ],
+      "properties": {
+        "asset": {
+          "type": "string",
+          "example": "BRL"
+        },
+        "distribute": {
+          "$ref": "#/definitions/Distribute"
+        },
+        "value": {
+          "type": "number",
+          "example": 1000
+        }
+      }
+    },
+    "SendOutflow": {
+      "description": "SendOutflow is the struct designed to represent the sending fields of an outflow operation without distribution information.",
+      "type": "object",
+      "required": [
+        "asset",
+        "source",
+        "value"
+      ],
+      "properties": {
+        "asset": {
+          "type": "string",
+          "example": "BRL"
+        },
+        "source": {
+          "$ref": "#/definitions/Source"
+        },
+        "value": {
+          "type": "number",
+          "example": 1000
+        }
+      }
+    },
+    "Share": {
+      "description": "Share is the struct designed to represent the sharing fields of an operation.",
+      "type": "object",
+      "required": [
+        "percentage"
+      ],
+      "properties": {
+        "percentage": {
+          "type": "integer"
+        },
+        "percentageOfPercentage": {
+          "type": "integer"
+        }
+      }
+    },
+    "Source": {
+      "description": "Source is the struct designed to represent the source fields of an operation.",
+      "type": "object",
+      "required": [
+        "from"
+      ],
+      "properties": {
+        "from": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FromTo"
+          }
+        },
+        "remaining": {
+          "type": "string",
+          "example": "remaining"
         }
       }
     },

@@ -16,8 +16,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	goldTransaction "github.com/LerianStudio/midaz/v3/pkg/gold/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
@@ -39,7 +39,7 @@ type TransactionHandler struct {
 //	@Param			X-Request-Id	header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			transaction		body		transaction.CreateTransactionInput	true	"Transaction Input"
+//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
 //	@Success		201				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -57,7 +57,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 
 	c.SetUserContext(ctx)
 
-	input := p.(*pkgTransaction.CreateTransactionInput)
+	input := p.(*mtransaction.CreateTransactionInput)
 	transactionInput := input.BuildTransaction()
 
 	logSafePayload(ctx, logger, "Request to create a transaction", transactionInput)
@@ -77,7 +77,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 //	@Param			X-Request-Id	header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			transaction		body		transaction.CreateTransactionInput	true	"Transaction Input"
+//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
 //	@Success		201				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -95,7 +95,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 
 	c.SetUserContext(ctx)
 
-	input := p.(*pkgTransaction.CreateTransactionInput)
+	input := p.(*mtransaction.CreateTransactionInput)
 	transactionInput := input.BuildTransaction()
 
 	logSafePayload(ctx, logger, "Create a transaction annotation without an affected balance", transactionInput)
@@ -115,7 +115,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 //	@Param			X-Request-Id	header		string							false	"Request ID"
 //	@Param			organization_id	path		string							true	"Organization ID"
 //	@Param			ledger_id		path		string							true	"Ledger ID"
-//	@Param			transaction		body		transaction.CreateTransactionInflowInput	true	"Transaction Input"
+//	@Param			transaction		body		mtransaction.CreateTransactionInflowInput	true	"Transaction Input"
 //	@Success		201				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -133,7 +133,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 
 	c.SetUserContext(ctx)
 
-	input := p.(*pkgTransaction.CreateTransactionInflowInput)
+	input := p.(*mtransaction.CreateTransactionInflowInput)
 	transactionInput := input.BuildInflowEntry()
 
 	logSafePayload(ctx, logger, "Request to create a transaction inflow", transactionInput)
@@ -153,7 +153,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 //	@Param			X-Request-Id	header		string								false	"Request ID"
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
-//	@Param			transaction		body		transaction.CreateTransactionOutflowInput	true	"Transaction Input"
+//	@Param			transaction		body		mtransaction.CreateTransactionOutflowInput	true	"Transaction Input"
 //	@Success		201				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -171,7 +171,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 
 	c.SetUserContext(ctx)
 
-	input := p.(*pkgTransaction.CreateTransactionOutflowInput)
+	input := p.(*mtransaction.CreateTransactionOutflowInput)
 	transactionInput := input.BuildOutflowEntry()
 
 	logSafePayload(ctx, logger, "Request to create a transaction outflow", transactionInput)
@@ -249,7 +249,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	parsed := goldTransaction.Parse(dsl)
 
-	transactionInput, ok := parsed.(pkgTransaction.Transaction)
+	transactionInput, ok := parsed.(mtransaction.Transaction)
 	if !ok {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, constant.EntityTransaction)
 

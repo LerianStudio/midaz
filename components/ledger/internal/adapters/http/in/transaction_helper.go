@@ -13,8 +13,8 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 
 	"github.com/gofiber/fiber/v2"
@@ -95,7 +95,7 @@ type balanceRef struct {
 // Alias format arriving from the DSL parser: "index#alias#balanceKey"
 // (e.g. "0#@sender#default", "1#@sender#default" for same account appearing twice).
 // SplitAliasWithKey strips the index prefix, returning "alias#balanceKey" for balance lookup.
-func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *pkgTransaction.Responses, balances []*mmodel.Balance) []mmodel.BalanceOperation {
+func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *mtransaction.Responses, balances []*mmodel.Balance) []mmodel.BalanceOperation {
 	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	// Index balances by aliasKey for O(1) lookup instead of O(balances * entries).
@@ -123,7 +123,7 @@ func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.U
 	ops := make([]mmodel.BalanceOperation, 0, len(validate.From)+len(validate.To))
 
 	for alias, amount := range validate.From {
-		resolvedKey := pkgTransaction.SplitAliasWithKey(alias)
+		resolvedKey := mtransaction.SplitAliasWithKey(alias)
 
 		ref, ok := balanceByAliasKey[resolvedKey]
 		if !ok {
@@ -139,10 +139,10 @@ func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.U
 			libLog.String("alias_balance", resolvedKey),
 			libLog.String("direction", amount.Direction),
 			libLog.String("operation", amount.Operation),
-			libLog.Bool("double_entry", pkgTransaction.IsDoubleEntrySource(amount)))
+			libLog.Bool("double_entry", mtransaction.IsDoubleEntrySource(amount)))
 
-		if pkgTransaction.IsDoubleEntrySource(amount) {
-			op1, op2 := pkgTransaction.SplitDoubleEntryOps(amount)
+		if mtransaction.IsDoubleEntrySource(amount) {
+			op1, op2 := mtransaction.SplitDoubleEntryOps(amount)
 
 			ops = append(ops,
 				mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: op1, InternalKey: ref.internalKey},
@@ -154,7 +154,7 @@ func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.U
 	}
 
 	for alias, amount := range validate.To {
-		resolvedKey := pkgTransaction.SplitAliasWithKey(alias)
+		resolvedKey := mtransaction.SplitAliasWithKey(alias)
 
 		ref, ok := balanceByAliasKey[resolvedKey]
 		if !ok {

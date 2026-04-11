@@ -26,7 +26,7 @@ import (
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
@@ -388,10 +388,10 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 
 		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Using %d materialized operations from backup", len(operations)))
 	} else {
-		var fromTo []pkgTransaction.FromTo
+		var fromTo []mtransaction.FromTo
 
-		fromTo = append(fromTo, pkgTransaction.MutateConcatAliases(m.TransactionInput.Send.Source.From)...)
-		to := pkgTransaction.MutateConcatAliases(m.TransactionInput.Send.Distribute.To)
+		fromTo = append(fromTo, mtransaction.MutateConcatAliases(m.TransactionInput.Send.Source.From)...)
+		to := mtransaction.MutateConcatAliases(m.TransactionInput.Send.Distribute.To)
 
 		if m.TransactionStatus != constant.PENDING && m.TransactionStatus != constant.CANCELED {
 			fromTo = append(fromTo, to...)

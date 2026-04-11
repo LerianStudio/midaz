@@ -19,8 +19,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -405,13 +405,13 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	transactionInput := tran.Body
 
-	pkgTransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
-	pkgTransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
+	mtransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
 
-	var fromTo []pkgTransaction.FromTo
+	var fromTo []mtransaction.FromTo
 
-	fromTo = append(fromTo, pkgTransaction.MutateConcatAliases(transactionInput.Send.Source.From)...)
-	to := pkgTransaction.MutateConcatAliases(transactionInput.Send.Distribute.To)
+	fromTo = append(fromTo, mtransaction.MutateConcatAliases(transactionInput.Send.Source.From)...)
+	to := mtransaction.MutateConcatAliases(transactionInput.Send.Distribute.To)
 
 	if transactionStatus != constant.CANCELED {
 		fromTo = append(fromTo, to...)
@@ -429,7 +429,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
+	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
 
@@ -453,7 +453,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	}
 
 	if ledgerSettings.Accounting.ValidateRoutes {
-		pkgTransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
+		mtransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
 	}
 
 	action := constant.ActionCommit
@@ -503,8 +503,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	balancesBefore, balancesAfter := result.Before, result.After
 
-	fromTo = append(fromTo, pkgTransaction.MutateSplitAliases(transactionInput.Send.Source.From)...)
-	to = pkgTransaction.MutateSplitAliases(transactionInput.Send.Distribute.To)
+	fromTo = append(fromTo, mtransaction.MutateSplitAliases(transactionInput.Send.Source.From)...)
+	to = mtransaction.MutateSplitAliases(transactionInput.Send.Distribute.To)
 
 	if transactionStatus != constant.CANCELED {
 		fromTo = append(fromTo, to...)

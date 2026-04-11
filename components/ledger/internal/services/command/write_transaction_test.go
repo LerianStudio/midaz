@@ -17,7 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -29,8 +29,8 @@ type testData struct {
 	organizationID   uuid.UUID
 	ledgerID         uuid.UUID
 	transactionID    string
-	transactionInput *pkgTransaction.Transaction
-	validate         *pkgTransaction.Responses
+	transactionInput *mtransaction.Transaction
+	validate         *mtransaction.Responses
 	balances         []*mmodel.Balance
 	tran             *transaction.Transaction
 }
@@ -39,17 +39,17 @@ type testData struct {
 func createTestData(organizationID, ledgerID uuid.UUID) *testData {
 	transactionID := uuid.New().String()
 
-	transactionInput := &pkgTransaction.Transaction{}
+	transactionInput := &mtransaction.Transaction{}
 
-	validate := &pkgTransaction.Responses{
+	validate := &mtransaction.Responses{
 		Aliases: []string{"alias1", "alias2"},
-		From: map[string]pkgTransaction.Amount{
+		From: map[string]mtransaction.Amount{
 			"alias1": {
 				Asset: "USD",
 				Value: decimal.NewFromInt(50),
 			},
 		},
-		To: map[string]pkgTransaction.Amount{
+		To: map[string]mtransaction.Amount{
 			"alias2": {
 				Asset: "EUR",
 				Value: decimal.NewFromInt(40),
@@ -571,10 +571,10 @@ func TestWriteTransactionSync(t *testing.T) {
 		transactionID := uuid.New().String()
 
 		// Create minimal test data with single balance
-		transactionInput := &pkgTransaction.Transaction{}
-		validate := &pkgTransaction.Responses{
+		transactionInput := &mtransaction.Transaction{}
+		validate := &mtransaction.Responses{
 			Aliases: []string{"alias1"},
-			From: map[string]pkgTransaction.Amount{
+			From: map[string]mtransaction.Amount{
 				"alias1": {
 					Asset: "USD",
 					Value: decimal.NewFromInt(50),

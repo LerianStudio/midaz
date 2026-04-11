@@ -25,7 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -44,10 +44,10 @@ import (
 // IMPORTANT: This struct must NOT have msgpack tags - it simulates old producers
 // that serialize with field name "ParseDSL" instead of "Input".
 type legacyTransactionQueue struct {
-	Validate    *pkgTransaction.Responses   `json:"validate"`
-	Balances    []*mmodel.Balance           `json:"balances"`
-	Transaction *transaction.Transaction    `json:"transaction"`
-	ParseDSL    *pkgTransaction.Transaction `json:"parseDSL"`
+	Validate    *mtransaction.Responses   `json:"validate"`
+	Balances    []*mmodel.Balance         `json:"balances"`
+	Transaction *transaction.Transaction  `json:"transaction"`
+	ParseDSL    *mtransaction.Transaction `json:"parseDSL"`
 }
 
 // TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility tests the full consumer flow:
@@ -181,12 +181,12 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 		ledgerID := uuid.New()
 		transactionID := uuid.New().String()
 
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			Aliases: []string{"@source#BRL", "@dest#BRL"},
-			From: map[string]pkgTransaction.Amount{
+			From: map[string]mtransaction.Amount{
 				"@source#BRL": {Asset: "BRL", Value: decimal.NewFromInt(100)},
 			},
-			To: map[string]pkgTransaction.Amount{
+			To: map[string]mtransaction.Amount{
 				"@dest#BRL": {Asset: "BRL", Value: decimal.NewFromInt(100)},
 			},
 		}
@@ -222,9 +222,9 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 		}
 
 		// KEY: Use ParseDSL field (old name) - this is what old producers send
-		transactionInput := &pkgTransaction.Transaction{
+		transactionInput := &mtransaction.Transaction{
 			Description: "DSL from old producer",
-			Send: pkgTransaction.Send{
+			Send: mtransaction.Send{
 				Asset: "BRL",
 				Value: decimal.NewFromInt(100),
 			},

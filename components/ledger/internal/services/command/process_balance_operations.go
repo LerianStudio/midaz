@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 )
 
 // ProcessBalanceOperationsInput groups all parameters required by
@@ -25,8 +25,8 @@ type ProcessBalanceOperationsInput struct {
 	OrganizationID    uuid.UUID
 	LedgerID          uuid.UUID
 	TransactionID     uuid.UUID
-	TransactionInput  *pkgTransaction.Transaction // nil skips balance-rule validation (state transitions)
-	Validate          *pkgTransaction.Responses
+	TransactionInput  *mtransaction.Transaction // nil skips balance-rule validation (state transitions)
+	Validate          *mtransaction.Responses
 	BalanceOperations []mmodel.BalanceOperation
 	TransactionStatus string
 }
@@ -68,7 +68,7 @@ func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBa
 	if !skipBalanceValidation {
 		txBalances := deduplicateBalances(input.BalanceOperations)
 
-		if err := pkgTransaction.ValidateBalancesRules(
+		if err := mtransaction.ValidateBalancesRules(
 			ctx,
 			*input.TransactionInput,
 			*input.Validate,
@@ -111,9 +111,9 @@ func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBa
 // len(balances) == len(validate.From) + len(validate.To) relies on this
 // deduplication. This invariant holds because validate.From/To maps use the
 // composite alias as key (one entry per account), not per split operation.
-func deduplicateBalances(operations []mmodel.BalanceOperation) []*pkgTransaction.Balance {
+func deduplicateBalances(operations []mmodel.BalanceOperation) []*mtransaction.Balance {
 	seen := make(map[string]bool, len(operations))
-	balances := make([]*pkgTransaction.Balance, 0, len(operations))
+	balances := make([]*mtransaction.Balance, 0, len(operations))
 
 	for _, bo := range operations {
 		if seen[bo.Alias] {

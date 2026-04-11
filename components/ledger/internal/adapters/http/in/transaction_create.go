@@ -23,8 +23,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -35,10 +35,10 @@ import (
 func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
 	balances []*mmodel.Balance,
-	fromTo []pkgTransaction.FromTo,
-	transactionInput pkgTransaction.Transaction,
+	fromTo []mtransaction.FromTo,
+	transactionInput mtransaction.Transaction,
 	tran transaction.Transaction,
-	validate *pkgTransaction.Responses,
+	validate *mtransaction.Responses,
 	transactionDate time.Time,
 	isAnnotation bool,
 	routeValidationEnabled bool,
@@ -71,7 +71,7 @@ func (handler *TransactionHandler) BuildOperations(
 
 				preBalances = append(preBalances, blc)
 
-				amt, bat, err := pkgTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ToTransactionBalance())
+				amt, bat, err := mtransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ToTransactionBalance())
 				if err != nil {
 					libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 
@@ -253,11 +253,11 @@ func zeroAnnotationBalances(balance, balanceAfter *operation.Balance) {
 func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	ctx context.Context,
 	blc *mmodel.Balance,
-	ft pkgTransaction.FromTo,
-	amt pkgTransaction.Amount,
-	_ pkgTransaction.Balance,
+	ft mtransaction.FromTo,
+	amt mtransaction.Amount,
+	_ mtransaction.Balance,
 	tran transaction.Transaction,
-	transactionInput pkgTransaction.Transaction,
+	transactionInput mtransaction.Transaction,
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, error) {
@@ -312,7 +312,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		BalanceAfter:    debitBalanceAfter,
 		BalanceID:       blc.ID,
 		AccountID:       blc.AccountID,
-		AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
+		AccountAlias:    mtransaction.SplitAlias(blc.Alias),
 		BalanceKey:      blc.Key,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
@@ -364,7 +364,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		BalanceAfter:    onholdBalanceAfter,
 		BalanceID:       blc.ID,
 		AccountID:       blc.AccountID,
-		AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
+		AccountAlias:    mtransaction.SplitAlias(blc.Alias),
 		BalanceKey:      blc.Key,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
@@ -388,11 +388,11 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 	ctx context.Context,
 	blc *mmodel.Balance,
-	ft pkgTransaction.FromTo,
-	amt pkgTransaction.Amount,
-	_ pkgTransaction.Balance,
+	ft mtransaction.FromTo,
+	amt mtransaction.Amount,
+	_ mtransaction.Balance,
 	tran transaction.Transaction,
-	transactionInput pkgTransaction.Transaction,
+	transactionInput mtransaction.Transaction,
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, error) {
@@ -447,7 +447,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		BalanceAfter:    releaseBalanceAfter,
 		BalanceID:       blc.ID,
 		AccountID:       blc.AccountID,
-		AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
+		AccountAlias:    mtransaction.SplitAlias(blc.Alias),
 		BalanceKey:      blc.Key,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
@@ -499,7 +499,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		BalanceAfter:    creditBalanceAfter,
 		BalanceID:       blc.ID,
 		AccountID:       blc.AccountID,
-		AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
+		AccountAlias:    mtransaction.SplitAlias(blc.Alias),
 		BalanceKey:      blc.Key,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
@@ -521,11 +521,11 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 func (handler *TransactionHandler) tryBuildDoubleEntryOps(
 	ctx context.Context,
 	blc *mmodel.Balance,
-	ft pkgTransaction.FromTo,
-	amt pkgTransaction.Amount,
-	bat pkgTransaction.Balance,
+	ft mtransaction.FromTo,
+	amt mtransaction.Amount,
+	bat mtransaction.Balance,
 	tran transaction.Transaction,
-	transactionInput pkgTransaction.Transaction,
+	transactionInput mtransaction.Transaction,
 	transactionDate time.Time,
 	isAnnotation bool,
 	routeValidationEnabled bool,
@@ -536,7 +536,7 @@ func (handler *TransactionHandler) tryBuildDoubleEntryOps(
 		return nil, false, nil
 	}
 
-	if !pkgTransaction.IsDoubleEntrySource(amt) {
+	if !mtransaction.IsDoubleEntrySource(amt) {
 		return nil, false, nil
 	}
 
@@ -572,11 +572,11 @@ func (handler *TransactionHandler) tryBuildDoubleEntryOps(
 // buildStandardOp creates a single operation for a standard (non-double-entry) balance entry.
 func (handler *TransactionHandler) buildStandardOp(
 	blc *mmodel.Balance,
-	ft pkgTransaction.FromTo,
-	amt pkgTransaction.Amount,
-	bat pkgTransaction.Balance,
+	ft mtransaction.FromTo,
+	amt mtransaction.Amount,
+	bat mtransaction.Balance,
 	tran transaction.Transaction,
-	transactionInput pkgTransaction.Transaction,
+	transactionInput mtransaction.Transaction,
 	transactionDate time.Time,
 	isAnnotation bool,
 ) (*operation.Operation, error) {
@@ -622,7 +622,7 @@ func (handler *TransactionHandler) buildStandardOp(
 		BalanceAfter:    balanceAfter,
 		BalanceID:       blc.ID,
 		AccountID:       blc.AccountID,
-		AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
+		AccountAlias:    mtransaction.SplitAlias(blc.Alias),
 		BalanceKey:      blc.Key,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
@@ -637,18 +637,18 @@ func (handler *TransactionHandler) buildStandardOp(
 }
 
 // createTransaction creates a new transaction with the given status.
-func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string) error {
+func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string) error {
 	return handler.executeCreateTransaction(c, transactionInput, transactionStatus, false)
 }
 
 // createRevertTransaction creates a reversal transaction. The action is forced
 // to "revert" so that accounting route lookups use the revert rubrics instead
 // of the status-derived action.
-func (handler *TransactionHandler) createRevertTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string) error {
+func (handler *TransactionHandler) createRevertTransaction(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string) error {
 	return handler.executeCreateTransaction(c, transactionInput, transactionStatus, true)
 }
 
-func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string, isRevert bool) error {
+func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool) error {
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -668,7 +668,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
-	transactionDate, err := pkgTransaction.CheckTransactionDate(ctx, transactionInput, transactionStatus)
+	transactionDate, err := mtransaction.CheckTransactionDate(ctx, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction date validation failed", err)
 
@@ -685,13 +685,13 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
-	pkgTransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
-	pkgTransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
+	mtransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
 
-	var fromTo []pkgTransaction.FromTo
+	var fromTo []mtransaction.FromTo
 
-	fromTo = append(fromTo, pkgTransaction.MutateConcatAliases(transactionInput.Send.Source.From)...)
-	to := pkgTransaction.MutateConcatAliases(transactionInput.Send.Distribute.To)
+	fromTo = append(fromTo, mtransaction.MutateConcatAliases(transactionInput.Send.Source.From)...)
+	to := mtransaction.MutateConcatAliases(transactionInput.Send.Distribute.To)
 
 	if transactionStatus != constant.PENDING {
 		fromTo = append(fromTo, to...)
@@ -717,7 +717,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.Created(c, *idempotencyResult.Replay)
 	}
 
-	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
+	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
@@ -740,10 +740,10 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 	}
 
 	if ledgerSettings.Accounting.ValidateRoutes {
-		pkgTransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
+		mtransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
 	}
 
-	action := pkgTransaction.StatusToAction(transactionStatus)
+	action := mtransaction.StatusToAction(transactionStatus)
 	if isRevert {
 		action = constant.ActionRevert
 	}
@@ -804,8 +804,8 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 
 	balancesBefore, balancesAfter := result.Before, result.After
 
-	fromTo = append(fromTo, pkgTransaction.MutateSplitAliases(transactionInput.Send.Source.From)...)
-	to = pkgTransaction.MutateSplitAliases(transactionInput.Send.Distribute.To)
+	fromTo = append(fromTo, mtransaction.MutateSplitAliases(transactionInput.Send.Source.From)...)
+	to = mtransaction.MutateSplitAliases(transactionInput.Send.Distribute.To)
 
 	if transactionStatus != constant.PENDING {
 		fromTo = append(fromTo, to...)

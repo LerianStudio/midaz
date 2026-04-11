@@ -39,8 +39,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	mongotestutil "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
 	postgrestestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
@@ -165,7 +165,7 @@ func (infra *testInfra) setupRoutes() {
 	}
 
 	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json",
-		paramMiddleware, http.WithBody(new(pkgTransaction.CreateTransactionInput), infra.handler.CreateTransactionJSON))
+		paramMiddleware, http.WithBody(new(mtransaction.CreateTransactionInput), infra.handler.CreateTransactionJSON))
 	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit",
 		paramMiddleware, infra.handler.CommitTransaction)
 	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel",
@@ -699,7 +699,7 @@ func (infra *testAsyncInfra) setupRoutes() {
 	}
 
 	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json",
-		paramMiddleware, http.WithBody(new(pkgTransaction.CreateTransactionInput), infra.handler.CreateTransactionJSON))
+		paramMiddleware, http.WithBody(new(mtransaction.CreateTransactionInput), infra.handler.CreateTransactionJSON))
 	infra.app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id",
 		paramMiddleware, infra.handler.GetTransaction)
 }

@@ -19,8 +19,8 @@ import (
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/repository"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -118,7 +118,7 @@ func TestCreateBulkTransactionOperationsAsync_SingleTransaction_Success(t *testi
 
 	payload := transaction.TransactionProcessingPayload{
 		Transaction: tx,
-		Validate: &pkgTransaction.Responses{
+		Validate: &mtransaction.Responses{
 			Aliases: []string{"alias1"},
 		},
 		Balances: []*mmodel.Balance{
@@ -241,7 +241,7 @@ func TestCreateBulkTransactionOperationsAsync_MultipleTransactions_Success(t *te
 					{ID: uuid.New().String(), TransactionID: transactionID},
 				},
 			},
-			Validate: &pkgTransaction.Responses{
+			Validate: &mtransaction.Responses{
 				Aliases: []string{"alias1"},
 			},
 			Balances: []*mmodel.Balance{
@@ -333,7 +333,7 @@ func TestCreateBulkTransactionOperationsAsync_WithDuplicates(t *testing.T) {
 				{ID: uuid.New().String(), TransactionID: transactionID},
 			},
 		},
-		Validate:      &pkgTransaction.Responses{Aliases: []string{"alias1"}},
+		Validate:      &mtransaction.Responses{Aliases: []string{"alias1"}},
 		Balances:      []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(100)}},
 		BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
 	}
@@ -414,7 +414,7 @@ func TestCreateBulkTransactionOperationsAsync_StatusTransition_BelowThreshold(t 
 			Status:         transaction.Status{Code: constant.APPROVED},
 			Operations:     []*operation.Operation{},
 		},
-		Validate: &pkgTransaction.Responses{
+		Validate: &mtransaction.Responses{
 			Aliases: []string{"alias1"},
 			Pending: true, // This indicates a pending transaction being updated
 		},
@@ -497,7 +497,7 @@ func TestCreateBulkTransactionOperationsAsync_BulkInsertFails_UsesFallback(t *te
 				{ID: operationID, TransactionID: transactionID},
 			},
 		},
-		Validate:      &pkgTransaction.Responses{Aliases: []string{"alias1"}},
+		Validate:      &mtransaction.Responses{Aliases: []string{"alias1"}},
 		Balances:      []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(100)}},
 		BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
 	}
@@ -597,7 +597,7 @@ func TestClassifyAndExtractEntities_SeparatesInsertsAndUpdates(t *testing.T) {
 				ID:     uuid.New().String(),
 				Status: transaction.Status{Code: constant.APPROVED},
 			},
-			Validate: &pkgTransaction.Responses{Pending: true},
+			Validate: &mtransaction.Responses{Pending: true},
 		},
 		// Update: pending -> canceled
 		{
@@ -605,7 +605,7 @@ func TestClassifyAndExtractEntities_SeparatesInsertsAndUpdates(t *testing.T) {
 				ID:     uuid.New().String(),
 				Status: transaction.Status{Code: constant.CANCELED},
 			},
-			Validate: &pkgTransaction.Responses{Pending: true},
+			Validate: &mtransaction.Responses{Pending: true},
 		},
 	}
 
@@ -631,7 +631,7 @@ func TestIsStatusTransition(t *testing.T) {
 				Transaction: &transaction.Transaction{
 					Status: transaction.Status{Code: constant.APPROVED},
 				},
-				Validate: &pkgTransaction.Responses{Pending: true},
+				Validate: &mtransaction.Responses{Pending: true},
 			},
 			expected: true,
 		},
@@ -641,7 +641,7 @@ func TestIsStatusTransition(t *testing.T) {
 				Transaction: &transaction.Transaction{
 					Status: transaction.Status{Code: constant.CANCELED},
 				},
-				Validate: &pkgTransaction.Responses{Pending: true},
+				Validate: &mtransaction.Responses{Pending: true},
 			},
 			expected: true,
 		},
@@ -670,7 +670,7 @@ func TestIsStatusTransition(t *testing.T) {
 				Transaction: &transaction.Transaction{
 					Status: transaction.Status{Code: constant.APPROVED},
 				},
-				Validate: &pkgTransaction.Responses{Pending: false},
+				Validate: &mtransaction.Responses{Pending: false},
 			},
 			expected: false,
 		},
@@ -845,7 +845,7 @@ func TestCreateBulkTransactionOperationsAsync_BalanceUpdateFails_UsesFallback(t 
 				{ID: operationID, TransactionID: transactionID},
 			},
 		},
-		Validate:      &pkgTransaction.Responses{Aliases: []string{"alias1"}},
+		Validate:      &mtransaction.Responses{Aliases: []string{"alias1"}},
 		Balances:      []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(100)}},
 		BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
 	}
@@ -932,7 +932,7 @@ func TestCreateBulkTransactionOperationsAsync_StatusTransition_AboveThreshold_Us
 				Status:         transaction.Status{Code: constant.APPROVED},
 				Operations:     []*operation.Operation{}, // No operations for status transitions
 			},
-			Validate: &pkgTransaction.Responses{
+			Validate: &mtransaction.Responses{
 				Aliases: []string{"alias1"},
 				Pending: true, // This indicates a pending transaction being updated
 			},
@@ -977,7 +977,7 @@ func TestClassifyAndExtractEntities_DoesNotMutateOriginal(t *testing.T) {
 	uc := &UseCase{}
 
 	// Create payload with a populated Body field
-	originalBody := pkgTransaction.Transaction{
+	originalBody := mtransaction.Transaction{
 		ChartOfAccountsGroupName: "test-chart-group",
 		Description:              "Original description that should be preserved",
 	}
@@ -1108,7 +1108,7 @@ func TestClassifyAndExtractEntities_CollectsOperationsForStatusTransitions(t *te
 					{ID: op2ID, TransactionID: transactionID},
 				},
 			},
-			Validate: &pkgTransaction.Responses{Pending: true},
+			Validate: &mtransaction.Responses{Pending: true},
 		},
 	}
 
@@ -1168,7 +1168,7 @@ func TestClassifyAndExtractEntities_MixedBatch_CollectsAllOperations(t *testing.
 					{ID: op3ID, TransactionID: tx2ID},
 				},
 			},
-			Validate: &pkgTransaction.Responses{Pending: true},
+			Validate: &mtransaction.Responses{Pending: true},
 		},
 	}
 

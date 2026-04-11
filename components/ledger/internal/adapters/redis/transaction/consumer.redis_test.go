@@ -13,7 +13,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -348,7 +348,7 @@ func createBalanceOperation(organizationID, ledgerID uuid.UUID, alias, assetCode
 			UpdatedAt:      time.Now(),
 		},
 		Alias: alias,
-		Amount: pkgTransaction.Amount{
+		Amount: mtransaction.Amount{
 			Asset:     assetCode,
 			Value:     amount,
 			Operation: operation,

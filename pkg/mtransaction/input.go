@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package transaction
+package mtransaction
 
 import (
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -38,7 +38,7 @@ type CreateTransactionInput struct {
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	// swagger:type object
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 
 	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: "00000000-0000-0000-0000-000000000000"
@@ -119,7 +119,7 @@ type CreateTransactionInflowInput struct {
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	// swagger:type object
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 
 	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
@@ -210,7 +210,7 @@ type CreateTransactionOutflowInput struct {
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	// swagger:type object
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 
 	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000

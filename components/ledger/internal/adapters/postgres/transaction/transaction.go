@@ -14,7 +14,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/google/uuid"
 )
 
@@ -30,23 +30,23 @@ type CountFilter struct {
 //
 // @Description Database model for storing transaction information in PostgreSQL
 type TransactionPostgreSQLModel struct {
-	ID                       string                      // Unique identifier (UUID format)
-	ParentTransactionID      *string                     // Parent transaction ID (for reversals or child transactions)
-	Description              string                      // Human-readable description
-	Status                   string                      // Status code (e.g., "ACTIVE", "PENDING")
-	StatusDescription        *string                     // Status description
-	Amount                   *decimal.Decimal            // Transaction amount value
-	AssetCode                string                      // Asset code for the transaction
-	ChartOfAccountsGroupName string                      // Chart of accounts group name for accounting
-	LedgerID                 string                      // Ledger ID
-	OrganizationID           string                      // Organization ID
-	Body                     *pkgTransaction.Transaction // Transaction body containing detailed operation data
-	CreatedAt                time.Time                   // Creation timestamp
-	UpdatedAt                time.Time                   // Last update timestamp
-	DeletedAt                sql.NullTime                // Deletion timestamp (if soft-deleted)
-	Route                    *string                     // Deprecated: legacy route identifier. Use RouteID instead.
-	RouteID                  *string                     // UUID of the transaction route (FK to transaction_route.id)
-	Metadata                 map[string]any              // Additional custom attributes
+	ID                       string                    // Unique identifier (UUID format)
+	ParentTransactionID      *string                   // Parent transaction ID (for reversals or child transactions)
+	Description              string                    // Human-readable description
+	Status                   string                    // Status code (e.g., "ACTIVE", "PENDING")
+	StatusDescription        *string                   // Status description
+	Amount                   *decimal.Decimal          // Transaction amount value
+	AssetCode                string                    // Asset code for the transaction
+	ChartOfAccountsGroupName string                    // Chart of accounts group name for accounting
+	LedgerID                 string                    // Ledger ID
+	OrganizationID           string                    // Organization ID
+	Body                     *mtransaction.Transaction // Transaction body containing detailed operation data
+	CreatedAt                time.Time                 // Creation timestamp
+	UpdatedAt                time.Time                 // Last update timestamp
+	DeletedAt                sql.NullTime              // Deletion timestamp (if soft-deleted)
+	Route                    *string                   // Deprecated: legacy route identifier. Use RouteID instead.
+	RouteID                  *string                   // UUID of the transaction route (FK to transaction_route.id)
+	Metadata                 map[string]any            // Additional custom attributes
 }
 
 // Status structure for marshaling/unmarshalling JSON.
@@ -163,7 +163,7 @@ type Transaction struct {
 	OrganizationID string `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// Transaction body containing detailed operation data (not exposed in JSON)
-	Body pkgTransaction.Transaction `json:"-"`
+	Body mtransaction.Transaction `json:"-"`
 
 	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
@@ -289,13 +289,13 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 // Original CREDIT operations become sources (from) and original DEBIT operations
 // become destinations (to). Direction is intentionally omitted because
 // CalculateTotal re-derives it via DetermineOperation based on IsFrom.
-func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
+func (t Transaction) TransactionRevert() mtransaction.Transaction {
 	if t.Amount == nil {
-		return pkgTransaction.Transaction{}
+		return mtransaction.Transaction{}
 	}
 
-	froms := make([]pkgTransaction.FromTo, 0)
-	tos := make([]pkgTransaction.FromTo, 0)
+	froms := make([]mtransaction.FromTo, 0)
+	tos := make([]mtransaction.FromTo, 0)
 
 	for _, op := range t.Operations {
 		if op.Amount.Value == nil {
@@ -307,10 +307,10 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 		// only status eligible for revert (guarded upstream).  ONHOLD and
 		// RELEASE are excluded because they belong to PENDING flows.
 		case constant.CREDIT:
-			froms = append(froms, pkgTransaction.FromTo{
+			froms = append(froms, mtransaction.FromTo{
 				IsFrom:          true,
 				AccountAlias:    op.AccountAlias,
-				Amount:          &pkgTransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
+				Amount:          &mtransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
@@ -318,10 +318,10 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 				RouteID:         op.RouteID,
 			})
 		case constant.DEBIT:
-			tos = append(tos, pkgTransaction.FromTo{
+			tos = append(tos, mtransaction.FromTo{
 				IsFrom:          false,
 				AccountAlias:    op.AccountAlias,
-				Amount:          &pkgTransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
+				Amount:          &mtransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
@@ -331,18 +331,18 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 		}
 	}
 
-	send := pkgTransaction.Send{
+	send := mtransaction.Send{
 		Asset: t.AssetCode,
 		Value: *t.Amount,
-		Source: pkgTransaction.Source{
+		Source: mtransaction.Source{
 			From: froms,
 		},
-		Distribute: pkgTransaction.Distribute{
+		Distribute: mtransaction.Distribute{
 			To: tos,
 		},
 	}
 
-	transaction := pkgTransaction.Transaction{
+	transaction := mtransaction.Transaction{
 		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
 		Description:              t.Description,
 		Pending:                  false,
@@ -364,7 +364,7 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 // @Description Container for transaction data exchanged via message queues.
 type TransactionProcessingPayload struct {
 	// Validation responses from the transaction processing
-	Validate *pkgTransaction.Responses `json:"validate" msgpack:"Validate"`
+	Validate *mtransaction.Responses `json:"validate" msgpack:"Validate"`
 
 	// Account balances affected by the transaction (BEFORE state)
 	Balances []*mmodel.Balance `json:"balances" msgpack:"Balances"`
@@ -379,7 +379,7 @@ type TransactionProcessingPayload struct {
 	Transaction *Transaction `json:"transaction" msgpack:"Transaction"`
 
 	// Input transaction data (renamed from ParseDSL for clarity)
-	Input *pkgTransaction.Transaction `json:"input" msgpack:"ParseDSL"`
+	Input *mtransaction.Transaction `json:"input" msgpack:"ParseDSL"`
 }
 
 // TransactionResponse represents a success response containing a single transaction.

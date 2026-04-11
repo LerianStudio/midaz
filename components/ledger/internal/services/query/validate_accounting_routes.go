@@ -15,7 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/google/uuid"
 )
 
@@ -58,7 +58,7 @@ import (
 // Reverts pass through this method with action "revert", which looks up revert-specific
 // route entries. Before reaching this point, the handler (RevertTransaction) pre-validates
 // that all operation routes are bidirectional — a requirement for reversals.
-func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *pkgTransaction.Responses, action string) (*mmodel.TransactionRouteCache, error) {
+func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *mtransaction.Responses, action string) (*mmodel.TransactionRouteCache, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
@@ -126,7 +126,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	// The destination doesn't participate in cancel (release is source-only).
 	validateFrom := validate
 	if actionRoutes.isSourceOnly {
-		validateFrom = &pkgTransaction.Responses{
+		validateFrom = &mtransaction.Responses{
 			From:                validate.From,
 			OperationRoutesFrom: validate.OperationRoutesFrom,
 		}
@@ -144,7 +144,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 // routes used matches the expected count from the route cache, and that every
 // bidirectional route shared between from and to sides has both a debit and a
 // credit counterpart.
-func validateRouteCountAndCounterparts(validate *pkgTransaction.Responses, routes actionRoutesResult, operations []mmodel.BalanceOperation) error {
+func validateRouteCountAndCounterparts(validate *mtransaction.Responses, routes actionRoutesResult, operations []mmodel.BalanceOperation) error {
 	uniqueFromCount := uniqueValues(validate.OperationRoutesFrom)
 	uniqueToCount := uniqueValues(validate.OperationRoutesTo)
 
@@ -203,7 +203,7 @@ func validateRouteCountAndCounterparts(validate *pkgTransaction.Responses, route
 // validateOperationRouteIDs checks that every operation entry has a non-empty
 // route ID. For source-only actions (e.g. cancel), only From routes are checked
 // since the destination side does not participate.
-func validateOperationRouteIDs(validate *pkgTransaction.Responses, isSourceOnly bool) error {
+func validateOperationRouteIDs(validate *mtransaction.Responses, isSourceOnly bool) error {
 	for alias, routeID := range validate.OperationRoutesFrom {
 		if routeID == "" {
 			return pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, constant.EntityOperationRoute, routeID, alias)
@@ -263,7 +263,7 @@ func resolveActionRoutes(cache mmodel.TransactionRouteCache, action string) (act
 // validated response. It prefers the new routeId field and falls back to the
 // deprecated route string. Returns an error if neither is set or the value
 // is not a valid UUID.
-func resolveTransactionRouteID(validate *pkgTransaction.Responses) (uuid.UUID, error) {
+func resolveTransactionRouteID(validate *mtransaction.Responses) (uuid.UUID, error) {
 	if !libCommons.IsNilOrEmpty(validate.TransactionRouteID) {
 		id, err := uuid.Parse(*validate.TransactionRouteID)
 		if err != nil {
@@ -288,7 +288,7 @@ func resolveTransactionRouteID(validate *pkgTransaction.Responses) (uuid.UUID, e
 // validateAccountRules validates each operation against its corresponding route rule.
 // Route existence, direction matching, and account rules (alias/account_type) are
 // always enforced when validateRoutes is active.
-func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, bidirectionalRoutes map[string]mmodel.OperationRouteCache, validate *pkgTransaction.Responses, operations []mmodel.BalanceOperation) error {
+func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, bidirectionalRoutes map[string]mmodel.OperationRouteCache, validate *mtransaction.Responses, operations []mmodel.BalanceOperation) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "usecase.validate_account_rules")
@@ -372,7 +372,7 @@ func validateSingleOperationRule(op mmodel.BalanceOperation, account *mmodel.Acc
 			return pkg.ValidateBusinessError(constant.ErrCorruptedAccountRule, constant.EntityAccountRule)
 		}
 
-		alias := pkgTransaction.SplitAlias(op.Alias)
+		alias := mtransaction.SplitAlias(op.Alias)
 
 		if alias != expected {
 			return pkg.ValidateBusinessError(

@@ -18,7 +18,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 )
 
 func TestBuildParentTransactionID(t *testing.T) {
@@ -127,12 +127,12 @@ func TestReadPathParams(t *testing.T) {
 func TestApplyDefaultBalanceKeys(t *testing.T) {
 	t.Parallel()
 
-	entries := []pkgTransaction.FromTo{
+	entries := []mtransaction.FromTo{
 		{AccountAlias: "@origin", BalanceKey: ""},
 		{AccountAlias: "@destination", BalanceKey: "custom-key"},
 	}
 
-	pkgTransaction.ApplyDefaultBalanceKeys(entries)
+	mtransaction.ApplyDefaultBalanceKeys(entries)
 
 	assert.Equal(t, constant.DefaultBalanceKey, entries[0].BalanceKey)
 	assert.Equal(t, "custom-key", entries[1].BalanceKey)
@@ -147,15 +147,15 @@ func TestBuildBalanceOperations(t *testing.T) {
 	t.Run("builds operations from From entries", func(t *testing.T) {
 		t.Parallel()
 
-		fromAmount := pkgTransaction.Amount{
+		fromAmount := mtransaction.Amount{
 			Asset:     "USD",
 			Value:     decimal.NewFromFloat(50),
 			Operation: constant.DEBIT,
 		}
 
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			Aliases: []string{"alias1#default"},
-			From: map[string]pkgTransaction.Amount{
+			From: map[string]mtransaction.Amount{
 				"0#alias1#default": fromAmount,
 			},
 		}
@@ -187,7 +187,7 @@ func TestBuildBalanceOperations(t *testing.T) {
 	t.Run("builds double-entry split operations", func(t *testing.T) {
 		t.Parallel()
 
-		fromAmount := pkgTransaction.Amount{
+		fromAmount := mtransaction.Amount{
 			Asset:                  "USD",
 			Value:                  decimal.NewFromFloat(50),
 			Operation:              constant.ONHOLD,
@@ -195,9 +195,9 @@ func TestBuildBalanceOperations(t *testing.T) {
 			RouteValidationEnabled: true,
 		}
 
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			Aliases: []string{"alias1#default"},
-			From: map[string]pkgTransaction.Amount{
+			From: map[string]mtransaction.Amount{
 				"0#alias1#default": fromAmount,
 			},
 		}
@@ -228,16 +228,16 @@ func TestBuildBalanceOperations(t *testing.T) {
 	t.Run("sorts operations by internal key", func(t *testing.T) {
 		t.Parallel()
 
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			Aliases: []string{"zeta#default", "alpha#default"},
-			From: map[string]pkgTransaction.Amount{
+			From: map[string]mtransaction.Amount{
 				"0#zeta#default": {
 					Asset:     "USD",
 					Value:     decimal.NewFromFloat(10),
 					Operation: constant.DEBIT,
 				},
 			},
-			To: map[string]pkgTransaction.Amount{
+			To: map[string]mtransaction.Amount{
 				"0#alpha#default": {
 					Asset:     "USD",
 					Value:     decimal.NewFromFloat(10),

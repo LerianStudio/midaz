@@ -29,8 +29,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -332,15 +332,15 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 			amount := decimal.NewFromInt(1000)
-			txBody := pkgTransaction.Transaction{
-				Send: pkgTransaction.Send{
-					Source: pkgTransaction.Source{
-						From: []pkgTransaction.FromTo{
+			txBody := mtransaction.Transaction{
+				Send: mtransaction.Send{
+					Source: mtransaction.Source{
+						From: []mtransaction.FromTo{
 							{AccountAlias: "@acc1"},
 						},
 					},
-					Distribute: pkgTransaction.Distribute{
-						To: []pkgTransaction.FromTo{
+					Distribute: mtransaction.Distribute{
+						To: []mtransaction.FromTo{
 							{AccountAlias: "@acc2"},
 						},
 					},
@@ -866,7 +866,7 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 		Status: transaction.Status{
 			Code: cn.APPROVED,
 		},
-		Body: pkgTransaction.Transaction{},
+		Body: mtransaction.Transaction{},
 	}
 
 	// Mock: No existing revert (parent lookup returns nil)
@@ -1470,15 +1470,15 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	amount := decimal.NewFromInt(1000)
-	txBody := pkgTransaction.Transaction{
-		Send: pkgTransaction.Send{
+	txBody := mtransaction.Transaction{
+		Send: mtransaction.Send{
 			Asset: "USD",
 			Value: amount,
-			Source: pkgTransaction.Source{
-				From: []pkgTransaction.FromTo{{AccountAlias: "@acc1"}},
+			Source: mtransaction.Source{
+				From: []mtransaction.FromTo{{AccountAlias: "@acc1"}},
 			},
-			Distribute: pkgTransaction.Distribute{
-				To: []pkgTransaction.FromTo{{AccountAlias: "@acc2"}},
+			Distribute: mtransaction.Distribute{
+				To: []mtransaction.FromTo{{AccountAlias: "@acc2"}},
 			},
 		},
 	}
@@ -1582,15 +1582,15 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	amount := decimal.NewFromInt(1000)
-	txBody := pkgTransaction.Transaction{
-		Send: pkgTransaction.Send{
+	txBody := mtransaction.Transaction{
+		Send: mtransaction.Send{
 			Asset: "USD",
 			Value: amount,
-			Source: pkgTransaction.Source{
-				From: []pkgTransaction.FromTo{{AccountAlias: "@acc1"}},
+			Source: mtransaction.Source{
+				From: []mtransaction.FromTo{{AccountAlias: "@acc1"}},
 			},
-			Distribute: pkgTransaction.Distribute{
-				To: []pkgTransaction.FromTo{{AccountAlias: "@acc2"}},
+			Distribute: mtransaction.Distribute{
+				To: []mtransaction.FromTo{{AccountAlias: "@acc2"}},
 			},
 		},
 	}
@@ -1706,7 +1706,7 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				http.WithBody(new(pkgTransaction.CreateTransactionInput), handler.CreateTransactionJSON),
+				http.WithBody(new(mtransaction.CreateTransactionInput), handler.CreateTransactionJSON),
 			)
 
 			// Build request body with non-positive value
@@ -1785,7 +1785,7 @@ func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				http.WithBody(new(pkgTransaction.CreateTransactionInflowInput), handler.CreateTransactionInflow),
+				http.WithBody(new(mtransaction.CreateTransactionInflowInput), handler.CreateTransactionInflow),
 			)
 
 			// Build request body with non-positive value (inflow has no source, only distribute.to)
@@ -1861,7 +1861,7 @@ func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				http.WithBody(new(pkgTransaction.CreateTransactionOutflowInput), handler.CreateTransactionOutflow),
+				http.WithBody(new(mtransaction.CreateTransactionOutflowInput), handler.CreateTransactionOutflow),
 			)
 
 			// Build request body with non-positive value (outflow has no distribute.to, only source.from)
@@ -2408,7 +2408,7 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				http.WithBody(new(pkgTransaction.CreateTransactionInput), handler.CreateTransactionAnnotation),
+				http.WithBody(new(mtransaction.CreateTransactionInput), handler.CreateTransactionAnnotation),
 			)
 
 			// Build request body with non-positive value
@@ -2700,15 +2700,15 @@ func TestCancelTransaction(t *testing.T) {
 			name: "transaction not PENDING returns 422",
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				amount := decimal.NewFromInt(1000)
-				txBody := pkgTransaction.Transaction{
-					Send: pkgTransaction.Send{
-						Source: pkgTransaction.Source{
-							From: []pkgTransaction.FromTo{
+				txBody := mtransaction.Transaction{
+					Send: mtransaction.Send{
+						Source: mtransaction.Source{
+							From: []mtransaction.FromTo{
 								{AccountAlias: "@acc1"},
 							},
 						},
-						Distribute: pkgTransaction.Distribute{
-							To: []pkgTransaction.FromTo{
+						Distribute: mtransaction.Distribute{
+							To: []mtransaction.FromTo{
 								{AccountAlias: "@acc2"},
 							},
 						},
@@ -2764,15 +2764,15 @@ func TestCancelTransaction(t *testing.T) {
 			name: "Redis lock failure returns 500",
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				amount := decimal.NewFromInt(1000)
-				txBody := pkgTransaction.Transaction{
-					Send: pkgTransaction.Send{
-						Source: pkgTransaction.Source{
-							From: []pkgTransaction.FromTo{
+				txBody := mtransaction.Transaction{
+					Send: mtransaction.Send{
+						Source: mtransaction.Source{
+							From: []mtransaction.FromTo{
 								{AccountAlias: "@acc1"},
 							},
 						},
-						Distribute: pkgTransaction.Distribute{
-							To: []pkgTransaction.FromTo{
+						Distribute: mtransaction.Distribute{
+							To: []mtransaction.FromTo{
 								{AccountAlias: "@acc2"},
 							},
 						},
@@ -2825,15 +2825,15 @@ func TestCancelTransaction(t *testing.T) {
 			name: "lock already acquired by another process returns 422",
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				amount := decimal.NewFromInt(1000)
-				txBody := pkgTransaction.Transaction{
-					Send: pkgTransaction.Send{
-						Source: pkgTransaction.Source{
-							From: []pkgTransaction.FromTo{
+				txBody := mtransaction.Transaction{
+					Send: mtransaction.Send{
+						Source: mtransaction.Source{
+							From: []mtransaction.FromTo{
 								{AccountAlias: "@acc1"},
 							},
 						},
-						Distribute: pkgTransaction.Distribute{
-							To: []pkgTransaction.FromTo{
+						Distribute: mtransaction.Distribute{
+							To: []mtransaction.FromTo{
 								{AccountAlias: "@acc2"},
 							},
 						},
@@ -3376,15 +3376,15 @@ func TestPropagateRouteValidation(t *testing.T) {
 	tests := []struct {
 		name              string
 		isPending         bool
-		from              map[string]pkgTransaction.Amount
-		to                map[string]pkgTransaction.Amount
+		from              map[string]mtransaction.Amount
+		to                map[string]mtransaction.Amount
 		expectedFromFlags map[string]bool
 		expectedToFlags   map[string]bool
 	}{
 		{
 			name:      "pending transaction sets RouteValidationEnabled on all From entries",
 			isPending: true,
-			from: map[string]pkgTransaction.Amount{
+			from: map[string]mtransaction.Amount{
 				"@source1": {
 					Value:     decimal.NewFromInt(500),
 					Operation: libConstants.ONHOLD,
@@ -3394,7 +3394,7 @@ func TestPropagateRouteValidation(t *testing.T) {
 					Operation: libConstants.ONHOLD,
 				},
 			},
-			to: map[string]pkgTransaction.Amount{
+			to: map[string]mtransaction.Amount{
 				"@dest1": {
 					Value:     decimal.NewFromInt(1000),
 					Operation: libConstants.CREDIT,
@@ -3411,13 +3411,13 @@ func TestPropagateRouteValidation(t *testing.T) {
 		{
 			name:      "non-pending transaction does not set RouteValidationEnabled",
 			isPending: false,
-			from: map[string]pkgTransaction.Amount{
+			from: map[string]mtransaction.Amount{
 				"@source1": {
 					Value:     decimal.NewFromInt(1000),
 					Operation: libConstants.DEBIT,
 				},
 			},
-			to: map[string]pkgTransaction.Amount{
+			to: map[string]mtransaction.Amount{
 				"@dest1": {
 					Value:     decimal.NewFromInt(1000),
 					Operation: libConstants.CREDIT,
@@ -3433,22 +3433,22 @@ func TestPropagateRouteValidation(t *testing.T) {
 		{
 			name:              "pending transaction with empty From map is a no-op",
 			isPending:         true,
-			from:              map[string]pkgTransaction.Amount{},
-			to:                map[string]pkgTransaction.Amount{},
+			from:              map[string]mtransaction.Amount{},
+			to:                map[string]mtransaction.Amount{},
 			expectedFromFlags: map[string]bool{},
 			expectedToFlags:   map[string]bool{},
 		},
 		{
 			name:      "pending transaction with single From entry",
 			isPending: true,
-			from: map[string]pkgTransaction.Amount{
+			from: map[string]mtransaction.Amount{
 				"@source1": {
 					Value:                  decimal.NewFromInt(100),
 					Operation:              libConstants.ONHOLD,
 					RouteValidationEnabled: false,
 				},
 			},
-			to: map[string]pkgTransaction.Amount{},
+			to: map[string]mtransaction.Amount{},
 			expectedFromFlags: map[string]bool{
 				"@source1": true,
 			},
@@ -3462,7 +3462,7 @@ func TestPropagateRouteValidation(t *testing.T) {
 
 			ctx := context.Background()
 
-			validate := &pkgTransaction.Responses{
+			validate := &mtransaction.Responses{
 				From: tt.from,
 				To:   tt.to,
 			}
@@ -3472,7 +3472,7 @@ func TestPropagateRouteValidation(t *testing.T) {
 				transactionStatus = cn.PENDING
 			}
 
-			pkgTransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
+			mtransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
 
 			for key, expectedFlag := range tt.expectedFromFlags {
 				amt, exists := validate.From[key]
@@ -3497,11 +3497,11 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 	tests := []struct {
 		name               string
 		balance            *mmodel.Balance
-		fromTo             pkgTransaction.FromTo
-		amount             pkgTransaction.Amount
-		balanceAfter       pkgTransaction.Balance
+		fromTo             mtransaction.FromTo
+		amount             mtransaction.Amount
+		balanceAfter       mtransaction.Balance
 		tran               transaction.Transaction
-		transactionInput   pkgTransaction.Transaction
+		transactionInput   mtransaction.Transaction
 		isAnnotation       bool
 		expectedOpCount    int
 		expectedOp1Type    string
@@ -3522,19 +3522,19 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 				OnHold:         decimal.NewFromInt(0),
 				Version:        5,
 			},
-			fromTo: pkgTransaction.FromTo{
+			fromTo: mtransaction.FromTo{
 				AccountAlias: "@source1",
 				BalanceKey:   "default",
 				IsFrom:       true,
 				Description:  "test operation",
 			},
-			amount: pkgTransaction.Amount{
+			amount: mtransaction.Amount{
 				Value:                  decimal.NewFromInt(300),
 				Operation:              libConstants.ONHOLD,
 				TransactionType:        cn.PENDING,
 				RouteValidationEnabled: true,
 			},
-			balanceAfter: pkgTransaction.Balance{
+			balanceAfter: mtransaction.Balance{
 				Available: decimal.NewFromInt(700),
 				OnHold:    decimal.NewFromInt(300),
 				Version:   7,
@@ -3544,9 +3544,9 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 				OrganizationID: uuid.New().String(),
 				LedgerID:       uuid.New().String(),
 			},
-			transactionInput: pkgTransaction.Transaction{
+			transactionInput: mtransaction.Transaction{
 				Pending: true,
-				Send:    pkgTransaction.Send{Asset: "BRL"},
+				Send:    mtransaction.Send{Asset: "BRL"},
 			},
 			isAnnotation:       false,
 			expectedOpCount:    2,
@@ -3568,18 +3568,18 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 				OnHold:         decimal.NewFromInt(0),
 				Version:        5,
 			},
-			fromTo: pkgTransaction.FromTo{
+			fromTo: mtransaction.FromTo{
 				AccountAlias: "@source1",
 				BalanceKey:   "default",
 				IsFrom:       true,
 			},
-			amount: pkgTransaction.Amount{
+			amount: mtransaction.Amount{
 				Value:                  decimal.NewFromInt(200),
 				Operation:              libConstants.ONHOLD,
 				TransactionType:        cn.PENDING,
 				RouteValidationEnabled: true,
 			},
-			balanceAfter: pkgTransaction.Balance{
+			balanceAfter: mtransaction.Balance{
 				Available: decimal.NewFromInt(800),
 				OnHold:    decimal.NewFromInt(200),
 				Version:   7,
@@ -3589,10 +3589,10 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 				OrganizationID: uuid.New().String(),
 				LedgerID:       uuid.New().String(),
 			},
-			transactionInput: pkgTransaction.Transaction{
+			transactionInput: mtransaction.Transaction{
 				Pending:     true,
 				Description: "annotation test",
-				Send:        pkgTransaction.Send{Asset: "BRL"},
+				Send:        mtransaction.Send{Asset: "BRL"},
 			},
 			isAnnotation:    true,
 			expectedOpCount: 2,
@@ -3612,19 +3612,19 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 				OnHold:         decimal.NewFromInt(0),
 				Version:        1,
 			},
-			fromTo: pkgTransaction.FromTo{
+			fromTo: mtransaction.FromTo{
 				AccountAlias: "@source1",
 				BalanceKey:   "default",
 				IsFrom:       true,
 				Description:  "",
 			},
-			amount: pkgTransaction.Amount{
+			amount: mtransaction.Amount{
 				Value:                  decimal.NewFromInt(100),
 				Operation:              libConstants.ONHOLD,
 				TransactionType:        cn.PENDING,
 				RouteValidationEnabled: true,
 			},
-			balanceAfter: pkgTransaction.Balance{
+			balanceAfter: mtransaction.Balance{
 				Available: decimal.NewFromInt(400),
 				OnHold:    decimal.NewFromInt(100),
 				Version:   3,
@@ -3634,10 +3634,10 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 				OrganizationID: uuid.New().String(),
 				LedgerID:       uuid.New().String(),
 			},
-			transactionInput: pkgTransaction.Transaction{
+			transactionInput: mtransaction.Transaction{
 				Pending:     true,
 				Description: "fallback description",
-				Send:        pkgTransaction.Send{Asset: "USD"},
+				Send:        mtransaction.Send{Asset: "USD"},
 			},
 			isAnnotation:    false,
 			expectedOpCount: 2,
@@ -3766,8 +3766,8 @@ func TestPropagateRouteValidation_Canceled(t *testing.T) {
 		name              string
 		isPending         bool
 		transactionStatus string
-		from              map[string]pkgTransaction.Amount
-		to                map[string]pkgTransaction.Amount
+		from              map[string]mtransaction.Amount
+		to                map[string]mtransaction.Amount
 		expectedFromFlags map[string]bool
 		expectedToFlags   map[string]bool
 	}{
@@ -3775,13 +3775,13 @@ func TestPropagateRouteValidation_Canceled(t *testing.T) {
 			name:              "canceled transaction sets RouteValidationEnabled on all From entries",
 			isPending:         false,
 			transactionStatus: cn.CANCELED,
-			from: map[string]pkgTransaction.Amount{
+			from: map[string]mtransaction.Amount{
 				"@source1": {
 					Value:     decimal.NewFromInt(500),
 					Operation: libConstants.RELEASE,
 				},
 			},
-			to: map[string]pkgTransaction.Amount{
+			to: map[string]mtransaction.Amount{
 				"@dest1": {
 					Value:     decimal.NewFromInt(500),
 					Operation: libConstants.CREDIT,
@@ -3798,7 +3798,7 @@ func TestPropagateRouteValidation_Canceled(t *testing.T) {
 			name:              "canceled transaction with multiple From entries sets flag on all",
 			isPending:         false,
 			transactionStatus: cn.CANCELED,
-			from: map[string]pkgTransaction.Amount{
+			from: map[string]mtransaction.Amount{
 				"@source1": {
 					Value:     decimal.NewFromInt(300),
 					Operation: libConstants.RELEASE,
@@ -3812,7 +3812,7 @@ func TestPropagateRouteValidation_Canceled(t *testing.T) {
 					Operation: libConstants.RELEASE,
 				},
 			},
-			to: map[string]pkgTransaction.Amount{},
+			to: map[string]mtransaction.Amount{},
 			expectedFromFlags: map[string]bool{
 				"@source1": true,
 				"@source2": true,
@@ -3824,13 +3824,13 @@ func TestPropagateRouteValidation_Canceled(t *testing.T) {
 			name:              "APPROVED transaction sets RouteValidationEnabled on From entries",
 			isPending:         false,
 			transactionStatus: cn.APPROVED,
-			from: map[string]pkgTransaction.Amount{
+			from: map[string]mtransaction.Amount{
 				"@source1": {
 					Value:     decimal.NewFromInt(100),
 					Operation: libConstants.DEBIT,
 				},
 			},
-			to: map[string]pkgTransaction.Amount{
+			to: map[string]mtransaction.Amount{
 				"@dest1": {
 					Value:     decimal.NewFromInt(100),
 					Operation: libConstants.CREDIT,
@@ -3847,13 +3847,13 @@ func TestPropagateRouteValidation_Canceled(t *testing.T) {
 			name:              "CREATED transaction does NOT set RouteValidationEnabled",
 			isPending:         false,
 			transactionStatus: cn.CREATED,
-			from: map[string]pkgTransaction.Amount{
+			from: map[string]mtransaction.Amount{
 				"@source1": {
 					Value:     decimal.NewFromInt(100),
 					Operation: libConstants.DEBIT,
 				},
 			},
-			to:                map[string]pkgTransaction.Amount{},
+			to:                map[string]mtransaction.Amount{},
 			expectedFromFlags: map[string]bool{"@source1": false},
 			expectedToFlags:   map[string]bool{},
 		},
@@ -3861,8 +3861,8 @@ func TestPropagateRouteValidation_Canceled(t *testing.T) {
 			name:              "canceled transaction with empty From map is a no-op",
 			isPending:         false,
 			transactionStatus: cn.CANCELED,
-			from:              map[string]pkgTransaction.Amount{},
-			to:                map[string]pkgTransaction.Amount{},
+			from:              map[string]mtransaction.Amount{},
+			to:                map[string]mtransaction.Amount{},
 			expectedFromFlags: map[string]bool{},
 			expectedToFlags:   map[string]bool{},
 		},
@@ -3874,12 +3874,12 @@ func TestPropagateRouteValidation_Canceled(t *testing.T) {
 
 			ctx := context.Background()
 
-			validate := &pkgTransaction.Responses{
+			validate := &mtransaction.Responses{
 				From: tt.from,
 				To:   tt.to,
 			}
 
-			pkgTransaction.PropagateRouteValidation(ctx, validate, tt.transactionStatus)
+			mtransaction.PropagateRouteValidation(ctx, validate, tt.transactionStatus)
 
 			for key, expectedFlag := range tt.expectedFromFlags {
 				amt, exists := validate.From[key]
@@ -3904,11 +3904,11 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 	tests := []struct {
 		name               string
 		balance            *mmodel.Balance
-		fromTo             pkgTransaction.FromTo
-		amount             pkgTransaction.Amount
-		balanceAfter       pkgTransaction.Balance
+		fromTo             mtransaction.FromTo
+		amount             mtransaction.Amount
+		balanceAfter       mtransaction.Balance
 		tran               transaction.Transaction
-		transactionInput   pkgTransaction.Transaction
+		transactionInput   mtransaction.Transaction
 		isAnnotation       bool
 		expectedOpCount    int
 		expectedOp1Type    string
@@ -3929,19 +3929,19 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				OnHold:         decimal.NewFromInt(300),
 				Version:        7,
 			},
-			fromTo: pkgTransaction.FromTo{
+			fromTo: mtransaction.FromTo{
 				AccountAlias: "@source1",
 				BalanceKey:   "default",
 				IsFrom:       true,
 				Description:  "canceled operation",
 			},
-			amount: pkgTransaction.Amount{
+			amount: mtransaction.Amount{
 				Value:                  decimal.NewFromInt(300),
 				Operation:              libConstants.RELEASE,
 				TransactionType:        cn.CANCELED,
 				RouteValidationEnabled: true,
 			},
-			balanceAfter: pkgTransaction.Balance{
+			balanceAfter: mtransaction.Balance{
 				Available: decimal.NewFromInt(800),
 				OnHold:    decimal.NewFromInt(0),
 				Version:   10,
@@ -3951,9 +3951,9 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				OrganizationID: uuid.New().String(),
 				LedgerID:       uuid.New().String(),
 			},
-			transactionInput: pkgTransaction.Transaction{
+			transactionInput: mtransaction.Transaction{
 				Pending: false,
-				Send:    pkgTransaction.Send{Asset: "BRL"},
+				Send:    mtransaction.Send{Asset: "BRL"},
 			},
 			isAnnotation:       false,
 			expectedOpCount:    2,
@@ -3975,18 +3975,18 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				OnHold:         decimal.NewFromInt(300),
 				Version:        7,
 			},
-			fromTo: pkgTransaction.FromTo{
+			fromTo: mtransaction.FromTo{
 				AccountAlias: "@source1",
 				BalanceKey:   "default",
 				IsFrom:       true,
 			},
-			amount: pkgTransaction.Amount{
+			amount: mtransaction.Amount{
 				Value:                  decimal.NewFromInt(300),
 				Operation:              libConstants.RELEASE,
 				TransactionType:        cn.CANCELED,
 				RouteValidationEnabled: true,
 			},
-			balanceAfter: pkgTransaction.Balance{
+			balanceAfter: mtransaction.Balance{
 				Available: decimal.NewFromInt(800),
 				OnHold:    decimal.NewFromInt(0),
 				Version:   10,
@@ -3996,10 +3996,10 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				OrganizationID: uuid.New().String(),
 				LedgerID:       uuid.New().String(),
 			},
-			transactionInput: pkgTransaction.Transaction{
+			transactionInput: mtransaction.Transaction{
 				Pending:     false,
 				Description: "annotation canceled",
-				Send:        pkgTransaction.Send{Asset: "BRL"},
+				Send:        mtransaction.Send{Asset: "BRL"},
 			},
 			isAnnotation:    true,
 			expectedOpCount: 2,
@@ -4019,19 +4019,19 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				OnHold:         decimal.NewFromInt(200),
 				Version:        1,
 			},
-			fromTo: pkgTransaction.FromTo{
+			fromTo: mtransaction.FromTo{
 				AccountAlias: "@source1",
 				BalanceKey:   "default",
 				IsFrom:       true,
 				Description:  "",
 			},
-			amount: pkgTransaction.Amount{
+			amount: mtransaction.Amount{
 				Value:                  decimal.NewFromInt(200),
 				Operation:              libConstants.RELEASE,
 				TransactionType:        cn.CANCELED,
 				RouteValidationEnabled: true,
 			},
-			balanceAfter: pkgTransaction.Balance{
+			balanceAfter: mtransaction.Balance{
 				Available: decimal.NewFromInt(1200),
 				OnHold:    decimal.NewFromInt(0),
 				Version:   4,
@@ -4041,10 +4041,10 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				OrganizationID: uuid.New().String(),
 				LedgerID:       uuid.New().String(),
 			},
-			transactionInput: pkgTransaction.Transaction{
+			transactionInput: mtransaction.Transaction{
 				Pending:     false,
 				Description: "fallback canceled description",
-				Send:        pkgTransaction.Send{Asset: "USD"},
+				Send:        mtransaction.Send{Asset: "USD"},
 			},
 			isAnnotation:    false,
 			expectedOpCount: 2,
@@ -4064,19 +4064,19 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				OnHold:         decimal.NewFromInt(500),
 				Version:        5,
 			},
-			fromTo: pkgTransaction.FromTo{
+			fromTo: mtransaction.FromTo{
 				AccountAlias: "@source1",
 				BalanceKey:   "default",
 				IsFrom:       true,
 				Description:  "zero amount test",
 			},
-			amount: pkgTransaction.Amount{
+			amount: mtransaction.Amount{
 				Value:                  decimal.NewFromInt(0),
 				Operation:              libConstants.RELEASE,
 				TransactionType:        cn.CANCELED,
 				RouteValidationEnabled: true,
 			},
-			balanceAfter: pkgTransaction.Balance{
+			balanceAfter: mtransaction.Balance{
 				Available: decimal.NewFromInt(1000),
 				OnHold:    decimal.NewFromInt(500),
 				Version:   7,
@@ -4086,9 +4086,9 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				OrganizationID: uuid.New().String(),
 				LedgerID:       uuid.New().String(),
 			},
-			transactionInput: pkgTransaction.Transaction{
+			transactionInput: mtransaction.Transaction{
 				Pending: false,
-				Send:    pkgTransaction.Send{Asset: "BRL"},
+				Send:    mtransaction.Send{Asset: "BRL"},
 			},
 			isAnnotation:       false,
 			expectedOpCount:    2,
@@ -4110,19 +4110,19 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				OnHold:         decimal.NewFromInt(100),
 				Version:        0,
 			},
-			fromTo: pkgTransaction.FromTo{
+			fromTo: mtransaction.FromTo{
 				AccountAlias: "@source1",
 				BalanceKey:   "default",
 				IsFrom:       true,
 				Description:  "version zero test",
 			},
-			amount: pkgTransaction.Amount{
+			amount: mtransaction.Amount{
 				Value:                  decimal.NewFromInt(100),
 				Operation:              libConstants.RELEASE,
 				TransactionType:        cn.CANCELED,
 				RouteValidationEnabled: true,
 			},
-			balanceAfter: pkgTransaction.Balance{
+			balanceAfter: mtransaction.Balance{
 				Available: decimal.NewFromInt(200),
 				OnHold:    decimal.NewFromInt(0),
 				Version:   2,
@@ -4132,9 +4132,9 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				OrganizationID: uuid.New().String(),
 				LedgerID:       uuid.New().String(),
 			},
-			transactionInput: pkgTransaction.Transaction{
+			transactionInput: mtransaction.Transaction{
 				Pending: false,
-				Send:    pkgTransaction.Send{Asset: "BRL"},
+				Send:    mtransaction.Send{Asset: "BRL"},
 			},
 			isAnnotation:       false,
 			expectedOpCount:    2,
@@ -4280,7 +4280,7 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 		LedgerID:       uuid.New().String(),
 	}
 
-	baseBalanceAfter := pkgTransaction.Balance{
+	baseBalanceAfter := mtransaction.Balance{
 		Available: decimal.NewFromInt(800),
 		OnHold:    decimal.NewFromInt(400),
 		Version:   7,
@@ -4288,9 +4288,9 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 
 	tests := []struct {
 		name                   string
-		ft                     pkgTransaction.FromTo
-		amt                    pkgTransaction.Amount
-		transactionInput       pkgTransaction.Transaction
+		ft                     mtransaction.FromTo
+		amt                    mtransaction.Amount
+		transactionInput       mtransaction.Transaction
 		routeValidationEnabled bool
 		processedDoubleEntry   map[string]bool
 		fromToIndex            int
@@ -4299,19 +4299,19 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 	}{
 		{
 			name: "returns (nil, false) when routeValidationEnabled is false",
-			ft: pkgTransaction.FromTo{
+			ft: mtransaction.FromTo{
 				AccountAlias: "@source1",
 				BalanceKey:   "default",
 				IsFrom:       true,
 			},
-			amt: pkgTransaction.Amount{
+			amt: mtransaction.Amount{
 				Value:           decimal.NewFromInt(100),
 				Operation:       libConstants.ONHOLD,
 				TransactionType: cn.PENDING,
 			},
-			transactionInput: pkgTransaction.Transaction{
+			transactionInput: mtransaction.Transaction{
 				Pending: true,
-				Send:    pkgTransaction.Send{Asset: "USD"},
+				Send:    mtransaction.Send{Asset: "USD"},
 			},
 			routeValidationEnabled: false,
 			processedDoubleEntry:   make(map[string]bool),
@@ -4320,19 +4320,19 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 		},
 		{
 			name: "returns (nil, false) when IsFrom is false",
-			ft: pkgTransaction.FromTo{
+			ft: mtransaction.FromTo{
 				AccountAlias: "@dest1",
 				BalanceKey:   "default",
 				IsFrom:       false,
 			},
-			amt: pkgTransaction.Amount{
+			amt: mtransaction.Amount{
 				Value:           decimal.NewFromInt(100),
 				Operation:       libConstants.ONHOLD,
 				TransactionType: cn.PENDING,
 			},
-			transactionInput: pkgTransaction.Transaction{
+			transactionInput: mtransaction.Transaction{
 				Pending: true,
-				Send:    pkgTransaction.Send{Asset: "USD"},
+				Send:    mtransaction.Send{Asset: "USD"},
 			},
 			routeValidationEnabled: true,
 			processedDoubleEntry:   make(map[string]bool),
@@ -4341,20 +4341,20 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 		},
 		{
 			name: "returns (nil, true) for already-processed alias (deduplication)",
-			ft: pkgTransaction.FromTo{
+			ft: mtransaction.FromTo{
 				AccountAlias: "@source1",
 				BalanceKey:   "default",
 				IsFrom:       true,
 			},
-			amt: pkgTransaction.Amount{
+			amt: mtransaction.Amount{
 				Value:                  decimal.NewFromInt(100),
 				Operation:              libConstants.ONHOLD,
 				TransactionType:        cn.PENDING,
 				RouteValidationEnabled: true,
 			},
-			transactionInput: pkgTransaction.Transaction{
+			transactionInput: mtransaction.Transaction{
 				Pending: true,
-				Send:    pkgTransaction.Send{Asset: "USD"},
+				Send:    mtransaction.Send{Asset: "USD"},
 			},
 			routeValidationEnabled: true,
 			processedDoubleEntry:   map[string]bool{"@source1#0": true},
@@ -4364,18 +4364,18 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 		},
 		{
 			name: "returns (nil, false) for non-double-entry operation (DEBIT+CREATED)",
-			ft: pkgTransaction.FromTo{
+			ft: mtransaction.FromTo{
 				AccountAlias: "@source1",
 				BalanceKey:   "default",
 				IsFrom:       true,
 			},
-			amt: pkgTransaction.Amount{
+			amt: mtransaction.Amount{
 				Value:           decimal.NewFromInt(100),
 				Operation:       cn.DEBIT,
 				TransactionType: cn.CREATED,
 			},
-			transactionInput: pkgTransaction.Transaction{
-				Send: pkgTransaction.Send{Asset: "USD"},
+			transactionInput: mtransaction.Transaction{
+				Send: mtransaction.Send{Asset: "USD"},
 			},
 			routeValidationEnabled: true,
 			processedDoubleEntry:   make(map[string]bool),
@@ -4384,20 +4384,20 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 		},
 		{
 			name: "dispatches to pending path for PENDING+ONHOLD",
-			ft: pkgTransaction.FromTo{
+			ft: mtransaction.FromTo{
 				AccountAlias: "@source1",
 				BalanceKey:   "default",
 				IsFrom:       true,
 			},
-			amt: pkgTransaction.Amount{
+			amt: mtransaction.Amount{
 				Value:                  decimal.NewFromInt(100),
 				Operation:              libConstants.ONHOLD,
 				TransactionType:        cn.PENDING,
 				RouteValidationEnabled: true,
 			},
-			transactionInput: pkgTransaction.Transaction{
+			transactionInput: mtransaction.Transaction{
 				Pending: true,
-				Send:    pkgTransaction.Send{Asset: "USD"},
+				Send:    mtransaction.Send{Asset: "USD"},
 			},
 			routeValidationEnabled: true,
 			processedDoubleEntry:   make(map[string]bool),
@@ -4406,19 +4406,19 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 		},
 		{
 			name: "dispatches to canceled path for CANCELED+RELEASE",
-			ft: pkgTransaction.FromTo{
+			ft: mtransaction.FromTo{
 				AccountAlias: "@source1",
 				BalanceKey:   "default",
 				IsFrom:       true,
 			},
-			amt: pkgTransaction.Amount{
+			amt: mtransaction.Amount{
 				Value:                  decimal.NewFromInt(100),
 				Operation:              cn.RELEASE,
 				TransactionType:        cn.CANCELED,
 				RouteValidationEnabled: true,
 			},
-			transactionInput: pkgTransaction.Transaction{
-				Send: pkgTransaction.Send{Asset: "USD"},
+			transactionInput: mtransaction.Transaction{
+				Send: mtransaction.Send{Asset: "USD"},
 			},
 			routeValidationEnabled: true,
 			processedDoubleEntry:   make(map[string]bool),
@@ -4427,20 +4427,20 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 		},
 		{
 			name: "allows second entry for same alias with different fromToIndex (transfer+fee)",
-			ft: pkgTransaction.FromTo{
+			ft: mtransaction.FromTo{
 				AccountAlias: "@source1",
 				BalanceKey:   "default",
 				IsFrom:       true,
 			},
-			amt: pkgTransaction.Amount{
+			amt: mtransaction.Amount{
 				Value:                  decimal.NewFromInt(50),
 				Operation:              libConstants.ONHOLD,
 				TransactionType:        cn.PENDING,
 				RouteValidationEnabled: true,
 			},
-			transactionInput: pkgTransaction.Transaction{
+			transactionInput: mtransaction.Transaction{
 				Pending: true,
-				Send:    pkgTransaction.Send{Asset: "USD"},
+				Send:    mtransaction.Send{Asset: "USD"},
 			},
 			routeValidationEnabled: true,
 			processedDoubleEntry:   map[string]bool{"@source1#0": true},

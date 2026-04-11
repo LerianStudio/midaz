@@ -11,7 +11,7 @@ import (
 
 	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -160,11 +160,11 @@ func TestTransactionPostgreSQLModel_ToEntity(t *testing.T) {
 				AssetCode:      "USD",
 				LedgerID:       ledgerID,
 				OrganizationID: organizationID,
-				Body: &pkgTransaction.Transaction{
+				Body: &mtransaction.Transaction{
 					ChartOfAccountsGroupName: "FUNDING",
 					Description:              "Body description",
 					Code:                     "TX-001",
-					Send: pkgTransaction.Send{
+					Send: mtransaction.Send{
 						Asset: "USD",
 						Value: decimal.NewFromInt(500),
 					},
@@ -200,10 +200,10 @@ func TestTransactionPostgreSQLModel_ToEntity(t *testing.T) {
 				ChartOfAccountsGroupName: "EXPENSES",
 				LedgerID:                 ledgerID,
 				OrganizationID:           organizationID,
-				Body: &pkgTransaction.Transaction{
+				Body: &mtransaction.Transaction{
 					ChartOfAccountsGroupName: "EXPENSES",
 					Description:              "Full body",
-					Send: pkgTransaction.Send{
+					Send: mtransaction.Send{
 						Asset: "USD",
 						Value: decimal.NewFromInt(1000),
 					},
@@ -346,10 +346,10 @@ func TestTransactionPostgreSQLModel_FromEntity(t *testing.T) {
 				Description: "With body",
 				Status:      Status{Code: "ACTIVE"},
 				AssetCode:   "USD",
-				Body: pkgTransaction.Transaction{
+				Body: mtransaction.Transaction{
 					ChartOfAccountsGroupName: "FUNDING",
 					Description:              "Body content",
-					Send: pkgTransaction.Send{
+					Send: mtransaction.Send{
 						Asset: "USD",
 						Value: decimal.NewFromInt(100),
 					},
@@ -485,11 +485,11 @@ func TestTransactionPostgreSQLModel_RoundTrip(t *testing.T) {
 		LedgerID:                 ledgerID,
 		OrganizationID:           organizationID,
 		Route:                    "route-roundtrip",
-		Body: pkgTransaction.Transaction{
+		Body: mtransaction.Transaction{
 			ChartOfAccountsGroupName: "FUNDING",
 			Description:              "Round trip body",
 			Code:                     "RT-001",
-			Send: pkgTransaction.Send{
+			Send: mtransaction.Send{
 				Asset: "USD",
 				Value: decimal.NewFromInt(2500),
 			},
@@ -578,7 +578,7 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 	tests := []struct {
 		name        string
 		transaction Transaction
-		validate    func(t *testing.T, result pkgTransaction.Transaction)
+		validate    func(t *testing.T, result mtransaction.Transaction)
 	}{
 		{
 			name: "revert transaction with credit operations becomes from",
@@ -602,7 +602,7 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+			validate: func(t *testing.T, result mtransaction.Transaction) {
 				assert.Equal(t, "Original credit transaction", result.Description)
 				assert.Equal(t, "REVENUE", result.ChartOfAccountsGroupName)
 				assert.False(t, result.Pending, "Reversal should not be pending")
@@ -641,7 +641,7 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+			validate: func(t *testing.T, result mtransaction.Transaction) {
 				assert.Equal(t, "Original debit transaction", result.Description)
 				assert.False(t, result.Pending)
 
@@ -693,7 +693,7 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+			validate: func(t *testing.T, result mtransaction.Transaction) {
 				assert.Equal(t, "Mixed operations transaction", result.Description)
 				assert.Equal(t, "BRL", result.Send.Asset)
 				assert.True(t, result.Send.Value.Equal(totalAmount))
@@ -710,7 +710,7 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 				require.Len(t, result.Send.Distribute.To, 2)
 
 				// Find the specific To entries
-				toAliases := make(map[string]pkgTransaction.FromTo)
+				toAliases := make(map[string]mtransaction.FromTo)
 				for _, to := range result.Send.Distribute.To {
 					toAliases[to.AccountAlias] = to
 				}
@@ -729,7 +729,7 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 				Amount:      &amount100,
 				Operations:  []*operation.Operation{},
 			},
-			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+			validate: func(t *testing.T, result mtransaction.Transaction) {
 				assert.Equal(t, "Empty operations", result.Description)
 				assert.Equal(t, "EUR", result.Send.Asset)
 				assert.Empty(t, result.Send.Source.From)
@@ -822,7 +822,7 @@ func TestTransactionRevert_RoutePreservation(t *testing.T) {
 	tests := []struct {
 		name        string
 		transaction Transaction
-		validate    func(t *testing.T, result pkgTransaction.Transaction)
+		validate    func(t *testing.T, result mtransaction.Transaction)
 	}{
 		{
 			name: "route from CREDIT operation preserved in reversed FromTo",
@@ -840,7 +840,7 @@ func TestTransactionRevert_RoutePreservation(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+			validate: func(t *testing.T, result mtransaction.Transaction) {
 				require.Len(t, result.Send.Source.From, 1)
 				assert.Equal(t, routeID, result.Send.Source.From[0].Route,
 					"Route should be preserved in reversed FromTo")
@@ -862,7 +862,7 @@ func TestTransactionRevert_RoutePreservation(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+			validate: func(t *testing.T, result mtransaction.Transaction) {
 				require.Len(t, result.Send.Distribute.To, 1)
 				assert.Equal(t, routeID, result.Send.Distribute.To[0].Route,
 					"Route should be preserved in reversed FromTo")
@@ -883,7 +883,7 @@ func TestTransactionRevert_RoutePreservation(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+			validate: func(t *testing.T, result mtransaction.Transaction) {
 				require.Len(t, result.Send.Source.From, 1)
 				assert.Empty(t, result.Send.Source.From[0].Route,
 					"Route should be empty when not set on original operation")
@@ -905,7 +905,7 @@ func TestTransactionRevert_RoutePreservation(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+			validate: func(t *testing.T, result mtransaction.Transaction) {
 				require.Len(t, result.Send.Source.From, 1)
 				require.NotNil(t, result.Send.Source.From[0].RouteID,
 					"RouteID should not be nil")
@@ -929,7 +929,7 @@ func TestTransactionRevert_RoutePreservation(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+			validate: func(t *testing.T, result mtransaction.Transaction) {
 				require.Len(t, result.Send.Distribute.To, 1)
 				require.NotNil(t, result.Send.Distribute.To[0].RouteID,
 					"RouteID should not be nil")
@@ -952,7 +952,7 @@ func TestTransactionRevert_RoutePreservation(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+			validate: func(t *testing.T, result mtransaction.Transaction) {
 				require.Len(t, result.Send.Source.From, 1)
 				assert.Nil(t, result.Send.Source.From[0].RouteID,
 					"RouteID should be nil when not set on original operation")

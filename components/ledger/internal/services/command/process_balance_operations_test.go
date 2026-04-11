@@ -18,7 +18,7 @@ import (
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
@@ -40,15 +40,15 @@ func TestProcessBalanceOperations(t *testing.T) {
 		balanceID1 := uuid.MustParse("c7d0fa07-3e11-4105-a0fc-6fa46834ce66")
 		accountID1 := uuid.MustParse("bad0ddef-d697-4a4e-840d-1f5380de4607")
 
-		fromAmount := pkgTransaction.Amount{
+		fromAmount := mtransaction.Amount{
 			Asset:     "USD",
 			Value:     decimal.NewFromFloat(50),
 			Operation: constant.DEBIT,
 		}
 
-		validate := &pkgTransaction.Responses{
+		validate := &mtransaction.Responses{
 			Aliases: []string{"alias1#default"},
-			From: map[string]pkgTransaction.Amount{
+			From: map[string]mtransaction.Amount{
 				"0#alias1#default": fromAmount,
 			},
 		}
@@ -116,7 +116,7 @@ func TestProcessBalanceOperations_DoubleEntrySplitting(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		fromAmount       pkgTransaction.Amount
+		fromAmount       mtransaction.Amount
 		transactionType  string
 		expectedOpsCount int
 		expectedOp1      string
@@ -126,7 +126,7 @@ func TestProcessBalanceOperations_DoubleEntrySplitting(t *testing.T) {
 	}{
 		{
 			name: "CANCELED with RouteValidationEnabled produces 2 ops (RELEASE + CREDIT)",
-			fromAmount: pkgTransaction.Amount{
+			fromAmount: mtransaction.Amount{
 				Asset:                  "USD",
 				Value:                  decimal.NewFromFloat(50),
 				Operation:              constant.RELEASE,
@@ -138,14 +138,14 @@ func TestProcessBalanceOperations_DoubleEntrySplitting(t *testing.T) {
 			expectedOp1:      constant.RELEASE,
 			expectedOp2:      constant.CREDIT,
 			buildOps: func(balance *mmodel.Balance) []mmodel.BalanceOperation {
-				amt := pkgTransaction.Amount{
+				amt := mtransaction.Amount{
 					Asset:                  "USD",
 					Value:                  decimal.NewFromFloat(50),
 					Operation:              constant.RELEASE,
 					TransactionType:        constant.CANCELED,
 					RouteValidationEnabled: true,
 				}
-				op1, op2 := pkgTransaction.SplitDoubleEntryOps(amt)
+				op1, op2 := mtransaction.SplitDoubleEntryOps(amt)
 				ik := utils.BalanceInternalKey(organizationID, ledgerID, "alias1#default")
 
 				return []mmodel.BalanceOperation{
@@ -156,7 +156,7 @@ func TestProcessBalanceOperations_DoubleEntrySplitting(t *testing.T) {
 		},
 		{
 			name: "CANCELED without route flag produces 1 op (RELEASE)",
-			fromAmount: pkgTransaction.Amount{
+			fromAmount: mtransaction.Amount{
 				Asset:           "USD",
 				Value:           decimal.NewFromFloat(50),
 				Operation:       constant.RELEASE,
@@ -170,7 +170,7 @@ func TestProcessBalanceOperations_DoubleEntrySplitting(t *testing.T) {
 					{
 						Balance: balance,
 						Alias:   "0#alias1#default",
-						Amount: pkgTransaction.Amount{
+						Amount: mtransaction.Amount{
 							Asset:           "USD",
 							Value:           decimal.NewFromFloat(50),
 							Operation:       constant.RELEASE,
@@ -183,7 +183,7 @@ func TestProcessBalanceOperations_DoubleEntrySplitting(t *testing.T) {
 		},
 		{
 			name: "PENDING with RouteValidationEnabled produces 2 ops (DEBIT + ONHOLD)",
-			fromAmount: pkgTransaction.Amount{
+			fromAmount: mtransaction.Amount{
 				Asset:                  "USD",
 				Value:                  decimal.NewFromFloat(50),
 				Operation:              constant.ONHOLD,
@@ -195,14 +195,14 @@ func TestProcessBalanceOperations_DoubleEntrySplitting(t *testing.T) {
 			expectedOp1:      constant.DEBIT,
 			expectedOp2:      constant.ONHOLD,
 			buildOps: func(balance *mmodel.Balance) []mmodel.BalanceOperation {
-				amt := pkgTransaction.Amount{
+				amt := mtransaction.Amount{
 					Asset:                  "USD",
 					Value:                  decimal.NewFromFloat(50),
 					Operation:              constant.ONHOLD,
 					TransactionType:        constant.PENDING,
 					RouteValidationEnabled: true,
 				}
-				op1, op2 := pkgTransaction.SplitDoubleEntryOps(amt)
+				op1, op2 := mtransaction.SplitDoubleEntryOps(amt)
 				ik := utils.BalanceInternalKey(organizationID, ledgerID, "alias1#default")
 
 				return []mmodel.BalanceOperation{
@@ -213,7 +213,7 @@ func TestProcessBalanceOperations_DoubleEntrySplitting(t *testing.T) {
 		},
 		{
 			name: "PENDING without route flag produces 1 op (ONHOLD)",
-			fromAmount: pkgTransaction.Amount{
+			fromAmount: mtransaction.Amount{
 				Asset:           "USD",
 				Value:           decimal.NewFromFloat(50),
 				Operation:       constant.ONHOLD,
@@ -227,7 +227,7 @@ func TestProcessBalanceOperations_DoubleEntrySplitting(t *testing.T) {
 					{
 						Balance: balance,
 						Alias:   "0#alias1#default",
-						Amount: pkgTransaction.Amount{
+						Amount: mtransaction.Amount{
 							Asset:           "USD",
 							Value:           decimal.NewFromFloat(50),
 							Operation:       constant.ONHOLD,
@@ -257,9 +257,9 @@ func TestProcessBalanceOperations_DoubleEntrySplitting(t *testing.T) {
 			balanceID := uuid.New().String()
 			accountID := uuid.New().String()
 
-			validate := &pkgTransaction.Responses{
+			validate := &mtransaction.Responses{
 				Aliases: []string{"alias1#default"},
-				From: map[string]pkgTransaction.Amount{
+				From: map[string]mtransaction.Amount{
 					"0#alias1#default": tt.fromAmount,
 				},
 			}
@@ -354,16 +354,16 @@ func TestProcessBalanceOperations_DoubleEntry_SeenDeduplication(t *testing.T) {
 
 	// Use a transactionInput to trigger the "seen" deduplication path.
 	// Asset must match the balance's AssetCode to pass validateFromBalances.
-	transactionInput := &pkgTransaction.Transaction{
+	transactionInput := &mtransaction.Transaction{
 		Pending: true,
-		Send:    pkgTransaction.Send{Asset: "USD"},
+		Send:    mtransaction.Send{Asset: "USD"},
 	}
 
-	validate := &pkgTransaction.Responses{
+	validate := &mtransaction.Responses{
 		Aliases: []string{"alias1#default"},
 		Asset:   "USD",
 		Pending: true,
-		From: map[string]pkgTransaction.Amount{
+		From: map[string]mtransaction.Amount{
 			"0#alias1#default": {
 				Asset:                  "USD",
 				Value:                  decimal.NewFromFloat(50),
@@ -394,7 +394,7 @@ func TestProcessBalanceOperations_DoubleEntry_SeenDeduplication(t *testing.T) {
 
 	// Construct balance operations inline: PENDING+RouteValidationEnabled splits into DEBIT+ONHOLD
 	pendingAmt := validate.From["0#alias1#default"]
-	op1, op2 := pkgTransaction.SplitDoubleEntryOps(pendingAmt)
+	op1, op2 := mtransaction.SplitDoubleEntryOps(pendingAmt)
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, "alias1#default")
 
 	balanceOps := []mmodel.BalanceOperation{
@@ -462,20 +462,20 @@ func TestProcessBalanceOperations_ValidateBalancesRulesFailure(t *testing.T) {
 	// transactionInput is non-nil so balance rules are validated.
 	// Asset mismatch between transaction ("EUR") and balance ("USD") will
 	// trigger ErrAssetCodeNotFound inside ValidateBalancesRules.
-	transactionInput := &pkgTransaction.Transaction{
-		Send: pkgTransaction.Send{Asset: "EUR"},
+	transactionInput := &mtransaction.Transaction{
+		Send: mtransaction.Send{Asset: "EUR"},
 	}
 
-	fromAmount := pkgTransaction.Amount{
+	fromAmount := mtransaction.Amount{
 		Asset:     "EUR",
 		Value:     decimal.NewFromFloat(50),
 		Operation: constant.DEBIT,
 	}
 
-	validate := &pkgTransaction.Responses{
+	validate := &mtransaction.Responses{
 		Aliases: []string{"alias1#default"},
 		Asset:   "EUR",
-		From: map[string]pkgTransaction.Amount{
+		From: map[string]mtransaction.Amount{
 			"0#alias1#default": fromAmount,
 		},
 	}
@@ -543,15 +543,15 @@ func TestProcessBalanceOperations_RedisAtomicOperationFailure(t *testing.T) {
 		TransactionRedisRepo: mockRedisRepo,
 	}
 
-	fromAmount := pkgTransaction.Amount{
+	fromAmount := mtransaction.Amount{
 		Asset:     "USD",
 		Value:     decimal.NewFromFloat(50),
 		Operation: constant.DEBIT,
 	}
 
-	validate := &pkgTransaction.Responses{
+	validate := &mtransaction.Responses{
 		Aliases: []string{"alias1#default"},
-		From: map[string]pkgTransaction.Amount{
+		From: map[string]mtransaction.Amount{
 			"0#alias1#default": fromAmount,
 		},
 	}
@@ -633,16 +633,16 @@ func TestProcessBalanceOperations_SkipsValidationWhenTransactionInputNil(t *test
 
 	// Even with an asset mismatch, validation should be skipped when
 	// TransactionInput is nil (state transition path).
-	fromAmount := pkgTransaction.Amount{
+	fromAmount := mtransaction.Amount{
 		Asset:     "EUR",
 		Value:     decimal.NewFromFloat(50),
 		Operation: constant.DEBIT,
 	}
 
-	validate := &pkgTransaction.Responses{
+	validate := &mtransaction.Responses{
 		Aliases: []string{"alias1#default"},
 		Asset:   "EUR",
-		From: map[string]pkgTransaction.Amount{
+		From: map[string]mtransaction.Amount{
 			"0#alias1#default": fromAmount,
 		},
 	}

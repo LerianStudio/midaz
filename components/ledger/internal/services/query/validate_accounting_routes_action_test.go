@@ -13,7 +13,7 @@ import (
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +42,7 @@ func TestValidateAccountingRules_ActionParam(t *testing.T) {
 		action      string
 		cache       mmodel.TransactionRouteCache
 		operations  []mmodel.BalanceOperation
-		validate    *pkgTransaction.Responses
+		validate    *mtransaction.Responses
 		expectError bool
 		errorCode   string
 	}{
@@ -63,14 +63,14 @@ func TestValidateAccountingRules_ActionParam(t *testing.T) {
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias:   "sender",
-					Amount:  pkgTransaction.Amount{Direction: "debit"},
+					Amount:  mtransaction.Amount{Direction: "debit"},
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
-			validate: &pkgTransaction.Responses{
+			validate: &mtransaction.Responses{
 				TransactionRoute:    transactionRouteID.String(),
-				From:                map[string]pkgTransaction.Amount{"sender": {}},
-				To:                  map[string]pkgTransaction.Amount{},
+				From:                map[string]mtransaction.Amount{"sender": {}},
+				To:                  map[string]mtransaction.Amount{},
 				OperationRoutesFrom: map[string]string{"sender": sourceRouteID},
 				OperationRoutesTo:   map[string]string{},
 			},
@@ -93,14 +93,14 @@ func TestValidateAccountingRules_ActionParam(t *testing.T) {
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias:   "sender",
-					Amount:  pkgTransaction.Amount{Direction: "debit"},
+					Amount:  mtransaction.Amount{Direction: "debit"},
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
-			validate: &pkgTransaction.Responses{
+			validate: &mtransaction.Responses{
 				TransactionRoute:    transactionRouteID.String(),
-				From:                map[string]pkgTransaction.Amount{"sender": {}},
-				To:                  map[string]pkgTransaction.Amount{},
+				From:                map[string]mtransaction.Amount{"sender": {}},
+				To:                  map[string]mtransaction.Amount{},
 				OperationRoutesFrom: map[string]string{"sender": sourceRouteID},
 				OperationRoutesTo:   map[string]string{},
 			},
@@ -121,14 +121,14 @@ func TestValidateAccountingRules_ActionParam(t *testing.T) {
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias:   "sender",
-					Amount:  pkgTransaction.Amount{Direction: "debit"},
+					Amount:  mtransaction.Amount{Direction: "debit"},
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
-			validate: &pkgTransaction.Responses{
+			validate: &mtransaction.Responses{
 				TransactionRoute:    transactionRouteID.String(),
-				From:                map[string]pkgTransaction.Amount{"sender": {}},
-				To:                  map[string]pkgTransaction.Amount{},
+				From:                map[string]mtransaction.Amount{"sender": {}},
+				To:                  map[string]mtransaction.Amount{},
 				OperationRoutesFrom: map[string]string{"sender": sourceRouteID},
 				OperationRoutesTo:   map[string]string{},
 			},
@@ -144,14 +144,14 @@ func TestValidateAccountingRules_ActionParam(t *testing.T) {
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias:   "sender",
-					Amount:  pkgTransaction.Amount{Direction: "debit"},
+					Amount:  mtransaction.Amount{Direction: "debit"},
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
-			validate: &pkgTransaction.Responses{
+			validate: &mtransaction.Responses{
 				TransactionRoute:    transactionRouteID.String(),
-				From:                map[string]pkgTransaction.Amount{"sender": {}},
-				To:                  map[string]pkgTransaction.Amount{},
+				From:                map[string]mtransaction.Amount{"sender": {}},
+				To:                  map[string]mtransaction.Amount{},
 				OperationRoutesFrom: map[string]string{"sender": sourceRouteID},
 				OperationRoutesTo:   map[string]string{},
 			},
@@ -175,14 +175,14 @@ func TestValidateAccountingRules_ActionParam(t *testing.T) {
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias:   "sender",
-					Amount:  pkgTransaction.Amount{Direction: "debit"},
+					Amount:  mtransaction.Amount{Direction: "debit"},
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
-			validate: &pkgTransaction.Responses{
+			validate: &mtransaction.Responses{
 				TransactionRoute:    transactionRouteID.String(),
-				From:                map[string]pkgTransaction.Amount{"sender": {}},
-				To:                  map[string]pkgTransaction.Amount{},
+				From:                map[string]mtransaction.Amount{"sender": {}},
+				To:                  map[string]mtransaction.Amount{},
 				OperationRoutesFrom: map[string]string{"sender": sourceRouteID},
 				OperationRoutesTo:   map[string]string{},
 			},
@@ -205,14 +205,14 @@ func TestValidateAccountingRules_ActionParam(t *testing.T) {
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias:   "sender",
-					Amount:  pkgTransaction.Amount{Direction: "debit"},
+					Amount:  mtransaction.Amount{Direction: "debit"},
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
-			validate: &pkgTransaction.Responses{
+			validate: &mtransaction.Responses{
 				TransactionRoute:    transactionRouteID.String(),
-				From:                map[string]pkgTransaction.Amount{"sender": {}},
-				To:                  map[string]pkgTransaction.Amount{},
+				From:                map[string]mtransaction.Amount{"sender": {}},
+				To:                  map[string]mtransaction.Amount{},
 				OperationRoutesFrom: map[string]string{"sender": sourceRouteID},
 				OperationRoutesTo:   map[string]string{},
 			},
@@ -235,14 +235,14 @@ func TestValidateAccountingRules_ActionParam(t *testing.T) {
 			operations: []mmodel.BalanceOperation{
 				{
 					Alias:   "sender",
-					Amount:  pkgTransaction.Amount{Direction: "debit"},
+					Amount:  mtransaction.Amount{Direction: "debit"},
 					Balance: &mmodel.Balance{AccountType: "asset"},
 				},
 			},
-			validate: &pkgTransaction.Responses{
+			validate: &mtransaction.Responses{
 				TransactionRoute:    transactionRouteID.String(),
-				From:                map[string]pkgTransaction.Amount{"sender": {}},
-				To:                  map[string]pkgTransaction.Amount{},
+				From:                map[string]mtransaction.Amount{"sender": {}},
+				To:                  map[string]mtransaction.Amount{},
 				OperationRoutesFrom: map[string]string{"sender": sourceRouteID},
 				OperationRoutesTo:   map[string]string{},
 			},
@@ -353,10 +353,10 @@ func TestValidateAccountingRules_ActionFilteredRouteCount(t *testing.T) {
 		LedgerRepo:           mockLedgerRepo,
 	}
 
-	validate := &pkgTransaction.Responses{
+	validate := &mtransaction.Responses{
 		TransactionRoute:    transactionRouteID.String(),
-		From:                map[string]pkgTransaction.Amount{"sender": {}},
-		To:                  map[string]pkgTransaction.Amount{"receiver": {}},
+		From:                map[string]mtransaction.Amount{"sender": {}},
+		To:                  map[string]mtransaction.Amount{"receiver": {}},
 		OperationRoutesFrom: map[string]string{"sender": directSourceRouteID},
 		OperationRoutesTo:   map[string]string{"receiver": directDestRouteID},
 	}
@@ -364,12 +364,12 @@ func TestValidateAccountingRules_ActionFilteredRouteCount(t *testing.T) {
 	operations := []mmodel.BalanceOperation{
 		{
 			Alias:   "sender",
-			Amount:  pkgTransaction.Amount{Direction: "debit"},
+			Amount:  mtransaction.Amount{Direction: "debit"},
 			Balance: &mmodel.Balance{AccountType: "asset"},
 		},
 		{
 			Alias:   "receiver",
-			Amount:  pkgTransaction.Amount{Direction: "credit"},
+			Amount:  mtransaction.Amount{Direction: "credit"},
 			Balance: &mmodel.Balance{AccountType: "liability"},
 		},
 	}
@@ -450,10 +450,10 @@ func TestValidateAccountingRules_ActionFilteredAccountRules(t *testing.T) {
 		LedgerRepo:           mockLedgerRepo,
 	}
 
-	validate := &pkgTransaction.Responses{
+	validate := &mtransaction.Responses{
 		TransactionRoute:    transactionRouteID.String(),
-		From:                map[string]pkgTransaction.Amount{"sender": {}},
-		To:                  map[string]pkgTransaction.Amount{},
+		From:                map[string]mtransaction.Amount{"sender": {}},
+		To:                  map[string]mtransaction.Amount{},
 		OperationRoutesFrom: map[string]string{"sender": sourceRouteID},
 		OperationRoutesTo:   map[string]string{},
 	}
@@ -461,7 +461,7 @@ func TestValidateAccountingRules_ActionFilteredAccountRules(t *testing.T) {
 	operations := []mmodel.BalanceOperation{
 		{
 			Alias:   "sender",
-			Amount:  pkgTransaction.Amount{Direction: "debit"},
+			Amount:  mtransaction.Amount{Direction: "debit"},
 			Balance: &mmodel.Balance{AccountType: "asset"},
 		},
 	}
@@ -529,10 +529,10 @@ func TestValidateAccountingRules_ActionAccountTypeMismatch(t *testing.T) {
 		LedgerRepo:           mockLedgerRepo,
 	}
 
-	validate := &pkgTransaction.Responses{
+	validate := &mtransaction.Responses{
 		TransactionRoute:    transactionRouteID.String(),
-		From:                map[string]pkgTransaction.Amount{"sender": {}},
-		To:                  map[string]pkgTransaction.Amount{},
+		From:                map[string]mtransaction.Amount{"sender": {}},
+		To:                  map[string]mtransaction.Amount{},
 		OperationRoutesFrom: map[string]string{"sender": sourceRouteID},
 		OperationRoutesTo:   map[string]string{},
 	}
@@ -540,7 +540,7 @@ func TestValidateAccountingRules_ActionAccountTypeMismatch(t *testing.T) {
 	operations := []mmodel.BalanceOperation{
 		{
 			Alias:   "sender",
-			Amount:  pkgTransaction.Amount{Direction: "debit"},
+			Amount:  mtransaction.Amount{Direction: "debit"},
 			Balance: &mmodel.Balance{AccountType: "asset"},
 		},
 	}
