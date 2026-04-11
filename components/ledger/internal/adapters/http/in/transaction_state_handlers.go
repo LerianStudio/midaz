@@ -518,9 +518,10 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	operations, preBalances, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, time.Now(), false, ledgerSettings.Accounting.ValidateRoutes, routeCache, action)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build operations", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build operations", libLog.Err(err))
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate balance: %v", err.Error()))
+		deleteLockOnError()
 
 		return http.WithError(c, err)
 	}
