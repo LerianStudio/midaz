@@ -871,13 +871,19 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 
 	err = handler.Command.WriteTransaction(ctx, params.OrganizationID, params.LedgerID, &transactionInput, validate, balancesBefore, balancesAfter, &writeTran)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
+		// Log the original error for debugging. WriteTransaction may fail due to:
+		// - msgpack serialization error
+		// - RabbitMQ publish failure + DB fallback failure (async mode)
+		// - Direct DB write failure (sync mode)
+		// The sanitized error uses ErrMessageBrokerUnavailable as a generic
+		// "persistence failed" signal — a more accurate error code should be
+		// introduced to cover the sync/DB failure cases as well.
+		libOpentelemetry.HandleSpanError(span, "Failed to write transaction", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to write transaction", libLog.String("transaction_id", tran.ID), libLog.Err(err))
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "failed to update BTO", err)
+		sanitizedErr := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, constant.EntityTransaction)
 
-		logger.Log(ctx, libLog.LevelError, "Failed to update BTO", libLog.String("transaction_id", tran.ID), libLog.Err(err))
-
-		return http.WithError(c, err)
+		return http.WithError(c, sanitizedErr)
 	}
 
 	bgCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
