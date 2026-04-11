@@ -5,8 +5,6 @@
 package in
 
 import (
-	"fmt"
-
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
@@ -224,7 +222,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate query parameters", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
@@ -233,7 +231,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get file from Header", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get file from Header: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to get file from header", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
