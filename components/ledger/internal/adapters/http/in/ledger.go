@@ -19,7 +19,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -56,7 +55,10 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_ledger")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	payload := i.(*mmodel.CreateLedgerInput)
 	logSafePayload(ctx, logger, "Request to create a ledger", payload)
@@ -99,8 +101,15 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_ledger_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Ledger with ID: %s", id.String()))
 
@@ -149,7 +158,10 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_ledgers")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -244,10 +256,17 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_ledger")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Ledger with ID: %s", id.String()))
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	payload := p.(*mmodel.UpdateLedgerInput)
 	logSafePayload(ctx, logger, fmt.Sprintf("Request to update ledger with ID: %s", id.String()), payload)
@@ -300,8 +319,15 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_ledger_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Ledger with ID: %s", id.String()))
 
@@ -350,7 +376,10 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.count_ledgers")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating count of all ledgers for organization: %s", organizationID))
 
@@ -395,14 +424,14 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_ledger_settings")
 	defer span.End()
 
-	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
-	if !ok {
-		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "organization_id"))
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
 	}
 
-	id, ok := c.Locals("id").(uuid.UUID)
-	if !ok {
-		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "id"))
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
 	}
 
 	span.SetAttributes(
@@ -453,14 +482,14 @@ func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_ledger_settings")
 	defer span.End()
 
-	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
-	if !ok {
-		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "organization_id"))
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
 	}
 
-	id, ok := c.Locals("id").(uuid.UUID)
-	if !ok {
-		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "id"))
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
 	}
 
 	span.SetAttributes(
