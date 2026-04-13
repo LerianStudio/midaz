@@ -1,8 +1,8 @@
 # Workflow Generator v2.0 - Simplified Modular Architecture
 
-## 🎯 Overview
+## Overview
 
-This is the modernized, simplified version of the Midaz API Workflow Generator that implements the architecture described in `WF_SIMP_PLAN.md`. It maintains 100% compatibility with the original implementation while providing significant improvements in maintainability, debugging, and extensibility.
+This is the modernized, simplified version of the Midaz API Workflow Generator that implements the architecture described in `WF_SIMP_PLAN.md`. It maintains 100% compatibility with the original implementation while providing improvements in maintainability, debugging, and extensibility.
 
 ### Key Benefits
 
@@ -13,7 +13,7 @@ This is the modernized, simplified version of the Midaz API Workflow Generator t
 - **Preserved Business Logic**: Critical dependency chains maintained exactly
 - **Safe Migration**: Wrapper for gradual rollout with fallback capabilities
 
-## 🏗️ Architecture
+## Architecture
 
 ### Core Components
 
@@ -36,7 +36,7 @@ scripts/postman-coll-generation/
     └── regression/               # Old vs new comparison
 ```
 
-## 🚀 Usage
+## Usage
 
 ### Direct Usage (New Implementation)
 ```bash
@@ -57,11 +57,11 @@ ENABLE_COMPARISON=true node create-workflow-wrapper.js input.json WORKFLOW.md ou
 
 ### Environment Variables
 - `USE_NEW_WORKFLOW_GENERATOR=true/false` - Use new implementation
-- `ENABLE_COMPARISON=true/false` - Compare both implementations  
+- `ENABLE_COMPARISON=true/false` - Compare both implementations
 - `FAIL_ON_DIFFERENCES=true/false` - Fail if outputs differ
 - `DEBUG=true/false` - Enable debug output
 
-## 🔧 Configuration
+## Configuration
 
 All configuration is centralized in `config/workflow.config.js`:
 
@@ -110,7 +110,7 @@ transactions: {
 }
 ```
 
-## 🧪 Testing
+## Testing
 
 ### Run Regression Tests
 ```bash
@@ -123,7 +123,7 @@ node output-comparison.test.js
 - **Integration Tests**: Full workflow generation
 - **Regression Tests**: Old vs new implementation comparison
 
-## 🔍 Critical Preserved Logic
+## Critical Preserved Logic
 
 ### 1. Dependency Chain Integrity
 The exact variable dependency chain is preserved:
@@ -146,7 +146,7 @@ Three distinct transaction patterns maintained:
 - **Inflow**: Money coming in (no source)
 - **Outflow**: Money going out (no destination)
 
-## 🔄 Migration Strategy
+## Migration Strategy
 
 ### Phase 1: Shadow Mode (Recommended)
 ```bash
@@ -154,7 +154,7 @@ Three distinct transaction patterns maintained:
 ENABLE_COMPARISON=true node create-workflow-wrapper.js ...
 ```
 
-### Phase 2: New Implementation with Fallback  
+### Phase 2: New Implementation with Fallback
 ```bash
 # Use new implementation, fallback to old on failure
 USE_NEW_WORKFLOW_GENERATOR=true node create-workflow-wrapper.js ...
@@ -166,16 +166,16 @@ USE_NEW_WORKFLOW_GENERATOR=true node create-workflow-wrapper.js ...
 node create-workflow-v2.js ...
 ```
 
-## 🐛 Debugging
+## Debugging
 
 ### Enhanced Logging
 The new implementation provides detailed logging:
 ```
-🔍 Searching for: POST /v1/organizations
+Searching for: POST /v1/organizations
    Generated 2 alternative paths:
      1. /v1/organizations/{}/ledgers/{}/accounts/{}
      2. /v1/organizations/{}/balances
-✅ Selected: Create Organization
+Selected: Create Organization
 ```
 
 ### Error Context
@@ -196,7 +196,7 @@ const stats = processor.getStatistics();
 // variableMapperStats: mapping coverage
 ```
 
-## ⚡ Performance
+## Performance
 
 ### Optimizations
 - **Reduced Complexity**: Cyclomatic complexity from 45 to ~15
@@ -207,9 +207,9 @@ const stats = processor.getStatistics();
 ### Metrics
 - **Processing Time**: < 10% increase over original
 - **Memory Usage**: Reduced due to modular architecture
-- **Code Maintainability**: Significantly improved
+- **Code Maintainability**: Improved
 
-## 🛠️ Extending the System
+## Extending the System
 
 ### Adding New Path Corrections
 ```javascript
@@ -246,7 +246,7 @@ validateCustomRules(steps, issues) {
 }
 ```
 
-## 📋 Validation Checklist
+## Validation Checklist
 
 Before deploying to production:
 
@@ -258,14 +258,14 @@ Before deploying to production:
 - [ ] Validate dependency chains are preserved
 - [ ] Confirm enhanced test scripts work in Postman
 
-## 🚨 Critical Warnings
+## Critical Warnings
 
 1. **DO NOT MODIFY** the balance zeroing templates without extensive testing
 2. **DO NOT CHANGE** variable names in the dependency chain
 3. **ALWAYS RUN** regression tests before deployment
 4. **TEST THOROUGHLY** with production data before switching
 
-## 📞 Support
+## Support
 
 For issues or questions:
 1. Check the debug output with `DEBUG=true`

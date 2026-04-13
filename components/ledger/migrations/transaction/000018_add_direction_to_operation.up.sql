@@ -1,0 +1,1 @@
+ALTER TABLE operation ADD COLUMN IF NOT EXISTS direction VARCHAR(10);

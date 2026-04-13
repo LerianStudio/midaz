@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package mmodel
 
 import "time"
@@ -20,6 +24,10 @@ type CreateLedgerInput struct {
 	// required: false
 	// example: {"department": "Finance", "currency": "USD", "region": "North America"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+
+	// Dynamic configuration settings for this ledger. When nil, no settings are persisted (optional).
+	// example: {"accounting": {"validateAccountType": true}}
+	Settings *LedgerSettings `json:"settings,omitempty" validate:"omitempty"`
 } // @name CreateLedgerInput
 
 // UpdateLedgerInput is a struct designed to encapsulate request update payload data.
@@ -84,6 +92,10 @@ type Ledger struct {
 	// Custom key-value pairs for extending the ledger information
 	// example: {"department": "Finance", "currency": "USD", "region": "North America"}
 	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// Dynamic configuration settings for this ledger
+	// example: {"accounting": {"validateAccountType": true}}
+	Settings *LedgerSettings `json:"settings,omitempty"`
 } // @name Ledger
 
 // Ledgers struct designed to return a paginated list of ledgers.

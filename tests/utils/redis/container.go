@@ -1,5 +1,9 @@
 //go:build integration || chaos
 
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package redis
 
 import (
@@ -7,12 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/tests/utils"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 
 	"github.com/docker/docker/api/types/container"
 
-	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -169,22 +172,30 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 	}
 }
 
-// CreateConnection creates a libRedis.RedisConnection wrapper for testing
+// CreateConnection creates a libRedis.Client wrapper for testing
 // using the provided Redis address.
-func CreateConnection(t *testing.T, addr string) *libRedis.RedisConnection {
+func CreateConnection(t *testing.T, addr string) *libRedis.Client {
 	t.Helper()
 
-	logger := libZap.InitializeLogger()
+	conn, err := libRedis.New(context.Background(), libRedis.Config{
+		Topology: libRedis.Topology{
+			Standalone: &libRedis.StandaloneTopology{Address: addr},
+		},
+	})
+	require.NoError(t, err, "failed to initialize redis connection")
 
-	return &libRedis.RedisConnection{
-		Address: []string{addr},
-		Logger:  logger,
-	}
+	t.Cleanup(func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			t.Logf("failed to close redis connection: %v", closeErr)
+		}
+	})
+
+	return conn
 }
 
-// CreateConnectionWithRetry creates a libRedis.RedisConnection wrapper with retry logic.
+// CreateConnectionWithRetry creates a libRedis.Client wrapper with retry logic.
 // Useful after container restart when Redis may still be initializing.
-func CreateConnectionWithRetry(t *testing.T, addr string, timeout time.Duration) *libRedis.RedisConnection {
+func CreateConnectionWithRetry(t *testing.T, addr string, timeout time.Duration) *libRedis.Client {
 	t.Helper()
 
 	deadline := time.Now().Add(timeout)

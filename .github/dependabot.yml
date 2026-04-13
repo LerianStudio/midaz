@@ -1,7 +1,126 @@
 version: 2
 updates:
+  # Go modules - transaction component
   - package-ecosystem: "gomod"
+    directory: "/components/transaction"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    target-branch: "develop"
+    open-pull-requests-limit: 10
+    labels:
+      - "area: dependencies"
+      - "component: transaction"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Go modules - onboarding component
+  - package-ecosystem: "gomod"
+    directory: "/components/onboarding"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    target-branch: "develop"
+    open-pull-requests-limit: 10
+    labels:
+      - "area: dependencies"
+      - "component: onboarding"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Go modules - ledger component
+  - package-ecosystem: "gomod"
+    directory: "/components/ledger"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    target-branch: "develop"
+    open-pull-requests-limit: 10
+    labels:
+      - "area: dependencies"
+      - "component: ledger"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Go modules - crm component
+  - package-ecosystem: "gomod"
+    directory: "/components/crm"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    target-branch: "develop"
+    open-pull-requests-limit: 10
+    labels:
+      - "area: dependencies"
+      - "component: crm"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
     target-branch: "develop"
+    open-pull-requests-limit: 5
+    labels:
+      - "area: ci/cd"
+    commit-message:
+      prefix: "ci(deps)"
+
+  # Docker - transaction
+  - package-ecosystem: "docker"
+    directory: "/components/transaction"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    target-branch: "develop"
+    open-pull-requests-limit: 5
+    labels:
+      - "area: build"
+      - "component: transaction"
+    commit-message:
+      prefix: "build(deps)"
+
+  # Docker - onboarding
+  - package-ecosystem: "docker"
+    directory: "/components/onboarding"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    target-branch: "develop"
+    open-pull-requests-limit: 5
+    labels:
+      - "area: build"
+      - "component: onboarding"
+    commit-message:
+      prefix: "build(deps)"
+
+  # Docker - ledger
+  - package-ecosystem: "docker"
+    directory: "/components/ledger"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    target-branch: "develop"
+    open-pull-requests-limit: 5
+    labels:
+      - "area: build"
+      - "component: ledger"
+    commit-message:
+      prefix: "build(deps)"
+
+  # Docker - crm
+  - package-ecosystem: "docker"
+    directory: "/components/crm"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    target-branch: "develop"
+    open-pull-requests-limit: 5
+    labels:
+      - "area: build"
+      - "component: crm"
+    commit-message:
+      prefix: "build(deps)"

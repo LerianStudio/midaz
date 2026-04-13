@@ -1,8 +1,7 @@
 # ------------------------------------------------------
 # Test configuration (extracted from root Makefile)
 # ------------------------------------------------------
-TEST_ONBOARDING_URL ?= http://localhost:3000
-TEST_TRANSACTION_URL ?= http://localhost:3001
+TEST_LEDGER_URL ?= http://localhost:3000
 TEST_HEALTH_WAIT ?= 60
 
 # Optional auth configuration (passed through to tests)
@@ -18,10 +17,10 @@ FUZZTIME ?= 10s
 
 # Integration test filter
 # RUN: specific test name pattern (e.g., TestIntegration_AliasRepo_Create)
-# PKG: specific package to test (e.g., ./components/transaction/...)
+# PKG: specific package to test (e.g., ./components/ledger/...)
 # Usage: make test-integration RUN=TestIntegration_AliasRepo_Create
-#        make test-integration PKG=./components/transaction/...
-#        make test-integration RUN=TestIntegration_Chaos_Redis PKG=./components/transaction/... CHAOS=1
+#        make test-integration PKG=./components/ledger/...
+#        make test-integration RUN=TestIntegration_Chaos_Redis PKG=./components/ledger/... CHAOS=1
 RUN ?=
 PKG ?=
 
@@ -48,25 +47,15 @@ else
   LOW_RES_RACE_FLAG := -race
 endif
 
-# macOS ld64 workaround: newer ld emits noisy LC_DYSYMTAB warnings when linking test binaries with -race.
-# If available, prefer Apple's classic linker to silence them.
-UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S),Darwin)
-  # Prefer classic mode to suppress LC_DYSYMTAB warnings on macOS.
-  # Set DISABLE_OSX_LINKER_WORKAROUND=1 to disable this behavior.
-  ifneq ($(DISABLE_OSX_LINKER_WORKAROUND),1)
-    GO_TEST_LDFLAGS := -ldflags="-linkmode=external -extldflags=-ld_classic"
-  else
-    GO_TEST_LDFLAGS :=
-  endif
-else
-  GO_TEST_LDFLAGS :=
-endif
+# macOS ld64 workaround removed: -ld_classic is deprecated and produces warnings
+# on modern Xcode toolchains. The original LC_DYSYMTAB warnings it suppressed
+# are no longer emitted by recent Go + linker versions.
+GO_TEST_LDFLAGS :=
 
 define wait_for_services
 	echo "Waiting for services to become healthy..."
 	bash -c 'for i in $$(seq 1 $(TEST_HEALTH_WAIT)); do \
-	  if curl -fsS $(TEST_ONBOARDING_URL)/health >/dev/null 2>&1 && curl -fsS $(TEST_TRANSACTION_URL)/health >/dev/null 2>&1; then \
+	  if curl -fsS $(TEST_LEDGER_URL)/health >/dev/null 2>&1; then \
 	    echo "Services are up"; exit 0; \
 	  fi; \
 	  sleep 1; \
@@ -104,7 +93,7 @@ tools-gotestsum:
 
 .PHONY: test
 test:
-	@./scripts/run-tests.sh
+	@sh ./scripts/run-tests.sh
 
 
 #-------------------------------------------------------
@@ -123,10 +112,10 @@ test-unit:
 	else \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running unit tests with gotestsum"; \
-	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs || { \
+	    gotestsum --format testname -- -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying unit tests once..."; \
-	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs; \
+	        gotestsum --format testname -- -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs; \
 	      else \
 	        exit 1; \
 	      fi; \
@@ -134,36 +123,6 @@ test-unit:
 	  else \
 	    go test -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs; \
 	  fi; \
-	fi
-
-# Unit tests with coverage (uses covermode=atomic)
-.PHONY: coverage-unit
-coverage-unit:
-	$(call print_title,Running Go unit tests with coverage)
-	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
-	pkgs=$$(go list ./... | awk '!/\/tests($|\/)/' | awk '!/\/api($|\/)/'); \
-	if [ -z "$$pkgs" ]; then \
-	  echo "No unit test packages found (outside ./tests)**"; \
-	else \
-	  if [ -n "$(GOTESTSUM)" ]; then \
-	    echo "Running unit tests with gotestsum (coverage enabled)"; \
-	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/unit_coverage.out $$pkgs || { \
-	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	        echo "Retrying unit tests once..."; \
-	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/unit_coverage.out $$pkgs; \
-	      else \
-	        exit 1; \
-	      fi; \
-	    }; \
-	  else \
-	    go test -v -race -count=1 $(GO_TEST_LDFLAGS) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/unit_coverage.out $$pkgs; \
-	  fi; \
-	  go tool cover -html=$(TEST_REPORTS_DIR)/unit_coverage.out -o $(TEST_REPORTS_DIR)/unit_coverage.html; \
-	  echo "Coverage report generated: file://$$PWD/$(TEST_REPORTS_DIR)/unit_coverage.html"; \
-	  echo "----------------------------------------"; \
-	  go tool cover -func=$(TEST_REPORTS_DIR)/unit_coverage.out | grep total | awk '{print "Total coverage: " $$3}'; \
-	  echo "----------------------------------------"; \
 	fi
 
 # System-level chaos tests (full stack with docker-compose)
@@ -174,20 +133,20 @@ test-chaos-system:
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
 	@set -e; mkdir -p $(TEST_REPORTS_DIR)/chaos; \
-	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
-	$(MAKE) up-backend; \
+	trap '$(MAKE) -s down >/dev/null 2>&1 || true' EXIT; \
+	$(MAKE) up; \
 	$(MAKE) -s wait-for-services; \
 	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-system.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos || { \
+	  CHAOS=1 LEDGER_URL=$(TEST_LEDGER_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-system.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos || { \
 	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	      echo "Retrying chaos tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-system-rerun.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
+	      CHAOS=1 LEDGER_URL=$(TEST_LEDGER_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-system-rerun.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
 	    else \
 	      exit 1; \
 	    fi; \
 	  }; \
 	else \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) go test -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
+	  CHAOS=1 LEDGER_URL=$(TEST_LEDGER_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) go test -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
 	fi
 
 # Native Go fuzz tests (coverage-guided mutation testing).
@@ -290,13 +249,13 @@ test-integration:
 	  fi; \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running testcontainers integration tests with gotestsum"; \
-	    CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration.xml -- \
+	    CHAOS=$(CHAOS) gotestsum --format testname -- \
 	      -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
 	      -run '$(RUN_PATTERN)' $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying integ tests once..."; \
-	        CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration-rerun.xml -- \
+	        CHAOS=$(CHAOS) gotestsum --format testname -- \
 	          -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	          -p 1 $(LOW_RES_PARALLEL_FLAG) \
 	          -run '$(RUN_PATTERN)' $$pkgs; \
@@ -350,14 +309,14 @@ coverage-integration:
 	  fi; \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running testcontainers integration tests with gotestsum (coverage enabled)"; \
-	    CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration.xml -- \
+	    CHAOS=$(CHAOS) gotestsum --format testname -- \
 	      -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
 	      -run '$(RUN_PATTERN)' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	      $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying integ tests once..."; \
-	        CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration-rerun.xml -- \
+	        CHAOS=$(CHAOS) gotestsum --format testname -- \
 	          -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	          -p 1 $(LOW_RES_PARALLEL_FLAG) \
 	          -run '$(RUN_PATTERN)' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
@@ -372,8 +331,6 @@ coverage-integration:
 	      -run '$(RUN_PATTERN)' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	      $$pkgs; \
 	  fi; \
-	  go tool cover -html=$(TEST_REPORTS_DIR)/integration_coverage.out -o $(TEST_REPORTS_DIR)/integration_coverage.html; \
-	  echo "Coverage report generated: file://$$PWD/$(TEST_REPORTS_DIR)/integration_coverage.html"; \
 	  echo "----------------------------------------"; \
 	  go tool cover -func=$(TEST_REPORTS_DIR)/integration_coverage.out | grep total | awk '{print "Total coverage: " $$3}'; \
 	  echo "----------------------------------------"; \
@@ -395,5 +352,3 @@ test-all:
 	$(MAKE) test-unit
 	$(call print_title,Running integration tests)
 	$(MAKE) test-integration
-
-

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package http
 
 import (
@@ -263,6 +267,59 @@ func TestFindUnknownFields(t *testing.T) {
 			},
 			expected: map[string]any{
 				"amount": "200.45",
+			},
+		},
+		{
+			name: "null value in original is not an unknown field",
+			original: map[string]any{
+				"name":  "John",
+				"email": nil,
+			},
+			marshaled: map[string]any{
+				"name": "John",
+			},
+			expected: map[string]any{},
+		},
+		{
+			name: "nested null value in original is not an unknown field",
+			original: map[string]any{
+				"accountingEntries": map[string]any{
+					"direct": map[string]any{"code": "1001"},
+					"hold":   nil,
+				},
+			},
+			marshaled: map[string]any{
+				"accountingEntries": map[string]any{
+					"direct": map[string]any{"code": "1001"},
+				},
+			},
+			expected: map[string]any{},
+		},
+		{
+			name: "non-null missing field is still unknown",
+			original: map[string]any{
+				"name":    "John",
+				"unknown": "value",
+			},
+			marshaled: map[string]any{
+				"name": "John",
+			},
+			expected: map[string]any{
+				"unknown": "value",
+			},
+		},
+		{
+			name: "mixed null and non-null unknown fields",
+			original: map[string]any{
+				"name":       "John",
+				"nullField":  nil,
+				"extraField": "not allowed",
+			},
+			marshaled: map[string]any{
+				"name": "John",
+			},
+			expected: map[string]any{
+				"extraField": "not allowed",
 			},
 		},
 	}

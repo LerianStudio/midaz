@@ -1,8 +1,8 @@
 # Midaz API Postman Collection & Testing
 
-This directory contains the automated Postman collection generation and testing framework for the Midaz API. The system provides comprehensive API documentation, automated testing, and workflow validation across all Midaz services.
+This directory contains the automated Postman collection generation and testing framework for the Midaz API. The system provides API documentation, automated testing, and workflow validation across all Midaz services.
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # Generate Postman collection from OpenAPI specs
@@ -12,14 +12,14 @@ make generate-docs
 make newman
 ```
 
-## 📋 Overview
+## Overview
 
-The Midaz API testing system consists of two main processes:
+The Midaz API testing system has two main processes:
 
 1. **Collection Generation** (`make generate-docs`): Converts OpenAPI specifications into Postman collections
-2. **Workflow Testing** (`make newman`): Executes comprehensive end-to-end API tests
+2. **Workflow Testing** (`make newman`): Executes end-to-end API tests
 
-## 🔧 Collection Generation Process (`make generate-docs`)
+## Collection Generation Process (`make generate-docs`)
 
 ### Step 1: Environment Setup (`Makefile`)
 - **Trigger**: `make generate-docs` command
@@ -45,7 +45,7 @@ The Midaz API testing system consists of two main processes:
 
 #### File Chain & Purpose:
 
-**🎭 Main Orchestrator**: `sync-postman.sh`
+**Main Orchestrator**: `sync-postman.sh`
 - **Input**: `swagger.json` files from both components
 - **Purpose**: Coordinates the entire conversion pipeline
 - **Key Functions**:
@@ -55,7 +55,7 @@ The Midaz API testing system consists of two main processes:
   - Handles error recovery and status tracking
   - Calls other scripts in proper sequence
 
-**🔄 Core Conversion Script**: `convert-openapi.js`
+**Core Conversion Script**: `convert-openapi.js`
 - **Input**: `components/{service}/api/swagger.json`
 - **Output**: Individual Postman collections per service
 - **Key Functions**:
@@ -65,7 +65,7 @@ The Midaz API testing system consists of two main processes:
   - Creates environment variables
   - Routes endpoints to correct base URLs (`onboardingUrl` vs `transactionUrl`)
 
-**⚡ Test Enhancement Script**: `enhance-tests.js`
+**Test Enhancement Script**: `enhance-tests.js`
 - **Purpose**: Adds comprehensive test scripts to each request
 - **Features**:
   - Response validation (status codes, JSON structure)
@@ -75,7 +75,7 @@ The Midaz API testing system consists of two main processes:
   - Unique idempotency key generation
   - Error handling and logging
 
-**🔗 Workflow Generation Script**: `create-workflow.js`
+**Workflow Generation Script**: `create-workflow.js`
 - **Input**: `postman/WORKFLOW.md` (57 step workflow definition)
 - **Output**: "Complete API Workflow" folder in collection
 - **Features**:
@@ -93,7 +93,7 @@ The Midaz API testing system consists of two main processes:
 - **URL Routing**: Ensures correct service endpoints
 - **Quality Assurance**: Validates collection structure and handles errors gracefully
 
-## 🧪 Workflow Testing Process (`make newman`)
+## Workflow Testing Process (`make newman`)
 
 ### Step 1: Newman Setup
 - **Tool**: Newman CLI (Postman command-line runner)
@@ -109,18 +109,18 @@ The Midaz API testing system consists of two main processes:
 
 ### Step 3: Test Categories
 
-**📊 Core API Operations**:
+**Core API Operations**:
 - CRUD operations for all entities (Organizations, Ledgers, Accounts, Assets, etc.)
 - Authentication and authorization
 - Data validation and error handling
 
-**💰 Financial Transactions**:
+**Financial Transactions**:
 - Transaction creation (JSON, Inflow, Outflow)
 - Balance management and validation
 - Double-entry accounting verification
 - Dynamic balance zeroing
 
-**🔗 Workflow Dependencies**:
+**Workflow Dependencies**:
 - Variable extraction and chaining
 - Sequential step execution
 - Error recovery and cascading failure prevention
@@ -131,7 +131,7 @@ The Midaz API testing system consists of two main processes:
 - **Performance Metrics**: Response times and regression detection
 - **Error Details**: Comprehensive failure analysis with HTTP status codes
 
-## 📁 File Structure & Dependencies
+## File Structure & Dependencies
 
 ```
 postman/
@@ -155,7 +155,7 @@ reports/newman/
 └── workflow-detailed-report.html       # Comprehensive failure analysis
 ```
 
-## 🎯 Key Features
+## Key Features
 
 ### Advanced Test Generation
 - **Idempotency Management**: Unique keys for each transaction
@@ -175,7 +175,7 @@ reports/newman/
 - **Load Testing**: Validates API under test conditions
 - **Resource Usage**: Monitors API efficiency
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -207,13 +207,13 @@ jq '.values[].key' postman/MIDAZ.postman_environment.json
 newman run postman/MIDAZ.postman_collection.json -e postman/MIDAZ.postman_environment.json --folder "Complete API Workflow" --verbose
 ```
 
-## 🎉 Success Metrics
+## Success Metrics
 
-The current workflow achieves:
-- ✅ **100% Success Rate**: 57/57 requests passing
-- ✅ **165 Assertions**: Complete business logic validation
-- ✅ **End-to-End Coverage**: All API endpoints tested
-- ✅ **Performance Validated**: <5ms average response time
-- ✅ **Production Ready**: Comprehensive error handling
+A successful test run typically shows:
+- **100% Success Rate**: Example: 57/57 requests passing
+- **Full Assertion Coverage**: Example: 165+ assertions validating business logic
+- **End-to-End Coverage**: All API endpoints tested
+- **Fast Response Times**: Target: <5ms average response time
+- **Production Ready**: Comprehensive error handling verified
 
 This automated testing framework ensures the Midaz API maintains high quality, performance, and reliability across all services and endpoints.

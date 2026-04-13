@@ -1,20 +1,24 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package utils
 
-import pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+import "github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 
 // SanitizeAccountAliases cleans the AccountAlias fields in a Transaction's FromTo entries.
 // This is necessary because HandleAccountFields mutates aliases in-place using ConcatAlias,
 // producing formats like "0#@alias#key". SplitAlias extracts the original alias back.
-func SanitizeAccountAliases(parserDSL *pkgTransaction.Transaction) {
-	if parserDSL == nil {
+func SanitizeAccountAliases(transactionInput *mtransaction.Transaction) {
+	if transactionInput == nil {
 		return
 	}
 
-	for i := range parserDSL.Send.Source.From {
-		parserDSL.Send.Source.From[i].AccountAlias = parserDSL.Send.Source.From[i].SplitAlias()
+	for i := range transactionInput.Send.Source.From {
+		transactionInput.Send.Source.From[i].AccountAlias = transactionInput.Send.Source.From[i].SplitAlias()
 	}
 
-	for i := range parserDSL.Send.Distribute.To {
-		parserDSL.Send.Distribute.To[i].AccountAlias = parserDSL.Send.Distribute.To[i].SplitAlias()
+	for i := range transactionInput.Send.Distribute.To {
+		transactionInput.Send.Distribute.To[i].AccountAlias = transactionInput.Send.Distribute.To[i].SplitAlias()
 	}
 }

@@ -1,10 +1,18 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
+	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/bootstrap"
 )
 
@@ -21,17 +29,43 @@ import (
 func main() {
 	libCommons.InitLocalEnvConfig()
 
-	logger := libZap.InitializeLogger()
+	logLevel := strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL")))
+	if logLevel == "" {
+		logLevel = "info"
+	}
+
+	envName := strings.ToLower(strings.TrimSpace(os.Getenv("ENV_NAME")))
+	if envName == "" {
+		envName = "development"
+	}
+
+	otelServiceName := os.Getenv("OTEL_RESOURCE_SERVICE_NAME")
+	if otelServiceName == "" {
+		otelServiceName = "ledger"
+	}
+
+	logger, err := libZap.New(libZap.Config{
+		Environment:     libZap.Environment(envName),
+		Level:           logLevel,
+		OTelLibraryName: otelServiceName,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+
+		os.Exit(1)
+	}
 
 	service, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
 		Logger: logger,
 	})
 	if err != nil {
-		logger.Errorf("Failed to initialize ledger service: %v", err)
-		_ = logger.Sync()
+		logger.Log(context.Background(), libLog.LevelError, fmt.Sprintf("Failed to initialize ledger service: %v", err))
+		_ = logger.Sync(context.Background())
 
 		os.Exit(1)
 	}
 
 	service.Run()
+
+	_ = logger.Sync(context.Background())
 }

@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Copyright (c) 2026 Lerian Studio. All rights reserved.
+# Use of this source code is governed by the Elastic License 2.0
+# that can be found in the LICENSE file.
+
 # Set colors for output
 GREEN='\033[0;32m'
 RED='\033[0;31m'

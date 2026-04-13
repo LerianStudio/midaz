@@ -1,9 +1,13 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package holder
 
 import (
 	"time"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
+	libCrypto "github.com/LerianStudio/lib-commons/v4/commons/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
@@ -79,14 +83,30 @@ type RepresentativeMongoDBModel struct {
 	Role     *string `bson:"role,omitempty"`
 }
 
+func encryptOptional(ds *libCrypto.Crypto, value *string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+
+	return ds.Encrypt(value)
+}
+
+func decryptOptional(ds *libCrypto.Crypto, value *string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+
+	return ds.Decrypt(value)
+}
+
 // FromEntity maps a holder entity to a MongoDB Holder model
 func (hmm *MongoDBModel) FromEntity(h *mmodel.Holder, ds *libCrypto.Crypto) error {
-	name, err := ds.Encrypt(h.Name)
+	name, err := encryptOptional(ds, h.Name)
 	if err != nil {
 		return err
 	}
 
-	document, err := ds.Encrypt(h.Document)
+	document, err := encryptOptional(ds, h.Document)
 	if err != nil {
 		return err
 	}
@@ -152,22 +172,22 @@ func mapAddressesFromEntity(a *mmodel.Addresses) *AddressesMongoDBModel {
 
 // mapContactFromEntity maps contact entity to MongoDB model
 func mapContactFromEntity(ds *libCrypto.Crypto, c *mmodel.Contact) (*ContactMongoDBModel, error) {
-	primaryEmail, err := ds.Encrypt(c.PrimaryEmail)
+	primaryEmail, err := encryptOptional(ds, c.PrimaryEmail)
 	if err != nil {
 		return nil, err
 	}
 
-	secondaryEmail, err := ds.Encrypt(c.SecondaryEmail)
+	secondaryEmail, err := encryptOptional(ds, c.SecondaryEmail)
 	if err != nil {
 		return nil, err
 	}
 
-	mobilePhone, err := ds.Encrypt(c.MobilePhone)
+	mobilePhone, err := encryptOptional(ds, c.MobilePhone)
 	if err != nil {
 		return nil, err
 	}
 
-	otherPhone, err := ds.Encrypt(c.OtherPhone)
+	otherPhone, err := encryptOptional(ds, c.OtherPhone)
 	if err != nil {
 		return nil, err
 	}
@@ -182,12 +202,12 @@ func mapContactFromEntity(ds *libCrypto.Crypto, c *mmodel.Contact) (*ContactMong
 
 // mapNaturalPersonFromEntity maps natural person entity to MongoDB model
 func mapNaturalPersonFromEntity(ds *libCrypto.Crypto, np *mmodel.NaturalPerson) (*NaturalPersonMongoDBModel, error) {
-	motherName, err := ds.Encrypt(np.MotherName)
+	motherName, err := encryptOptional(ds, np.MotherName)
 	if err != nil {
 		return nil, err
 	}
 
-	fatherName, err := ds.Encrypt(np.FatherName)
+	fatherName, err := encryptOptional(ds, np.FatherName)
 	if err != nil {
 		return nil, err
 	}
@@ -228,17 +248,17 @@ func mapLegalPersonFromEntity(ds *libCrypto.Crypto, lp *mmodel.LegalPerson) (*Le
 	}
 
 	if lp.Representative != nil {
-		repName, err := ds.Encrypt(lp.Representative.Name)
+		repName, err := encryptOptional(ds, lp.Representative.Name)
 		if err != nil {
 			return nil, err
 		}
 
-		repDocument, err := ds.Encrypt(lp.Representative.Document)
+		repDocument, err := encryptOptional(ds, lp.Representative.Document)
 		if err != nil {
 			return nil, err
 		}
 
-		repEmail, err := ds.Encrypt(lp.Representative.Email)
+		repEmail, err := encryptOptional(ds, lp.Representative.Email)
 		if err != nil {
 			return nil, err
 		}
@@ -340,22 +360,22 @@ func mapAddressesToEntity(a *AddressesMongoDBModel) *mmodel.Addresses {
 
 // mapContactToEntity maps a MongoDB model to a Contact entity
 func mapContactToEntity(ds *libCrypto.Crypto, c *ContactMongoDBModel) (*mmodel.Contact, error) {
-	primaryEmail, err := ds.Decrypt(c.PrimaryEmail)
+	primaryEmail, err := decryptOptional(ds, c.PrimaryEmail)
 	if err != nil {
 		return nil, err
 	}
 
-	secondaryEmail, err := ds.Decrypt(c.SecondaryEmail)
+	secondaryEmail, err := decryptOptional(ds, c.SecondaryEmail)
 	if err != nil {
 		return nil, err
 	}
 
-	mobilePhone, err := ds.Decrypt(c.MobilePhone)
+	mobilePhone, err := decryptOptional(ds, c.MobilePhone)
 	if err != nil {
 		return nil, err
 	}
 
-	otherPhone, err := ds.Decrypt(c.OtherPhone)
+	otherPhone, err := decryptOptional(ds, c.OtherPhone)
 	if err != nil {
 		return nil, err
 	}
@@ -370,12 +390,12 @@ func mapContactToEntity(ds *libCrypto.Crypto, c *ContactMongoDBModel) (*mmodel.C
 
 // mapNaturalPersonToEntity maps a MongoDB model to a NaturalPerson entity
 func mapNaturalPersonToEntity(ds *libCrypto.Crypto, np *NaturalPersonMongoDBModel) (*mmodel.NaturalPerson, error) {
-	motherName, err := ds.Decrypt(np.MotherName)
+	motherName, err := decryptOptional(ds, np.MotherName)
 	if err != nil {
 		return nil, err
 	}
 
-	fatherName, err := ds.Decrypt(np.FatherName)
+	fatherName, err := decryptOptional(ds, np.FatherName)
 	if err != nil {
 		return nil, err
 	}
@@ -425,17 +445,17 @@ func mapLegalPersonToEntity(ds *libCrypto.Crypto, lp *LegalPersonMongoDBModel) (
 
 // mapRepresentativeToEntity maps a MongoDB model to a Representative entity
 func mapRepresentativeToEntity(ds *libCrypto.Crypto, rep *RepresentativeMongoDBModel) (*mmodel.Representative, error) {
-	representativeName, err := ds.Decrypt(rep.Name)
+	representativeName, err := decryptOptional(ds, rep.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	representativeDocument, err := ds.Decrypt(rep.Document)
+	representativeDocument, err := decryptOptional(ds, rep.Document)
 	if err != nil {
 		return nil, err
 	}
 
-	email, err := ds.Decrypt(rep.Email)
+	email, err := decryptOptional(ds, rep.Email)
 	if err != nil {
 		return nil, err
 	}

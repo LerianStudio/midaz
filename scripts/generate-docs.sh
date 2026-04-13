@@ -1,4 +1,9 @@
 #!/bin/bash
+
+# Copyright (c) 2026 Lerian Studio. All rights reserved.
+# Use of this source code is governed by the Elastic License 2.0
+# that can be found in the LICENSE file.
+
 set -euo pipefail
 
 # Clean documentation generation script
@@ -8,7 +13,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Components to process
-COMPONENTS=("onboarding" "transaction" "crm")
+COMPONENTS=("ledger" "crm")
 
 # Temporary log dir
 LOG_DIR="${ROOT_DIR}/tmp"
@@ -196,7 +201,7 @@ main() {
         done
     fi
 
-    # Generate ledger unified swagger (merges onboarding + transaction + ledger settings)
+    # Run ledger merge-swagger to produce the unified docs.go and swagger.json
     if [ "$overall_success" = true ]; then
         if [ -f "${ROOT_DIR}/components/ledger/scripts/merge-swagger.sh" ]; then
             print_step "Generating ledger unified swagger" "PROCESSING"

@@ -1,14 +1,19 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package utils
 
 import (
-	"errors"
 	"slices"
 	"unicode"
+
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
 
-// ValidateCountryAddress validate if country in object address contains in countries list using ISO 3166-1 alpha-2
-func ValidateCountryAddress(country string) error {
-	countries := []string{
+// validCountries is the set of ISO 3166-1 alpha-2 country codes, built once at package init.
+var validCountries = func() map[string]struct{} {
+	codes := []string{
 		"AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AQ", "AR", "AS", "AT", "AU", "AW", "AX", "AZ",
 		"BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS", "BT", "BV", "BW",
 		"BY", "BZ", "CA", "CC", "CD", "CF", "CG", "CH", "CI", "CK", "CL", "CM", "CN", "CO", "CR", "CU", "CV", "CW", "CX",
@@ -25,8 +30,18 @@ func ValidateCountryAddress(country string) error {
 		"YE", "YT", "ZA", "ZM", "ZW",
 	}
 
-	if !slices.Contains(countries, country) {
-		return errors.New("0032")
+	m := make(map[string]struct{}, len(codes))
+	for _, c := range codes {
+		m[c] = struct{}{}
+	}
+
+	return m
+}()
+
+// ValidateCountryAddress validates whether a country code is a valid ISO 3166-1 alpha-2 code.
+func ValidateCountryAddress(country string) error {
+	if _, ok := validCountries[country]; !ok {
+		return constant.ErrInvalidCountryCode
 	}
 
 	return nil
@@ -37,7 +52,7 @@ func ValidateAccountType(t string) error {
 	types := []string{"deposit", "savings", "loans", "marketplace", "creditCard"}
 
 	if !slices.Contains(types, t) {
-		return errors.New("0066")
+		return constant.ErrInvalidAccountType
 	}
 
 	return nil
@@ -48,18 +63,19 @@ func ValidateType(t string) error {
 	types := []string{"crypto", "currency", "commodity", "others"}
 
 	if !slices.Contains(types, t) {
-		return errors.New("0040")
+		return constant.ErrInvalidType
 	}
 
 	return nil
 }
 
+// ValidateCode validates that a code contains only uppercase letters.
 func ValidateCode(code string) error {
 	for _, r := range code {
 		if !unicode.IsLetter(r) {
-			return errors.New("0033")
+			return constant.ErrInvalidCodeFormat
 		} else if !unicode.IsUpper(r) {
-			return errors.New("0004")
+			return constant.ErrCodeUppercaseRequirement
 		}
 	}
 
@@ -81,7 +97,7 @@ func ValidateCurrency(code string) error {
 	}
 
 	if !slices.Contains(currencies, code) {
-		return errors.New("0005")
+		return constant.ErrCurrencyCodeStandardCompliance
 	}
 
 	return nil

@@ -5,12 +5,12 @@ import "github.com/swaggo/swag"
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "v3.5.0",
+	Version:          "v3.6.0",
 	Host:             "localhost:3002",
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},
 	Title:            "Midaz Ledger API (Unified)",
-	Description:      "This is a swagger documentation for the Midaz Unified Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments) and Transaction endpoints (transactions, balances, operations, asset-rates),  and Metadata Index endpoints in a single service.",
+	Description:      "This is a swagger documentation for the Midaz Unified Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments) and Transaction endpoints (transactions, balances, operations, asset-rates), and Metadata Index endpoints in a single service.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
@@ -36,7 +36,7 @@ const docTemplate = `
       "name": "Apache 2.0",
       "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v3.5.0"
+    "version": "v3.6.0"
   },
   "host": "localhost:3002",
   "basePath": "/",
@@ -109,6 +109,20 @@ const docTemplate = `
             "description": "Sort direction for results based on creation date",
             "name": "sort_order",
             "in": "query"
+          },
+          {
+            "maxLength": 256,
+            "type": "string",
+            "description": "Filter organizations by legal name (case-insensitive, prefix match)",
+            "name": "legal_name",
+            "in": "query"
+          },
+          {
+            "maxLength": 256,
+            "type": "string",
+            "description": "Filter organizations by doing business as name (case-insensitive, prefix match)",
+            "name": "doing_business_as",
+            "in": "query"
           }
         ],
         "responses": {
@@ -117,7 +131,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -127,12 +141,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/Organization"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "page": {
-                      "type": "integer"
                     }
                   }
                 }
@@ -575,6 +583,13 @@ const docTemplate = `
             "description": "Sort direction for results based on creation date",
             "name": "sort_order",
             "in": "query"
+          },
+          {
+            "maxLength": 256,
+            "type": "string",
+            "description": "Filter ledgers by name (case-insensitive, prefix match)",
+            "name": "name",
+            "in": "query"
           }
         ],
         "responses": {
@@ -583,7 +598,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -593,12 +608,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/Ledger"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "page": {
-                      "type": "integer"
                     }
                   }
                 }
@@ -1013,6 +1022,168 @@ const docTemplate = `
         }
       }
     },
+    "/v1/organizations/{organization_id}/ledgers/{id}/settings": {
+      "get": {
+        "description": "Returns the current configuration settings for a specific ledger. If no settings have been persisted, returns the default settings object.",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Ledgers"
+        ],
+        "summary": "Get ledger settings",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token with format: Bearer {token}",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID for tracing",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID in UUID format",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID in UUID format",
+            "name": "id",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved ledger settings",
+            "schema": {
+              "$ref": "#/definitions/mmodel.LedgerSettings"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Ledger not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "patch": {
+        "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Ledgers"
+        ],
+        "summary": "Update ledger settings",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token with format: Bearer {token}",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID for tracing",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID in UUID format",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID in UUID format",
+            "name": "id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)",
+            "name": "settings",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully updated ledger settings",
+            "schema": {
+              "$ref": "#/definitions/mmodel.LedgerSettings"
+            }
+          },
+          "400": {
+            "description": "Invalid request body, unknown field (0147), or invalid field type (0148)",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Ledger not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types": {
       "get": {
         "description": "Returns a paginated list of all account types for the specified organization and ledger, optionally filtered by metadata",
@@ -1100,7 +1271,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -1110,18 +1281,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/AccountType"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "page": {
-                      "type": "integer"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
                     }
                   }
                 }
@@ -1577,6 +1736,20 @@ const docTemplate = `
             "description": "Sort direction for results based on creation date",
             "name": "sort_order",
             "in": "query"
+          },
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Filter accounts by portfolio ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics).",
+            "name": "portfolio_id",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Filter accounts by segment ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics).",
+            "name": "segment_id",
+            "in": "query"
           }
         ],
         "responses": {
@@ -1585,7 +1758,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -1595,12 +1768,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/Account"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "page": {
-                      "type": "integer"
                     }
                   }
                 }
@@ -1815,6 +1982,101 @@ const docTemplate = `
         }
       }
     },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances": {
+      "get": {
+        "description": "Get Balances with alias",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Balances"
+        ],
+        "summary": "Get Balances using Alias",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Alias (e.g. @person1)",
+            "name": "alias",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/http.Pagination"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/mmodel.Balance"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Balance not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}": {
       "get": {
         "description": "Returns detailed information about an account identified by its external code within the specified ledger",
@@ -1895,6 +2157,101 @@ const docTemplate = `
         }
       }
     },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances": {
+      "get": {
+        "description": "Get External balances with code",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Balances"
+        ],
+        "summary": "Get External balances using code",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Code (e.g. BRL)",
+            "name": "code",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/http.Pagination"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/mmodel.Balance"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Balance not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count": {
       "head": {
         "description": "Returns the total count of accounts for the specified organization, ledger, and optional portfolio",
@@ -1949,6 +2306,586 @@ const docTemplate = `
           },
           "404": {
             "description": "Organization or ledger not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances": {
+      "get": {
+        "description": "Get all balances by account id",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Balances"
+        ],
+        "summary": "Get all balances by account id",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Account ID",
+            "name": "account_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "integer",
+            "default": 10,
+            "description": "Limit",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Start Date",
+            "name": "start_date",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "End Date",
+            "name": "end_date",
+            "in": "query"
+          },
+          {
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "type": "string",
+            "description": "Sort Order",
+            "name": "sort_order",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Cursor",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/http.Pagination"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/mmodel.Balance"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Account not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "post": {
+        "description": "Create an Additional Balance with the input payload",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Balances"
+        ],
+        "summary": "Create Additional Balance",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Account ID",
+            "name": "account_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Balance Input",
+            "name": "balance",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateAdditionalBalance"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/mmodel.Balance"
+            }
+          },
+          "400": {
+            "description": "Invalid input, validation errors",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Balance not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history": {
+      "get": {
+        "description": "Get the historical state of all Balances for an account at a specific point in time (yyyy-mm-dd hh:mm:ss format)",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Balances"
+        ],
+        "summary": "Get Account Balances history at date",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Account ID",
+            "name": "account_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)",
+            "name": "date",
+            "in": "query",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/BalanceHistory"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid date format or date in the future",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Account not found or no data available at date",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations": {
+      "get": {
+        "description": "Get all Operations with the input ID",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Get all Operations by account",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Account ID",
+            "name": "account_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "integer",
+            "default": 10,
+            "description": "Limit",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Start Date",
+            "name": "start_date",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "End Date",
+            "name": "end_date",
+            "in": "query"
+          },
+          {
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "type": "string",
+            "description": "Sort Order",
+            "name": "sort_order",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Cursor",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "DEBIT, CREDIT",
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "type": "string",
+            "description": "Filter by direction",
+            "name": "direction",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Filter by operation route ID",
+            "name": "route_id",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter by operation route code",
+            "name": "route_code",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/http.Pagination"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/Operation"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Account not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}": {
+      "get": {
+        "description": "Get an Operation with the input ID",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Get Operation",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Account ID",
+            "name": "account_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Operation ID",
+            "name": "operation_id",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/Operation"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Operation not found",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2222,6 +3159,323 @@ const docTemplate = `
         }
       }
     },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates": {
+      "put": {
+        "description": "Create or Update an AssetRate with the input details",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Asset Rates"
+        ],
+        "summary": "Create or Update an AssetRate",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "AssetRate Input",
+            "name": "asset-rate",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateAssetRateInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/AssetRate"
+            }
+          },
+          "400": {
+            "description": "Invalid input, validation errors",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Ledger or organization not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}": {
+      "get": {
+        "description": "Get an AssetRate by the Asset Code with the input details",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Asset Rates"
+        ],
+        "summary": "Get an AssetRate by the Asset Code",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "From Asset Code",
+            "name": "asset_code",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "csv",
+            "description": "To Asset Codes",
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "default": 10,
+            "description": "Limit",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Start Date",
+            "name": "start_date",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "End Date",
+            "name": "end_date",
+            "in": "query"
+          },
+          {
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "type": "string",
+            "description": "Sort Order",
+            "name": "sort_order",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Cursor",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/http.Pagination"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/AssetRate"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Asset code not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}": {
+      "get": {
+        "description": "Get an AssetRate by External ID with the input details",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Asset Rates"
+        ],
+        "summary": "Get an AssetRate by External ID",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "External ID",
+            "name": "external_id",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/AssetRate"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Asset rate not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets": {
       "get": {
         "description": "Returns a paginated list of assets within the specified ledger, optionally filtered by metadata, date range, and other criteria",
@@ -2312,7 +3566,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -2322,12 +3576,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/Asset"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "page": {
-                      "type": "integer"
                     }
                   }
                 }
@@ -2789,6 +4037,926 @@ const docTemplate = `
         }
       }
     },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances": {
+      "get": {
+        "description": "Get all balances",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Balances"
+        ],
+        "summary": "Get all balances",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "integer",
+            "default": 10,
+            "description": "Limit",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Start Date",
+            "name": "start_date",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "End Date",
+            "name": "end_date",
+            "in": "query"
+          },
+          {
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "type": "string",
+            "description": "Sort Order",
+            "name": "sort_order",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Cursor",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/http.Pagination"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/mmodel.Balance"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}": {
+      "get": {
+        "description": "Get a Balance with the input ID",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Balances"
+        ],
+        "summary": "Get Balance by id",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Balance ID",
+            "name": "balance_id",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/mmodel.Balance"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Balance not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "delete": {
+        "description": "Delete a Balance with the input ID",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Balances"
+        ],
+        "summary": "Delete Balance by account",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Balance ID",
+            "name": "balance_id",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Balance successfully deleted"
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Balance not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "409": {
+            "description": "Conflict: Cannot delete balance with active operations",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "patch": {
+        "description": "Update a Balance with the input payload",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Balances"
+        ],
+        "summary": "Update Balance",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Balance ID",
+            "name": "balance_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Balance Input",
+            "name": "balance",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateBalance"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/mmodel.Balance"
+            }
+          },
+          "400": {
+            "description": "Invalid input, validation errors",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Balance not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history": {
+      "get": {
+        "description": "Get the historical state of a Balance at a specific point in time (yyyy-mm-dd hh:mm:ss format)",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Balances"
+        ],
+        "summary": "Get Balance history at date",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Balance ID",
+            "name": "balance_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)",
+            "name": "date",
+            "in": "query",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/BalanceHistory"
+            }
+          },
+          "400": {
+            "description": "Invalid date format or date in the future",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Balance not found or no data available at date",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes": {
+      "get": {
+        "description": "Returns a list of all operation routes within the specified ledger with cursor-based pagination",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Operation Route"
+        ],
+        "summary": "Retrieve all operation routes",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token with format: Bearer {token}",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID for tracing",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID in UUID format",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID in UUID format",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "integer",
+            "default": 10,
+            "description": "Limit",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Start Date",
+            "name": "start_date",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "End Date",
+            "name": "end_date",
+            "in": "query"
+          },
+          {
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "type": "string",
+            "description": "Sort Order",
+            "name": "sort_order",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Cursor",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/http.Pagination"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/OperationRoute"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Invalid input, validation errors",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Operation Route not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "post": {
+        "description": "Endpoint to create a new Operation Route.",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Operation Route"
+        ],
+        "summary": "Create Operation Route",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token with format: Bearer {token}",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID for tracing",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID in UUID format",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID in UUID format",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Operation Route Input",
+            "name": "operation-route",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateOperationRouteInput"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successfully created operation route",
+            "schema": {
+              "$ref": "#/definitions/OperationRoute"
+            }
+          },
+          "400": {
+            "description": "Invalid input, validation errors",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{id}": {
+      "get": {
+        "description": "Returns detailed information about an operation route identified by its UUID within the specified ledger",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Operation Route"
+        ],
+        "summary": "Retrieve a specific operation route",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token with format: Bearer {token}",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID for tracing",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID in UUID format",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID in UUID format",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Operation Route ID in UUID format",
+            "name": "id",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved operation route",
+            "schema": {
+              "$ref": "#/definitions/OperationRoute"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}": {
+      "delete": {
+        "description": "Deletes an existing operation route identified by its UUID within the specified ledger",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Operation Route"
+        ],
+        "summary": "Delete an operation route",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token with format: Bearer {token}",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID for tracing",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID in UUID format",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID in UUID format",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Operation Route ID in UUID format",
+            "name": "operation_route_id",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successfully deleted operation route"
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Operation Route not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "patch": {
+        "description": "Updates an existing operation route's properties such as title, description, and type within the specified ledger",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Operation Route"
+        ],
+        "summary": "Update an operation route",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token with format: Bearer {token}",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID for tracing",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID in UUID format",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID in UUID format",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Operation Route ID in UUID format",
+            "name": "operation_route_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Operation Route Input",
+            "name": "operation-route",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateOperationRouteInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully updated operation route",
+            "schema": {
+              "$ref": "#/definitions/OperationRoute"
+            }
+          },
+          "400": {
+            "description": "Invalid input, validation errors",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Operation Route not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "409": {
+            "description": "Conflict: Operation Route with the same title already exists",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios": {
       "get": {
         "description": "Returns a paginated list of portfolios within the specified ledger, optionally filtered by metadata, date range, and other criteria",
@@ -2879,7 +5047,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -2889,12 +5057,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/Portfolio"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "page": {
-                      "type": "integer"
                     }
                   }
                 }
@@ -3452,7 +5614,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -3462,12 +5624,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/Segment"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "page": {
-                      "type": "integer"
                     }
                   }
                 }
@@ -3929,1855 +6085,6 @@ const docTemplate = `
         }
       }
     },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances": {
-      "get": {
-        "description": "Get Balances with alias",
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Balances"
-        ],
-        "summary": "Get Balances using Alias",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Alias (e.g. @person1)",
-            "name": "alias",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Pagination"
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/definitions/mmodel.Balance"
-                      }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
-                    }
-                  }
-                }
-              ]
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Balance not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances": {
-      "get": {
-        "description": "Get External balances with code",
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Balances"
-        ],
-        "summary": "Get External balances using code",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Code (e.g. BRL)",
-            "name": "code",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Pagination"
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/definitions/mmodel.Balance"
-                      }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
-                    }
-                  }
-                }
-              ]
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Balance not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances": {
-      "get": {
-        "description": "Get all balances by account id",
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Balances"
-        ],
-        "summary": "Get all balances by account id",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Account ID",
-            "name": "account_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "integer",
-            "default": 10,
-            "description": "Limit",
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Start Date",
-            "name": "start_date",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "End Date",
-            "name": "end_date",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Sort Order",
-            "name": "sort_order",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Cursor",
-            "name": "cursor",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Pagination"
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/definitions/mmodel.Balance"
-                      }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
-                    }
-                  }
-                }
-              ]
-            }
-          },
-          "400": {
-            "description": "Invalid query parameters",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Account not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      },
-      "post": {
-        "description": "Create an Additional Balance with the input payload",
-        "consumes": [
-          "application/json"
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Balances"
-        ],
-        "summary": "Create Additional Balance",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Account ID",
-            "name": "account_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "description": "Balance Input",
-            "name": "balance",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/CreateAdditionalBalance"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Created",
-            "schema": {
-              "$ref": "#/definitions/mmodel.Balance"
-            }
-          },
-          "400": {
-            "description": "Invalid input, validation errors",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Balance not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations": {
-      "get": {
-        "description": "Get all Operations with the input ID",
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Operations"
-        ],
-        "summary": "Get all Operations by account",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Account ID",
-            "name": "account_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "integer",
-            "default": 10,
-            "description": "Limit",
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Start Date",
-            "name": "start_date",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "End Date",
-            "name": "end_date",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Sort Order",
-            "name": "sort_order",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Cursor",
-            "name": "cursor",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "DEBIT, CREDIT",
-            "name": "type",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Pagination"
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/definitions/Operation"
-                      }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
-                    }
-                  }
-                }
-              ]
-            }
-          },
-          "400": {
-            "description": "Invalid query parameters",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Account not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}": {
-      "get": {
-        "description": "Get an Operation with the input ID",
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Operations"
-        ],
-        "summary": "Get Operation",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Account ID",
-            "name": "account_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Operation ID",
-            "name": "operation_id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/Operation"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Operation not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates": {
-      "put": {
-        "description": "Create or Update an AssetRate with the input details",
-        "consumes": [
-          "application/json"
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Asset Rates"
-        ],
-        "summary": "Create or Update an AssetRate",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "description": "AssetRate Input",
-            "name": "asset-rate",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/CreateAssetRateInput"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/AssetRate"
-            }
-          },
-          "400": {
-            "description": "Invalid input, validation errors",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Ledger or organization not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}": {
-      "get": {
-        "description": "Get an AssetRate by the Asset Code with the input details",
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Asset Rates"
-        ],
-        "summary": "Get an AssetRate by the Asset Code",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "From Asset Code",
-            "name": "asset_code",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "csv",
-            "description": "To Asset Codes",
-            "name": "to",
-            "in": "query"
-          },
-          {
-            "type": "integer",
-            "default": 10,
-            "description": "Limit",
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Start Date",
-            "name": "start_date",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "End Date",
-            "name": "end_date",
-            "in": "query"
-          },
-          {
-            "enum": [
-              "asc",
-              "desc"
-            ],
-            "type": "string",
-            "description": "Sort Order",
-            "name": "sort_order",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Cursor",
-            "name": "cursor",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Pagination"
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/definitions/AssetRate"
-                      }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
-                    }
-                  }
-                }
-              ]
-            }
-          },
-          "400": {
-            "description": "Invalid query parameters",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Asset code not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}": {
-      "get": {
-        "description": "Get an AssetRate by External ID with the input details",
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Asset Rates"
-        ],
-        "summary": "Get an AssetRate by External ID",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "External ID",
-            "name": "external_id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/AssetRate"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Asset rate not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances": {
-      "get": {
-        "description": "Get all balances",
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Balances"
-        ],
-        "summary": "Get all balances",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "integer",
-            "default": 10,
-            "description": "Limit",
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Start Date",
-            "name": "start_date",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "End Date",
-            "name": "end_date",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Sort Order",
-            "name": "sort_order",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Cursor",
-            "name": "cursor",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Pagination"
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/definitions/mmodel.Balance"
-                      }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
-                    }
-                  }
-                }
-              ]
-            }
-          },
-          "400": {
-            "description": "Invalid query parameters",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}": {
-      "get": {
-        "description": "Get a Balance with the input ID",
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Balances"
-        ],
-        "summary": "Get Balance by id",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Balance ID",
-            "name": "balance_id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/mmodel.Balance"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Balance not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      },
-      "delete": {
-        "description": "Delete a Balance with the input ID",
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Balances"
-        ],
-        "summary": "Delete Balance by account",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Balance ID",
-            "name": "balance_id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Balance successfully deleted"
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Balance not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "409": {
-            "description": "Conflict: Cannot delete balance with active operations",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      },
-      "patch": {
-        "description": "Update a Balance with the input payload",
-        "consumes": [
-          "application/json"
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Balances"
-        ],
-        "summary": "Update Balance",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Balance ID",
-            "name": "balance_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "description": "Balance Input",
-            "name": "balance",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/UpdateBalance"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/mmodel.Balance"
-            }
-          },
-          "400": {
-            "description": "Invalid input, validation errors",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Balance not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes": {
-      "get": {
-        "description": "Returns a list of all operation routes within the specified ledger with cursor-based pagination",
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Operation Route"
-        ],
-        "summary": "Retrieve all operation routes",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token with format: Bearer {token}",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID for tracing",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID in UUID format",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID in UUID format",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "integer",
-            "default": 10,
-            "description": "Limit",
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Start Date",
-            "name": "start_date",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "End Date",
-            "name": "end_date",
-            "in": "query"
-          },
-          {
-            "enum": [
-              "asc",
-              "desc"
-            ],
-            "type": "string",
-            "description": "Sort Order",
-            "name": "sort_order",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Cursor",
-            "name": "cursor",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Pagination"
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/definitions/OperationRoute"
-                      }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "page": {
-                      "type": "object"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
-                    }
-                  }
-                }
-              ]
-            }
-          },
-          "400": {
-            "description": "Invalid input, validation errors",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Operation Route not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      },
-      "post": {
-        "description": "Endpoint to create a new Operation Route.",
-        "consumes": [
-          "application/json"
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Operation Route"
-        ],
-        "summary": "Create Operation Route",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token with format: Bearer {token}",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID for tracing",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID in UUID format",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID in UUID format",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "description": "Operation Route Input",
-            "name": "operation-route",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/CreateOperationRouteInput"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Successfully created operation route",
-            "schema": {
-              "$ref": "#/definitions/OperationRoute"
-            }
-          },
-          "400": {
-            "description": "Invalid input, validation errors",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{id}": {
-      "get": {
-        "description": "Returns detailed information about an operation route identified by its UUID within the specified ledger",
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Operation Route"
-        ],
-        "summary": "Retrieve a specific operation route",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token with format: Bearer {token}",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID for tracing",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID in UUID format",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID in UUID format",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Operation Route ID in UUID format",
-            "name": "id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successfully retrieved operation route",
-            "schema": {
-              "$ref": "#/definitions/OperationRoute"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}": {
-      "delete": {
-        "description": "Deletes an existing operation route identified by its UUID within the specified ledger",
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Operation Route"
-        ],
-        "summary": "Delete an operation route",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token with format: Bearer {token}",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID for tracing",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID in UUID format",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID in UUID format",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Operation Route ID in UUID format",
-            "name": "operation_route_id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successfully deleted operation route"
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Operation Route not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      },
-      "patch": {
-        "description": "Updates an existing operation route's properties such as title, description, and type within the specified ledger",
-        "consumes": [
-          "application/json"
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Operation Route"
-        ],
-        "summary": "Update an operation route",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token with format: Bearer {token}",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID for tracing",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID in UUID format",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID in UUID format",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Operation Route ID in UUID format",
-            "name": "operation_route_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "description": "Operation Route Input",
-            "name": "operation-route",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/UpdateOperationRouteInput"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successfully updated operation route",
-            "schema": {
-              "$ref": "#/definitions/OperationRoute"
-            }
-          },
-          "400": {
-            "description": "Invalid input, validation errors",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Operation Route not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "409": {
-            "description": "Conflict: Operation Route with the same title already exists",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes": {
       "get": {
         "description": "Endpoint to get all Transaction Routes with optional metadata filtering.",
@@ -5861,7 +6168,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -5871,18 +6178,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/TransactionRoute"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "page": {
-                      "type": "object"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
                     }
                   }
                 }
@@ -6342,7 +6637,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -6352,18 +6647,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/Transaction"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "page": {
-                      "type": "object"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
                     }
                   }
                 }
@@ -6444,7 +6727,7 @@ const docTemplate = `
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/transaction.CreateTransactionSwaggerModel"
+              "$ref": "#/definitions/CreateTransactionInput"
             }
           }
         ],
@@ -6624,7 +6907,7 @@ const docTemplate = `
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/CreateTransactionInflowSwaggerModel"
+              "$ref": "#/definitions/CreateTransactionInflowInput"
             }
           }
         ],
@@ -6715,7 +6998,7 @@ const docTemplate = `
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/transaction.CreateTransactionSwaggerModel"
+              "$ref": "#/definitions/CreateTransactionInput"
             }
           }
         ],
@@ -6752,6 +7035,114 @@ const docTemplate = `
           },
           "500": {
             "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count": {
+      "head": {
+        "description": "Count transactions matching optional filters (route, status, date range)",
+        "tags": [
+          "Transactions"
+        ],
+        "summary": "Count Transactions by Filters",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Filter by transaction route",
+            "name": "route",
+            "in": "query"
+          },
+          {
+            "enum": [
+              "CREATED",
+              "APPROVED",
+              "PENDING",
+              "CANCELED",
+              "NOTED"
+            ],
+            "type": "string",
+            "description": "Filter by transaction status",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of date range (RFC 3339, defaults to today 00:00:00 UTC)",
+            "name": "start_date",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "format": "date-time",
+            "description": "End of date range (RFC 3339, defaults to today 23:59:59 UTC)",
+            "name": "end_date",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content",
+            "headers": {
+              "X-Total-Count": {
+                "type": "integer",
+                "description": "Total count of matching transactions"
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -6806,7 +7197,7 @@ const docTemplate = `
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/CreateTransactionOutflowSwaggerModel"
+              "$ref": "#/definitions/CreateTransactionOutflowInput"
             }
           }
         ],
@@ -7803,6 +8194,20 @@ const docTemplate = `
         }
       }
     },
+    "AccountRule": {
+      "description": "AccountRule object containing the rule type and condition for account selection in operation routes.",
+      "type": "object",
+      "properties": {
+        "ruleType": {
+          "description": "The rule type for account selection.",
+          "type": "string",
+          "example": "alias"
+        },
+        "validIf": {
+          "description": "The rule condition for account selection. String for alias type (e.g. \"@cash_account\"), array for account_type."
+        }
+      }
+    },
     "AccountType": {
       "description": "AccountType object",
       "type": "object",
@@ -7862,6 +8267,96 @@ const docTemplate = `
         }
       }
     },
+    "AccountingEntries": {
+      "description": "AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert).",
+      "type": "object",
+      "properties": {
+        "cancel": {
+          "description": "The accounting entry for the cancel action.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AccountingEntry"
+            }
+          ]
+        },
+        "commit": {
+          "description": "The accounting entry for the commit action.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AccountingEntry"
+            }
+          ]
+        },
+        "direct": {
+          "description": "The accounting entry for the direct action.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AccountingEntry"
+            }
+          ]
+        },
+        "hold": {
+          "description": "The accounting entry for the hold action.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AccountingEntry"
+            }
+          ]
+        },
+        "revert": {
+          "description": "The accounting entry for the revert action.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AccountingEntry"
+            }
+          ]
+        }
+      }
+    },
+    "AccountingEntry": {
+      "description": "AccountingEntry object containing debit and credit rubrics for a specific action.  Field requirements depend on the parent operationType and scenario: - source + direct or commit: debit is REQUIRED, credit is optional. - source + hold or cancel: both debit AND credit are REQUIRED. - destination + direct or commit: credit is REQUIRED, debit is optional. - destination + hold or cancel: NOT ALLOWED (rejected at creation). - destination + revert: NOT ALLOWED (rejected at creation). - source + revert: NOT ALLOWED (rejected at creation). - bidirectional (all scenarios including revert): both debit AND credit are REQUIRED.  An entry with neither debit nor credit is always rejected.",
+      "type": "object",
+      "properties": {
+        "credit": {
+          "description": "The credit rubric for this entry. Required based on operationType/scenario matrix (see type description).",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AccountingRubric"
+            }
+          ]
+        },
+        "debit": {
+          "description": "The debit rubric for this entry. Required based on operationType/scenario matrix (see type description).",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AccountingRubric"
+            }
+          ]
+        }
+      }
+    },
+    "AccountingRubric": {
+      "description": "AccountingRubric object containing the code and description for a debit or credit entry.",
+      "type": "object",
+      "required": [
+        "code",
+        "description"
+      ],
+      "properties": {
+        "code": {
+          "description": "The accounting rubric code.",
+          "type": "string",
+          "maxLength": 50,
+          "example": "1001"
+        },
+        "description": {
+          "description": "The accounting rubric description.",
+          "type": "string",
+          "maxLength": 250,
+          "example": "Cash"
+        }
+      }
+    },
     "Address": {
       "description": "Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes). Used for organization physical locations and other address needs.",
       "type": "object",
@@ -7878,6 +8373,12 @@ const docTemplate = `
           "maxLength": 2,
           "minLength": 2,
           "example": "US"
+        },
+        "description": {
+          "description": "A descriptive label for the address (e.g., \"Home\", \"Office\", \"Billing\")\nexample: Home\nmaxLength: 100",
+          "type": "string",
+          "maxLength": 100,
+          "example": "Home"
         },
         "line1": {
           "description": "Primary address line (street address or PO Box)\nexample: 123 Financial Avenue\nmaxLength: 256",
@@ -7902,6 +8403,24 @@ const docTemplate = `
           "type": "string",
           "maxLength": 20,
           "example": "10001"
+        }
+      }
+    },
+    "Amount": {
+      "description": "Amount is the struct designed to represent the amount of an operation.",
+      "type": "object",
+      "required": [
+        "asset",
+        "value"
+      ],
+      "properties": {
+        "asset": {
+          "type": "string",
+          "example": "BRL"
+        },
+        "value": {
+          "type": "number",
+          "example": 1000
         }
       }
     },
@@ -7974,6 +8493,199 @@ const docTemplate = `
           "type": "string",
           "format": "date-time",
           "example": "2021-01-01T00:00:00Z"
+        }
+      }
+    },
+    "AssetRate": {
+      "description": "AssetRate is a struct designed to store asset rate data. Represents a complete asset rate entity containing conversion information between two assets, including all system-generated fields.",
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "description": "Timestamp when the asset rate was created\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        },
+        "externalId": {
+          "description": "External identifier for integration with third-party systems\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "from": {
+          "description": "Source asset code\nexample: USD\nminLength: 2\nmaxLength: 10",
+          "type": "string",
+          "maxLength": 10,
+          "minLength": 2,
+          "example": "USD"
+        },
+        "id": {
+          "description": "Unique identifier for the asset rate\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "ledgerId": {
+          "description": "Ledger containing this asset rate\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "metadata": {
+          "description": "Additional custom attributes\nexample: {\"provider\": \"Central Bank\", \"rateName\": \"Official Exchange Rate\"}",
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "organizationId": {
+          "description": "Organization that owns this asset rate\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "rate": {
+          "description": "Conversion rate value\nexample: 100",
+          "type": "number",
+          "example": 100
+        },
+        "scale": {
+          "description": "Decimal places for the rate\nexample: 2\nminimum: 0",
+          "type": "number",
+          "minimum": 0,
+          "example": 2
+        },
+        "source": {
+          "description": "Source of rate information\nexample: External System\nmaxLength: 200",
+          "type": "string",
+          "maxLength": 200,
+          "example": "External System"
+        },
+        "to": {
+          "description": "Target asset code\nexample: BRL\nminLength: 2\nmaxLength: 10",
+          "type": "string",
+          "maxLength": 10,
+          "minLength": 2,
+          "example": "BRL"
+        },
+        "ttl": {
+          "description": "Time-to-live in seconds\nexample: 3600\nminimum: 0",
+          "type": "integer",
+          "minimum": 0,
+          "example": 3600
+        },
+        "updatedAt": {
+          "description": "Timestamp when the asset rate was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        }
+      }
+    },
+    "Balance": {
+      "description": "Balance is the struct designed to represent the account balance. Contains available and on-hold amounts along with the scale (decimal places).",
+      "type": "object",
+      "properties": {
+        "available": {
+          "description": "Amount available for transactions (in the smallest unit of asset)\nexample: 1500\nminimum: 0",
+          "type": "number",
+          "minimum": 0,
+          "example": 1500
+        },
+        "onHold": {
+          "description": "Amount on hold and unavailable for transactions (in the smallest unit of asset)\nexample: 500\nminimum: 0",
+          "type": "number",
+          "minimum": 0,
+          "example": 500
+        },
+        "version": {
+          "description": "Balance version after the operation\nexample: 2\nminimum: 0",
+          "type": "integer",
+          "minimum": 0,
+          "example": 2
+        }
+      }
+    },
+    "BalanceHistory": {
+      "description": "Historical balance snapshot at a specific point in time. Does not include permission flags (allowSending/allowReceiving) as these are not tracked historically.",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "description": "Account that holds this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "accountType": {
+          "description": "Type of account holding this balance\nexample: creditCard\nmaxLength: 50",
+          "type": "string",
+          "maxLength": 50,
+          "example": "creditCard"
+        },
+        "alias": {
+          "description": "Alias for the account, used for easy identification or tagging\nexample: @person1\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "@person1"
+        },
+        "assetCode": {
+          "description": "Asset code identifying the currency or asset type of this balance\nexample: USD\nminLength: 2\nmaxLength: 10",
+          "type": "string",
+          "maxLength": 10,
+          "minLength": 2,
+          "example": "USD"
+        },
+        "available": {
+          "description": "Amount available for transactions (in the smallest unit of the asset, e.g. cents)\nexample: 1500\nminimum: 0",
+          "type": "number",
+          "minimum": 0,
+          "example": 1500
+        },
+        "createdAt": {
+          "description": "Timestamp when the balance was created (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        },
+        "id": {
+          "description": "Unique identifier for the balance (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "key": {
+          "description": "Unique key for the balance\nexample: asset-freeze\nmaxLength: 100",
+          "type": "string",
+          "maxLength": 100,
+          "example": "asset-freeze"
+        },
+        "ledgerId": {
+          "description": "Ledger containing the account this balance belongs to\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "onHold": {
+          "description": "Amount currently on hold and unavailable for transactions\nexample: 500\nminimum: 0",
+          "type": "number",
+          "minimum": 0,
+          "example": 500
+        },
+        "organizationId": {
+          "description": "Organization that owns this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "updatedAt": {
+          "description": "Timestamp when the balance was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        },
+        "version": {
+          "description": "Optimistic concurrency control version\nexample: 1\nminimum: 1",
+          "type": "integer",
+          "minimum": 1,
+          "example": 1
         }
       }
     },
@@ -8082,6 +8794,31 @@ const docTemplate = `
         }
       }
     },
+    "CreateAdditionalBalance": {
+      "description": "Request payload for creating a new balance with specified permissions and custom key.",
+      "type": "object",
+      "required": [
+        "key"
+      ],
+      "properties": {
+        "allowReceiving": {
+          "description": "Whether the account should be allowed to receive funds to this balance\nrequired: false\nexample: true",
+          "type": "boolean",
+          "example": true
+        },
+        "allowSending": {
+          "description": "Whether the account should be allowed to send funds from this balance\nrequired: false\nexample: true",
+          "type": "boolean",
+          "example": true
+        },
+        "key": {
+          "description": "Unique key for the balance\nrequired: true\nmaxLength: 100\nexample: asset-freeze",
+          "type": "string",
+          "maxLength": 100,
+          "example": "asset-freeze"
+        }
+      }
+    },
     "CreateAssetInput": {
       "description": "CreateAssetInput is the input payload to create an asset within a ledger, such as a currency, cryptocurrency, or other financial instrument.",
       "type": "object",
@@ -8123,6 +8860,65 @@ const docTemplate = `
         }
       }
     },
+    "CreateAssetRateInput": {
+      "description": "CreateAssetRateInput is the input payload to create an asset rate. Contains required fields for setting up asset conversion rates, including source and target assets, rate value, scale, and optional metadata.",
+      "type": "object",
+      "required": [
+        "from",
+        "rate",
+        "to"
+      ],
+      "properties": {
+        "externalId": {
+          "description": "External identifier for integration (optional)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "from": {
+          "description": "Source asset code (required)\nexample: USD\nrequired: true\nminLength: 2\nmaxLength: 10",
+          "type": "string",
+          "maxLength": 10,
+          "minLength": 2,
+          "example": "USD"
+        },
+        "metadata": {
+          "description": "Additional custom attributes (optional)\nexample: {\"provider\": \"Central Bank\", \"rateName\": \"Official Exchange Rate\"}",
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "rate": {
+          "description": "Conversion rate value (required)\nexample: 100\nrequired: true",
+          "type": "integer",
+          "example": 100
+        },
+        "scale": {
+          "description": "Decimal places for the rate (optional)\nexample: 2\nminimum: 0",
+          "type": "integer",
+          "minimum": 0,
+          "example": 2
+        },
+        "source": {
+          "description": "Source of rate information (optional)\nexample: External System\nmaxLength: 200",
+          "type": "string",
+          "maxLength": 200,
+          "example": "External System"
+        },
+        "to": {
+          "description": "Target asset code (required)\nexample: BRL\nrequired: true\nminLength: 2\nmaxLength: 10",
+          "type": "string",
+          "maxLength": 10,
+          "minLength": 2,
+          "example": "BRL"
+        },
+        "ttl": {
+          "description": "Time-to-live in seconds (optional)\nexample: 3600\nminimum: 0",
+          "type": "integer",
+          "minimum": 0,
+          "example": 3600
+        }
+      }
+    },
     "CreateLedgerInput": {
       "description": "Request payload for creating a new ledger. Contains the ledger name (required), status, and optional metadata. Ledgers are organizational units within an organization that group related financial accounts and assets together.",
       "type": "object",
@@ -8140,6 +8936,14 @@ const docTemplate = `
           "type": "string",
           "maxLength": 256
         },
+        "settings": {
+          "description": "Dynamic configuration settings for this ledger. When nil, no settings are persisted (optional).\nexample: {\"accounting\": {\"validateAccountType\": true}}",
+          "allOf": [
+            {
+              "$ref": "#/definitions/mmodel.LedgerSettings"
+            }
+          ]
+        },
         "status": {
           "description": "Current operating status of the ledger (defaults to ACTIVE if not specified)\nrequired: false",
           "allOf": [
@@ -8147,6 +8951,85 @@ const docTemplate = `
               "$ref": "#/definitions/Status"
             }
           ]
+        }
+      }
+    },
+    "CreateMetadataIndexInput": {
+      "description": "CreateMetadataIndexInput payload",
+      "type": "object",
+      "required": [
+        "metadataKey"
+      ],
+      "properties": {
+        "metadataKey": {
+          "description": "The metadata key to index (without \"metadata.\" prefix)\nrequired: true\nmaxLength: 100",
+          "type": "string",
+          "maxLength": 100,
+          "example": "tier"
+        },
+        "sparse": {
+          "description": "Whether the index should be sparse (only include documents with the field)\nrequired: false\ndefault: true",
+          "type": "boolean",
+          "example": true
+        },
+        "unique": {
+          "description": "Whether the index should enforce uniqueness\nrequired: false\ndefault: false",
+          "type": "boolean",
+          "example": false
+        }
+      }
+    },
+    "CreateOperationRouteInput": {
+      "description": "CreateOperationRouteInput payload for creating a new Operation Route with title, description, operation type, and optional account rules.",
+      "type": "object",
+      "required": [
+        "operationType",
+        "title"
+      ],
+      "properties": {
+        "account": {
+          "description": "The account selection rule configuration.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AccountRule"
+            }
+          ]
+        },
+        "accountingEntries": {
+          "description": "Optional accounting entries for each action type associated with this operation route.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AccountingEntries"
+            }
+          ]
+        },
+        "code": {
+          "description": "Deprecated: external reference code kept for backward compatibility. Use the rubric codes inside accountingEntries instead.\nexample: EXT-001\nmaxLength: 100\ndeprecated: true",
+          "type": "string",
+          "maxLength": 100,
+          "example": "EXT-001"
+        },
+        "description": {
+          "description": "Detailed description of the operation route purpose and usage.",
+          "type": "string",
+          "maxLength": 250,
+          "example": "This operation route handles cash-in transactions from service charge collections"
+        },
+        "metadata": {
+          "description": "Additional metadata stored as JSON",
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "operationType": {
+          "description": "The type of the operation route.",
+          "type": "string",
+          "example": "source"
+        },
+        "title": {
+          "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
+          "type": "string",
+          "maxLength": 255,
+          "example": "Cashin from service charge"
         }
       }
     },
@@ -8266,6 +9149,245 @@ const docTemplate = `
         }
       }
     },
+    "CreateTransactionInflowInput": {
+      "description": "CreateTransactionInflowInput is the input payload to create an inflow transaction. Contains all necessary fields to create a financial transaction without source information, only destination.",
+      "type": "object",
+      "required": [
+        "send"
+      ],
+      "properties": {
+        "chartOfAccountsGroupName": {
+          "description": "Chart of accounts group name for accounting purposes\nexample: FUNDING\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "FUNDING"
+        },
+        "code": {
+          "description": "Transaction code for reference\nexample: TR12345\nmaxLength: 100",
+          "type": "string",
+          "maxLength": 100,
+          "example": "TR12345"
+        },
+        "description": {
+          "description": "Human-readable description of the transaction\nexample: New Transaction\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "New Transaction"
+        },
+        "metadata": {
+          "description": "Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}",
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "route": {
+          "description": "Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250",
+          "type": "string",
+          "maxLength": 250,
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "routeId": {
+          "description": "UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "send": {
+          "description": "Send operation details including distribution only (no source)\nrequired: true",
+          "allOf": [
+            {
+              "$ref": "#/definitions/SendInflow"
+            }
+          ]
+        },
+        "transactionDate": {
+          "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        }
+      }
+    },
+    "CreateTransactionInput": {
+      "description": "CreateTransactionInput is the input payload to create a transaction. Contains all necessary fields to create a financial transaction, including source and destination information.",
+      "type": "object",
+      "required": [
+        "send"
+      ],
+      "properties": {
+        "chartOfAccountsGroupName": {
+          "description": "Chart of accounts group name for accounting purposes\nexample: FUNDING\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "FUNDING"
+        },
+        "code": {
+          "description": "Transaction code for reference\nexample: TR12345\nmaxLength: 100",
+          "type": "string",
+          "maxLength": 100,
+          "example": "TR12345"
+        },
+        "description": {
+          "description": "Human-readable description of the transaction\nexample: New Transaction\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "New Transaction"
+        },
+        "metadata": {
+          "description": "Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}",
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "pending": {
+          "description": "Whether the transaction should be created in pending state\nexample: true",
+          "type": "boolean",
+          "default": false,
+          "example": true
+        },
+        "route": {
+          "description": "Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.\nexample: \"00000000-0000-0000-0000-000000000000\"\nmaxLength: 250",
+          "type": "string",
+          "maxLength": 250,
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "routeId": {
+          "description": "UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "send": {
+          "description": "Send operation details including source and distribution\nrequired: true",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Send"
+            }
+          ]
+        },
+        "transactionDate": {
+          "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        }
+      }
+    },
+    "CreateTransactionOutflowInput": {
+      "description": "CreateTransactionOutflowInput is the input payload to create an outflow transaction. Contains all necessary fields to create a financial transaction with source information only, without destination.",
+      "type": "object",
+      "required": [
+        "send"
+      ],
+      "properties": {
+        "chartOfAccountsGroupName": {
+          "description": "Chart of accounts group name for accounting purposes\nexample: WITHDRAWAL\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "WITHDRAWAL"
+        },
+        "code": {
+          "description": "Transaction code for reference\nexample: TR12345\nmaxLength: 100",
+          "type": "string",
+          "maxLength": 100,
+          "example": "TR12345"
+        },
+        "description": {
+          "description": "Human-readable description of the transaction\nexample: New Outflow Transaction\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "New Outflow Transaction"
+        },
+        "metadata": {
+          "description": "Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}",
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "pending": {
+          "description": "Whether the transaction should be created in pending state\nexample: true",
+          "type": "boolean",
+          "default": false,
+          "example": true
+        },
+        "route": {
+          "description": "Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250",
+          "type": "string",
+          "maxLength": 250,
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "routeId": {
+          "description": "UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "send": {
+          "description": "Send operation details including source only (no distribution)\nrequired: true",
+          "allOf": [
+            {
+              "$ref": "#/definitions/SendOutflow"
+            }
+          ]
+        },
+        "transactionDate": {
+          "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        }
+      }
+    },
+    "CreateTransactionRouteInput": {
+      "description": "CreateTransactionRouteInput payload",
+      "type": "object",
+      "required": [
+        "operationRoutes",
+        "title"
+      ],
+      "properties": {
+        "description": {
+          "description": "A description for the Transaction Route.",
+          "type": "string",
+          "maxLength": 250,
+          "example": "Settlement route for service charges"
+        },
+        "metadata": {
+          "description": "Additional metadata stored as JSON",
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "operationRoutes": {
+          "description": "A list of Operation Route IDs associated with the Transaction Route.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "title": {
+          "description": "Short text summarizing the purpose of the transaction. Used as an entry note for identification.",
+          "type": "string",
+          "maxLength": 255,
+          "example": "Charge Settlement"
+        }
+      }
+    },
+    "Distribute": {
+      "description": "Distribute is the struct designed to represent the distribution fields of an operation.",
+      "type": "object",
+      "required": [
+        "to"
+      ],
+      "properties": {
+        "remaining": {
+          "type": "string"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FromTo"
+          }
+        }
+      }
+    },
     "Error": {
       "description": "Standardized error response format used across all API endpoints for error situations. Provides structured information about errors including codes, messages, and field-specific validation details.",
       "type": "object",
@@ -8300,6 +9422,78 @@ const docTemplate = `
           "type": "string",
           "maxLength": 100,
           "example": "Bad Request"
+        }
+      }
+    },
+    "FromTo": {
+      "description": "FromTo is the struct designed to represent the from/to fields of an operation.",
+      "type": "object",
+      "properties": {
+        "accountAlias": {
+          "type": "string",
+          "example": "@person1"
+        },
+        "amount": {
+          "$ref": "#/definitions/Amount"
+        },
+        "balanceKey": {
+          "type": "string",
+          "example": "asset-freeze"
+        },
+        "chartOfAccounts": {
+          "type": "string",
+          "example": "1000"
+        },
+        "description": {
+          "type": "string",
+          "example": "description"
+        },
+        "isFrom": {
+          "type": "boolean",
+          "example": true
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "rate": {
+          "$ref": "#/definitions/Rate"
+        },
+        "remaining": {
+          "type": "string",
+          "example": "remaining"
+        },
+        "route": {
+          "description": "Deprecated: passive field kept for backward compatibility. Accepted from client and persisted, but not used in any validation or business logic. Use routeId instead.",
+          "type": "string",
+          "maxLength": 250,
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "routeId": {
+          "description": "UUID of the operation route. Primary field used for route validation and accounting rules.\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "share": {
+          "$ref": "#/definitions/Share"
+        }
+      }
+    },
+    "IndexStats": {
+      "description": "Usage statistics collected by MongoDB for an index",
+      "type": "object",
+      "properties": {
+        "accesses": {
+          "description": "Number of operations that have used this index\nexample: 1523",
+          "type": "integer",
+          "example": 1523
+        },
+        "statsSince": {
+          "description": "Timestamp since when the statistics are being collected\nexample: 2024-12-01T10:30:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2024-12-01T10:30:00Z"
         }
       }
     },
@@ -8342,6 +9536,14 @@ const docTemplate = `
           "format": "uuid",
           "example": "00000000-0000-0000-0000-000000000000"
         },
+        "settings": {
+          "description": "Dynamic configuration settings for this ledger\nexample: {\"accounting\": {\"validateAccountType\": true}}",
+          "allOf": [
+            {
+              "$ref": "#/definitions/mmodel.LedgerSettings"
+            }
+          ]
+        },
         "status": {
           "description": "Current operating status of the ledger",
           "allOf": [
@@ -8352,6 +9554,304 @@ const docTemplate = `
         },
         "updatedAt": {
           "description": "Timestamp when the ledger was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        }
+      }
+    },
+    "MetadataIndex": {
+      "description": "Represents a custom MongoDB index on a metadata field",
+      "type": "object",
+      "properties": {
+        "entityName": {
+          "description": "The entity/collection name where the index exists",
+          "type": "string",
+          "example": "transaction"
+        },
+        "indexName": {
+          "description": "The name of the index in MongoDB",
+          "type": "string",
+          "example": "metadata.tier_1"
+        },
+        "metadataKey": {
+          "description": "The metadata key that is indexed",
+          "type": "string",
+          "example": "tier"
+        },
+        "sparse": {
+          "description": "Whether the index is sparse",
+          "type": "boolean",
+          "example": true
+        },
+        "stats": {
+          "description": "Usage statistics for this index (only available on GET, not on CREATE)",
+          "allOf": [
+            {
+              "$ref": "#/definitions/IndexStats"
+            }
+          ]
+        },
+        "unique": {
+          "description": "Whether the index enforces uniqueness",
+          "type": "boolean",
+          "example": false
+        }
+      }
+    },
+    "Operation": {
+      "description": "Operation is a struct designed to store operation data. Represents a financial operation that affects account balances, including details such as amount, balance before and after, transaction association, and metadata.",
+      "type": "object",
+      "properties": {
+        "accountAlias": {
+          "description": "Human-readable alias for the account\nexample: @person1\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "@person1"
+        },
+        "accountId": {
+          "description": "Account identifier associated with this operation\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "amount": {
+          "description": "Operation amount information",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Amount"
+            }
+          ]
+        },
+        "assetCode": {
+          "description": "Asset code for the operation\nexample: BRL\nminLength: 2\nmaxLength: 10",
+          "type": "string",
+          "maxLength": 10,
+          "minLength": 2,
+          "example": "BRL"
+        },
+        "balance": {
+          "description": "Balance before the operation",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Balance"
+            }
+          ]
+        },
+        "balanceAffected": {
+          "description": "BalanceAffected default true\nformat: boolean",
+          "type": "boolean",
+          "format": "boolean",
+          "example": true
+        },
+        "balanceAfter": {
+          "description": "Balance after the operation",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Balance"
+            }
+          ]
+        },
+        "balanceId": {
+          "description": "Balance identifier affected by this operation\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "balanceKey": {
+          "description": "Unique key for the balance\nexample: asset-freeze\nmaxLength: 100",
+          "type": "string",
+          "maxLength": 100,
+          "example": "asset-freeze"
+        },
+        "chartOfAccounts": {
+          "description": "Chart of accounts code for accounting purposes\nexample: 1000\nmaxLength: 20",
+          "type": "string",
+          "maxLength": 20,
+          "example": "1000"
+        },
+        "createdAt": {
+          "description": "Timestamp when the operation was created\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        },
+        "deletedAt": {
+          "description": "Timestamp when the operation was deleted (if soft-deleted)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        },
+        "description": {
+          "description": "Human-readable description of the operation\nexample: Credit card operation\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "Credit card operation"
+        },
+        "direction": {
+          "description": "Direction of the operation (debit, credit)\nexample: debit\nmaxLength: 50",
+          "type": "string",
+          "maxLength": 50,
+          "enum": [
+            "debit",
+            "credit"
+          ],
+          "example": "debit"
+        },
+        "id": {
+          "description": "Unique identifier for the operation\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "ledgerId": {
+          "description": "Ledger identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "metadata": {
+          "description": "Additional custom attributes\nexample: {\"reason\": \"Purchase refund\", \"reference\": \"INV-12345\"}",
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "organizationId": {
+          "description": "Organization identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "route": {
+          "description": "Deprecated: passive field kept for backward compatibility. Not used in validation or business logic. Use routeId instead.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
+          "type": "string",
+          "maxLength": 250,
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "routeCode": {
+          "description": "Human-readable code of the operation route for accounting traceability\nexample: ROUTE-001\nmaxLength: 100",
+          "type": "string",
+          "maxLength": 100,
+          "example": "ROUTE-001"
+        },
+        "routeDescription": {
+          "description": "Human-readable description of the operation route for accounting traceability\nexample: Settlement route for service charges\nmaxLength: 250",
+          "type": "string",
+          "maxLength": 250,
+          "example": "Settlement route for service charges"
+        },
+        "routeId": {
+          "description": "UUID of the operation route that generated this operation. Primary field for route identification, validation, and accounting.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "status": {
+          "description": "Operation status information",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Status"
+            }
+          ]
+        },
+        "transactionId": {
+          "description": "Parent transaction identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "type": {
+          "description": "Type of operation (e.g., DEBIT, CREDIT)\nexample: DEBIT\nmaxLength: 50",
+          "type": "string",
+          "maxLength": 50,
+          "example": "DEBIT"
+        },
+        "updatedAt": {
+          "description": "Timestamp when the operation was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        }
+      }
+    },
+    "OperationRoute": {
+      "description": "OperationRoute object",
+      "type": "object",
+      "properties": {
+        "account": {
+          "description": "The account selection rule configuration.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AccountRule"
+            }
+          ]
+        },
+        "accountingEntries": {
+          "description": "Optional accounting entries for each action type associated with this operation route.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AccountingEntries"
+            }
+          ]
+        },
+        "code": {
+          "description": "Deprecated: external reference code kept for backward compatibility. Use the rubric codes inside accountingEntries instead.\nexample: EXT-001\ndeprecated: true",
+          "type": "string",
+          "example": "EXT-001"
+        },
+        "createdAt": {
+          "description": "The timestamp when the operation route was created.",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        },
+        "deletedAt": {
+          "description": "The timestamp when the operation route was deleted.",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        },
+        "description": {
+          "description": "Detailed description of the operation route purpose and usage.",
+          "type": "string",
+          "example": "This operation route handles cash-in transactions from service charge collections"
+        },
+        "id": {
+          "description": "The unique identifier of the Operation Route.",
+          "type": "string",
+          "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+        },
+        "ledgerId": {
+          "description": "The unique identifier of the Ledger.",
+          "type": "string",
+          "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+        },
+        "metadata": {
+          "description": "Additional metadata stored as JSON",
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "operationType": {
+          "description": "The type of the operation route.",
+          "type": "string",
+          "enum": [
+            "source",
+            "destination",
+            "bidirectional"
+          ],
+          "example": "source"
+        },
+        "organizationId": {
+          "description": "The unique identifier of the Organization.",
+          "type": "string",
+          "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+        },
+        "title": {
+          "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
+          "type": "string",
+          "example": "Cashin from service charge"
+        },
+        "updatedAt": {
+          "description": "The timestamp when the operation route was last updated.",
           "type": "string",
           "format": "date-time",
           "example": "2021-01-01T00:00:00Z"
@@ -8432,31 +9932,6 @@ const docTemplate = `
         }
       }
     },
-    "Pagination": {
-      "description": "Pagination is the struct designed to store the pagination data of an entity list.",
-      "type": "object",
-      "properties": {
-        "items": {},
-        "limit": {
-          "type": "integer",
-          "example": 10
-        },
-        "next_cursor": {
-          "type": "string",
-          "x-omitempty": true,
-          "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
-        },
-        "page": {
-          "type": "integer",
-          "example": 1
-        },
-        "prev_cursor": {
-          "type": "string",
-          "x-omitempty": true,
-          "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
-        }
-      }
-    },
     "Portfolio": {
       "description": "Portfolio represents a collection of accounts grouped for specific purposes such as business units, departments, or client portfolios.",
       "type": "object",
@@ -8524,6 +9999,34 @@ const docTemplate = `
         }
       }
     },
+    "Rate": {
+      "description": "Rate is the struct designed to represent the rate fields of an operation.",
+      "type": "object",
+      "required": [
+        "externalId",
+        "from",
+        "to",
+        "value"
+      ],
+      "properties": {
+        "externalId": {
+          "type": "string",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "from": {
+          "type": "string",
+          "example": "BRL"
+        },
+        "to": {
+          "type": "string",
+          "example": "USDe"
+        },
+        "value": {
+          "type": "number",
+          "example": 1000
+        }
+      }
+    },
     "Segment": {
       "description": "Segment represents a logical division within a ledger such as a business area, product line, or customer category.",
       "type": "object",
@@ -8585,6 +10088,110 @@ const docTemplate = `
         }
       }
     },
+    "Send": {
+      "description": "Send is the struct designed to represent the sending fields of an operation.",
+      "type": "object",
+      "required": [
+        "asset",
+        "distribute",
+        "source",
+        "value"
+      ],
+      "properties": {
+        "asset": {
+          "type": "string",
+          "example": "BRL"
+        },
+        "distribute": {
+          "$ref": "#/definitions/Distribute"
+        },
+        "source": {
+          "$ref": "#/definitions/Source"
+        },
+        "value": {
+          "type": "number",
+          "example": 1000
+        }
+      }
+    },
+    "SendInflow": {
+      "description": "SendInflow is the struct designed to represent the sending fields of an inflow operation without source information.",
+      "type": "object",
+      "required": [
+        "asset",
+        "distribute",
+        "value"
+      ],
+      "properties": {
+        "asset": {
+          "type": "string",
+          "example": "BRL"
+        },
+        "distribute": {
+          "$ref": "#/definitions/Distribute"
+        },
+        "value": {
+          "type": "number",
+          "example": 1000
+        }
+      }
+    },
+    "SendOutflow": {
+      "description": "SendOutflow is the struct designed to represent the sending fields of an outflow operation without distribution information.",
+      "type": "object",
+      "required": [
+        "asset",
+        "source",
+        "value"
+      ],
+      "properties": {
+        "asset": {
+          "type": "string",
+          "example": "BRL"
+        },
+        "source": {
+          "$ref": "#/definitions/Source"
+        },
+        "value": {
+          "type": "number",
+          "example": 1000
+        }
+      }
+    },
+    "Share": {
+      "description": "Share is the struct designed to represent the sharing fields of an operation.",
+      "type": "object",
+      "required": [
+        "percentage"
+      ],
+      "properties": {
+        "percentage": {
+          "type": "integer"
+        },
+        "percentageOfPercentage": {
+          "type": "integer"
+        }
+      }
+    },
+    "Source": {
+      "description": "Source is the struct designed to represent the source fields of an operation.",
+      "type": "object",
+      "required": [
+        "from"
+      ],
+      "properties": {
+        "from": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FromTo"
+          }
+        },
+        "remaining": {
+          "type": "string",
+          "example": "remaining"
+        }
+      }
+    },
     "Status": {
       "description": "Status is the struct designed to represent the status of a transaction. Contains code and optional description for transaction states.",
       "type": "object",
@@ -8600,6 +10207,189 @@ const docTemplate = `
           "type": "string",
           "maxLength": 256,
           "example": "Active status"
+        }
+      }
+    },
+    "Transaction": {
+      "description": "Transaction is a struct designed to store transaction data. Represents a financial transaction that consists of multiple operations affecting account balances, including details about the transaction's status, amounts, and related operations.",
+      "type": "object",
+      "properties": {
+        "amount": {
+          "description": "Transaction amount value in the smallest unit of the asset\nexample: 1500\nminimum: 0",
+          "type": "number",
+          "minimum": 0,
+          "example": 1500
+        },
+        "assetCode": {
+          "description": "Asset code for the transaction\nexample: BRL\nminLength: 2\nmaxLength: 10",
+          "type": "string",
+          "maxLength": 10,
+          "minLength": 2,
+          "example": "BRL"
+        },
+        "chartOfAccountsGroupName": {
+          "description": "Chart of accounts group name for accounting purposes\nexample: Chart of accounts group name\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "Chart of accounts group name"
+        },
+        "createdAt": {
+          "description": "Timestamp when the transaction was created\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        },
+        "deletedAt": {
+          "description": "Timestamp when the transaction was deleted (if soft-deleted)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        },
+        "description": {
+          "description": "Human-readable description of the transaction\nexample: Transaction description\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "Transaction description"
+        },
+        "destination": {
+          "description": "List of destination account aliases or identifiers\nexample: [\"@person2\"]",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "example": [
+            "@person2"
+          ]
+        },
+        "id": {
+          "description": "Unique identifier for the transaction\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "ledgerId": {
+          "description": "Ledger identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "metadata": {
+          "description": "Additional custom attributes\nexample: {\"purpose\": \"Monthly payment\", \"category\": \"Utility\"}",
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "operations": {
+          "description": "List of operations associated with this transaction",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Operation"
+          }
+        },
+        "organizationId": {
+          "description": "Organization identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "parentTransactionId": {
+          "description": "Parent transaction identifier (for reversals or child transactions)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "route": {
+          "description": "Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
+          "type": "string",
+          "maxLength": 250,
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "routeId": {
+          "description": "UUID of the transaction route. Primary field for route identification, validation, and accounting.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "source": {
+          "description": "List of source account aliases or identifiers\nexample: [\"@person1\"]",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "example": [
+            "@person1"
+          ]
+        },
+        "status": {
+          "description": "Transaction status information",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Status"
+            }
+          ]
+        },
+        "updatedAt": {
+          "description": "Timestamp when the transaction was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        }
+      }
+    },
+    "TransactionRoute": {
+      "description": "TransactionRoute object",
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "description": "The timestamp when the transaction route was created.",
+          "type": "string",
+          "example": "2025-01-01T00:00:00Z"
+        },
+        "deletedAt": {
+          "description": "The timestamp when the transaction route was deleted.",
+          "type": "string",
+          "example": "2025-01-01T00:00:00Z"
+        },
+        "description": {
+          "description": "A description for the Transaction Route.",
+          "type": "string",
+          "example": "Settlement route for service charges"
+        },
+        "id": {
+          "description": "The unique identifier of the Transaction Route.",
+          "type": "string",
+          "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+        },
+        "ledgerId": {
+          "description": "The unique identifier of the Ledger.",
+          "type": "string",
+          "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+        },
+        "metadata": {
+          "description": "Additional metadata stored as JSON",
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "operationRoutes": {
+          "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/OperationRoute"
+          }
+        },
+        "organizationId": {
+          "description": "The unique identifier of the Organization.",
+          "type": "string",
+          "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+        },
+        "title": {
+          "description": "Short text summarizing the purpose of the transaction. Used as an entry note for identification.",
+          "type": "string",
+          "example": "Charge Settlement"
+        },
+        "updatedAt": {
+          "description": "The timestamp when the transaction route was last updated.",
+          "type": "string",
+          "example": "2025-01-01T00:00:00Z"
         }
       }
     },
@@ -8696,6 +10486,22 @@ const docTemplate = `
         }
       }
     },
+    "UpdateBalance": {
+      "description": "Request payload for updating an existing balance's permissions. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.",
+      "type": "object",
+      "properties": {
+        "allowReceiving": {
+          "description": "Whether the account should be allowed to receive funds to this balance\nrequired: false\nexample: true",
+          "type": "boolean",
+          "example": true
+        },
+        "allowSending": {
+          "description": "Whether the account should be allowed to send funds from this balance\nrequired: false\nexample: true",
+          "type": "boolean",
+          "example": true
+        }
+      }
+    },
     "UpdateLedgerInput": {
       "description": "Request payload for updating an existing ledger. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.",
       "type": "object",
@@ -8718,6 +10524,68 @@ const docTemplate = `
               "$ref": "#/definitions/Status"
             }
           ]
+        }
+      }
+    },
+    "UpdateOperationInput": {
+      "description": "UpdateOperationInput is the input payload to update an operation. Contains fields that can be modified after an operation is created.",
+      "type": "object",
+      "properties": {
+        "description": {
+          "description": "Human-readable description of the operation\nexample: Credit card operation\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "Credit card operation"
+        },
+        "metadata": {
+          "description": "Additional custom attributes\nexample: {\"reason\": \"Purchase refund\", \"reference\": \"INV-12345\"}",
+          "type": "object",
+          "additionalProperties": {}
+        }
+      }
+    },
+    "UpdateOperationRouteInput": {
+      "description": "UpdateOperationRouteInput payload",
+      "type": "object",
+      "properties": {
+        "account": {
+          "description": "The account selection rule configuration.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AccountRule"
+            }
+          ]
+        },
+        "accountingEntries": {
+          "description": "Optional accounting entries for each action type associated with this operation route.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AccountingEntries"
+            }
+          ]
+        },
+        "code": {
+          "description": "Deprecated: external reference code kept for backward compatibility. Use the rubric codes inside accountingEntries instead.\nexample: EXT-001\nmaxLength: 100\ndeprecated: true",
+          "type": "string",
+          "maxLength": 100,
+          "example": "EXT-001"
+        },
+        "description": {
+          "description": "Detailed description of the operation route purpose and usage.",
+          "type": "string",
+          "maxLength": 250,
+          "example": "This operation route handles cash-in transactions from service charge collections"
+        },
+        "metadata": {
+          "description": "Additional metadata stored as JSON",
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "title": {
+          "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
+          "type": "string",
+          "maxLength": 255,
+          "example": "Cashin from service charge"
         }
       }
     },
@@ -8821,949 +10689,6 @@ const docTemplate = `
         }
       }
     },
-    "AccountRule": {
-      "description": "AccountRule object containing the rule type and condition for account selection in operation routes.",
-      "type": "object",
-      "properties": {
-        "ruleType": {
-          "description": "The rule type for account selection.",
-          "type": "string",
-          "example": "alias"
-        },
-        "validIf": {
-          "description": "The rule condition for account selection. String for alias type (e.g. \"@cash_account\"), array for account_type."
-        }
-      }
-    },
-    "Amount": {
-      "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
-      "type": "object",
-      "properties": {
-        "value": {
-          "description": "The amount value in the smallest unit of the asset (e.g., cents)\nexample: 1500\nminimum: 0",
-          "type": "number",
-          "minimum": 0,
-          "example": 1500
-        }
-      }
-    },
-    "AssetRate": {
-      "description": "AssetRate is a struct designed to store asset rate data. Represents a complete asset rate entity containing conversion information between two assets, including all system-generated fields.",
-      "type": "object",
-      "properties": {
-        "createdAt": {
-          "description": "Timestamp when the asset rate was created\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        },
-        "externalId": {
-          "description": "External identifier for integration with third-party systems\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "from": {
-          "description": "Source asset code\nexample: USD\nminLength: 2\nmaxLength: 10",
-          "type": "string",
-          "maxLength": 10,
-          "minLength": 2,
-          "example": "USD"
-        },
-        "id": {
-          "description": "Unique identifier for the asset rate\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "ledgerId": {
-          "description": "Ledger containing this asset rate\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "metadata": {
-          "description": "Additional custom attributes\nexample: {\"provider\": \"Central Bank\", \"rateName\": \"Official Exchange Rate\"}",
-          "type": "object",
-          "additionalProperties": {}
-        },
-        "organizationId": {
-          "description": "Organization that owns this asset rate\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "rate": {
-          "description": "Conversion rate value\nexample: 100",
-          "type": "number",
-          "example": 100
-        },
-        "scale": {
-          "description": "Decimal places for the rate\nexample: 2\nminimum: 0",
-          "type": "number",
-          "minimum": 0,
-          "example": 2
-        },
-        "source": {
-          "description": "Source of rate information\nexample: External System\nmaxLength: 200",
-          "type": "string",
-          "maxLength": 200,
-          "example": "External System"
-        },
-        "to": {
-          "description": "Target asset code\nexample: BRL\nminLength: 2\nmaxLength: 10",
-          "type": "string",
-          "maxLength": 10,
-          "minLength": 2,
-          "example": "BRL"
-        },
-        "ttl": {
-          "description": "Time-to-live in seconds\nexample: 3600\nminimum: 0",
-          "type": "integer",
-          "minimum": 0,
-          "example": 3600
-        },
-        "updatedAt": {
-          "description": "Timestamp when the asset rate was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        }
-      }
-    },
-    "Balance": {
-      "description": "Balance is the struct designed to represent the account balance. Contains available and on-hold amounts along with the scale (decimal places).",
-      "type": "object",
-      "properties": {
-        "available": {
-          "description": "Amount available for transactions (in the smallest unit of asset)\nexample: 1500\nminimum: 0",
-          "type": "number",
-          "minimum": 0,
-          "example": 1500
-        },
-        "onHold": {
-          "description": "Amount on hold and unavailable for transactions (in the smallest unit of asset)\nexample: 500\nminimum: 0",
-          "type": "number",
-          "minimum": 0,
-          "example": 500
-        },
-        "version": {
-          "description": "Balance version after the operation\nexample: 2\nminimum: 0",
-          "type": "integer",
-          "minimum": 0,
-          "example": 2
-        }
-      }
-    },
-    "CreateAdditionalBalance": {
-      "description": "Request payload for creating a new balance with specified permissions and custom key.",
-      "type": "object",
-      "required": [
-        "key"
-      ],
-      "properties": {
-        "allowReceiving": {
-          "description": "Whether the account should be allowed to receive funds to this balance\nrequired: false\nexample: true",
-          "type": "boolean",
-          "example": true
-        },
-        "allowSending": {
-          "description": "Whether the account should be allowed to send funds from this balance\nrequired: false\nexample: true",
-          "type": "boolean",
-          "example": true
-        },
-        "key": {
-          "description": "Unique key for the balance\nrequired: true\nmaxLength: 100\nexample: asset-freeze",
-          "type": "string",
-          "maxLength": 100,
-          "example": "asset-freeze"
-        }
-      }
-    },
-    "CreateAssetRateInput": {
-      "description": "CreateAssetRateInput is the input payload to create an asset rate. Contains required fields for setting up asset conversion rates, including source and target assets, rate value, scale, and optional metadata.",
-      "type": "object",
-      "required": [
-        "from",
-        "rate",
-        "to"
-      ],
-      "properties": {
-        "externalId": {
-          "description": "External identifier for integration (optional)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "from": {
-          "description": "Source asset code (required)\nexample: USD\nrequired: true\nminLength: 2\nmaxLength: 10",
-          "type": "string",
-          "maxLength": 10,
-          "minLength": 2,
-          "example": "USD"
-        },
-        "metadata": {
-          "description": "Additional custom attributes (optional)\nexample: {\"provider\": \"Central Bank\", \"rateName\": \"Official Exchange Rate\"}",
-          "type": "object",
-          "additionalProperties": {}
-        },
-        "rate": {
-          "description": "Conversion rate value (required)\nexample: 100\nrequired: true",
-          "type": "integer",
-          "example": 100
-        },
-        "scale": {
-          "description": "Decimal places for the rate (optional)\nexample: 2\nminimum: 0",
-          "type": "integer",
-          "minimum": 0,
-          "example": 2
-        },
-        "source": {
-          "description": "Source of rate information (optional)\nexample: External System\nmaxLength: 200",
-          "type": "string",
-          "maxLength": 200,
-          "example": "External System"
-        },
-        "to": {
-          "description": "Target asset code (required)\nexample: BRL\nrequired: true\nminLength: 2\nmaxLength: 10",
-          "type": "string",
-          "maxLength": 10,
-          "minLength": 2,
-          "example": "BRL"
-        },
-        "ttl": {
-          "description": "Time-to-live in seconds (optional)\nexample: 3600\nminimum: 0",
-          "type": "integer",
-          "minimum": 0,
-          "example": 3600
-        }
-      }
-    },
-    "CreateOperationRouteInput": {
-      "description": "CreateOperationRouteInput payload for creating a new Operation Route with title, description, operation type, and optional account rules.",
-      "type": "object",
-      "required": [
-        "operationType",
-        "title"
-      ],
-      "properties": {
-        "account": {
-          "description": "The account selection rule configuration.",
-          "allOf": [
-            {
-              "$ref": "#/definitions/AccountRule"
-            }
-          ]
-        },
-        "code": {
-          "description": "External reference of the operation route.",
-          "type": "string",
-          "maxLength": 100,
-          "example": "EXT-001"
-        },
-        "description": {
-          "description": "Detailed description of the operation route purpose and usage.",
-          "type": "string",
-          "maxLength": 250,
-          "example": "This operation route handles cash-in transactions from service charge collections"
-        },
-        "metadata": {
-          "description": "Additional metadata stored as JSON",
-          "type": "object",
-          "additionalProperties": {}
-        },
-        "operationType": {
-          "description": "The type of the operation route.",
-          "type": "string",
-          "example": "source"
-        },
-        "title": {
-          "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
-          "type": "string",
-          "maxLength": 50,
-          "example": "Cashin from service charge"
-        }
-      }
-    },
-    "CreateTransactionInflowSwaggerModel": {
-      "description": "Schema for creating inflow transaction with the complete SendInflow operation structure defined inline",
-      "type": "object",
-      "properties": {
-        "chartOfAccountsGroupName": {
-          "description": "Chart of accounts group name for accounting purposes\nexample: FUNDING\nmaxLength: 256",
-          "type": "string"
-        },
-        "code": {
-          "description": "Transaction code for reference\nexample: TR12345\nmaxLength: 100",
-          "type": "string"
-        },
-        "description": {
-          "description": "Human-readable description of the transaction\nexample: New Inflow Transaction\nmaxLength: 256",
-          "type": "string"
-        },
-        "metadata": {
-          "description": "Additional custom attributes\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}",
-          "type": "object",
-          "additionalProperties": {}
-        },
-        "send": {
-          "description": "Send operation details including distribution only\nrequired: true",
-          "type": "object",
-          "properties": {
-            "asset": {
-              "description": "Asset code for the transaction\nexample: USD\nrequired: true",
-              "type": "string"
-            },
-            "distribute": {
-              "description": "Destination accounts and amounts for the transaction\nrequired: true",
-              "type": "object",
-              "properties": {
-                "to": {
-                  "description": "List of destination operations\nrequired: true",
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "accountAlias": {
-                        "description": "Account identifier or alias\nexample: @myAccount\nrequired: true",
-                        "type": "string"
-                      },
-                      "amount": {
-                        "description": "Amount details for the operation\nrequired: true",
-                        "type": "object",
-                        "properties": {
-                          "asset": {
-                            "description": "Asset code\nexample: USD\nrequired: true",
-                            "type": "string"
-                          },
-                          "value": {
-                            "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "chartOfAccounts": {
-                        "description": "Chart of accounts code\nexample: FUNDING_CREDIT",
-                        "type": "string"
-                      },
-                      "description": {
-                        "description": "Operation description\nexample: Credit Operation",
-                        "type": "string"
-                      },
-                      "metadata": {
-                        "description": "Additional metadata\nexample: {\"operation\": \"funding\", \"type\": \"account\"}",
-                        "type": "object",
-                        "additionalProperties": {}
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "value": {
-              "description": "Transaction amount value in the smallest unit of the asset\nexample: \"100.00\"\nrequired: true",
-              "type": "string"
-            }
-          }
-        },
-        "transactionDate": {
-          "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
-          "type": "string"
-        }
-      }
-    },
-    "CreateTransactionOutflowSwaggerModel": {
-      "description": "Schema for creating outflow transaction with the complete SendOutflow operation structure defined inline",
-      "type": "object",
-      "properties": {
-        "chartOfAccountsGroupName": {
-          "description": "Chart of accounts group name for accounting purposes\nexample: WITHDRAWAL\nmaxLength: 256",
-          "type": "string"
-        },
-        "code": {
-          "description": "Transaction code for reference\nexample: TR12345\nmaxLength: 100",
-          "type": "string"
-        },
-        "description": {
-          "description": "Human-readable description of the transaction\nexample: New Outflow Transaction\nmaxLength: 256",
-          "type": "string"
-        },
-        "metadata": {
-          "description": "Additional custom attributes\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}",
-          "type": "object",
-          "additionalProperties": {}
-        },
-        "pending": {
-          "description": "Whether the transaction should be created in pending state\nexample: true\nswagger: type boolean",
-          "type": "boolean",
-          "default": false,
-          "example": true
-        },
-        "send": {
-          "description": "Send operation details including source only\nrequired: true",
-          "type": "object",
-          "properties": {
-            "asset": {
-              "description": "Asset code for the transaction\nexample: USD\nrequired: true",
-              "type": "string"
-            },
-            "source": {
-              "description": "Source accounts and amounts for the transaction\nrequired: true",
-              "type": "object",
-              "properties": {
-                "from": {
-                  "description": "List of source operations\nrequired: true",
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "accountAlias": {
-                        "description": "Account identifier or alias\nexample: @myAccount\nrequired: true",
-                        "type": "string"
-                      },
-                      "amount": {
-                        "description": "Amount details for the operation\nrequired: true",
-                        "type": "object",
-                        "properties": {
-                          "asset": {
-                            "description": "Asset code\nexample: USD\nrequired: true",
-                            "type": "string"
-                          },
-                          "value": {
-                            "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "chartOfAccounts": {
-                        "description": "Chart of accounts code\nexample: WITHDRAWAL_DEBIT",
-                        "type": "string"
-                      },
-                      "description": {
-                        "description": "Operation description\nexample: Debit Operation",
-                        "type": "string"
-                      },
-                      "metadata": {
-                        "description": "Additional metadata\nexample: {\"operation\": \"withdrawal\", \"type\": \"account\"}",
-                        "type": "object",
-                        "additionalProperties": {}
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "value": {
-              "description": "Transaction amount value in the smallest unit of the asset\nexample: \"100.00\"\nrequired: true",
-              "type": "string"
-            }
-          }
-        },
-        "transactionDate": {
-          "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
-          "type": "string"
-        }
-      }
-    },
-    "CreateTransactionRouteInput": {
-      "description": "CreateTransactionRouteInput payload",
-      "type": "object",
-      "required": [
-        "operationRoutes",
-        "title"
-      ],
-      "properties": {
-        "description": {
-          "description": "A description for the Transaction Route.",
-          "type": "string",
-          "maxLength": 250,
-          "example": "Settlement route for service charges"
-        },
-        "metadata": {
-          "description": "Additional metadata stored as JSON",
-          "type": "object",
-          "additionalProperties": {}
-        },
-        "operationRoutes": {
-          "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "title": {
-          "description": "Short text summarizing the purpose of the transaction. Used as an entry note for identification.",
-          "type": "string",
-          "maxLength": 50,
-          "example": "Charge Settlement"
-        }
-      }
-    },
-    "Operation": {
-      "description": "Operation is a struct designed to store operation data. Represents a financial operation that affects account balances, including details such as amount, balance before and after, transaction association, and metadata.",
-      "type": "object",
-      "properties": {
-        "accountAlias": {
-          "description": "Human-readable alias for the account\nexample: @person1\nmaxLength: 256",
-          "type": "string",
-          "maxLength": 256,
-          "example": "@person1"
-        },
-        "accountId": {
-          "description": "Account identifier associated with this operation\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "amount": {
-          "description": "Operation amount information",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Amount"
-            }
-          ]
-        },
-        "assetCode": {
-          "description": "Asset code for the operation\nexample: BRL\nminLength: 2\nmaxLength: 10",
-          "type": "string",
-          "maxLength": 10,
-          "minLength": 2,
-          "example": "BRL"
-        },
-        "balance": {
-          "description": "Balance before the operation",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Balance"
-            }
-          ]
-        },
-        "balanceAffected": {
-          "description": "BalanceAffected default true\nformat: boolean",
-          "type": "boolean",
-          "format": "boolean",
-          "example": true
-        },
-        "balanceAfter": {
-          "description": "Balance after the operation",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Balance"
-            }
-          ]
-        },
-        "balanceId": {
-          "description": "Balance identifier affected by this operation\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "balanceKey": {
-          "description": "Unique key for the balance\nexample: asset-freeze\nmaxLength: 100",
-          "type": "string",
-          "maxLength": 100,
-          "example": "asset-freeze"
-        },
-        "chartOfAccounts": {
-          "description": "Chart of accounts code for accounting purposes\nexample: 1000\nmaxLength: 20",
-          "type": "string",
-          "maxLength": 20,
-          "example": "1000"
-        },
-        "createdAt": {
-          "description": "Timestamp when the operation was created\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        },
-        "deletedAt": {
-          "description": "Timestamp when the operation was deleted (if soft-deleted)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        },
-        "description": {
-          "description": "Human-readable description of the operation\nexample: Credit card operation\nmaxLength: 256",
-          "type": "string",
-          "maxLength": 256,
-          "example": "Credit card operation"
-        },
-        "id": {
-          "description": "Unique identifier for the operation\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "ledgerId": {
-          "description": "Ledger identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "metadata": {
-          "description": "Additional custom attributes\nexample: {\"reason\": \"Purchase refund\", \"reference\": \"INV-12345\"}",
-          "type": "object",
-          "additionalProperties": {}
-        },
-        "organizationId": {
-          "description": "Organization identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "route": {
-          "description": "Route\nexample: 00000000-0000-0000-0000-000000000000\nformat: string",
-          "type": "string",
-          "format": "string",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "status": {
-          "description": "Operation status information",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Status"
-            }
-          ]
-        },
-        "transactionId": {
-          "description": "Parent transaction identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "type": {
-          "description": "Type of operation (e.g., DEBIT, CREDIT)\nexample: DEBIT\nmaxLength: 50",
-          "type": "string",
-          "maxLength": 50,
-          "example": "DEBIT"
-        },
-        "updatedAt": {
-          "description": "Timestamp when the operation was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        }
-      }
-    },
-    "OperationRoute": {
-      "description": "OperationRoute object",
-      "type": "object",
-      "properties": {
-        "account": {
-          "description": "The account selection rule configuration.",
-          "allOf": [
-            {
-              "$ref": "#/definitions/AccountRule"
-            }
-          ]
-        },
-        "code": {
-          "description": "External reference of the operation route.",
-          "type": "string",
-          "example": "EXT-001"
-        },
-        "createdAt": {
-          "description": "The timestamp when the operation route was created.",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        },
-        "deletedAt": {
-          "description": "The timestamp when the operation route was deleted.",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        },
-        "description": {
-          "description": "Detailed description of the operation route purpose and usage.",
-          "type": "string",
-          "example": "This operation route handles cash-in transactions from service charge collections"
-        },
-        "id": {
-          "description": "The unique identifier of the Operation Route.",
-          "type": "string",
-          "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
-        },
-        "ledgerId": {
-          "description": "The unique identifier of the Ledger.",
-          "type": "string",
-          "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
-        },
-        "metadata": {
-          "description": "Additional metadata stored as JSON",
-          "type": "object",
-          "additionalProperties": {}
-        },
-        "operationType": {
-          "description": "The type of the operation route.",
-          "type": "string",
-          "example": "source"
-        },
-        "organizationId": {
-          "description": "The unique identifier of the Organization.",
-          "type": "string",
-          "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
-        },
-        "title": {
-          "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
-          "type": "string",
-          "example": "Cashin from service charge"
-        },
-        "updatedAt": {
-          "description": "The timestamp when the operation route was last updated.",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        }
-      }
-    },
-    "Transaction": {
-      "description": "Transaction is a struct designed to store transaction data. Represents a financial transaction that consists of multiple operations affecting account balances, including details about the transaction's status, amounts, and related operations.",
-      "type": "object",
-      "properties": {
-        "amount": {
-          "description": "Transaction amount value in the smallest unit of the asset\nexample: 1500\nminimum: 0",
-          "type": "number",
-          "minimum": 0,
-          "example": 1500
-        },
-        "assetCode": {
-          "description": "Asset code for the transaction\nexample: BRL\nminLength: 2\nmaxLength: 10",
-          "type": "string",
-          "maxLength": 10,
-          "minLength": 2,
-          "example": "BRL"
-        },
-        "chartOfAccountsGroupName": {
-          "description": "Chart of accounts group name for accounting purposes\nexample: Chart of accounts group name\nmaxLength: 256",
-          "type": "string",
-          "maxLength": 256,
-          "example": "Chart of accounts group name"
-        },
-        "createdAt": {
-          "description": "Timestamp when the transaction was created\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        },
-        "deletedAt": {
-          "description": "Timestamp when the transaction was deleted (if soft-deleted)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        },
-        "description": {
-          "description": "Human-readable description of the transaction\nexample: Transaction description\nmaxLength: 256",
-          "type": "string",
-          "maxLength": 256,
-          "example": "Transaction description"
-        },
-        "destination": {
-          "description": "List of destination account aliases or identifiers\nexample: [\"@person2\"]",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "example": [
-            "@person2"
-          ]
-        },
-        "id": {
-          "description": "Unique identifier for the transaction\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "ledgerId": {
-          "description": "Ledger identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "metadata": {
-          "description": "Additional custom attributes\nexample: {\"purpose\": \"Monthly payment\", \"category\": \"Utility\"}",
-          "type": "object",
-          "additionalProperties": {}
-        },
-        "operations": {
-          "description": "List of operations associated with this transaction",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/Operation"
-          }
-        },
-        "organizationId": {
-          "description": "Organization identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "parentTransactionId": {
-          "description": "Parent transaction identifier (for reversals or child transactions)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "route": {
-          "description": "Route\nexample: 00000000-0000-0000-0000-000000000000\nformat: string",
-          "type": "string",
-          "format": "string",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "source": {
-          "description": "List of source account aliases or identifiers\nexample: [\"@person1\"]",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "example": [
-            "@person1"
-          ]
-        },
-        "status": {
-          "description": "Transaction status information",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Status"
-            }
-          ]
-        },
-        "updatedAt": {
-          "description": "Timestamp when the transaction was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        }
-      }
-    },
-    "TransactionRoute": {
-      "description": "TransactionRoute object",
-      "type": "object",
-      "properties": {
-        "createdAt": {
-          "description": "The timestamp when the transaction route was created.",
-          "type": "string",
-          "example": "2025-01-01T00:00:00Z"
-        },
-        "deletedAt": {
-          "description": "The timestamp when the transaction route was deleted.",
-          "type": "string",
-          "example": "2025-01-01T00:00:00Z"
-        },
-        "description": {
-          "description": "A description for the Transaction Route.",
-          "type": "string",
-          "example": "Settlement route for service charges"
-        },
-        "id": {
-          "description": "The unique identifier of the Transaction Route.",
-          "type": "string",
-          "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
-        },
-        "ledgerId": {
-          "description": "The unique identifier of the Ledger.",
-          "type": "string",
-          "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
-        },
-        "metadata": {
-          "description": "Additional metadata stored as JSON",
-          "type": "object",
-          "additionalProperties": {}
-        },
-        "operationRoutes": {
-          "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/OperationRoute"
-          }
-        },
-        "organizationId": {
-          "description": "The unique identifier of the Organization.",
-          "type": "string",
-          "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
-        },
-        "title": {
-          "description": "Short text summarizing the purpose of the transaction. Used as an entry note for identification.",
-          "type": "string",
-          "example": "Charge Settlement"
-        },
-        "updatedAt": {
-          "description": "The timestamp when the transaction route was last updated.",
-          "type": "string",
-          "example": "2025-01-01T00:00:00Z"
-        }
-      }
-    },
-    "UpdateBalance": {
-      "description": "Request payload for updating an existing balance's permissions. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.",
-      "type": "object",
-      "properties": {
-        "allowReceiving": {
-          "description": "Whether the account should be allowed to receive funds to this balance\nrequired: false\nexample: true",
-          "type": "boolean",
-          "example": true
-        },
-        "allowSending": {
-          "description": "Whether the account should be allowed to send funds from this balance\nrequired: false\nexample: true",
-          "type": "boolean",
-          "example": true
-        }
-      }
-    },
-    "UpdateOperationInput": {
-      "description": "UpdateOperationInput is the input payload to update an operation. Contains fields that can be modified after an operation is created.",
-      "type": "object",
-      "properties": {
-        "description": {
-          "description": "Human-readable description of the operation\nexample: Credit card operation\nmaxLength: 256",
-          "type": "string",
-          "maxLength": 256,
-          "example": "Credit card operation"
-        },
-        "metadata": {
-          "description": "Additional custom attributes\nexample: {\"reason\": \"Purchase refund\", \"reference\": \"INV-12345\"}",
-          "type": "object",
-          "additionalProperties": {}
-        }
-      }
-    },
-    "UpdateOperationRouteInput": {
-      "description": "UpdateOperationRouteInput payload",
-      "type": "object",
-      "properties": {
-        "account": {
-          "description": "The account selection rule configuration.",
-          "allOf": [
-            {
-              "$ref": "#/definitions/AccountRule"
-            }
-          ]
-        },
-        "code": {
-          "description": "External reference of the operation route.",
-          "type": "string",
-          "maxLength": 100,
-          "example": "EXT-001"
-        },
-        "description": {
-          "description": "Detailed description of the operation route purpose and usage.",
-          "type": "string",
-          "maxLength": 250,
-          "example": "This operation route handles cash-in transactions from service charge collections"
-        },
-        "metadata": {
-          "description": "Additional metadata stored as JSON",
-          "type": "object",
-          "additionalProperties": {}
-        },
-        "title": {
-          "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
-          "type": "string",
-          "maxLength": 50,
-          "example": "Cashin from service charge"
-        }
-      }
-    },
     "UpdateTransactionInput": {
       "description": "UpdateTransactionInput is the input payload to update a transaction. Contains fields that can be modified after a transaction is created.",
       "type": "object",
@@ -9797,17 +10722,49 @@ const docTemplate = `
           "additionalProperties": {}
         },
         "operationRoutes": {
-          "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
+          "description": "A list of Operation Route IDs associated with the Transaction Route. Omit to leave existing associations unchanged. When provided, replaces all current associations with the supplied UUIDs.",
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "format": "uuid"
           }
         },
         "title": {
           "description": "Short text summarizing the purpose of the transaction. Used as an entry note for identification.",
           "type": "string",
-          "maxLength": 50,
+          "maxLength": 255,
           "example": "Charge Settlement"
+        }
+      }
+    },
+    "http.Pagination": {
+      "type": "object",
+      "properties": {
+        "items": {},
+        "limit": {
+          "type": "integer"
+        },
+        "next_cursor": {
+          "type": "string"
+        },
+        "page": {
+          "type": "integer"
+        },
+        "prev_cursor": {
+          "type": "string"
+        }
+      }
+    },
+    "mmodel.AccountingValidation": {
+      "type": "object",
+      "properties": {
+        "validateAccountType": {
+          "description": "ValidateAccountType enables validation of account types during transaction processing.\nWhen true, accounts must have types that match the operation route rules.\nDefault: false (permissive - no validation)",
+          "type": "boolean"
+        },
+        "validateRoutes": {
+          "description": "ValidateRoutes enables validation of transaction routes during processing.\nWhen true, transactions must specify valid route IDs that exist in the ledger.\nDefault: false (permissive - no validation)",
+          "type": "boolean"
         }
       }
     },
@@ -9917,223 +10874,16 @@ const docTemplate = `
         }
       }
     },
-    "transaction.CreateTransactionSwaggerModel": {
-      "description": "Schema for creating transaction with the complete Send operation structure defined inline",
+    "mmodel.LedgerSettings": {
       "type": "object",
       "properties": {
-        "chartOfAccountsGroupName": {
-          "description": "Chart of accounts group name for accounting purposes\nexample: FUNDING\nmaxLength: 256",
-          "type": "string"
-        },
-        "code": {
-          "description": "Transaction code for reference\nexample: TR12345\nmaxLength: 100",
-          "type": "string"
-        },
-        "description": {
-          "description": "Human-readable description of the transaction\nexample: New Transaction\nmaxLength: 256",
-          "type": "string"
-        },
-        "metadata": {
-          "description": "Additional custom attributes\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}",
-          "type": "object",
-          "additionalProperties": {}
-        },
-        "pending": {
-          "description": "Whether the transaction should be created in pending state\nexample: true\nswagger: type boolean",
-          "type": "boolean",
-          "default": false,
-          "example": true
-        },
-        "send": {
-          "description": "Send operation details including source and distribution\nrequired: true",
-          "type": "object",
-          "properties": {
-            "asset": {
-              "description": "Asset code for the transaction\nexample: USD\nrequired: true",
-              "type": "string"
-            },
-            "distribute": {
-              "description": "Destination accounts and amounts for the transaction\nrequired: true",
-              "type": "object",
-              "properties": {
-                "to": {
-                  "description": "List of destination operations\nrequired: true",
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "accountAlias": {
-                        "description": "Account identifier or alias\nexample: @myAccount\nrequired: true",
-                        "type": "string"
-                      },
-                      "amount": {
-                        "description": "Amount details for the operation\nrequired: true",
-                        "type": "object",
-                        "properties": {
-                          "asset": {
-                            "description": "Asset code\nexample: USD\nrequired: true",
-                            "type": "string"
-                          },
-                          "value": {
-                            "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "chartOfAccounts": {
-                        "description": "Chart of accounts code\nexample: FUNDING_CREDIT",
-                        "type": "string"
-                      },
-                      "description": {
-                        "description": "Operation description\nexample: Credit Operation",
-                        "type": "string"
-                      },
-                      "metadata": {
-                        "description": "Additional metadata\nexample: {\"operation\": \"funding\", \"type\": \"account\"}",
-                        "type": "object",
-                        "additionalProperties": {}
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "source": {
-              "description": "Source accounts and amounts for the transaction\nrequired: true",
-              "type": "object",
-              "properties": {
-                "from": {
-                  "description": "List of source operations\nrequired: true",
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "accountAlias": {
-                        "description": "Account identifier or alias\nexample: @external/USD\nrequired: true",
-                        "type": "string"
-                      },
-                      "amount": {
-                        "description": "Amount details for the operation\nrequired: true",
-                        "type": "object",
-                        "properties": {
-                          "asset": {
-                            "description": "Asset code\nexample: USD\nrequired: true",
-                            "type": "string"
-                          },
-                          "value": {
-                            "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "chartOfAccounts": {
-                        "description": "Chart of accounts code\nexample: FUNDING_DEBIT",
-                        "type": "string"
-                      },
-                      "description": {
-                        "description": "Operation description\nexample: Debit Operation",
-                        "type": "string"
-                      },
-                      "metadata": {
-                        "description": "Additional metadata\nexample: {\"operation\": \"funding\", \"type\": \"external\"}",
-                        "type": "object",
-                        "additionalProperties": {}
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "value": {
-              "description": "Transaction amount value in the smallest unit of the asset\nexample: \"100.00\"\nrequired: true",
-              "type": "string"
-            }
-          }
-        },
-        "transactionDate": {
-          "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
-          "type": "string"
-        }
-      }
-    },
-    "CreateMetadataIndexInput": {
-      "description": "CreateMetadataIndexInput payload",
-      "type": "object",
-      "required": [
-        "metadataKey"
-      ],
-      "properties": {
-        "metadataKey": {
-          "description": "The metadata key to index (without \"metadata.\" prefix)\nrequired: true\nmaxLength: 100",
-          "type": "string",
-          "maxLength": 100,
-          "example": "tier"
-        },
-        "sparse": {
-          "description": "Whether the index should be sparse (only include documents with the field)\nrequired: false\ndefault: true",
-          "type": "boolean",
-          "example": true
-        },
-        "unique": {
-          "description": "Whether the index should enforce uniqueness\nrequired: false\ndefault: false",
-          "type": "boolean",
-          "example": false
-        }
-      }
-    },
-    "IndexStats": {
-      "description": "Usage statistics collected by MongoDB for an index",
-      "type": "object",
-      "properties": {
-        "accesses": {
-          "description": "Number of operations that have used this index\nexample: 1523",
-          "type": "integer",
-          "example": 1523
-        },
-        "statsSince": {
-          "description": "Timestamp since when the statistics are being collected\nexample: 2024-12-01T10:30:00Z\nformat: date-time",
-          "type": "string",
-          "format": "date-time",
-          "example": "2024-12-01T10:30:00Z"
-        }
-      }
-    },
-    "MetadataIndex": {
-      "description": "Represents a custom MongoDB index on a metadata field",
-      "type": "object",
-      "properties": {
-        "entityName": {
-          "description": "The entity/collection name where the index exists",
-          "type": "string",
-          "example": "transaction"
-        },
-        "indexName": {
-          "description": "The name of the index in MongoDB",
-          "type": "string",
-          "example": "metadata.tier_1"
-        },
-        "metadataKey": {
-          "description": "The metadata key that is indexed",
-          "type": "string",
-          "example": "tier"
-        },
-        "sparse": {
-          "description": "Whether the index is sparse",
-          "type": "boolean",
-          "example": true
-        },
-        "stats": {
-          "description": "Usage statistics for this index (only available on GET, not on CREATE)",
+        "accounting": {
+          "description": "Accounting contains validation settings for accounting operations.",
           "allOf": [
             {
-              "$ref": "#/definitions/IndexStats"
+              "$ref": "#/definitions/mmodel.AccountingValidation"
             }
           ]
-        },
-        "unique": {
-          "description": "Whether the index enforces uniqueness",
-          "type": "boolean",
-          "example": false
         }
       }
     }
@@ -10145,7 +10895,6 @@ const docTemplate = `
       "in": "header",
       "description": "Bearer token authentication. Format: 'Bearer {access_token}'. Only required when auth plugin is enabled."
     }
-  },
-  "tags": []
+  }
 }
 `

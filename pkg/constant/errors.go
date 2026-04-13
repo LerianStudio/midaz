@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package constant
 
 import (
@@ -120,7 +124,7 @@ var (
 	ErrNoAccountTypesFound                      = errors.New("0110")
 	ErrInvalidAccountRuleType                   = errors.New("0111")
 	ErrInvalidAccountRuleValue                  = errors.New("0112")
-	ErrInvalidAccountingRoute                   = errors.New("0113")
+	ErrCorruptedAccountRule                     = errors.New("0113")
 	ErrTransactionRouteNotInformed              = errors.New("0114")
 	ErrInvalidTransactionRouteID                = errors.New("0115")
 	ErrAccountingRouteCountMismatch             = errors.New("0116")
@@ -137,7 +141,6 @@ var (
 	ErrAccountCreationFailed                    = errors.New("0127")
 	ErrTransactionBackupCacheFailed             = errors.New("0128")
 	ErrTransactionBackupCacheMarshalFailed      = errors.New("0129")
-	ErrGRPCServiceUnavailable                   = errors.New("0130")
 	ErrInvalidDatetimeFormat                    = errors.New("0131")
 	ErrMetadataIndexAlreadyExists               = errors.New("0132")
 	ErrMetadataIndexNotFound                    = errors.New("0133")
@@ -147,6 +150,35 @@ var (
 	ErrMetadataIndexDeletionForbidden           = errors.New("0137")
 	ErrInvalidEntityName                        = errors.New("0138")
 	ErrTransactionBackupCacheRetrievalFailed    = errors.New("0139")
+	ErrInvalidTimestamp                         = errors.New("0140")
+	ErrNoBalanceDataAtTimestamp                 = errors.New("0141")
+	ErrMissingRequiredQueryParameter            = errors.New("0142")
+	ErrPayloadTooLarge                          = errors.New("0143")
+	ErrJSONNestingDepthExceeded                 = errors.New("0144")
+	ErrJSONKeyCountExceeded                     = errors.New("0145")
+	ErrTenantNotProvisioned                     = errors.New("0146")
+	ErrUnknownSettingsField                     = errors.New("0147")
+	ErrInvalidSettingsFieldType                 = errors.New("0148")
+	ErrSettingsRootLevelField                   = errors.New("0149")
+	ErrRouteNotBidirectional                    = errors.New("0150")
+	ErrMissingCounterpart                       = errors.New("0151")
+	ErrDirectionRouteMismatch                   = errors.New("0152")
+	ErrNoSourceForAction                        = errors.New("0153")
+	ErrNoDestinationForAction                   = errors.New("0154")
+	ErrInvalidRouteAction                       = errors.New("0155")
+	ErrDuplicateActionRoute                     = errors.New("0156")
+	ErrNoRoutesForAction                        = errors.New("0157")
+	ErrTooManyOperationRoutes                   = errors.New("0158")
+	ErrTenantServiceSuspended                   = errors.New("0159")
+	ErrTenantNotFound                           = errors.New("0160")
+	ErrTenantServiceUnavailable                 = errors.New("0161")
+
+	// Accounting Rules Validation Errors
+	ErrScenarioNotAllowedForDirection = errors.New("0162")
+	ErrReserveGroupIncomplete         = errors.New("0163")
+	ErrDirectScenarioRequired         = errors.New("0164")
+	ErrRevertOnlyBidirectional        = errors.New("0165")
+	ErrAccountingEntryFieldRequired   = errors.New("0166")
 )
 
 // List of CRM errors.

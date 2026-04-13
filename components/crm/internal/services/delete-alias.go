@@ -1,15 +1,21 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package services
 
 import (
 	"context"
+	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// DeleteAliasByID removes an alias by its id and holder id
+// DeleteAliasByID removes an alias by its ID and holder ID.
 func (uc *UseCase) DeleteAliasByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, hardDelete bool) error {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -23,12 +29,12 @@ func (uc *UseCase) DeleteAliasByID(ctx context.Context, organizationID string, h
 		attribute.String("app.request.alias_id", id.String()),
 	)
 
-	logger.Infof("Delete alias by id %v", id)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Delete alias by id %v", id))
 
 	err := uc.AliasRepo.Delete(ctx, organizationID, holderID, id, hardDelete)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to delete alias by id: %v", err)
-		logger.Errorf("Failed to delete alias by id: %v", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to delete alias by id: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete alias by id: %v", err))
 
 		return err
 	}

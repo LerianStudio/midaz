@@ -1,5 +1,9 @@
 //go:build integration
 
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package postgres
 
 import (
@@ -11,12 +15,12 @@ import (
 )
 
 // FindMigrationsPath locates a migrations directory by traversing up from the current directory.
-// It looks for the pattern: components/{component}/migrations
+// It looks for the pattern: components/ledger/migrations/{component}
 //
 // Example:
 //
-//	path := FindMigrationsPath(t, "onboarding")  // finds components/onboarding/migrations
-//	path := FindMigrationsPath(t, "transaction") // finds components/transaction/migrations
+//	path := FindMigrationsPath(t, "onboarding")  // finds components/ledger/migrations/onboarding
+//	path := FindMigrationsPath(t, "transaction") // finds components/ledger/migrations/transaction
 func FindMigrationsPath(t *testing.T, component string) string {
 	t.Helper()
 
@@ -24,7 +28,7 @@ func FindMigrationsPath(t *testing.T, component string) string {
 	require.NoError(t, err, "failed to get current working directory")
 
 	for {
-		candidate := filepath.Join(dir, "components", component, "migrations")
+		candidate := filepath.Join(dir, "components", "ledger", "migrations", component)
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate
 		}

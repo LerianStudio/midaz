@@ -1,5 +1,9 @@
 //go:build integration
 
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package mongodb
 
 import (
@@ -27,8 +31,8 @@ type MetadataFixture struct {
 }
 
 // InsertMetadata inserts a metadata fixture into the specified collection.
-func InsertMetadata(t *testing.T, db *mongo.Database, collection string, fixture MetadataFixture) primitive.ObjectID {
-	t.Helper()
+func InsertMetadata(tb testing.TB, db *mongo.Database, collection string, fixture MetadataFixture) primitive.ObjectID {
+	tb.Helper()
 
 	if fixture.ID.IsZero() {
 		fixture.ID = primitive.NewObjectID()
@@ -44,43 +48,43 @@ func InsertMetadata(t *testing.T, db *mongo.Database, collection string, fixture
 
 	coll := db.Collection(collection)
 	_, err := coll.InsertOne(context.Background(), fixture)
-	require.NoError(t, err, "failed to insert metadata fixture")
+	require.NoError(tb, err, "failed to insert metadata fixture")
 
 	return fixture.ID
 }
 
 // InsertManyMetadata inserts multiple metadata fixtures into the specified collection.
-func InsertManyMetadata(t *testing.T, db *mongo.Database, collection string, fixtures []MetadataFixture) []primitive.ObjectID {
-	t.Helper()
+func InsertManyMetadata(tb testing.TB, db *mongo.Database, collection string, fixtures []MetadataFixture) []primitive.ObjectID {
+	tb.Helper()
 
 	ids := make([]primitive.ObjectID, len(fixtures))
 	for i, f := range fixtures {
-		ids[i] = InsertMetadata(t, db, collection, f)
+		ids[i] = InsertMetadata(tb, db, collection, f)
 	}
 
 	return ids
 }
 
 // CountDocuments counts documents in a collection with optional filter.
-func CountDocuments(t *testing.T, db *mongo.Database, collection string, filter bson.M) int64 {
-	t.Helper()
+func CountDocuments(tb testing.TB, db *mongo.Database, collection string, filter bson.M) int64 {
+	tb.Helper()
 
 	if filter == nil {
 		filter = bson.M{}
 	}
 
 	count, err := db.Collection(collection).CountDocuments(context.Background(), filter)
-	require.NoError(t, err, "failed to count documents")
+	require.NoError(tb, err, "failed to count documents")
 
 	return count
 }
 
 // ClearCollection removes all documents from a collection.
-func ClearCollection(t *testing.T, db *mongo.Database, collection string) {
-	t.Helper()
+func ClearCollection(tb testing.TB, db *mongo.Database, collection string) {
+	tb.Helper()
 
 	_, err := db.Collection(collection).DeleteMany(context.Background(), bson.M{})
-	require.NoError(t, err, "failed to clear collection")
+	require.NoError(tb, err, "failed to clear collection")
 }
 
 // ============================================================================
@@ -358,4 +362,3 @@ func CreateCompleteTestHolder(t *testing.T, name, document string) *mmodel.Holde
 
 	return holder
 }
-

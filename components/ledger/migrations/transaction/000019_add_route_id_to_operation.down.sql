@@ -1,0 +1,1 @@
+ALTER TABLE operation DROP COLUMN IF EXISTS route_id;

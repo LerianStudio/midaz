@@ -1,0 +1,55 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package command
+
+import (
+	"context"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/google/uuid"
+
+	// DeleteBalance delete balance in the repository.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+)
+
+func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "exec.delete_balance")
+	defer span.End()
+
+	logger.Log(ctx, libLog.LevelInfo, "Trying to delete balance")
+
+	balance, err := uc.BalanceRepo.Find(ctx, organizationID, ledgerID, balanceID)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance on repo by id", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balance: %v", err))
+
+		return err
+	}
+
+	if balance != nil && (!balance.Available.IsZero() || !balance.OnHold.IsZero()) {
+		err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "DeleteBalance")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in it.", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error deleting balance: %v", err))
+
+		return err
+	}
+
+	err = uc.BalanceRepo.Delete(ctx, organizationID, ledgerID, balanceID)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete balance on repo", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error delete balance: %v", err))
+
+		return err
+	}
+
+	return nil
+}

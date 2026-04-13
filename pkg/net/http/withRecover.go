@@ -1,12 +1,15 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package http
 
 import (
 	"fmt"
 	"net/http"
-	"runtime/debug"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -50,15 +53,17 @@ func WithRecover(opts ...RecoverMiddlewareOption) fiber.Handler {
 					logger = ctxLogger
 				}
 
-				stack := debug.Stack()
-				panicErr := fmt.Errorf("panic recovered: %v", r)
+				panicErr := fmt.Errorf("panic recovered")
+				panicType := fmt.Sprintf("%T", r)
 
-				logger.Errorf("Panic recovered: %v\nStack trace:\n%s", r, string(stack))
+				logger.Log(c.UserContext(), libLog.LevelError, "panic recovered",
+					libLog.String("panic_type", panicType),
+				)
 
 				span := trace.SpanFromContext(c.UserContext())
 				if span.IsRecording() {
 					span.RecordError(panicErr)
-					span.SetStatus(codes.Error, fmt.Sprintf("Panic: %v", r))
+					span.SetStatus(codes.Error, "panic recovered")
 				}
 
 				_ = c.Status(http.StatusInternalServerError).JSON(fiber.Map{

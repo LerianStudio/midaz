@@ -1,16 +1,20 @@
 //go:build integration || chaos
 
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package redis
 
 import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -26,9 +30,17 @@ func CreateBalanceOperation(organizationID, ledgerID uuid.UUID, alias, assetCode
 
 // CreateBalanceOperationWithAvailable creates a BalanceOperation with custom available balance and account type.
 func CreateBalanceOperationWithAvailable(organizationID, ledgerID uuid.UUID, alias, assetCode, operation string, amount, available decimal.Decimal, accountType string) mmodel.BalanceOperation {
-	balanceID := libCommons.GenerateUUIDv7().String()
-	accountID := libCommons.GenerateUUIDv7().String()
-	balanceKey := "default"
+	return CreateBalanceOperationWithOnHold(organizationID, ledgerID, alias, assetCode, operation, amount, available, decimal.Zero, accountType)
+}
+
+// CreateBalanceOperationWithOnHold creates a BalanceOperation with custom available, onHold balance and account type.
+// Used for testing PENDING transaction flows where OnHold balance is significant.
+func CreateBalanceOperationWithOnHold(organizationID, ledgerID uuid.UUID, alias, assetCode, operation string, amount, available, onHold decimal.Decimal, accountType string) mmodel.BalanceOperation {
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	accountID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	// Use alias as part of the balance key so different aliases map to different Redis keys.
+	// This matches production behavior where each account has a unique cache key.
+	balanceKey := alias + "#default"
 
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balanceKey)
 
@@ -42,7 +54,7 @@ func CreateBalanceOperationWithAvailable(organizationID, ledgerID uuid.UUID, ali
 			Key:            balanceKey,
 			AssetCode:      assetCode,
 			Available:      available,
-			OnHold:         decimal.Zero,
+			OnHold:         onHold,
 			Version:        1,
 			AccountType:    accountType,
 			AllowSending:   true,
@@ -51,13 +63,31 @@ func CreateBalanceOperationWithAvailable(organizationID, ledgerID uuid.UUID, ali
 			UpdatedAt:      time.Now(),
 		},
 		Alias: alias,
-		Amount: pkgTransaction.Amount{
+		Amount: mtransaction.Amount{
 			Asset:     assetCode,
 			Value:     amount,
 			Operation: operation,
 		},
 		InternalKey: internalKey,
 	}
+}
+
+// CreatePendingBalanceOperation creates a BalanceOperation for PENDING transaction testing.
+// It delegates to CreateBalanceOperationWithOnHold and overrides the version and
+// RouteValidationEnabled flag needed for double-entry PENDING integration tests.
+func CreatePendingBalanceOperation(
+	organizationID, ledgerID uuid.UUID,
+	alias, assetCode, operation string,
+	amount, available, onHold decimal.Decimal,
+	version int64,
+	accountType string,
+	routeValidationEnabled bool,
+) mmodel.BalanceOperation {
+	op := CreateBalanceOperationWithOnHold(organizationID, ledgerID, alias, assetCode, operation, amount, available, onHold, accountType)
+	op.Balance.Version = version
+	op.Amount.RouteValidationEnabled = routeValidationEnabled
+
+	return op
 }
 
 // AssertInsufficientFundsError verifies the error is an UnprocessableOperationError with code "0018".

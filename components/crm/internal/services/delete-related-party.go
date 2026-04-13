@@ -1,10 +1,16 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package services
 
 import (
 	"context"
+	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -23,17 +29,17 @@ func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID st
 		attribute.String("app.request.related_party_id", relatedPartyID.String()),
 	)
 
-	logger.Infof("Trying to delete related party: %v from alias: %v", relatedPartyID.String(), aliasID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to delete related party: %v from alias: %v", relatedPartyID.String(), aliasID.String()))
 
 	err := uc.AliasRepo.DeleteRelatedParty(ctx, organizationID, holderID, aliasID, relatedPartyID)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to delete related party", err)
-		logger.Errorf("Failed to delete related party: %v", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to delete related party", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete related party: %v", err))
 
 		return err
 	}
 
-	logger.Infof("Successfully deleted related party: %v from alias: %v", relatedPartyID.String(), aliasID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully deleted related party: %v from alias: %v", relatedPartyID.String(), aliasID.String()))
 
 	return nil
 }

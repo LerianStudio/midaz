@@ -1338,33 +1338,6 @@ components:
           example: Active
           type: string
       type: object
-    Pagination:
-      description: Pagination is the struct designed to store the pagination data
-        of an entity list.
-      example:
-        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        limit: 10
-        page: 1
-        items: '{}'
-      properties:
-        items:
-          type: object
-        limit:
-          example: 10
-          type: integer
-        next_cursor:
-          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          type: string
-          x-omitempty: true
-        page:
-          example: 1
-          type: integer
-        prev_cursor:
-          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          type: string
-          x-omitempty: true
-      type: object
     RegulatoryFields:
       description: RegulatoryFields object
       example:
@@ -1534,6 +1507,25 @@ components:
           description: Object with natural person information.
           type: object
       type: object
+    http.Pagination:
+      example:
+        prev_cursor: prev_cursor
+        next_cursor: next_cursor
+        limit: 0
+        page: 6
+        items: '{}'
+      properties:
+        items:
+          type: object
+        limit:
+          type: integer
+        next_cursor:
+          type: string
+        page:
+          type: integer
+        prev_cursor:
+          type: string
+      type: object
     pkg.HTTPError:
       properties:
         code:
@@ -1549,14 +1541,12 @@ components:
       type: object
     inline_response_200:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        limit: 0
-        page: 6
         items:
         - metadata:
             key: '{}'
@@ -1629,27 +1619,21 @@ components:
           id: 00000000-0000-0000-0000-000000000000
           updatedAt: 2025-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/AliasResponse'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_1:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        limit: 0
-        page: 6
         items:
         - addresses:
             additional1:
@@ -1768,16 +1752,12 @@ components:
             status: Active
           updatedAt: 2025-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/HolderResponse'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
   securitySchemes:
     BearerAuth:

@@ -1,0 +1,67 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package rabbitmq
+
+import (
+	"context"
+	"testing"
+
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+)
+
+func TestNewMetricStateListener_NilFactory_ReturnsError(t *testing.T) {
+	_, err := NewMetricStateListener(nil)
+	require.Error(t, err)
+	assert.Equal(t, ErrNilMetricsFactory, err)
+}
+
+func TestNewMetricStateListener_ValidFactory_ReturnsListener(t *testing.T) {
+	mp := sdkmetric.NewMeterProvider()
+	meter := mp.Meter("test")
+	factory, err := metrics.NewMetricsFactory(meter, nil)
+	require.NoError(t, err)
+
+	listener, err := NewMetricStateListener(factory)
+
+	require.NoError(t, err)
+	assert.NotNil(t, listener)
+}
+
+func TestMetricStateListener_OnStateChange_UpdatesMetric(t *testing.T) {
+	mp := sdkmetric.NewMeterProvider()
+	meter := mp.Meter("test")
+	factory, err := metrics.NewMetricsFactory(meter, nil)
+	require.NoError(t, err)
+
+	listener, err := NewMetricStateListener(factory)
+	require.NoError(t, err)
+
+	// Test state transitions - should not panic
+	ctx := context.Background()
+	listener.OnStateChange(ctx, "rabbitmq-producer", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	listener.OnStateChange(ctx, "rabbitmq-producer", libCircuitBreaker.StateOpen, libCircuitBreaker.StateHalfOpen)
+	listener.OnStateChange(ctx, "rabbitmq-producer", libCircuitBreaker.StateHalfOpen, libCircuitBreaker.StateClosed)
+}
+
+func TestStateToMetricValue(t *testing.T) {
+	tests := []struct {
+		state    libCircuitBreaker.State
+		expected int64
+	}{
+		{libCircuitBreaker.StateClosed, 0},
+		{libCircuitBreaker.StateOpen, 1},
+		{libCircuitBreaker.StateHalfOpen, 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.state), func(t *testing.T) {
+			assert.Equal(t, tt.expected, stateToMetricValue(tt.state))
+		})
+	}
+}

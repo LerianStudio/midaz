@@ -1,0 +1,2 @@
+-- No-op: the FK constraint fk_transaction_route_id was never created.
+-- Migration 000025 only adds the route_id column without a foreign key.

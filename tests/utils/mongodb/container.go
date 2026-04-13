@@ -1,5 +1,9 @@
 //go:build integration
 
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package mongodb
 
 import (
@@ -8,12 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/tests/utils"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 
 	"github.com/docker/docker/api/types/container"
 
-	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -23,7 +26,9 @@ import (
 
 const (
 	// DefaultDBName is the default database name for test containers.
-	DefaultDBName = "test_db"
+	DefaultDBName        = "test_db"
+	mongoStartupAttempts = 3
+	mongoStartupDeadline = 180 * time.Second
 )
 
 // ContainerConfig holds configuration for MongoDB test container.
@@ -55,14 +60,14 @@ type ContainerResult struct {
 
 // SetupContainer starts a MongoDB container for integration testing.
 // Returns client and connection info.
-func SetupContainer(t *testing.T) *ContainerResult {
-	t.Helper()
-	return SetupContainerWithConfig(t, DefaultContainerConfig())
+func SetupContainer(tb testing.TB) *ContainerResult {
+	tb.Helper()
+	return SetupContainerWithConfig(tb, DefaultContainerConfig())
 }
 
 // SetupContainerWithConfig starts a MongoDB container with custom configuration.
-func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResult {
-	t.Helper()
+func SetupContainerWithConfig(tb testing.TB, cfg ContainerConfig) *ContainerResult {
+	tb.Helper()
 
 	ctx := context.Background()
 
@@ -72,41 +77,37 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		WaitingFor: wait.ForAll(
 			wait.ForLog("Waiting for connections"),
 			wait.ForListeningPort("27017/tcp"),
-		).WithDeadline(60 * time.Second),
+		).WithDeadline(mongoStartupDeadline),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
 	}
 
-	ctr, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	require.NoError(t, err, "failed to start MongoDB container")
+	ctr := startMongoContainerWithRetry(tb, ctx, req, "failed to start MongoDB container")
 
 	host, err := ctr.Host(ctx)
-	require.NoError(t, err, "failed to get MongoDB container host")
+	require.NoError(tb, err, "failed to get MongoDB container host")
 
 	port, err := ctr.MappedPort(ctx, "27017")
-	require.NoError(t, err, "failed to get MongoDB container port")
+	require.NoError(tb, err, "failed to get MongoDB container port")
 
 	uri := fmt.Sprintf("mongodb://%s:%s", host, port.Port())
 
 	clientOpts := options.Client().ApplyURI(uri)
 	client, err := mongo.Connect(ctx, clientOpts)
-	require.NoError(t, err, "failed to connect to MongoDB container")
+	require.NoError(tb, err, "failed to connect to MongoDB container")
 
 	// Verify connection
 	err = client.Ping(ctx, nil)
-	require.NoError(t, err, "failed to ping MongoDB container")
+	require.NoError(tb, err, "failed to ping MongoDB container")
 
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		if err := client.Disconnect(context.Background()); err != nil {
-			t.Logf("failed to disconnect MongoDB client: %v", err)
+			tb.Logf("failed to disconnect MongoDB client: %v", err)
 		}
 
 		if err := ctr.Terminate(context.Background()); err != nil {
-			t.Logf("failed to terminate MongoDB container: %v", err)
+			tb.Logf("failed to terminate MongoDB container: %v", err)
 		}
 	})
 
@@ -119,15 +120,50 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	}
 }
 
-// CreateConnection creates a libMongo.MongoConnection wrapper for testing.
-func CreateConnection(t *testing.T, uri, dbName string) *libMongo.MongoConnection {
-	t.Helper()
+func startMongoContainerWithRetry(tb testing.TB, ctx context.Context, req testcontainers.ContainerRequest, failureMessage string) testcontainers.Container {
+	tb.Helper()
 
-	logger := libZap.InitializeLogger()
+	var (
+		ctr testcontainers.Container
+		err error
+	)
 
-	return &libMongo.MongoConnection{
-		ConnectionStringSource: uri,
-		Database:               dbName,
-		Logger:                 logger,
+	for attempt := 1; attempt <= mongoStartupAttempts; attempt++ {
+		ctr, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+			ContainerRequest: req,
+			Started:          true,
+		})
+		if err == nil {
+			return ctr
+		}
+
+		tb.Logf("MongoDB container start attempt %d/%d failed: %v", attempt, mongoStartupAttempts, err)
+
+		if attempt < mongoStartupAttempts {
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
 	}
+
+	require.NoError(tb, err, failureMessage)
+
+	return nil
+}
+
+// CreateConnection creates a libMongo.Client wrapper for testing.
+func CreateConnection(tb testing.TB, uri, dbName string) *libMongo.Client {
+	tb.Helper()
+
+	conn, err := libMongo.NewClient(context.Background(), libMongo.Config{
+		URI:      uri,
+		Database: dbName,
+	})
+	require.NoError(tb, err, "failed to initialize mongo connection")
+
+	tb.Cleanup(func() {
+		if closeErr := conn.Close(context.Background()); closeErr != nil {
+			tb.Logf("failed to close mongo connection: %v", closeErr)
+		}
+	})
+
+	return conn
 }

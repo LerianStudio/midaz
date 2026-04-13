@@ -1,11 +1,17 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package services
 
 import (
 	"context"
+	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -23,7 +29,13 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		attribute.String("app.request.holder_id", holderID.String()),
 	)
 
-	aliasID := libCommons.GenerateUUIDv7()
+	aliasID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(span, "Failed to generate alias id", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate alias id: %v", err))
+
+		return nil, err
+	}
 
 	alias := &mmodel.Alias{
 		ID:        &aliasID,
@@ -56,14 +68,21 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 
 	if len(cai.RelatedParties) > 0 {
 		if err := uc.ValidateRelatedParties(ctx, cai.RelatedParties); err != nil {
-			libOpenTelemetry.HandleSpanError(&span, "Failed to validate related parties", err)
-			logger.Errorf("Failed to validate related parties: %v", err)
+			libOpenTelemetry.HandleSpanError(span, "Failed to validate related parties", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate related parties: %v", err))
 
 			return nil, err
 		}
 
 		for _, rp := range cai.RelatedParties {
-			rpID := libCommons.GenerateUUIDv7()
+			rpID, rpErr := libCommons.GenerateUUIDv7()
+			if rpErr != nil {
+				libOpenTelemetry.HandleSpanError(span, "Failed to generate related party id", rpErr)
+				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate related party id: %v", rpErr))
+
+				return nil, rpErr
+			}
+
 			rp.ID = &rpID
 		}
 
@@ -72,8 +91,8 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 
 	holder, err := uc.GetHolderByID(ctx, organizationID, holderID, false)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get holder by id", err)
-		logger.Errorf("Failed to get holder by id %v", holderID.String())
+		libOpenTelemetry.HandleSpanError(span, "Failed to get holder by id", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get holder by id %v", holderID.String()))
 
 		return nil, err
 	}
@@ -83,8 +102,8 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 
 	createdAlias, err := uc.AliasRepo.Create(ctx, organizationID, alias)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to create alias", err)
-		logger.Errorf("Failed to create alias: %v", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to create alias", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create alias: %v", err))
 
 		return nil, err
 	}

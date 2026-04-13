@@ -16,6 +16,10 @@ $(shell mkdir -p $(ARTIFACTS_DIR))
 # Define the root directory of the project
 MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
 
+# Unit test coverage (shared target from mk/coverage-unit.mk)
+COVERAGE_PACKAGES := ./components/crm/...
+include $(MIDAZ_ROOT)/mk/coverage-unit.mk
+
 # Local utility function (mesmo padrão de onboarding/transaction)
 define title1
 	@echo ""
@@ -42,7 +46,7 @@ help:
 	@echo "  make test                        - Run tests"
 	@echo "  make clean                       - Clean build artifacts"
 	@echo "  make run                         - Run the application with .env config"
-	@echo "  make cover-html                  - Generate HTML test coverage report"
+	@echo "  make coverage-unit               - Run unit tests with coverage report"
 	@echo ""
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
 	@echo "  make lint                        - Run linting tools"
@@ -72,6 +76,7 @@ help:
 	@echo "  make check-envs                  - Check for exposed .env files"
 	@echo "  make setup-git-hooks             - Install git hooks"
 	@echo "  make check-hooks                 - Check git hooks status"
+	@echo "  make generate-keys               - Generate crypto keys for local testing"
 	@echo ""
 
 #-------------------------------------------------------
@@ -117,20 +122,50 @@ set-env:
 		echo "  Creating .env from .env.example"; \
 		cp ".env.example" ".env"; \
 		echo "$(GREEN)  ✓ Backend .env created$(NC)"; \
-		echo "  Generating random LCRYPTO_ENCRYPT_SECRET_KEY for local testing..."; \
-		RANDOM_KEY=$$(openssl rand -hex 32); \
-		if grep -q "^LCRYPTO_ENCRYPT_SECRET_KEY=" ".env"; then \
-			sed -i "s|^LCRYPTO_ENCRYPT_SECRET_KEY=.*|LCRYPTO_ENCRYPT_SECRET_KEY=$$RANDOM_KEY|" ".env"; \
-		else \
-			echo "LCRYPTO_ENCRYPT_SECRET_KEY=$$RANDOM_KEY" >> ".env"; \
-		fi; \
-		echo "$(GREEN)  ✓ LCRYPTO_ENCRYPT_SECRET_KEY generated$(NC)"; \
 	elif [ ! -f ".env.example" ]; then \
 		echo "$(YELLOW)  ! No .env.example found$(NC)"; \
 	else \
 		echo "$(GREEN)  ✓ Backend .env already exists$(NC)"; \
 	fi
+	@$(MAKE) generate-keys
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Environment file set up successfully$(GREEN) ✔️$(NC)"
+
+# Helper function to generate and inject a crypto key into .env
+# Usage: $(call inject_crypto_key,KEY_NAME,PLACEHOLDER)
+define inject_crypto_key
+	@CURRENT_VAL=$$(grep "^$(1)=" .env 2>/dev/null | cut -d'=' -f2); \
+	if [ -z "$$CURRENT_VAL" ] || [ "$$CURRENT_VAL" = "$(2)" ]; then \
+		echo "  Generating $(1)..."; \
+		NEW_KEY=$$(docker run --rm alpine/openssl rand -hex 32 2>/dev/null); \
+		if [ -z "$$NEW_KEY" ] || [ $${#NEW_KEY} -ne 64 ]; then \
+			echo "$(RED)  ✗ Failed to generate key. Ensure Docker is running.$(NC)"; \
+			exit 1; \
+		fi; \
+		if grep -q "^$(1)=" ".env"; then \
+			sed -i.bak "s|^$(1)=.*|$(1)=$$NEW_KEY|" ".env" && rm -f ".env.bak"; \
+		else \
+			echo "$(1)=$$NEW_KEY" >> ".env"; \
+		fi; \
+		echo "$(GREEN)  ✓ $(1) generated$(NC)"; \
+	else \
+		echo "$(GREEN)  ✓ $(1) already set$(NC)"; \
+	fi
+endef
+
+.PHONY: generate-keys
+generate-keys:
+	$(call title1,"Generating crypto keys for local testing")
+	@if [ ! -f ".env" ]; then \
+		echo "$(YELLOW)  ! No .env file found. Run 'make set-env' first.$(NC)"; \
+		exit 0; \
+	fi
+	$(call inject_crypto_key,LCRYPTO_HASH_SECRET_KEY,my-hash-secret-key)
+	$(call inject_crypto_key,LCRYPTO_ENCRYPT_SECRET_KEY,my-encrypt-secret-key)
+	@echo ""
+	@echo "$(YELLOW)  ⚠️  WARNING: Generated keys are for LOCAL/TEST use only.$(NC)"
+	@echo "$(YELLOW)     For production, generate keys securely and store in a secrets manager.$(NC)"
+	@echo ""
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Crypto keys generated successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Build / Test / Coverage
@@ -147,19 +182,6 @@ test:
 	@go test -v ./...
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Tests completed successfully$(GREEN) ✔️$(NC)"
 
-.PHONY: cover-html
-cover-html:
-	$(call title1,"Generating HTML test coverage report")
-	@PACKAGES=$$(go list ./... | grep -v -f ./scripts/coverage_ignore.txt); \
-	go test -coverprofile=$(ARTIFACTS_DIR)/coverage.out $$PACKAGES
-	@go tool cover -html=$(ARTIFACTS_DIR)/coverage.out -o $(ARTIFACTS_DIR)/coverage.html
-	@echo "$(GREEN)Coverage report generated at $(ARTIFACTS_DIR)/coverage.html$(NC)"
-	@echo ""
-	@echo "$(CYAN)Coverage Summary:$(NC)"
-	@echo "$(CYAN)----------------------------------------$(NC)"
-	@go tool cover -func=$(ARTIFACTS_DIR)/coverage.out | grep total | awk '{print "Total coverage: " $$3}'
-	@echo "$(CYAN)----------------------------------------$(NC)"
-	@echo "$(YELLOW)Open $(ARTIFACTS_DIR)/coverage.html in your browser to view detailed coverage report$(NC)"
 
 .PHONY: check-tests
 check-tests:
@@ -185,10 +207,11 @@ check-tests:
 .PHONY: lint
 lint:
 	$(call title1,"Running linters")
-	@if find . -name "*.go" -type f | grep -q .; then \
+	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
+	if find . -name "*.go" -type f | grep -q .; then \
 		if ! command -v golangci-lint >/dev/null 2>&1; then \
 			echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
-			go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+			go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0; \
 		fi; \
 		golangci-lint run --fix ./... --verbose; \
 		echo "$(GREEN)$(BOLD)[ok]$(NC) Linting completed successfully$(GREEN) ✔️$(NC)"; \
@@ -222,16 +245,6 @@ sec:
 	else \
 		echo "$(YELLOW)No Go files found, skipping security checks$(NC)"; \
 	fi
-
-#-------------------------------------------------------
-# Clean
-#-------------------------------------------------------
-
-.PHONY: clean
-clean:
-	$(call title1,"Cleaning build artifacts")
-	@rm -rf $(BIN_DIR)/* $(ARTIFACTS_DIR)/* coverage.tmp coverage.out coverage.html bin/
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Artifacts cleaned successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Docker
@@ -370,7 +383,7 @@ dev-setup:
 	@echo "$(CYAN)Installing development tools...$(NC)"
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
-		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0; \
 	fi
 	@if ! command -v swag >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing swag...$(NC)"; \

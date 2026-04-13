@@ -1,0 +1,134 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package query
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/google/uuid"
+
+	// GetAllBalances methods responsible to get all balances from a database.
+	// This method is used to get all balances from a database and return them in a cursor pagination format.
+	// It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+)
+
+func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_all_balances")
+	defer span.End()
+
+	balances, cur, err := uc.BalanceRepo.ListAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
+	if err != nil {
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balances on repo: %v", err))
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances on repo", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	if len(balances) == 0 {
+		libOpentelemetry.HandleSpanEvent(span, "No balances found")
+
+		return []*mmodel.Balance{}, libHTTP.CursorPagination{}, nil
+	}
+
+	balanceCacheKeys := make([]string, len(balances))
+
+	for i, b := range balances {
+		balanceCacheKeys[i] = utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
+	}
+
+	balanceCacheValues, err := uc.TransactionRedisRepo.MGet(ctx, balanceCacheKeys)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance cache values on redis", err)
+
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get balance cache values on redis: %v", err))
+	}
+
+	for i := range balances {
+		if data, ok := balanceCacheValues[balanceCacheKeys[i]]; ok {
+			cachedBalance := mmodel.BalanceRedis{}
+
+			if err := json.Unmarshal([]byte(data), &cachedBalance); err != nil {
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error unmarshalling balance cache value: %v", err))
+
+				continue
+			}
+
+			balances[i].Available = cachedBalance.Available
+			balances[i].OnHold = cachedBalance.OnHold
+			balances[i].Version = cachedBalance.Version
+		}
+	}
+
+	return balances, cur, nil
+}
+
+// GetAllBalancesByAlias methods responsible to get all balances from a database by alias.
+// This method is used to get all balances from a database by alias and return them in a slice.
+// It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
+func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) ([]*mmodel.Balance, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_all_balances_by_alias")
+	defer span.End()
+
+	logger.Log(ctx, libLog.LevelInfo, "Retrieving all balances by alias")
+
+	balances, err := uc.BalanceRepo.ListByAliases(ctx, organizationID, ledgerID, []string{alias})
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to list balances by alias on balance database", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to list balances by alias on balance database: %v", err))
+
+		return nil, err
+	}
+
+	if len(balances) == 0 {
+		libOpentelemetry.HandleSpanEvent(span, "No balances found for alias")
+
+		return nil, nil
+	}
+
+	balanceCacheKeys := make([]string, len(balances))
+	for i, b := range balances {
+		balanceCacheKeys[i] = utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
+	}
+
+	balanceCacheValues, err := uc.TransactionRedisRepo.MGet(ctx, balanceCacheKeys)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance cache values on redis (alias)", err)
+
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get balance cache values on redis (alias): %v", err))
+	}
+
+	for i := range balances {
+		if data, ok := balanceCacheValues[balanceCacheKeys[i]]; ok {
+			cachedBalance := mmodel.BalanceRedis{}
+
+			if err := json.Unmarshal([]byte(data), &cachedBalance); err != nil {
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error unmarshalling balance cache value (alias): %v", err))
+
+				continue
+			}
+
+			balances[i].Available = cachedBalance.Available
+			balances[i].OnHold = cachedBalance.OnHold
+			balances[i].Version = cachedBalance.Version
+		}
+	}
+
+	return balances, nil
+}

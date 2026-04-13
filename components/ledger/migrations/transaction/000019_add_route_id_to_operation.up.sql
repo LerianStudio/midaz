@@ -1,0 +1,1 @@
+ALTER TABLE operation ADD COLUMN IF NOT EXISTS route_id UUID;

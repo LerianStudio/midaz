@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package in
 
 import (
@@ -6,9 +10,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	stdhttp "net/http"
 	"net/http/httptest"
 	"testing"
 
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/gofiber/fiber/v2"
@@ -16,6 +22,26 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
+
+func newMetadataHandlerTestApp(register func(app *fiber.App)) *fiber.App {
+	app := fiber.New(fiber.Config{ErrorHandler: libHTTP.FiberErrorHandler})
+	register(app)
+
+	return app
+}
+
+func assertJSONErrorResponse(t *testing.T, resp *stdhttp.Response) {
+	t.Helper()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var errBody map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &errBody), "expected JSON error body, got: %s", string(respBody))
+	assert.NotEmpty(t, errBody["code"])
+	assert.NotEmpty(t, errBody["title"])
+	assert.NotEmpty(t, errBody["message"])
+}
 
 func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 	t.Parallel()
@@ -135,11 +161,11 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 				TransactionMetadataRepo: mockTransactionRepo,
 			}
 
-			app := fiber.New()
-
-			app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
-				c.SetUserContext(context.Background())
-				return handler.CreateMetadataIndex(tt.payload, c)
+			app := newMetadataHandlerTestApp(func(app *fiber.App) {
+				app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
+					c.SetUserContext(context.Background())
+					return handler.CreateMetadataIndex(tt.payload, c)
+				})
 			})
 
 			body, err := json.Marshal(tt.payload)
@@ -206,11 +232,11 @@ func TestMetadataIndexHandler_CreateMetadataIndex_InvalidPayload(t *testing.T) {
 				TransactionMetadataRepo: mockTransactionRepo,
 			}
 
-			app := fiber.New()
-
-			app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
-				c.SetUserContext(context.Background())
-				return handler.CreateMetadataIndex(tt.payload, c)
+			app := newMetadataHandlerTestApp(func(app *fiber.App) {
+				app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
+					c.SetUserContext(context.Background())
+					return handler.CreateMetadataIndex(tt.payload, c)
+				})
 			})
 
 			req := httptest.NewRequest("POST", "/v1/settings/metadata-indexes/entities/transaction", bytes.NewReader([]byte("{}")))
@@ -222,6 +248,44 @@ func TestMetadataIndexHandler_CreateMetadataIndex_InvalidPayload(t *testing.T) {
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 		})
 	}
+}
+
+func TestMetadataIndexHandler_CreateMetadataIndex_EmptyEntityName(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockOnboardingRepo := mbootstrap.NewMockMetadataIndexRepository(ctrl)
+	mockTransactionRepo := mbootstrap.NewMockMetadataIndexRepository(ctrl)
+
+	handler := &MetadataIndexHandler{
+		OnboardingMetadataRepo:  mockOnboardingRepo,
+		TransactionMetadataRepo: mockTransactionRepo,
+	}
+
+	payload := &mmodel.CreateMetadataIndexInput{
+		MetadataKey: "tier",
+	}
+
+	app := newMetadataHandlerTestApp(func(app *fiber.App) {
+		// Route without :entity_name param so c.Params("entity_name") returns ""
+		app.Post("/v1/settings/metadata-indexes/entities", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+			return handler.CreateMetadataIndex(payload, c)
+		})
+	})
+
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("POST", "/v1/settings/metadata-indexes/entities", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }
 
 func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
@@ -306,6 +370,107 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 			},
 			expectedStatus: fiber.StatusInternalServerError,
 		},
+		{
+			name:        "success - no filter returns all entities",
+			queryParams: "",
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				onboarding.EXPECT().
+					FindAllIndexes(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, collection string) ([]*mmodel.MetadataIndex, error) {
+						if collection == "account" {
+							return []*mmodel.MetadataIndex{
+								{IndexName: "metadata.category_1", MetadataKey: "category"},
+							}, nil
+						}
+						return []*mmodel.MetadataIndex{}, nil
+					}).
+					AnyTimes()
+
+				transaction.EXPECT().
+					FindAllIndexes(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, collection string) ([]*mmodel.MetadataIndex, error) {
+						if collection == "transaction" {
+							return []*mmodel.MetadataIndex{
+								{IndexName: "metadata.tier_1", MetadataKey: "tier"},
+							}, nil
+						}
+						return []*mmodel.MetadataIndex{}, nil
+					}).
+					AnyTimes()
+			},
+			expectedStatus: fiber.StatusOK,
+			validateBody: func(t *testing.T, result []*mmodel.MetadataIndex) {
+				require.GreaterOrEqual(t, len(result), 2)
+
+				var foundAccount, foundTransaction bool
+				for _, idx := range result {
+					assert.NotEmpty(t, idx.EntityName)
+					if idx.EntityName == "account" && idx.MetadataKey == "category" {
+						foundAccount = true
+					}
+					if idx.EntityName == "transaction" && idx.MetadataKey == "tier" {
+						foundTransaction = true
+					}
+				}
+				assert.True(t, foundAccount, "should contain account index")
+				assert.True(t, foundTransaction, "should contain transaction index")
+			},
+		},
+		{
+			name:        "success - no filter with partial repo failures",
+			queryParams: "",
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				onboarding.EXPECT().
+					FindAllIndexes(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, collection string) ([]*mmodel.MetadataIndex, error) {
+						if collection == "organization" {
+							return nil, errors.New("connection refused")
+						}
+						if collection == "ledger" {
+							return []*mmodel.MetadataIndex{
+								{IndexName: "metadata.env_1", MetadataKey: "env"},
+							}, nil
+						}
+						return []*mmodel.MetadataIndex{}, nil
+					}).
+					AnyTimes()
+
+				transaction.EXPECT().
+					FindAllIndexes(gomock.Any(), gomock.Any()).
+					Return([]*mmodel.MetadataIndex{}, nil).
+					AnyTimes()
+			},
+			expectedStatus: fiber.StatusOK,
+			validateBody: func(t *testing.T, result []*mmodel.MetadataIndex) {
+				// Should still return results from non-failing collections
+				var foundLedger bool
+				for _, idx := range result {
+					if idx.EntityName == "ledger" && idx.MetadataKey == "env" {
+						foundLedger = true
+					}
+				}
+				assert.True(t, foundLedger, "should contain ledger index despite other failures")
+			},
+		},
+		{
+			name:        "success - no filter all empty",
+			queryParams: "",
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				onboarding.EXPECT().
+					FindAllIndexes(gomock.Any(), gomock.Any()).
+					Return([]*mmodel.MetadataIndex{}, nil).
+					AnyTimes()
+
+				transaction.EXPECT().
+					FindAllIndexes(gomock.Any(), gomock.Any()).
+					Return([]*mmodel.MetadataIndex{}, nil).
+					AnyTimes()
+			},
+			expectedStatus: fiber.StatusOK,
+			validateBody: func(t *testing.T, result []*mmodel.MetadataIndex) {
+				assert.Empty(t, result)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -325,11 +490,11 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 				TransactionMetadataRepo: mockTransactionRepo,
 			}
 
-			app := fiber.New()
-
-			app.Get("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
-				c.SetUserContext(context.Background())
-				return handler.GetAllMetadataIndexes(c)
+			app := newMetadataHandlerTestApp(func(app *fiber.App) {
+				app.Get("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
+					c.SetUserContext(context.Background())
+					return handler.GetAllMetadataIndexes(c)
+				})
 			})
 
 			req := httptest.NewRequest("GET", "/v1/settings/metadata-indexes"+tt.queryParams, nil)
@@ -348,6 +513,10 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 				require.NoError(t, err)
 
 				tt.validateBody(t, result)
+			}
+
+			if resp.StatusCode != fiber.StatusOK {
+				assertJSONErrorResponse(t, resp)
 			}
 		})
 	}
@@ -433,11 +602,11 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 				TransactionMetadataRepo: mockTransactionRepo,
 			}
 
-			app := fiber.New()
-
-			app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key", func(c *fiber.Ctx) error {
-				c.SetUserContext(context.Background())
-				return handler.DeleteMetadataIndex(c)
+			app := newMetadataHandlerTestApp(func(app *fiber.App) {
+				app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key", func(c *fiber.Ctx) error {
+					c.SetUserContext(context.Background())
+					return handler.DeleteMetadataIndex(c)
+				})
 			})
 
 			url := "/v1/settings/metadata-indexes/entities/" + tt.entityName + "/key/" + tt.indexKey
@@ -447,6 +616,145 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			if resp.StatusCode != fiber.StatusNoContent {
+				assertJSONErrorResponse(t, resp)
+			}
 		})
 	}
+}
+
+func TestMetadataIndexHandler_CreateMetadataIndex_NilRepo(t *testing.T) {
+	t.Parallel()
+
+	// Handler with nil repos - getRepoAndCollection returns nil for valid entity.
+	handler := &MetadataIndexHandler{}
+
+	payload := &mmodel.CreateMetadataIndexInput{
+		MetadataKey: "tier",
+	}
+
+	app := newMetadataHandlerTestApp(func(app *fiber.App) {
+		app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+			return handler.CreateMetadataIndex(payload, c)
+		})
+	})
+
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("POST", "/v1/settings/metadata-indexes/entities/transaction", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+	assertJSONErrorResponse(t, resp)
+}
+
+func TestMetadataIndexHandler_GetAllMetadataIndexes_NilRepoForFilteredEntity(t *testing.T) {
+	t.Parallel()
+
+	// Handler with nil repos - getRepoAndCollection returns nil when filtering by entity.
+	handler := &MetadataIndexHandler{}
+
+	app := newMetadataHandlerTestApp(func(app *fiber.App) {
+		app.Get("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+			return handler.GetAllMetadataIndexes(c)
+		})
+	})
+
+	req := httptest.NewRequest("GET", "/v1/settings/metadata-indexes?entity_name=transaction", nil)
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+	assertJSONErrorResponse(t, resp)
+}
+
+func TestMetadataIndexHandler_DeleteMetadataIndex_NilRepo(t *testing.T) {
+	t.Parallel()
+
+	// Handler with nil repos - valid entity but no repo configured.
+	handler := &MetadataIndexHandler{}
+
+	app := newMetadataHandlerTestApp(func(app *fiber.App) {
+		app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+			return handler.DeleteMetadataIndex(c)
+		})
+	})
+
+	req := httptest.NewRequest("DELETE", "/v1/settings/metadata-indexes/entities/transaction/key/tier", nil)
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+	assertJSONErrorResponse(t, resp)
+}
+
+func TestMetadataIndexHandler_DeleteMetadataIndex_EmptyEntityName(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockOnboardingRepo := mbootstrap.NewMockMetadataIndexRepository(ctrl)
+	mockTransactionRepo := mbootstrap.NewMockMetadataIndexRepository(ctrl)
+
+	handler := &MetadataIndexHandler{
+		OnboardingMetadataRepo:  mockOnboardingRepo,
+		TransactionMetadataRepo: mockTransactionRepo,
+	}
+
+	app := newMetadataHandlerTestApp(func(app *fiber.App) {
+		// Route without :entity_name param so c.Params("entity_name") returns ""
+		app.Delete("/v1/settings/metadata-indexes/entities", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+			return handler.DeleteMetadataIndex(c)
+		})
+	})
+
+	req := httptest.NewRequest("DELETE", "/v1/settings/metadata-indexes/entities", nil)
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestMetadataIndexHandler_DeleteMetadataIndex_EmptyIndexKey(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockOnboardingRepo := mbootstrap.NewMockMetadataIndexRepository(ctrl)
+	mockTransactionRepo := mbootstrap.NewMockMetadataIndexRepository(ctrl)
+
+	handler := &MetadataIndexHandler{
+		OnboardingMetadataRepo:  mockOnboardingRepo,
+		TransactionMetadataRepo: mockTransactionRepo,
+	}
+
+	app := newMetadataHandlerTestApp(func(app *fiber.App) {
+		// Route without :index_key param so c.Params("index_key") returns ""
+		app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+			return handler.DeleteMetadataIndex(c)
+		})
+	})
+
+	req := httptest.NewRequest("DELETE", "/v1/settings/metadata-indexes/entities/transaction/key", nil)
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+	assertJSONErrorResponse(t, resp)
 }

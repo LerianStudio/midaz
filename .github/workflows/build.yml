@@ -1,160 +1,106 @@
-name: "Build midaz images"
+name: "Build"
 
 on:
   push:
     tags:
-      - '**'  # Trigger on any tag push (e.g., v1.2.3, v2.0.0-beta.7, v2.0.0-rc.1, etc.)
+      - '**'
 
 permissions:
-  id-token: write       # Required for OIDC authentication (used by some actions)
-  contents: read        # Required to checkout the repository
-  pull-requests: write  # Allows commenting on PRs if necessary
-  packages: write       # Required to publish packages/images
-
-env:
-  # GitOps file paths (adjust if your repo has a different structure)
-  GITOPS_FILE_BETA: gitops/environments/firmino/helmfile/applications/dev/midaz/values.yaml
-  GITOPS_FILE_RC:   gitops/environments/firmino/helmfile/applications/stg/midaz/values.yaml
+  id-token: write
+  contents: read
+  pull-requests: write
+  packages: write
 
 jobs:
-  detect_changes:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.changed-paths.outputs.matrix }}
-    name: Detect changed paths
-    steps:
-      - name: Get changed paths
-        id: changed-paths
-        uses: LerianStudio/github-actions-changed-paths@main
-        with:
-          filter_paths: |-
-            components/onboarding
-            components/transaction
-            components/crm
-            components/ledger
-          get_app_name: true         # Derive an app name from changed paths
-          path_level: 2              # Use 2 levels of directory depth to extract name
-          app_name_prefix: midaz     # Prefix app names with "midaz-" for consistency
+  build:
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/build.yml@v1.23.1
+    with:
+      runner_type: "blacksmith-4vcpu-ubuntu-2404"
+      filter_paths: |-
+        components/crm
+        components/ledger
+      shared_paths: |
+        go.mod
+        go.sum
+        pkg/
+        Makefile
+      path_level: '2'
+      app_name_prefix: "midaz"
+      enable_dockerhub: true
+      enable_ghcr: true
+      dockerhub_org: lerianstudio
+      enable_gitops_artifacts: true
+      # helm dispatch configuration
+      enable_helm_dispatch: true
+      helm_chart: "midaz"
+      helm_detect_env_changes: true
+      helm_values_key_mappings: '{"midaz-crm": "crm", "midaz-ledger": "ledger"}'
+    secrets: inherit
 
-  build_and_publish:
-    needs: detect_changes
-    if: needs.detect_changes.outputs.matrix != '[]'  # Skip if no relevant changes
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        app: ${{ fromJson(needs.detect_changes.outputs.matrix) }}  # Build each changed app
-    env:
-      DOCKERHUB_ORG: lerianstudio
-
-    steps:
-      - uses: actions/checkout@v4  # Checkout repository code
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3  # Enable multi-arch builds
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: "${{ secrets.DOCKER_USERNAME }}"
-          password: "${{ secrets.DOCKER_PASSWORD }}"
-
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}
-          tags: |
-            type=semver,pattern={{version}}   # Semantic version tags (e.g. 1.2.3)
-            type=semver,pattern={{major}}.{{minor}}   # 1.2
-            type=semver,pattern={{major}}            # 1
-
-      # ----------------- Push final multi-arch image -----------------
-
-      - name: Build and Push Docker image (Multi-Arch)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ${{ matrix.app.working_dir }}/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-
-      - name: Extract tag name (strip leading 'v')
-        id: extract_tag
-        shell: bash
-        run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      # Write GitOps artifact for beta and rc
-      - name: Write tag to file for GitOps (beta/rc)
-        if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
-        run: |
-          mkdir -p gitops-tags
-          echo "${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}" > "gitops-tags/${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}"
-
-      - name: Upload GitOps tag artifact
-        if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: gitops-tags-${{ matrix.app.name }}
-          path: gitops-tags/
-
+  # =========================
+  # GITOPS UPDATE
+  # =========================
   update_gitops:
-    needs: [build_and_publish]
-    if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}   # Only run for beta/rc tags
-    runs-on: firmino-lxc-runners
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: LerianStudio/midaz-firmino-gitops
-          token: ${{ secrets.MANAGE_TOKEN }}
-          path: gitops
-          fetch-depth: 0
+    needs: [build]
+    if: >-
+      !cancelled() &&
+      needs.build.result == 'success' &&
+      needs.build.outputs.has_builds == 'true'
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gitops-update.yml@v1.23.1
+    with:
+      runner_type: "firmino-lxc-runners"
+      gitops_repository: "LerianStudio/midaz-firmino-gitops"
+      app_name: "midaz"
+      deploy_in_firmino: true
+      deploy_in_clotilde: true
+      artifact_pattern: "gitops-tags-midaz-*"
+      yaml_key_mappings: '{"midaz-crm.tag": ".crm.image.tag", "midaz-ledger.tag": ".ledger.image.tag"}'
+      commit_message_prefix: "midaz"
+      enable_argocd_sync: true
+      enable_docker_login: false
+    secrets: inherit
 
-      - name: Install yq (YAML processor)
-        run: |
-          sudo curl -L https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o /usr/local/bin/yq
-          sudo chmod +x /usr/local/bin/yq
-          yq --version
+  # =========================
+  # UPLOAD MIGRATIONS TO S3
+  # =========================
+  upload-onboarding-migrations:
+    needs: [build]
+    if: needs.build.result == 'success'
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.23.1
+    with:
+      s3_bucket: "lerian-migration-files"
+      file_pattern: "components/ledger/migrations/onboarding/*.sql"
+      s3_prefix: "ledger/onboarding/postgresql"
+      strip_prefix: "components/ledger/migrations/onboarding"
+      flatten: false
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_MIGRATIONS_ROLE_ARN }}
 
-      - name: Download tags from artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: gitops-tags-*
-          path: .gitops-tags
+  upload-transaction-migrations:
+    needs: [build]
+    if: needs.build.result == 'success'
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.23.1
+    with:
+      s3_bucket: "lerian-migration-files"
+      file_pattern: "components/ledger/migrations/transaction/*.sql"
+      s3_prefix: "ledger/transaction/postgresql"
+      strip_prefix: "components/ledger/migrations/transaction"
+      flatten: false
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_MIGRATIONS_ROLE_ARN }}
 
-      - name: Apply image tags to values.yaml (beta → dev, rc → stg)
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          # Select GitOps values.yaml file depending on tag type
-          if [[ "${GITHUB_REF}" == *"-rc"* ]]; then
-            FILE="${{ env.GITOPS_FILE_RC }}"
-            echo "Updating STAGE values file: $FILE"
-          else
-            FILE="${{ env.GITOPS_FILE_BETA }}"
-            echo "Updating DEV values file: $FILE"
-          fi
-
-          # Iterate through all tag artifacts and apply changes
-          find .gitops-tags -type f | while read -r tagfile; do
-            filename="$(basename "$tagfile")"
-            full_app="${filename%%=*}"    # Extract full app name (e.g. midaz-onboarding)
-            tag="${filename#*=}"          # Extract version/tag (e.g. 1.2.3-rc.1)
-            app_name="${full_app#midaz-}" # Remove "midaz-" prefix to match values keys
-
-            echo "🔧 Updating ${app_name}.image.tag = ${tag}"
-            yq e -i ".${app_name}.image.tag = \"${tag}\"" "$FILE"
-          done
-
-          echo "✅ Final diff:"
-          git -C gitops diff -- "$FILE" || true
-
-      - name: Commit and push GitOps update
-        run: |
-          cd gitops
-          git config user.name "${{ secrets.LERIAN_CI_CD_USER_NAME }}"
-          git config user.email "${{ secrets.LERIAN_CI_CD_USER_EMAIL }}"
-          git add -A
-          git commit -m "ci(midaz): update image tags (${{ contains(github.ref, '-rc') && 'rc/stage' || 'beta/dev' }})" || echo "No changes to commit"
-          git push origin main
+  # =========================
+  # E2E TESTS
+  # =========================
+  api_dog_e2e_tests:
+    needs: [update_gitops]
+    if: needs.update_gitops.result == 'success'
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/api-dog-e2e-tests.yml@v1.23.1
+    with:
+      runner_type: "firmino-lxc-runners"
+      auto_detect_environment: true
+    secrets:
+      test_scenario_id: ${{ secrets.MIDAZ_APIDOG_TEST_SCENARIO_ID }}
+      apidog_access_token: ${{ secrets.APIDOG_ACCESS_TOKEN }}
+      dev_environment_id: ${{ secrets.MIDAZ_APIDOG_DEV_ENVIRONMENT_ID }}
+      stg_environment_id: ${{ secrets.MIDAZ_APIDOG_STG_ENVIRONMENT_ID }}

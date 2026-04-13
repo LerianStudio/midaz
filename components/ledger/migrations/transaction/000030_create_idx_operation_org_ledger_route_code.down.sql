@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_operation_org_ledger_route_code;

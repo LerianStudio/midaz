@@ -1,4 +1,5 @@
-FROM --platform=$BUILDPLATFORM golang:1.25.8-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.2-alpine AS builder
+# Force rebuild for develop branch - 2026-04-03 (5)
 
 WORKDIR /ledger-app
 
@@ -17,9 +18,12 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
 FROM gcr.io/distroless/static-debian12
 
 COPY --from=builder /app /app
-COPY --from=builder /ledger-app/components/onboarding/migrations /components/onboarding/migrations
-COPY --from=builder /ledger-app/components/transaction/migrations /components/transaction/migrations
+COPY --from=builder /ledger-app/components/ledger/migrations/onboarding /components/ledger/migrations/onboarding
+COPY --from=builder /ledger-app/components/ledger/migrations/transaction /components/ledger/migrations/transaction
 
 EXPOSE 3002
 
+USER nonroot:nonroot
+
 ENTRYPOINT ["/app"]
+

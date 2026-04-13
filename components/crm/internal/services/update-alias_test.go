@@ -1,11 +1,16 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -23,10 +28,10 @@ func TestUpdateAliasByID(t *testing.T) {
 	mockHolderRepo := holder.NewMockRepository(ctrl)
 	mockAliasRepo := alias.NewMockRepository(ctrl)
 
-	holderID := libCommons.GenerateUUIDv7()
-	id := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7().String()
-	ledgerID := libCommons.GenerateUUIDv7().String()
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	holderDocument := "90217469051"
 	branch := "0001"
 	participantDoc := "12345678912345"
@@ -166,6 +171,107 @@ func TestUpdateAliasByID(t *testing.T) {
 			},
 			mockSetup:      func() {},
 			expectedErr:    cn.ErrInvalidRelatedPartyRole,
+			expectedResult: nil,
+		},
+		{
+			name:     "Error when fetch existing alias for related parties fails",
+			id:       id,
+			holderID: holderID,
+			input: &mmodel.UpdateAliasInput{
+				RelatedParties: []*mmodel.RelatedParty{
+					{
+						Document:  "12345678900",
+						Name:      "Maria de Jesus",
+						Role:      "PRIMARY_HOLDER",
+						StartDate: mmodel.Date{Time: time.Now()},
+					},
+				},
+			},
+			mockSetup: func() {
+				mockAliasRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					Return(nil, errors.New("database error"))
+			},
+			expectedErr:    errors.New("database error"),
+			expectedResult: nil,
+		},
+		{
+			name:     "Success with RelatedParties appended to existing",
+			id:       id,
+			holderID: holderID,
+			input: &mmodel.UpdateAliasInput{
+				RelatedParties: []*mmodel.RelatedParty{
+					{
+						Document:  "12345678900",
+						Name:      "Maria de Jesus",
+						Role:      "PRIMARY_HOLDER",
+						StartDate: mmodel.Date{Time: time.Now()},
+					},
+				},
+			},
+			mockSetup: func() {
+				existingRPID := uuid.Must(libCommons.GenerateUUIDv7())
+				mockAliasRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					Return(&mmodel.Alias{
+						ID:        &id,
+						Document:  &holderDocument,
+						LedgerID:  &ledgerID,
+						HolderID:  &holderID,
+						AccountID: &accountID,
+						RelatedParties: []*mmodel.RelatedParty{
+							{
+								ID:        &existingRPID,
+								Document:  "99988877766",
+								Name:      "Existing Party",
+								Role:      "LEGAL_REPRESENTATIVE",
+								StartDate: mmodel.Date{Time: time.Now().Add(-24 * time.Hour)},
+							},
+						},
+					}, nil)
+
+				mockAliasRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Alias{
+						ID:        &id,
+						Document:  &holderDocument,
+						LedgerID:  &ledgerID,
+						HolderID:  &holderID,
+						AccountID: &accountID,
+					}, nil)
+			},
+			expectedErr: nil,
+			expectedResult: &mmodel.Alias{
+				ID:        &id,
+				Document:  &holderDocument,
+				LedgerID:  &ledgerID,
+				HolderID:  &holderID,
+				AccountID: &accountID,
+			},
+		},
+		{
+			name:     "Error when closing date is before creation date",
+			id:       id,
+			holderID: holderID,
+			input: &mmodel.UpdateAliasInput{
+				BankingDetails: &mmodel.BankingDetails{
+					Branch:      &branch,
+					ClosingDate: &mmodel.Date{Time: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)},
+				},
+			},
+			mockSetup: func() {
+				mockAliasRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					Return(&mmodel.Alias{
+						ID:        &id,
+						Document:  &holderDocument,
+						LedgerID:  &ledgerID,
+						HolderID:  &holderID,
+						AccountID: &accountID,
+						CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+					}, nil)
+			},
+			expectedErr:    cn.ErrAliasClosingDateBeforeCreation,
 			expectedResult: nil,
 		},
 	}

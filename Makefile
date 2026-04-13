@@ -7,18 +7,16 @@ MIDAZ_ROOT := $(shell pwd)
 
 # Component directories
 INFRA_DIR := ./components/infra
-ONBOARDING_DIR := ./components/onboarding
-TRANSACTION_DIR := ./components/transaction
 LEDGER_DIR := ./components/ledger
 CRM_DIR := ./components/crm
 TESTS_DIR := ./tests
 PKG_DIR := ./pkg
 
 # Define a list of all component directories for easier iteration
-COMPONENTS := $(INFRA_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CRM_DIR)
+COMPONENTS := $(INFRA_DIR) $(CRM_DIR)
 
-# Unified mode: true = ledger (combined), false = separate onboarding+transaction
-UNIFIED ?= true
+# Pinned tool versions — keep in sync with .github/workflows/go-combined-analysis.yml
+GOLANGCI_LINT_VERSION := v2.4.0
 
 # Include shared utility functions
 # Define common utility functions
@@ -61,13 +59,8 @@ endef
 define check_env_files
 	@missing=false; \
 	if [ ! -f "$(INFRA_DIR)/.env" ]; then missing=true; fi; \
+	if [ ! -f "$(LEDGER_DIR)/.env" ]; then missing=true; fi; \
 	if [ ! -f "$(CRM_DIR)/.env" ]; then missing=true; fi; \
-	if [ "$(UNIFIED)" = "true" ]; then \
-		if [ ! -f "$(LEDGER_DIR)/.env" ]; then missing=true; fi; \
-	else \
-		if [ ! -f "$(ONBOARDING_DIR)/.env" ]; then missing=true; fi; \
-		if [ ! -f "$(TRANSACTION_DIR)/.env" ]; then missing=true; fi; \
-	fi; \
 	if [ "$$missing" = "true" ]; then \
 		echo "Environment files are missing. Running set-env command first..."; \
 		$(MAKE) set-env; \
@@ -80,6 +73,8 @@ export DOCKER_CMD
 
 MK_DIR := $(abspath mk)
 
+COVERAGE_PACKAGES := ./...
+include $(MK_DIR)/coverage-unit.mk
 include $(MK_DIR)/tests.mk
 
 #-------------------------------------------------------
@@ -107,7 +102,8 @@ help:
 	@echo "  make tidy                        - Clean dependencies in root directory"
 	@echo "  make check-logs                  - Verify error logging in usecases"
 	@echo "  make check-tests                 - Verify test coverage for components"
-	@echo "  make sec                         - Run security checks using gosec"
+	@echo "  make sec                         - Run security checks (gosec + govulncheck)"
+	@echo "  make sec SARIF=1                 - Run security checks with SARIF output"
 	@echo ""
 	@echo ""
 	@echo "Git Hook Commands:"
@@ -123,7 +119,7 @@ help:
 	@echo ""
 	@echo ""
 	@echo "Service Commands:"
-	@echo "  make up                           - Start all services (UNIFIED=true by default, use UNIFIED=false for separate mode)"
+	@echo "  make up                           - Start all services"
 	@echo "  make down                         - Stop all services"
 	@echo "  make start                        - Start all containers"
 	@echo "  make stop                         - Stop all containers"
@@ -132,13 +128,8 @@ help:
 	@echo "  make clean-docker                 - Clean all Docker resources (containers, networks, volumes)"
 	@echo "  make logs                         - Show logs for all services"
 	@echo "  make infra COMMAND=<cmd>          - Run command in infra component"
-	@echo "  make onboarding COMMAND=<cmd>     - Run command in onboarding component"
-	@echo "  make transaction COMMAND=<cmd>    - Run command in transaction component"
-	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
 	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
-	@echo ""
-	@echo "  UNIFIED=true (default): Uses unified ledger service (onboarding + transaction in one process)"
-	@echo "  UNIFIED=false: Starts onboarding and transaction as separate services"
+	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
 	@echo ""
 	@echo ""
 	@echo "Documentation Commands:"
@@ -159,8 +150,8 @@ help:
 	@echo "  make test-chaos-system           - Run chaos tests with full Docker stack"
 	@echo ""
 	@echo "Coverage Commands:"
-	@echo "  make coverage-unit               - Run unit tests with coverage report"
-	@echo "  make coverage-integration        - Run integration tests with coverage report"
+	@echo "  make coverage-unit               - Run unit tests with coverage report (PKG=./path, uses .ignorecoverunit)"
+	@echo "  make coverage-integration        - Run integration tests with coverage report (PKG=./path)"
 	@echo "  make coverage                    - Run all coverage targets (unit + integration)"
 	@echo ""
 	@echo "Test Tooling:"
@@ -169,8 +160,7 @@ help:
 	@echo ""
 	@echo ""
 	@echo "Test Parameters (env vars for test-* targets):"
-	@echo "  TEST_ONBOARDING_URL           - default: $(TEST_ONBOARDING_URL)"
-	@echo "  TEST_TRANSACTION_URL          - default: $(TEST_TRANSACTION_URL)"
+	@echo "  TEST_LEDGER_URL               - default: $(TEST_LEDGER_URL)"
 	@echo "  TEST_HEALTH_WAIT              - default: $(TEST_HEALTH_WAIT)"
 	@echo "  TEST_AUTH_URL                 - default: $(TEST_AUTH_URL)"
 	@echo "  TEST_AUTH_USERNAME            - default: $(TEST_AUTH_USERNAME)"
@@ -180,7 +170,7 @@ help:
 	@echo ""
 	@echo "Target usage (which vars each target honors):"
 	@echo "  test-integration:  PKG, RUN, CHAOS=1, LOW_RESOURCE (testcontainers-based, no external services needed)"
-	@echo "  test-chaos-system: TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_* (starts full stack)"
+	@echo "  test-chaos-system: TEST_LEDGER_URL, TEST_AUTH_* (starts full stack)"
 	@echo "  test-fuzz:         FUZZ, FUZZTIME (native Go fuzz testing)"
 	@echo "  test-bench:        BENCH, BENCH_PKG (benchmark pattern and package filter)"
 
@@ -189,14 +179,8 @@ help:
 .PHONY: build
 build:
 	$(call print_title,Building all components)
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Building unified backend (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) build) || exit 1; \
-	else \
-		echo "Building separate backend services..."; \
-		(cd $(ONBOARDING_DIR) && $(MAKE) build) || exit 1; \
-		(cd $(TRANSACTION_DIR) && $(MAKE) build) || exit 1; \
-	fi
+	@echo "Building ledger..."
+	@(cd $(LEDGER_DIR) && $(MAKE) build) || exit 1
 	@echo "Building CRM..."
 	@(cd $(CRM_DIR) && $(MAKE) build) || exit 1
 	@echo "[ok] All components built successfully"
@@ -246,12 +230,13 @@ lint:
 		echo "No Go files found in $(LEDGER_DIR), skipping linting"; \
 	fi
 	@echo "Checking for Go files in $(TESTS_DIR)..."
-	@if [ -d "$(TESTS_DIR)" ]; then \
+	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
+	if [ -d "$(TESTS_DIR)" ]; then \
 		if find "$(TESTS_DIR)" -name "*.go" -type f | grep -q .; then \
 			echo "Linting in $(TESTS_DIR)..."; \
 			if ! command -v golangci-lint >/dev/null 2>&1; then \
 				echo "golangci-lint not found, installing..."; \
-				go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+				go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
 			else \
 				echo "golangci-lint already installed ✔️"; \
 			fi; \
@@ -263,12 +248,13 @@ lint:
 		echo "No tests directory found at $(TESTS_DIR), skipping linting"; \
 	fi
 	@echo "Checking for Go files in $(PKG_DIR)..."
-	@if [ -d "$(PKG_DIR)" ]; then \
+	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
+	if [ -d "$(PKG_DIR)" ]; then \
 		if find "$(PKG_DIR)" -name "*.go" -type f | grep -q .; then \
 			echo "Linting in $(PKG_DIR)..."; \
 			if ! command -v golangci-lint >/dev/null 2>&1; then \
 				echo "golangci-lint not found, installing..."; \
-				go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+				go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
 			else \
 				echo "golangci-lint already installed ✔️"; \
 			fi; \
@@ -314,20 +300,50 @@ check-tests:
 	@sh ./scripts/check-tests.sh
 	@echo "[ok] Test coverage verification completed"
 
-.PHONY: sec
-sec:
-	$(call print_title,Running security checks using gosec)
-	@if ! command -v gosec >/dev/null 2>&1; then \
+# SARIF output for GitHub Security tab integration (optional)
+# Usage: make sec SARIF=1
+SARIF ?= 0
+
+.PHONY: sec-gosec
+sec-gosec:
+	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
+	if ! command -v gosec >/dev/null 2>&1; then \
 		echo "Installing gosec..."; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
-	fi
-	@if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
-		echo "Running security checks on components/ and pkg/ folders..."; \
-		gosec ./components/... ./pkg/...; \
-		echo "[ok] Security checks completed"; \
+	fi; \
+	if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
+		echo "Running gosec on components/ and pkg/ folders..."; \
+		if [ "$(SARIF)" = "1" ]; then \
+			echo "Generating SARIF output: gosec-report.sarif"; \
+			gosec -fmt sarif -out gosec-report.sarif ./components/... ./pkg/...; \
+			echo "[ok] SARIF report generated: gosec-report.sarif"; \
+		else \
+			gosec ./components/... ./pkg/...; \
+		fi; \
 	else \
-		echo "No Go files found, skipping security checks"; \
+		echo "No Go files found, skipping gosec"; \
 	fi
+
+.PHONY: sec-govulncheck
+sec-govulncheck:
+	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
+	if ! command -v govulncheck >/dev/null 2>&1; then \
+		echo "Installing govulncheck..."; \
+		go install golang.org/x/vuln/cmd/govulncheck@latest; \
+	fi; \
+	if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
+		echo "Running govulncheck on components/ and pkg/ folders..."; \
+		govulncheck ./components/... ./pkg/...; \
+	else \
+		echo "No Go files found, skipping govulncheck"; \
+	fi
+
+.PHONY: sec
+sec:
+	$(call print_title,Running security checks)
+	@$(MAKE) sec-gosec SARIF=$(SARIF)
+	@$(MAKE) sec-govulncheck
+	@echo "[ok] Security checks completed"
 
 #-------------------------------------------------------
 # Git Hook Commands
@@ -336,26 +352,23 @@ sec:
 .PHONY: setup-git-hooks
 setup-git-hooks:
 	$(call print_title,Installing and configuring git hooks)
-	@sh ./scripts/setup-git-hooks.sh
-	@echo "[ok] Git hooks installed successfully"
+	@git config core.hooksPath .githooks
+	@echo "[ok] Git hooks configured (using .githooks/)"
 
 .PHONY: check-hooks
 check-hooks:
 	$(call print_title,Verifying git hooks installation status)
-	@err=0; \
-	for hook_dir in .githooks/*; do \
-		hook_name=$$(basename $$hook_dir); \
-		if [ ! -f ".git/hooks/$$hook_name" ]; then \
-			echo "Git hook $$hook_name is not installed"; \
-			err=1; \
-		else \
-			echo "Git hook $$hook_name is installed"; \
-		fi; \
-	done; \
-	if [ $$err -eq 0 ]; then \
-		echo "[ok] All git hooks are properly installed"; \
+	@HOOKS_PATH=$$(git config --get core.hooksPath); \
+	if [ "$$HOOKS_PATH" = ".githooks" ]; then \
+		echo "[ok] Git hooks are configured (core.hooksPath = .githooks)"; \
+		echo "Available hooks:"; \
+		for hook in .githooks/*; do \
+			if [ -x "$$hook" ]; then \
+				echo "  - $$(basename $$hook)"; \
+			fi; \
+		done; \
 	else \
-		echo "[error] Some git hooks are missing. Run 'make setup-git-hooks' to fix."; \
+		echo "[error] Git hooks not configured. Run 'make setup-git-hooks' to fix."; \
 		exit 1; \
 	fi
 
@@ -390,6 +403,10 @@ set-env:
 	else \
 		echo ".env already exists in $(LEDGER_DIR)"; \
 	fi
+	@# Generate crypto keys for CRM component if .env exists
+	@if [ -f "$(CRM_DIR)/.env" ]; then \
+		$(MAKE) -C $(CRM_DIR) generate-keys; \
+	fi
 	@echo "[ok] Environment files set up successfully"
 
 .PHONY: clear-envs
@@ -422,14 +439,8 @@ up:
 	$(call check_env_files)
 	@echo "Starting infrastructure services..."
 	@cd $(INFRA_DIR) && $(MAKE) up
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Starting unified backend (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) up); \
-	else \
-		echo "Starting separate backend services..."; \
-		(cd $(ONBOARDING_DIR) && $(MAKE) up); \
-		(cd $(TRANSACTION_DIR) && $(MAKE) up); \
-	fi
+	@echo "Starting ledger service..."
+	@cd $(LEDGER_DIR) && $(MAKE) up
 	@echo "Starting CRM service..."
 	@cd $(CRM_DIR) && $(MAKE) up
 	@echo "[ok] All services started successfully"
@@ -441,19 +452,9 @@ down:
 	@if [ -f "$(CRM_DIR)/docker-compose.yml" ]; then \
 		(cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
 	fi
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Stopping unified backend (ledger)..."; \
-		if [ -f "$(LEDGER_DIR)/docker-compose.yml" ]; then \
-			(cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
-		fi; \
-	else \
-		echo "Stopping separate backend services..."; \
-		if [ -f "$(TRANSACTION_DIR)/docker-compose.yml" ]; then \
-			(cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
-		fi; \
-		if [ -f "$(ONBOARDING_DIR)/docker-compose.yml" ]; then \
-			(cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
-		fi; \
+	@echo "Stopping ledger service..."
+	@if [ -f "$(LEDGER_DIR)/docker-compose.yml" ]; then \
+		(cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
 	fi
 	@echo "Stopping infrastructure services..."
 	@if [ -f "$(INFRA_DIR)/docker-compose.yml" ]; then \
@@ -466,14 +467,8 @@ start:
 	$(call print_title,Starting all containers)
 	@echo "Starting infrastructure containers..."
 	@cd $(INFRA_DIR) && $(MAKE) start
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Starting unified backend containers (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) start); \
-	else \
-		echo "Starting separate backend containers..."; \
-		(cd $(ONBOARDING_DIR) && $(MAKE) start); \
-		(cd $(TRANSACTION_DIR) && $(MAKE) start); \
-	fi
+	@echo "Starting ledger containers..."
+	@cd $(LEDGER_DIR) && $(MAKE) start
 	@echo "Starting CRM containers..."
 	@cd $(CRM_DIR) && $(MAKE) start
 	@echo "[ok] All containers started successfully"
@@ -483,21 +478,15 @@ stop:
 	$(call print_title,Stopping all containers)
 	@echo "Stopping CRM containers..."
 	@cd $(CRM_DIR) && $(MAKE) stop 2>/dev/null || true
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Stopping unified backend containers (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) stop 2>/dev/null || true); \
-	else \
-		echo "Stopping separate backend containers..."; \
-		(cd $(TRANSACTION_DIR) && $(MAKE) stop 2>/dev/null || true); \
-		(cd $(ONBOARDING_DIR) && $(MAKE) stop 2>/dev/null || true); \
-	fi
+	@echo "Stopping ledger containers..."
+	@cd $(LEDGER_DIR) && $(MAKE) stop 2>/dev/null || true
 	@echo "Stopping infrastructure containers..."
 	@cd $(INFRA_DIR) && $(MAKE) stop 2>/dev/null || true
 	@echo "[ok] All containers stopped successfully"
 
 .PHONY: restart
 restart:
-	@$(MAKE) down UNIFIED=$(UNIFIED) && $(MAKE) up UNIFIED=$(UNIFIED)
+	@$(MAKE) down && $(MAKE) up
 	@echo "[ok] All containers restarted successfully"
 
 .PHONY: rebuild-up
@@ -505,14 +494,8 @@ rebuild-up:
 	$(call print_title,Rebuilding and restarting all services)
 	@echo "Rebuilding infrastructure..."
 	@cd $(INFRA_DIR) && $(MAKE) rebuild-up
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Rebuilding unified backend (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) rebuild-up); \
-	else \
-		echo "Rebuilding separate backend services..."; \
-		(cd $(ONBOARDING_DIR) && $(MAKE) rebuild-up); \
-		(cd $(TRANSACTION_DIR) && $(MAKE) rebuild-up); \
-	fi
+	@echo "Rebuilding ledger..."
+	@cd $(LEDGER_DIR) && $(MAKE) rebuild-up
 	@echo "Rebuilding CRM..."
 	@cd $(CRM_DIR) && $(MAKE) rebuild-up
 	@echo "[ok] All services rebuilt and restarted successfully"
@@ -522,14 +505,8 @@ clean-docker:
 	$(call print_title,"Cleaning all Docker resources")
 	@echo "Cleaning CRM Docker resources..."
 	@cd $(CRM_DIR) && $(MAKE) clean-docker 2>/dev/null || true
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Cleaning unified backend Docker resources (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) clean-docker 2>/dev/null || true); \
-	else \
-		echo "Cleaning separate backend Docker resources..."; \
-		(cd $(TRANSACTION_DIR) && $(MAKE) clean-docker 2>/dev/null || true); \
-		(cd $(ONBOARDING_DIR) && $(MAKE) clean-docker 2>/dev/null || true); \
-	fi
+	@echo "Cleaning ledger Docker resources..."
+	@cd $(LEDGER_DIR) && $(MAKE) clean-docker 2>/dev/null || true
 	@echo "Cleaning infrastructure Docker resources..."
 	@cd $(INFRA_DIR) && $(MAKE) clean-docker 2>/dev/null || true
 	@echo "Pruning system-wide Docker resources..."
@@ -543,24 +520,15 @@ logs:
 	$(call print_title,"Showing logs for all services")
 	@echo "=== Infrastructure logs ==="
 	@cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo ""; \
-		echo "=== Ledger (unified backend) logs ==="; \
-		(cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true); \
-	else \
-		echo ""; \
-		echo "=== Onboarding logs ==="; \
-		(cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true); \
-		echo ""; \
-		echo "=== Transaction logs ==="; \
-		(cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true); \
-	fi
+	@echo ""
+	@echo "=== Ledger logs ==="
+	@cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
 	@echo ""
 	@echo "=== CRM logs ==="
 	@cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
 
 # Component-specific command execution
-.PHONY: infra onboarding transaction ledger all-components
+.PHONY: infra ledger all-components
 infra:
 	$(call print_title,"Running command in infra component")
 	@if [ -z "$(COMMAND)" ]; then \
@@ -568,22 +536,6 @@ infra:
 		exit 1; \
 	fi
 	@cd $(INFRA_DIR) && $(MAKE) $(COMMAND)
-
-onboarding:
-	$(call print_title,"Running command in onboarding component")
-	@if [ -z "$(COMMAND)" ]; then \
-		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
-		exit 1; \
-	fi
-	@cd $(ONBOARDING_DIR) && $(MAKE) $(COMMAND)
-
-transaction:
-	$(call print_title,"Running command in transaction component")
-	@if [ -z "$(COMMAND)" ]; then \
-		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
-		exit 1; \
-	fi
-	@cd $(TRANSACTION_DIR) && $(MAKE) $(COMMAND)
 
 ledger:
 	$(call print_title,"Running command in ledger component")
@@ -599,7 +551,7 @@ all-components:
 		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
 		exit 1; \
 	fi
-	@for dir in $(COMPONENTS); do \
+	@for dir in $(COMPONENTS) $(LEDGER_DIR); do \
 		echo "Running '$(COMMAND)' in $$dir..."; \
 		(cd $$dir && $(MAKE) $(COMMAND)) || exit 1; \
 	done
@@ -620,6 +572,30 @@ generate-docs:
 .PHONY: dev-setup
 dev-setup:
 	$(call print_title,"Setting up development environment for all components")
+	@echo "Installing development tools..."
+	@GOBIN="$$(go env GOPATH)/bin"; \
+	check_or_install() { \
+		local name="$$1" pkg="$$2"; \
+		if command -v "$$name" >/dev/null 2>&1 || [ -x "$$GOBIN/$$name" ]; then \
+			echo "  ✓ $$name already installed"; \
+		else \
+			echo "  ⏳ Installing $$name..."; \
+			go install "$$pkg" || echo "  ⚠️  Failed to install $$name"; \
+		fi; \
+	}; \
+	check_or_install gitleaks github.com/zricethezav/gitleaks/v8@latest; \
+	check_or_install gofumpt mvdan.cc/gofumpt@latest; \
+	check_or_install goimports golang.org/x/tools/cmd/goimports@latest; \
+	check_or_install gosec github.com/securego/gosec/v2/cmd/gosec@latest; \
+	check_or_install golangci-lint github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	@GOBIN="$$(go env GOPATH)/bin"; \
+	if ! echo "$$PATH" | tr ':' '\n' | grep -qx "$$GOBIN"; then \
+		echo ""; \
+		echo "  ⚠️  $$GOBIN is not in your PATH."; \
+		echo "  Add to your shell profile: export PATH=\"\$$PATH:$$GOBIN\""; \
+		echo "  Without this, git hooks (gofumpt, goimports) will be silently skipped."; \
+		echo ""; \
+	fi
 	@echo "Setting up git hooks..."
 	@$(MAKE) setup-git-hooks
 	@for dir in $(COMPONENTS); do \
@@ -631,10 +607,6 @@ dev-setup:
 	@echo "[ok] Development environment set up successfully for all components"
 
 
-.PHONY: grpc-gen
-grpc-gen:
-	@protoc --proto_path=./pkg/mgrpc --go-grpc_out=./pkg/mgrpc --go_out=./pkg/mgrpc ./pkg/mgrpc/balance/balance.proto
-
 #-------------------------------------------------------
 # Migration Commands
 #-------------------------------------------------------
@@ -645,10 +617,10 @@ migrate-lint:
 	$(call print_title,"Linting database migrations")
 	@go build -o ./bin/migration-lint ./scripts/migration_linter
 	@echo "Checking onboarding migrations..."
-	@./bin/migration-lint ./components/onboarding/migrations
+	@./bin/migration-lint ./components/ledger/migrations/onboarding
 	@echo ""
 	@echo "Checking transaction migrations..."
-	@./bin/migration-lint ./components/transaction/migrations
+	@./bin/migration-lint ./components/ledger/migrations/transaction
 	@echo "[ok] All migrations passed validation"
 
 migrate-create:
@@ -664,7 +636,7 @@ migrate-create:
 		exit 1; \
 	fi
 	$(call check_command,migrate,"Install from https://github.com/golang-migrate/migrate")
-	@migrate create -ext sql -dir ./components/$(COMPONENT)/migrations -seq $(NAME)
+	@migrate create -ext sql -dir ./components/ledger/migrations/$(COMPONENT) -seq $(NAME)
 	@echo "[ok] Migration files created"
 	@echo ""
 	@echo "Next steps:"
@@ -672,3 +644,5 @@ migrate-create:
 	@echo "  2. Edit the .down.sql file with the rollback"
 	@echo "  3. Run 'make migrate-lint' to validate"
 	@echo "  4. Follow the guidelines in scripts/migration_linter/docs/MIGRATION_GUIDELINES.md"
+
+

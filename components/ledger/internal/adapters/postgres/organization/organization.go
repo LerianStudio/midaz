@@ -1,0 +1,76 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package organization
+
+import (
+	"database/sql"
+	"time"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+)
+
+// OrganizationPostgreSQLModel represents the entity Organization into SQL context in Database
+type OrganizationPostgreSQLModel struct {
+	ID                   string
+	ParentOrganizationID *string
+	LegalName            string
+	DoingBusinessAs      *string
+	LegalDocument        string
+	Address              mmodel.Address
+	Status               string
+	StatusDescription    *string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	DeletedAt            sql.NullTime
+	Metadata             map[string]any
+}
+
+// ToEntity converts an OrganizationPostgreSQLModel to entity.Organization
+func (t *OrganizationPostgreSQLModel) ToEntity() *mmodel.Organization {
+	organization := &mmodel.Organization{
+		ID:                   t.ID,
+		ParentOrganizationID: t.ParentOrganizationID,
+		LegalName:            t.LegalName,
+		DoingBusinessAs:      t.DoingBusinessAs,
+		LegalDocument:        t.LegalDocument,
+		Address:              t.Address,
+		Status: mmodel.Status{
+			Code:        t.Status,
+			Description: t.StatusDescription,
+		},
+		CreatedAt: t.CreatedAt,
+		UpdatedAt: t.UpdatedAt,
+	}
+
+	if t.DeletedAt.Valid {
+		deletedAtCopy := t.DeletedAt.Time
+		organization.DeletedAt = &deletedAtCopy
+	}
+
+	return organization
+}
+
+// FromEntity converts an entity.Organization to OrganizationPostgresModel.
+// It performs a pure field mapping; callers that need a new ID (e.g. Create)
+// must set it on the model after calling FromEntity.
+func (t *OrganizationPostgreSQLModel) FromEntity(organization *mmodel.Organization) {
+	*t = OrganizationPostgreSQLModel{
+		ID:                   organization.ID,
+		ParentOrganizationID: organization.ParentOrganizationID,
+		LegalName:            organization.LegalName,
+		DoingBusinessAs:      organization.DoingBusinessAs,
+		LegalDocument:        organization.LegalDocument,
+		Address:              organization.Address,
+		Status:               organization.Status.Code,
+		StatusDescription:    organization.Status.Description,
+		CreatedAt:            organization.CreatedAt,
+		UpdatedAt:            organization.UpdatedAt,
+	}
+
+	if organization.DeletedAt != nil {
+		deletedAtCopy := *organization.DeletedAt
+		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
+	}
+}

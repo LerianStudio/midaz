@@ -1,6 +1,6 @@
 # Database Migration Guidelines
 
-This document establishes standards for writing SQL migrations that ensure:
+These standards ensure SQL migrations have:
 - Zero-downtime during deployments
 - Backward compatibility with previous application versions
 - Safe rollbacks without data loss
@@ -242,7 +242,7 @@ migration-lint <path-to-migrations> --strict
 The linter outputs issues grouped by file with numbered issues and grouped suggestions:
 
 ```text
-Analyzing 3 migrations in ./components/onboarding/migrations
+Analyzing 3 migrations in ./components/ledger/migrations/onboarding
 
 ---> 000006_create_account_type_table.up.sql
   1. [WARNING] Line 19: CREATE INDEX without CONCURRENTLY blocks table. Use CREATE INDEX CONCURRENTLY.

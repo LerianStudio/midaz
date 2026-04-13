@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package mmodel
 
 import (
@@ -5,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -163,7 +167,7 @@ func TestBalance_ToTransactionBalance(t *testing.T) {
 	tests := []struct {
 		name    string
 		balance *Balance
-		want    *pkgTransaction.Balance
+		want    *mtransaction.Balance
 	}{
 		{
 			name: "all fields populated",
@@ -186,7 +190,7 @@ func TestBalance_ToTransactionBalance(t *testing.T) {
 				DeletedAt:      &deletedAt,
 				Metadata:       map[string]any{"purpose": "savings"},
 			},
-			want: &pkgTransaction.Balance{
+			want: &mtransaction.Balance{
 				ID:             "123e4567-e89b-12d3-a456-426614174000",
 				OrganizationID: "org-123",
 				LedgerID:       "ledger-456",
@@ -227,7 +231,7 @@ func TestBalance_ToTransactionBalance(t *testing.T) {
 				DeletedAt:      nil,
 				Metadata:       map[string]any{"category": "personal"},
 			},
-			want: &pkgTransaction.Balance{
+			want: &mtransaction.Balance{
 				ID:             "223e4567-e89b-12d3-a456-426614174001",
 				OrganizationID: "org-456",
 				LedgerID:       "ledger-789",
@@ -268,7 +272,7 @@ func TestBalance_ToTransactionBalance(t *testing.T) {
 				DeletedAt:      nil,
 				Metadata:       nil,
 			},
-			want: &pkgTransaction.Balance{
+			want: &mtransaction.Balance{
 				ID:             "323e4567-e89b-12d3-a456-426614174002",
 				OrganizationID: "org-789",
 				LedgerID:       "ledger-012",

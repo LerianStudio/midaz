@@ -1,11 +1,16 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package holder
 
 import (
 	"testing"
 	"time"
 
+	libCrypto "github.com/LerianStudio/lib-commons/v4/commons/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/tests/utils"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -320,6 +325,8 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 }
 
 func TestMongoDBModel_ToEntity_LegalPerson(t *testing.T) {
+	t.Parallel()
+
 	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
 	holderID := uuid.New()
@@ -364,6 +371,105 @@ func TestMongoDBModel_ToEntity_LegalPerson(t *testing.T) {
 	assert.Equal(t, *originalHolder.LegalPerson.Representative.Document, *resultHolder.LegalPerson.Representative.Document)
 	assert.Equal(t, *originalHolder.LegalPerson.Representative.Email, *resultHolder.LegalPerson.Representative.Email)
 	assert.Equal(t, originalHolder.LegalPerson.Representative.Role, resultHolder.LegalPerson.Representative.Role)
+}
+
+func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing.T) {
+	t.Parallel()
+
+	crypto := testutils.SetupCrypto(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	holderID := uuid.New()
+
+	originalHolder := &mmodel.Holder{
+		ID:       &holderID,
+		Type:     testutils.Ptr("LEGAL_PERSON"),
+		Name:     testutils.Ptr("Nil Optionals Holder"),
+		Document: testutils.Ptr("12345678000190"),
+		Contact:  &mmodel.Contact{},
+		NaturalPerson: &mmodel.NaturalPerson{
+			FavoriteName: testutils.Ptr("Nilly"),
+		},
+		LegalPerson: &mmodel.LegalPerson{
+			TradeName: testutils.Ptr("Nil Fields LLC"),
+			Representative: &mmodel.Representative{
+				Role: testutils.Ptr("Director"),
+			},
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	var model MongoDBModel
+	err := model.FromEntity(originalHolder, crypto)
+	require.NoError(t, err)
+
+	require.NotNil(t, model.Contact)
+	assert.Nil(t, model.Contact.PrimaryEmail)
+	assert.Nil(t, model.Contact.SecondaryEmail)
+	assert.Nil(t, model.Contact.MobilePhone)
+	assert.Nil(t, model.Contact.OtherPhone)
+	require.NotNil(t, model.NaturalPerson)
+	assert.Nil(t, model.NaturalPerson.MotherName)
+	assert.Nil(t, model.NaturalPerson.FatherName)
+	require.NotNil(t, model.LegalPerson)
+	require.NotNil(t, model.LegalPerson.Representative)
+	assert.Nil(t, model.LegalPerson.Representative.Name)
+	assert.Nil(t, model.LegalPerson.Representative.Document)
+	assert.Nil(t, model.LegalPerson.Representative.Email)
+
+	resultHolder, err := model.ToEntity(crypto)
+	require.NoError(t, err)
+
+	require.NotNil(t, resultHolder.Contact)
+	assert.Nil(t, resultHolder.Contact.PrimaryEmail)
+	assert.Nil(t, resultHolder.Contact.SecondaryEmail)
+	assert.Nil(t, resultHolder.Contact.MobilePhone)
+	assert.Nil(t, resultHolder.Contact.OtherPhone)
+	require.NotNil(t, resultHolder.NaturalPerson)
+	assert.Nil(t, resultHolder.NaturalPerson.MotherName)
+	assert.Nil(t, resultHolder.NaturalPerson.FatherName)
+	require.NotNil(t, resultHolder.LegalPerson)
+	require.NotNil(t, resultHolder.LegalPerson.Representative)
+	assert.Nil(t, resultHolder.LegalPerson.Representative.Name)
+	assert.Nil(t, resultHolder.LegalPerson.Representative.Document)
+	assert.Nil(t, resultHolder.LegalPerson.Representative.Email)
+}
+
+func TestMapRepresentativeToEntity_InvalidEncryptedEmailReturnsError(t *testing.T) {
+	t.Parallel()
+
+	crypto := testutils.SetupCrypto(t)
+
+	_, err := mapRepresentativeToEntity(crypto, &RepresentativeMongoDBModel{
+		Email: testutils.Ptr("not-a-valid-ciphertext"),
+	})
+	require.Error(t, err)
+}
+
+func TestMongoDBModel_FromEntity_ContactEncryptFailureReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// A zero-value Crypto lacks the required encryption keys,
+	// so Contact encryption is expected to fail in FromEntity.
+	crypto := &libCrypto.Crypto{}
+	holderID := uuid.New()
+	now := time.Now().UTC().Truncate(time.Second)
+
+	holder := &mmodel.Holder{
+		ID:       &holderID,
+		Type:     testutils.Ptr("LEGAL_PERSON"),
+		Name:     testutils.Ptr("John Doe"),
+		Document: testutils.Ptr("12345678901"),
+		Contact: &mmodel.Contact{
+			PrimaryEmail: testutils.Ptr(""),
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	_, err := mapContactFromEntity(crypto, holder.Contact)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cipher not initialized")
 }
 
 func TestMapAddressFromEntity(t *testing.T) {

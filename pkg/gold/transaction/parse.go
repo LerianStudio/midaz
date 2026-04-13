@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package transaction
 
 import (
@@ -5,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/midaz/v3/pkg/gold/parser"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/shopspring/decimal"
 )
@@ -41,9 +45,9 @@ func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) an
 		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).(map[string]any)
 	}
 
-	send := v.VisitSend(ctx.Send().(*parser.SendContext)).(pkgTransaction.Send)
+	send := v.VisitSend(ctx.Send().(*parser.SendContext)).(mtransaction.Send)
 
-	transaction := pkgTransaction.Transaction{
+	transaction := mtransaction.Transaction{
 		ChartOfAccountsGroupName: v.VisitVisitChartOfAccountsGroupName(ctx.ChartOfAccountsGroupName().(*parser.ChartOfAccountsGroupNameContext)).(string),
 		Description:              description,
 		Code:                     code,
@@ -88,7 +92,7 @@ func (v *TransactionVisitor) VisitMetadata(ctx *parser.MetadataContext) any {
 	metadata := make(map[string]any, len(ctx.AllPair()))
 
 	for _, pair := range ctx.AllPair() {
-		m := v.VisitPair(pair.(*parser.PairContext)).(pkgTransaction.Metadata)
+		m := v.VisitPair(pair.(*parser.PairContext)).(mtransaction.Metadata)
 		metadata[m.Key] = m.Value
 	}
 
@@ -96,7 +100,7 @@ func (v *TransactionVisitor) VisitMetadata(ctx *parser.MetadataContext) any {
 }
 
 func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any {
-	return pkgTransaction.Metadata{
+	return mtransaction.Metadata{
 		Key:   ctx.Key().GetText(),
 		Value: ctx.Value().GetText(),
 	}
@@ -113,12 +117,12 @@ func (v *TransactionVisitor) VisitValueOrVariable(ctx *parser.ValueOrVariableCon
 func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	asset := ctx.UUID().GetText()
 	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
-	source := v.VisitSource(ctx.Source().(*parser.SourceContext)).(pkgTransaction.Source)
-	distribute := v.VisitDistribute(ctx.Distribute().(*parser.DistributeContext)).(pkgTransaction.Distribute)
+	source := v.VisitSource(ctx.Source().(*parser.SourceContext)).(mtransaction.Source)
+	distribute := v.VisitDistribute(ctx.Distribute().(*parser.DistributeContext)).(mtransaction.Distribute)
 
 	value, _ := decimal.NewFromString(val)
 
-	return pkgTransaction.Send{
+	return mtransaction.Send{
 		Asset:      asset,
 		Value:      value,
 		Source:     source,
@@ -132,14 +136,14 @@ func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
 		remaining = strings.Trim(ctx.REMAINING().GetText(), ":")
 	}
 
-	froms := make([]pkgTransaction.FromTo, 0, len(ctx.AllFrom()))
+	froms := make([]mtransaction.FromTo, 0, len(ctx.AllFrom()))
 
 	for _, from := range ctx.AllFrom() {
-		f := v.VisitFrom(from.(*parser.FromContext)).(pkgTransaction.FromTo)
+		f := v.VisitFrom(from.(*parser.FromContext)).(mtransaction.FromTo)
 		froms = append(froms, f)
 	}
 
-	return pkgTransaction.Source{
+	return mtransaction.Source{
 		Remaining: remaining,
 		From:      froms,
 	}
@@ -166,7 +170,7 @@ func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 
 	value, _ := decimal.NewFromString(val)
 
-	return pkgTransaction.Rate{
+	return mtransaction.Rate{
 		From:       from,
 		To:         to,
 		Value:      value,
@@ -184,7 +188,7 @@ func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 
 	value, _ := decimal.NewFromString(val)
 
-	return pkgTransaction.Amount{
+	return mtransaction.Amount{
 		Asset: asset,
 		Value: value,
 	}
@@ -193,7 +197,7 @@ func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 	percentage, _ := strconv.ParseInt(v.VisitValueOrVariable(ctx.ValueOrVariable().(*parser.ValueOrVariableContext)).(string), 10, 64)
 
-	return pkgTransaction.Share{
+	return mtransaction.Share{
 		Percentage:             percentage,
 		PercentageOfPercentage: 0,
 	}
@@ -203,7 +207,7 @@ func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext
 	percentage, _ := strconv.ParseInt(v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string), 10, 64)
 	percentageOfPercentage, _ := strconv.ParseInt(v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string), 10, 64)
 
-	return pkgTransaction.Share{
+	return mtransaction.Share{
 		Percentage:             percentage,
 		PercentageOfPercentage: percentageOfPercentage,
 	}
@@ -222,34 +226,34 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).(map[string]any)
 	}
 
-	var amount pkgTransaction.Amount
+	var amount mtransaction.Amount
 
-	var share pkgTransaction.Share
+	var share mtransaction.Share
 
 	var remaining string
 
 	switch ctx.SendTypes().(type) {
 	case *parser.AmountContext:
-		amount = v.VisitAmount(ctx.SendTypes().(*parser.AmountContext)).(pkgTransaction.Amount)
+		amount = v.VisitAmount(ctx.SendTypes().(*parser.AmountContext)).(mtransaction.Amount)
 	case *parser.ShareIntContext:
-		share = v.VisitShareInt(ctx.SendTypes().(*parser.ShareIntContext)).(pkgTransaction.Share)
+		share = v.VisitShareInt(ctx.SendTypes().(*parser.ShareIntContext)).(mtransaction.Share)
 	case *parser.ShareIntOfIntContext:
-		share = v.VisitShareIntOfInt(ctx.SendTypes().(*parser.ShareIntOfIntContext)).(pkgTransaction.Share)
+		share = v.VisitShareIntOfInt(ctx.SendTypes().(*parser.ShareIntOfIntContext)).(mtransaction.Share)
 	default:
 		remaining = v.VisitRemaining(ctx.SendTypes().(*parser.RemainingContext)).(string)
 	}
 
-	var rate *pkgTransaction.Rate
+	var rate *mtransaction.Rate
 
 	if ctx.Rate() != nil {
-		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(pkgTransaction.Rate)
+		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(mtransaction.Rate)
 
 		if !rateValue.IsEmpty() {
 			rate = &rateValue
 		}
 	}
 
-	return pkgTransaction.FromTo{
+	return mtransaction.FromTo{
 		AccountAlias: account,
 		Amount:       &amount,
 		Share:        &share,
@@ -274,34 +278,34 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).(map[string]any)
 	}
 
-	var amount pkgTransaction.Amount
+	var amount mtransaction.Amount
 
-	var share pkgTransaction.Share
+	var share mtransaction.Share
 
 	var remaining string
 
 	switch ctx.SendTypes().(type) {
 	case *parser.AmountContext:
-		amount = v.VisitAmount(ctx.SendTypes().(*parser.AmountContext)).(pkgTransaction.Amount)
+		amount = v.VisitAmount(ctx.SendTypes().(*parser.AmountContext)).(mtransaction.Amount)
 	case *parser.ShareIntContext:
-		share = v.VisitShareInt(ctx.SendTypes().(*parser.ShareIntContext)).(pkgTransaction.Share)
+		share = v.VisitShareInt(ctx.SendTypes().(*parser.ShareIntContext)).(mtransaction.Share)
 	case *parser.ShareIntOfIntContext:
-		share = v.VisitShareIntOfInt(ctx.SendTypes().(*parser.ShareIntOfIntContext)).(pkgTransaction.Share)
+		share = v.VisitShareIntOfInt(ctx.SendTypes().(*parser.ShareIntOfIntContext)).(mtransaction.Share)
 	default:
 		remaining = v.VisitRemaining(ctx.SendTypes().(*parser.RemainingContext)).(string)
 	}
 
-	var rate *pkgTransaction.Rate
+	var rate *mtransaction.Rate
 
 	if ctx.Rate() != nil {
-		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(pkgTransaction.Rate)
+		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(mtransaction.Rate)
 
 		if !rateValue.IsEmpty() {
 			rate = &rateValue
 		}
 	}
 
-	return pkgTransaction.FromTo{
+	return mtransaction.FromTo{
 		AccountAlias: account,
 		Amount:       &amount,
 		Share:        &share,
@@ -319,14 +323,14 @@ func (v *TransactionVisitor) VisitDistribute(ctx *parser.DistributeContext) any 
 		remaining = strings.Trim(ctx.REMAINING().GetText(), ":")
 	}
 
-	tos := make([]pkgTransaction.FromTo, 0, len(ctx.AllTo()))
+	tos := make([]mtransaction.FromTo, 0, len(ctx.AllTo()))
 
 	for _, to := range ctx.AllTo() {
-		t := v.VisitTo(to.(*parser.ToContext)).(pkgTransaction.FromTo)
+		t := v.VisitTo(to.(*parser.ToContext)).(mtransaction.FromTo)
 		tos = append(tos, t)
 	}
 
-	return pkgTransaction.Distribute{
+	return mtransaction.Distribute{
 		Remaining: remaining,
 		To:        tos,
 	}
