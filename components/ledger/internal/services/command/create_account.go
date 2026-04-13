@@ -23,8 +23,7 @@ import (
 )
 
 // CreateAccount creates an account and metadata, then synchronously creates the default balance.
-// The balance is created via the BalancePort interface, which can be either local (in-process)
-// or remote (gRPC) depending on the deployment mode.
+// The balance is created via the BalancePort interface.
 func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
 	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 

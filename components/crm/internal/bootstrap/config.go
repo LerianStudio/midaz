@@ -27,7 +27,6 @@ import (
 // Config is the top level configuration struct for the entire application.
 type Config struct {
 	EnvName                                string `env:"ENV_NAME"`
-	ProtoAddress                           string `env:"PROTO_ADDRESS"`
 	ServerAddress                          string `env:"SERVER_ADDRESS"`
 	LogLevel                               string `env:"LOG_LEVEL"`
 	OtelServiceName                        string `env:"OTEL_RESOURCE_SERVICE_NAME"`
@@ -71,7 +70,7 @@ type Options struct {
 	Logger libLog.Logger
 }
 
-// InitServers initiate http and grpc servers.
+// InitServers initiates the HTTP server.
 func InitServers() (*Service, error) {
 	return InitServersWithOptions(nil)
 }

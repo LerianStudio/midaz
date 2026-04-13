@@ -21,8 +21,7 @@ import (
 )
 
 // DeleteAccountByID deletes an account from the repository by IDs.
-// It first deletes all balances associated with the account via the BalancePort interface,
-// which can be either local (in-process) or remote (gRPC) depending on the deployment mode.
+// It first deletes all balances associated with the account via the BalancePort interface.
 func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, token string) error {
 	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 

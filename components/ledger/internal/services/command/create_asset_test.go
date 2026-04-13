@@ -151,7 +151,7 @@ func TestCreateAsset(t *testing.T) {
 			expectedRes: nil,
 		},
 		{
-			name: "grpc failure - default balance creation fails",
+			name: "failure - default balance creation fails",
 			input: &mmodel.CreateAssetInput{
 				Name: "USD Dollar",
 				Type: "currency",
@@ -197,7 +197,7 @@ func TestCreateAsset(t *testing.T) {
 
 				mockBalanceRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("grpc create balance error")).
+					Return(nil, errors.New("create balance error")).
 					Times(1)
 			},
 			expectedErr: errors.New("default balance could not be created"),

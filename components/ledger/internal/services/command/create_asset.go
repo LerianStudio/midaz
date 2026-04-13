@@ -24,8 +24,7 @@ import (
 // CreateAsset creates an asset and metadata synchronously and ensures an external
 // account exists for the asset. If a new external account is created, it also
 // creates the default balance for that account.
-// The balance is created via the BalancePort interface, which can be either local (in-process)
-// or remote (gRPC) depending on the deployment mode.
+// The balance is created via the BalancePort interface.
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput, token string) (*mmodel.Asset, error) {
 	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 

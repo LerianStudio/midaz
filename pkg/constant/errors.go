@@ -141,7 +141,6 @@ var (
 	ErrAccountCreationFailed                    = errors.New("0127")
 	ErrTransactionBackupCacheFailed             = errors.New("0128")
 	ErrTransactionBackupCacheMarshalFailed      = errors.New("0129")
-	ErrGRPCServiceUnavailable                   = errors.New("0130")
 	ErrInvalidDatetimeFormat                    = errors.New("0131")
 	ErrMetadataIndexAlreadyExists               = errors.New("0132")
 	ErrMetadataIndexNotFound                    = errors.New("0133")

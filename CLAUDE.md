@@ -451,7 +451,6 @@ Source: `components/crm/internal/bootstrap/config.go`
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ENV_NAME` | development | Environment name |
-| `PROTO_ADDRESS` | — | gRPC address (CRM-only) |
 | `SERVER_ADDRESS` | :4003 | HTTP listen address |
 | `LOG_LEVEL` | debug | Log level |
 | `MONGO_URI` | mongodb | Connection URI scheme |
