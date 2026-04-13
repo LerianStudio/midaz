@@ -34,7 +34,7 @@ func main() {
 		logLevel = "info"
 	}
 
-	envName := os.Getenv("ENV_NAME")
+	envName := strings.ToLower(strings.TrimSpace(os.Getenv("ENV_NAME")))
 	if envName == "" {
 		envName = "development"
 	}

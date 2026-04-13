@@ -210,8 +210,8 @@ func initMongoConnection(cfg *Config, logger libLog.Logger) (*libMongo.Client, e
 	}
 
 	var tlsCfg *libMongo.TLSConfig
-	if cfg.MongoTLSCACert != "" {
-		tlsCfg = &libMongo.TLSConfig{CACertBase64: cfg.MongoTLSCACert}
+	if caCert := strings.TrimSpace(cfg.MongoTLSCACert); caCert != "" {
+		tlsCfg = &libMongo.TLSConfig{CACertBase64: caCert}
 	}
 
 	mongoConnection, err := libMongo.NewClient(context.Background(), libMongo.Config{

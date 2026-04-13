@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -97,8 +98,8 @@ func initOnboardingSingleTenantMongo(cfg *Config, logger libLog.Logger) (*onboar
 	}
 
 	var tlsCfg *libMongo.TLSConfig
-	if cfg.OnbPrefixedMongoTLSCACert != "" {
-		tlsCfg = &libMongo.TLSConfig{CACertBase64: cfg.OnbPrefixedMongoTLSCACert}
+	if caCert := strings.TrimSpace(cfg.OnbPrefixedMongoTLSCACert); caCert != "" {
+		tlsCfg = &libMongo.TLSConfig{CACertBase64: caCert}
 	}
 
 	mongoConnection, err := libMongo.NewClient(context.Background(), libMongo.Config{
