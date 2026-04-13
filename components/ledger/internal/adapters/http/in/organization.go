@@ -19,7 +19,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -99,7 +98,10 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 	ctx, span := tracer.Start(ctx, "handler.update_organization")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	payload := p.(*mmodel.UpdateOrganizationInput)
 	logSafePayload(ctx, logger, "Request to update an organization", payload)
@@ -139,7 +141,11 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_organization_by_id")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Organization with ID: %s", id.String()))
 
 	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
@@ -275,7 +281,10 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_organization_by_id")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Organization with ID: %s", id.String()))
 
