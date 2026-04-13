@@ -26,43 +26,43 @@ import (
 
 // Config is the top level configuration struct for the entire application.
 type Config struct {
-	EnvName                             string `env:"ENV_NAME"`
-	ProtoAddress                        string `env:"PROTO_ADDRESS"`
-	ServerAddress                       string `env:"SERVER_ADDRESS"`
-	LogLevel                            string `env:"LOG_LEVEL"`
-	OtelServiceName                     string `env:"OTEL_RESOURCE_SERVICE_NAME"`
-	OtelLibraryName                     string `env:"OTEL_LIBRARY_NAME"`
-	OtelServiceVersion                  string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
-	OtelDeploymentEnv                   string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
-	OtelColExporterEndpoint             string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
-	EnableTelemetry                     bool   `env:"ENABLE_TELEMETRY"`
-	MongoURI                            string `env:"MONGO_URI"`
-	MongoDBHost                         string `env:"MONGO_HOST"`
-	MongoDBName                         string `env:"MONGO_NAME"`
-	MongoDBUser                         string `env:"MONGO_USER"`
-	MongoDBPassword                     string `env:"MONGO_PASSWORD"`
-	MongoDBPort                         string `env:"MONGO_PORT"`
-	MongoDBParameters                   string `env:"MONGO_PARAMETERS"`
-	MaxPoolSize                         int    `env:"MONGO_MAX_POOL_SIZE"`
-	HashSecretKey                       string `env:"LCRYPTO_HASH_SECRET_KEY"`
-	EncryptSecretKey                    string `env:"LCRYPTO_ENCRYPT_SECRET_KEY"`
-	AuthAddress                         string `env:"PLUGIN_AUTH_ADDRESS"`
-	AuthEnabled                         bool   `env:"PLUGIN_AUTH_ENABLED"`
-	MultiTenantEnabled                  bool   `env:"MULTI_TENANT_ENABLED"`
-	MultiTenantURL                      string `env:"MULTI_TENANT_URL"`
-	MultiTenantTimeout                  int    `env:"MULTI_TENANT_TIMEOUT"`                     // seconds (HTTP client timeout)
-	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`            // seconds before idle connection eviction
-	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`            // max concurrent tenant pools
-	MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD"`   // failures before circuit opens
-	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"` // seconds before circuit resets
-	MultiTenantServiceAPIKey            string `env:"MULTI_TENANT_SERVICE_API_KEY"`
+	EnvName                                string `env:"ENV_NAME"`
+	ServerAddress                          string `env:"SERVER_ADDRESS"`
+	LogLevel                               string `env:"LOG_LEVEL"`
+	OtelServiceName                        string `env:"OTEL_RESOURCE_SERVICE_NAME"`
+	OtelLibraryName                        string `env:"OTEL_LIBRARY_NAME"`
+	OtelServiceVersion                     string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
+	OtelDeploymentEnv                      string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
+	OtelColExporterEndpoint                string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	EnableTelemetry                        bool   `env:"ENABLE_TELEMETRY"`
+	MongoURI                               string `env:"MONGO_URI"`
+	MongoDBHost                            string `env:"MONGO_HOST"`
+	MongoDBName                            string `env:"MONGO_NAME"`
+	MongoDBUser                            string `env:"MONGO_USER"`
+	MongoDBPassword                        string `env:"MONGO_PASSWORD"`
+	MongoDBPort                            string `env:"MONGO_PORT"`
+	MongoDBParameters                      string `env:"MONGO_PARAMETERS"`
+	MaxPoolSize                            int    `env:"MONGO_MAX_POOL_SIZE"`
+	MongoTLSCACert                         string `env:"MONGO_TLS_CA_CERT"`
+	HashSecretKey                          string `env:"LCRYPTO_HASH_SECRET_KEY"`
+	EncryptSecretKey                       string `env:"LCRYPTO_ENCRYPT_SECRET_KEY"`
+	AuthAddress                            string `env:"PLUGIN_AUTH_ADDRESS"`
+	AuthEnabled                            bool   `env:"PLUGIN_AUTH_ENABLED"`
+	MultiTenantEnabled                     bool   `env:"MULTI_TENANT_ENABLED"`
+	MultiTenantURL                         string `env:"MULTI_TENANT_URL"`
+	MultiTenantTimeout                     int    `env:"MULTI_TENANT_TIMEOUT"`                     // seconds (HTTP client timeout)
+	MultiTenantIdleTimeoutSec              int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`            // seconds before idle connection eviction
+	MultiTenantMaxTenantPools              int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`            // max concurrent tenant pools
+	MultiTenantCircuitBreakerThreshold     int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD"`   // failures before circuit opens
+	MultiTenantCircuitBreakerTimeoutSec    int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"` // seconds before circuit resets
+	MultiTenantServiceAPIKey               string `env:"MULTI_TENANT_SERVICE_API_KEY"`
 	MultiTenantConnectionsCheckIntervalSec int    `env:"MULTI_TENANT_CONNECTIONS_CHECK_INTERVAL_SEC"` // seconds between tenant config revalidation checks
-	MultiTenantCacheTTLSec              int    `env:"MULTI_TENANT_CACHE_TTL_SEC" default:"120"` // seconds for tenant config cache TTL (0 = disabled)
-	MultiTenantRedisHost                string `env:"MULTI_TENANT_REDIS_HOST"`
-	MultiTenantRedisPort                string `env:"MULTI_TENANT_REDIS_PORT"`
-	MultiTenantRedisPassword            string `env:"MULTI_TENANT_REDIS_PASSWORD"`
-	MultiTenantRedisTLS                 bool   `env:"MULTI_TENANT_REDIS_TLS"`
-	ApplicationName                     string `env:"APPLICATION_NAME"`
+	MultiTenantCacheTTLSec                 int    `env:"MULTI_TENANT_CACHE_TTL_SEC" default:"120"`    // seconds for tenant config cache TTL (0 = disabled)
+	MultiTenantRedisHost                   string `env:"MULTI_TENANT_REDIS_HOST"`
+	MultiTenantRedisPort                   string `env:"MULTI_TENANT_REDIS_PORT"`
+	MultiTenantRedisPassword               string `env:"MULTI_TENANT_REDIS_PASSWORD"`
+	MultiTenantRedisTLS                    bool   `env:"MULTI_TENANT_REDIS_TLS"`
+	ApplicationName                        string `env:"APPLICATION_NAME"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -70,7 +70,7 @@ type Options struct {
 	Logger libLog.Logger
 }
 
-// InitServers initiate http and grpc servers.
+// InitServers initiates the HTTP server.
 func InitServers() (*Service, error) {
 	return InitServersWithOptions(nil)
 }
@@ -121,6 +121,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
+	}
+
+	// Register telemetry providers as process-global so that the otelzap bridge
+	// (installed in the logger core) can forward log records to the OTLP exporter.
+	if err := telemetry.ApplyGlobals(); err != nil {
+		return nil, fmt.Errorf("failed to apply telemetry globals: %w", err)
 	}
 
 	mongoConnection, err := initMongoConnection(cfg, logger)
@@ -203,11 +209,17 @@ func initMongoConnection(cfg *Config, logger libLog.Logger) (*libMongo.Client, e
 		cfg.MaxPoolSize = 100
 	}
 
+	var tlsCfg *libMongo.TLSConfig
+	if caCert := strings.TrimSpace(cfg.MongoTLSCACert); caCert != "" {
+		tlsCfg = &libMongo.TLSConfig{CACertBase64: caCert}
+	}
+
 	mongoConnection, err := libMongo.NewClient(context.Background(), libMongo.Config{
 		URI:         mongoURI,
 		Database:    cfg.MongoDBName,
 		MaxPoolSize: uint64(cfg.MaxPoolSize), // #nosec G115 -- guarded by <= 0 check above
 		Logger:      logger,
+		TLS:         tlsCfg,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize mongodb client: %w", err)

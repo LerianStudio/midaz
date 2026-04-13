@@ -343,8 +343,6 @@ func setEnvFromContainers(t *testing.T, addresses *ContainerAddresses) {
 	t.Setenv("SERVER_ADDRESS", ":0") // Use any available port
 	t.Setenv("SERVER_ADDRESS_ONBOARDING", ":0")
 	t.Setenv("SERVER_ADDRESS_TRANSACTION", ":0")
-	t.Setenv("PROTO_ADDRESS", ":0")
-
 	// Disable features that require additional setup
 	t.Setenv("PLUGIN_AUTH_ENABLED", "false")
 	t.Setenv("ENABLE_TELEMETRY", "false")
@@ -386,7 +384,7 @@ func TestIntegration_InitServers_WithAllDependencies_Succeeds(t *testing.T) {
 }
 
 // TestService_Run_StartsAllServers tests that Service.Run() correctly starts
-// all HTTP and gRPC servers from both onboarding and transaction modules.
+// all HTTP servers from both onboarding and transaction modules.
 //
 // This test verifies:
 // - Server startup without errors

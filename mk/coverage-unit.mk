@@ -33,17 +33,8 @@ GOTESTSUM        := $(shell command -v gotestsum 2>/dev/null)
 _COVERAGE_OUT := $(abspath $(TEST_REPORTS_DIR))/unit_coverage.out
 _CALLER_DIR   := $(CURDIR)
 
-# macOS ld64 workaround: suppress LC_DYSYMTAB warnings when using -race
-UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S),Darwin)
-  ifneq ($(DISABLE_OSX_LINKER_WORKAROUND),1)
-    GO_TEST_LDFLAGS := -ldflags="-linkmode=external -extldflags=-ld_classic"
-  else
-    GO_TEST_LDFLAGS :=
-  endif
-else
-  GO_TEST_LDFLAGS :=
-endif
+# macOS ld64 workaround removed: -ld_classic is deprecated.
+GO_TEST_LDFLAGS :=
 
 .PHONY: coverage-unit
 coverage-unit:

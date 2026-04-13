@@ -166,12 +166,18 @@ components/{service}/
 
 | Type | Pattern | Example |
 |------|---------|---------|
-| Source files | `lowercase_or_kebab.go` | `create-account.go` |
+| Source files | `snake_case.go` | `create_account.go` |
+| Dot-separated (component type) | `{name}.{type}.go` | `balance_sync.worker.go`, `redis.consumer.go` |
 | PostgreSQL adapter | `{entity}.postgresql.go` | `organization.postgresql.go` |
 | MongoDB adapter | `{entity}.mongodb.go` | `metadata.mongodb.go` |
 | Unit tests | `{filename}_test.go` | `config_test.go` |
-| Integration tests | `{filename}_integration_test.go` | `organization.postgresql_integration_test.go` |
+| Integration tests | `{filename}_integration_test.go` | `balance_sync.worker_integration_test.go` |
 | Mocks | `{entity}.{technology}_mock.go` | `transaction.postgresql_mock.go` |
+
+> **Note:** Prefer `snake_case` for compound names (`balance_sync`, not `balance-sync`).
+> Dots separate the component type (`worker`, `collector`, `consumer`, `server`).
+> The `services/command/` and `services/query/` directories have been fully migrated to `snake_case`.
+> Remaining kebab-case files in other directories will be migrated incrementally.
 
 ### Naming Conventions
 
@@ -247,10 +253,13 @@ logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 ctx, span := tracer.Start(ctx, "layer.operation_name")
 defer span.End()
 
-// On error: instrument span AND log
+// On error: instrument span AND log with structured fields.
+// Use LevelWarn for business validation failures (caller's problem),
+// LevelError for infrastructure failures (system's problem).
+// See CLAUDE.md "Log Level Guidelines" for the full matrix.
 if err != nil {
-    libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Operation description", err)
-    logger.Errorf("Operation failed: %v", err)
+    libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation description", err)
+    logger.Log(ctx, libLog.LevelWarn, "Operation failed", libLog.Err(err))
     return nil, err
 }
 ```
@@ -328,14 +337,16 @@ if err != nil {
    }
    ```
 
-2. **Log at EVERY error point:**
+2. **Log at EVERY error point using structured fields:**
    ```go
-   logger.Errorf("Failed to create organization: %v", err)
+   logger.Log(ctx, libLog.LevelError, "Failed to create organization", libLog.Err(err))
    ```
+   > Do NOT use `fmt.Sprintf` inside log calls — it buries structured data in the message string
+   > and prevents OTLP attribute extraction in Grafana/Loki.
 
 3. **Instrument spans BEFORE returning:**
    ```go
-   libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create organization", err)
+   libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization", err)
    return nil, err
    ```
 
@@ -567,9 +578,13 @@ Examples:
 ```go
 var pgErr *pgconn.PgError
 if errors.As(err, &pgErr) {
-    return services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Organization{}).Name())
+    return services.ValidatePGError(pgErr, constant.EntityOrganization)
 }
 ```
+
+> **Note:** Use `constant.Entity*` constants (from `pkg/constant/entity.go`) instead of
+> `reflect.TypeOf(mmodel.Foo{}).Name()`. The reflect approach allocates a zero-value struct
+> on every call for a value that is known at compile time.
 
 ---
 
@@ -943,22 +958,36 @@ Located in `.githooks/`:
 
 ### Balance Sync Worker (Transaction Component)
 
-Pre-expiry synchronization of balance keys from Redis to PostgreSQL, ensuring data consistency before Redis key expiration:
+Dual-trigger synchronization of balance keys from Redis to PostgreSQL. Each balance mutation
+atomically schedules a sync via ZADD into a Redis ZSET (`schedule:{transactions}:balance-sync`).
+The worker collects due keys and flushes them in batches based on SIZE (batch full) or
+TIMEOUT (flush interval elapsed), whichever comes first.
 
 ```go
-type Config struct {
-    BalanceSyncWorkerEnabled bool `env:"BALANCE_SYNC_WORKER_ENABLED" default:"true"`
-    BalanceSyncMaxWorkers    int  `env:"BALANCE_SYNC_MAX_WORKERS"`  // default: 5
+type BalanceSyncConfig struct {
+    BatchSize      int `env:"BALANCE_SYNC_BATCH_SIZE"`       // default: 50
+    FlushTimeoutMs int `env:"BALANCE_SYNC_FLUSH_TIMEOUT_MS"` // default: 500
+    PollIntervalMs int `env:"BALANCE_SYNC_POLL_INTERVAL_MS"` // default: 50
 }
 ```
 
+**Key files:**
+- `bootstrap/balance_sync.worker.go` — Worker struct, `runWorker` (default), `runWorkerMT` (MT)
+- `bootstrap/balance_sync.collector.go` — `BalanceSyncCollector`, dual-trigger loop
+- `services/command/sync-balances-batch.go` — `SyncBalancesBatch` use case
+- `adapters/redis/transaction/scripts/claim_balance_sync_keys.lua` — Fetch + claim via Lua
+- `adapters/redis/transaction/scripts/remove_balance_sync_keys_batch.lua` — Conditional ZREM
+
 **Worker responsibilities:**
-- Monitors Redis sorted sets for balance keys approaching expiration (within 600s window)
-- Uses Lua scripts for atomic operations (`get_balances_near_expiration.lua`, `unschedule_synced_balance.lua`)
-- Syncs balance data to PostgreSQL via `useCase.SyncBalance()` before Redis TTL expires
-- Configurable worker pool size with semaphore-based concurrency control
-- Supports both single-tenant and multi-tenant modes (discovers active tenants automatically)
-- Can be disabled for testing or specific deployments
+- Polls Redis ZSET for due balance keys via Lua script with distributed locking (SET NX EX)
+- Accumulates keys in a `BalanceSyncCollector` and flushes on batch size OR timeout
+- Groups keys by (orgID, ledgerID) and calls `SyncBalancesBatch` per group
+- Uses optimistic concurrency: ZSET score serves as version token for conditional removal
+- Default mode (`runWorker`): single collector inline
+- MT mode (`runWorkerMT`): one collector per tenant, reconciliation loop every 10s
+
+**Naming convention:** Multi-tenant code uses the `MT` suffix (`NewBalanceSyncWorkerMT`,
+`isMTReady`, `mtEnabled`, `runWorkerMT`). Default (single-tenant) code uses no qualifier.
 
 ### Redis Queue Consumer (Transaction Component)
 

@@ -152,11 +152,12 @@ Key entities and their files:
 ### Status Pattern
 ```go
 type Status struct {
-    Code        *string `json:"code"`
-    Description *string `json:"description,omitempty"`
+    Code        string  `json:"code"`
+    Description *string `json:"description"`
 }
 ```
-Common codes: `ACTIVE`, `INACTIVE`, `DELETED`, `PENDING`, `CANCELLED`
+Common codes: `ACTIVE`, `INACTIVE`, `DELETED`, `PENDING`, `CANCELLED`.
+When omitted on create, `Code` defaults to `"ACTIVE"`.
 
 ### Metadata
 - Flat key-value pairs (no nesting allowed)
@@ -404,7 +405,9 @@ Activates only when `RABBITMQ_TRANSACTION_ASYNC=true` AND `BULK_RECORDER_ENABLED
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BALANCE_SYNC_MAX_WORKERS` | (5) | Balance sync worker count |
+| `BALANCE_SYNC_BATCH_SIZE` | (50) | Keys accumulated before flush (SIZE trigger) |
+| `BALANCE_SYNC_FLUSH_TIMEOUT_MS` | (500) | Max ms before flushing incomplete batch (TIMEOUT trigger) |
+| `BALANCE_SYNC_POLL_INTERVAL_MS` | (50) | ZSET polling interval when draining |
 | `SETTINGS_CACHE_TTL` | (5m) | Settings cache duration (Go duration) |
 
 ### Pagination
@@ -448,7 +451,6 @@ Source: `components/crm/internal/bootstrap/config.go`
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ENV_NAME` | development | Environment name |
-| `PROTO_ADDRESS` | — | gRPC address (CRM-only) |
 | `SERVER_ADDRESS` | :4003 | HTTP listen address |
 | `LOG_LEVEL` | debug | Log level |
 | `MONGO_URI` | mongodb | Connection URI scheme |
@@ -562,7 +564,7 @@ make wait-for-services    # Wait for backend services healthy (TEST_HEALTH_WAIT=
 Full rules in `docs/PROJECT_RULES.md` (1130 lines). Key points:
 
 1. **Go 1.25+**: Use `any` not `interface{}`, use generics for utilities
-2. **File naming**: `snake_case.go`, one handler/service per file
+2. **File naming**: `snake_case.go` with dot-separated component types (e.g., `balance_sync.worker.go`, `redis.consumer.go`)
 3. **Import groups**: stdlib → external → internal (blank-line separated)
 4. **Context**: Always first param, check `ctx.Err()` before work
 5. **Error wrapping**: `%w` for technical, direct return for business errors
@@ -572,6 +574,83 @@ Full rules in `docs/PROJECT_RULES.md` (1130 lines). Key points:
 9. **IDs**: Use `uuid.UUID` type, not strings
 10. **Soft delete**: `DeletedAt` field, status `DELETED`
 11. **Pagination**: Page-based (page + limit), max 100 per page
+12. **Structured logging**: Use `libLog.Err(err)`, `libLog.String()`, `libLog.Int()` fields instead of `fmt.Sprintf` inside log calls
+13. **MT naming**: Multi-tenant code uses `MT` suffix (`NewFooMT`, `runFooMT`, `mtEnabled`, `isMTReady`). Default (single-tenant) uses no qualifier.
+14. **Query builder**: Use `squirrel` for all SQL query construction (SELECT, INSERT, UPDATE). Do not use raw SQL string concatenation with `strconv.Itoa` for parameter placeholders.
+15. **Entity name constants**: Use `constant.Entity*` instead of `reflect.TypeOf(mmodel.Foo{}).Name()`. See `pkg/constant/entity.go`.
+16. **Timestamps on create**: Capture `time.Now()` once and reuse for both `CreatedAt` and `UpdatedAt` to guarantee identical values.
+17. **Declaration order**: Within a file, declare in this order: exported interface → exported types → constructor → exported methods → unexported helpers. The interface is the contract readers look for first.
+18. **Repository tests**: Repository/adapter code (thin wrappers around Redis, Postgres, etc.) should be covered by integration tests with testcontainers, not unit tests. Unit-testing mock interactions only verifies you called the mock correctly — it does not catch real issues like key format mismatches, TTL semantics, or Lua script behavior. Unit tests in adapter packages should be reserved for pure functions and business logic branches that don't require external dependencies.
+
+## Observability Conventions
+
+### Structured Logging
+Use structured fields instead of `fmt.Sprintf` inside log calls. Structured fields are preserved as
+separate attributes in the OTLP pipeline (searchable in Grafana/Loki), while `Sprintf` embeds them in
+the message string.
+
+```go
+// Good — structured fields
+logger.Log(ctx, libLog.LevelError, "Failed to create organization", libLog.Err(err))
+logger.Log(ctx, libLog.LevelInfo, "Organization created", libLog.String("id", org.ID))
+
+// Bad — fmt.Sprintf buries fields in the message
+logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create organization: %v", err))
+```
+
+### Log Level Guidelines
+
+**Never log sensitive data (balances, financial values, PII) at any log level.**
+
+Use the correct log level based on **who caused the problem**, not just what went wrong:
+
+| Level | When to use | Example |
+|-------|------------|---------|
+| **Debug** | Operational details useful only during development or troubleshooting. | Cache key written, Lua script completed, batch stats |
+| **Info** | Significant state changes or milestones in a business flow. Should be sparse enough to read in production without filtering. | Transaction created, balance sync flushed, idempotency key claimed |
+| **Warn** | **Business validation failures** (the caller sent invalid data, not a system fault). The system is healthy; the request was rejected. Also used for degraded-but-recoverable situations (e.g., cache connection error with DB fallback). Note: a normal cache miss (TTL expiry) is not a warning — it is the expected flow and needs no log at all. | Insufficient funds, asset mismatch, account sending disabled, accounting rule violation, Redis connection error with DB fallback |
+| **Error** | **Infrastructure or system failures** that indicate something is broken and may need operator attention. The system could not fulfill a valid request. | Redis connection refused, DB query failed, Lua script execution error, message broker unavailable |
+
+Key principle: if the fix requires the **caller** to change their request → **Warn**. If the fix requires an **operator** to investigate the system → **Error**.
+
+```go
+// Business validation failure — Warn (caller's problem)
+logger.Log(ctx, libLog.LevelWarn, "Balance rule validation failed", libLog.Err(err))
+
+// Infrastructure failure — Error (system's problem)
+logger.Log(ctx, libLog.LevelError, "Failed to execute atomic balance operation", libLog.Err(err))
+
+// Operational detail — Debug (development only)
+logger.Log(ctx, libLog.LevelDebug, "Lua script executed successfully",
+    libLog.String("backup_queue", prefixedKeys[0]))
+```
+
+### Span Lifecycle
+- Always use `defer span.End()` immediately after `tracer.Start`.
+- Child spans for I/O operations (DB exec, external calls) should use `defer` and must not
+  overwrite the parent `ctx` (use `_, spanExec := tracer.Start(...)` instead of `ctx, spanExec`).
+- Do NOT create child spans for in-memory operations (validation, mapping). The parent span covers them.
+- Redundant "Initiating..." or "Trying to..." log messages add no value when the span already marks
+  the start of the operation. Omit them.
+
+### Entity Name Constants
+Use `constant.Entity*` constants (in `pkg/constant/entity.go`) instead of `reflect.TypeOf(mmodel.Foo{}).Name()`
+for error reporting, metadata tagging, and audit logging. The reflect approach allocates a zero-value struct
+on every call just to obtain a compile-time constant string.
+
+```go
+// Good
+err := pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, constant.EntityOrganization)
+
+// Bad — allocates mmodel.Organization{} at runtime
+err := pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, reflect.TypeOf(mmodel.Organization{}).Name())
+```
+
+### Error Sentinel Uniqueness
+Each error code must have exactly one `errors.New` sentinel, defined in `pkg/constant/errors.go`.
+Do NOT create duplicate sentinels in other packages (e.g., `utils.ErrInvalidCountryCode` vs
+`constant.ErrInvalidCountryCode`). `ValidateBusinessError` looks up errors by identity (pointer
+equality), not by string value — duplicates cause silent lookup failures and 500 responses.
 
 ## What NOT To Do
 
@@ -585,3 +664,8 @@ Full rules in `docs/PROJECT_RULES.md` (1130 lines). Key points:
 - Do NOT expose internal error details to API clients
 - Do NOT import outer layers from inner layers
 - Do NOT use string literals for HTTP methods — use `http.Method*` constants
+- Do NOT create duplicate error sentinels — use the single source in `pkg/constant/errors.go`
+- Do NOT use `reflect.TypeOf(mmodel.Foo{}).Name()` — use `constant.Entity*` constants
+- Do NOT use `fmt.Sprintf` inside logger calls — use structured fields (`libLog.Err`, `libLog.String`)
+- Do NOT overwrite `ctx` with child spans (`ctx, spanExec :=`) — use `_, spanExec :=` to preserve parent context
+- Do NOT use `IsNilOrEmpty` to guard optional `*string` fields in PATCH updates — use `!= nil` so empty strings can clear the field

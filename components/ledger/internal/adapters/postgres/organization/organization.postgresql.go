@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -47,15 +46,32 @@ var organizationColumnList = []string{
 	"deleted_at",
 }
 
-// Repository provides an interface for operations related to organization entities.
-// It defines methods for creating, updating, finding, and deleting organizations.
+// Repository defines the persistence operations for organization entities.
 type Repository interface {
+	// Create inserts a new organization, generates its ID, and returns the persisted entity.
 	Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error)
+
+	// Update applies non-zero fields from organization to the record identified by id.
+	// Returns the updated entity or ErrEntityNotFound if the id does not exist (or is soft-deleted).
 	Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error)
+
+	// Find retrieves a single organization by id, excluding soft-deleted records.
+	// Returns ErrEntityNotFound when no matching record exists.
 	Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error)
+
+	// FindAll returns a paginated list of organizations matching the optional name filters.
+	// Both legalName and doingBusinessAs perform case-insensitive prefix matching.
 	FindAll(ctx context.Context, filter http.Pagination, legalName, doingBusinessAs *string) ([]*mmodel.Organization, error)
+
+	// ListByIDs returns organizations whose IDs are in the provided slice, excluding soft-deleted records.
+	// Returns an empty slice (not an error) when ids is empty.
 	ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmodel.Organization, error)
+
+	// Delete performs a soft-delete by setting deleted_at on the record identified by id.
+	// Returns ErrEntityNotFound if the id does not exist or is already deleted.
 	Delete(ctx context.Context, id uuid.UUID) error
+
+	// Count returns the total number of non-deleted organizations.
 	Count(ctx context.Context) (int64, error)
 }
 
@@ -104,7 +120,6 @@ func (r *OrganizationPostgreSQLRepository) getDB(ctx context.Context) (dbresolve
 	return r.connection.Resolver(ctx)
 }
 
-// Create inserts a new Organization entity into Postgresql and returns the created Organization.
 func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -114,14 +129,14 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return nil, err
 	}
 
 	record := &OrganizationPostgreSQLModel{}
 	record.FromEntity(organization)
+	record.ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	address, err := json.Marshal(record.Address)
 	if err != nil {
@@ -130,54 +145,62 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 		return nil, err
 	}
 
-	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
+	builder := squirrel.Insert(r.tableName).
+		Columns(organizationColumnList...).
+		Values(
+			record.ID,
+			record.ParentOrganizationID,
+			record.LegalName,
+			record.DoingBusinessAs,
+			record.LegalDocument,
+			address,
+			record.Status,
+			record.StatusDescription,
+			record.CreatedAt,
+			record.UpdatedAt,
+			record.DeletedAt,
+		).
+		PlaceholderFormat(squirrel.Dollar)
 
-	result, err := db.ExecContext(ctx, `INSERT INTO organization VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-		record.ID,
-		record.ParentOrganizationID,
-		record.LegalName,
-		record.DoingBusinessAs,
-		record.LegalDocument,
-		address,
-		record.Status,
-		record.StatusDescription,
-		record.CreatedAt,
-		record.UpdatedAt,
-		record.DeletedAt)
+	query, args, err := builder.ToSql()
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Organization{}).Name())
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to execute update query: %v", err))
-
-			return nil, err
-		}
-
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute update query: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to build insert query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build insert query", libLog.Err(err))
 
 		return nil, err
 	}
 
-	spanExec.End()
+	_, spanExec := tracer.Start(ctx, "postgres.create_organization.exec")
+	defer spanExec.End()
+
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			err := services.ValidatePGError(pgErr, constant.EntityOrganization)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute insert query", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to execute insert query", libLog.Err(err))
+
+			return nil, err
+		}
+
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute insert query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to execute insert query", libLog.Err(err))
+
+		return nil, err
+	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get rows affected", libLog.Err(err))
 
 		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization. Rows affected is 0", err)
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityOrganization)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization: no rows affected", err)
 
 		return nil, err
 	}
@@ -185,7 +208,6 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 	return record.ToEntity(), nil
 }
 
-// Update an Organization entity into Postgresql and returns the Organization updated.
 func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -195,8 +217,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return nil, err
 	}
@@ -204,23 +225,24 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	record := &OrganizationPostgreSQLModel{}
 	record.FromEntity(organization)
 
-	var updates []string
+	record.UpdatedAt = time.Now()
 
-	var args []any
+	builder := squirrel.Update(r.tableName).
+		Set("updated_at", record.UpdatedAt).
+		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
 
 	if !libCommons.IsNilOrEmpty(organization.ParentOrganizationID) {
-		updates = append(updates, "parent_organization_id = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.ParentOrganizationID)
+		builder = builder.Set("parent_organization_id", record.ParentOrganizationID)
 	}
 
 	if !libCommons.IsNilOrEmpty(&organization.LegalName) {
-		updates = append(updates, "legal_name = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.LegalName)
+		builder = builder.Set("legal_name", record.LegalName)
 	}
 
-	if !libCommons.IsNilOrEmpty(organization.DoingBusinessAs) {
-		updates = append(updates, "doing_business_as = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.DoingBusinessAs)
+	if organization.DoingBusinessAs != nil {
+		builder = builder.Set("doing_business_as", record.DoingBusinessAs)
 	}
 
 	if !organization.Address.IsEmpty() {
@@ -231,72 +253,76 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 			return nil, err
 		}
 
-		updates = append(updates, "address = $"+strconv.Itoa(len(args)+1))
-		args = append(args, address)
+		builder = builder.Set("address", address)
 	}
 
 	if !organization.Status.IsEmpty() {
-		updates = append(updates, "status = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.Status)
-
-		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.StatusDescription)
+		builder = builder.Set("status", record.Status).
+			Set("status_description", record.StatusDescription)
 	}
 
-	record.UpdatedAt = time.Now()
+	builder = builder.Suffix("RETURNING " + strings.Join(organizationColumnList, ", "))
 
-	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-
-	args = append(args, record.UpdatedAt, id)
-	query := `UPDATE organization SET ` + strings.Join(updates, ", ") +
-		` WHERE id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL`
-
-	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
-
-	result, err := db.ExecContext(ctx, query, args...)
+	query, args, err := builder.ToSql()
 	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build update query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build update query", libLog.Err(err))
+
+		return nil, err
+	}
+
+	_, spanExec := tracer.Start(ctx, "postgres.update_organization.exec")
+	defer spanExec.End()
+
+	var address string
+
+	updated := &OrganizationPostgreSQLModel{}
+
+	row := db.QueryRowContext(ctx, query, args...)
+	if err := row.Scan(
+		&updated.ID,
+		&updated.ParentOrganizationID,
+		&updated.LegalName,
+		&updated.DoingBusinessAs,
+		&updated.LegalDocument,
+		&address,
+		&updated.Status,
+		&updated.StatusDescription,
+		&updated.CreatedAt,
+		&updated.UpdatedAt,
+		&updated.DeletedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityOrganization)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update organization: no rows affected", err)
+
+			return nil, err
+		}
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Organization{}).Name())
-
+			err := services.ValidatePGError(pgErr, constant.EntityOrganization)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to execute update query: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to execute update query", libLog.Err(err))
 
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute update query: %v", err))
-
-		return nil, err
-	}
-
-	spanExec.End()
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to execute update query", libLog.Err(err))
 
 		return nil, err
 	}
 
-	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization. Rows affected is 0", err)
+	if err := json.Unmarshal([]byte(address), &updated.Address); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to unmarshal address", err)
 
 		return nil, err
 	}
 
-	return record.ToEntity(), nil
+	return updated.ToEntity(), nil
 }
 
-// Find retrieves an Organization entity from the database using the provided ID.
 func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -367,7 +393,6 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 	return organization.ToEntity(), nil
 }
 
-// FindAll retrieves Organizations entities from the database.
 func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter http.Pagination, legalName, doingBusinessAs *string) ([]*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -463,7 +488,6 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 	return organizations, nil
 }
 
-// ListByIDs retrieves Organizations entities from the database using the provided IDs.
 func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -551,7 +575,6 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 	return organizations, nil
 }
 
-// Delete removes an Organization entity from the database using the provided ID.
 func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -600,7 +623,6 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 	return nil
 }
 
-// Count retrieves the total count of organizations.
 func (r *OrganizationPostgreSQLRepository) Count(ctx context.Context) (int64, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

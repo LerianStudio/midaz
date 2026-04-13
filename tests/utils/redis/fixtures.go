@@ -14,7 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -63,7 +63,7 @@ func CreateBalanceOperationWithOnHold(organizationID, ledgerID uuid.UUID, alias,
 			UpdatedAt:      time.Now(),
 		},
 		Alias: alias,
-		Amount: pkgTransaction.Amount{
+		Amount: mtransaction.Amount{
 			Asset:     assetCode,
 			Value:     amount,
 			Operation: operation,

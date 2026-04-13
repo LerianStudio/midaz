@@ -9,13 +9,12 @@ import (
 	"time"
 
 	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/google/uuid"
 )
 
@@ -31,23 +30,23 @@ type CountFilter struct {
 //
 // @Description Database model for storing transaction information in PostgreSQL
 type TransactionPostgreSQLModel struct {
-	ID                       string                      // Unique identifier (UUID format)
-	ParentTransactionID      *string                     // Parent transaction ID (for reversals or child transactions)
-	Description              string                      // Human-readable description
-	Status                   string                      // Status code (e.g., "ACTIVE", "PENDING")
-	StatusDescription        *string                     // Status description
-	Amount                   *decimal.Decimal            // Transaction amount value
-	AssetCode                string                      // Asset code for the transaction
-	ChartOfAccountsGroupName string                      // Chart of accounts group name for accounting
-	LedgerID                 string                      // Ledger ID
-	OrganizationID           string                      // Organization ID
-	Body                     *pkgTransaction.Transaction // Transaction body containing detailed operation data
-	CreatedAt                time.Time                   // Creation timestamp
-	UpdatedAt                time.Time                   // Last update timestamp
-	DeletedAt                sql.NullTime                // Deletion timestamp (if soft-deleted)
-	Route                    *string                     // Deprecated: legacy route identifier. Use RouteID instead.
-	RouteID                  *string                     // UUID of the transaction route (FK to transaction_route.id)
-	Metadata                 map[string]any              // Additional custom attributes
+	ID                       string                    // Unique identifier (UUID format)
+	ParentTransactionID      *string                   // Parent transaction ID (for reversals or child transactions)
+	Description              string                    // Human-readable description
+	Status                   string                    // Status code (e.g., "ACTIVE", "PENDING")
+	StatusDescription        *string                   // Status description
+	Amount                   *decimal.Decimal          // Transaction amount value
+	AssetCode                string                    // Asset code for the transaction
+	ChartOfAccountsGroupName string                    // Chart of accounts group name for accounting
+	LedgerID                 string                    // Ledger ID
+	OrganizationID           string                    // Organization ID
+	Body                     *mtransaction.Transaction // Transaction body containing detailed operation data
+	CreatedAt                time.Time                 // Creation timestamp
+	UpdatedAt                time.Time                 // Last update timestamp
+	DeletedAt                sql.NullTime              // Deletion timestamp (if soft-deleted)
+	Route                    *string                   // Deprecated: legacy route identifier. Use RouteID instead.
+	RouteID                  *string                   // UUID of the transaction route (FK to transaction_route.id)
+	Metadata                 map[string]any            // Additional custom attributes
 }
 
 // Status structure for marshaling/unmarshalling JSON.
@@ -69,246 +68,6 @@ type Status struct {
 // IsEmpty method that set empty or nil in fields
 func (s Status) IsEmpty() bool {
 	return s.Code == "" && s.Description == nil
-}
-
-// CreateTransactionInput is a struct design to encapsulate payload data.
-//
-// swagger:model CreateTransactionInput
-// @Description CreateTransactionInput is the input payload to create a transaction. Contains all necessary fields to create a financial transaction, including source and destination information.
-type CreateTransactionInput struct {
-	// Chart of accounts group name for accounting purposes
-	// example: FUNDING
-	// maxLength: 256
-	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty" validate:"max=256" maxLength:"256" example:"FUNDING"`
-
-	// Human-readable description of the transaction
-	// example: New Transaction
-	// maxLength: 256
-	Description string `json:"description,omitempty" validate:"max=256" example:"New Transaction" maxLength:"256"`
-
-	// Transaction code for reference
-	// example: TR12345
-	// maxLength: 100
-	Code string `json:"code,omitempty" validate:"max=100" example:"TR12345" maxLength:"100"`
-
-	// Whether the transaction should be created in pending state
-	// example: true
-	// swagger: type boolean
-	Pending bool `json:"pending" example:"true" default:"false"`
-
-	// Additional custom attributes
-	// example: {"reference": "TRANSACTION-001", "source": "api"}
-	// swagger:type object
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
-
-	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
-	// example: "00000000-0000-0000-0000-000000000000"
-	// maxLength: 250
-	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
-
-	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
-	// example: 00000000-0000-0000-0000-000000000000
-	// format: uuid
-	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-
-	// TransactionDate Period from transaction creation date until now
-	// Example "2021-01-01T00:00:00Z"
-	// format: date-time
-	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
-
-	// Send operation details including source and distribution
-	// required: true
-	// swagger:type object
-	Send *pkgTransaction.Send `json:"send,omitempty" validate:"required,dive"`
-} // @name CreateTransactionInput
-
-//		@example {
-//		  "chartOfAccountsGroupName": "FUNDING",
-//		  "description": "New Transaction",
-//		  "code": "TR12345",
-//		  "metadata": {
-//		    "reference": "TRANSACTION-001",
-//		    "source": "api"
-//		  },
-//		  "route": "00000000-0000-0000-0000-000000000000",
-//		  "send": {
-//		    "asset": "USD",
-//		    "value": "100.00",
-//		    "source": {
-//		      "from": [
-//		        {
-//		          "account": "@external/USD",
-//		          "amount": {
-//		            "asset": "USD",
-//	                "value": "100.00",
-//		          },
-//		          "description": "Debit Operation",
-//		          "chartOfAccounts": "FUNDING_DEBIT",
-//		          "metadata": {
-//		            "operation": "funding",
-//		            "type": "external"
-//		          }
-//		        }
-//		      ]
-//		    },
-//		    "distribute": {
-//		      "to": [
-//		        {
-//		          "account": "{{accountAlias}}",
-//		          "amount": {
-//		            "asset": "USD",
-//		            "value": "100.00",
-//		          },
-//		          "description": "Credit Operation",
-//		          "chartOfAccounts": "FUNDING_CREDIT",
-//		          "metadata": {
-//		            "operation": "funding",
-//		            "type": "account"
-//		          }
-//		        }
-//		      ]
-//		    }
-//		  }
-//		}
-//
-// CreateTransactionSwagger is a struct that mirrors CreateTransactionInput but with explicit types for Swagger
-// This is only used for Swagger documentation generation
-//
-// swagger:model CreateTransactionSwaggerModel
-// @Description Schema for creating transaction with the complete Send operation structure defined inline
-type CreateTransactionSwaggerModel struct {
-	// Chart of accounts group name for accounting purposes
-	// example: FUNDING
-	// maxLength: 256
-	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
-
-	// Human-readable description of the transaction
-	// example: New Transaction
-	// maxLength: 256
-	Description string `json:"description,omitempty"`
-
-	// Transaction code for reference
-	// example: TR12345
-	// maxLength: 100
-	Code string `json:"code,omitempty"`
-
-	// Whether the transaction should be created in pending state
-	// example: true
-	// swagger: type boolean
-	Pending bool `json:"pending" example:"true" default:"false"`
-
-	// Additional custom attributes
-	// example: {"reference": "TRANSACTION-001", "source": "api"}
-	Metadata map[string]any `json:"metadata,omitempty"`
-
-	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
-	// example: 00000000-0000-0000-0000-000000000000
-	// maxLength: 250
-	// deprecated: true
-	Route string `json:"route,omitempty" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
-
-	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
-	// example: 00000000-0000-0000-0000-000000000000
-	// format: uuid
-	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-
-	// TransactionDate Period from transaction creation date until now
-	// Example "2021-01-01T00:00:00Z"
-	// swagger: type string
-	// required: false
-	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
-
-	// Send operation details including source and distribution
-	// required: true
-	Send struct {
-		// Asset code for the transaction
-		// example: USD
-		// required: true
-		Asset string `json:"asset"`
-
-		// Transaction amount value in the smallest unit of the asset
-		// example: "100.00"
-		// required: true
-		Value string `json:"value"`
-
-		// Source accounts and amounts for the transaction
-		// required: true
-		Source struct {
-			// List of source operations
-			// required: true
-			From []struct {
-				// Account identifier or alias
-				// example: @external/USD
-				// required: true
-				Account string `json:"accountAlias"`
-
-				// Amount details for the operation
-				// required: true
-				Amount struct {
-					// Asset code
-					// example: USD
-					// required: true
-					Asset string `json:"asset"`
-
-					// Amount value in smallest unit
-					// example: "100.00"
-					// required: true
-					Value string `json:"value"`
-				} `json:"amount"`
-
-				// Operation description
-				// example: Debit Operation
-				Description string `json:"description,omitempty"`
-
-				// Chart of accounts code
-				// example: FUNDING_DEBIT
-				ChartOfAccounts string `json:"chartOfAccounts,omitempty"`
-
-				// Additional metadata
-				// example: {"operation": "funding", "type": "external"}
-				Metadata map[string]any `json:"metadata,omitempty"`
-			} `json:"from"`
-		} `json:"source"`
-
-		// Destination accounts and amounts for the transaction
-		// required: true
-		Distribute struct {
-			// List of destination operations
-			// required: true
-			To []struct {
-				// Account identifier or alias
-				// example: @myAccount
-				// required: true
-				Account string `json:"accountAlias"`
-
-				// Amount details for the operation
-				// required: true
-				Amount struct {
-					// Asset code
-					// example: USD
-					// required: true
-					Asset string `json:"asset"`
-
-					// Amount value in smallest unit
-					// example: "100.00"
-					// required: true
-					Value string `json:"value"`
-				} `json:"amount"`
-
-				// Operation description
-				// example: Credit Operation
-				Description string `json:"description,omitempty"`
-
-				// Chart of accounts code
-				// example: FUNDING_CREDIT
-				ChartOfAccounts string `json:"chartOfAccounts,omitempty"`
-
-				// Additional metadata
-				// example: {"operation": "funding", "type": "account"}
-				Metadata map[string]any `json:"metadata,omitempty"`
-			} `json:"to"`
-		} `json:"distribute"`
-	} `json:"send"`
 }
 
 // InputDSL is a struct design to encapsulate payload data.
@@ -404,7 +163,7 @@ type Transaction struct {
 	OrganizationID string `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// Transaction body containing detailed operation data (not exposed in JSON)
-	Body pkgTransaction.Transaction `json:"-"`
+	Body mtransaction.Transaction `json:"-"`
 
 	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
@@ -526,41 +285,17 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 	}
 }
 
-// BuildTransaction converts a CreateTransactionInput to a pkgTransaction.Transaction
-func (cti *CreateTransactionInput) BuildTransaction() *pkgTransaction.Transaction {
-	dsl := &pkgTransaction.Transaction{
-		ChartOfAccountsGroupName: cti.ChartOfAccountsGroupName,
-		Description:              cti.Description,
-		Code:                     cti.Code,
-		Pending:                  cti.Pending,
-		Metadata:                 cti.Metadata,
-		TransactionDate:          cti.TransactionDate,
-		Route:                    cti.Route,
-		RouteID:                  cti.RouteID,
-	}
-
-	if cti.Send != nil {
-		for i := range cti.Send.Source.From {
-			cti.Send.Source.From[i].IsFrom = true
-		}
-
-		dsl.Send = *cti.Send
-	}
-
-	return dsl
-}
-
 // TransactionRevert builds a reversed transaction by swapping from/to sides.
 // Original CREDIT operations become sources (from) and original DEBIT operations
 // become destinations (to). Direction is intentionally omitted because
 // CalculateTotal re-derives it via DetermineOperation based on IsFrom.
-func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
+func (t Transaction) TransactionRevert() mtransaction.Transaction {
 	if t.Amount == nil {
-		return pkgTransaction.Transaction{}
+		return mtransaction.Transaction{}
 	}
 
-	froms := make([]pkgTransaction.FromTo, 0)
-	tos := make([]pkgTransaction.FromTo, 0)
+	froms := make([]mtransaction.FromTo, 0)
+	tos := make([]mtransaction.FromTo, 0)
 
 	for _, op := range t.Operations {
 		if op.Amount.Value == nil {
@@ -572,10 +307,10 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 		// only status eligible for revert (guarded upstream).  ONHOLD and
 		// RELEASE are excluded because they belong to PENDING flows.
 		case constant.CREDIT:
-			froms = append(froms, pkgTransaction.FromTo{
+			froms = append(froms, mtransaction.FromTo{
 				IsFrom:          true,
 				AccountAlias:    op.AccountAlias,
-				Amount:          &pkgTransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
+				Amount:          &mtransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
@@ -583,10 +318,10 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 				RouteID:         op.RouteID,
 			})
 		case constant.DEBIT:
-			tos = append(tos, pkgTransaction.FromTo{
+			tos = append(tos, mtransaction.FromTo{
 				IsFrom:          false,
 				AccountAlias:    op.AccountAlias,
-				Amount:          &pkgTransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
+				Amount:          &mtransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
@@ -596,18 +331,18 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 		}
 	}
 
-	send := pkgTransaction.Send{
+	send := mtransaction.Send{
 		Asset: t.AssetCode,
 		Value: *t.Amount,
-		Source: pkgTransaction.Source{
+		Source: mtransaction.Source{
 			From: froms,
 		},
-		Distribute: pkgTransaction.Distribute{
+		Distribute: mtransaction.Distribute{
 			To: tos,
 		},
 	}
 
-	transaction := pkgTransaction.Transaction{
+	transaction := mtransaction.Transaction{
 		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
 		Description:              t.Description,
 		Pending:                  false,
@@ -629,7 +364,7 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 // @Description Container for transaction data exchanged via message queues.
 type TransactionProcessingPayload struct {
 	// Validation responses from the transaction processing
-	Validate *pkgTransaction.Responses `json:"validate" msgpack:"Validate"`
+	Validate *mtransaction.Responses `json:"validate" msgpack:"Validate"`
 
 	// Account balances affected by the transaction (BEFORE state)
 	Balances []*mmodel.Balance `json:"balances" msgpack:"Balances"`
@@ -644,7 +379,7 @@ type TransactionProcessingPayload struct {
 	Transaction *Transaction `json:"transaction" msgpack:"Transaction"`
 
 	// Input transaction data (renamed from ParseDSL for clarity)
-	Input *pkgTransaction.Transaction `json:"input" msgpack:"ParseDSL"`
+	Input *mtransaction.Transaction `json:"input" msgpack:"ParseDSL"`
 }
 
 // TransactionResponse represents a success response containing a single transaction.
@@ -670,458 +405,4 @@ type TransactionsResponse struct {
 			PrevCursor *string `json:"prev_cursor,omitempty"`
 		} `json:"pagination"`
 	}
-}
-
-// CreateTransactionInflowInput is a struct designed to encapsulate payload data for inflow transactions.
-//
-// swagger:model CreateTransactionInflowInput
-// @Description CreateTransactionInflowInput is the input payload to create an inflow transaction. Contains all necessary fields to create a financial transaction without source information, only destination.
-type CreateTransactionInflowInput struct {
-	// Chart of accounts group name for accounting purposes
-	// example: FUNDING
-	// maxLength: 256
-	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty" validate:"max=256" maxLength:"256" example:"FUNDING"`
-
-	// Human-readable description of the transaction
-	// example: New Transaction
-	// maxLength: 256
-	Description string `json:"description,omitempty" validate:"max=256" example:"New Transaction" maxLength:"256"`
-
-	// Transaction code for reference
-	// example: TR12345
-	// maxLength: 100
-	Code string `json:"code,omitempty" validate:"max=100" example:"TR12345" maxLength:"100"`
-
-	// Additional custom attributes
-	// example: {"reference": "TRANSACTION-001", "source": "api"}
-	// swagger:type object
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
-
-	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
-	// example: 00000000-0000-0000-0000-000000000000
-	// maxLength: 250
-	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
-
-	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
-	// example: 00000000-0000-0000-0000-000000000000
-	// format: uuid
-	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-
-	// TransactionDate Period from transaction creation date until now
-	// Example "2021-01-01T00:00:00Z"
-	// format: date-time
-	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
-
-	// Send operation details including distribution only (no source)
-	// required: true
-	// swagger:type object
-	Send *SendInflow `json:"send,omitempty" validate:"required,dive"`
-} // @name CreateTransactionInflowInput
-
-//	@example {
-//	  "chartOfAccountsGroupName": "FUNDING",
-//	  "description": "New Inflow Transaction",
-//	  "code": "TR12345",
-//	  "metadata": {
-//	    "reference": "TRANSACTION-001",
-//	    "source": "api"
-//	  },
-//	  "send": {
-//	    "asset": "USD",
-//	    "value": "100.00",
-//	    "distribute": {
-//	      "to": [
-//	        {
-//	          "account": "{{accountAlias}}",
-//	          "amount": {
-//	            "asset": "USD",
-//	            "value": "100.00",
-//	          },
-//	          "description": "Credit Operation",
-//	          "chartOfAccounts": "FUNDING_CREDIT",
-//	          "metadata": {
-//	            "operation": "funding",
-//	            "type": "account"
-//	          }
-//	        }
-//	      ]
-//	    }
-//	  }
-//	}
-//
-
-// SendInflow structure for marshaling/unmarshalling JSON for inflow transactions.
-//
-// swagger:model SendInflow
-// @Description SendInflow is the struct designed to represent the sending fields of an inflow operation without source information.
-type SendInflow struct {
-	Asset      string                    `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value      decimal.Decimal           `json:"value,omitempty" validate:"required" example:"1000"`
-	Distribute pkgTransaction.Distribute `json:"distribute,omitempty" validate:"required"`
-} // @name SendInflow
-
-// CreateTransactionInflowSwaggerModel is a struct that mirrors CreateTransactionInflowInput but with explicit types for Swagger
-// This is only used for Swagger documentation generation
-//
-// swagger:model CreateTransactionInflowSwaggerModel
-// @Description Schema for creating inflow transaction with the complete SendInflow operation structure defined inline
-type CreateTransactionInflowSwaggerModel struct {
-	// Chart of accounts group name for accounting purposes
-	// example: FUNDING
-	// maxLength: 256
-	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
-
-	// Human-readable description of the transaction
-	// example: New Inflow Transaction
-	// maxLength: 256
-	Description string `json:"description,omitempty"`
-
-	// Transaction code for reference
-	// example: TR12345
-	// maxLength: 100
-	Code string `json:"code,omitempty"`
-
-	// Additional custom attributes
-	// example: {"reference": "TRANSACTION-001", "source": "api"}
-	Metadata map[string]any `json:"metadata,omitempty"`
-
-	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
-	// example: 00000000-0000-0000-0000-000000000000
-	// maxLength: 250
-	// deprecated: true
-	Route string `json:"route,omitempty" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
-
-	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
-	// example: 00000000-0000-0000-0000-000000000000
-	// format: uuid
-	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-
-	// TransactionDate Period from transaction creation date until now
-	// Example "2021-01-01T00:00:00Z"
-	// swagger: type string
-	// required: false
-	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
-
-	// Send operation details including distribution only
-	// required: true
-	Send struct {
-		// Asset code for the transaction
-		// example: USD
-		// required: true
-		Asset string `json:"asset"`
-
-		// Transaction amount value in the smallest unit of the asset
-		// example: "100.00"
-		// required: true
-		Value string `json:"value"`
-
-		// Destination accounts and amounts for the transaction
-		// required: true
-		Distribute struct {
-			// List of destination operations
-			// required: true
-			To []struct {
-				// Account identifier or alias
-				// example: @myAccount
-				// required: true
-				Account string `json:"accountAlias"`
-
-				// Amount details for the operation
-				// required: true
-				Amount struct {
-					// Asset code
-					// example: USD
-					// required: true
-					Asset string `json:"asset"`
-
-					// Amount value in smallest unit
-					// example: "100.00"
-					// required: true
-					Value string `json:"value"`
-				} `json:"amount"`
-
-				// Operation description
-				// example: Credit Operation
-				Description string `json:"description,omitempty"`
-
-				// Chart of accounts code
-				// example: FUNDING_CREDIT
-				ChartOfAccounts string `json:"chartOfAccounts,omitempty"`
-
-				// Additional metadata
-				// example: {"operation": "funding", "type": "account"}
-				Metadata map[string]any `json:"metadata,omitempty"`
-			} `json:"to"`
-		} `json:"distribute"`
-	} `json:"send"`
-} // @name CreateTransactionInflowSwaggerModel
-
-// BuildInflowEntry converts a CreateTransactionInflowInput to a pkgTransaction.Transaction
-func (c *CreateTransactionInflowInput) BuildInflowEntry() *pkgTransaction.Transaction {
-	listFrom := make([]pkgTransaction.FromTo, 0, 1)
-
-	from := pkgTransaction.FromTo{
-		IsFrom:       true,
-		AccountAlias: cn.DefaultExternalAccountAliasPrefix + c.Send.Asset,
-		Amount: &pkgTransaction.Amount{
-			Asset: c.Send.Asset,
-			Value: c.Send.Value,
-		},
-	}
-
-	listFrom = append(listFrom, from)
-
-	return &pkgTransaction.Transaction{
-		ChartOfAccountsGroupName: c.ChartOfAccountsGroupName,
-		Description:              c.Description,
-		Code:                     c.Code,
-		Metadata:                 c.Metadata,
-		TransactionDate:          c.TransactionDate,
-		Route:                    c.Route,
-		RouteID:                  c.RouteID,
-		Send: pkgTransaction.Send{
-			Asset:      c.Send.Asset,
-			Value:      c.Send.Value,
-			Distribute: c.Send.Distribute,
-			Source: pkgTransaction.Source{
-				From: listFrom,
-			},
-		},
-	}
-}
-
-// CreateTransactionOutflowInput is a struct design to encapsulate payload data for outflow transactions.
-//
-// swagger:model CreateTransactionOutflowInput
-// @Description CreateTransactionOutflowInput is the input payload to create an outflow transaction. Contains all necessary fields to create a financial transaction with source information only, without destination.
-type CreateTransactionOutflowInput struct {
-	// Chart of accounts group name for accounting purposes
-	// example: WITHDRAWAL
-	// maxLength: 256
-	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty" validate:"max=256" maxLength:"256" example:"WITHDRAWAL"`
-
-	// Human-readable description of the transaction
-	// example: New Outflow Transaction
-	// maxLength: 256
-	Description string `json:"description,omitempty" validate:"max=256" example:"New Outflow Transaction" maxLength:"256"`
-
-	// Transaction code for reference
-	// example: TR12345
-	// maxLength: 100
-	Code string `json:"code,omitempty" validate:"max=100" example:"TR12345" maxLength:"100"`
-
-	// Whether the transaction should be created in pending state
-	// example: true
-	// swagger: type boolean
-	Pending bool `json:"pending" example:"true" default:"false"`
-
-	// Additional custom attributes
-	// example: {"reference": "TRANSACTION-001", "source": "api"}
-	// swagger:type object
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
-
-	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
-	// example: 00000000-0000-0000-0000-000000000000
-	// maxLength: 250
-	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
-
-	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
-	// example: 00000000-0000-0000-0000-000000000000
-	// format: uuid
-	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-
-	// TransactionDate Period from transaction creation date until now
-	// Example "2021-01-01T00:00:00Z"
-	// format: date-time
-	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
-
-	// Send operation details including source only (no distribution)
-	// required: true
-	// swagger:type object
-	Send *SendOutflow `json:"send,omitempty" validate:"required,dive"`
-} // @name CreateTransactionOutflowInput
-
-//	@example {
-//	  "chartOfAccountsGroupName": "WITHDRAWAL",
-//	  "description": "New Outflow Transaction",
-//	  "code": "TR12345",
-//	  "metadata": {
-//	    "reference": "TRANSACTION-001",
-//	    "source": "api"
-//	  },
-//	  "send": {
-//	    "asset": "USD",
-//	    "value": "100.00",
-//	    "source": {
-//	      "from": [
-//	        {
-//	          "account": "{{accountAlias}}",
-//	          "amount": {
-//	            "asset": "USD",
-//	            "value": "100.00",
-//	          },
-//	          "description": "Debit Operation",
-//	          "chartOfAccounts": "WITHDRAWAL_DEBIT",
-//	          "metadata": {
-//	            "operation": "withdrawal",
-//	            "type": "account"
-//	          }
-//	        }
-//	      ]
-//	    }
-//	  }
-//	}
-//
-
-// SendOutflow structure for marshaling/unmarshalling JSON for outflow transactions.
-//
-// swagger:model SendOutflow
-// @Description SendOutflow is the struct designed to represent the sending fields of an outflow operation without distribution information.
-type SendOutflow struct {
-	Asset  string                `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value  decimal.Decimal       `json:"value,omitempty" validate:"required" example:"1000"`
-	Source pkgTransaction.Source `json:"source,omitempty" validate:"required"`
-} // @name SendOutflow
-
-// CreateTransactionOutflowSwaggerModel is a struct that mirrors CreateTransactionOutflowInput but with explicit types for Swagger
-// This is only used for Swagger documentation generation
-//
-// swagger:model CreateTransactionOutflowSwaggerModel
-// @Description Schema for creating outflow transaction with the complete SendOutflow operation structure defined inline
-type CreateTransactionOutflowSwaggerModel struct {
-	// Chart of accounts group name for accounting purposes
-	// example: WITHDRAWAL
-	// maxLength: 256
-	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
-
-	// Human-readable description of the transaction
-	// example: New Outflow Transaction
-	// maxLength: 256
-	Description string `json:"description,omitempty"`
-
-	// Transaction code for reference
-	// example: TR12345
-	// maxLength: 100
-	Code string `json:"code,omitempty"`
-
-	// Whether the transaction should be created in pending state
-	// example: true
-	// swagger: type boolean
-	Pending bool `json:"pending" example:"true" default:"false"`
-
-	// Additional custom attributes
-	// example: {"reference": "TRANSACTION-001", "source": "api"}
-	Metadata map[string]any `json:"metadata,omitempty"`
-
-	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
-	// example: 00000000-0000-0000-0000-000000000000
-	// maxLength: 250
-	// deprecated: true
-	Route string `json:"route,omitempty" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
-
-	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
-	// example: 00000000-0000-0000-0000-000000000000
-	// format: uuid
-	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-
-	// TransactionDate Period from transaction creation date until now
-	// Example "2021-01-01T00:00:00Z"
-	// swagger: type string
-	// required: false
-	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
-
-	// Send operation details including source only
-	// required: true
-	Send struct {
-		// Asset code for the transaction
-		// example: USD
-		// required: true
-		Asset string `json:"asset"`
-
-		// Transaction amount value in the smallest unit of the asset
-		// example: "100.00"
-		// required: true
-		Value string `json:"value"`
-
-		// Source accounts and amounts for the transaction
-		// required: true
-		Source struct {
-			// List of source operations
-			// required: true
-			From []struct {
-				// Account identifier or alias
-				// example: @myAccount
-				// required: true
-				Account string `json:"accountAlias"`
-
-				// Amount details for the operation
-				// required: true
-				Amount struct {
-					// Asset code
-					// example: USD
-					// required: true
-					Asset string `json:"asset"`
-
-					// Amount value in smallest unit
-					// example: "100.00"
-					// required: true
-					Value string `json:"value"`
-				} `json:"amount"`
-
-				// Operation description
-				// example: Debit Operation
-				Description string `json:"description,omitempty"`
-
-				// Chart of accounts code
-				// example: WITHDRAWAL_DEBIT
-				ChartOfAccounts string `json:"chartOfAccounts,omitempty"`
-
-				// Additional metadata
-				// example: {"operation": "withdrawal", "type": "account"}
-				Metadata map[string]any `json:"metadata,omitempty"`
-			} `json:"from"`
-		} `json:"source"`
-	} `json:"send"`
-} // @name CreateTransactionOutflowSwaggerModel
-
-// BuildOutflowEntry converts a CreateTransactionOutflowInput to a pkgTransaction.Transaction
-func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *pkgTransaction.Transaction {
-	listTo := make([]pkgTransaction.FromTo, 0, 1)
-
-	to := pkgTransaction.FromTo{
-		IsFrom:       false,
-		AccountAlias: cn.DefaultExternalAccountAliasPrefix + c.Send.Asset,
-		Amount: &pkgTransaction.Amount{
-			Asset: c.Send.Asset,
-			Value: c.Send.Value,
-		},
-	}
-
-	listTo = append(listTo, to)
-
-	dsl := &pkgTransaction.Transaction{
-		ChartOfAccountsGroupName: c.ChartOfAccountsGroupName,
-		Description:              c.Description,
-		Code:                     c.Code,
-		Pending:                  c.Pending,
-		Metadata:                 c.Metadata,
-		TransactionDate:          c.TransactionDate,
-		Route:                    c.Route,
-		RouteID:                  c.RouteID,
-		Send: pkgTransaction.Send{
-			Asset: c.Send.Asset,
-			Value: c.Send.Value,
-			Distribute: pkgTransaction.Distribute{
-				To: listTo,
-			},
-		},
-	}
-
-	for i := range c.Send.Source.From {
-		c.Send.Source.From[i].IsFrom = true
-	}
-
-	dsl.Send.Source = c.Send.Source
-
-	return dsl
 }

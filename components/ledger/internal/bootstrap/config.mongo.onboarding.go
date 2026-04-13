@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -96,11 +97,17 @@ func initOnboardingSingleTenantMongo(cfg *Config, logger libLog.Logger) (*onboar
 		mongoMaxPoolSize = uint64(cfg.OnbPrefixedMaxPoolSize)
 	}
 
+	var tlsCfg *libMongo.TLSConfig
+	if caCert := strings.TrimSpace(cfg.OnbPrefixedMongoTLSCACert); caCert != "" {
+		tlsCfg = &libMongo.TLSConfig{CACertBase64: caCert}
+	}
+
 	mongoConnection, err := libMongo.NewClient(context.Background(), libMongo.Config{
 		URI:         mongoSource,
 		Database:    cfg.OnbPrefixedMongoDBName,
 		Logger:      logger,
 		MaxPoolSize: mongoMaxPoolSize,
+		TLS:         tlsCfg,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MongoDB client: %w", err)

@@ -573,11 +573,29 @@ generate-docs:
 dev-setup:
 	$(call print_title,"Setting up development environment for all components")
 	@echo "Installing development tools..."
-	@command -v gitleaks >/dev/null 2>&1 || (echo "Installing gitleaks..." && go install github.com/zricethezav/gitleaks/v8@latest) || echo "⚠️  Failed to install gitleaks"
-	@command -v gofumpt >/dev/null 2>&1 || (echo "Installing gofumpt..." && go install mvdan.cc/gofumpt@latest) || echo "⚠️  Failed to install gofumpt"
-	@command -v goimports >/dev/null 2>&1 || (echo "Installing goimports..." && go install golang.org/x/tools/cmd/goimports@latest) || echo "⚠️  Failed to install goimports"
-	@command -v gosec >/dev/null 2>&1 || (echo "Installing gosec..." && go install github.com/securego/gosec/v2/cmd/gosec@latest) || echo "⚠️  Failed to install gosec"
-	@command -v golangci-lint >/dev/null 2>&1 || (echo "Installing golangci-lint..." && go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)) || echo "⚠️  Failed to install golangci-lint"
+	@GOBIN="$$(go env GOPATH)/bin"; \
+	check_or_install() { \
+		local name="$$1" pkg="$$2"; \
+		if command -v "$$name" >/dev/null 2>&1 || [ -x "$$GOBIN/$$name" ]; then \
+			echo "  ✓ $$name already installed"; \
+		else \
+			echo "  ⏳ Installing $$name..."; \
+			go install "$$pkg" || echo "  ⚠️  Failed to install $$name"; \
+		fi; \
+	}; \
+	check_or_install gitleaks github.com/zricethezav/gitleaks/v8@latest; \
+	check_or_install gofumpt mvdan.cc/gofumpt@latest; \
+	check_or_install goimports golang.org/x/tools/cmd/goimports@latest; \
+	check_or_install gosec github.com/securego/gosec/v2/cmd/gosec@latest; \
+	check_or_install golangci-lint github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	@GOBIN="$$(go env GOPATH)/bin"; \
+	if ! echo "$$PATH" | tr ':' '\n' | grep -qx "$$GOBIN"; then \
+		echo ""; \
+		echo "  ⚠️  $$GOBIN is not in your PATH."; \
+		echo "  Add to your shell profile: export PATH=\"\$$PATH:$$GOBIN\""; \
+		echo "  Without this, git hooks (gofumpt, goimports) will be silently skipped."; \
+		echo ""; \
+	fi
 	@echo "Setting up git hooks..."
 	@$(MAKE) setup-git-hooks
 	@for dir in $(COMPONENTS); do \
@@ -626,4 +644,5 @@ migrate-create:
 	@echo "  2. Edit the .down.sql file with the rollback"
 	@echo "  3. Run 'make migrate-lint' to validate"
 	@echo "  4. Follow the guidelines in scripts/migration_linter/docs/MIGRATION_GUIDELINES.md"
+
 

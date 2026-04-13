@@ -2,13 +2,13 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-
 package main
 
 import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -29,10 +29,25 @@ import (
 func main() {
 	libCommons.InitLocalEnvConfig()
 
+	logLevel := strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL")))
+	if logLevel == "" {
+		logLevel = "info"
+	}
+
+	envName := strings.ToLower(strings.TrimSpace(os.Getenv("ENV_NAME")))
+	if envName == "" {
+		envName = "development"
+	}
+
+	otelServiceName := os.Getenv("OTEL_RESOURCE_SERVICE_NAME")
+	if otelServiceName == "" {
+		otelServiceName = "ledger"
+	}
+
 	logger, err := libZap.New(libZap.Config{
-		Environment:     libZap.EnvironmentDevelopment,
-		Level:           "info",
-		OTelLibraryName: "midaz-ledger",
+		Environment:     libZap.Environment(envName),
+		Level:           logLevel,
+		OTelLibraryName: otelServiceName,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)

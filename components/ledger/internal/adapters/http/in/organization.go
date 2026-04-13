@@ -21,6 +21,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // OrganizationHandler struct contains an organization use case for managing organization related operations.
@@ -60,11 +61,14 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 	organization, err := handler.Command.CreateOrganization(ctx, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization on command", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to create organization", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully created organization with ID: %s", organization.ID))
+	span.SetAttributes(attribute.String("app.organization.id", organization.ID))
+
+	logger.Log(ctx, libLog.LevelInfo, "Successfully created organization with ID: ", libLog.String("id", organization.ID))
 
 	return http.Created(c, organization)
 }
@@ -96,32 +100,20 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 	defer span.End()
 
 	id := c.Locals("id").(uuid.UUID)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Organization with ID: %s", id.String()))
 
 	payload := p.(*mmodel.UpdateOrganizationInput)
 	logSafePayload(ctx, logger, "Request to update an organization", payload)
 	recordSafePayloadAttributes(span, payload)
 
-	if _, err := handler.Command.UpdateOrganizationByID(ctx, id, payload); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Organization with ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
-	}
-
-	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
+	organization, err := handler.Command.UpdateOrganizationByID(ctx, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve organization on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error()))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization on command", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to update organization", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Organization with ID: %s", id.String()))
-
-	return http.OK(c, organizations)
+	return http.OK(c, organization)
 }
 
 // GetOrganizationByID is a method that retrieves Organization information by a given id.

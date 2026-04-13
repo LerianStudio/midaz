@@ -149,6 +149,7 @@ type Config struct {
 	OnbPrefixedMongoDBPort       string `env:"MONGO_ONBOARDING_PORT"`
 	OnbPrefixedMongoDBParameters string `env:"MONGO_ONBOARDING_PARAMETERS"`
 	OnbPrefixedMaxPoolSize       int    `env:"MONGO_ONBOARDING_MAX_POOL_SIZE"`
+	OnbPrefixedMongoTLSCACert    string `env:"MONGO_ONBOARDING_TLS_CA_CERT"`
 
 	// --- Transaction MongoDB fields (MONGO_TRANSACTION_* env tags) ---
 	TxnPrefixedMongoURI          string `env:"MONGO_TRANSACTION_URI"`
@@ -159,6 +160,7 @@ type Config struct {
 	TxnPrefixedMongoDBPort       string `env:"MONGO_TRANSACTION_PORT"`
 	TxnPrefixedMongoDBParameters string `env:"MONGO_TRANSACTION_PARAMETERS"`
 	TxnPrefixedMaxPoolSize       int    `env:"MONGO_TRANSACTION_MAX_POOL_SIZE"`
+	TxnPrefixedMongoTLSCACert    string `env:"MONGO_TRANSACTION_TLS_CA_CERT"`
 
 	// --- RabbitMQ (transaction domain only) ---
 	RabbitURI                                string `env:"RABBITMQ_URI"`
@@ -196,10 +198,9 @@ type Config struct {
 	BulkRecorderMaxRowsPerInsert int  `env:"BULK_RECORDER_MAX_ROWS_PER_INSERT"`
 
 	// --- Balance/Worker fields ---
-	BalanceSyncMaxWorkers int `env:"BALANCE_SYNC_MAX_WORKERS"`
-
-	// --- Settings ---
-	SettingsCacheTTL string `env:"SETTINGS_CACHE_TTL"`
+	BalanceSyncBatchSize      int `env:"BALANCE_SYNC_BATCH_SIZE"`
+	BalanceSyncFlushTimeoutMs int `env:"BALANCE_SYNC_FLUSH_TIMEOUT_MS"`
+	BalanceSyncPollIntervalMs int `env:"BALANCE_SYNC_POLL_INTERVAL_MS"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -231,6 +232,8 @@ func InitServers() (*Service, error) {
 // InitServersWithOptions initializes the unified ledger service with optional dependency injection.
 // It directly initializes all infrastructure (PG, Mongo, Redis, RabbitMQ) instead of delegating
 // to onboarding/transaction sub-modules.
+//
+//nolint:gocognit,gocyclo // Will be refactored into smaller initialization functions.
 func InitServersWithOptions(opts *Options) (*Service, error) {
 	cfg := &Config{}
 
@@ -287,6 +290,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
+	}
+
+	// Register telemetry providers as process-global so that the otelzap bridge
+	// (installed in the logger core) can forward log records to the OTLP exporter.
+	if err := telemetry.ApplyGlobals(); err != nil {
+		return nil, fmt.Errorf("failed to apply telemetry globals: %w", err)
 	}
 
 	// Multi-tenant client setup
@@ -571,8 +580,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Use cases ===
 
-	settingsCacheTTL := resolveSettingsCacheTTL(cfg, logger)
-
 	commandUseCase := &command.UseCase{
 		// Onboarding domain
 		OrganizationRepo:       onbPG.organizationRepo,
@@ -594,8 +601,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMetadataRepo: txnMgo.metadataRepo,
 		RabbitMQRepo:            rmq.producerRepo,
 		TransactionRedisRepo:    txnRedisRepo,
-		// Settings
-		SettingsCacheTTL: settingsCacheTTL,
 	}
 
 	queryUseCase := &query.UseCase{
@@ -619,8 +624,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMetadataRepo: txnMgo.metadataRepo,
 		RabbitMQRepo:            rmq.producerRepo,
 		TransactionRedisRepo:    txnRedisRepo,
-		// Settings
-		SettingsCacheTTL: settingsCacheTTL,
 	}
 
 	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
@@ -703,7 +706,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// BalanceSyncWorker: multi-tenant or single-tenant
-	balanceSyncWorker := initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, redisConnection, txnPG.pgManager, tenantServiceName)
+	balanceSyncWorker := initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
 		libLog.String("version", cfg.Version),
@@ -739,26 +742,6 @@ func resolveLoggerEnvironment(env string) libZap.Environment {
 	default:
 		return libZap.EnvironmentDevelopment
 	}
-}
-
-// resolveSettingsCacheTTL parses the SETTINGS_CACHE_TTL configuration value.
-func resolveSettingsCacheTTL(cfg *Config, logger libLog.Logger) time.Duration {
-	const defaultSettingsCacheTTL = 5 * time.Minute
-
-	if cfg.SettingsCacheTTL == "" {
-		return defaultSettingsCacheTTL
-	}
-
-	parsed, err := time.ParseDuration(cfg.SettingsCacheTTL)
-	if err != nil || parsed <= 0 {
-		logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("Invalid SETTINGS_CACHE_TTL value '%s', using default %v", cfg.SettingsCacheTTL, defaultSettingsCacheTTL))
-
-		return defaultSettingsCacheTTL
-	}
-
-	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Settings cache TTL configured: %v", parsed))
-
-	return parsed
 }
 
 // buildRedisConfig creates a Redis configuration from Config fields.
@@ -832,25 +815,28 @@ func initRedisConnection(cfg *Config, logger libLog.Logger) (*libRedis.Client, e
 }
 
 // initBalanceSyncWorker creates the balance sync worker (multi-tenant or single-tenant).
-func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, commandUC *command.UseCase, redisConn *libRedis.Client, pgManager *tmpostgres.Manager, tenantServiceName string) *BalanceSyncWorker {
-	const defaultBalanceSyncMaxWorkers = 5
-
-	balanceSyncMaxWorkers := cfg.BalanceSyncMaxWorkers
-
-	if balanceSyncMaxWorkers <= 0 {
-		balanceSyncMaxWorkers = defaultBalanceSyncMaxWorkers
-		logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker using default: BALANCE_SYNC_MAX_WORKERS=%d", defaultBalanceSyncMaxWorkers))
+func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, commandUC *command.UseCase, pgManager *tmpostgres.Manager, tenantServiceName string) *BalanceSyncWorker {
+	syncCfg := BalanceSyncConfig{
+		BatchSize:      cfg.BalanceSyncBatchSize,
+		FlushTimeoutMs: cfg.BalanceSyncFlushTimeoutMs,
+		PollIntervalMs: cfg.BalanceSyncPollIntervalMs,
 	}
 
 	var balanceSyncWorker *BalanceSyncWorker
 
 	if opts != nil && opts.MultiTenantEnabled && opts.TenantCache != nil {
-		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, true, opts.TenantCache, pgManager, tenantServiceName)
+		balanceSyncWorker = NewBalanceSyncWorkerMT(logger, commandUC, syncCfg, true, opts.TenantCache, pgManager, tenantServiceName)
 	} else {
-		balanceSyncWorker = NewBalanceSyncWorker(redisConn, logger, commandUC, balanceSyncMaxWorkers)
+		balanceSyncWorker = NewBalanceSyncWorker(logger, commandUC, syncCfg)
 	}
 
-	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker enabled with %d max workers.", balanceSyncMaxWorkers))
+	// Log the effective config (after defaults applied by the constructor).
+	effectiveCfg := balanceSyncWorker.syncConfig
+	logger.Log(context.Background(), libLog.LevelInfo, "BalanceSyncWorker enabled",
+		libLog.Int("batch_size", effectiveCfg.BatchSize),
+		libLog.Int("flush_timeout_ms", effectiveCfg.FlushTimeoutMs),
+		libLog.Int("poll_interval_ms", effectiveCfg.PollIntervalMs),
+	)
 
 	return balanceSyncWorker
 }
@@ -1009,6 +995,8 @@ func buildUnifiedRouteSetup(
 // midazErrorMapper converts tenant-manager errors into Midaz-specific HTTP responses.
 // It uses the standard midazhttp response helpers to ensure a consistent error format
 // across all Midaz endpoints (code/title/message JSON envelope).
+//
+//nolint:unused // Will be wired into the multi-tenant middleware error handler.
 func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 	if err == nil {
 		return nil
@@ -1101,4 +1089,9 @@ func applyConfigDefaults(cfg *Config) {
 
 		cfg.BulkRecorderSize = workers * prefetch
 	}
+
+	// Balance Sync Worker defaults (dual-trigger)
+	intDefault(&cfg.BalanceSyncBatchSize, 50)
+	intDefault(&cfg.BalanceSyncFlushTimeoutMs, 500)
+	intDefault(&cfg.BalanceSyncPollIntervalMs, 50)
 }

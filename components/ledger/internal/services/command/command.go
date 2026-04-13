@@ -5,9 +5,6 @@
 package command
 
 import (
-	"context"
-	"time"
-
 	onbMongo "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
 	txMongo "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
@@ -94,14 +91,4 @@ type UseCase struct {
 
 	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.
 	RabbitMQRepo rabbitmq.ProducerRepository
-
-	// --- Settings ---
-
-	// SettingsCacheTTL is the cache TTL for ledger settings.
-	SettingsCacheTTL time.Duration
-}
-
-// CheckHealth returns nil for unified mode (in-process calls don't need health checks).
-func (uc *UseCase) CheckHealth(ctx context.Context) error {
-	return nil
 }

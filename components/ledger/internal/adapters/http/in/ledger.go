@@ -412,7 +412,7 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieving settings for Ledger with ID: %s", id.String()))
 
-	settings, err := handler.Query.GetLedgerSettings(ctx, organizationID, id)
+	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, organizationID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get ledger settings", err)
 
@@ -423,7 +423,7 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved settings for Ledger with ID: %s", id.String()))
 
-	return http.OK(c, settings)
+	return http.OK(c, ledgerSettings)
 }
 
 // UpdateLedgerSettings updates the settings for a specific ledger using schema-aware deep merge.
@@ -486,5 +486,5 @@ func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated settings for Ledger with ID: %s", id.String()))
 
-	return http.OK(c, updatedSettings)
+	return http.OK(c, mmodel.ParseLedgerSettings(updatedSettings))
 }

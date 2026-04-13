@@ -13,7 +13,7 @@ import (
 )
 
 // TestLuaScript_ContainsScheduleLogic is a structural verification test that checks
-// if the Lua script contains the expected scheduling tokens (ZADD, scheduleSync, etc.).
+// if the Lua script contains the expected scheduling tokens (ZADD, KEYS[3], dueAt).
 //
 // IMPORTANT: This test only asserts string presence, not runtime behavior.
 // It protects against accidental removal of scheduling logic during refactors.
@@ -22,10 +22,6 @@ func TestLuaScript_ContainsScheduleLogic(t *testing.T) {
 	// Verify the script has ZADD for scheduling
 	assert.True(t, strings.Contains(balanceAtomicOperationLua, "ZADD"),
 		"Lua script should contain ZADD for balance scheduling")
-
-	// Verify the script checks scheduleSync flag
-	assert.True(t, strings.Contains(balanceAtomicOperationLua, "scheduleSync"),
-		"Lua script should check scheduleSync flag")
 
 	// Verify the script uses scheduleKey from KEYS[3]
 	assert.True(t, strings.Contains(balanceAtomicOperationLua, "KEYS[3]"),

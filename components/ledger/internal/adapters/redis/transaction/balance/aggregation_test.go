@@ -162,7 +162,7 @@ func TestBalanceCompositeKeyFromRedisKey(t *testing.T) {
 	}
 }
 
-func TestInMemoryAggregator_Aggregate(t *testing.T) {
+func TestInMemorySyncAggregator_Aggregate(t *testing.T) {
 	t.Parallel()
 
 	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
@@ -403,7 +403,7 @@ func TestInMemoryAggregator_Aggregate(t *testing.T) {
 		},
 	}
 
-	aggregator := NewInMemoryAggregator()
+	aggregator := NewInMemorySyncAggregator()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -427,7 +427,7 @@ func TestInMemoryAggregator_Aggregate(t *testing.T) {
 	}
 }
 
-func TestInMemoryAggregator_Aggregate_EqualVersions(t *testing.T) {
+func TestInMemorySyncAggregator_Aggregate_EqualVersions(t *testing.T) {
 	t.Parallel()
 
 	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
@@ -469,7 +469,7 @@ func TestInMemoryAggregator_Aggregate_EqualVersions(t *testing.T) {
 		},
 	}
 
-	aggregator := NewInMemoryAggregator()
+	aggregator := NewInMemorySyncAggregator()
 	ctx := context.Background()
 	result := aggregator.Aggregate(ctx, input)
 
@@ -479,7 +479,7 @@ func TestInMemoryAggregator_Aggregate_EqualVersions(t *testing.T) {
 	assert.Equal(t, "key1-first", result[0].RedisKey)
 }
 
-func TestInMemoryAggregator_Aggregate_DeterministicOrder(t *testing.T) {
+func TestInMemorySyncAggregator_Aggregate_DeterministicOrder(t *testing.T) {
 	t.Parallel()
 
 	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
@@ -537,7 +537,7 @@ func TestInMemoryAggregator_Aggregate_DeterministicOrder(t *testing.T) {
 		},
 	}
 
-	aggregator := NewInMemoryAggregator()
+	aggregator := NewInMemorySyncAggregator()
 	ctx := context.Background()
 
 	// Run multiple times to verify deterministic order
@@ -552,13 +552,13 @@ func TestInMemoryAggregator_Aggregate_DeterministicOrder(t *testing.T) {
 	}
 }
 
-func TestInMemoryAggregator_Aggregate_ConcurrentSafety(t *testing.T) {
+func TestInMemorySyncAggregator_Aggregate_ConcurrentSafety(t *testing.T) {
 	t.Parallel()
 
 	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	ledgerID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
-	aggregator := NewInMemoryAggregator()
+	aggregator := NewInMemorySyncAggregator()
 
 	// Create a shared input slice
 	input := make([]*AggregatedBalance, 100)
@@ -605,7 +605,7 @@ func TestInMemoryAggregator_Aggregate_ConcurrentSafety(t *testing.T) {
 	}
 }
 
-func TestInMemoryAggregator_Aggregate_LargeBatch(t *testing.T) {
+func TestInMemorySyncAggregator_Aggregate_LargeBatch(t *testing.T) {
 	t.Parallel()
 
 	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
@@ -633,7 +633,7 @@ func TestInMemoryAggregator_Aggregate_LargeBatch(t *testing.T) {
 		}
 	}
 
-	aggregator := NewInMemoryAggregator()
+	aggregator := NewInMemorySyncAggregator()
 	ctx := context.Background()
 	result := aggregator.Aggregate(ctx, input)
 

@@ -93,7 +93,6 @@ MIDAZ
  |   |   |---   parser
  |   |   |---   transaction
  |   |---   mmodel
- |   |---   mgrpc
  |   |---   net
  |   |   |---   http
  |   |---   shell
