@@ -44,6 +44,7 @@ type Config struct {
 	MongoDBPort                            string `env:"MONGO_PORT"`
 	MongoDBParameters                      string `env:"MONGO_PARAMETERS"`
 	MaxPoolSize                            int    `env:"MONGO_MAX_POOL_SIZE"`
+	MongoTLSCACert                         string `env:"MONGO_TLS_CA_CERT"`
 	HashSecretKey                          string `env:"LCRYPTO_HASH_SECRET_KEY"`
 	EncryptSecretKey                       string `env:"LCRYPTO_ENCRYPT_SECRET_KEY"`
 	AuthAddress                            string `env:"PLUGIN_AUTH_ADDRESS"`
@@ -209,11 +210,17 @@ func initMongoConnection(cfg *Config, logger libLog.Logger) (*libMongo.Client, e
 		cfg.MaxPoolSize = 100
 	}
 
+	var tlsCfg *libMongo.TLSConfig
+	if cfg.MongoTLSCACert != "" {
+		tlsCfg = &libMongo.TLSConfig{CACertBase64: cfg.MongoTLSCACert}
+	}
+
 	mongoConnection, err := libMongo.NewClient(context.Background(), libMongo.Config{
 		URI:         mongoURI,
 		Database:    cfg.MongoDBName,
 		MaxPoolSize: uint64(cfg.MaxPoolSize), // #nosec G115 -- guarded by <= 0 check above
 		Logger:      logger,
+		TLS:         tlsCfg,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize mongodb client: %w", err)

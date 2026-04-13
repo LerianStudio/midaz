@@ -96,11 +96,17 @@ func initTransactionSingleTenantMongo(cfg *Config, logger libLog.Logger) (*trans
 		mongoMaxPoolSize = uint64(cfg.TxnPrefixedMaxPoolSize)
 	}
 
+	var tlsCfg *libMongo.TLSConfig
+	if cfg.TxnPrefixedMongoTLSCACert != "" {
+		tlsCfg = &libMongo.TLSConfig{CACertBase64: cfg.TxnPrefixedMongoTLSCACert}
+	}
+
 	mongoConnection, err := libMongo.NewClient(context.Background(), libMongo.Config{
 		URI:         mongoSource,
 		Database:    cfg.TxnPrefixedMongoDBName,
 		Logger:      logger,
 		MaxPoolSize: mongoMaxPoolSize,
+		TLS:         tlsCfg,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MongoDB client: %w", err)

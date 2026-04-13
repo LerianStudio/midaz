@@ -96,11 +96,17 @@ func initOnboardingSingleTenantMongo(cfg *Config, logger libLog.Logger) (*onboar
 		mongoMaxPoolSize = uint64(cfg.OnbPrefixedMaxPoolSize)
 	}
 
+	var tlsCfg *libMongo.TLSConfig
+	if cfg.OnbPrefixedMongoTLSCACert != "" {
+		tlsCfg = &libMongo.TLSConfig{CACertBase64: cfg.OnbPrefixedMongoTLSCACert}
+	}
+
 	mongoConnection, err := libMongo.NewClient(context.Background(), libMongo.Config{
 		URI:         mongoSource,
 		Database:    cfg.OnbPrefixedMongoDBName,
 		Logger:      logger,
 		MaxPoolSize: mongoMaxPoolSize,
+		TLS:         tlsCfg,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MongoDB client: %w", err)
