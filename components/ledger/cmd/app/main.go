@@ -34,10 +34,20 @@ func main() {
 		logLevel = "info"
 	}
 
+	envName := os.Getenv("ENV_NAME")
+	if envName == "" {
+		envName = "development"
+	}
+
+	otelServiceName := os.Getenv("OTEL_RESOURCE_SERVICE_NAME")
+	if otelServiceName == "" {
+		otelServiceName = "ledger"
+	}
+
 	logger, err := libZap.New(libZap.Config{
-		Environment:     libZap.EnvironmentDevelopment,
+		Environment:     libZap.Environment(envName),
 		Level:           logLevel,
-		OTelLibraryName: "midaz-ledger",
+		OTelLibraryName: otelServiceName,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)

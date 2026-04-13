@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -28,10 +29,25 @@ import (
 func main() {
 	libCommons.InitLocalEnvConfig()
 
+	logLevel := strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL")))
+	if logLevel == "" {
+		logLevel = "info"
+	}
+
+	envName := os.Getenv("ENV_NAME")
+	if envName == "" {
+		envName = "development"
+	}
+
+	otelServiceName := os.Getenv("OTEL_RESOURCE_SERVICE_NAME")
+	if otelServiceName == "" {
+		otelServiceName = "crm"
+	}
+
 	logger, err := libZap.New(libZap.Config{
-		Environment:     resolveLoggerEnvironment(os.Getenv("ENV_NAME")),
-		Level:           "info",
-		OTelLibraryName: "midaz-crm",
+		Environment:     libZap.Environment(envName),
+		Level:           logLevel,
+		OTelLibraryName: otelServiceName,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
@@ -52,19 +68,4 @@ func main() {
 	service.Run()
 
 	_ = logger.Sync(context.Background())
-}
-
-func resolveLoggerEnvironment(env string) libZap.Environment {
-	switch env {
-	case string(libZap.EnvironmentProduction):
-		return libZap.EnvironmentProduction
-	case string(libZap.EnvironmentStaging):
-		return libZap.EnvironmentStaging
-	case string(libZap.EnvironmentUAT):
-		return libZap.EnvironmentUAT
-	case string(libZap.EnvironmentLocal):
-		return libZap.EnvironmentLocal
-	default:
-		return libZap.EnvironmentDevelopment
-	}
 }
