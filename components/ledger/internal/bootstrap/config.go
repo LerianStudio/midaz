@@ -149,6 +149,7 @@ type Config struct {
 	OnbPrefixedMongoDBPort       string `env:"MONGO_ONBOARDING_PORT"`
 	OnbPrefixedMongoDBParameters string `env:"MONGO_ONBOARDING_PARAMETERS"`
 	OnbPrefixedMaxPoolSize       int    `env:"MONGO_ONBOARDING_MAX_POOL_SIZE"`
+	OnbPrefixedMongoTLSCACert    string `env:"MONGO_ONBOARDING_TLS_CA_CERT"`
 
 	// --- Transaction MongoDB fields (MONGO_TRANSACTION_* env tags) ---
 	TxnPrefixedMongoURI          string `env:"MONGO_TRANSACTION_URI"`
@@ -159,6 +160,7 @@ type Config struct {
 	TxnPrefixedMongoDBPort       string `env:"MONGO_TRANSACTION_PORT"`
 	TxnPrefixedMongoDBParameters string `env:"MONGO_TRANSACTION_PARAMETERS"`
 	TxnPrefixedMaxPoolSize       int    `env:"MONGO_TRANSACTION_MAX_POOL_SIZE"`
+	TxnPrefixedMongoTLSCACert    string `env:"MONGO_TRANSACTION_TLS_CA_CERT"`
 
 	// --- RabbitMQ (transaction domain only) ---
 	RabbitURI                                string `env:"RABBITMQ_URI"`

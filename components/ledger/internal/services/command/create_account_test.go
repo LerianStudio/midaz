@@ -741,7 +741,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 			expectedName: "",
 		},
 		{
-			name: "grpc error - balance creation fails",
+			name: "error - balance creation fails",
 			input: &mmodel.CreateAccountInput{
 				Name:      "Test Account",
 				Type:      "deposit",
@@ -778,7 +778,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 				mockBalance.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("grpc create balance error")).Times(1)
+					Return(nil, errors.New("create balance error")).Times(1)
 
 				mockAccountRepo.EXPECT().
 					Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).

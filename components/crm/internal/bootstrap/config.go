@@ -27,7 +27,6 @@ import (
 // Config is the top level configuration struct for the entire application.
 type Config struct {
 	EnvName                                string `env:"ENV_NAME"`
-	ProtoAddress                           string `env:"PROTO_ADDRESS"`
 	ServerAddress                          string `env:"SERVER_ADDRESS"`
 	LogLevel                               string `env:"LOG_LEVEL"`
 	OtelServiceName                        string `env:"OTEL_RESOURCE_SERVICE_NAME"`
@@ -44,6 +43,7 @@ type Config struct {
 	MongoDBPort                            string `env:"MONGO_PORT"`
 	MongoDBParameters                      string `env:"MONGO_PARAMETERS"`
 	MaxPoolSize                            int    `env:"MONGO_MAX_POOL_SIZE"`
+	MongoTLSCACert                         string `env:"MONGO_TLS_CA_CERT"`
 	HashSecretKey                          string `env:"LCRYPTO_HASH_SECRET_KEY"`
 	EncryptSecretKey                       string `env:"LCRYPTO_ENCRYPT_SECRET_KEY"`
 	AuthAddress                            string `env:"PLUGIN_AUTH_ADDRESS"`
@@ -70,7 +70,7 @@ type Options struct {
 	Logger libLog.Logger
 }
 
-// InitServers initiate http and grpc servers.
+// InitServers initiates the HTTP server.
 func InitServers() (*Service, error) {
 	return InitServersWithOptions(nil)
 }
@@ -209,11 +209,17 @@ func initMongoConnection(cfg *Config, logger libLog.Logger) (*libMongo.Client, e
 		cfg.MaxPoolSize = 100
 	}
 
+	var tlsCfg *libMongo.TLSConfig
+	if caCert := strings.TrimSpace(cfg.MongoTLSCACert); caCert != "" {
+		tlsCfg = &libMongo.TLSConfig{CACertBase64: caCert}
+	}
+
 	mongoConnection, err := libMongo.NewClient(context.Background(), libMongo.Config{
 		URI:         mongoURI,
 		Database:    cfg.MongoDBName,
 		MaxPoolSize: uint64(cfg.MaxPoolSize), // #nosec G115 -- guarded by <= 0 check above
 		Logger:      logger,
+		TLS:         tlsCfg,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize mongodb client: %w", err)

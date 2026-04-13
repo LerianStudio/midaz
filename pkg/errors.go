@@ -1211,12 +1211,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Backup Cache Retrieval Failed",
 			Message:    "The transaction could not be retrieved from the backup cache internal function. Please ensure the transaction exists in the cache before processing balances.",
 		},
-		constant.ErrGRPCServiceUnavailable: ServiceUnavailableError{
-			EntityType: entityType,
-			Code:       constant.ErrGRPCServiceUnavailable.Error(),
-			Title:      "gRPC Service Unavailable",
-			Message:    "The balance service is temporarily unavailable. Please try again later.",
-		},
 		constant.ErrMissingRequiredQueryParameter: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrMissingRequiredQueryParameter.Error(),
