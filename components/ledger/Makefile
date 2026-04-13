@@ -139,16 +139,6 @@ sec:
 	fi
 
 #-------------------------------------------------------
-# Clean Commands
-#-------------------------------------------------------
-
-.PHONY: clean
-clean:
-	$(call title1,"Cleaning build artifacts")
-	@rm -rf $(BIN_DIR)/* $(ARTIFACTS_DIR)/* $(TEST_REPORTS_DIR)/*
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Artifacts cleaned successfully$(GREEN) ✔️$(NC)"
-
-#-------------------------------------------------------
 # Docker Commands
 #-------------------------------------------------------
 
