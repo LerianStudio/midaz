@@ -1,3 +1,33 @@
+# Midaz Changelog
+
+## [3.6.0](https://github.com/LerianStudio/midaz/releases/tag/v3.6.0)
+
+Features:
+- Added TLS CA certificate configuration for MongoDB connections.
+- Implemented accounting rules validation for operation routes.
+- Added segment and portfolio filters to account listing.
+- Enhanced mergeAccountingEntries to support explicit null removals and updated operation route validation logic.
+- Added dual-trigger balance sync (size OR timeout) for near-real-time persistence.
+
+Fixes:
+- Fixed UUID retrieval by replacing direct access to context locals with a helper function.
+- Corrected title formatting in validation error messages and added null handling for accounting entries.
+- Addressed review findings on count transactions tests and count endpoint.
+- Fixed backup queue action field and accounting information on transaction revert.
+- Resolved lint errors and added nolint directives for deferred refactoring targets.
+
+Improvements:
+- Enhanced logger configuration with environment variables for log level and service name.
+- Improved error handling in balance sync collector to avoid tight loops and enhanced Redis key management in sync balances batch.
+- Updated validation error handling in operation route tests to use UnprocessableOperationError.
+- Enhanced organization creation logging with OpenTelemetry attributes.
+- Updated ledger settings schema descriptions to include null as a valid type for accounting fields.
+
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.3...v3.6.0)
+
+---
+
 ## [v3.5.3] - 2026-03-09
 
 ### 🐛 Bug Fixes
@@ -10433,3 +10463,4 @@ BREAKING
 
 ## Test Entry
 - Test GPT changelog generation 2026-01-19
+
