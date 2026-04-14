@@ -64,7 +64,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		mockBalanceRepo.
 			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			ListAll(gomock.Any(), organizationID, ledgerID, filter).
 			Return(balances, mockCur, nil).
 			Times(1)
 
@@ -109,7 +109,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		mockBalanceRepo.
 			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			ListAll(gomock.Any(), organizationID, ledgerID, filter).
 			Return(balances, mockCur, nil).
 			Times(1)
 
@@ -161,7 +161,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		mockBalanceRepo.
 			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			ListAll(gomock.Any(), organizationID, ledgerID, filter).
 			Return(balances, mockCur, nil).
 			Times(1)
 
@@ -207,7 +207,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		mockBalanceRepo.
 			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			ListAll(gomock.Any(), organizationID, ledgerID, filter).
 			Return(balances, mockCur, nil).
 			Times(1)
 
@@ -253,7 +253,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		mockBalanceRepo.
 			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			ListAll(gomock.Any(), organizationID, ledgerID, filter).
 			Return(balances, mockCur, nil).
 			Times(1)
 
@@ -302,7 +302,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		mockBalanceRepo.
 			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			ListAll(gomock.Any(), organizationID, ledgerID, filter).
 			Return(balances, mockCur, nil).
 			Times(1)
 
@@ -365,7 +365,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		mockBalanceRepo.
 			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			ListAll(gomock.Any(), organizationID, ledgerID, filter).
 			Return(balances, mockCur, nil).
 			Times(1)
 
@@ -430,7 +430,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		mockBalanceRepo.
 			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			ListAll(gomock.Any(), organizationID, ledgerID, filter).
 			Return(balances, mockCur, nil).
 			Times(1)
 
@@ -493,7 +493,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		mockBalanceRepo.
 			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			ListAll(gomock.Any(), organizationID, ledgerID, filter).
 			Return(balances, mockCur, nil).
 			Times(1)
 
@@ -546,7 +546,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		mockBalanceRepo.
 			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			ListAll(gomock.Any(), organizationID, ledgerID, filter).
 			Return(balances, mockCur, nil).
 			Times(1)
 
@@ -591,7 +591,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		mockBalanceRepo.
 			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			ListAll(gomock.Any(), organizationID, ledgerID, filter).
 			Return(nil, libHTTP.CursorPagination{}, context.Canceled).
 			Times(1)
 
@@ -627,7 +627,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		mockBalanceRepo.
 			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			ListAll(gomock.Any(), organizationID, ledgerID, filter).
 			Return(balances, mockCur, nil).
 			Times(1)
 
@@ -689,7 +689,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		mockBalanceRepo.
 			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			ListAll(gomock.Any(), organizationID, ledgerID, filter).
 			Return(balances, mockCur, nil).
 			Times(1)
 
@@ -734,7 +734,7 @@ func TestGetAllBalances(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockBalanceRepo.
 			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			ListAll(gomock.Any(), organizationID, ledgerID, filter).
 			Return(nil, libHTTP.CursorPagination{}, errors.New(errMsg)).
 			Times(1)
 
@@ -759,7 +759,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		mockBalanceRepo.
 			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			ListAll(gomock.Any(), organizationID, ledgerID, filter).
 			Return([]*mmodel.Balance{}, mockCur, nil).
 			Times(1)
 

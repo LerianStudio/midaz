@@ -59,9 +59,10 @@ type Repository interface {
 	// Returns ErrEntityNotFound when no matching record exists.
 	Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error)
 
-	// FindAll returns a paginated list of organizations matching the optional name filters.
+	// FindAll returns a paginated list of organizations matching the optional name and status filters.
 	// Both legalName and doingBusinessAs perform case-insensitive prefix matching.
-	FindAll(ctx context.Context, filter http.Pagination, legalName, doingBusinessAs *string) ([]*mmodel.Organization, error)
+	// Status filter performs exact matching.
+	FindAll(ctx context.Context, filter http.QueryHeader) ([]*mmodel.Organization, error)
 
 	// ListByIDs returns organizations whose IDs are in the provided slice, excluding soft-deleted records.
 	// Returns an empty slice (not an error) when ids is empty.
@@ -393,7 +394,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 	return organization.ToEntity(), nil
 }
 
-func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter http.Pagination, legalName, doingBusinessAs *string) ([]*mmodel.Organization, error) {
+func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter http.QueryHeader) ([]*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_organizations")
@@ -420,14 +421,19 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
-	if legalName != nil && *legalName != "" {
-		sanitized := http.EscapeSearchMetacharacters(*legalName)
+	if filter.LegalName != nil && *filter.LegalName != "" {
+		sanitized := http.EscapeSearchMetacharacters(*filter.LegalName)
 		findAll = findAll.Where(squirrel.ILike{"legal_name": sanitized + "%"})
 	}
 
-	if doingBusinessAs != nil && *doingBusinessAs != "" {
-		sanitized := http.EscapeSearchMetacharacters(*doingBusinessAs)
+	if filter.DoingBusinessAs != nil && *filter.DoingBusinessAs != "" {
+		sanitized := http.EscapeSearchMetacharacters(*filter.DoingBusinessAs)
 		findAll = findAll.Where(squirrel.ILike{"doing_business_as": sanitized + "%"})
+	}
+
+	// Apply status filter
+	if filter.Status != nil && *filter.Status != "" {
+		findAll = findAll.Where(squirrel.Eq{"status": strings.ToUpper(*filter.Status)})
 	}
 
 	query, args, err := findAll.ToSql()

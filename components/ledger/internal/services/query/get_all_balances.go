@@ -29,7 +29,7 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 	ctx, span := tracer.Start(ctx, "query.get_all_balances")
 	defer span.End()
 
-	balances, cur, err := uc.BalanceRepo.ListAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
+	balances, cur, err := uc.BalanceRepo.ListAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balances on repo: %v", err))
 

@@ -35,6 +35,7 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 		Direction:     filter.Direction,
 		RouteID:       filter.RouteID,
 		RouteCode:     filter.RouteCode,
+		TransactionID: filter.TransactionID,
 	}
 
 	op, cur, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, opFilter, filter.ToCursorPagination())

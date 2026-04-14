@@ -235,6 +235,7 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 //	@Param			sort_order		query		string																										false	"Sort order (asc or desc, default: asc)"
 //	@Param			start_date		query		string																										false	"Start date for filtering (YYYY-MM-DD)"
 //	@Param			end_date		query		string																										false	"End date for filtering (YYYY-MM-DD)"
+//	@Param			key_value		query		string																										false	"Filter by key value (case-insensitive)"
 //	@Success		200				{object}	http.Pagination{items=[]mmodel.AccountType}	"Successfully retrieved account types"
 //	@Failure		400				{object}	mmodel.Error																								"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error																								"Unauthorized access"

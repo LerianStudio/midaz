@@ -29,7 +29,7 @@ func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID
 	ctx, span := tracer.Start(ctx, "query.get_all_balances_by_account_id")
 	defer span.End()
 
-	balance, cur, err := uc.BalanceRepo.ListAllByAccountID(ctx, organizationID, ledgerID, accountID, filter.ToCursorPagination())
+	balance, cur, err := uc.BalanceRepo.ListAllByAccountID(ctx, organizationID, ledgerID, accountID, filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances on repo", err)
 

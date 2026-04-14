@@ -53,7 +53,7 @@ type Repository interface {
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, accountType *mmodel.AccountType) (*mmodel.AccountType, error)
 	FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.AccountType, error)
 	FindByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.AccountType, error)
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.AccountType, libHTTP.CursorPagination, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.AccountType, libHTTP.CursorPagination, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.AccountType, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
@@ -391,7 +391,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 
 // FindAll retrieves all account types with cursor pagination.
 // It returns the account types, pagination cursor, and an error if the operation fails.
-func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.AccountType, libHTTP.CursorPagination, error) {
+func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.AccountType, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_account_types")
@@ -432,6 +432,11 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply key_value filter
+	if filter.KeyValue != nil && *filter.KeyValue != "" {
+		findAll = findAll.Where(squirrel.Eq{"key_value": strings.ToLower(*filter.KeyValue)})
+	}
 
 	findAll, err = applyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 	if err != nil {

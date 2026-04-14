@@ -43,6 +43,7 @@ type OperationFilter struct {
 	Direction     *string
 	RouteID       *string
 	RouteCode     *string
+	TransactionID *string
 }
 
 type Repository interface {
@@ -1139,6 +1140,10 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 
 	if !libCommons.IsNilOrEmpty(opFilter.RouteCode) {
 		findAll = findAll.Where(squirrel.Expr("route_code = ?", *opFilter.RouteCode))
+	}
+
+	if !libCommons.IsNilOrEmpty(opFilter.TransactionID) {
+		findAll = findAll.Where(squirrel.Expr("transaction_id = ?", *opFilter.TransactionID))
 	}
 
 	findAll, err = applyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)

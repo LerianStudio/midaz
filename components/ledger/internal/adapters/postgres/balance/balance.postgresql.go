@@ -59,8 +59,8 @@ type Repository interface {
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Balance, error)
 	FindByAccountIDAndKey(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, key string) (*mmodel.Balance, error)
 	ExistsByAccountIDAndKey(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, key string) (bool, error)
-	ListAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error)
-	ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error)
+	ListAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error)
+	ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error)
 	ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
@@ -384,7 +384,7 @@ func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 }
 
 // ListAll list Balances entity from the database.
-func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
+func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_all_balances")
@@ -423,6 +423,11 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply balance-specific filters
+	if filter.AssetCode != nil && *filter.AssetCode != "" {
+		findAll = findAll.Where(squirrel.Eq{"asset_code": *filter.AssetCode})
+	}
 
 	findAll, err = applyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 	if err != nil {
@@ -513,7 +518,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 }
 
 // ListAllByAccountID list Balances entity from the database using the provided accountID.
-func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
+func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_all_balances_by_account_id")
@@ -553,6 +558,11 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply balance-specific filters
+	if filter.AssetCode != nil && *filter.AssetCode != "" {
+		findAll = findAll.Where(squirrel.Eq{"asset_code": *filter.AssetCode})
+	}
 
 	findAll, err = applyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 	if err != nil {

@@ -45,6 +45,7 @@ type OperationHandler struct {
 //	@Param			direction		query		string	false	"Filter by direction"	Enums(debit,credit)
 //	@Param			route_id		query		string	false	"Filter by operation route ID"	format(uuid)
 //	@Param			route_code		query		string	false	"Filter by operation route code"
+//	@Param			transaction_id	query		string	false	"Filter by transaction ID (UUID)"	format(uuid)
 //	@Success		200				{object}	http.Pagination{items=[]operation.Operation}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"

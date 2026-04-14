@@ -42,6 +42,7 @@ type BalanceHandler struct {
 //	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
+//	@Param			asset_code		query		string	false	"Filter by asset code (e.g. BRL, USD)"
 //	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -121,6 +122,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 //	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
+//	@Param			asset_code		query		string	false	"Filter by asset code (e.g. BRL, USD)"
 //	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
