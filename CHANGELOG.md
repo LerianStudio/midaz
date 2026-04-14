@@ -23,7 +23,6 @@ Improvements:
 - Enhanced organization creation logging with OpenTelemetry attributes.
 - Updated ledger settings schema descriptions to include null as a valid type for accounting fields.
 
-Contributors: @arthurkz, @bedatty, @dependabot[bot], @fabi, @ferr3ira-gabriel, @ferr3ira.gabriel, @fred, @gandalf, @gui.rodrigues, @guimoreirar, @jefferson.comff, @jota, @leonardo.maaciel, @lerian-studio-midaz-push-bot[bot], @lucas.bedatty, @maciell1, @mail.felipegomes, @mclara.tersi, @medeirosygohr
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.3...v3.6.0)
 
