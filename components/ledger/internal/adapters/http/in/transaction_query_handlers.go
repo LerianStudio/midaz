@@ -25,11 +25,13 @@ import (
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param			cursor			query		string	false	"Cursor"
+//	@Param			limit					query		int		false	"Limit"			default(10)
+//	@Param			start_date				query		string	false	"Start Date"	example	"2021-01-01"
+//	@Param			end_date				query		string	false	"End Date"		example	"2021-01-01"
+//	@Param			sort_order				query		string	false	"Sort Order"	Enums(asc,desc)
+//	@Param			cursor					query		string	false	"Cursor"
+//	@Param			route_id				query		string	false	"Filter transactions by route ID (UUID)"
+//	@Param			parent_transaction_id	query		string	false	"Filter transactions by parent transaction ID (UUID)"
 //	@Success		200				{object}	http.Pagination{items=[]Transaction}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"

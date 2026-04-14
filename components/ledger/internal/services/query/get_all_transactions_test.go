@@ -109,7 +109,7 @@ func TestGetAllTransactions(t *testing.T) {
 
 		mockTransactionRepo.
 			EXPECT().
-			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination()).
+			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter).
 			Return(trans, mockCur, nil).
 			Times(1)
 
@@ -142,7 +142,7 @@ func TestGetAllTransactions(t *testing.T) {
 	t.Run("Error_FindAll", func(t *testing.T) {
 		mockTransactionRepo.
 			EXPECT().
-			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination()).
+			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter).
 			Return(nil, libHTTP.CursorPagination{}, errors.New("database error")).
 			Times(1)
 
@@ -157,7 +157,7 @@ func TestGetAllTransactions(t *testing.T) {
 	t.Run("Error_ItemNotFound", func(t *testing.T) {
 		mockTransactionRepo.
 			EXPECT().
-			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination()).
+			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter).
 			Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound).
 			Times(1)
 
@@ -181,7 +181,7 @@ func TestGetAllTransactions(t *testing.T) {
 
 		mockTransactionRepo.
 			EXPECT().
-			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination()).
+			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter).
 			Return(trans, mockCur, nil).
 			Times(1)
 

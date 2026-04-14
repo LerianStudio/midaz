@@ -216,6 +216,9 @@ func TestValidateParameters_WithOperationType(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "CREDIT", result.OperationType)
+	// type parameter also populates FilterType with original case
+	require.NotNil(t, result.FilterType)
+	assert.Equal(t, "credit", *result.FilterType)
 }
 
 func TestValidateParameters_WithToAssetCodes(t *testing.T) {
@@ -644,6 +647,9 @@ func TestValidateParameters_AllParams(t *testing.T) {
 	assert.Equal(t, "desc", result.SortOrder)
 	assert.Equal(t, "123e4567-e89b-12d3-a456-426614174000", result.PortfolioID)
 	assert.Equal(t, "DEBIT", result.OperationType)
+	// type parameter also populates FilterType with original case
+	require.NotNil(t, result.FilterType)
+	assert.Equal(t, "debit", *result.FilterType)
 	assert.Equal(t, []string{"USD", "BRL"}, result.ToAssetCodes)
 	assert.True(t, result.UseMetadata)
 	assert.NotNil(t, result.Metadata)
@@ -992,4 +998,364 @@ func TestValidateParameters_DirectionAndRouteIDNilByDefault(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, result.Direction)
 	assert.Nil(t, result.RouteID)
+}
+
+// TestQueryHeader_GenericFilterFields verifies that the generic filter fields
+// exist in QueryHeader struct and can be assigned pointer values.
+// These fields enable filtering across multiple GET list endpoints.
+func TestQueryHeader_GenericFilterFields(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupFunc func() *QueryHeader
+		assertFn  func(t *testing.T, qh *QueryHeader)
+	}{
+		{
+			name: "Status field accepts pointer string",
+			setupFunc: func() *QueryHeader {
+				status := "ACTIVE"
+				return &QueryHeader{Status: &status}
+			},
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.Status)
+				assert.Equal(t, "ACTIVE", *qh.Status)
+			},
+		},
+		{
+			name: "FilterType field accepts pointer string",
+			setupFunc: func() *QueryHeader {
+				filterType := "customer"
+				return &QueryHeader{FilterType: &filterType}
+			},
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.FilterType)
+				assert.Equal(t, "customer", *qh.FilterType)
+			},
+		},
+		{
+			name: "AssetCode field accepts pointer string",
+			setupFunc: func() *QueryHeader {
+				assetCode := "BRL"
+				return &QueryHeader{AssetCode: &assetCode}
+			},
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.AssetCode)
+				assert.Equal(t, "BRL", *qh.AssetCode)
+			},
+		},
+		{
+			name: "EntityID field accepts pointer string",
+			setupFunc: func() *QueryHeader {
+				entityID := "123e4567-e89b-12d3-a456-426614174000"
+				return &QueryHeader{EntityID: &entityID}
+			},
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.EntityID)
+				assert.Equal(t, "123e4567-e89b-12d3-a456-426614174000", *qh.EntityID)
+			},
+		},
+		{
+			name: "TransactionID field accepts pointer string",
+			setupFunc: func() *QueryHeader {
+				txID := "123e4567-e89b-12d3-a456-426614174001"
+				return &QueryHeader{TransactionID: &txID}
+			},
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.TransactionID)
+				assert.Equal(t, "123e4567-e89b-12d3-a456-426614174001", *qh.TransactionID)
+			},
+		},
+		{
+			name: "ParentTransactionID field accepts pointer string",
+			setupFunc: func() *QueryHeader {
+				parentTxID := "123e4567-e89b-12d3-a456-426614174002"
+				return &QueryHeader{ParentTransactionID: &parentTxID}
+			},
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.ParentTransactionID)
+				assert.Equal(t, "123e4567-e89b-12d3-a456-426614174002", *qh.ParentTransactionID)
+			},
+		},
+		{
+			name: "KeyValue field accepts pointer string",
+			setupFunc: func() *QueryHeader {
+				keyValue := "custom-key-value"
+				return &QueryHeader{KeyValue: &keyValue}
+			},
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.KeyValue)
+				assert.Equal(t, "custom-key-value", *qh.KeyValue)
+			},
+		},
+		{
+			name: "all generic filter fields nil by default",
+			setupFunc: func() *QueryHeader {
+				return &QueryHeader{}
+			},
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				assert.Nil(t, qh.Status)
+				assert.Nil(t, qh.FilterType)
+				assert.Nil(t, qh.AssetCode)
+				assert.Nil(t, qh.EntityID)
+				assert.Nil(t, qh.TransactionID)
+				assert.Nil(t, qh.ParentTransactionID)
+				assert.Nil(t, qh.KeyValue)
+			},
+		},
+		{
+			name: "all generic filter fields can be set simultaneously",
+			setupFunc: func() *QueryHeader {
+				status := "ACTIVE"
+				filterType := "customer"
+				assetCode := "USD"
+				entityID := "entity-123"
+				txID := "tx-456"
+				parentTxID := "parent-tx-789"
+				keyValue := "key-val"
+				return &QueryHeader{
+					Status:              &status,
+					FilterType:          &filterType,
+					AssetCode:           &assetCode,
+					EntityID:            &entityID,
+					TransactionID:       &txID,
+					ParentTransactionID: &parentTxID,
+					KeyValue:            &keyValue,
+				}
+			},
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.Status)
+				require.NotNil(t, qh.FilterType)
+				require.NotNil(t, qh.AssetCode)
+				require.NotNil(t, qh.EntityID)
+				require.NotNil(t, qh.TransactionID)
+				require.NotNil(t, qh.ParentTransactionID)
+				require.NotNil(t, qh.KeyValue)
+				assert.Equal(t, "ACTIVE", *qh.Status)
+				assert.Equal(t, "customer", *qh.FilterType)
+				assert.Equal(t, "USD", *qh.AssetCode)
+				assert.Equal(t, "entity-123", *qh.EntityID)
+				assert.Equal(t, "tx-456", *qh.TransactionID)
+				assert.Equal(t, "parent-tx-789", *qh.ParentTransactionID)
+				assert.Equal(t, "key-val", *qh.KeyValue)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			qh := tt.setupFunc()
+			tt.assertFn(t, qh)
+		})
+	}
+}
+
+// TestValidateParameters_GenericFilterFields verifies that ValidateParameters
+// correctly parses and validates the generic filter fields from query parameters.
+func TestValidateParameters_GenericFilterFields(t *testing.T) {
+	validUUID := "123e4567-e89b-12d3-a456-426614174000"
+	validParentUUID := "123e4567-e89b-12d3-a456-426614174001"
+
+	tests := []struct {
+		name        string
+		params      map[string]string
+		wantErr     bool
+		errContains string
+		assertFn    func(t *testing.T, qh *QueryHeader)
+	}{
+		{
+			name: "status parameter is parsed and stored as-is",
+			params: map[string]string{
+				"status": "ACTIVE",
+			},
+			wantErr: false,
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.Status)
+				assert.Equal(t, "ACTIVE", *qh.Status)
+			},
+		},
+		{
+			name: "status parameter preserves lowercase input",
+			params: map[string]string{
+				"status": "active",
+			},
+			wantErr: false,
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.Status)
+				assert.Equal(t, "active", *qh.Status)
+			},
+		},
+		{
+			name: "filter_type parameter is parsed",
+			params: map[string]string{
+				"filter_type": "deposit",
+			},
+			wantErr: false,
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.FilterType)
+				assert.Equal(t, "deposit", *qh.FilterType)
+			},
+		},
+		{
+			name: "type parameter populates both OperationType and FilterType",
+			params: map[string]string{
+				"type": "deposit",
+			},
+			wantErr: false,
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				// OperationType stores uppercase (backward compat)
+				assert.Equal(t, "DEPOSIT", qh.OperationType)
+				// FilterType stores original case (for new handlers)
+				require.NotNil(t, qh.FilterType)
+				assert.Equal(t, "deposit", *qh.FilterType)
+			},
+		},
+		{
+			name: "asset_code parameter is parsed",
+			params: map[string]string{
+				"asset_code": "USD",
+			},
+			wantErr: false,
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.AssetCode)
+				assert.Equal(t, "USD", *qh.AssetCode)
+			},
+		},
+		{
+			name: "entity_id parameter is parsed",
+			params: map[string]string{
+				"entity_id": "entity-123",
+			},
+			wantErr: false,
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.EntityID)
+				assert.Equal(t, "entity-123", *qh.EntityID)
+			},
+		},
+		{
+			name: "transaction_id parameter is parsed with valid UUID",
+			params: map[string]string{
+				"transaction_id": validUUID,
+			},
+			wantErr: false,
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.TransactionID)
+				assert.Equal(t, validUUID, *qh.TransactionID)
+			},
+		},
+		{
+			name: "transaction_id parameter with invalid UUID returns error",
+			params: map[string]string{
+				"transaction_id": "invalid-uuid",
+			},
+			wantErr:     true,
+			errContains: "transaction_id",
+		},
+		{
+			name: "parent_transaction_id parameter is parsed with valid UUID",
+			params: map[string]string{
+				"parent_transaction_id": validParentUUID,
+			},
+			wantErr: false,
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.ParentTransactionID)
+				assert.Equal(t, validParentUUID, *qh.ParentTransactionID)
+			},
+		},
+		{
+			name: "parent_transaction_id parameter with invalid UUID returns error",
+			params: map[string]string{
+				"parent_transaction_id": "not-a-uuid",
+			},
+			wantErr:     true,
+			errContains: "parent_transaction_id",
+		},
+		{
+			name: "key_value parameter is parsed",
+			params: map[string]string{
+				"key_value": "savings",
+			},
+			wantErr: false,
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.KeyValue)
+				assert.Equal(t, "savings", *qh.KeyValue)
+			},
+		},
+		{
+			name: "multiple generic filter parameters are parsed together",
+			params: map[string]string{
+				"status":                "ACTIVE",
+				"filter_type":           "customer",
+				"asset_code":            "BRL",
+				"entity_id":             "entity-456",
+				"transaction_id":        validUUID,
+				"parent_transaction_id": validParentUUID,
+				"key_value":             "checking",
+			},
+			wantErr: false,
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.Status)
+				require.NotNil(t, qh.FilterType)
+				require.NotNil(t, qh.AssetCode)
+				require.NotNil(t, qh.EntityID)
+				require.NotNil(t, qh.TransactionID)
+				require.NotNil(t, qh.ParentTransactionID)
+				require.NotNil(t, qh.KeyValue)
+				assert.Equal(t, "ACTIVE", *qh.Status)
+				assert.Equal(t, "customer", *qh.FilterType)
+				assert.Equal(t, "BRL", *qh.AssetCode)
+				assert.Equal(t, "entity-456", *qh.EntityID)
+				assert.Equal(t, validUUID, *qh.TransactionID)
+				assert.Equal(t, validParentUUID, *qh.ParentTransactionID)
+				assert.Equal(t, "checking", *qh.KeyValue)
+			},
+		},
+		{
+			name: "generic filter parameters combine with pagination",
+			params: map[string]string{
+				"status": "INACTIVE",
+				"limit":  "50",
+				"page":   "2",
+			},
+			wantErr: false,
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				require.NotNil(t, qh.Status)
+				assert.Equal(t, "INACTIVE", *qh.Status)
+				assert.Equal(t, 50, qh.Limit)
+				assert.Equal(t, 2, qh.Page)
+			},
+		},
+		{
+			name:    "empty params returns nil for all generic filter fields",
+			params:  map[string]string{},
+			wantErr: false,
+			assertFn: func(t *testing.T, qh *QueryHeader) {
+				assert.Nil(t, qh.Status)
+				assert.Nil(t, qh.FilterType)
+				assert.Nil(t, qh.AssetCode)
+				assert.Nil(t, qh.EntityID)
+				assert.Nil(t, qh.TransactionID)
+				assert.Nil(t, qh.ParentTransactionID)
+				assert.Nil(t, qh.KeyValue)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			qh, err := ValidateParameters(tt.params)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, qh)
+			if tt.assertFn != nil {
+				tt.assertFn(t, qh)
+			}
+		})
+	}
 }

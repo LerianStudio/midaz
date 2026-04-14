@@ -149,7 +149,7 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 		Return(metadataList, nil)
 
 	mockTransactionRepo.EXPECT().
-		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{txID1, txID2}, filter.ToCursorPagination()).
+		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{txID1, txID2}, filter).
 		Return(transactions, libHTTP.CursorPagination{}, nil)
 
 	// Expect operation metadata lookup with both operation IDs

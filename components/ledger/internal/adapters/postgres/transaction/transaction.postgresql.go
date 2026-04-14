@@ -83,14 +83,14 @@ type Repository interface {
 	UpdateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkUpdateResult, error)
 	UpdateBulkTx(ctx context.Context, tx repository.DBExecutor, transactions []*Transaction) (*repository.BulkUpdateResult, error)
 	BeginTx(ctx context.Context) (repository.DBTransaction, error)
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*Transaction, libHTTP.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
-	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
+	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.QueryHeader) ([]*Transaction, libHTTP.CursorPagination, error)
 	CountByFilters(ctx context.Context, organizationID, ledgerID uuid.UUID, filter CountFilter) (int64, error)
 }
 
@@ -661,7 +661,7 @@ func (r *TransactionPostgreSQLRepository) updateTransactionChunk(ctx context.Con
 }
 
 // FindAll retrieves Transactions entities from the database.
-func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) {
+func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*Transaction, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_transactions")
@@ -700,6 +700,15 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply transaction-specific filters
+	if filter.RouteID != nil && *filter.RouteID != "" {
+		findAll = findAll.Where(squirrel.Eq{"route_id": *filter.RouteID})
+	}
+
+	if filter.ParentTransactionID != nil && *filter.ParentTransactionID != "" {
+		findAll = findAll.Where(squirrel.Eq{"parent_transaction_id": *filter.ParentTransactionID})
+	}
 
 	findAll, err = applyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 	if err != nil {
@@ -1378,7 +1387,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 // FindOrListAllWithOperations retrieves a list of transactions from the database using the provided IDs.
 //
 
-func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) {
+func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.QueryHeader) ([]*Transaction, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_or_list_all_with_operations")
@@ -1418,6 +1427,15 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 
 	if len(ids) > 0 {
 		subQuery = subQuery.Where(squirrel.Expr("id = ANY(?)", pq.Array(ids)))
+	}
+
+	// Apply transaction-specific filters
+	if filter.RouteID != nil && *filter.RouteID != "" {
+		subQuery = subQuery.Where(squirrel.Eq{"route_id": *filter.RouteID})
+	}
+
+	if filter.ParentTransactionID != nil && *filter.ParentTransactionID != "" {
+		subQuery = subQuery.Where(squirrel.Eq{"parent_transaction_id": *filter.ParentTransactionID})
 	}
 
 	subQuery, err = applyCursorPagination(subQuery, decodedCursor, orderDirection, filter.Limit)

@@ -359,7 +359,7 @@ func TestIntegration_Transaction_FindAll(t *testing.T) {
 	}
 
 	// Find all transactions
-	transactions, _, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.Pagination{Limit: 100})
+	transactions, _, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.QueryHeader{Limit: 100})
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(transactions), 3)
 
@@ -1106,14 +1106,14 @@ func TestIntegration_Transaction_FindAll_Pagination(t *testing.T) {
 	}
 
 	t.Run("paginate with limit 2", func(t *testing.T) {
-		page1, cursor1, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.Pagination{Limit: 2})
+		page1, cursor1, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.QueryHeader{Limit: 2})
 		require.NoError(t, err)
 		assert.Len(t, page1, 2)
 		assert.NotEmpty(t, cursor1.Next, "should have next cursor")
 	})
 
 	t.Run("paginate with limit larger than total", func(t *testing.T) {
-		allTx, cursor, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.Pagination{Limit: 100})
+		allTx, cursor, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.QueryHeader{Limit: 100})
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(allTx), 5)
 		// When all results fit, no next cursor needed
@@ -1126,7 +1126,7 @@ func TestIntegration_Transaction_FindAll_Pagination(t *testing.T) {
 
 	t.Run("paginate with limit 0 uses default", func(t *testing.T) {
 		// Limit 0 should use default limit behavior
-		transactions, _, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.Pagination{Limit: 0})
+		transactions, _, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.QueryHeader{Limit: 0})
 		require.NoError(t, err)
 		// Should still return results (using default)
 		t.Logf("Retrieved %d transactions with limit 0", len(transactions))
@@ -1155,7 +1155,7 @@ func TestIntegration_Transaction_FindAll_DateFilter(t *testing.T) {
 		// This test verifies the date filter SQL clause works correctly
 		today := time.Now().UTC()
 
-		transactions, _, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.Pagination{
+		transactions, _, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.QueryHeader{
 			Limit:     100,
 			StartDate: today,
 			EndDate:   today,
@@ -1170,7 +1170,7 @@ func TestIntegration_Transaction_FindAll_DateFilter(t *testing.T) {
 		futureStart := time.Now().UTC().Add(24 * time.Hour)
 		futureEnd := futureStart.Add(24 * time.Hour)
 
-		transactions, _, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.Pagination{
+		transactions, _, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.QueryHeader{
 			Limit:     100,
 			StartDate: futureStart,
 			EndDate:   futureEnd,
@@ -1234,7 +1234,7 @@ func TestIntegration_Transaction_FindOrListAllWithOperations(t *testing.T) {
 
 	t.Run("list all with pagination", func(t *testing.T) {
 		transactions, cursor, err := infra.repo.FindOrListAllWithOperations(
-			ctx, infra.orgID, infra.ledgerID, nil, http.Pagination{Limit: 100},
+			ctx, infra.orgID, infra.ledgerID, nil, http.QueryHeader{Limit: 100},
 		)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(transactions), 3)
@@ -1248,7 +1248,7 @@ func TestIntegration_Transaction_FindOrListAllWithOperations(t *testing.T) {
 		}
 
 		transactions, _, err := infra.repo.FindOrListAllWithOperations(
-			ctx, infra.orgID, infra.ledgerID, ids, http.Pagination{Limit: 100},
+			ctx, infra.orgID, infra.ledgerID, ids, http.QueryHeader{Limit: 100},
 		)
 		require.NoError(t, err)
 		assert.Len(t, transactions, 2)
@@ -1264,7 +1264,7 @@ func TestIntegration_Transaction_FindOrListAllWithOperations(t *testing.T) {
 
 	t.Run("list with small page size", func(t *testing.T) {
 		transactions, cursor, err := infra.repo.FindOrListAllWithOperations(
-			ctx, infra.orgID, infra.ledgerID, nil, http.Pagination{Limit: 2},
+			ctx, infra.orgID, infra.ledgerID, nil, http.QueryHeader{Limit: 2},
 		)
 		require.NoError(t, err)
 		assert.LessOrEqual(t, len(transactions), 2)
@@ -1275,7 +1275,7 @@ func TestIntegration_Transaction_FindOrListAllWithOperations(t *testing.T) {
 
 	t.Run("empty IDs returns all", func(t *testing.T) {
 		transactions, _, err := infra.repo.FindOrListAllWithOperations(
-			ctx, infra.orgID, infra.ledgerID, []uuid.UUID{}, http.Pagination{Limit: 100},
+			ctx, infra.orgID, infra.ledgerID, []uuid.UUID{}, http.QueryHeader{Limit: 100},
 		)
 		require.NoError(t, err)
 		// Empty slice behaves same as nil - returns all
@@ -1304,7 +1304,7 @@ func TestIntegration_Transaction_FindOrListAllWithOperations_DateRange(t *testin
 
 		transactions, _, err := infra.repo.FindOrListAllWithOperations(
 			ctx, infra.orgID, infra.ledgerID, nil,
-			http.Pagination{
+			http.QueryHeader{
 				Limit:     100,
 				StartDate: today,
 				EndDate:   today,
@@ -1343,7 +1343,7 @@ func TestIntegration_Transaction_SoftDelete_Excluded(t *testing.T) {
 	})
 
 	t.Run("FindAll excludes soft-deleted", func(t *testing.T) {
-		transactions, _, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.Pagination{Limit: 100})
+		transactions, _, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.QueryHeader{Limit: 100})
 		require.NoError(t, err)
 
 		for _, found := range transactions {
@@ -1701,7 +1701,7 @@ func TestIntegration_GetDB_TenantContext_FindAllIsolation(t *testing.T) {
 	}
 
 	// Act -- FindAll through tenant context.
-	tenantTxs, _, err := infra.repo.FindAll(tenantCtx, orgID, ledgerID, http.Pagination{Limit: 100})
+	tenantTxs, _, err := infra.repo.FindAll(tenantCtx, orgID, ledgerID, http.QueryHeader{Limit: 100})
 	require.NoError(t, err)
 
 	// Assert -- tenant path should return only tenant transactions.
@@ -1711,7 +1711,7 @@ func TestIntegration_GetDB_TenantContext_FindAllIsolation(t *testing.T) {
 	}
 
 	// Verify static path returns only static transactions.
-	staticTxs, _, err := infra.repo.FindAll(context.Background(), orgID, ledgerID, http.Pagination{Limit: 100})
+	staticTxs, _, err := infra.repo.FindAll(context.Background(), orgID, ledgerID, http.QueryHeader{Limit: 100})
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(staticTxs), "static FindAll should return only static transactions")
 }

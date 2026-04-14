@@ -59,7 +59,7 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, uuids, filter.ToCursorPagination())
+	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, uuids, filter)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting transactions on repo: %v", err))
 

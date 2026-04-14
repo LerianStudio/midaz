@@ -57,6 +57,14 @@ type QueryHeader struct {
 	Name                                *string
 	LegalName                           *string
 	DoingBusinessAs                     *string
+	// Generic filter fields for list endpoints - reusable across multiple resources
+	Status              *string // Filter by status (e.g., ACTIVE, INACTIVE)
+	FilterType          *string // Generic type filter (account type, holder type, route type, etc.)
+	AssetCode           *string // Filter by asset code (e.g., USD, BRL)
+	EntityID            *string // Filter by entity ID (e.g., portfolio entity_id)
+	TransactionID       *string // Filter operations by transaction ID
+	ParentTransactionID *string // Filter transactions by parent transaction ID
+	KeyValue            *string // Filter by key-value (e.g., account type key_value)
 }
 
 // Pagination entity from query parameter from get apis
@@ -126,6 +134,14 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		name                                *string
 		legalName                           *string
 		doingBusinessAs                     *string
+		// Generic filter fields for list endpoints
+		status              *string
+		filterType          *string
+		assetCode           *string
+		entityID            *string
+		transactionID       *string
+		parentTransactionID *string
+		keyValue            *string
 	)
 
 	for key, value := range params {
@@ -159,8 +175,9 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			portfolioID = value
 		case strings.Contains(key, "segment_id"):
 			segmentID = value
-		case strings.Contains(strings.ToLower(key), "type"):
+		case key == "type":
 			operationType = strings.ToUpper(value)
+			filterType = &value
 		case key == "direction":
 			v := strings.ToLower(value)
 			direction = &v
@@ -200,6 +217,20 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			legalName = &value
 		case key == "doing_business_as":
 			doingBusinessAs = &value
+		case key == "status":
+			status = &value
+		case key == "filter_type":
+			filterType = &value
+		case key == "asset_code":
+			assetCode = &value
+		case key == "entity_id":
+			entityID = &value
+		case key == "transaction_id":
+			transactionID = &value
+		case key == "parent_transaction_id":
+			parentTransactionID = &value
+		case key == "key_value":
+			keyValue = &value
 		}
 	}
 
@@ -249,6 +280,18 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		}
 	}
 
+	if transactionID != nil {
+		if _, err := uuid.Parse(*transactionID); err != nil {
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "transaction_id")
+		}
+	}
+
+	if parentTransactionID != nil {
+		if _, err := uuid.Parse(*parentTransactionID); err != nil {
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "parent_transaction_id")
+		}
+	}
+
 	query := &QueryHeader{
 		Metadata:                            metadata,
 		Limit:                               limit,
@@ -280,6 +323,13 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		Name:                                name,
 		LegalName:                           legalName,
 		DoingBusinessAs:                     doingBusinessAs,
+		Status:                              status,
+		FilterType:                          filterType,
+		AssetCode:                           assetCode,
+		EntityID:                            entityID,
+		TransactionID:                       transactionID,
+		ParentTransactionID:                 parentTransactionID,
+		KeyValue:                            keyValue,
 	}
 
 	return query, nil
