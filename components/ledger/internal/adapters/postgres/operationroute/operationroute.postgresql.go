@@ -45,7 +45,7 @@ type Repository interface {
 	FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.OperationRoute, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error)
 	HasTransactionRouteLinks(ctx context.Context, operationRouteID uuid.UUID) (bool, error)
 	FindTransactionRouteIDs(ctx context.Context, operationRouteID uuid.UUID) ([]uuid.UUID, error)
 }
@@ -527,7 +527,7 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 // FindAll retrieves all operation routes with pagination.
 // It returns a list of operation routes, a cursor pagination object, and an error if the operation fails.
 // The function supports filtering by date range and pagination.
-func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error) {
+func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operation_routes")
@@ -569,6 +569,11 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply type filter (operation_type: source, destination, bidirectional)
+	if filter.FilterType != nil && *filter.FilterType != "" {
+		findAll = findAll.Where(squirrel.Eq{"operation_type": strings.ToLower(*filter.FilterType)})
+	}
 
 	findAll, err = applyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 	if err != nil {

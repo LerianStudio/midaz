@@ -73,7 +73,7 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 
 	// Mock the OperationRouteRepo.FindAll call
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, ledgerID, filter).
 		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 
@@ -133,7 +133,7 @@ func TestGetAllOperationRoutesError(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, ledgerID, filter).
 		Return(nil, libHTTP.CursorPagination{}, expectedError).
 		Times(1)
 
@@ -167,7 +167,7 @@ func TestGetAllOperationRoutesNotFound(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, ledgerID, filter).
 		Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound).
 		Times(1)
 
@@ -204,7 +204,7 @@ func TestGetAllOperationRoutesEmpty(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, ledgerID, filter).
 		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 
@@ -266,7 +266,7 @@ func TestGetAllOperationRoutesMetadataError(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, ledgerID, filter).
 		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 
@@ -328,7 +328,7 @@ func TestGetAllOperationRoutesWithDifferentPagination(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, ledgerID, filter).
 		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 
@@ -394,7 +394,7 @@ func TestGetAllOperationRoutesWithDateRange(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, ledgerID, filter).
 		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 
@@ -457,7 +457,7 @@ func TestGetAllOperationRoutesWithMetadataFilter(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, ledgerID, filter).
 		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 

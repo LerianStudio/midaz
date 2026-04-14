@@ -696,6 +696,13 @@ paths:
         in: query
         name: document
         type: string
+      - description: Filter holders by type
+        enum:
+        - NATURAL_PERSON
+        - LEGAL_PERSON
+        in: query
+        name: type
+        type: string
       produces:
       - application/json
       responses:

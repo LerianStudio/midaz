@@ -84,6 +84,14 @@ paths:
         schema:
           maxLength: 256
           type: string
+      - description: Filter organizations by status (e.g. ACTIVE, INACTIVE)
+        in: query
+        name: status
+        schema:
+          enum:
+          - ACTIVE
+          - INACTIVE
+          type: string
       responses:
         "200":
           content:
@@ -471,6 +479,14 @@ paths:
         name: name
         schema:
           maxLength: 256
+          type: string
+      - description: Filter ledgers by status
+        in: query
+        name: status
+        schema:
+          enum:
+          - ACTIVE
+          - INACTIVE
           type: string
       responses:
         "200":
@@ -1044,6 +1060,11 @@ paths:
         name: end_date
         schema:
           type: string
+      - description: Filter by key value (case-insensitive)
+        in: query
+        name: key_value
+        schema:
+          type: string
       responses:
         "200":
           content:
@@ -1443,6 +1464,21 @@ paths:
         name: segment_id
         schema:
           format: uuid
+          type: string
+      - description: Filter accounts by status (e.g., ACTIVE, INACTIVE)
+        in: query
+        name: status
+        schema:
+          type: string
+      - description: Filter accounts by type (e.g., deposit, savings)
+        in: query
+        name: type
+        schema:
+          type: string
+      - description: Filter accounts by asset code (e.g., USD, BRL)
+        in: query
+        name: asset_code
+        schema:
           type: string
       responses:
         "200":
@@ -1961,6 +1997,11 @@ paths:
         name: cursor
         schema:
           type: string
+      - description: Filter by asset code (e.g. BRL, USD)
+        in: query
+        name: asset_code
+        schema:
+          type: string
       responses:
         "200":
           content:
@@ -2249,6 +2290,12 @@ paths:
         in: query
         name: route_code
         schema:
+          type: string
+      - description: Filter by transaction ID (UUID)
+        in: query
+        name: transaction_id
+        schema:
+          format: uuid
           type: string
       responses:
         "200":
@@ -3372,6 +3419,11 @@ paths:
         name: cursor
         schema:
           type: string
+      - description: Filter by asset code (e.g. BRL, USD)
+        in: query
+        name: asset_code
+        schema:
+          type: string
       responses:
         "200":
           content:
@@ -3760,6 +3812,15 @@ paths:
         name: cursor
         schema:
           type: string
+      - description: Filter by operation type
+        in: query
+        name: type
+        schema:
+          enum:
+          - source
+          - destination
+          - bidirectional
+          type: string
       responses:
         "200":
           content:
@@ -4129,6 +4190,11 @@ paths:
           enum:
           - asc
           - desc
+          type: string
+      - description: Filter portfolios by entity ID
+        in: query
+        name: entity_id
+        schema:
           type: string
       responses:
         "200":
@@ -5446,6 +5512,16 @@ paths:
       - description: Cursor
         in: query
         name: cursor
+        schema:
+          type: string
+      - description: Filter transactions by route ID (UUID)
+        in: query
+        name: route_id
+        schema:
+          type: string
+      - description: Filter transactions by parent transaction ID (UUID)
+        in: query
+        name: parent_transaction_id
         schema:
           type: string
       responses:
@@ -7988,7 +8064,8 @@ components:
     CreateTransactionInflowInput:
       description: CreateTransactionInflowInput is the input payload to create an
         inflow transaction. Contains all necessary fields to create a financial transaction
-        without source information, only destination.
+        without source information, only destination. Pending is not supported for
+        inflows because the auto-filled external source account cannot hold funds.
       example:
         metadata:
           key: '{}'

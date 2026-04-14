@@ -50,7 +50,7 @@ var ledgerColumnList = []string{
 type Repository interface {
 	Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
 	Find(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error)
-	FindAll(ctx context.Context, organizationID uuid.UUID, filter http.Pagination, name *string) ([]*mmodel.Ledger, error)
+	FindAll(ctx context.Context, organizationID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Ledger, error)
 	FindByName(ctx context.Context, organizationID uuid.UUID, name string) (bool, error)
 	ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Ledger, error)
 	Update(ctx context.Context, organizationID, id uuid.UUID, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
@@ -265,7 +265,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 }
 
 // FindAll retrieves Ledgers entities from the database.
-func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, filter http.Pagination, name *string) ([]*mmodel.Ledger, error) {
+func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Ledger, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_ledgers")
@@ -293,9 +293,14 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
-	if name != nil && *name != "" {
-		sanitized := http.EscapeSearchMetacharacters(*name)
+	if filter.Name != nil && *filter.Name != "" {
+		sanitized := http.EscapeSearchMetacharacters(*filter.Name)
 		findAll = findAll.Where(squirrel.ILike{"name": sanitized + "%"})
+	}
+
+	// Apply status filter
+	if filter.Status != nil && *filter.Status != "" {
+		findAll = findAll.Where(squirrel.Eq{"status": strings.ToUpper(*filter.Status)})
 	}
 
 	query, args, err := findAll.ToSql()

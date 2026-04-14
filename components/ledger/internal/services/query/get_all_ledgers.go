@@ -29,7 +29,7 @@ func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID uuid.UUID, 
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving ledgers")
 
-	ledgers, err := uc.LedgerRepo.FindAll(ctx, organizationID, filter.ToOffsetPagination(), filter.Name)
+	ledgers, err := uc.LedgerRepo.FindAll(ctx, organizationID, filter)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())

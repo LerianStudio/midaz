@@ -126,6 +126,11 @@ func (hm *MongoDBRepository) buildHolderFilter(query http.QueryHeader, includeDe
 		filter = append(filter, bson.E{Key: "search.document", Value: documentHash})
 	}
 
+	// Apply type filter (holder type: NATURAL_PERSON, LEGAL_PERSON)
+	if query.FilterType != nil && *query.FilterType != "" {
+		filter = append(filter, bson.E{Key: "type", Value: strings.ToUpper(*query.FilterType)})
+	}
+
 	if query.Metadata != nil {
 		for k, v := range *query.Metadata {
 			safeValue, err := http.ValidateMetadataValue(v)

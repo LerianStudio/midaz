@@ -196,6 +196,14 @@ paths:
         name: document
         schema:
           type: string
+      - description: Filter holders by type
+        in: query
+        name: type
+        schema:
+          enum:
+          - NATURAL_PERSON
+          - LEGAL_PERSON
+          type: string
       responses:
         "200":
           content:

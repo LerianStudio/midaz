@@ -33,7 +33,7 @@ func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID, le
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving operation routes")
 
-	operationRoutes, cur, err := uc.OperationRouteRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
+	operationRoutes, cur, err := uc.OperationRouteRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())

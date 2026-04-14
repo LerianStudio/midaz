@@ -250,6 +250,16 @@ const docTemplatecrm = `{
                         "description": "Filter holders by document",
                         "name": "document",
                         "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "NATURAL_PERSON",
+                            "LEGAL_PERSON"
+                        ],
+                        "type": "string",
+                        "description": "Filter holders by type",
+                        "name": "type",
+                        "in": "query"
                     }
                 ],
                 "responses": {

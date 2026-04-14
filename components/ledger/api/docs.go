@@ -5,7 +5,7 @@ import "github.com/swaggo/swag"
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "v3.6.0",
+	Version:          "v3.5.1",
 	Host:             "localhost:3002",
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},
@@ -36,7 +36,7 @@ const docTemplate = `
       "name": "Apache 2.0",
       "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v3.6.0"
+    "version": "v3.5.1"
   },
   "host": "localhost:3002",
   "basePath": "/",
@@ -122,6 +122,16 @@ const docTemplate = `
             "type": "string",
             "description": "Filter organizations by doing business as name (case-insensitive, prefix match)",
             "name": "doing_business_as",
+            "in": "query"
+          },
+          {
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string",
+            "description": "Filter organizations by status (e.g. ACTIVE, INACTIVE)",
+            "name": "status",
             "in": "query"
           }
         ],
@@ -589,6 +599,16 @@ const docTemplate = `
             "type": "string",
             "description": "Filter ledgers by name (case-insensitive, prefix match)",
             "name": "name",
+            "in": "query"
+          },
+          {
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string",
+            "description": "Filter ledgers by status",
+            "name": "status",
             "in": "query"
           }
         ],
@@ -1263,6 +1283,12 @@ const docTemplate = `
             "description": "End date for filtering (YYYY-MM-DD)",
             "name": "end_date",
             "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter by key value (case-insensitive)",
+            "name": "key_value",
+            "in": "query"
           }
         ],
         "responses": {
@@ -1749,6 +1775,24 @@ const docTemplate = `
             "format": "uuid",
             "description": "Filter accounts by segment ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics).",
             "name": "segment_id",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter accounts by status (e.g., ACTIVE, INACTIVE)",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter accounts by type (e.g., deposit, savings)",
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter accounts by asset code (e.g., USD, BRL)",
+            "name": "asset_code",
             "in": "query"
           }
         ],
@@ -2398,6 +2442,12 @@ const docTemplate = `
             "description": "Cursor",
             "name": "cursor",
             "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter by asset code (e.g. BRL, USD)",
+            "name": "asset_code",
+            "in": "query"
           }
         ],
         "responses": {
@@ -2754,6 +2804,13 @@ const docTemplate = `
             "type": "string",
             "description": "Filter by operation route code",
             "name": "route_code",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Filter by transaction ID (UUID)",
+            "name": "transaction_id",
             "in": "query"
           }
         ],
@@ -4109,6 +4166,12 @@ const docTemplate = `
             "description": "Cursor",
             "name": "cursor",
             "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter by asset code (e.g. BRL, USD)",
+            "name": "asset_code",
+            "in": "query"
           }
         ],
         "responses": {
@@ -4582,6 +4645,17 @@ const docTemplate = `
             "description": "Cursor",
             "name": "cursor",
             "in": "query"
+          },
+          {
+            "enum": [
+              "source",
+              "destination",
+              "bidirectional"
+            ],
+            "type": "string",
+            "description": "Filter by operation type",
+            "name": "type",
+            "in": "query"
           }
         ],
         "responses": {
@@ -5038,6 +5112,12 @@ const docTemplate = `
             "type": "string",
             "description": "Sort direction for results based on creation date",
             "name": "sort_order",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter portfolios by entity ID",
+            "name": "entity_id",
             "in": "query"
           }
         ],
@@ -6628,6 +6708,18 @@ const docTemplate = `
             "type": "string",
             "description": "Cursor",
             "name": "cursor",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter transactions by route ID (UUID)",
+            "name": "route_id",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter transactions by parent transaction ID (UUID)",
+            "name": "parent_transaction_id",
             "in": "query"
           }
         ],
@@ -9150,7 +9242,7 @@ const docTemplate = `
       }
     },
     "CreateTransactionInflowInput": {
-      "description": "CreateTransactionInflowInput is the input payload to create an inflow transaction. Contains all necessary fields to create a financial transaction without source information, only destination.",
+      "description": "CreateTransactionInflowInput is the input payload to create an inflow transaction. Contains all necessary fields to create a financial transaction without source information, only destination. Pending is not supported for inflows because the auto-filled external source account cannot hold funds.",
       "type": "object",
       "required": [
         "send"

@@ -134,6 +134,7 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 //	@Param			end_date		query		string																false	"Filter ledgers created on or before this date (format: YYYY-MM-DD)"
 //	@Param			sort_order		query		string																false	"Sort direction for results based on creation date"	Enums(asc,desc)
 //	@Param			name			query		string																false	"Filter ledgers by name (case-insensitive, prefix match)"	maxLength(256)
+//	@Param			status			query		string																false	"Filter ledgers by status"	Enums(ACTIVE,INACTIVE)
 //	@Success		200				{object}	http.Pagination{items=[]mmodel.Ledger}	"Successfully retrieved ledgers list"
 //	@Failure		400				{object}	mmodel.Error														"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error														"Unauthorized access"
