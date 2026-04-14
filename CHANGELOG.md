@@ -1,5 +1,17 @@
 # Midaz Changelog
 
+## [3.6.1](https://github.com/LerianStudio/midaz/releases/tag/v3.6.1)
+
+- Fixes:
+  - Remove unnecessary comment from Dockerfile.
+  - Remove NOT NULL from direction column and use safe PG 12+ CHECK pattern.
+
+Contributors: @gandalf, @mclara.tersi
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.6.0...v3.6.1)
+
+---
+
 ## [3.6.0](https://github.com/LerianStudio/midaz/releases/tag/v3.6.0)
 
 Features:
