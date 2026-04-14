@@ -6,8 +6,6 @@
   - Remove unnecessary comment from Dockerfile.
   - Remove NOT NULL from direction column and use safe PG 12+ CHECK pattern.
 
-Contributors: @gandalf, @mclara.tersi
-
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.6.0...v3.6.1)
 
 ---
