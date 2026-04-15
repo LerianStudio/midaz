@@ -35,7 +35,7 @@ func TestLuaScript_ContainsScheduleLogic(t *testing.T) {
 // TestScheduleKeyConstant verifies the schedule key constant matches
 // what the BalanceSyncWorker expects.
 func TestScheduleKeyConstant(t *testing.T) {
-	expectedKey := "schedule:{transactions}:balance-sync"
+	expectedKey := "schedule:{transactions}:balance-sync-v2"
 	assert.Equal(t, expectedKey, utils.BalanceSyncScheduleKey,
 		"Schedule key constant should match expected format")
 }

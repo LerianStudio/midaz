@@ -338,7 +338,8 @@ func TestCacheKeyConstants(t *testing.T) {
 	t.Run("BalanceSyncScheduleKey format", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, "schedule:{transactions}:balance-sync", BalanceSyncScheduleKey)
+		assert.Equal(t, "schedule:{transactions}:balance-sync-v2", BalanceSyncScheduleKey)
+		assert.Equal(t, "schedule:{transactions}:balance-sync", BalanceSyncScheduleKeyLegacy)
 	})
 
 	t.Run("BalanceSyncLockPrefix format", func(t *testing.T) {

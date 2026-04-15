@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	BalanceSyncScheduleKey = "schedule:{transactions}:balance-sync"
-	BalanceSyncLockPrefix  = "lock:{transactions}:balance-sync:"
+	BalanceSyncScheduleKey       = "schedule:{transactions}:balance-sync-v2"
+	BalanceSyncScheduleKeyLegacy = "schedule:{transactions}:balance-sync"
+	BalanceSyncLockPrefix        = "lock:{transactions}:balance-sync:"
 )
 
 const (
