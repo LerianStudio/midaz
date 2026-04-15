@@ -101,7 +101,7 @@ func (p *Pagination) SetCursor(next, prev string) {
 
 // ValidateParameters validate and return struct of default parameters
 //
-//nolint:gocyclo
+//nolint:gocyclo,gocognit
 func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	var (
 		metadata                            *bson.M
