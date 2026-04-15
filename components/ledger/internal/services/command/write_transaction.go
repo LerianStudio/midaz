@@ -47,6 +47,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 		BalancesAfter: blcAfter,
 		Transaction:   tran,
 		Input:         transactionInput,
+		Version:       "v2",
 	}
 
 	marshal, err := msgpack.Marshal(value)
@@ -127,6 +128,7 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 		BalancesAfter: blcAfter,
 		Transaction:   tran,
 		Input:         transactionInput,
+		Version:       "v2",
 	}
 
 	marshal, err := msgpack.Marshal(value)

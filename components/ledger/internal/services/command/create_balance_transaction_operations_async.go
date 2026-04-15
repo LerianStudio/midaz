@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -60,9 +61,19 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		return fmt.Errorf("transaction payload has nil Transaction field")
 	}
 
-	// Note: Balance updates are handled by BalanceSyncWorker asynchronously.
-	// Hot balance was already updated atomically by Lua script during validation.
-	// Cold balance persistence is scheduled via ZADD to schedule:balance-sync.
+	// Legacy payload compatibility: messages from v3.5.x lack the Version field.
+	// Their balance persistence relied on UpdateBalances() in the consumer, which
+	// was removed in v3.6.x (replaced by BalanceSyncWorker). Without this fallback,
+	// balances for in-flight v3.5.x messages would never reach PostgreSQL.
+	if t.Version == "" && t.Transaction.Status.Code != "NOTED" {
+		logger.Log(ctx, libLog.LevelWarn, "Legacy payload detected (no Version field), calling UpdateBalances for backward compatibility")
+
+		if err := uc.UpdateBalances(ctx, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances, t.BalancesAfter); err != nil {
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances for legacy payload: %v", err))
+
+			return err
+		}
+	}
 
 	ctxProcessTransaction, spanUpdateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanUpdateTransaction.End()
@@ -94,8 +105,8 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	logger.Log(ctx, libLog.LevelInfo, "Trying to create new operations")
 
 	for _, oper := range tran.Operations {
-		if oper.Direction == "" {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Operation %s has empty direction, may be from pre-migration message", oper.ID))
+		if err := validateOperationDirection(oper, logger, ctx); err != nil {
+			return err
 		}
 
 		_, err = uc.OperationRepo.Create(ctxProcessOperation, oper)
@@ -365,5 +376,24 @@ func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organi
 	if err := uc.TransactionRedisRepo.AddMessageToQueue(ctx, transactionKey, updated); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to write updated transaction backup with operations", err)
 		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to write updated transaction backup with operations: %v", err))
+	}
+}
+
+// validateOperationDirection checks the direction field of an operation.
+// Empty direction is allowed with a warning (v3.5.3 messages lack this field).
+// Non-empty direction must be one of the valid values ("debit", "credit").
+func validateOperationDirection(oper *operation.Operation, logger libLog.Logger, ctx context.Context) error {
+	if oper.Direction == "" {
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(
+			"Operation %s has empty direction, may be from pre-migration message", oper.ID))
+
+		return nil
+	}
+
+	switch strings.ToLower(oper.Direction) {
+	case "debit", "credit":
+		return nil
+	default:
+		return fmt.Errorf("operation %s has invalid direction %q: must be 'debit' or 'credit'", oper.ID, oper.Direction)
 	}
 }

@@ -133,6 +133,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Validate:    validate,
 			Balances:    balances,
 			Input:       transactionInput,
+		Version:       "v2",
 		}
 
 		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
@@ -257,6 +258,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Validate:    validate,
 			Balances:    balances,
 			Input:       transactionInput,
+		Version:       "v2",
 		}
 
 		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
@@ -445,6 +447,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Validate:    validate,
 			Balances:    balances,
 			Input:       transactionInput,
+		Version:       "v2",
 		}
 
 		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
@@ -630,6 +633,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Validate:    validate,
 			Balances:    balances,
 			Input:       transactionInput,
+		Version:       "v2",
 		}
 
 		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
@@ -782,6 +786,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Validate:    validate,
 			Balances:    balances,
 			Input:       transactionInput,
+		Version:       "v2",
 		}
 
 		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
@@ -942,6 +947,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Validate:    validate,
 			Balances:    balances,
 			Input:       transactionInput,
+		Version:       "v2",
 		}
 
 		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
@@ -1106,6 +1112,7 @@ func TestCreateBTOAsync(t *testing.T) {
 		Validate:    validate,
 		Balances:    balances,
 		Input:       transactionInput,
+		Version:       "v2",
 	}
 
 	transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
