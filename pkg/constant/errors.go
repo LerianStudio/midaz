@@ -185,6 +185,7 @@ var (
 	ErrShardNoOwner                             = errors.New("shard has no owner configured")
 	ErrCrossShardRequiresRedpanda               = errors.New("cross-shard mode requires AUTHORIZER_REDPANDA_ENABLED=true")
 	ErrPeerInsecureNotAllowedInProd             = errors.New("AUTHORIZER_PEER_INSECURE_ALLOWED=true is only allowed in non-production environments")
+	ErrNoopPublisherNotAllowedInProd            = errors.New("NoopPublisher is not permitted in production-like environments; set AUTHORIZER_REDPANDA_ENABLED=true")
 	ErrPeerRPCRequiresTLS                       = errors.New("peer RPC requires TLS by default")
 	ErrPeerShardRangeCountMismatch              = errors.New("AUTHORIZER_PEER_SHARD_RANGES count must match AUTHORIZER_PEER_INSTANCES count")
 	ErrPeerShardRangeOverlapsLocal              = errors.New("peer shard range overlaps local owned range")

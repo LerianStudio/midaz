@@ -868,6 +868,64 @@ func buildPeerTransportOption(cfg *Config) (grpc.DialOption, error) {
 	return grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)), nil
 }
 
+// productionLikeEnvNamesForPublisher is the authoritative list of ENV_NAME values
+// that require a durable publisher. Unlike the broader broker/security helper, this
+// list treats staging as production-equivalent so commit intents and balance
+// operations cannot be silently dropped in any pre-prod environment where correctness
+// testing mirrors production behavior.
+var productionLikeEnvNamesForPublisher = map[string]struct{}{
+	"production": {},
+	"staging":    {},
+	"prod":       {},
+	"stg":        {},
+	"prd":        {},
+	"pre-prod":   {},
+	"preprod":    {},
+}
+
+// isProductionLikeEnvForPublisher reports whether the environment must use a durable
+// publisher (i.e. the NoopPublisher is not acceptable because publishes would be
+// silently dropped).
+func isProductionLikeEnvForPublisher(envName string) bool {
+	_, ok := productionLikeEnvNamesForPublisher[strings.ToLower(strings.TrimSpace(envName))]
+	return ok
+}
+
+// validatePublisherSelection emits an audit log line noting which publisher was
+// selected and fail-closes when the NoopPublisher would be selected in a
+// production-like environment (where silent drops of commit intents and balance
+// operations are unacceptable).
+func validatePublisherSelection(cfg *Config, logger libLog.Logger) error {
+	if cfg.RedpandaEnabled {
+		logger.Infof(
+			"publisher audit: selected=redpanda env_name=%q redpanda_enabled=%t",
+			cfg.EnvName,
+			cfg.RedpandaEnabled,
+		)
+
+		return nil
+	}
+
+	if isProductionLikeEnvForPublisher(cfg.EnvName) {
+		logger.Errorf(
+			"publisher audit: selected=noop env_name=%q redpanda_enabled=%t decision=abort reason=%q",
+			cfg.EnvName,
+			cfg.RedpandaEnabled,
+			"NoopPublisher is not permitted in production-like environments; enable AUTHORIZER_REDPANDA_ENABLED=true",
+		)
+
+		return fmt.Errorf("environment %q: %w", cfg.EnvName, constant.ErrNoopPublisherNotAllowedInProd)
+	}
+
+	logger.Warnf(
+		"publisher audit: selected=noop env_name=%q redpanda_enabled=%t SILENT DROP RISK — commit intents and balance ops publishes will NOT be durable",
+		cfg.EnvName,
+		cfg.RedpandaEnabled,
+	)
+
+	return nil
+}
+
 // Run starts the authorizer gRPC server and blocks until shutdown.
 func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry) error { //nolint:gocognit,gocyclo,cyclop // startup orchestration function
 	metricRecorder := newAuthorizerMetrics(telemetry, logger, cfg.AuthorizeLatencySLO)
@@ -988,6 +1046,10 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 			"Deprecated broker environment variables detected (ignored by this version): %s. Regenerate .env from .env.example and remove deprecated entries.",
 			strings.Join(deprecatedBrokerEnvs, ", "),
 		)
+	}
+
+	if err := validatePublisherSelection(cfg, logger); err != nil {
+		return err
 	}
 
 	pub := publisher.NewNoopPublisher()
