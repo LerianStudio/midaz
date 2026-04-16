@@ -1,3 +1,8 @@
+-- Stage 1 of the online partition cutover for the operation table.
+-- Schema-only shell + indexes + partitions. No data copy, no RENAME.
+-- Dual-write and the backfill tool (cmd/partition-backfill) populate the
+-- shell; migration 000022 performs the atomic RENAME swap.
+
 CREATE TABLE operation_partitioned (
     id                     UUID NOT NULL,
     transaction_id         UUID NOT NULL,
@@ -28,11 +33,6 @@ CREATE TABLE operation_partitioned (
     PRIMARY KEY (id, ledger_id)
 ) PARTITION BY HASH (ledger_id);
 
--- NOTE: PostgreSQL < 17 does not support referencing partitioned tables with
--- global foreign keys in this migration shape. Integrity between
--- operation.transaction_id and transaction.id remains enforced by application
--- flow and idempotent write constraints.
-
 CREATE TABLE operation_p00 PARTITION OF operation_partitioned FOR VALUES WITH (MODULUS 8, REMAINDER 0);
 CREATE TABLE operation_p01 PARTITION OF operation_partitioned FOR VALUES WITH (MODULUS 8, REMAINDER 1);
 CREATE TABLE operation_p02 PARTITION OF operation_partitioned FOR VALUES WITH (MODULUS 8, REMAINDER 2);
@@ -42,91 +42,17 @@ CREATE TABLE operation_p05 PARTITION OF operation_partitioned FOR VALUES WITH (M
 CREATE TABLE operation_p06 PARTITION OF operation_partitioned FOR VALUES WITH (MODULUS 8, REMAINDER 6);
 CREATE TABLE operation_p07 PARTITION OF operation_partitioned FOR VALUES WITH (MODULUS 8, REMAINDER 7);
 
-CREATE INDEX IF NOT EXISTS idx_op_part_transaction_id
-    ON operation_partitioned (transaction_id);
-
-CREATE INDEX IF NOT EXISTS idx_op_part_org_ledger
-    ON operation_partitioned (organization_id, ledger_id);
-
-CREATE INDEX IF NOT EXISTS idx_op_part_created_at
-    ON operation_partitioned (created_at);
-
+CREATE INDEX IF NOT EXISTS idx_op_part_transaction_id ON operation_partitioned (transaction_id);
+CREATE INDEX IF NOT EXISTS idx_op_part_org_ledger ON operation_partitioned (organization_id, ledger_id);
+CREATE INDEX IF NOT EXISTS idx_op_part_created_at ON operation_partitioned (created_at);
 CREATE INDEX IF NOT EXISTS idx_op_part_account_id
     ON operation_partitioned (organization_id, ledger_id, account_id, id)
     WHERE deleted_at IS NULL;
-
 CREATE INDEX IF NOT EXISTS idx_op_part_point_in_time
     ON operation_partitioned (organization_id, ledger_id, balance_id, created_at DESC)
     INCLUDE (available_balance_after, on_hold_balance_after, balance_version_after, account_id, asset_code)
     WHERE deleted_at IS NULL;
-
 CREATE INDEX IF NOT EXISTS idx_op_part_account_point_in_time
     ON operation_partitioned (organization_id, ledger_id, account_id, balance_id, created_at DESC)
     INCLUDE (available_balance_after, on_hold_balance_after, balance_version_after, asset_code)
     WHERE deleted_at IS NULL;
-
--- NOTE: Batched pre-copy loop and LOCK TABLE were removed because
--- golang-migrate multi-statement parser runs each statement independently
--- (splits on semicolons, no shared transaction), which breaks both
--- PL/pgSQL blocks and LOCK TABLE semantics.
-
-INSERT INTO operation_partitioned (
-    id,
-    transaction_id,
-    description,
-    type,
-    asset_code,
-    amount,
-    available_balance,
-    on_hold_balance,
-    available_balance_after,
-    on_hold_balance_after,
-    status,
-    status_description,
-    account_id,
-    account_alias,
-    balance_id,
-    chart_of_accounts,
-    organization_id,
-    ledger_id,
-    created_at,
-    updated_at,
-    deleted_at,
-    route,
-    balance_affected,
-    balance_key,
-    balance_version_before,
-    balance_version_after
-)
-SELECT
-    id,
-    transaction_id,
-    description,
-    type,
-    asset_code,
-    amount,
-    available_balance,
-    on_hold_balance,
-    available_balance_after,
-    on_hold_balance_after,
-    status,
-    status_description,
-    account_id,
-    account_alias,
-    balance_id,
-    chart_of_accounts,
-    organization_id,
-    ledger_id,
-    created_at,
-    updated_at,
-    deleted_at,
-    route,
-    balance_affected,
-    balance_key,
-    balance_version_before,
-    balance_version_after
-FROM operation
-ON CONFLICT DO NOTHING;
-
-ALTER TABLE operation RENAME TO operation_legacy;
-ALTER TABLE operation_partitioned RENAME TO operation;
