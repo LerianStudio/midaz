@@ -44,6 +44,41 @@ var (
 	ErrPreparedTxCommitDecided    = errors.New("prepared transaction commit already decided")
 )
 
+// PreparedExpirationReason classifies why a prepared transaction was removed
+// from the store without a committed outcome. These values are emitted as the
+// "reason" label on authorizer_prepared_expired_total — operators MUST alert
+// on any sustained non-zero rate because expired prepared transactions mean a
+// coordinator crashed or lost connectivity during a 2PC cycle.
+const (
+	// PreparedExpirationTimeout indicates the prepared transaction exceeded
+	// DefaultPrepareTimeout before commit/abort was received.
+	PreparedExpirationTimeout = "timeout"
+
+	// PreparedExpirationForceAbort indicates the prepared transaction was
+	// force-aborted after exceeding the commit retry limit (WAL append
+	// repeatedly failed during CommitPrepared).
+	PreparedExpirationForceAbort = "force_abort"
+)
+
+// PreparedObserver defines hooks for observing prepared-transaction lifecycle
+// events that are invisible to the core engine Observer. It intentionally
+// lives in prepared.go so the 2PC bookkeeping can emit SLI signals (stuck
+// transactions, pending-depth saturation) without coupling the core engine
+// Observer contract. Implementations MUST be safe for concurrent calls.
+type PreparedObserver interface {
+	// ObservePreparedExpired fires once per prepared transaction removed from
+	// the store without a committed outcome. reason is one of the
+	// PreparedExpiration* constants.
+	ObservePreparedExpired(reason string)
+
+	// ObservePreparedPendingDepth reports the current pending-prepared depth
+	// after a mutation (Put/PutBack/TakeForCommit/TakeForAbort/Expired). The
+	// bootstrap wiring converts depth to a bounded "shard_range" label so the
+	// gauge's cardinality stays finite even if pending count fluctuates
+	// rapidly.
+	ObservePreparedPendingDepth(depth int)
+}
+
 // PreparedTx represents a transaction that has been validated and has locks held,
 // but has not yet been committed. It is the intermediate state in the 2PC protocol
 // used for cross-shard authorizations between authorizer instances.
@@ -110,6 +145,11 @@ type preparedTxStore struct {
 	max          int
 	committedTTL time.Duration
 	maxRetries   int
+
+	// observer is read under mu at mutation time and invoked outside the
+	// lock via the returned depth snapshot. Nil is a valid (no-op) value;
+	// most call sites skip the work when unset.
+	observer PreparedObserver
 }
 
 func newPreparedTxStore(timeout time.Duration, maxPending int) *preparedTxStore {
@@ -157,6 +197,8 @@ func (s *preparedTxStore) Put(ptx *PreparedTx) error {
 	ptx.commitAttempts = 0
 	s.pending[ptx.ID] = ptx
 
+	s.emitDepthLocked()
+
 	return nil
 }
 
@@ -192,6 +234,8 @@ func (s *preparedTxStore) PutBack(ptx *PreparedTx) error {
 	ptx.createdAt = time.Now()
 	s.pending[ptx.ID] = ptx
 
+	s.emitDepthLocked()
+
 	return nil
 }
 
@@ -221,6 +265,8 @@ func (s *preparedTxStore) TakeForCommit(id string) (*PreparedTx, *authorizerv1.A
 	ptx.done = true
 
 	delete(s.pending, id)
+
+	s.emitDepthLocked()
 
 	return ptx, nil, true
 }
@@ -253,6 +299,8 @@ func (s *preparedTxStore) TakeForAbort(id string) (*PreparedTx, error) {
 
 	delete(s.pending, id)
 
+	s.emitDepthLocked()
+
 	return ptx, nil
 }
 
@@ -279,13 +327,17 @@ func (s *preparedTxStore) MarkCommitted(id string, resp *authorizerv1.AuthorizeR
 
 // Expired returns all prepared transactions that have exceeded the timeout.
 // The returned transactions are removed from the store and marked done.
+//
+// As a side effect Expired fires PreparedObserver.ObservePreparedExpired once
+// per expired transaction with reason=PreparedExpirationTimeout, plus a single
+// ObservePreparedPendingDepth with the post-removal depth. Observers run
+// outside the store mutex so a slow observer cannot stall the reaper.
 func (s *preparedTxStore) Expired() []*PreparedTx {
 	if s == nil {
 		return nil
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	now := time.Now()
 	s.pruneExpiredCommittedLocked(now)
@@ -311,7 +363,54 @@ func (s *preparedTxStore) Expired() []*PreparedTx {
 		}
 	}
 
+	observer := s.observer
+	depth := len(s.pending)
+
+	s.mu.Unlock()
+
+	if observer != nil {
+		for range expired {
+			observer.ObservePreparedExpired(PreparedExpirationTimeout)
+		}
+
+		if len(expired) > 0 {
+			observer.ObservePreparedPendingDepth(depth)
+		}
+	}
+
 	return expired
+}
+
+// emitDepthLocked fires ObservePreparedPendingDepth with a snapshot of the
+// current pending count. The caller must hold s.mu. The observer is invoked
+// inside the lock only to read s.observer; the method itself does NOT call
+// out with the lock held (it captures the handle and depth, releases via the
+// caller's defer, and the caller chain fires the observer outside the lock
+// when practical). In practice Put/PutBack/TakeForCommit/TakeForAbort hold
+// the lock throughout; the observer call is therefore inside the lock. This
+// is acceptable because the bootstrap-side observer (authorizerMetrics) does
+// non-blocking metric writes only.
+func (s *preparedTxStore) emitDepthLocked() {
+	if s == nil || s.observer == nil {
+		return
+	}
+
+	s.observer.ObservePreparedPendingDepth(len(s.pending))
+}
+
+// SetPreparedObserver registers a PreparedObserver. A nil value clears any
+// previously registered observer. Intended to be called during bootstrap
+// before the reaper goroutine has fired; later calls are safe but will race
+// with any in-flight Expired()/Put/Take that is already reading the field.
+func (s *preparedTxStore) SetPreparedObserver(observer PreparedObserver) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.observer = observer
 }
 
 // Len returns the number of pending prepared transactions.
@@ -340,6 +439,33 @@ func (s *preparedTxStore) pruneExpiredCommittedLocked(now time.Time) {
 			delete(s.committed, id)
 		}
 	}
+}
+
+// SetPreparedObserver wires a PreparedObserver into the engine's prepared
+// transaction store. This is intentionally separate from SetObserver so the
+// core Observer contract (lock wait/hold, WAL append failure, WAL replay
+// skip) is unchanged — PreparedObserver adds 2PC-lifecycle signals that are
+// only meaningful for cross-shard transactions. Passing nil clears any
+// previously registered observer.
+func (e *Engine) SetPreparedObserver(observer PreparedObserver) {
+	if e == nil || e.prepStore == nil {
+		return
+	}
+
+	e.prepStore.SetPreparedObserver(observer)
+}
+
+// PreparedPendingDepth reports the current count of prepared transactions
+// awaiting commit or abort. Exposed primarily so bootstrap can pre-seed the
+// authorizer_prepared_pending_depth gauge after crash-recovery replay
+// restores prepStore entries (otherwise the gauge reads 0 until the first
+// mutation emits it).
+func (e *Engine) PreparedPendingDepth() int {
+	if e == nil || e.prepStore == nil {
+		return 0
+	}
+
+	return e.prepStore.Len()
 }
 
 func cloneAuthorizeResponse(resp *authorizerv1.AuthorizeResponse) *authorizerv1.AuthorizeResponse {

@@ -6,6 +6,7 @@ package in
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -20,6 +21,50 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
+
+// maxAccountLogTokenLength caps the length of user-controlled strings
+// embedded in log lines to prevent log-injection-amplification via very
+// long alias/code inputs. Matches the authorizer's maxLogTokenLength for
+// consistency across components.
+const maxAccountLogTokenLength = 128
+
+// sanitizeLogToken scrubs CR/LF/TAB and C0/C1 control characters from a
+// user-controlled string before it is embedded in a log line. Without this,
+// an attacker who controls the account alias or external code path param
+// can inject forged log lines by sending values containing "\n" followed by
+// fabricated JSON. The implementation mirrors the authorizer's
+// normalizeLogToken (kept local to avoid promoting it to lib-commons while
+// lib-commons/v2 is frozen behind D6). When the input is empty or reduces
+// to nothing after stripping, the literal "unknown" is returned so log
+// parsers see a stable token instead of an empty field.
+func sanitizeLogToken(value string) string {
+	token := strings.TrimSpace(value)
+	if token == "" {
+		return "unknown"
+	}
+
+	token = strings.Map(func(r rune) rune {
+		// Strip C0 controls (< 0x20), DEL (0x7F), C1 controls
+		// (0x80-0x9F), and common zero-width / BOM characters that have
+		// been used in log-forgery payloads.
+		if r < 0x20 || r == 0x7F || (r >= 0x80 && r <= 0x9F) ||
+			r == 0x200B || r == 0x200C || r == 0x200D || r == 0xFEFF {
+			return -1
+		}
+
+		return r
+	}, token)
+
+	if token == "" {
+		return "unknown"
+	}
+
+	if len(token) > maxAccountLogTokenLength {
+		return token[:maxAccountLogTokenLength]
+	}
+
+	return token
+}
 
 // AccountHandler struct contains an account use case for managing account related operations.
 type AccountHandler struct {
@@ -304,19 +349,23 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 	code := c.Params("code")
 
 	alias := constant.DefaultExternalAccountAliasPrefix + code
+	// aliasLog is the sanitized form used ONLY for logging — alias itself
+	// is still passed to downstream queries unchanged so business logic is
+	// never altered by log hygiene.
+	aliasLog := sanitizeLogToken(alias)
 
-	logger.Infof("Initiating retrieval of Account with Account Alias: %s", alias)
+	logger.Infof("Initiating retrieval of Account with Account Alias: %s", aliasLog)
 
 	account, err := handler.Query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account on query", err)
 
-		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err)
+		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", aliasLog, err)
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved Account with Account Alias: %s", alias)
+	logger.Infof("Successfully retrieved Account with Account Alias: %s", aliasLog)
 
 	return http.OK(c, account)
 }
@@ -357,19 +406,22 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 	}
 
 	alias := c.Params("alias")
+	// aliasLog is the sanitized form used ONLY for logging — alias itself
+	// is still passed to downstream queries unchanged.
+	aliasLog := sanitizeLogToken(alias)
 
-	logger.Infof("Initiating retrieval of Account with Account Alias: %s", alias)
+	logger.Infof("Initiating retrieval of Account with Account Alias: %s", aliasLog)
 
 	account, err := handler.Query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account on query", err)
 
-		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err)
+		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", aliasLog, err)
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved Account with Account Alias: %s", alias)
+	logger.Infof("Successfully retrieved Account with Account Alias: %s", aliasLog)
 
 	return http.OK(c, account)
 }

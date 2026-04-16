@@ -1063,6 +1063,12 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 	defer eng.Close()
 
 	eng.SetObserver(metricRecorder)
+	// SetPreparedObserver is intentionally distinct from SetObserver: the
+	// core Observer contract covers lock timing + WAL events, while the
+	// PreparedObserver contract covers 2PC-lifecycle SLIs (expired
+	// prepared tx, pending-depth saturation) that are meaningful only for
+	// cross-shard traffic. See FINAL_REVIEW.md#D10-B1.
+	eng.SetPreparedObserver(metricRecorder)
 	eng.ConfigurePreparedTxStore(cfg.PrepareTimeout, cfg.PrepareMaxPending)
 	eng.ConfigureAuthorizationLimits(cfg.MaxOperationsPerRequest, cfg.MaxUniqueBalancesPerRequest)
 	eng.ConfigureReplayPolicy(
@@ -1368,6 +1374,7 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 		),
 		grpc.ChainStreamInterceptor(
 			streamTelemetryInterceptor(telemetry),
+			//nolint:contextcheck // stream ctx flows via ss.Context() per gRPC StreamServerInterceptor contract
 			streamLoggingInterceptor(logger),
 		),
 		grpc.KeepaliveParams(keepalive.ServerParameters{

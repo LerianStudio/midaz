@@ -20,6 +20,12 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 )
 
+// traceIDFallback is the literal emitted in stream log lines when the stream
+// context does not carry a valid span (e.g. a client invoking without OTEL
+// propagation). The constant keeps log parsers seeing a stable token and
+// avoids goconst's magic-string warning on the multiple emission sites.
+const traceIDFallback = "none"
+
 // wrappedServerStream wraps a grpc.ServerStream with a custom context.
 type wrappedServerStream struct {
 	grpc.ServerStream
@@ -75,6 +81,10 @@ func streamTelemetryInterceptor(telemetry *libOpentelemetry.Telemetry) grpc.Stre
 }
 
 func streamLoggingInterceptor(logger libLog.Logger) grpc.StreamServerInterceptor {
+	// The returned closure receives the stream context via ss.Context(), not
+	// a function parameter — the gRPC interceptor contract defines no
+	// explicit ctx arg. contextcheck cannot distinguish this legitimate
+	// stream-scoped ctx from a detached background context.
 	return func(
 		srv any,
 		ss grpc.ServerStream,
@@ -89,15 +99,25 @@ func streamLoggingInterceptor(logger libLog.Logger) grpc.StreamServerInterceptor
 			return err
 		}
 
+		// Extract trace/span IDs from the stream context so every log line
+		// carries the same correlation IDs as the server span created by
+		// streamTelemetryInterceptor. Without this, operators correlating
+		// a log entry to an APM trace must reconstruct the mapping by
+		// method + timestamp + client IP — which is brittle and fails
+		// entirely for concurrent streams.
+		traceID, spanID := traceIdentifiersFromContext(ss.Context())
+
 		grpcStatus := status.Code(err)
 		if err != nil && grpcStatus != grpcCodes.Canceled {
 			logger.Warnf(
-				"Authorizer stream rpc failed: method=%s client_stream=%t server_stream=%t status=%s duration_ms=%d err=%v",
+				"Authorizer stream rpc failed: method=%s client_stream=%t server_stream=%t status=%s duration_ms=%d trace_id=%s span_id=%s err=%v",
 				info.FullMethod,
 				info.IsClientStream,
 				info.IsServerStream,
 				grpcStatus.String(),
 				duration.Milliseconds(),
+				traceID,
+				spanID,
 				err,
 			)
 
@@ -105,14 +125,33 @@ func streamLoggingInterceptor(logger libLog.Logger) grpc.StreamServerInterceptor
 		}
 
 		logger.Infof(
-			"Authorizer stream rpc completed: method=%s client_stream=%t server_stream=%t status=%s duration_ms=%d",
+			"Authorizer stream rpc completed: method=%s client_stream=%t server_stream=%t status=%s duration_ms=%d trace_id=%s span_id=%s",
 			info.FullMethod,
 			info.IsClientStream,
 			info.IsServerStream,
 			grpcStatus.String(),
 			duration.Milliseconds(),
+			traceID,
+			spanID,
 		)
 
 		return err
 	}
+}
+
+// traceIdentifiersFromContext returns the trace_id/span_id formatted for log
+// correlation. When no span is attached to ctx (or the span context is
+// invalid), both return values are the literal string "none" so log parsers
+// see a stable non-empty token instead of an empty field.
+func traceIdentifiersFromContext(ctx context.Context) (string, string) {
+	if ctx == nil {
+		return traceIDFallback, traceIDFallback
+	}
+
+	sc := trace.SpanFromContext(ctx).SpanContext()
+	if !sc.IsValid() {
+		return traceIDFallback, traceIDFallback
+	}
+
+	return sc.TraceID().String(), sc.SpanID().String()
 }

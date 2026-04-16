@@ -28,12 +28,22 @@ const (
 	maxLogTokenLength            = 128
 	labelOther                   = "other"
 	labelUnknown                 = "unknown"
+
+	// preparedDepthBucket* boundaries bound cardinality of the
+	// authorizer_prepared_pending_depth gauge's shard_range label. The raw
+	// pending count can fluctuate between 0 and DefaultMaxPreparedTx
+	// (10_000), so the gauge is reported under discrete ranges rather than
+	// as a free-form int label.
+	preparedDepthBucket10   = 10
+	preparedDepthBucket100  = 100
+	preparedDepthBucket1000 = 1000
 )
 
 // Compile-time interface compliance checks.
 var (
-	_ engine.Observer = (*authorizerMetrics)(nil)
-	_ wal.Observer    = (*authorizerMetrics)(nil)
+	_ engine.Observer         = (*authorizerMetrics)(nil)
+	_ engine.PreparedObserver = (*authorizerMetrics)(nil)
+	_ wal.Observer            = (*authorizerMetrics)(nil)
 )
 
 // Explicit histogram bucket boundaries (ms) aligned with SLO targets.
@@ -165,6 +175,28 @@ var (
 		Unit:        "1",
 		Description: "Number of balances currently loaded into the authorizer engine (set at bootstrap post-load).",
 	}
+	// authorizerPreparedExpiredTotal counts prepared transactions removed
+	// from the in-memory prepStore without a committed outcome. Stable
+	// reason labels are "timeout" (reaper auto-abort after
+	// DefaultPrepareTimeout) and "force_abort" (commit retry limit
+	// exceeded). A sustained non-zero rate is an SLI for stuck transactions
+	// and coordinator crashes — alert on it.
+	authorizerPreparedExpiredTotal = libMetrics.Metric{
+		Name:        "authorizer_prepared_expired_total",
+		Unit:        "1",
+		Description: "Total prepared transactions auto-aborted by the reaper without commit/abort (reason=timeout|force_abort).",
+	}
+	// authorizerPreparedPendingDepth reports the current count of
+	// prepared-but-not-committed 2PC transactions. Gauge (not counter)
+	// because the value rises and falls with load. The shard_range label
+	// bounds cardinality to 5 discrete buckets derived from the pending
+	// count so dashboards can distinguish "idle" from "approaching
+	// capacity" without exploding label permutations.
+	authorizerPreparedPendingDepth = libMetrics.Metric{
+		Name:        "authorizer_prepared_pending_depth",
+		Unit:        "1",
+		Description: "Current pending prepared-transaction depth (post-mutation snapshot, bucketed via shard_range label).",
+	}
 	// loadedBalancesRatio is the ratio of observed loaded balances to the
 	// expected count captured at the initial LoadBalances call. The expected
 	// value is the same count used as the readiness-gate threshold: the
@@ -241,13 +273,24 @@ func (m *authorizerMetrics) RecordAuthorize(
 	m.factory.Histogram(authorizeShardsTouchedPerRequest).WithLabels(map[string]string{"method": method}).Record(ctx, int64(shardCount))
 
 	if m.authorizeLatencySLO > 0 && latency > m.authorizeLatencySLO {
-		// NOTE: slo_target_ms is a deployment-scoped constant (set at init),
-		// not a per-request value. Cardinality = 1 per deployment, not per request.
+		// slo_target_ms is a deployment-scoped constant (set at init), not a
+		// per-request value: cardinality = 1 per deployment.
+		//
+		// rejection_code and cross_shard are the two most diagnostic
+		// dimensions when a breach fires — "is this only happening on
+		// cross-shard 2PC?" and "are these breaches concentrated on a
+		// single rejection path?" are the first two questions an oncall
+		// will ask. Both labels are enum-bounded (rejection_code goes
+		// through normalizeRejectionCode; cross_shard is a bool), so
+		// cardinality remains finite (~8 rejection codes × 2 × methods ×
+		// results ≈ a few dozen combinations).
 		sloLabels := map[string]string{
-			"method":        method,
-			"result":        result,
-			"pending":       boolLabel(pending),
-			"slo_target_ms": strconv.FormatInt(durationMillis(m.authorizeLatencySLO), 10),
+			"method":         method,
+			"result":         result,
+			"rejection_code": normalizeRejectionCode(rejectionCode),
+			"cross_shard":    boolLabel(crossShard),
+			"pending":        boolLabel(pending),
+			"slo_target_ms":  strconv.FormatInt(durationMillis(m.authorizeLatencySLO), 10),
 		}
 		m.factory.Counter(authorizeLatencySLOBreachesTotal).WithLabels(sloLabels).AddOne(ctx)
 	}
@@ -331,6 +374,137 @@ func bucketLockCount(lockCount int) string {
 		return "5_10"
 	default:
 		return "11_plus"
+	}
+}
+
+// ObservePreparedExpired increments authorizer_prepared_expired_total with a
+// bounded reason label. Called by the prepared-transaction reaper whenever a
+// prepared tx is removed without a committed outcome. A sustained non-zero
+// rate is an SLI for stuck 2PC transactions — alert on any persistent
+// increase.
+func (m *authorizerMetrics) ObservePreparedExpired(reason string) {
+	if m == nil {
+		return
+	}
+
+	normalizedReason := normalizePreparedExpirationReason(reason)
+
+	if m.factory != nil {
+		m.factory.Counter(authorizerPreparedExpiredTotal).
+			WithLabels(map[string]string{"reason": normalizedReason}).
+			AddOne(context.Background())
+	}
+
+	if m.logger != nil {
+		m.logger.Warnf(
+			"Authorizer prepared transaction auto-aborted without commit/abort: reason=%s",
+			normalizedReason,
+		)
+	}
+}
+
+// ObservePreparedPendingDepth sets authorizer_prepared_pending_depth to the
+// current pending count. The raw depth is the gauge value; the
+// bucketPreparedDepth-derived "shard_range" label stays bounded to five
+// discrete ranges so operators get both the exact depth and a cardinality-
+// safe label slice for alerting (e.g. alert when shard_range=hundreds for >
+// 1m).
+func (m *authorizerMetrics) ObservePreparedPendingDepth(depth int) {
+	if m == nil || m.factory == nil {
+		return
+	}
+
+	m.factory.Gauge(authorizerPreparedPendingDepth).
+		WithLabels(map[string]string{"shard_range": bucketPreparedDepth(depth)}).
+		Set(context.Background(), int64(depth))
+}
+
+// bucketPreparedDepth classifies a raw pending count into a bounded enum so
+// it can be used as a metric label without unbounded cardinality. The
+// boundaries align with DefaultMaxPreparedTx=10_000: "zero", "1_9",
+// "10_99", "100_999", "1000_plus" give dashboards four orders of magnitude
+// of resolution.
+func bucketPreparedDepth(depth int) string {
+	switch {
+	case depth <= 0:
+		return "zero"
+	case depth < preparedDepthBucket10:
+		return "1_9"
+	case depth < preparedDepthBucket100:
+		return "10_99"
+	case depth < preparedDepthBucket1000:
+		return "100_999"
+	default:
+		return "1000_plus"
+	}
+}
+
+// EmitAuthorizationAuditEvent writes a structured audit log entry for every
+// authorize decision. Unlike RecordAuthorize (which emits bounded-cardinality
+// metrics), this path is intentionally log-based: organization_id and
+// ledger_id are high-cardinality and cannot be safely attached as metric
+// labels, but financial audit requires full tenant context for every
+// decision. Operators can grep the audit stream; metrics remain
+// cardinality-safe.
+//
+// Called by the authorize RPC handler once per decision. Safe to call with a
+// nil receiver (no-op). All user-controlled identifiers pass through
+// normalizeLogToken before formatting.
+func (m *authorizerMetrics) EmitAuthorizationAuditEvent(
+	ctx context.Context,
+	organizationID string,
+	ledgerID string,
+	transactionID string,
+	actor string,
+	result string,
+	rejectionCode string,
+	amountBucket string,
+	crossShard bool,
+) {
+	_ = ctx // ctx is accepted so call sites can pass the request-scoped
+	// context for future correlation (e.g. adding request-id); the current
+	// audit-channel implementation does not consume it.
+
+	if m == nil || m.logger == nil {
+		return
+	}
+
+	m.logger.Warnf(
+		"AUTHORIZER_AUDIT event=authorize tenant=%s ledger=%s tx_id=%s actor=%s result=%s rejection_code=%s amount_bucket=%s cross_shard=%s",
+		normalizeLogToken(organizationID),
+		normalizeLogToken(ledgerID),
+		normalizeLogToken(transactionID),
+		normalizeLogToken(actor),
+		normalizeLogToken(result),
+		normalizeRejectionCode(rejectionCode),
+		normalizeLogToken(amountBucket),
+		boolLabel(crossShard),
+	)
+}
+
+// RecordSecurityEvent routes a security-significant event through the logger
+// at WARN or ERROR level, depending on severity. This is the single entry
+// point for auth failures, policy rejections, rate-limit triggers,
+// peer-token failures, and WAL HMAC failures — separating them from routine
+// operational INFO noise so operators can build a dedicated security SIEM
+// sink by filtering on the "AUTHORIZER_SECURITY" prefix.
+//
+// category is a stable, caller-provided label ("auth_failure",
+// "policy_rejection", "rate_limit", "peer_token", "wal_hmac"). detail is a
+// free-form human-readable message — all user-controlled tokens MUST be
+// pre-sanitized by the caller via normalizeLogToken.
+func (m *authorizerMetrics) RecordSecurityEvent(severity, category, detail string) {
+	if m == nil || m.logger == nil {
+		return
+	}
+
+	line := "AUTHORIZER_SECURITY category=" + normalizeStage(category) + " detail=" + normalizeLogToken(detail)
+
+	switch strings.ToLower(strings.TrimSpace(severity)) {
+	case "error":
+		m.logger.Errorf("%s", line)
+	default:
+		m.logger.Warnf("%s", line)
 	}
 }
 
@@ -581,6 +755,22 @@ func normalizeLogToken(value string) string {
 	}
 
 	return token
+}
+
+// normalizePreparedExpirationReason clamps the reason label on
+// authorizer_prepared_expired_total to the two stable values emitted by the
+// engine's prepared-tx reaper; any other input collapses to "other" to keep
+// cardinality bounded.
+func normalizePreparedExpirationReason(value string) string {
+	reason := strings.TrimSpace(strings.ToLower(value))
+	switch reason {
+	case "":
+		return labelUnknown
+	case engine.PreparedExpirationTimeout, engine.PreparedExpirationForceAbort:
+		return reason
+	default:
+		return labelOther
+	}
 }
 
 func normalizeReplaySkipReason(value string) string {
