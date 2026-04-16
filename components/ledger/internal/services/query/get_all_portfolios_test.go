@@ -53,7 +53,7 @@ func TestGetAllPortfolio(t *testing.T) {
 			mockSetup: func() {
 				validUUID := uuid.New()
 				mockPortfolioRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter).
 					Return([]*mmodel.Portfolio{
 						{ID: validUUID.String(), Name: "Test Portfolio", Status: mmodel.Status{Code: "active"}},
 					}, nil)
@@ -75,7 +75,7 @@ func TestGetAllPortfolio(t *testing.T) {
 			filter:         http.QueryHeader{Limit: 10, Page: 1},
 			mockSetup: func() {
 				mockPortfolioRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
 			expectErr:      true,
@@ -89,7 +89,7 @@ func TestGetAllPortfolio(t *testing.T) {
 			mockSetup: func() {
 				validUUID := uuid.New()
 				mockPortfolioRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter).
 					Return([]*mmodel.Portfolio{
 						{ID: validUUID.String(), Name: "Test Portfolio", Status: mmodel.Status{Code: "active"}},
 					}, nil)

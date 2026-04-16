@@ -88,7 +88,7 @@ func (mr *MockRepositoryMockRecorder) Find(ctx, organizationID, ledgerID, id any
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Portfolio, error) {
+func (m *MockRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Portfolio, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAll", ctx, organizationID, ledgerID, filter)
 	ret0, _ := ret[0].([]*mmodel.Portfolio)
