@@ -1278,3 +1278,316 @@ func TestIntegration_AccountRepository_Count_IsolatesByOrgLedger(t *testing.T) {
 	assert.Equal(t, int64(3), count1, "org1 should have 3 accounts")
 	assert.Equal(t, int64(1), count2, "org2 should have 1 account")
 }
+
+// ============================================================================
+// FindAll Filter Tests (Phase 1 - Account Filters)
+// ============================================================================
+
+func TestIntegration_AccountRepository_FindAll_FiltersByStatus(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create accounts with different statuses
+	activeParams := pgtestutil.DefaultAccountParams()
+	activeParams.Name = "Active Account 1"
+	activeParams.Alias = "@active1"
+	activeParams.Status = "ACTIVE"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, activeParams)
+
+	activeParams2 := pgtestutil.DefaultAccountParams()
+	activeParams2.Name = "Active Account 2"
+	activeParams2.Alias = "@active2"
+	activeParams2.Status = "ACTIVE"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, activeParams2)
+
+	inactiveParams := pgtestutil.DefaultAccountParams()
+	inactiveParams.Name = "Inactive Account"
+	inactiveParams.Alias = "@inactive1"
+	inactiveParams.Status = "INACTIVE"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, inactiveParams)
+
+	blockedParams := pgtestutil.DefaultAccountParams()
+	blockedParams.Name = "Blocked Account"
+	blockedParams.Alias = "@blocked1"
+	blockedParams.Status = "BLOCKED"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, blockedParams)
+
+	ctx := context.Background()
+	filter := http.Pagination{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+	}
+
+	// Create AccountFilter with status filter
+	statusFilter := "ACTIVE"
+	accFilter := AccountFilter{
+		Status: &statusFilter,
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, accFilter, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 2, "should return only ACTIVE accounts")
+
+	for _, acc := range accounts {
+		assert.Equal(t, "ACTIVE", acc.Status.Code, "all returned accounts should have ACTIVE status")
+	}
+}
+
+func TestIntegration_AccountRepository_FindAll_FiltersByType(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create accounts with different types
+	depositParams := pgtestutil.DefaultAccountParams()
+	depositParams.Name = "Deposit Account 1"
+	depositParams.Alias = "@deposit1"
+	depositParams.Type = "deposit"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, depositParams)
+
+	depositParams2 := pgtestutil.DefaultAccountParams()
+	depositParams2.Name = "Deposit Account 2"
+	depositParams2.Alias = "@deposit2"
+	depositParams2.Type = "deposit"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, depositParams2)
+
+	savingsParams := pgtestutil.DefaultAccountParams()
+	savingsParams.Name = "Savings Account"
+	savingsParams.Alias = "@savings1"
+	savingsParams.Type = "savings"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, savingsParams)
+
+	externalParams := pgtestutil.DefaultAccountParams()
+	externalParams.Name = "External Account"
+	externalParams.Alias = "@external1"
+	externalParams.Type = "external"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, externalParams)
+
+	ctx := context.Background()
+	filter := http.Pagination{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+	}
+
+	// Create AccountFilter with type filter
+	typeFilter := "deposit"
+	accFilter := AccountFilter{
+		Type: &typeFilter,
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, accFilter, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 2, "should return only deposit accounts")
+
+	for _, acc := range accounts {
+		assert.Equal(t, "deposit", acc.Type, "all returned accounts should have deposit type")
+	}
+}
+
+func TestIntegration_AccountRepository_FindAll_FiltersByAssetCode(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create accounts with different asset codes
+	usdParams := pgtestutil.DefaultAccountParams()
+	usdParams.Name = "USD Account 1"
+	usdParams.Alias = "@usd1"
+	usdParams.AssetCode = "USD"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, usdParams)
+
+	usdParams2 := pgtestutil.DefaultAccountParams()
+	usdParams2.Name = "USD Account 2"
+	usdParams2.Alias = "@usd2"
+	usdParams2.AssetCode = "USD"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, usdParams2)
+
+	brlParams := pgtestutil.DefaultAccountParams()
+	brlParams.Name = "BRL Account"
+	brlParams.Alias = "@brl1"
+	brlParams.AssetCode = "BRL"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, brlParams)
+
+	eurParams := pgtestutil.DefaultAccountParams()
+	eurParams.Name = "EUR Account"
+	eurParams.Alias = "@eur1"
+	eurParams.AssetCode = "EUR"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, eurParams)
+
+	ctx := context.Background()
+	filter := http.Pagination{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+	}
+
+	// Create AccountFilter with asset_code filter
+	assetCodeFilter := "USD"
+	accFilter := AccountFilter{
+		AssetCode: &assetCodeFilter,
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, accFilter, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 2, "should return only USD accounts")
+
+	for _, acc := range accounts {
+		assert.Equal(t, "USD", acc.AssetCode, "all returned accounts should have USD asset code")
+	}
+}
+
+func TestIntegration_AccountRepository_FindAll_CombinesMultipleFiltersWithAND(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create accounts with various combinations
+	// Account 1: ACTIVE, deposit, USD - should match
+	acc1Params := pgtestutil.DefaultAccountParams()
+	acc1Params.Name = "Match Account"
+	acc1Params.Alias = "@match1"
+	acc1Params.Status = "ACTIVE"
+	acc1Params.Type = "deposit"
+	acc1Params.AssetCode = "USD"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc1Params)
+
+	// Account 2: ACTIVE, deposit, BRL - should NOT match (wrong asset)
+	acc2Params := pgtestutil.DefaultAccountParams()
+	acc2Params.Name = "Wrong Asset"
+	acc2Params.Alias = "@wrongasset"
+	acc2Params.Status = "ACTIVE"
+	acc2Params.Type = "deposit"
+	acc2Params.AssetCode = "BRL"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc2Params)
+
+	// Account 3: ACTIVE, savings, USD - should NOT match (wrong type)
+	acc3Params := pgtestutil.DefaultAccountParams()
+	acc3Params.Name = "Wrong Type"
+	acc3Params.Alias = "@wrongtype"
+	acc3Params.Status = "ACTIVE"
+	acc3Params.Type = "savings"
+	acc3Params.AssetCode = "USD"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc3Params)
+
+	// Account 4: INACTIVE, deposit, USD - should NOT match (wrong status)
+	acc4Params := pgtestutil.DefaultAccountParams()
+	acc4Params.Name = "Wrong Status"
+	acc4Params.Alias = "@wrongstatus"
+	acc4Params.Status = "INACTIVE"
+	acc4Params.Type = "deposit"
+	acc4Params.AssetCode = "USD"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc4Params)
+
+	ctx := context.Background()
+	filter := http.Pagination{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+	}
+
+	// Create AccountFilter with all filters (AND logic)
+	statusFilter := "ACTIVE"
+	typeFilter := "deposit"
+	assetCodeFilter := "USD"
+	accFilter := AccountFilter{
+		Status:    &statusFilter,
+		Type:      &typeFilter,
+		AssetCode: &assetCodeFilter,
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, accFilter, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 1, "should return only the one account matching all filters")
+
+	assert.Equal(t, "Match Account", accounts[0].Name)
+	assert.Equal(t, "ACTIVE", accounts[0].Status.Code)
+	assert.Equal(t, "deposit", accounts[0].Type)
+	assert.Equal(t, "USD", accounts[0].AssetCode)
+}
+
+func TestIntegration_AccountRepository_FindAll_EmptyFilterReturnsAll(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create 3 accounts with different statuses/types
+	acc1Params := pgtestutil.DefaultAccountParams()
+	acc1Params.Name = "Account 1"
+	acc1Params.Alias = "@acc1"
+	acc1Params.Status = "ACTIVE"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc1Params)
+
+	acc2Params := pgtestutil.DefaultAccountParams()
+	acc2Params.Name = "Account 2"
+	acc2Params.Alias = "@acc2"
+	acc2Params.Status = "INACTIVE"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc2Params)
+
+	acc3Params := pgtestutil.DefaultAccountParams()
+	acc3Params.Name = "Account 3"
+	acc3Params.Alias = "@acc3"
+	acc3Params.Status = "BLOCKED"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc3Params)
+
+	ctx := context.Background()
+	filter := http.Pagination{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+	}
+
+	// Empty filter (no filters applied)
+	accFilter := AccountFilter{}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, accFilter, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 3, "empty filter should return all accounts")
+}

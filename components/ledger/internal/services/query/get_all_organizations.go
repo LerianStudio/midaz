@@ -30,7 +30,7 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHea
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving organizations")
 
-	organizations, err := uc.OrganizationRepo.FindAll(ctx, filter.ToOffsetPagination(), filter.LegalName, filter.DoingBusinessAs)
+	organizations, err := uc.OrganizationRepo.FindAll(ctx, filter)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting organizations on repo: %v", err))
 
