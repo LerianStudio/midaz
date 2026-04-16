@@ -8,10 +8,16 @@ import (
 	"context"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+
+	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 func TestResolveBalanceShard(t *testing.T) {
@@ -260,4 +266,97 @@ func TestResolveBalanceShard_RouterOnly_SecondGuardNeverReached(t *testing.T) {
 	require.GreaterOrEqual(t, gotShard, 0)
 	require.Less(t, gotShard, 2)
 	require.Equal(t, router.ResolveBalance("@user_abc", "default"), gotShard)
+}
+
+// TestResolveBalanceShard_FallbackRequiresFlag covers D8 finding #4: when the
+// manager returns an error BUT the paired shardID is within the router's
+// valid range, we now require an explicit AllowFallback opt-in. Default
+// behaviour is fail-closed: propagate the error rather than silently route
+// traffic to an FNV-hashed shardID that may be stale relative to a migration
+// override.
+//
+// The test drives the manager into the "parse shard id" error branch by
+// injecting a non-numeric value into the routing Redis hash. That branch
+// returns (router.ResolveBalance(...), wrappedErr) — a valid fallback shard
+// paired with a real error. We assert:
+//
+//  1. Options{} (AllowFallback=false) → error propagated, shardID=0.
+//  2. Options{AllowFallback: true}    → err=nil, shardID==router fallback,
+//     fallback counter increments exactly once.
+func TestResolveBalanceShard_FallbackRequiresFlag(t *testing.T) {
+	mini, err := miniredis.Run()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { mini.Close() })
+
+	client := redis.NewClient(&redis.Options{Addr: mini.Addr()})
+
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+
+	conn := &libRedis.RedisConnection{Client: client, Connected: true}
+	router := shard.NewRouter(4)
+	manager := internalsharding.NewManager(conn, router, nil, internalsharding.Config{RouteCacheTTL: 0})
+	require.NotNil(t, manager)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	alias := "@payout"
+	balanceKey := "default"
+
+	// Seed the routing hash with a non-numeric value so Manager.ResolveBalanceShard
+	// hits the strconv.Atoi error path and returns (fallbackShard, err).
+	hashKey := utils.ShardRoutingKey(orgID, ledgerID)
+	require.NoError(t, client.HSet(context.Background(), hashKey, alias, "not-a-number").Err())
+
+	fallbackShard := router.ResolveBalance(alias, balanceKey)
+	require.GreaterOrEqual(t, fallbackShard, 0)
+	require.Less(t, fallbackShard, router.ShardCount())
+
+	// Case 1: default fail-closed — error propagated, counter not bumped.
+	ResetFallbackTotalForTest()
+
+	gotShard, err := ResolveBalanceShardWithOptions(
+		context.Background(),
+		router, manager,
+		orgID, ledgerID,
+		alias, balanceKey,
+		Options{AllowFallback: false},
+	)
+	require.Error(t, err)
+	require.Equal(t, 0, gotShard, "fail-closed must not leak the fallback shard")
+	require.Contains(t, err.Error(), "resolve balance shard")
+	require.Equal(t, uint64(0), FallbackTotal(),
+		"fallback counter must not increment when AllowFallback=false",
+	)
+
+	// Case 2: explicit opt-in — fallback returned, counter bumped exactly once.
+	ResetFallbackTotalForTest()
+
+	gotShard, err = ResolveBalanceShardWithOptions(
+		context.Background(),
+		router, manager,
+		orgID, ledgerID,
+		alias, balanceKey,
+		Options{AllowFallback: true},
+	)
+	require.NoError(t, err)
+	require.Equal(t, fallbackShard, gotShard,
+		"AllowFallback=true must return the router-based fallback shardID",
+	)
+	require.Equal(t, uint64(1), FallbackTotal(),
+		"fallback counter must increment once per AllowFallback swallow",
+	)
+
+	// Case 3: default entrypoint (zero-value Options) preserves fail-closed.
+	ResetFallbackTotalForTest()
+
+	gotShard, err = ResolveBalanceShard(
+		context.Background(),
+		router, manager,
+		orgID, ledgerID,
+		alias, balanceKey,
+	)
+	require.Error(t, err, "default ResolveBalanceShard must fail-closed")
+	require.Equal(t, 0, gotShard)
+	require.Equal(t, uint64(0), FallbackTotal())
 }

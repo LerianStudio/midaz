@@ -67,6 +67,13 @@ type UseCase struct {
 	// When nil, routing falls back to static hash-based ShardRouter behavior.
 	ShardManager *internalsharding.Manager
 
+	// AllowShardRoutingFallback, when true, preserves legacy behaviour where a
+	// manager error that still produced a valid FNV-hashed shardID is swallowed
+	// and the fallback shardID is used. When false (production default), such
+	// errors propagate so callers fail-closed rather than read possibly-stale
+	// routes. Driven by SHARD_ROUTING_ALLOW_FALLBACK at bootstrap.
+	AllowShardRoutingFallback bool
+
 	// Authorizer owns async BTO publishing when enabled.
 	Authorizer AuthorizerPublisher
 

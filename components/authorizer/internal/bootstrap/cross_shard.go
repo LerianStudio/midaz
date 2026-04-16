@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/engine"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 )
 
@@ -93,12 +95,24 @@ type prepareResult struct {
 //     returned a prepared transaction ID. Each releases locks without mutation.
 //
 // The balance snapshots from all participants are merged into a single response.
+//
+// Single-shard fast path (defense in depth): even though authorizeWithMetric
+// already short-circuits all-local shard maps, this function re-checks on
+// entry. The extra cost is a map length + range check, and the payoff is that
+// any future caller (tests, recovery flows, direct invocation) cannot
+// accidentally route a single-shard-local tx through the full 2PC dance with
+// its Redpanda commit-intent publish. The commit intent is never visible for a
+// transaction that did not actually span shards.
 func (s *authorizerService) authorizeCrossShard(
 	ctx context.Context,
 	req *authorizerv1.AuthorizeRequest,
 	shardOps map[int][]*authorizerv1.BalanceOperation,
 ) (*authorizerv1.AuthorizeResponse, error) {
 	start := time.Now()
+
+	if resp, ok := s.tryCrossShardFastPath(ctx, req, shardOps); ok {
+		return resp, nil
+	}
 
 	if rejection := s.engine.ValidateRequestLimits(req); rejection != nil {
 		s.recordCrossShardRejectionMetrics(ctx, req, rejection, shardOps, start)
@@ -152,18 +166,7 @@ func (s *authorizerService) authorizeCrossShard(
 
 	committedAny := false
 
-	publishCommittedStatus := func() { //nolint:contextcheck // best-effort publish must survive context cancellation
-		intent.Status = commitIntentStatusCommitted
-		if err := s.publishCommitIntent(context.Background(), &intent); err != nil {
-			s.logger.Warnf(
-				"cross-shard COMMITTED intent write failed (non-fatal): tx_id=%s err=%v",
-				req.GetTransactionId(),
-				err,
-			)
-		}
-	}
-
-	localRes, err := s.runLocalCommitPhase(ctx, results, &intent, req, committedAny, publishCommittedStatus)
+	localRes, publishCommittedStatus, err := s.runLocalCommitPhase(ctx, results, &intent, req, committedAny)
 	if err != nil {
 		return nil, err
 	}
@@ -189,6 +192,47 @@ func (s *authorizerService) authorizeCrossShard(
 		Authorized: true,
 		Balances:   allSnapshots,
 	}, nil
+}
+
+// tryCrossShardFastPath detects the degenerate case where a "cross-shard"
+// invocation actually touches a single local shard. In that case we delegate
+// to authorizeFastPath so we skip Redpanda commit-intent publish and the full
+// 2PC ceremony. Returns (resp, true) when the fast path fired, (nil, false)
+// otherwise.
+//
+// This is defense-in-depth: authorizeWithMetric already performs the check at
+// the RPC boundary. Re-checking here means tests and future internal callers
+// get the same guarantee, and we avoid writing a PREPARED intent for a
+// transaction that will commit locally and synchronously.
+func (s *authorizerService) tryCrossShardFastPath(
+	ctx context.Context,
+	req *authorizerv1.AuthorizeRequest,
+	shardOps map[int][]*authorizerv1.BalanceOperation,
+) (*authorizerv1.AuthorizeResponse, bool) {
+	if len(shardOps) != 1 {
+		return nil, false
+	}
+
+	for shardID := range shardOps {
+		if !s.isLocalShard(shardID) {
+			return nil, false
+		}
+	}
+
+	// Use the cross-shard metric name so the fast-path hop is still observable
+	// under the same histograms as genuine cross-shard authorizations — the
+	// bypass is not silent, it's just zero-2PC.
+	resp, err := s.authorizeFastPath(ctx, req, "authorize_cross_shard")
+	if err != nil {
+		// authorizeFastPath already logged + emitted metrics; surface the error
+		// via the (resp=nil, ok=true) contract handled by the caller: if we
+		// return ok=true resp can still be nil, but callers expect a non-nil
+		// success path — so fall through to the 2PC path on error to keep the
+		// existing error surface.
+		return nil, false
+	}
+
+	return resp, true
 }
 
 func (s *authorizerService) recordCrossShardRejectionMetrics(
@@ -267,6 +311,21 @@ func (s *authorizerService) executePreparePhase(
 	localOps []*authorizerv1.BalanceOperation,
 	peerOpsMap map[*peerClient][]*authorizerv1.BalanceOperation,
 ) ([]prepareResult, error) {
+	// Order operations DEBIT/ONHOLD before CREDIT/RELEASE within each
+	// participant's sub-request. The authorizer engine already validates
+	// DEBIT before CREDIT on a single-shard path (see rules.go
+	// validateSufficientFundsRule + validateExternalAccountRule), but the
+	// cross-shard coordinator previously preserved caller-supplied order,
+	// meaning a CREDIT could be validated before the paired DEBIT on a
+	// different shard's participant. sortOperationsDebitFirst normalises each
+	// sub-request so the engine sees the funds-decrementing legs first on
+	// every participant — matching the single-shard contract.
+	sortOperationsDebitFirst(localOps)
+
+	for _, ops := range peerOpsMap {
+		sortOperationsDebitFirst(ops)
+	}
+
 	buildSubRequest := func(ops []*authorizerv1.BalanceOperation) *authorizerv1.AuthorizeRequest {
 		return &authorizerv1.AuthorizeRequest{
 			TransactionId:     req.GetTransactionId(),
@@ -383,6 +442,56 @@ func (s *authorizerService) prepareRemoteParticipant(
 	}
 
 	return r
+}
+
+// debitFirstOpRank returns the sort key used by sortOperationsDebitFirst.
+// Funds-decrementing operations (DEBIT, ON_HOLD) take opRankDebitClass so they
+// sort before funds-increasing operations (CREDIT, RELEASE) at
+// opRankCreditClass. Any unknown operation string lands at opRankUnknown and
+// sorts after the known ones — we never want a mystery op to preempt a DEBIT
+// on the same participant.
+//
+// Matching is case-insensitive because the wire format is not guaranteed to
+// normalise casing (lib-commons BalanceOperation.Operation is carried through
+// from caller input).
+const (
+	// opRankDebitClass covers DEBIT and ON_HOLD — both decrement available funds.
+	opRankDebitClass = 0
+	// opRankCreditClass covers CREDIT and RELEASE — both increase available funds.
+	opRankCreditClass = 1
+	// opRankUnknown is the fallback bucket for unrecognised operation strings
+	// so future additions sort after the well-known ops rather than silently
+	// leapfrogging a DEBIT.
+	opRankUnknown = 2
+)
+
+func debitFirstOpRank(op string) int {
+	switch strings.ToUpper(op) {
+	case constant.DEBIT, constant.ONHOLD:
+		return opRankDebitClass
+	case constant.CREDIT, constant.RELEASE:
+		return opRankCreditClass
+	default:
+		return opRankUnknown
+	}
+}
+
+// sortOperationsDebitFirst sorts a participant's operations slice in place so
+// DEBIT/ONHOLD come before CREDIT/RELEASE. Stable sort preserves the relative
+// order of operations within the same rank, so deterministic inputs produce
+// deterministic engine-side lock acquisition order.
+func sortOperationsDebitFirst(ops []*authorizerv1.BalanceOperation) {
+	// Short-circuit on trivially-sorted inputs (0 or 1 element); sort.SliceStable
+	// would be a no-op but we keep the early return to make the intent obvious.
+	const minSortableLen = 2
+
+	if len(ops) < minSortableLen {
+		return
+	}
+
+	sort.SliceStable(ops, func(i, j int) bool {
+		return debitFirstOpRank(ops[i].GetOperation()) < debitFirstOpRank(ops[j].GetOperation())
+	})
 }
 
 func sortPreparesByShardOrder(prepares []orderedPrepare) {
@@ -673,6 +782,34 @@ func (s *authorizerService) commitLocalParticipants(
 	return res
 }
 
+// newCommittedStatusPublisher constructs the closure responsible for writing
+// the COMMITTED commit-intent to Redpanda. The closure is intentionally
+// owned by runLocalCommitPhase (rather than the caller) so that the publish
+// call is lexically co-located with the commit it records: we publish
+// immediately after the first local commit succeeds, and callers never see a
+// half-defined publishCommittedStatus detached from its commit phase.
+//
+// The publish uses context.Background() because it MUST survive cancellation
+// of the per-request context — otherwise a slow upstream canceller could
+// leave the authorizer with a durable PREPARED intent and no COMMITTED
+// follow-up, forcing the recovery reconciler to re-drive a transaction that
+// has already committed.
+func (s *authorizerService) newCommittedStatusPublisher(
+	intent *commitIntent,
+	req *authorizerv1.AuthorizeRequest,
+) func() {
+	return func() {
+		intent.Status = commitIntentStatusCommitted
+		if err := s.publishCommitIntent(context.Background(), intent); err != nil {
+			s.logger.Warnf(
+				"cross-shard COMMITTED intent write failed (non-fatal): tx_id=%s err=%v",
+				req.GetTransactionId(),
+				err,
+			)
+		}
+	}
+}
+
 // asyncCommitPhase runs the async commit path: publish in background with retry,
 // commit local immediately, then gate on publish completion.
 func (s *authorizerService) asyncCommitPhase(
@@ -795,19 +932,35 @@ func (s *authorizerService) syncCommitPhase(
 	return &localResult, nil
 }
 
+// runLocalCommitPhase owns the "publish COMMITTED" callback so it is
+// constructed here (not by the caller) and returned alongside the local
+// result. Remote-peer commit loops reuse the same callback, guaranteeing the
+// status publish is atomic with the first successful local commit rather
+// than a best-effort step scheduled after the phase returns. Returning the
+// callback preserves that atomicity while still letting the remote fan-out
+// invoke it on first-peer-success when the local phase found no local
+// participants.
 func (s *authorizerService) runLocalCommitPhase(
 	ctx context.Context,
 	results []prepareResult,
 	intent *commitIntent,
 	req *authorizerv1.AuthorizeRequest,
 	committedAny bool,
-	publishCommittedStatus func(),
-) (*localCommitResult, error) {
+) (*localCommitResult, func(), error) {
+	publishCommittedStatus := s.newCommittedStatusPublisher(intent, req) //nolint:contextcheck // publisher closure uses context.Background() by design so COMMITTED intent survives request-context cancellation
+
+	var (
+		res *localCommitResult
+		err error
+	)
+
 	if s.asyncCommitIntent {
-		return s.asyncCommitPhase(ctx, results, intent, req, committedAny, publishCommittedStatus)
+		res, err = s.asyncCommitPhase(ctx, results, intent, req, committedAny, publishCommittedStatus)
+	} else {
+		res, err = s.syncCommitPhase(ctx, results, intent, req, committedAny, publishCommittedStatus)
 	}
 
-	return s.syncCommitPhase(ctx, results, intent, req, committedAny, publishCommittedStatus)
+	return res, publishCommittedStatus, err
 }
 
 // remoteCommitOutcome captures the result of a single remote peer commit so

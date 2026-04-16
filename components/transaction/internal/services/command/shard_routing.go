@@ -35,7 +35,14 @@ func (uc *UseCase) resolveBalanceShard(ctx context.Context, organizationID, ledg
 		return 0, nil
 	}
 
-	return shardrouting.ResolveBalanceShard(ctx, uc.ShardRouter, uc.ShardManager, organizationID, ledgerID, alias, balanceKey)
+	return shardrouting.ResolveBalanceShardWithOptions(
+		ctx,
+		uc.ShardRouter,
+		uc.ShardManager,
+		organizationID, ledgerID,
+		alias, balanceKey,
+		shardrouting.Options{AllowFallback: uc.AllowShardRoutingFallback},
+	)
 }
 
 // waitForMigrationUnlock mirrors the query-side guard so write paths can block

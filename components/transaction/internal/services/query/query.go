@@ -54,6 +54,11 @@ type UseCase struct {
 	// When nil, routing falls back to static hash-based ShardRouter behavior.
 	ShardManager *internalsharding.Manager
 
+	// AllowShardRoutingFallback mirrors the command-side flag: when true, a
+	// manager error paired with a valid fallback shardID is swallowed and the
+	// fallback is used. When false (default), the error propagates.
+	AllowShardRoutingFallback bool
+
 	// Authorizer provides optional external balance authorization over gRPC.
 	// When nil or disabled, Redis Lua remains the active authorization path.
 	Authorizer Authorizer

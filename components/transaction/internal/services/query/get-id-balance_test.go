@@ -261,7 +261,18 @@ func TestGetBalanceByID(t *testing.T) { //nolint:funlen
 		shardManager := internalsharding.NewManager(&libRedis.RedisConnection{Client: &shardLookupFailRedisClient{}}, router, nil, internalsharding.Config{})
 		require.NotNil(t, shardManager)
 
-		uc := UseCase{BalanceRepo: balanceRepo, RedisRepo: redisRepo, ShardRouter: router, ShardManager: shardManager}
+		// AllowShardRoutingFallback=true preserves the legacy swallow-and-fallback
+		// behaviour this test case exists to cover. With the D8 fail-closed
+		// default, the same shard-manager error would bubble up rather than
+		// silently route via the FNV hash — see
+		// TestResolveBalanceShard_FallbackRequiresFlag for the fail-closed path.
+		uc := UseCase{
+			BalanceRepo:               balanceRepo,
+			RedisRepo:                 redisRepo,
+			ShardRouter:               router,
+			ShardManager:              shardManager,
+			AllowShardRoutingFallback: true,
+		}
 
 		balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(base, nil)
 		fallbackShardID := router.Resolve(base.Alias)

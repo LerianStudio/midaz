@@ -68,6 +68,16 @@ var (
 	ErrConsumerModeNotSet = errors.New("invalid consumer mode: set either CONSUMER_ENABLED=true or DEDICATED_CONSUMER_ENABLED=true")
 	// ErrSSLDisableNotAllowed is returned when SSL is disabled in a production-like environment.
 	ErrSSLDisableNotAllowed = errors.New("SSL disable is not allowed in production-like environments")
+	// ErrExternalPreSplitShardMismatch is returned when EXTERNAL_PRESPLIT_SHARD_COUNT diverges
+	// from REDIS_SHARD_COUNT without explicit opt-in via ALLOW_EXTERNAL_PRESPLIT_MISMATCH.
+	//
+	// Rationale: pre-split ceiling controls how many Redis shards external-account
+	// hot keys are fanned out across. When this is smaller than the live shard count,
+	// large fan-out workloads (e.g. 10K-beneficiary payouts all debiting @external/USD)
+	// collapse onto a small pre-split ceiling, producing write contention ~ batch/ceiling
+	// per shard key. Forcing parity at bootstrap is the only fail-closed guard available —
+	// once the pre-warm has run it is too late for operators to notice.
+	ErrExternalPreSplitShardMismatch = errors.New("EXTERNAL_PRESPLIT_SHARD_COUNT must equal REDIS_SHARD_COUNT")
 )
 
 var dirtyMigrationVersionPattern = regexp.MustCompile(`(?i)dirty database version\s+(\d+)`)
@@ -1204,6 +1214,12 @@ type Config struct {
 	// Default 0 = sharding disabled (legacy single-slot mode).
 	RedisShardCount int `env:"REDIS_SHARD_COUNT" default:"0"`
 
+	// ShardRoutingAllowFallback controls how the service reacts when the shard
+	// manager errors but still hands back a valid router-based fallback
+	// shardID. Default false is fail-closed — operators must explicitly opt in
+	// to the legacy swallow-error behaviour.
+	ShardRoutingAllowFallback bool `env:"SHARD_ROUTING_ALLOW_FALLBACK" default:"false"`
+
 	ConsumerBackpressureEnabled bool `env:"CONSUMER_BACKPRESSURE_ENABLED" default:"false"`
 	ConsumerMaxDBTPS            int  `env:"CONSUMER_MAX_DB_TPS" default:"0"`
 	ConsumerMaxDBBurst          int  `env:"CONSUMER_MAX_DB_BURST" default:"100"`
@@ -1230,7 +1246,11 @@ type Config struct {
 	ExternalPreSplitPreWarmTTLSeconds int    `env:"EXTERNAL_PRESPLIT_PREWARM_TTL_SECONDS" default:"3600"`
 	ExternalPreSplitOrganizationID    string `env:"EXTERNAL_PRESPLIT_ORGANIZATION_ID"`
 	ExternalPreSplitLedgerID          string `env:"EXTERNAL_PRESPLIT_LEDGER_ID"`
-	BalanceCacheTTLSeconds            int    `env:"BALANCE_CACHE_TTL_SECONDS" default:"0"`
+	// AllowExternalPreSplitMismatch is an explicit opt-out for the parity check between
+	// EXTERNAL_PRESPLIT_SHARD_COUNT and REDIS_SHARD_COUNT. Defaults to false so a silent
+	// ceiling mismatch cannot reach production; operators must acknowledge the skew.
+	AllowExternalPreSplitMismatch bool `env:"ALLOW_EXTERNAL_PRESPLIT_MISMATCH" default:"false"`
+	BalanceCacheTTLSeconds        int  `env:"BALANCE_CACHE_TTL_SECONDS" default:"0"`
 
 	// Circuit Breaker configuration for producer
 	BrokerCircuitBreakerConsecutiveFailures int    `env:"BROKER_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES" default:"15"`
@@ -1270,6 +1290,41 @@ func validateConsumerModeConfig(cfg *Config) error {
 	return nil
 }
 
+// validateExternalPreSplitShardCount enforces parity between the external-account
+// pre-split ceiling (EXTERNAL_PRESPLIT_SHARD_COUNT) and the live shard count
+// (REDIS_SHARD_COUNT). When the pre-split ceiling is smaller, large fan-out
+// workloads collapse onto a subset of shards and generate contention at
+// ~(batch_size / ceiling) contending writes per shard key. When the ceiling is
+// larger than live shards, pre-warm wastes Redis keys that route out of range.
+//
+// The check is fail-closed: if REDIS_SHARD_COUNT > 0 and the ceiling is set
+// (>0), the two MUST match, unless the operator has acknowledged the skew via
+// ALLOW_EXTERNAL_PRESPLIT_MISMATCH=true. A ceiling of 0 disables the check —
+// pre-split is effectively off.
+func validateExternalPreSplitShardCount(cfg *Config) error {
+	if cfg == nil {
+		return nil
+	}
+
+	if cfg.AllowExternalPreSplitMismatch {
+		return nil
+	}
+
+	if cfg.ExternalPreSplitShardCount <= 0 || cfg.RedisShardCount <= 0 {
+		return nil
+	}
+
+	if cfg.ExternalPreSplitShardCount == cfg.RedisShardCount {
+		return nil
+	}
+
+	return fmt.Errorf("%w: EXTERNAL_PRESPLIT_SHARD_COUNT=%d REDIS_SHARD_COUNT=%d (set ALLOW_EXTERNAL_PRESPLIT_MISMATCH=true to override)",
+		ErrExternalPreSplitShardMismatch,
+		cfg.ExternalPreSplitShardCount,
+		cfg.RedisShardCount,
+	)
+}
+
 // InitServers initiate http and grpc servers.
 func InitServers() (*Service, error) {
 	return InitServersWithOptions(nil)
@@ -1286,6 +1341,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	if err := validateConsumerModeConfig(cfg); err != nil {
+		return nil, err
+	}
+
+	if err := validateExternalPreSplitShardCount(cfg); err != nil {
 		return nil, err
 	}
 
@@ -1435,48 +1494,50 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	cleanupFuncs = append(cleanupFuncs, brokerInfra.cleanupFuncs...)
 
 	useCase := &command.UseCase{
-		TransactionRepo:          transactionPostgreSQLRepository,
-		OperationRepo:            operationPostgreSQLRepository,
-		AssetRateRepo:            assetRatePostgreSQLRepository,
-		BalanceRepo:              balancePostgreSQLRepository,
-		OperationRouteRepo:       operationRoutePostgreSQLRepository,
-		TransactionRouteRepo:     transactionRoutePostgreSQLRepository,
-		MetadataRepo:             metadataMongoDBRepository,
-		BrokerRepo:               brokerInfra.producer,
-		RedisRepo:                redisConsumerRepository,
-		ShardRouter:              shardRouter,
-		ShardManager:             shardManager,
-		BalanceOperationsTopic:   cfg.RedpandaBalanceOperationsTopic,
-		BalanceCreateTopic:       cfg.RedpandaBalanceCreateTopic,
-		EventsTopic:              cfg.RedpandaEventsTopic,
-		DecisionEventsTopic:      cfg.RedpandaDecisionEventsTopic,
-		EventsEnabled:            cfg.TransactionEventsEnabled,
-		AuditTopic:               cfg.RedpandaAuditTopic,
-		AuditLogEnabled:          cfg.AuditLogEnabled,
-		TransactionAsync:         cfg.TransactionAsync,
-		Version:                  cfg.Version,
-		BatchSideEffectsTimeout:  time.Duration(cfg.BatchSideEffectsTimeoutMS) * time.Millisecond,
-		IdempotencyReplayTimeout: time.Duration(cfg.IdempotencyReplayTimeoutMS) * time.Millisecond,
+		TransactionRepo:           transactionPostgreSQLRepository,
+		OperationRepo:             operationPostgreSQLRepository,
+		AssetRateRepo:             assetRatePostgreSQLRepository,
+		BalanceRepo:               balancePostgreSQLRepository,
+		OperationRouteRepo:        operationRoutePostgreSQLRepository,
+		TransactionRouteRepo:      transactionRoutePostgreSQLRepository,
+		MetadataRepo:              metadataMongoDBRepository,
+		BrokerRepo:                brokerInfra.producer,
+		RedisRepo:                 redisConsumerRepository,
+		ShardRouter:               shardRouter,
+		ShardManager:              shardManager,
+		AllowShardRoutingFallback: cfg.ShardRoutingAllowFallback,
+		BalanceOperationsTopic:    cfg.RedpandaBalanceOperationsTopic,
+		BalanceCreateTopic:        cfg.RedpandaBalanceCreateTopic,
+		EventsTopic:               cfg.RedpandaEventsTopic,
+		DecisionEventsTopic:       cfg.RedpandaDecisionEventsTopic,
+		EventsEnabled:             cfg.TransactionEventsEnabled,
+		AuditTopic:                cfg.RedpandaAuditTopic,
+		AuditLogEnabled:           cfg.AuditLogEnabled,
+		TransactionAsync:          cfg.TransactionAsync,
+		Version:                   cfg.Version,
+		BatchSideEffectsTimeout:   time.Duration(cfg.BatchSideEffectsTimeoutMS) * time.Millisecond,
+		IdempotencyReplayTimeout:  time.Duration(cfg.IdempotencyReplayTimeoutMS) * time.Millisecond,
 	}
 
 	balanceCacheTTL := resolveBalanceCacheTTL(cfg)
 
 	queryUseCase := &query.UseCase{
-		TransactionRepo:         transactionPostgreSQLRepository,
-		OperationRepo:           operationPostgreSQLRepository,
-		AssetRateRepo:           assetRatePostgreSQLRepository,
-		BalanceRepo:             balancePostgreSQLRepository,
-		OperationRouteRepo:      operationRoutePostgreSQLRepository,
-		TransactionRouteRepo:    transactionRoutePostgreSQLRepository,
-		MetadataRepo:            metadataMongoDBRepository,
-		RedisRepo:               redisConsumerRepository,
-		ShardRouter:             shardRouter,
-		ShardManager:            shardManager,
-		LagChecker:              brokerInfra.consumerLagChecker,
-		ConsumerLagFenceEnabled: cfg.ConsumerLagFenceEnabled,
-		BalanceOperationsTopic:  cfg.RedpandaBalanceOperationsTopic,
-		StaleBalanceRecoverer:   brokerInfra.staleBalanceRecoverer,
-		BalanceCacheTTL:         balanceCacheTTL,
+		TransactionRepo:           transactionPostgreSQLRepository,
+		OperationRepo:             operationPostgreSQLRepository,
+		AssetRateRepo:             assetRatePostgreSQLRepository,
+		BalanceRepo:               balancePostgreSQLRepository,
+		OperationRouteRepo:        operationRoutePostgreSQLRepository,
+		TransactionRouteRepo:      transactionRoutePostgreSQLRepository,
+		MetadataRepo:              metadataMongoDBRepository,
+		RedisRepo:                 redisConsumerRepository,
+		ShardRouter:               shardRouter,
+		ShardManager:              shardManager,
+		AllowShardRoutingFallback: cfg.ShardRoutingAllowFallback,
+		LagChecker:                brokerInfra.consumerLagChecker,
+		ConsumerLagFenceEnabled:   cfg.ConsumerLagFenceEnabled,
+		BalanceOperationsTopic:    cfg.RedpandaBalanceOperationsTopic,
+		StaleBalanceRecoverer:     brokerInfra.staleBalanceRecoverer,
+		BalanceCacheTTL:           balanceCacheTTL,
 	}
 
 	authorizerClient, err := grpcOut.NewAuthorizerClient(

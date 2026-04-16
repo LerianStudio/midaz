@@ -39,7 +39,14 @@ func (uc *UseCase) resolveBalanceShard(ctx context.Context, organizationID, ledg
 		return 0, nil
 	}
 
-	return shardrouting.ResolveBalanceShard(ctx, uc.ShardRouter, uc.ShardManager, organizationID, ledgerID, alias, balanceKey)
+	return shardrouting.ResolveBalanceShardWithOptions(
+		ctx,
+		uc.ShardRouter,
+		uc.ShardManager,
+		organizationID, ledgerID,
+		alias, balanceKey,
+		shardrouting.Options{AllowFallback: uc.AllowShardRoutingFallback},
+	)
 }
 
 // trackInFlightWrites increments the per-alias in-flight counter in Redis for

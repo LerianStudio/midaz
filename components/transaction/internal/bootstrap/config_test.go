@@ -312,3 +312,92 @@ func TestConfig_NoCasdoorFields(t *testing.T) {
 	// point — so we rely on the struct walk above.)
 	_ = loadedCfg
 }
+
+// TestConfig_RejectsExternalPreSplitShardCountMismatch verifies the D8 fail-closed
+// guard that blocks bootstrap when EXTERNAL_PRESPLIT_SHARD_COUNT diverges from
+// REDIS_SHARD_COUNT without explicit operator opt-in. See D8 finding #1.
+func TestConfig_RejectsExternalPreSplitShardCountMismatch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		preSplit   int
+		shardCount int
+		allow      bool
+		wantErr    error
+	}{
+		{
+			name:       "matching counts accepted",
+			preSplit:   8,
+			shardCount: 8,
+			allow:      false,
+			wantErr:    nil,
+		},
+		{
+			name:       "mismatch without override is rejected",
+			preSplit:   8,
+			shardCount: 16,
+			allow:      false,
+			wantErr:    ErrExternalPreSplitShardMismatch,
+		},
+		{
+			name:       "mismatch with explicit override is accepted",
+			preSplit:   8,
+			shardCount: 16,
+			allow:      true,
+			wantErr:    nil,
+		},
+		{
+			name:       "pre-split disabled (0) skips the check",
+			preSplit:   0,
+			shardCount: 16,
+			allow:      false,
+			wantErr:    nil,
+		},
+		{
+			name:       "redis sharding disabled (0) skips the check",
+			preSplit:   8,
+			shardCount: 0,
+			allow:      false,
+			wantErr:    nil,
+		},
+		{
+			name:       "pre-split larger than shard count is still rejected",
+			preSplit:   32,
+			shardCount: 8,
+			allow:      false,
+			wantErr:    ErrExternalPreSplitShardMismatch,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := &Config{
+				ExternalPreSplitShardCount:    tt.preSplit,
+				RedisShardCount:               tt.shardCount,
+				AllowExternalPreSplitMismatch: tt.allow,
+			}
+
+			err := validateExternalPreSplitShardCount(cfg)
+
+			if tt.wantErr == nil {
+				require.NoError(t, err)
+				return
+			}
+
+			require.Error(t, err)
+			require.ErrorIs(t, err, tt.wantErr)
+		})
+	}
+}
+
+// TestConfig_RejectsExternalPreSplitShardCountMismatch_NilCfg guards against a
+// nil-cfg panic — validateExternalPreSplitShardCount is called from an
+// already-nil-checked path but defense-in-depth matters.
+func TestConfig_RejectsExternalPreSplitShardCountMismatch_NilCfg(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, validateExternalPreSplitShardCount(nil))
+}

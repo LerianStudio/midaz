@@ -1438,3 +1438,404 @@ func TestCommitAllRemotePeers_ParallelContinueOnFailure(t *testing.T) {
 	require.True(t, committedByID["ptx-fast"], "fast peer committed")
 	require.False(t, committedByID["ptx-fail"], "failing peer must not be marked committed")
 }
+
+// TestSortPreparesDebitFirstAcrossShards covers D8 finding #2: within each
+// participant's sub-request, DEBIT/ONHOLD must sort before CREDIT/RELEASE so
+// the engine's funds-decrementing validation runs on the funds-decrementing
+// legs first. The check is per-participant because each shard's engine
+// validates its own ops independently.
+func TestSortPreparesDebitFirstAcrossShards(t *testing.T) {
+	t.Parallel()
+
+	// Build three participants' worth of mixed operations. Within each, the
+	// caller supplied CREDIT before DEBIT (or interleaved) — our sort must
+	// bring all DEBIT/ONHOLD ops to the head while preserving the relative
+	// order within each rank (stable sort).
+	shardA := []*authorizerv1.BalanceOperation{
+		{OperationAlias: "a-credit-1", AccountAlias: "@alice", Operation: constant.CREDIT},
+		{OperationAlias: "a-debit-1", AccountAlias: "@alice", Operation: constant.DEBIT},
+		{OperationAlias: "a-credit-2", AccountAlias: "@bob", Operation: constant.CREDIT},
+		{OperationAlias: "a-onhold-1", AccountAlias: "@alice", Operation: constant.ONHOLD},
+	}
+
+	shardB := []*authorizerv1.BalanceOperation{
+		{OperationAlias: "b-release-1", AccountAlias: "@carol", Operation: constant.RELEASE},
+		{OperationAlias: "b-debit-1", AccountAlias: "@dan", Operation: constant.DEBIT},
+	}
+
+	shardC := []*authorizerv1.BalanceOperation{
+		{OperationAlias: "c-credit-1", AccountAlias: "@eve", Operation: constant.CREDIT},
+	}
+
+	sortOperationsDebitFirst(shardA)
+	sortOperationsDebitFirst(shardB)
+	sortOperationsDebitFirst(shardC)
+
+	// Shard A: DEBIT, ONHOLD first (rank 0), then CREDIT pair (rank 1).
+	// Stable sort: DEBIT before ONHOLD (original relative order within rank 0
+	// is a-debit-1 then a-onhold-1), and within rank 1 the two CREDIT ops
+	// preserve caller order (a-credit-1 then a-credit-2).
+	require.Equal(t, []string{"a-debit-1", "a-onhold-1", "a-credit-1", "a-credit-2"},
+		opAliases(shardA),
+		"shard A: DEBIT/ONHOLD must precede CREDIT; stable within rank",
+	)
+
+	// Shard B: DEBIT (rank 0) must come before RELEASE (rank 1).
+	require.Equal(t, []string{"b-debit-1", "b-release-1"}, opAliases(shardB),
+		"shard B: DEBIT must precede RELEASE",
+	)
+
+	// Shard C: single op is a no-op.
+	require.Equal(t, []string{"c-credit-1"}, opAliases(shardC))
+}
+
+// TestSortPreparesDebitFirstCaseInsensitive exercises the mixed-case safeguard
+// — callers are not contractually required to UPPER-CASE operations.
+func TestSortPreparesDebitFirstCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
+	ops := []*authorizerv1.BalanceOperation{
+		{OperationAlias: "credit-lower", AccountAlias: "@a", Operation: "credit"},
+		{OperationAlias: "debit-mixed", AccountAlias: "@b", Operation: "Debit"},
+		{OperationAlias: "onhold-mixed", AccountAlias: "@c", Operation: "On_Hold"},
+	}
+
+	sortOperationsDebitFirst(ops)
+
+	require.Equal(t, []string{"debit-mixed", "onhold-mixed", "credit-lower"},
+		opAliases(ops),
+		"lowercase/mixed-case ops must rank the same as UPPER-CASE",
+	)
+}
+
+// TestSortPreparesDebitFirstUnknownOpsLast guards against a silent behaviour
+// change if a new operation type is added without updating debitFirstOpRank.
+// Unknown strings rank at 2 — they sort AFTER known ops, never before DEBIT.
+func TestSortPreparesDebitFirstUnknownOpsLast(t *testing.T) {
+	t.Parallel()
+
+	ops := []*authorizerv1.BalanceOperation{
+		{OperationAlias: "unknown-1", AccountAlias: "@a", Operation: "FROBNICATE"},
+		{OperationAlias: "credit-1", AccountAlias: "@b", Operation: constant.CREDIT},
+		{OperationAlias: "debit-1", AccountAlias: "@c", Operation: constant.DEBIT},
+	}
+
+	sortOperationsDebitFirst(ops)
+
+	require.Equal(t, []string{"debit-1", "credit-1", "unknown-1"}, opAliases(ops),
+		"unknown ops must sort last — DEBIT must never be displaced",
+	)
+}
+
+func opAliases(ops []*authorizerv1.BalanceOperation) []string {
+	out := make([]string, len(ops))
+	for i, op := range ops {
+		out[i] = op.GetOperationAlias()
+	}
+
+	return out
+}
+
+// TestAuthorizeCrossShard_SingleShardLocalBypassesIntent covers D8 finding #3:
+// even though authorizeWithMetric already routes single-shard local ops to
+// authorizeFastPath, authorizeCrossShard itself defends against a future
+// internal caller (or test) that hands it a degenerate shardOps map. When
+// len(shardOps) == 1 and that single shard is local, the full 2PC ceremony —
+// and most importantly the Redpanda commit-intent publish — MUST be skipped.
+func TestAuthorizeCrossShard_SingleShardLocalBypassesIntent(t *testing.T) {
+	eng := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
+	defer eng.Close()
+
+	eng.UpsertBalances([]*engine.Balance{{
+		ID:             "b-local",
+		OrganizationID: "org",
+		LedgerID:       "ledger",
+		AccountAlias:   "@alice",
+		BalanceKey:     constant.DefaultBalanceKey,
+		AssetCode:      "USD",
+		Available:      1000,
+		Scale:          2,
+		Version:        1,
+		AllowSending:   true,
+		AllowReceiving: true,
+	}})
+	eng.UpsertBalances([]*engine.Balance{{
+		ID:             "b-local-2",
+		OrganizationID: "org",
+		LedgerID:       "ledger",
+		AccountAlias:   "@bob",
+		BalanceKey:     constant.DefaultBalanceKey,
+		AssetCode:      "USD",
+		Available:      0,
+		Scale:          2,
+		Version:        1,
+		AllowSending:   true,
+		AllowReceiving: true,
+	}})
+
+	pub := &capturingPublisher{}
+
+	svc := &authorizerService{
+		engine:          eng,
+		pub:             pub,
+		logger:          mustInitLogger(t),
+		grpcAddr:        "authorizer-1:50051",
+		ownedShardStart: 0,
+		ownedShardEnd:   3,
+		peerAuthToken:   "peer-secret",
+		// Peers exist — we deliberately want authorizeCrossShard entered with a
+		// single-shard-local map to exercise the defensive early-return.
+		peers: []*peerClient{{
+			addr:       "authorizer-2:50051",
+			clients:    []authorizerv1.BalanceAuthorizerClient{&stubPeerClient{}},
+			shardStart: 4,
+			shardEnd:   7,
+		}},
+	}
+
+	req := &authorizerv1.AuthorizeRequest{
+		TransactionId:     "tx-single-shard-local",
+		OrganizationId:    "org",
+		LedgerId:          "ledger",
+		Pending:           false,
+		TransactionStatus: constant.CREATED,
+		Operations: []*authorizerv1.BalanceOperation{
+			{OperationAlias: "0#@alice#default", AccountAlias: "@alice", BalanceKey: constant.DefaultBalanceKey, Amount: 100, Scale: 2, Operation: constant.DEBIT},
+			{OperationAlias: "1#@bob#default", AccountAlias: "@bob", BalanceKey: constant.DefaultBalanceKey, Amount: 100, Scale: 2, Operation: constant.CREDIT},
+		},
+	}
+
+	// Single-shard, local-owned (shard 2 is within [0..3]).
+	shardOps := map[int][]*authorizerv1.BalanceOperation{
+		2: req.GetOperations(),
+	}
+
+	resp, err := svc.authorizeCrossShard(context.Background(), req, shardOps)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.True(t, resp.GetAuthorized(), "single-shard-local path must commit via fast path")
+
+	// Critical invariant: NO commit intent publish, because the 2PC ceremony
+	// was skipped entirely. A committed-intent message would prove we ran the
+	// cross-shard flow and published a durable marker — which is exactly what
+	// the fast path is meant to avoid.
+	require.Empty(t, pub.messages,
+		"single-shard-local bypass must not publish any commit intent (found %d messages)",
+		len(pub.messages),
+	)
+
+	// Balance actually moved — confirms we didn't just return a rejection.
+	alice, ok := eng.GetBalance("org", "ledger", "@alice", constant.DefaultBalanceKey)
+	require.True(t, ok)
+	require.Equal(t, int64(900), alice.Available)
+}
+
+// TestAuthorizeCrossShard_SingleShardRemoteStillUses2PC is the negative case:
+// if the one shard in the map is NOT local, we must not short-circuit. The
+// coordinator still has to prepare/commit on the owning peer.
+func TestAuthorizeCrossShard_SingleShardRemoteStillUses2PC(t *testing.T) {
+	eng := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
+	defer eng.Close()
+
+	pub := &capturingPublisher{}
+	peer := &stubPeerClient{
+		prepareResp: &authorizerv1.PrepareAuthorizeResponse{Authorized: true, PreparedTxId: "ptx-peer-only"},
+		commitResp:  &authorizerv1.CommitPreparedResponse{Committed: true},
+	}
+
+	svc := &authorizerService{
+		engine:          eng,
+		pub:             pub,
+		logger:          mustInitLogger(t),
+		grpcAddr:        "authorizer-1:50051",
+		ownedShardStart: 0,
+		ownedShardEnd:   3,
+		peerAuthToken:   "peer-secret",
+		peers: []*peerClient{{
+			addr:       "authorizer-2:50051",
+			clients:    []authorizerv1.BalanceAuthorizerClient{peer},
+			shardStart: 4,
+			shardEnd:   7,
+		}},
+	}
+
+	req := &authorizerv1.AuthorizeRequest{
+		TransactionId:     "tx-single-shard-remote",
+		OrganizationId:    "org",
+		LedgerId:          "ledger",
+		TransactionStatus: constant.CREATED,
+		Operations: []*authorizerv1.BalanceOperation{
+			{OperationAlias: "0#@remote#default", AccountAlias: "@remote", BalanceKey: "default", Amount: 100, Scale: 2, Operation: constant.CREDIT},
+		},
+	}
+
+	shardOps := map[int][]*authorizerv1.BalanceOperation{
+		6: req.GetOperations(), // shard 6 is remote (peer range 4..7)
+	}
+
+	resp, err := svc.authorizeCrossShard(context.Background(), req, shardOps)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.True(t, resp.GetAuthorized())
+
+	// Remote shard → full 2PC → commit intent publishes must have fired.
+	require.NotEmpty(t, pub.messages,
+		"single-shard-remote path must still publish commit intents",
+	)
+}
+
+// TestLocalCommit_PublishesCommittedStatusAtomically covers D8 finding #5: the
+// COMMITTED commit-intent MUST be published synchronously as part of
+// runLocalCommitPhase, not after it returns. This is the atomicity invariant
+// that ensures a coordinator crash between local commit success and COMMITTED
+// publish cannot leave recovery with only a PREPARED intent. The test
+// simulates "crash between phases" by asserting the COMMITTED message exists
+// in the publisher BEFORE the remote-peer commit fans out.
+func TestLocalCommit_PublishesCommittedStatusAtomically(t *testing.T) {
+	eng := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
+	defer eng.Close()
+
+	eng.UpsertBalances([]*engine.Balance{{
+		ID:             "b-local",
+		OrganizationID: "org",
+		LedgerID:       "ledger",
+		AccountAlias:   "@alice",
+		BalanceKey:     constant.DefaultBalanceKey,
+		AssetCode:      "USD",
+		Available:      1000,
+		Scale:          2,
+		Version:        1,
+		AllowSending:   true,
+		AllowReceiving: true,
+	}})
+
+	pub := &capturingPublisher{}
+
+	// Peer that blocks on commit — simulates a coordinator "crash" between
+	// local commit success and remote commit. Before the peer's commit
+	// returns, the COMMITTED intent MUST already exist in the publisher so
+	// recovery can distinguish drive-to-completion from abort.
+	peerCommitGate := make(chan struct{})
+	peer := &blockingCommitStubPeerClient{
+		prepareResp: &authorizerv1.PrepareAuthorizeResponse{Authorized: true, PreparedTxId: "ptx-peer-slow"},
+		commitResp:  &authorizerv1.CommitPreparedResponse{Committed: true},
+		commitGate:  peerCommitGate,
+	}
+
+	svc := &authorizerService{
+		engine:          eng,
+		pub:             pub,
+		logger:          mustInitLogger(t),
+		grpcAddr:        "authorizer-1:50051",
+		ownedShardStart: 0,
+		ownedShardEnd:   3,
+		peerAuthToken:   "peer-secret",
+		peers: []*peerClient{{
+			addr:       "authorizer-2:50051",
+			clients:    []authorizerv1.BalanceAuthorizerClient{peer},
+			shardStart: 4,
+			shardEnd:   7,
+		}},
+	}
+
+	req := &authorizerv1.AuthorizeRequest{
+		TransactionId:     "tx-atomic-committed",
+		OrganizationId:    "org",
+		LedgerId:          "ledger",
+		TransactionStatus: constant.CREATED,
+		Operations: []*authorizerv1.BalanceOperation{
+			{OperationAlias: "0#@alice#default", AccountAlias: "@alice", BalanceKey: constant.DefaultBalanceKey, Amount: 100, Scale: 2, Operation: constant.DEBIT},
+			{OperationAlias: "1#@remote#default", AccountAlias: "@remote", BalanceKey: "default", Amount: 100, Scale: 2, Operation: constant.CREDIT},
+		},
+	}
+
+	shardOps := map[int][]*authorizerv1.BalanceOperation{
+		1: {req.GetOperations()[0]}, // local
+		5: {req.GetOperations()[1]}, // remote, commit blocked on gate
+	}
+
+	done := make(chan struct{})
+
+	go func() {
+		_, _ = svc.authorizeCrossShard(context.Background(), req, shardOps)
+
+		close(done)
+	}()
+
+	// Wait until PREPARED and COMMITTED are both present before releasing the
+	// peer commit. If the COMMITTED publish were "best-effort after local
+	// commit returns", we'd see only PREPARED here — which is the exact
+	// crash-window the fix closes.
+	require.Eventually(t, func() bool {
+		pub.mu.Lock()
+		defer pub.mu.Unlock()
+
+		hasCommitted := false
+
+		for _, msg := range pub.messages {
+			var intent commitIntent
+			if err := json.Unmarshal(msg.Payload, &intent); err != nil {
+				continue
+			}
+
+			if intent.Status == commitIntentStatusCommitted {
+				hasCommitted = true
+			}
+		}
+
+		return hasCommitted
+	}, 2*time.Second, 10*time.Millisecond,
+		"COMMITTED intent must be published before remote commit completes",
+	)
+
+	// Release the peer and let the full flow finish.
+	close(peerCommitGate)
+	<-done
+
+	// Final invariant: PREPARED, COMMITTED, and COMPLETED are all present.
+	statuses := make(map[string]int)
+
+	for _, msg := range pub.messages {
+		var intent commitIntent
+		require.NoError(t, json.Unmarshal(msg.Payload, &intent))
+
+		statuses[intent.Status]++
+	}
+
+	require.GreaterOrEqual(t, statuses[commitIntentStatusPrepared], 1)
+	require.GreaterOrEqual(t, statuses[commitIntentStatusCommitted], 1)
+	require.GreaterOrEqual(t, statuses[commitIntentStatusCompleted], 1)
+}
+
+// blockingCommitStubPeerClient is a stubPeerClient variant whose CommitPrepared
+// blocks on a caller-provided channel. Used to assert ordering invariants
+// between local commit → COMMITTED publish → remote commit.
+type blockingCommitStubPeerClient struct {
+	stubPeerClient
+
+	prepareResp *authorizerv1.PrepareAuthorizeResponse
+	commitResp  *authorizerv1.CommitPreparedResponse
+	commitGate  chan struct{}
+}
+
+func (b *blockingCommitStubPeerClient) PrepareAuthorize(_ context.Context, _ *authorizerv1.AuthorizeRequest, _ ...grpc.CallOption) (*authorizerv1.PrepareAuthorizeResponse, error) {
+	if b.prepareResp != nil {
+		return b.prepareResp, nil
+	}
+
+	return &authorizerv1.PrepareAuthorizeResponse{Authorized: true, PreparedTxId: "ptx-blocking"}, nil
+}
+
+func (b *blockingCommitStubPeerClient) CommitPrepared(ctx context.Context, _ *authorizerv1.CommitPreparedRequest, _ ...grpc.CallOption) (*authorizerv1.CommitPreparedResponse, error) {
+	select {
+	case <-b.commitGate:
+	case <-ctx.Done():
+		return nil, fmt.Errorf("blocking commit stub: %w", ctx.Err())
+	}
+
+	if b.commitResp != nil {
+		return b.commitResp, nil
+	}
+
+	return &authorizerv1.CommitPreparedResponse{Committed: true}, nil
+}
