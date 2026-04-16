@@ -17,11 +17,14 @@ import (
 // FindMigrationsPath locates a migrations directory by traversing up from the current directory.
 // It looks for the pattern: components/{component}/migrations
 //
+// Accepts testing.TB so benchmarks can call it too — the signature was widened
+// from *testing.T during Batch B to support BenchmarkTransactionsContention_HotBalance.
+//
 // Example:
 //
 //	path := FindMigrationsPath(t, "onboarding")  // finds components/onboarding/migrations
 //	path := FindMigrationsPath(t, "transaction") // finds components/transaction/migrations
-func FindMigrationsPath(t *testing.T, component string) string {
+func FindMigrationsPath(t testing.TB, component string) string {
 	t.Helper()
 
 	dir, err := os.Getwd()

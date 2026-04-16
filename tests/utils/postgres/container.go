@@ -72,13 +72,16 @@ type ContainerResult struct {
 
 // SetupContainer starts a PostgreSQL container for integration testing.
 // Returns raw sql.DB for direct inserts and connection info for lib-commons.
-func SetupContainer(t *testing.T) *ContainerResult {
+//
+// Accepts testing.TB so benchmarks can call it too — the signature was widened
+// from *testing.T during Batch B to support BenchmarkTransactionsContention_HotBalance.
+func SetupContainer(t testing.TB) *ContainerResult {
 	t.Helper()
 	return SetupContainerWithConfig(t, DefaultContainerConfig())
 }
 
 // SetupContainerWithConfig starts a PostgreSQL container with custom configuration.
-func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResult {
+func SetupContainerWithConfig(t testing.TB, cfg ContainerConfig) *ContainerResult {
 	t.Helper()
 
 	ctx := context.Background()
@@ -137,7 +140,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	}
 }
 
-func waitForMappedPort(t *testing.T, ctx context.Context, ctr testcontainers.Container, portID string) nat.Port { //nolint:revive // ctx must follow t for test helper pattern
+func waitForMappedPort(t testing.TB, ctx context.Context, ctr testcontainers.Container, portID string) nat.Port { //nolint:revive // ctx must follow t for test helper pattern
 	t.Helper()
 
 	deadline := time.Now().Add(mappedPortTimeout)
