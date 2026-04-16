@@ -25,9 +25,19 @@ var (
 	ErrTLSCANoCertificates      = errors.New("parse redpanda tls ca file: no valid certificates found")
 	ErrSASLCredentialsMissing   = errors.New("redpanda sasl enabled but username/password are empty")
 	ErrUnsupportedSASLMechanism = errors.New("unsupported redpanda sasl mechanism")
+	// ErrSASLPlainRequiresTLSInProduction guards against SASL/PLAIN sending
+	// credentials in the clear: PLAIN transmits the password base64-encoded
+	// without any cryptographic protection, so it MUST be paired with TLS in
+	// production. Non-production environments downgrade this to a runtime
+	// warning emitted by the caller.
+	ErrSASLPlainRequiresTLSInProduction = errors.New("SASL/PLAIN sends credentials in cleartext and requires TLS in production-like environments; enable TLS or switch to SCRAM-SHA-256/512")
 )
 
 // Config controls optional TLS/SASL settings for Redpanda franz-go clients.
+//
+// Environment is optional; when set, BuildFranzGoOptions enforces production-like
+// rules (SASL/PLAIN requires TLS, etc.). Callers that already validated the
+// environment upstream can leave it empty to skip re-validation.
 type Config struct {
 	TLSEnabled            bool
 	TLSInsecureSkipVerify bool
@@ -36,6 +46,9 @@ type Config struct {
 	SASLMechanism         string
 	SASLUsername          string
 	SASLPassword          string
+	// Environment is the ENV_NAME used for non-production classification. When
+	// empty, environment-gated checks are skipped (caller-validated path).
+	Environment string
 }
 
 // BuildFranzGoOptions returns franz-go options for TLS/SASL authentication.
@@ -123,6 +136,14 @@ func buildSASLMechanism(cfg Config) (sasl.Mechanism, error) {
 
 	switch mechanism {
 	case "PLAIN":
+		// D6: PLAIN transmits credentials without cryptographic protection.
+		// In production-like environments, demand TLS so the cleartext password
+		// is at least wrapped by the TLS record layer. Non-prod callers get a
+		// WARN via the runtime validator but are not blocked.
+		if !cfg.TLSEnabled && cfg.Environment != "" && !IsNonProductionEnvironment(cfg.Environment) {
+			return nil, fmt.Errorf("environment=%q: %w", cfg.Environment, ErrSASLPlainRequiresTLSInProduction)
+		}
+
 		return plain.Auth{User: cfg.SASLUsername, Pass: cfg.SASLPassword}.AsMechanism(), nil
 	case "SCRAM-SHA-256":
 		return auth.AsSha256Mechanism(), nil

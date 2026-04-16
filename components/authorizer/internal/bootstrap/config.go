@@ -74,6 +74,17 @@ var (
 	errConfigWALHMACKeyClasses          = errors.New("AUTHORIZER_WAL_HMAC_KEY must include at least 3 character classes")
 	errConfigWALHMACKeyPrevDuplicate    = errors.New("AUTHORIZER_WAL_HMAC_KEY_PREVIOUS must differ from AUTHORIZER_WAL_HMAC_KEY")
 	errConfigWALPathInTmpProduction     = errors.New("AUTHORIZER_WAL_PATH must not live under /tmp in production-like environments")
+	// errConfigRedpandaRecordRetriesMin ensures the franz-go producer retries at
+	// least minRedpandaRecordRetries times before surfacing an error. The publisher
+	// pairs this retry budget with kgo.RequiredAcks(AllISRAcks()): the strong-ack
+	// contract means every publish must be acknowledged by all in-sync replicas,
+	// which is the whole point of enabling cross-shard 2PC durability. Short-lived
+	// ISR churn (leader election, one broker restarting, a slow follower) MUST be
+	// absorbed by the client or the publish flips to an error and the authorizer
+	// aborts the transaction — even though the write would have succeeded seconds
+	// later. Setting retries below the floor is indistinguishable from silently
+	// disabling durability, so we reject it at config load.
+	errConfigRedpandaRecordRetriesMin = errors.New("AUTHORIZER_REDPANDA_RECORD_RETRIES must be >= 3 (paired with RequiredAcks=AllISRAcks to absorb short ISR churn without aborting transactions)")
 )
 
 const minPeerAuthTokenLength = 24
@@ -121,12 +132,15 @@ const (
 	// used by the MaxRecvBytes <-> MaxOperationsPerRequest cross-check. It
 	// accounts for the UUID, minimal metadata, and protobuf framing overhead.
 	// Operators running wider schemas should raise MaxRecvBytes explicitly.
-	estimatedAvgOpBytes                = 64
-	defaultPostgresPoolMaxConns        = 20
-	defaultPostgresPoolMinConns        = 2
-	defaultRedpandaProducerLingerMs    = 5
-	defaultRedpandaMaxBufferedRecords  = 10000
-	defaultRedpandaRecordRetries       = 3
+	estimatedAvgOpBytes               = 64
+	defaultPostgresPoolMaxConns       = 20
+	defaultPostgresPoolMinConns       = 2
+	defaultRedpandaProducerLingerMs   = 5
+	defaultRedpandaMaxBufferedRecords = 10000
+	defaultRedpandaRecordRetries      = 3
+	// minRedpandaRecordRetries is the floor for AUTHORIZER_REDPANDA_RECORD_RETRIES.
+	// See errConfigRedpandaRecordRetriesMin for the AllISRAcks coupling rationale.
+	minRedpandaRecordRetries           = 3
 	defaultRedpandaDeliveryTimeoutMs   = 30000
 	defaultRedpandaPublishTimeoutMs    = 5000
 	defaultCommitIntentPollTimeoutMs   = 1000
@@ -470,6 +484,14 @@ func loadCoreConfig() (*Config, error) {
 
 	rpCfg := loadRedpandaConfig()
 
+	// Validate RecordRetries floor: an env override of 0/1/2 would let a single
+	// ISR hiccup abort a transaction that the broker would otherwise have
+	// committed. Reject at load so operators cannot accidentally weaken the
+	// AllISRAcks contract at the publisher layer.
+	if rpCfg.recordRetries < minRedpandaRecordRetries {
+		return nil, fmt.Errorf("value=%d minimum=%d: %w", rpCfg.recordRetries, minRedpandaRecordRetries, errConfigRedpandaRecordRetriesMin)
+	}
+
 	commitIntentConsumerGroup := strings.TrimSpace(getenv("AUTHORIZER_COMMIT_INTENT_CONSUMER_GROUP", defaultCommitIntentConsumerGroup))
 
 	commitIntentPollTimeoutMs := getenvInt("AUTHORIZER_COMMIT_INTENT_POLL_TIMEOUT_MS", defaultCommitIntentPollTimeoutMs)
@@ -619,7 +641,10 @@ func loadRedpandaConfig() redpandaEnvConfig {
 		recordRetries:      getenvInt("AUTHORIZER_REDPANDA_RECORD_RETRIES", defaultRedpandaRecordRetries),
 		deliveryTimeoutMs:  getenvInt("AUTHORIZER_REDPANDA_DELIVERY_TIMEOUT_MS", defaultRedpandaDeliveryTimeoutMs),
 		publishTimeoutMs:   getenvInt("AUTHORIZER_REDPANDA_PUBLISH_TIMEOUT_MS", defaultRedpandaPublishTimeoutMs),
-		backpressurePolicy: strings.ToLower(strings.TrimSpace(getenv("AUTHORIZER_REDPANDA_BACKPRESSURE_POLICY", "bounded_wait"))),
+		// Default is the honest "timeout_bounded_5s" name. Legacy "bounded_wait"
+		// and "fail_fast" values remain accepted by normalizeConfig for
+		// backward compatibility — see components/authorizer/internal/publisher/redpanda.go.
+		backpressurePolicy: strings.ToLower(strings.TrimSpace(getenv("AUTHORIZER_REDPANDA_BACKPRESSURE_POLICY", "timeout_bounded_5s"))),
 	}
 }
 

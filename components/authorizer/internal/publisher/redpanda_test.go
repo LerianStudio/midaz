@@ -41,18 +41,18 @@ func TestNormalizeConfig_Defaults(t *testing.T) {
 	assert.Equal(t, defaultMaxBufferedRecords, normalized.MaxBufferedRecords)
 	assert.Equal(t, defaultRecordDeliveryTimeout, normalized.RecordDeliveryTimeout)
 	assert.Equal(t, defaultPublishTimeout, normalized.PublishTimeout)
-	assert.Equal(t, BackpressurePolicyBoundedWait, normalized.BackpressurePolicy)
+	assert.Equal(t, BackpressurePolicyTimeoutBounded5s, normalized.BackpressurePolicy)
 	assert.Equal(t, 0, normalized.RecordRetries)
 }
 
-func TestNormalizeConfig_FailFastPolicy(t *testing.T) {
+func TestNormalizeConfig_TimeoutBounded1sPolicy(t *testing.T) {
 	normalized := normalizeConfig(Config{
 		ProducerLinger:        3 * time.Millisecond,
 		MaxBufferedRecords:    2048,
 		RecordRetries:         5,
 		RecordDeliveryTimeout: 7 * time.Second,
 		PublishTimeout:        9 * time.Second,
-		BackpressurePolicy:    "fail_fast",
+		BackpressurePolicy:    "timeout_bounded_1s",
 	})
 
 	assert.Equal(t, 3*time.Millisecond, normalized.ProducerLinger)
@@ -60,7 +60,49 @@ func TestNormalizeConfig_FailFastPolicy(t *testing.T) {
 	assert.Equal(t, 5, normalized.RecordRetries)
 	assert.Equal(t, 7*time.Second, normalized.RecordDeliveryTimeout)
 	assert.Equal(t, 9*time.Second, normalized.PublishTimeout)
-	assert.Equal(t, BackpressurePolicyFailFast, normalized.BackpressurePolicy)
+	assert.Equal(t, BackpressurePolicyTimeoutBounded1s, normalized.BackpressurePolicy)
+}
+
+// TestBackpressure_Bounded5sAndBounded1sDocumented documents the D6 rename:
+// the two policies differ only by timeout ceiling (5s vs 1s). Neither observes
+// MaxBufferedRecords directly — they are honest timeout caps, not buffer-aware
+// fast-fail policies.
+func TestBackpressure_Bounded5sAndBounded1sDocumented(t *testing.T) {
+	// Policy constants must match the honest "timeout_bounded_*" naming.
+	assert.Equal(t, "timeout_bounded_5s", BackpressurePolicyTimeoutBounded5s)
+	assert.Equal(t, "timeout_bounded_1s", BackpressurePolicyTimeoutBounded1s)
+
+	// Deprecated aliases must still resolve to the new values so existing
+	// callers keep compiling and env values keep normalizing.
+	assert.Equal(t, BackpressurePolicyTimeoutBounded5s, BackpressurePolicyBoundedWait)
+	assert.Equal(t, BackpressurePolicyTimeoutBounded1s, BackpressurePolicyFailFast)
+
+	// Legacy env strings still normalize to the new names for backward compat.
+	legacyBounded := normalizeConfig(Config{BackpressurePolicy: "bounded_wait"})
+	legacyFail := normalizeConfig(Config{BackpressurePolicy: "fail_fast"})
+	assert.Equal(t, BackpressurePolicyTimeoutBounded5s, legacyBounded.BackpressurePolicy)
+	assert.Equal(t, BackpressurePolicyTimeoutBounded1s, legacyFail.BackpressurePolicy)
+
+	// TimeoutBounded1s clamps effective deadline to 1s irrespective of
+	// configured PublishTimeout.
+	p1s := &RedpandaPublisher{config: normalizeConfig(Config{PublishTimeout: 10 * time.Second, BackpressurePolicy: BackpressurePolicyTimeoutBounded1s})}
+
+	ctx1s, cancel1s := p1s.newPublishContext(context.Background())
+	defer cancel1s()
+
+	deadline1s, ok := ctx1s.Deadline()
+	require.True(t, ok)
+	assert.LessOrEqual(t, time.Until(deadline1s), failFastPublishTimeout+100*time.Millisecond)
+
+	// TimeoutBounded5s honors the full configured PublishTimeout.
+	p5s := &RedpandaPublisher{config: normalizeConfig(Config{PublishTimeout: 5 * time.Second, BackpressurePolicy: BackpressurePolicyTimeoutBounded5s})}
+
+	ctx5s, cancel5s := p5s.newPublishContext(context.Background())
+	defer cancel5s()
+
+	deadline5s, ok := ctx5s.Deadline()
+	require.True(t, ok)
+	assert.Greater(t, time.Until(deadline5s), 2*time.Second)
 }
 
 func TestNormalizeConfig_InvalidPolicyAndRetries(t *testing.T) {
@@ -69,7 +111,7 @@ func TestNormalizeConfig_InvalidPolicyAndRetries(t *testing.T) {
 		RecordRetries:      -10,
 	})
 
-	assert.Equal(t, BackpressurePolicyBoundedWait, normalized.BackpressurePolicy)
+	assert.Equal(t, BackpressurePolicyTimeoutBounded5s, normalized.BackpressurePolicy)
 	assert.Equal(t, 0, normalized.RecordRetries)
 }
 
@@ -86,8 +128,8 @@ func TestNewRedpandaPublisherWithSecurity_InvalidSecurityConfig(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid redpanda security configuration")
 }
 
-func TestRedpandaPublisher_NewPublishContextFailFast(t *testing.T) {
-	p := &RedpandaPublisher{config: normalizeConfig(Config{PublishTimeout: 10 * time.Second, BackpressurePolicy: BackpressurePolicyFailFast})}
+func TestRedpandaPublisher_NewPublishContextTimeoutBounded1s(t *testing.T) {
+	p := &RedpandaPublisher{config: normalizeConfig(Config{PublishTimeout: 10 * time.Second, BackpressurePolicy: BackpressurePolicyTimeoutBounded1s})}
 
 	ctx, cancel := p.newPublishContext(context.Background())
 	defer cancel()
@@ -101,7 +143,7 @@ func TestRedpandaPublisher_NewPublishContextFailFast(t *testing.T) {
 }
 
 func TestRedpandaPublisher_NewPublishContextRespectsExistingDeadline(t *testing.T) {
-	p := &RedpandaPublisher{config: normalizeConfig(Config{PublishTimeout: 10 * time.Second, BackpressurePolicy: BackpressurePolicyBoundedWait})}
+	p := &RedpandaPublisher{config: normalizeConfig(Config{PublishTimeout: 10 * time.Second, BackpressurePolicy: BackpressurePolicyTimeoutBounded5s})}
 
 	baseCtx, baseCancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer baseCancel()
@@ -118,7 +160,7 @@ func TestRedpandaPublisher_NewPublishContextRespectsExistingDeadline(t *testing.
 }
 
 func TestRedpandaPublisher_NewPublishContextNilContextNoTimeout(t *testing.T) {
-	p := &RedpandaPublisher{config: Config{PublishTimeout: 0, BackpressurePolicy: BackpressurePolicyBoundedWait}}
+	p := &RedpandaPublisher{config: Config{PublishTimeout: 0, BackpressurePolicy: BackpressurePolicyTimeoutBounded5s}}
 
 	ctx, cancel := p.newPublishContext(context.TODO())
 	defer cancel()

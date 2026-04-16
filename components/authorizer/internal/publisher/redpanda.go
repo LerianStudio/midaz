@@ -25,11 +25,43 @@ const (
 	defaultRecordDeliveryTimeout = 30 * time.Second
 	defaultPublishTimeout        = 5 * time.Second
 
-	// BackpressurePolicyBoundedWait applies a bounded timeout to publish operations.
-	BackpressurePolicyBoundedWait = "bounded_wait"
+	// BackpressurePolicyTimeoutBounded5s caps publish wait time at the publisher's
+	// configured PublishTimeout (default 5s). It does NOT observe the client's
+	// MaxBufferedRecords buffer; the franz-go buffer still applies its own
+	// kgo.ManualFlushing-style backpressure independently. The "5s" suffix
+	// reflects current default timeout, not a hard-coded window.
+	BackpressurePolicyTimeoutBounded5s = "timeout_bounded_5s"
 
-	// BackpressurePolicyFailFast fails immediately when the publish deadline is exceeded.
-	BackpressurePolicyFailFast = "fail_fast"
+	// BackpressurePolicyTimeoutBounded1s caps publish wait time at 1s regardless
+	// of the configured PublishTimeout. It does NOT implement buffer-aware
+	// fast-fail; it is simply a tighter timeout ceiling for operators who need
+	// lower worst-case latency at the cost of more publish errors under load.
+	// Despite the historical "fail_fast" name, this policy still waits up to
+	// 1 second before failing — it is not an immediate rejection.
+	BackpressurePolicyTimeoutBounded1s = "timeout_bounded_1s"
+
+	// Legacy policy string aliases. Accepted on input for backward compatibility
+	// (pre-existing .env files and operator tooling reference these names) but
+	// normalized to the new Timeout* names so logs/metrics reflect the honest
+	// timeout-based behavior. See FINAL_REVIEW.md#D6 for the renaming context.
+	legacyBackpressurePolicyBoundedWait = "bounded_wait"
+	legacyBackpressurePolicyFailFast    = "fail_fast"
+
+	// BackpressurePolicyBoundedWait retains the old symbol for external callers
+	// that linked against the previous API. Prefer BackpressurePolicyTimeoutBounded5s
+	// in new code.
+	//
+	// Deprecated: use BackpressurePolicyTimeoutBounded5s.
+	BackpressurePolicyBoundedWait = BackpressurePolicyTimeoutBounded5s
+
+	// BackpressurePolicyFailFast retains the old symbol for external callers.
+	// Prefer BackpressurePolicyTimeoutBounded1s in new code.
+	//
+	// Deprecated: use BackpressurePolicyTimeoutBounded1s.
+	BackpressurePolicyFailFast = BackpressurePolicyTimeoutBounded1s
+
+	// failFastPublishTimeout is the ceiling imposed by BackpressurePolicyTimeoutBounded1s.
+	failFastPublishTimeout = 1 * time.Second
 )
 
 // Config holds tuning parameters for the Redpanda publisher.
@@ -60,8 +92,19 @@ func normalizeConfig(cfg Config) Config {
 	}
 
 	policy := strings.ToLower(strings.TrimSpace(cfg.BackpressurePolicy))
-	if policy != BackpressurePolicyFailFast && policy != BackpressurePolicyBoundedWait {
-		policy = BackpressurePolicyBoundedWait
+
+	// Accept legacy names transparently so existing .env files keep working, but
+	// rewrite to the honest timeout-bounded names. This is the only place that
+	// needs to know about the legacy strings.
+	switch policy {
+	case legacyBackpressurePolicyBoundedWait:
+		policy = BackpressurePolicyTimeoutBounded5s
+	case legacyBackpressurePolicyFailFast:
+		policy = BackpressurePolicyTimeoutBounded1s
+	}
+
+	if policy != BackpressurePolicyTimeoutBounded1s && policy != BackpressurePolicyTimeoutBounded5s {
+		policy = BackpressurePolicyTimeoutBounded5s
 	}
 
 	cfg.BackpressurePolicy = policy
@@ -178,8 +221,12 @@ func (p *RedpandaPublisher) newPublishContext(ctx context.Context) (context.Cont
 	}
 
 	timeout := p.config.PublishTimeout
-	if p.config.BackpressurePolicy == BackpressurePolicyFailFast && timeout > time.Second {
-		timeout = time.Second
+	// TimeoutBounded1s clamps the effective deadline to 1s even when
+	// PublishTimeout is configured higher. This is a timeout cap, not a
+	// buffer-aware fast-fail — records can still sit in the franz-go buffer
+	// for up to a second before the context expires.
+	if p.config.BackpressurePolicy == BackpressurePolicyTimeoutBounded1s && timeout > failFastPublishTimeout {
+		timeout = failFastPublishTimeout
 	}
 
 	if timeout <= 0 {

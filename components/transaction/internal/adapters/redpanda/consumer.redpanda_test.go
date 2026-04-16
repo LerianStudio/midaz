@@ -845,3 +845,119 @@ func TestDrainStoppedPartitionQueue_ProcessesBufferedRecords(t *testing.T) {
 	require.True(t, routes.drainStoppedPartitionQueue(1, workCh))
 	assert.Equal(t, 1, processed)
 }
+
+// TestConsumer_AsyncRerouteDoesNotBlockPollLoop verifies D6 async reroute:
+// enqueueing a failed record must return quickly even when the reroute pool
+// is idle (no broker connection needed). The assertion is on the elapsed
+// duration, not on the publish outcome — the key property is that the
+// partition worker is freed instantly to continue polling.
+func TestConsumer_AsyncRerouteDoesNotBlockPollLoop(t *testing.T) {
+	t.Parallel()
+
+	routes := NewConsumerRoutesWithSecurity(
+		[]string{"127.0.0.1:0"},
+		"group",
+		1,
+		0,
+		initLogger(t),
+		nil,
+		ClientSecurityConfig{},
+		defaultMaxRetryAttempts,
+	)
+	t.Cleanup(routes.Stop)
+
+	// Configure a pool but do NOT start RunConsumers — we only want to
+	// exercise the enqueue path. Simulate the post-RunConsumers state by
+	// allocating the channel directly. Workers are intentionally absent so
+	// the enqueue must not synchronously depend on a worker draining.
+	routes.SetRerouteWorkerPool(2, 16)
+	routes.rerouteCh = make(chan rerouteTask, routes.rerouteQueueCap)
+
+	record := &kgo.Record{
+		Topic:     "ledger.balance.operations",
+		Partition: 3,
+		Offset:    42,
+		Value:     []byte("payload"),
+	}
+
+	start := time.Now()
+	enqueued := routes.enqueueReroute(0, record, errors.New("handler failed"), initLogger(t)) //nolint:err113
+	elapsed := time.Since(start)
+
+	require.True(t, enqueued, "enqueue should succeed while the channel has capacity")
+	// Must return virtually instantly. publishTimeout (5s) * defaultRerouteAttempts (3) = 15s+
+	// blocking was the pre-D6 behavior. 50ms is ~300x headroom while still being
+	// loose enough to tolerate CI jitter.
+	assert.Less(t, elapsed, 50*time.Millisecond, "enqueueReroute must not block the partition worker")
+
+	// The task must be queued — one slot consumed.
+	assert.Len(t, routes.rerouteCh, 1)
+
+	// Drain without starting real workers to satisfy Stop()'s waitgroup.
+	<-routes.rerouteCh
+}
+
+// TestConsumer_AsyncRerouteFallsBackWhenQueueSaturated verifies that when the
+// reroute queue is full and the enqueue timeout expires, enqueueReroute
+// returns false so the caller can fall back to inline routing. This prevents
+// silent record loss when the pool is wedged (e.g., broker unreachable for an
+// extended period filled the queue).
+func TestConsumer_AsyncRerouteFallsBackWhenQueueSaturated(t *testing.T) {
+	t.Parallel()
+
+	routes := NewConsumerRoutesWithSecurity(
+		[]string{"127.0.0.1:0"},
+		"group",
+		1,
+		0,
+		initLogger(t),
+		nil,
+		ClientSecurityConfig{},
+		defaultMaxRetryAttempts,
+	)
+	t.Cleanup(routes.Stop)
+
+	routes.SetRerouteWorkerPool(0, 1) // no workers, capacity=1
+	routes.rerouteCh = make(chan rerouteTask, 1)
+
+	// Fill the channel.
+	routes.rerouteCh <- rerouteTask{}
+
+	record := &kgo.Record{Topic: "t", Partition: 0, Offset: 1, Value: []byte("x")}
+
+	start := time.Now()
+	enqueued := routes.enqueueReroute(0, record, errors.New("boom"), initLogger(t)) //nolint:err113
+	elapsed := time.Since(start)
+
+	assert.False(t, enqueued, "saturated queue must return false so caller falls back to inline routing")
+	// The timeout is 100ms — we wait at most that long. Allow 300ms for CI jitter.
+	assert.GreaterOrEqual(t, elapsed, rerouteEnqueueTimeout)
+	assert.Less(t, elapsed, rerouteEnqueueTimeout+300*time.Millisecond)
+
+	// Drain so Stop() cleanup is clean.
+	<-routes.rerouteCh
+}
+
+// TestConsumer_AsyncRerouteDisabledFallsBackToInline verifies that when the
+// pool is disabled (workers=0, rerouteCh=nil), enqueueReroute returns false
+// and the caller keeps the legacy inline path.
+func TestConsumer_AsyncRerouteDisabledFallsBackToInline(t *testing.T) {
+	t.Parallel()
+
+	routes := NewConsumerRoutesWithSecurity(
+		[]string{"127.0.0.1:0"},
+		"group",
+		1,
+		0,
+		initLogger(t),
+		nil,
+		ClientSecurityConfig{},
+		defaultMaxRetryAttempts,
+	)
+	t.Cleanup(routes.Stop)
+
+	// Channel deliberately left nil.
+	record := &kgo.Record{Topic: "t", Partition: 0, Offset: 1, Value: []byte("x")}
+	enqueued := routes.enqueueReroute(0, record, errors.New("boom"), initLogger(t)) //nolint:err113
+	assert.False(t, enqueued)
+}

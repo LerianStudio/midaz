@@ -47,6 +47,19 @@ const (
 	dispatchRetryAttempts = 2
 	// rerouteDelayMultiplier is the base delay multiplied by attempt number for reroute backoff.
 	rerouteDelayMultiplier = 200 * time.Millisecond
+	// defaultRerouteQueueSize bounds the async reroute channel. Sized so a burst
+	// of failed records does not block the partition worker poll loop, but also
+	// cannot grow unbounded during a broker outage.
+	defaultRerouteQueueSize = 1024
+	// defaultRerouteWorkers processes queued reroute tasks in parallel. Each
+	// worker owns a ProduceSync call, so N workers = N concurrent in-flight
+	// publishes to the retry/DLT topics.
+	defaultRerouteWorkers = 4
+	// rerouteEnqueueTimeout bounds the time a partition worker will wait for a
+	// slot in the reroute queue before giving up and falling back to inline
+	// routing. Non-zero to avoid unbounded poll-loop blocking when the broker
+	// is down and the queue fills.
+	rerouteEnqueueTimeout = 100 * time.Millisecond
 )
 
 var (
@@ -145,6 +158,27 @@ type ConsumerRoutes struct {
 	idleFlush    time.Duration
 
 	batchImmediateCommit bool
+
+	// Async reroute plumbing (D6). When rerouteCh is non-nil, partition workers
+	// hand failed records off to a shared pool of reroute workers instead of
+	// blocking on ProduceSync directly. This caps per-partition head-of-line
+	// blocking at rerouteEnqueueTimeout rather than
+	// publishTimeout * defaultRerouteAttempts (~16s).
+	rerouteCh       chan rerouteTask
+	rerouteWorkers  int
+	rerouteQueueCap int
+	rerouteWG       sync.WaitGroup
+}
+
+// rerouteTask is queued by partition workers when a record needs to be republished
+// to the .retry/.dlt topic. Ownership of markRecord transfers to the reroute
+// worker — on success the record is marked for commit; on permanent failure the
+// record stays unmarked so it will be re-delivered on the next consumer start.
+type rerouteTask struct {
+	record     *kgo.Record
+	handlerErr error
+	logger     libLog.Logger
+	workerID   int
 }
 
 // NewConsumerRoutes creates a new instance of ConsumerRoutes.
@@ -231,7 +265,29 @@ func NewConsumerRoutesWithSecurity(
 		batchWindow:          defaultBatchWindow,
 		idleFlush:            defaultIdleFlush,
 		batchImmediateCommit: true,
+		rerouteWorkers:       defaultRerouteWorkers,
+		rerouteQueueCap:      defaultRerouteQueueSize,
 	}
+}
+
+// SetRerouteWorkerPool configures the async reroute pool size. Call before
+// RunConsumers. Pass workers=0 to disable async reroute and fall back to the
+// legacy inline path (preserved for tests that assert on blocking behavior).
+func (cr *ConsumerRoutes) SetRerouteWorkerPool(workers, queueCap int) {
+	if cr == nil {
+		return
+	}
+
+	if workers < 0 {
+		workers = 0
+	}
+
+	if queueCap <= 0 {
+		queueCap = defaultRerouteQueueSize
+	}
+
+	cr.rerouteWorkers = workers
+	cr.rerouteQueueCap = queueCap
 }
 
 // SetPartitionWorkerHint is retained for API compatibility but has no effect.
@@ -288,6 +344,16 @@ func (cr *ConsumerRoutes) Stop() {
 
 	cr.stopOnce.Do(func() {
 		cr.cancel()
+
+		// Close the reroute channel so workers drain any in-flight tasks and
+		// exit. Done before client.Close() so reroute publishes that were
+		// already in-flight can complete.
+		if cr.rerouteCh != nil {
+			close(cr.rerouteCh)
+			cr.rerouteWG.Wait()
+
+			cr.rerouteCh = nil
+		}
 
 		if cr.client != nil {
 			cr.client.Close()
@@ -416,10 +482,72 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 
 	cr.client = client
 
+	cr.startRerouteWorkers()
+
 	go cr.startCommitLoop()
 	go cr.pollLoop()
 
 	return nil
+}
+
+// startRerouteWorkers spins up the async reroute pool. Must be called once
+// cr.client is initialized because rerouteWorker publishes via cr.client.
+func (cr *ConsumerRoutes) startRerouteWorkers() {
+	if cr == nil || cr.rerouteWorkers <= 0 {
+		return
+	}
+
+	if cr.rerouteQueueCap <= 0 {
+		cr.rerouteQueueCap = defaultRerouteQueueSize
+	}
+
+	cr.rerouteCh = make(chan rerouteTask, cr.rerouteQueueCap)
+
+	for i := 0; i < cr.rerouteWorkers; i++ {
+		cr.rerouteWG.Add(1)
+
+		go cr.rerouteWorker(i)
+	}
+
+	cr.Infof("Started reroute worker pool workers=%d queue_cap=%d", cr.rerouteWorkers, cr.rerouteQueueCap)
+}
+
+// rerouteWorker drains the reroute channel. On success it marks the source
+// record for commit; on permanent failure it leaves the record unmarked so
+// the consumer will re-deliver after restart. Exits when rerouteCh closes.
+func (cr *ConsumerRoutes) rerouteWorker(id int) {
+	defer cr.rerouteWG.Done()
+
+	for task := range cr.rerouteCh {
+		if task.record == nil {
+			continue
+		}
+
+		logger := task.logger
+		if logger == nil {
+			logger = cr.Logger
+		}
+
+		ctx := cr.ctx
+		if ctx == nil {
+			ctx = context.Background()
+		}
+
+		if err := cr.routeFailedRecordWithRetry(ctx, task.record, task.handlerErr, logger); err != nil {
+			logger.Errorf(
+				"Reroute worker %d: giving up on topic=%s partition=%d offset=%d err=%v (record will be re-delivered after consumer restart)",
+				id,
+				task.record.Topic,
+				task.record.Partition,
+				task.record.Offset,
+				err,
+			)
+
+			continue
+		}
+
+		cr.markRecord(task.workerID, logger, task.record)
+	}
 }
 
 func (cr *ConsumerRoutes) pollLoop() {
@@ -779,6 +907,17 @@ func (cr *ConsumerRoutes) processSingleRecord(workerID int, job queuedRecord) bo
 			return true
 		}
 
+		// D6: prefer the async reroute channel so the partition worker can
+		// continue processing subsequent records without blocking on the
+		// retry-topic publish (previously up to 16s per failure).
+		if cr.enqueueReroute(workerID, job.record, err, logger) {
+			spanConsumer.End()
+			return true
+		}
+
+		// Fall back to inline reroute when async pool is disabled or the queue
+		// is saturated. Preserves original behavior for callers that haven't
+		// configured the pool and ensures we never silently drop a record.
 		if routeErr := cr.routeFailedRecordWithRetry(ctx, job.record, err, logger); routeErr != nil {
 			libOpentelemetry.HandleSpanError(&spanConsumer, "Failed to route message to retry/DLT", routeErr)
 			spanConsumer.End()
@@ -798,6 +937,54 @@ func (cr *ConsumerRoutes) processSingleRecord(workerID int, job queuedRecord) bo
 	cr.markRecord(workerID, logger, job.record)
 
 	return true
+}
+
+// enqueueReroute hands the failed record to the async reroute pool. Returns
+// true when the task was accepted (caller skips inline routing + markRecord);
+// returns false when the pool is disabled or the queue is saturated within
+// rerouteEnqueueTimeout, letting the caller fall back to inline routing.
+func (cr *ConsumerRoutes) enqueueReroute(workerID int, record *kgo.Record, handlerErr error, logger libLog.Logger) bool {
+	if cr == nil || cr.rerouteCh == nil || record == nil {
+		return false
+	}
+
+	task := rerouteTask{
+		record:     record,
+		handlerErr: handlerErr,
+		logger:     logger,
+		workerID:   workerID,
+	}
+
+	// Fast path: non-blocking send when the queue has room.
+	select {
+	case cr.rerouteCh <- task:
+		return true
+	default:
+	}
+
+	// Backpressure path: wait briefly, then give up so the partition worker
+	// can fall back to inline routing instead of blocking the poll loop.
+	timer := time.NewTimer(rerouteEnqueueTimeout)
+	defer timer.Stop()
+
+	select {
+	case cr.rerouteCh <- task:
+		return true
+	case <-timer.C:
+		if logger != nil {
+			logger.Warnf(
+				"Worker %d: reroute queue saturated for topic=%s partition=%d offset=%d; falling back to inline routing",
+				workerID,
+				record.Topic,
+				record.Partition,
+				record.Offset,
+			)
+		}
+
+		return false
+	case <-cr.ctx.Done():
+		return false
+	}
 }
 
 func (cr *ConsumerRoutes) processBatchRecords(workerID int, batch []queuedRecord) bool {

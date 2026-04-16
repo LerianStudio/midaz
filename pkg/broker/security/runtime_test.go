@@ -51,32 +51,51 @@ func TestValidateRuntimeConfig(t *testing.T) {
 		assert.Empty(t, warnings)
 	})
 
-	t.Run("warns for disabled tls and tls without sasl in production", func(t *testing.T) {
+	// TestRuntime_ProductionRequiresTLSAsHardError: previously this path emitted
+	// a WARN only. D6 hardening converts it to a hard error so bootstrap refuses
+	// to start rather than relying on operators noticing a log line.
+	t.Run("rejects disabled tls in production", func(t *testing.T) {
 		t.Parallel()
 
-		warnings, err := ValidateRuntimeConfig(RuntimeConfig{
+		_, err := ValidateRuntimeConfig(RuntimeConfig{
 			Environment:           "production",
 			TLSEnabled:            false,
 			TLSInsecureSkipVerify: false,
 			SASLEnabled:           false,
 		})
 
-		require.NoError(t, err)
-		assert.Contains(t, warnings, "TLS is disabled in a production-like environment")
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrTLSRequiredInProduction)
 	})
 
-	t.Run("warns when tls is enabled without sasl in production", func(t *testing.T) {
+	t.Run("rejects tls without sasl in production", func(t *testing.T) {
 		t.Parallel()
 
-		warnings, err := ValidateRuntimeConfig(RuntimeConfig{
+		_, err := ValidateRuntimeConfig(RuntimeConfig{
 			Environment:           "production",
 			TLSEnabled:            true,
 			TLSInsecureSkipVerify: false,
 			SASLEnabled:           false,
 		})
 
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrSASLRequiredInProduction)
+	})
+
+	// Non-prod environments must still accept TLS-disabled and TLS-without-SASL
+	// because dev/test loops run against plaintext brokers.
+	t.Run("allows disabled tls in non-production", func(t *testing.T) {
+		t.Parallel()
+
+		warnings, err := ValidateRuntimeConfig(RuntimeConfig{
+			Environment:           "development",
+			TLSEnabled:            false,
+			TLSInsecureSkipVerify: false,
+			SASLEnabled:           false,
+		})
+
 		require.NoError(t, err)
-		assert.Contains(t, warnings, "TLS is enabled without SASL authentication in a production-like environment")
+		assert.Empty(t, warnings)
 	})
 
 	t.Run("allows insecure skip verify in non production with warning", func(t *testing.T) {

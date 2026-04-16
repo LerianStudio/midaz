@@ -1247,6 +1247,9 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 				SASLMechanism:         cfg.RedpandaSASLMechanism,
 				SASLUsername:          cfg.RedpandaSASLUsername,
 				SASLPassword:          cfg.RedpandaSASLPassword,
+				// D6: propagate the env so SASL/PLAIN-without-TLS is rejected
+				// in production-like environments at publisher construction time.
+				Environment: cfg.EnvName,
 			},
 		)
 		if err != nil {

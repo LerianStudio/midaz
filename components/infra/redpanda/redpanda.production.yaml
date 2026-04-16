@@ -1,0 +1,81 @@
+# Redpanda broker configuration — PRODUCTION reference.
+#
+# This file is NOT applied to the dev docker-compose by default. It is a
+# reviewed, copy-pastable starting point for production deployments. The dev
+# compose runs a single-broker PLAINTEXT cluster for fast local iteration;
+# production must run the hardened settings below.
+#
+# Usage:
+#   1. Provision a Redpanda cluster with at least 3 brokers (replication=3).
+#   2. Mount a CA-signed TLS cert/key at the paths referenced in kafka_api_tls.
+#      For staging/dev-cluster environments, generate a private CA and sign
+#      a broker cert with rpk redpanda cert generate-ca / generate-broker.
+#   3. Create SASL users with rpk acl user create (see create-topics.sh for
+#      the expected principals: midaz-authorizer, midaz-ledger, midaz-consumer).
+#   4. Apply this config on each broker via --config /etc/redpanda/redpanda.yaml.
+#
+# References:
+#   https://docs.redpanda.com/current/manage/security/authentication/
+#   https://docs.redpanda.com/current/manage/security/listener-configuration/
+
+redpanda:
+  # Cluster topology. In production, set at least 3 seeds for quorum.
+  seed_servers: []
+
+  # Kafka API listener — TLS-only in production. Plaintext on 9092 is
+  # forbidden; operators who need a bootstrap port should use a separate
+  # internal-only listener and firewall it.
+  kafka_api:
+    - address: 0.0.0.0
+      port: 9093
+      name: external
+      authentication_method: sasl
+
+  # TLS for the Kafka listener. mTLS (require_client_auth=true) is preferred
+  # where client certs can be distributed alongside SASL credentials.
+  kafka_api_tls:
+    - name: external
+      enabled: true
+      cert_file: /etc/redpanda/tls/broker.crt
+      key_file: /etc/redpanda/tls/broker.key
+      truststore_file: /etc/redpanda/tls/ca.crt
+      require_client_auth: false
+
+  # Admin API — TLS + auth, bound to loopback or management VLAN.
+  admin:
+    - address: 127.0.0.1
+      port: 9644
+      name: admin
+
+  admin_api_tls:
+    - name: admin
+      enabled: true
+      cert_file: /etc/redpanda/tls/broker.crt
+      key_file: /etc/redpanda/tls/broker.key
+      truststore_file: /etc/redpanda/tls/ca.crt
+      require_client_auth: true
+
+  # SASL configuration. SCRAM-SHA-256 is the minimum acceptable mechanism;
+  # PLAIN is NOT listed because Midaz rejects PLAIN-without-TLS at the client
+  # (see pkg/broker/security/options.go ErrSASLPlainRequiresTLSInProduction)
+  # and because SCRAM offers replay protection PLAIN lacks.
+  enable_sasl: true
+  superusers:
+    - admin                # bootstrap / topic management
+    - midaz-authorizer     # cross-shard 2PC journal owner
+    - midaz-ledger         # balance/transaction/audit producer
+    - midaz-consumer       # balance projector
+
+  # Durability. For the authorizer.cross-shard.commits and ledger.audit.log
+  # topics, default_topic_replications must be >= 3 to survive single-node
+  # failure without losing committed records.
+  default_topic_replications: 3
+  default_topic_partitions: 8
+
+pandaproxy:
+  # Disabled in production. The HTTP proxy has its own auth surface; run it
+  # on a separate host if it is needed.
+  pandaproxy_api: []
+
+schema_registry:
+  schema_registry_api: []

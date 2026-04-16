@@ -402,6 +402,7 @@ func initProducerWithCircuitBreaker(
 		SASLMechanism:         cfg.RedpandaSASLMechanism,
 		SASLUsername:          cfg.RedpandaSASLUsername,
 		SASLPassword:          cfg.RedpandaSASLPassword,
+		Environment:           cfg.EnvName,
 	}
 
 	rawProducer, err := redpanda.NewProducerRedpandaWithSecurityAndShardPartitioning(
@@ -495,6 +496,7 @@ func initConsumerLagChecker(
 		SASLMechanism:         cfg.RedpandaSASLMechanism,
 		SASLUsername:          cfg.RedpandaSASLUsername,
 		SASLPassword:          cfg.RedpandaSASLPassword,
+		Environment:           cfg.EnvName,
 	}
 
 	securityOptions, err := redpanda.BuildSecurityOptions(securityConfig)
@@ -550,6 +552,7 @@ func initStaleBalanceRecoverer(
 		SASLMechanism:         cfg.RedpandaSASLMechanism,
 		SASLUsername:          cfg.RedpandaSASLUsername,
 		SASLPassword:          cfg.RedpandaSASLPassword,
+		Environment:           cfg.EnvName,
 	}
 
 	securityOptions, err := redpanda.BuildSecurityOptions(securityConfig)
@@ -976,6 +979,7 @@ func configureConsumerRoutes(cfg *Config, logger libLog.Logger, telemetry *libOp
 			SASLMechanism:         cfg.RedpandaSASLMechanism,
 			SASLUsername:          cfg.RedpandaSASLUsername,
 			SASLPassword:          cfg.RedpandaSASLPassword,
+			Environment:           cfg.EnvName,
 		},
 		cfg.RedpandaMaxRetryAttempts,
 	)

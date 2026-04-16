@@ -907,3 +907,50 @@ func TestLoadConfig_RejectsReconcilerTimingWithAsync(t *testing.T) {
 	require.ErrorContains(t, err, "interval=10000")
 	require.ErrorContains(t, err, "prepareTimeout=20000")
 }
+
+// TestConfig_RejectsRecordRetriesBelowMinimum verifies the D6 floor on
+// AUTHORIZER_REDPANDA_RECORD_RETRIES. With RequiredAcks=AllISRAcks, a short
+// ISR hiccup would abort a transaction that the broker would otherwise
+// commit seconds later — reject at load.
+func TestConfig_RejectsRecordRetriesBelowMinimum(t *testing.T) {
+	for _, value := range []string{"0", "1", "2"} {
+		t.Run("retries="+value, func(t *testing.T) {
+			t.Setenv("ENV_NAME", "development")
+			t.Setenv("DB_TRANSACTION_HOST", "localhost")
+			t.Setenv("DB_TRANSACTION_PORT", "5432")
+			t.Setenv("DB_TRANSACTION_USER", "midaz")
+			t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
+			t.Setenv("DB_TRANSACTION_NAME", "transaction")
+			t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+			t.Setenv("AUTHORIZER_REDPANDA_RECORD_RETRIES", value)
+			setTestPeerAuthToken(t)
+
+			_, err := LoadConfig()
+			require.Error(t, err)
+			require.ErrorIs(t, err, errConfigRedpandaRecordRetriesMin)
+			require.ErrorContains(t, err, "minimum=3")
+		})
+	}
+}
+
+func TestConfig_AllowsRecordRetriesAtOrAboveMinimum(t *testing.T) {
+	for _, value := range []string{"3", "5", "10"} {
+		t.Run("retries="+value, func(t *testing.T) {
+			t.Setenv("ENV_NAME", "development")
+			t.Setenv("DB_TRANSACTION_HOST", "localhost")
+			t.Setenv("DB_TRANSACTION_PORT", "5432")
+			t.Setenv("DB_TRANSACTION_USER", "midaz")
+			t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
+			t.Setenv("DB_TRANSACTION_NAME", "transaction")
+			t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+			t.Setenv("AUTHORIZER_REDPANDA_RECORD_RETRIES", value)
+			setTestPeerAuthToken(t)
+
+			cfg, err := LoadConfig()
+			require.NoError(t, err)
+
+			parsed, _ := strconv.Atoi(value)
+			require.Equal(t, parsed, cfg.RedpandaRecordRetries)
+		})
+	}
+}

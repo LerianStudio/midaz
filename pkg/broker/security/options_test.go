@@ -34,3 +34,56 @@ func TestBuildFranzGoOptions_RejectsDirectoryAsTLSCAFile(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorContains(t, err, "must be a file path")
 }
+
+// TestSASLPLAIN_WithoutTLSInProductionRejected asserts the D6 gate: PLAIN
+// without TLS in production-like envs must be rejected, because PLAIN sends
+// credentials in cleartext and cannot be paired with any other cryptographic
+// channel protection.
+func TestSASLPLAIN_WithoutTLSInProductionRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := BuildFranzGoOptions(Config{
+		TLSEnabled:    false,
+		SASLEnabled:   true,
+		SASLMechanism: "PLAIN",
+		SASLUsername:  "midaz",
+		SASLPassword:  "s3cret",
+		Environment:   "production",
+	})
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrSASLPlainRequiresTLSInProduction)
+}
+
+func TestSASLPLAIN_WithoutTLSInDevelopmentAllowed(t *testing.T) {
+	t.Parallel()
+
+	// Non-production allows PLAIN without TLS so dev/test loops keep working.
+	opts, err := BuildFranzGoOptions(Config{
+		TLSEnabled:    false,
+		SASLEnabled:   true,
+		SASLMechanism: "PLAIN",
+		SASLUsername:  "midaz",
+		SASLPassword:  "s3cret",
+		Environment:   "development",
+	})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, opts)
+}
+
+func TestSASLPLAIN_WithTLSInProductionAllowed(t *testing.T) {
+	t.Parallel()
+
+	opts, err := BuildFranzGoOptions(Config{
+		TLSEnabled:    true,
+		SASLEnabled:   true,
+		SASLMechanism: "PLAIN",
+		SASLUsername:  "midaz",
+		SASLPassword:  "s3cret",
+		Environment:   "production",
+	})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, opts)
+}

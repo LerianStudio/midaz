@@ -274,6 +274,16 @@ services:
     networks:
       - infra-network
 
+  # Redpanda broker (single-node dev). Production deployments must use a
+  # multi-broker cluster with TLS + SASL enabled — see
+  # components/infra/redpanda/redpanda.production.yaml for the reference
+  # config, and pkg/broker/security/ for the client-side gates that enforce
+  # TLS/SASL when ENV_NAME is production-like.
+  #
+  # D6 note on replicas: this compose runs a single broker, so topic
+  # replication factor is pinned to 1 by create-topics.sh. In production,
+  # set REDPANDA_REPLICATION_FACTOR=3 (or higher) so authorizer.cross-shard.commits
+  # and ledger.audit.log survive broker failure.
   midaz-redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:latest
     container_name: midaz-redpanda
@@ -314,6 +324,16 @@ services:
       ]
     environment:
       REDPANDA_BROKER: midaz-redpanda:9092
+      # D6: ACL + replication settings. Defaults keep the dev single-broker
+      # workflow working. Production overrides come from the ops config.
+      REDPANDA_REPLICATION_FACTOR: ${REDPANDA_REPLICATION_FACTOR:-1}
+      REDPANDA_SASL_ENABLED: ${REDPANDA_SASL_ENABLED:-false}
+      REDPANDA_SASL_MECHANISM: ${REDPANDA_SASL_MECHANISM:-SCRAM-SHA-256}
+      REDPANDA_SASL_ADMIN_USER: ${REDPANDA_SASL_ADMIN_USER:-}
+      REDPANDA_SASL_ADMIN_PASSWORD: ${REDPANDA_SASL_ADMIN_PASSWORD:-}
+      REDPANDA_AUTHORIZER_PRINCIPAL: ${REDPANDA_AUTHORIZER_PRINCIPAL:-midaz-authorizer}
+      REDPANDA_LEDGER_PRINCIPAL: ${REDPANDA_LEDGER_PRINCIPAL:-midaz-ledger}
+      REDPANDA_CONSUMER_PRINCIPAL: ${REDPANDA_CONSUMER_PRINCIPAL:-midaz-consumer}
     volumes:
       - ./redpanda/create-topics.sh:/scripts/create-topics.sh:ro
     networks:
