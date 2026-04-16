@@ -14,6 +14,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
@@ -138,18 +139,10 @@ func (p *RedpandaPublisher) Publish(ctx context.Context, message Message) error 
 	}
 
 	record := &kgo.Record{
-		Topic: topic,
-		Key:   []byte(message.PartitionKey),
-		Value: message.Payload,
-	}
-
-	for key, value := range message.Headers {
-		record.Headers = append(record.Headers, kgo.RecordHeader{Key: key, Value: []byte(value)})
-	}
-
-	contentType := strings.TrimSpace(message.ContentType)
-	if contentType != "" {
-		record.Headers = append(record.Headers, kgo.RecordHeader{Key: "content-type", Value: []byte(contentType)})
+		Topic:   topic,
+		Key:     []byte(message.PartitionKey),
+		Value:   message.Payload,
+		Headers: buildRecordHeaders(ctx, message),
 	}
 
 	publishCtx, cancel := p.newPublishContext(ctx)
@@ -199,6 +192,51 @@ func (p *RedpandaPublisher) newPublishContext(ctx context.Context) (context.Cont
 	}
 
 	return context.WithTimeout(ctx, timeout)
+}
+
+// buildRecordHeaders assembles kgo record headers from the caller-supplied
+// message headers plus OpenTelemetry trace context injected from ctx. The
+// trace context (traceparent/tracestate) must travel with every published
+// 2PC commit intent so recovery workers can continue the distributed trace
+// across Authorize → Redpanda → Recovery.
+func buildRecordHeaders(ctx context.Context, message Message) []kgo.RecordHeader {
+	// Build a merged header map as map[string]any so lib-commons can inject
+	// trace headers via its shared helper.
+	//nolint:mnd // +2 leaves room for traceparent/tracestate and content-type
+	headersMap := make(map[string]any, len(message.Headers)+2)
+	for key, value := range message.Headers {
+		headersMap[key] = value
+	}
+
+	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, &headersMap)
+
+	headers := make([]kgo.RecordHeader, 0, len(headersMap)+1)
+	for key, value := range headersMap {
+		headers = append(headers, kgo.RecordHeader{Key: key, Value: headerValueBytes(value)})
+	}
+
+	if contentType := strings.TrimSpace(message.ContentType); contentType != "" {
+		headers = append(headers, kgo.RecordHeader{Key: "content-type", Value: []byte(contentType)})
+	}
+
+	return headers
+}
+
+// headerValueBytes converts a header value (string, []byte, or anything
+// fmt-printable) to the []byte payload kgo.RecordHeader expects. Keeping this
+// tolerant lets us inject lib-commons trace headers (always strings) alongside
+// caller-supplied headers without type assertions at each site.
+func headerValueBytes(v any) []byte {
+	switch value := v.(type) {
+	case string:
+		return []byte(value)
+	case []byte:
+		return value
+	case nil:
+		return nil
+	default:
+		return []byte(fmt.Sprintf("%v", value))
+	}
 }
 
 // Close releases producer resources.
