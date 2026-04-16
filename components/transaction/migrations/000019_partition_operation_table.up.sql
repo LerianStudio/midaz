@@ -1,7 +1,7 @@
 -- Stage 1 of the online partition cutover for the operation table.
 -- Schema-only shell + indexes + partitions. No data copy, no RENAME.
 -- Dual-write and the backfill tool (cmd/partition-backfill) populate the
--- shell; migration 000022 performs the atomic RENAME swap.
+-- shell. Migration 000022 performs the atomic RENAME swap.
 
 CREATE TABLE operation_partitioned (
     id                     UUID NOT NULL,

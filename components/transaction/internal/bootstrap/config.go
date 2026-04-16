@@ -38,7 +38,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
@@ -1336,19 +1335,23 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize transaction repository: %w", err)
 	}
 
-	operationPostgreSQLRepository, err := operation.NewOperationPostgreSQLRepository(postgresConnection)
+	// Partition cutover wiring (see partition_wiring.go). A shared Reader
+	// backs both the balance and operation wrappers so phase transitions
+	// apply atomically. Primary repositories are kept alongside the wrapped
+	// forms because pre-warm helpers need the concrete struct for methods
+	// outside the Repository interface.
+	wired, err := wirePartitionAwareRepos(postgresConnection, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize operation repository: %w", err)
+		return nil, err
 	}
+
+	balancePrimary := wired.balancePrimary
+	operationPostgreSQLRepository := wired.operationRepo
+	balancePostgreSQLRepository := wired.balanceRepo
 
 	assetRatePostgreSQLRepository, err := assetrate.NewAssetRatePostgreSQLRepository(postgresConnection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize asset rate repository: %w", err)
-	}
-
-	balancePostgreSQLRepository, err := balance.NewBalancePostgreSQLRepository(postgresConnection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize balance repository: %w", err)
 	}
 
 	operationRoutePostgreSQLRepository, err := operationroute.NewOperationRoutePostgreSQLRepository(postgresConnection)
@@ -1520,7 +1523,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, useCase, queryUseCase)
 	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
 
-	if err := preWarmExternalPreSplitBalances(cfg, logger, balancePostgreSQLRepository, redisConsumerRepository); err != nil {
+	if err := preWarmExternalPreSplitBalances(cfg, logger, balancePrimary, redisConsumerRepository); err != nil {
 		logger.Warnf("External pre-split Redis pre-warm failed: %v", err)
 	}
 

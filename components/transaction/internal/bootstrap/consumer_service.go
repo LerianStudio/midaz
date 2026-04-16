@@ -23,8 +23,6 @@ import (
 	httpin "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
@@ -171,7 +169,7 @@ func validateConsumerConfig(cfg *Config, opts *Options) (libLog.Logger, error) {
 // This creates all infrastructure needed for the Redpanda consumer (PG, Mongo, Redis,
 // Redpanda, Authorizer) without HTTP or gRPC servers.
 //
-//nolint:gocyclo,cyclop // initialization function; complexity is inherent from wiring many dependencies
+//nolint:gocyclo,cyclop,gocognit // initialization function; complexity is inherent from wiring many dependencies
 func InitConsumerWithOptions(opts *Options) (*ConsumerService, error) {
 	cfg := &Config{}
 
@@ -270,19 +268,20 @@ func InitConsumerWithOptions(opts *Options) (*ConsumerService, error) {
 		return nil, fmt.Errorf("failed to initialize transaction repository: %w", err)
 	}
 
-	operationPostgreSQLRepository, err := operation.NewOperationPostgreSQLRepository(postgresConnection)
+	// Partition cutover wiring (see partition_wiring.go). The dedicated
+	// consumer service shares the same phase semantics as the main service.
+	wired, err := wirePartitionAwareRepos(postgresConnection, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize operation repository: %w", err)
+		return nil, err
 	}
+
+	balancePrimary := wired.balancePrimary
+	operationPostgreSQLRepository := wired.operationRepo
+	balancePostgreSQLRepository := wired.balanceRepo
 
 	assetRatePostgreSQLRepository, err := assetrate.NewAssetRatePostgreSQLRepository(postgresConnection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize asset rate repository: %w", err)
-	}
-
-	balancePostgreSQLRepository, err := balance.NewBalancePostgreSQLRepository(postgresConnection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize balance repository: %w", err)
 	}
 
 	operationRoutePostgreSQLRepository, err := operationroute.NewOperationRoutePostgreSQLRepository(postgresConnection)
@@ -354,7 +353,7 @@ func InitConsumerWithOptions(opts *Options) (*ConsumerService, error) {
 	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 	redisQueueConsumer := NewRedisQueueConsumer(logger, transactionHandler)
 
-	if err := preWarmExternalPreSplitBalances(cfg, logger, balancePostgreSQLRepository, redisConsumerRepository); err != nil {
+	if err := preWarmExternalPreSplitBalances(cfg, logger, balancePrimary, redisConsumerRepository); err != nil {
 		logger.Warnf("External pre-split Redis pre-warm failed: %v", err)
 	}
 

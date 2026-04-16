@@ -19,7 +19,6 @@ package operation
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"reflect"
@@ -92,7 +91,7 @@ func (d *DualWriteRepository) shouldDualWrite(ctx context.Context) bool {
 // When dual-write is inactive the call delegates to the inner repository.
 func (d *DualWriteRepository) Create(ctx context.Context, op *Operation) (*Operation, error) {
 	if !d.shouldDualWrite(ctx) {
-		return d.inner.Create(ctx, op) //nolint:wrapcheck
+		return d.inner.Create(ctx, op)
 	}
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -149,6 +148,7 @@ func (d *DualWriteRepository) Create(ctx context.Context, op *Operation) (*Opera
 	}
 
 	committed := false
+
 	defer func() {
 		if !committed {
 			_ = tx.Rollback()
@@ -239,8 +239,3 @@ func (d *DualWriteRepository) Create(ctx context.Context, op *Operation) (*Opera
 // Compile-time verification that DualWriteRepository still satisfies the
 // public Repository interface so bootstrap can swap implementations freely.
 var _ Repository = (*DualWriteRepository)(nil)
-
-// Ensure the imports above are all used even when Go's unused-import check
-// complains after copy-paste. sql is touched via this sink so a future refactor
-// that stops using BeginTx here won't accidentally leave a dead import.
-var _ = sql.ErrNoRows //nolint:unused // retained for future refactors

@@ -6,10 +6,12 @@
 
 // Package migration_cycle_test exercises the online partition cutover
 // migrations end-to-end against a real PostgreSQL container. The existing
-// migration 000017 uses CREATE INDEX CONCURRENTLY which is incompatible with
-// golang-migrate's default transactional wrap; the tests here apply the new
-// migrations (000019-000025) against a pre-baked schema instead of replaying
-// the whole migration sequence.
+// migration 000017 uses CREATE INDEX CONCURRENTLY which is incompatible
+// with golang-migrate's default transactional wrap, and the staged cutover
+// migrations under migrations/staged_cutover/ use DO blocks that the
+// multi-statement splitter cannot parse. The tests here apply the relevant
+// files via db.ExecContext (single implicit transaction) against a
+// pre-baked schema instead of replaying the whole migration sequence.
 package migration_cycle_test
 
 import (
@@ -212,7 +214,7 @@ func TestPartitionCutover_AtomicSwapAbortsOnCountMismatch(t *testing.T) {
 		)`)
 	require.NoError(t, err)
 
-	err = applyFile(t, container.DB, "000022_atomic_swap_operation.up.sql")
+	err = applyFile(t, container.DB, "staged_cutover/000022_atomic_swap_operation.up.sql")
 	require.Error(t, err, "atomic swap must fail when legacy and partitioned counts disagree")
 	require.Contains(t, err.Error(), "row count mismatch")
 
@@ -238,7 +240,7 @@ func TestPartitionCutover_AtomicSwapSucceedsWhenCountsMatch(t *testing.T) {
 	require.NoError(t, applyFile(t, container.DB, "000021_partition_migration_state.up.sql"))
 
 	// Apply swap when both tables are empty — counts match trivially.
-	require.NoError(t, applyFile(t, container.DB, "000022_atomic_swap_operation.up.sql"))
+	require.NoError(t, applyFile(t, container.DB, "staged_cutover/000022_atomic_swap_operation.up.sql"))
 
 	// After the swap, the original `operation` table is renamed `operation_legacy`
 	// and the partitioned shell now lives under the name `operation`.

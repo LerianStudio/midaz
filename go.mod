@@ -85,7 +85,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.40.0 // indirect
 	go.opentelemetry.io/otel/log v0.16.0 // indirect
 	go.opentelemetry.io/otel/metric v1.40.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.40.0
 	go.opentelemetry.io/otel/sdk/log v0.16.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.40.0
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
@@ -103,6 +103,7 @@ require (
 )
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/alicebob/miniredis/v2 v2.36.1
 	github.com/docker/docker v28.5.2+incompatible
