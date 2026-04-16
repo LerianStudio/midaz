@@ -7,6 +7,8 @@ package bootstrap
 import (
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -20,12 +22,31 @@ import (
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
+	brokerpkg "github.com/LerianStudio/midaz/v3/pkg/broker"
 )
 
 var (
 	errTransactionMetadataIndexPortNil = errors.New("failed to get MetadataIndexPort from transaction module")
 	errOnboardingMetadataIndexPortNil  = errors.New("failed to get MetadataIndexPort from onboarding module")
 )
+
+// logDeprecatedBrokerEnvVars emits a single warning listing any deprecated
+// broker environment variables (RABBITMQ_*, AUTHORIZER_RABBITMQ_*, legacy
+// BROKER_HEALTH*) that remain in the process environment. The unified ledger
+// binary composes the transaction + onboarding modules; each of those modules
+// logs its own warning, but the ledger entry point runs before them, so
+// operators see the message even if a later module fails to initialise.
+func logDeprecatedBrokerEnvVars(logger libLog.Logger) {
+	deprecated := brokerpkg.DeprecatedBrokerEnvVariables(os.Environ())
+	if len(deprecated) == 0 {
+		return
+	}
+
+	logger.Warnf(
+		"Deprecated broker environment variables detected (ignored by this version): %s. Regenerate .env from .env.example and remove deprecated entries.",
+		strings.Join(deprecated, ", "),
+	)
+}
 
 // ApplicationName is the service identifier used for logging and telemetry.
 const ApplicationName = "ledger"
@@ -142,6 +163,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) { //nolint:gocyclo,
 		"version", cfg.Version,
 		"env", cfg.EnvName,
 	).Info("Starting unified ledger component")
+
+	// Warn operators who still have legacy broker env vars in their .env. The
+	// authorizer and transaction bootstraps emit the same warning; the unified
+	// ledger runs both modules, so detecting them once here prevents operators
+	// from missing the signal when running the composed binary.
+	logDeprecatedBrokerEnvVars(ledgerLogger)
 
 	ledgerLogger.Info("Initializing transaction module...")
 

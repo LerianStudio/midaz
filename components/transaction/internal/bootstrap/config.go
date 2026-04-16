@@ -149,6 +149,22 @@ func enforcePostgresSSLMode(envName, sslMode, envVar string) error {
 	return fmt.Errorf("%w: %s=disable", ErrSSLDisableNotAllowed, envVar)
 }
 
+// defaultPostgresSSLMode returns the implicit sslmode when DB_TRANSACTION_SSLMODE
+// (and the standalone DB_SSLMODE fallback) are unset. Non-production environments
+// (dev/local/test/staging/...) default to "disable" to preserve developer ergonomics
+// against Docker-composed Postgres images that do not enable TLS by default.
+// All other environments — including unrecognised env names — default to "require"
+// so accidentally dropping DB_*_SSLMODE in production cannot silently downgrade
+// the connection to plaintext.
+func defaultPostgresSSLMode(envName string) string {
+	normalizedEnv := strings.TrimSpace(envName)
+	if normalizedEnv != "" && brokersecurity.IsNonProductionEnvironment(normalizedEnv) {
+		return "disable"
+	}
+
+	return "require"
+}
+
 func shouldAutoRecoverDirtyMigration(envName string) bool {
 	resolved := strings.TrimSpace(envName)
 	if resolved == "" {
@@ -684,7 +700,7 @@ func initPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Pos
 
 	dbSSLMode := strings.TrimSpace(utils.EnvFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode))
 	if dbSSLMode == "" {
-		dbSSLMode = "disable"
+		dbSSLMode = defaultPostgresSSLMode(cfg.EnvName)
 	}
 
 	if err := enforcePostgresSSLMode(cfg.EnvName, dbSSLMode, "DB_TRANSACTION_SSLMODE"); err != nil {
@@ -1043,78 +1059,76 @@ type Config struct {
 	PrefixedMaxPoolSize       int    `env:"MONGO_TRANSACTION_MAX_POOL_SIZE"`
 
 	// MongoDB - fallback vars for standalone deployment
-	MongoURI                            string `env:"MONGO_URI"`
-	MongoDBHost                         string `env:"MONGO_HOST"`
-	MongoDBName                         string `env:"MONGO_NAME"`
-	MongoDBUser                         string `env:"MONGO_USER"`
-	MongoDBPassword                     string `env:"MONGO_PASSWORD"`
-	MongoDBPort                         string `env:"MONGO_PORT"`
-	MongoDBParameters                   string `env:"MONGO_PARAMETERS"`
-	MaxPoolSize                         int    `env:"MONGO_MAX_POOL_SIZE"`
-	CasdoorAddress                      string `env:"CASDOOR_ADDRESS"`
-	CasdoorClientID                     string `env:"CASDOOR_CLIENT_ID"`
-	CasdoorClientSecret                 string `env:"CASDOOR_CLIENT_SECRET"`
-	CasdoorOrganizationName             string `env:"CASDOOR_ORGANIZATION_NAME"`
-	CasdoorApplicationName              string `env:"CASDOOR_APPLICATION_NAME"`
-	CasdoorModelName                    string `env:"CASDOOR_MODEL_NAME"`
-	JWKAddress                          string `env:"CASDOOR_JWK_ADDRESS"`
-	RedpandaBrokers                     string `env:"REDPANDA_BROKERS" default:"127.0.0.1:9092"`
-	RedpandaBalanceCreateTopic          string `env:"REDPANDA_BALANCE_CREATE_TOPIC" default:"ledger.balance.create"`
-	RedpandaBalanceOperationsTopic      string `env:"REDPANDA_BALANCE_OPS_TOPIC" default:"ledger.balance.operations"`
-	RedpandaEventsTopic                 string `env:"REDPANDA_EVENTS_TOPIC" default:"ledger.transaction.events"`
-	RedpandaDecisionEventsTopic         string `env:"REDPANDA_DECISION_EVENTS_TOPIC"`
-	RedpandaAuditTopic                  string `env:"REDPANDA_AUDIT_TOPIC" default:"ledger.audit.log"`
-	RedpandaConsumerGroup               string `env:"REDPANDA_CONSUMER_GROUP" default:"midaz-balance-projector"`
-	RedpandaNumbersOfWorkers            int    `env:"REDPANDA_NUMBERS_OF_WORKERS" default:"5"`
-	RedpandaPartitionCount              int    `env:"REDPANDA_PARTITION_COUNT" default:"8"`
-	RedpandaCommitIntervalMS            int    `env:"REDPANDA_COMMIT_INTERVAL_MS" default:"1000"`
-	RedpandaFetchMaxBytes               int    `env:"REDPANDA_FETCH_MAX_BYTES" default:"50000000"`
-	RedpandaMaxRetryAttempts            int    `env:"REDPANDA_MAX_RETRY_ATTEMPTS" default:"3"`
-	RedpandaProducerLingerMS            int    `env:"REDPANDA_PRODUCER_LINGER_MS" default:"5"`
-	RedpandaMaxBufferedRecords          int    `env:"REDPANDA_MAX_BUFFERED_RECORDS" default:"10000"`
-	RedpandaTLSEnabled                  bool   `env:"REDPANDA_TLS_ENABLED" default:"false"`
-	RedpandaTLSInsecureSkipVerify       bool   `env:"REDPANDA_TLS_INSECURE_SKIP_VERIFY" default:"false"`
-	RedpandaTLSCAFile                   string `env:"REDPANDA_TLS_CA_FILE"`
-	RedpandaSASLEnabled                 bool   `env:"REDPANDA_SASL_ENABLED" default:"false"`
-	RedpandaSASLMechanism               string `env:"REDPANDA_SASL_MECHANISM" default:"SCRAM-SHA-256"`
-	RedpandaSASLUsername                string `env:"REDPANDA_SASL_USERNAME"`
-	RedpandaSASLPassword                string `env:"REDPANDA_SASL_PASSWORD"`
-	TransactionEventsEnabled            bool   `env:"TRANSACTION_EVENTS_ENABLED" default:"true"`
-	AuditLogEnabled                     bool   `env:"AUDIT_LOG_ENABLED" default:"true"`
-	OtelServiceName                     string `env:"OTEL_RESOURCE_SERVICE_NAME"`
-	OtelLibraryName                     string `env:"OTEL_LIBRARY_NAME"`
-	OtelServiceVersion                  string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
-	OtelDeploymentEnv                   string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
-	OtelColExporterEndpoint             string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
-	EnableTelemetry                     bool   `env:"ENABLE_TELEMETRY"`
-	RedisHost                           string `env:"REDIS_HOST"`
-	RedisMasterName                     string `env:"REDIS_MASTER_NAME" default:""`
-	RedisPassword                       string `env:"REDIS_PASSWORD"`
-	RedisDB                             int    `env:"REDIS_DB" default:"0"`
-	RedisProtocol                       int    `env:"REDIS_PROTOCOL" default:"3"`
-	RedisTLS                            bool   `env:"REDIS_TLS" default:"false"`
-	RedisCACert                         string `env:"REDIS_CA_CERT"`
-	RedisUseGCPIAM                      bool   `env:"REDIS_USE_GCP_IAM" default:"false"`
-	RedisServiceAccount                 string `env:"REDIS_SERVICE_ACCOUNT" default:""`
-	GoogleApplicationCredentials        string `env:"GOOGLE_APPLICATION_CREDENTIALS" default:""`
-	RedisTokenLifeTime                  int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
-	RedisTokenRefreshDuration           int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
-	RedisPoolSize                       int    `env:"REDIS_POOL_SIZE" default:"10"`
-	RedisMinIdleConns                   int    `env:"REDIS_MIN_IDLE_CONNS" default:"0"`
-	RedisReadTimeout                    int    `env:"REDIS_READ_TIMEOUT" default:"3"`
-	RedisWriteTimeout                   int    `env:"REDIS_WRITE_TIMEOUT" default:"3"`
-	RedisDialTimeout                    int    `env:"REDIS_DIAL_TIMEOUT" default:"5"`
-	RedisPoolTimeout                    int    `env:"REDIS_POOL_TIMEOUT" default:"2"`
-	RedisMaxRetries                     int    `env:"REDIS_MAX_RETRIES" default:"3"`
-	RedisMinRetryBackoff                int    `env:"REDIS_MIN_RETRY_BACKOFF" default:"8"`
-	RedisMaxRetryBackoff                int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
-	AuthEnabled                         bool   `env:"PLUGIN_AUTH_ENABLED"`
-	AuthHost                            string `env:"PLUGIN_AUTH_HOST"`
-	ProtoAddress                        string `env:"PROTO_ADDRESS"`
-	AuthorizerEnabled                   bool   `env:"AUTHORIZER_ENABLED" default:"false"`
-	AuthorizerHost                      string `env:"AUTHORIZER_HOST" default:"127.0.0.1"`
-	AuthorizerPort                      string `env:"AUTHORIZER_PORT" default:"50051"`
-	AuthorizerTimeoutMS                 int    `env:"AUTHORIZER_TIMEOUT_MS" default:"100"`
+	MongoURI                       string `env:"MONGO_URI"`
+	MongoDBHost                    string `env:"MONGO_HOST"`
+	MongoDBName                    string `env:"MONGO_NAME"`
+	MongoDBUser                    string `env:"MONGO_USER"`
+	MongoDBPassword                string `env:"MONGO_PASSWORD"`
+	MongoDBPort                    string `env:"MONGO_PORT"`
+	MongoDBParameters              string `env:"MONGO_PARAMETERS"`
+	MaxPoolSize                    int    `env:"MONGO_MAX_POOL_SIZE"`
+	RedpandaBrokers                string `env:"REDPANDA_BROKERS" default:"127.0.0.1:9092"`
+	RedpandaBalanceCreateTopic     string `env:"REDPANDA_BALANCE_CREATE_TOPIC" default:"ledger.balance.create"`
+	RedpandaBalanceOperationsTopic string `env:"REDPANDA_BALANCE_OPS_TOPIC" default:"ledger.balance.operations"`
+	RedpandaEventsTopic            string `env:"REDPANDA_EVENTS_TOPIC" default:"ledger.transaction.events"`
+	RedpandaDecisionEventsTopic    string `env:"REDPANDA_DECISION_EVENTS_TOPIC"`
+	RedpandaAuditTopic             string `env:"REDPANDA_AUDIT_TOPIC" default:"ledger.audit.log"`
+	RedpandaConsumerGroup          string `env:"REDPANDA_CONSUMER_GROUP" default:"midaz-balance-projector"`
+	RedpandaNumbersOfWorkers       int    `env:"REDPANDA_NUMBERS_OF_WORKERS" default:"5"`
+	RedpandaPartitionCount         int    `env:"REDPANDA_PARTITION_COUNT" default:"8"`
+	RedpandaCommitIntervalMS       int    `env:"REDPANDA_COMMIT_INTERVAL_MS" default:"1000"`
+	RedpandaFetchMaxBytes          int    `env:"REDPANDA_FETCH_MAX_BYTES" default:"50000000"`
+	RedpandaMaxRetryAttempts       int    `env:"REDPANDA_MAX_RETRY_ATTEMPTS" default:"3"`
+	RedpandaProducerLingerMS       int    `env:"REDPANDA_PRODUCER_LINGER_MS" default:"5"`
+	RedpandaMaxBufferedRecords     int    `env:"REDPANDA_MAX_BUFFERED_RECORDS" default:"10000"`
+	RedpandaTLSEnabled             bool   `env:"REDPANDA_TLS_ENABLED" default:"false"`
+	RedpandaTLSInsecureSkipVerify  bool   `env:"REDPANDA_TLS_INSECURE_SKIP_VERIFY" default:"false"`
+	RedpandaTLSCAFile              string `env:"REDPANDA_TLS_CA_FILE"`
+	RedpandaSASLEnabled            bool   `env:"REDPANDA_SASL_ENABLED" default:"false"`
+	RedpandaSASLMechanism          string `env:"REDPANDA_SASL_MECHANISM" default:"SCRAM-SHA-256"`
+	RedpandaSASLUsername           string `env:"REDPANDA_SASL_USERNAME"`
+	RedpandaSASLPassword           string `env:"REDPANDA_SASL_PASSWORD"`
+	TransactionEventsEnabled       bool   `env:"TRANSACTION_EVENTS_ENABLED" default:"true"`
+	AuditLogEnabled                bool   `env:"AUDIT_LOG_ENABLED" default:"true"`
+	OtelServiceName                string `env:"OTEL_RESOURCE_SERVICE_NAME"`
+	OtelLibraryName                string `env:"OTEL_LIBRARY_NAME"`
+	OtelServiceVersion             string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
+	OtelDeploymentEnv              string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
+	OtelColExporterEndpoint        string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	EnableTelemetry                bool   `env:"ENABLE_TELEMETRY"`
+	RedisHost                      string `env:"REDIS_HOST"`
+	RedisMasterName                string `env:"REDIS_MASTER_NAME" default:""`
+	RedisPassword                  string `env:"REDIS_PASSWORD"`
+	RedisDB                        int    `env:"REDIS_DB" default:"0"`
+	RedisProtocol                  int    `env:"REDIS_PROTOCOL" default:"3"`
+	RedisTLS                       bool   `env:"REDIS_TLS" default:"false"`
+	RedisCACert                    string `env:"REDIS_CA_CERT"`
+	RedisUseGCPIAM                 bool   `env:"REDIS_USE_GCP_IAM" default:"false"`
+	RedisServiceAccount            string `env:"REDIS_SERVICE_ACCOUNT" default:""`
+	GoogleApplicationCredentials   string `env:"GOOGLE_APPLICATION_CREDENTIALS" default:""`
+	RedisTokenLifeTime             int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
+	RedisTokenRefreshDuration      int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
+	RedisPoolSize                  int    `env:"REDIS_POOL_SIZE" default:"10"`
+	RedisMinIdleConns              int    `env:"REDIS_MIN_IDLE_CONNS" default:"0"`
+	RedisReadTimeout               int    `env:"REDIS_READ_TIMEOUT" default:"3"`
+	RedisWriteTimeout              int    `env:"REDIS_WRITE_TIMEOUT" default:"3"`
+	RedisDialTimeout               int    `env:"REDIS_DIAL_TIMEOUT" default:"5"`
+	RedisPoolTimeout               int    `env:"REDIS_POOL_TIMEOUT" default:"2"`
+	RedisMaxRetries                int    `env:"REDIS_MAX_RETRIES" default:"3"`
+	RedisMinRetryBackoff           int    `env:"REDIS_MIN_RETRY_BACKOFF" default:"8"`
+	RedisMaxRetryBackoff           int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
+	AuthEnabled                    bool   `env:"PLUGIN_AUTH_ENABLED"`
+	AuthHost                       string `env:"PLUGIN_AUTH_HOST"`
+	ProtoAddress                   string `env:"PROTO_ADDRESS"`
+	AuthorizerEnabled              bool   `env:"AUTHORIZER_ENABLED" default:"false"`
+	AuthorizerHost                 string `env:"AUTHORIZER_HOST" default:"127.0.0.1"`
+	AuthorizerPort                 string `env:"AUTHORIZER_PORT" default:"50051"`
+	// AuthorizerTimeoutMS bounds a single authorizer gRPC call. The default budget
+	// covers cross-shard 2PC (peer Prepare + peer Commit round-trips), the WAL
+	// fsync before acknowledging Prepare, plus headroom for GC pauses at the
+	// 99th percentile. Operators can still override when running single-shard
+	// deployments with lower latency targets.
+	AuthorizerTimeoutMS                 int    `env:"AUTHORIZER_TIMEOUT_MS" default:"250"`
 	AuthorizerUseStreaming              bool   `env:"AUTHORIZER_USE_STREAMING" default:"false"`
 	AuthorizerGRPCTLSEnabled            bool   `env:"AUTHORIZER_GRPC_TLS_ENABLED" default:"false"`
 	AuthorizerPeerAuthToken             string `env:"AUTHORIZER_PEER_AUTH_TOKEN" default:""`
