@@ -802,6 +802,36 @@ func (s *authorizerService) finalizeRecoveryStatus(
 		return fmt.Errorf("publish recovery commit intent status: %w", err)
 	}
 
+	// When recovery drives the intent to a terminal status (COMPLETED), run
+	// the two post-completion side effects:
+	//  1. Mark completed on the reconciler so it does not republish the
+	//     PREPARED intent from the WAL on its next cycle. Mirrors the
+	//     happy-path call in finalizeCommit (cross_shard.go).
+	//  2. Publish a Redis cache-invalidation event. The authoritative
+	//     balances moved on the owner engine, but the transaction-service
+	//     Redis cache may still hold pre-recovery values; the event lets
+	//     the cache consumer purge the affected keys before the next
+	//     LoadBalances.
+	//
+	// Both are best-effort: the primary durability contract (commits topic)
+	// already succeeded above, so failures here are logged and swallowed.
+	// The nil guards are intentional — the walReconciler wiring is optional
+	// (only present when AUTHORIZER_WAL_RECONCILER_ENABLED is on), but the
+	// cache-invalidation publish does not depend on the reconciler and must
+	// fire whenever the intent terminates regardless.
+	if intent.Status == commitIntentStatusCompleted {
+		if s.walReconciler != nil {
+			s.walReconciler.markCompleted(intent.TransactionID)
+		}
+
+		if err := s.publishCacheInvalidation(ctx, intent); err != nil && s.logger != nil {
+			s.logger.Warnf(
+				"cache-invalidation publish failed (non-fatal; recovery completed): tx_id=%s err=%v",
+				intent.TransactionID, err,
+			)
+		}
+	}
+
 	return nil
 }
 

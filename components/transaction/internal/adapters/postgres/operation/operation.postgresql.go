@@ -111,10 +111,22 @@ var operationPointInTimeColumns = []string{
 }
 
 // NewOperationPostgreSQLRepository returns a new instance of OperationPostgreSQLRepository using the given Postgres connection.
+//
+// NOTE: tableName is schema-qualified ("public.operation") so every squirrel
+// builder emits FROM/INSERT/UPDATE against public.operation regardless of the
+// session's search_path. This matters after migration 000022
+// (staged_cutover/000022_atomic_swap_operation.up.sql) renames
+// operation → operation_legacy and operation_partitioned → operation: an
+// unqualified identifier would silently resolve to whichever table matches
+// first in search_path, and a stray `SET search_path` (e.g., from a tenant
+// template) could flip reads to operation_legacy — a silent correctness
+// regression with no observable error. Schema qualification makes the
+// target explicit at the query layer; TestRepository_QueriesUseSchemaQualifiedTableNames
+// enforces the invariant going forward.
 func NewOperationPostgreSQLRepository(pc *libPostgres.PostgresConnection) (*OperationPostgreSQLRepository, error) {
 	c := &OperationPostgreSQLRepository{
 		connection: pc,
-		tableName:  "operation",
+		tableName:  "public.operation",
 	}
 
 	if _, err := c.connection.GetDB(); err != nil {

@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -428,4 +429,150 @@ func TestBuildIntentFromWALEntryNilSafety(t *testing.T) {
 
 	assert.Nil(t, rec.buildIntentFromWALEntry(nil), "nil entry should return nil")
 	assert.Nil(t, rec.buildIntentFromWALEntry(&wal.Entry{}), "entry with no participants should return nil")
+}
+
+// TestReconciler_StopsRepublishingAfterPartialCommit closes the ripple-effect
+// vector uncovered by the audit: when a cross-shard transaction hits a
+// partial-commit path (handleIncompleteCommit / handleRemotePeerCommitError
+// funnel through escalateToManualIntervention), the intent reaches
+// MANUAL_INTERVENTION_REQUIRED terminal status, but the reconciler's 5-minute
+// lookback window would still see the original WAL entry and re-publish a
+// PREPARED intent on every reconcile cycle. That kicked off a loop:
+// reconciler → PREPARED → recovery re-escalates → MANUAL_INTERVENTION_REQUIRED
+// → reconciler (still sees WAL entry, still doesn't know it's terminal) →
+// PREPARED → ... until the seed consumer's next cold-start poll picked up the
+// terminal status.
+//
+// The fix is to have escalateToManualIntervention call markCompleted so the
+// reconciler's in-memory completed set reflects the terminal state
+// immediately, not only after the next seed. This test drives that path and
+// asserts the reconciler does NOT republish on the cycle after escalation.
+func TestReconciler_StopsRepublishingAfterPartialCommit(t *testing.T) {
+	walPath := filepath.Join(t.TempDir(), "authorizer.wal")
+	pub := &reconcilerCapturingPublisher{}
+	rec := newTestReconciler(walPath, pub)
+
+	// The service escalate path needs a back-reference to the reconciler so
+	// escalateToManualIntervention can mark the transaction completed.
+	rec.service.walReconciler = rec
+
+	txID := "tx-partial-commit"
+
+	// Write a cross-shard WAL entry within the reconciliation window. This
+	// simulates the local commit having succeeded (WAL entry persisted) with
+	// a remote peer commit having failed downstream.
+	writeWALEntry(t, walPath, wal.Entry{
+		TransactionID:  txID,
+		OrganizationID: "org",
+		LedgerID:       "ledger",
+		CrossShard:     true,
+		Participants: []wal.WALParticipant{
+			{InstanceAddr: "localhost:50051", PreparedTxID: "ptx-local", IsLocal: true},
+			{InstanceAddr: "localhost:50052", PreparedTxID: "ptx-remote", IsLocal: false},
+		},
+		CreatedAt: time.Now().Add(-1 * time.Minute),
+	})
+
+	// Drive the intent through escalation the same way the partial-commit
+	// paths in cross_shard.go do. escalateToManualIntervention must mark the
+	// transaction completed on the reconciler so the next reconcile cycle
+	// does not re-publish PREPARED from the WAL.
+	intent := &commitIntent{
+		TransactionID:  txID,
+		OrganizationID: "org",
+		LedgerID:       "ledger",
+		Status:         commitIntentStatusPrepared,
+		Participants: []commitParticipant{
+			{InstanceAddr: "localhost:50051", PreparedTxID: "ptx-local", IsLocal: true},
+			{InstanceAddr: "localhost:50052", PreparedTxID: "ptx-remote"},
+		},
+	}
+
+	require.NoError(t, rec.service.escalateToManualIntervention(
+		context.Background(), intent, manualInterventionReasonRemoteNotFound,
+	))
+
+	// escalateToManualIntervention publishes twice: commits topic + manual-
+	// intervention topic. Record that baseline so we can assert the next
+	// cycle adds zero additional publishes.
+	baseline := pub.count()
+	require.GreaterOrEqual(t, baseline, 1, "escalation must publish at least once")
+	require.True(t, rec.isCompleted(txID),
+		"escalation must mark the transaction completed so the reconciler skips it")
+
+	// Drive one full reconcile cycle. With the fix, the reconciler observes
+	// the WAL entry, sees the completed flag, and skips. Without the fix
+	// (pre-ripple-fix behavior), the reconciler would add one more PREPARED
+	// publish here — the test asserts the count is stable.
+	rec.reconcile(context.Background())
+
+	assert.Equal(t, baseline, pub.count(),
+		"reconciler must NOT republish PREPARED after partial-commit escalation")
+
+	// A second cycle exercises the idempotency contract at the reconciler
+	// level: even a second scan of the same WAL entry must remain a no-op.
+	rec.reconcile(context.Background())
+	assert.Equal(t, baseline, pub.count(),
+		"second reconcile cycle must remain a no-op after escalation")
+}
+
+// TestRecovery_InvalidatesTransactionCacheOnDriveToCompletion asserts the
+// recovery runner emits a cache-invalidation event on the dedicated topic
+// whenever finalizeRecoveryStatus transitions an intent to COMPLETED. Without
+// this signal, transaction-service Redis caches can hold pre-recovery balances
+// indefinitely because the cache only refreshes on the next LoadBalances
+// (which may be hours away for a cold alias). The publish is best-effort —
+// failures must NOT roll back the recovery — but the message MUST appear on
+// the invalidation topic on the happy path.
+func TestRecovery_InvalidatesTransactionCacheOnDriveToCompletion(t *testing.T) {
+	pub := &reconcilerCapturingPublisher{}
+	svc := &authorizerService{pub: pub}
+
+	intent := &commitIntent{
+		TransactionID:  "tx-recovery-invalidate",
+		OrganizationID: "org-abc",
+		LedgerID:       "ledger-xyz",
+		Status:         commitIntentStatusCommitted,
+		Participants: []commitParticipant{
+			{InstanceAddr: "localhost:50051", PreparedTxID: "ptx-a", Committed: true, IsLocal: true},
+			{InstanceAddr: "localhost:50052", PreparedTxID: "ptx-b", Committed: true},
+		},
+	}
+
+	// anyParticipantCommitted=true triggers the COMMITTED→COMPLETED transition
+	// inside finalizeRecoveryStatus, which is the drive-to-completion path.
+	require.NoError(t, svc.finalizeRecoveryStatus(context.Background(), intent, true))
+	assert.Equal(t, commitIntentStatusCompleted, intent.Status)
+
+	// finalizeRecoveryStatus publishes the commit-intent COMPLETED record
+	// first, then the cache-invalidation event. Assert BOTH topics received
+	// the right message.
+	pub.mu.Lock()
+	defer pub.mu.Unlock()
+
+	var sawCommit, sawInvalidation bool
+
+	for _, msg := range pub.messages {
+		switch msg.Topic {
+		case crossShardCommitTopic:
+			sawCommit = true
+		case crossShardCacheInvalidationTopic:
+			sawInvalidation = true
+
+			var evt cacheInvalidationEvent
+			require.NoError(t, json.Unmarshal(msg.Payload, &evt),
+				"cache-invalidation payload must decode as cacheInvalidationEvent")
+
+			assert.Equal(t, "tx-recovery-invalidate", evt.TransactionID)
+			assert.Equal(t, "org-abc", evt.OrganizationID)
+			assert.Equal(t, "ledger-xyz", evt.LedgerID)
+			assert.Equal(t, "recovery_drive_to_completion", evt.Reason)
+			assert.False(t, evt.EmittedAt.IsZero(), "emitted_at must be populated")
+			assert.Equal(t, "tx-recovery-invalidate", msg.PartitionKey,
+				"partition key must be transaction_id so all events for the same tx land in order")
+		}
+	}
+
+	assert.True(t, sawCommit, "recovery must publish COMPLETED intent to commits topic")
+	assert.True(t, sawInvalidation, "recovery must publish to cache-invalidation topic on drive-to-completion")
 }

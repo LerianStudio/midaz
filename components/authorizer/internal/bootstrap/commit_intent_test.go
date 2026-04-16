@@ -419,7 +419,11 @@ func TestRecoverCommitIntentLocalParticipant(t *testing.T) {
 	require.True(t, recovered, "local participant should count as recovered")
 	require.True(t, intent.Participants[0].Committed)
 	require.Equal(t, commitIntentStatusCompleted, intent.Status)
-	require.Len(t, pub.messages, 1)
+	// Drive-to-completion publishes twice: COMPLETED intent to commits topic
+	// + cache-invalidation event to the invalidation topic (see
+	// TestRecovery_InvalidatesTransactionCacheOnDriveToCompletion for the
+	// topic/payload contract).
+	require.Len(t, pub.messages, 2)
 }
 
 func TestRecoverCommitIntentRemoteParticipant(t *testing.T) {
@@ -452,7 +456,8 @@ func TestRecoverCommitIntentRemoteParticipant(t *testing.T) {
 	require.True(t, recovered, "remote participant should count as recovered")
 	require.True(t, intent.Participants[0].Committed)
 	require.Equal(t, commitIntentStatusCompleted, intent.Status)
-	require.Len(t, pub.messages, 1)
+	// Drive-to-completion publishes COMPLETED intent + cache-invalidation.
+	require.Len(t, pub.messages, 2)
 }
 
 func TestRecoverCommitIntentMissingPeerReturnsError(t *testing.T) {
@@ -542,7 +547,8 @@ func TestRecoverCommitIntentCommitsParticipantOwnedByAddressEvenIfNotLocalFlag(t
 	require.True(t, recovered, "owned-by-address participant should count as recovered")
 	require.True(t, intent.Participants[0].Committed)
 	require.Equal(t, commitIntentStatusCompleted, intent.Status)
-	require.Len(t, pub.messages, 1)
+	// Drive-to-completion publishes COMPLETED intent + cache-invalidation.
+	require.Len(t, pub.messages, 2)
 }
 
 func TestRecoverCommitIntentSkippedParticipantReturnsNotRecovered(t *testing.T) {
@@ -652,8 +658,10 @@ func TestRecoverCommitIntentPartialCommitRecovery(t *testing.T) {
 	require.True(t, intent.Participants[1].Committed)
 	// Verify: since all participants are committed, status should be COMPLETED.
 	require.Equal(t, commitIntentStatusCompleted, intent.Status)
-	// Verify: a completion intent was published.
-	require.Len(t, pub.messages, 1)
+	// Verify: a completion intent was published + cache-invalidation event.
+	// The invalidation is the ripple-effect fix for stale Redis cache; see
+	// TestRecovery_InvalidatesTransactionCacheOnDriveToCompletion.
+	require.Len(t, pub.messages, 2)
 }
 
 func TestRecoverCommitIntent_PartialCommit_SkipsAlreadyCommitted(t *testing.T) {
@@ -734,8 +742,8 @@ func TestRecoverCommitIntent_PartialCommit_SkipsAlreadyCommitted(t *testing.T) {
 	// Verify: intent status advanced to COMPLETED since all participants are committed.
 	require.Equal(t, commitIntentStatusCompleted, intent.Status)
 
-	// Verify: a completion intent was published.
-	require.Len(t, pub.messages, 1)
+	// Verify: a completion intent was published + cache-invalidation event.
+	require.Len(t, pub.messages, 2)
 }
 
 func TestRecoverCommitIntentAlreadyCompleted(t *testing.T) {

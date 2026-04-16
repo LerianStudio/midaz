@@ -51,6 +51,15 @@ const crossShardManualInterventionTopic = "authorizer.cross-shard.manual-interve
 // payloads, permanently invalid state transitions, etc.).
 const crossShardCommitsDLQTopic = "authorizer.cross-shard.commits.dlq"
 
+// crossShardCacheInvalidationTopic signals downstream consumers (primarily
+// the transaction service's Redis cache) that the authoritative balances for
+// a set of (org, ledger) tuples have changed out-of-band because the 2PC
+// recovery runner just drove an incomplete cross-shard commit to completion.
+// Consumers purge the affected balance cache keys so subsequent reads hit
+// the database and observe the post-recovery state. This closes the stale-
+// cache window between "recovery completes" and "next LoadBalances".
+const crossShardCacheInvalidationTopic = "authorizer.cross-shard.cache-invalidation"
+
 // Manual-intervention reason labels used by the
 // authorizer_manual_intervention_required_total counter and the
 // manual-intervention topic. These MUST stay stable — they drive operator
@@ -170,6 +179,68 @@ func (s *authorizerService) publishManualIntervention(ctx context.Context, inten
 	return nil
 }
 
+// cacheInvalidationEvent is the payload written to
+// crossShardCacheInvalidationTopic. It carries the minimum information a
+// cache consumer needs to purge the right keys — the transaction ID (for
+// correlation / idempotency), the org+ledger tuple that bounds the cache
+// namespace, and the InstanceAddr list so operators can trace which
+// participants drove the completion.
+type cacheInvalidationEvent struct {
+	TransactionID  string    `json:"transaction_id"`
+	OrganizationID string    `json:"organization_id"`
+	LedgerID       string    `json:"ledger_id"`
+	Reason         string    `json:"reason"`
+	EmittedAt      time.Time `json:"emitted_at"`
+}
+
+// publishCacheInvalidation serializes a cacheInvalidationEvent and writes it
+// to crossShardCacheInvalidationTopic. This is best-effort: the primary
+// durability contract (commits topic) must already have succeeded before
+// this is called, and failures here are logged but never roll back recovery.
+func (s *authorizerService) publishCacheInvalidation(ctx context.Context, intent *commitIntent) error {
+	if s == nil || intent == nil {
+		return errCommitIntentPublisherNotConfigured
+	}
+
+	if s.pub == nil {
+		return errCommitIntentPublisherNotConfigured
+	}
+
+	evt := cacheInvalidationEvent{
+		TransactionID:  intent.TransactionID,
+		OrganizationID: intent.OrganizationID,
+		LedgerID:       intent.LedgerID,
+		Reason:         "recovery_drive_to_completion",
+		EmittedAt:      time.Now().UTC(),
+	}
+
+	payload, err := json.Marshal(evt)
+	if err != nil {
+		return fmt.Errorf("marshal cache-invalidation event: %w", err)
+	}
+
+	headers := make(map[string]string)
+	token := s.peerAuthToken
+
+	if token != "" {
+		mac := hmac.New(sha256.New, []byte(token))
+		_, _ = mac.Write(payload)
+		headers[commitIntentAuthHeader] = hex.EncodeToString(mac.Sum(nil))
+	}
+
+	if err := s.pub.Publish(ctx, publisher.Message{
+		Topic:        crossShardCacheInvalidationTopic,
+		PartitionKey: intent.TransactionID,
+		Payload:      payload,
+		Headers:      headers,
+		ContentType:  "application/json",
+	}); err != nil {
+		return fmt.Errorf("publish cache invalidation: %w", err)
+	}
+
+	return nil
+}
+
 // publishCommitIntent serializes a commit intent and writes it to the
 // cross-shard commit topic in Redpanda. The transaction ID is used as the
 // partition key, guaranteeing that all status updates for a given transaction
@@ -267,6 +338,22 @@ func (s *authorizerService) escalateToManualIntervention(ctx context.Context, in
 	// so the metric cannot race ahead of the durable state.
 	if s.metrics != nil {
 		s.metrics.RecordManualInterventionRequired(ctx, reason)
+	}
+
+	// Mark the transaction as completed in the reconciler's in-memory set so
+	// the next reconcile cycle does NOT republish a PREPARED intent derived
+	// from the WAL entry. Without this, the reconciler's 5-minute lookback
+	// window would keep re-publishing PREPARED for transactions that have
+	// already been escalated to MANUAL_INTERVENTION_REQUIRED — the recovery
+	// consumer would then re-escalate, the reconciler would see it again on
+	// the next cycle, and the loop would never quiesce until the seed
+	// consumer's next startup. markCompleted short-circuits that loop at
+	// its source: any terminal state (COMPLETED or MANUAL_INTERVENTION_REQUIRED)
+	// MUST stop the republish. The reconciler's tryExtractCompletedTxID
+	// treats MANUAL_INTERVENTION_REQUIRED as terminal on restart (seed path);
+	// this line closes the same gap on the live path.
+	if s.walReconciler != nil {
+		s.walReconciler.markCompleted(intent.TransactionID)
 	}
 
 	return nil

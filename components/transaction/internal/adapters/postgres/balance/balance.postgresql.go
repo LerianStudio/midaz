@@ -115,10 +115,19 @@ type balanceUpdateTx interface {
 }
 
 // NewBalancePostgreSQLRepository returns a new instance of BalancePostgreSQLRepository using the given Postgres connection.
+//
+// NOTE: tableName is schema-qualified ("public.balance") so every squirrel
+// builder emits FROM/INSERT/UPDATE against public.balance regardless of the
+// session's search_path. This matters after migration 000023
+// (staged_cutover/000023_atomic_swap_balance.up.sql) renames
+// balance → balance_legacy and balance_partitioned → balance. See the
+// detailed rationale on NewOperationPostgreSQLRepository — the same silent
+// redirection risk applies. TestRepository_QueriesUseSchemaQualifiedTableNames
+// enforces the invariant going forward.
 func NewBalancePostgreSQLRepository(pc *libPostgres.PostgresConnection) (*BalancePostgreSQLRepository, error) {
 	c := &BalancePostgreSQLRepository{
 		connection: pc,
-		tableName:  "balance",
+		tableName:  "public.balance",
 	}
 
 	if _, err := c.connection.GetDB(); err != nil {
@@ -150,7 +159,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, `INSERT INTO balance VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO public.balance VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
 		record.ID,
 		record.OrganizationID,
 		record.LedgerID,
@@ -223,7 +232,7 @@ func (r *BalancePostgreSQLRepository) CreateIfNotExists(ctx context.Context, bal
 	ctx, spanExec := tracer.Start(ctx, "postgres.create_if_not_exists.exec")
 	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, `INSERT INTO balance VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+	result, err := db.ExecContext(ctx, `INSERT INTO public.balance VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		ON CONFLICT (organization_id, ledger_id, alias, key) WHERE deleted_at IS NULL DO NOTHING`,
 		record.ID,
 		record.OrganizationID,
@@ -1219,7 +1228,7 @@ func lockBalancesForDeterministicUpdate(ctx context.Context, tx balanceUpdateTx,
 	rows, err := tx.QueryContext(
 		ctx,
 		`SELECT id
-		 FROM balance
+		 FROM public.balance
 		 WHERE organization_id = $1
 		   AND ledger_id = $2
 		   AND id = ANY($3::uuid[])
@@ -1343,7 +1352,7 @@ func buildBatchBalanceUpdateQuery(chunk []*mmodel.Balance, now time.Time, organi
 
 	args = append(args, organizationID, ledgerID)
 
-	query := `UPDATE balance AS b
+	query := `UPDATE public.balance AS b
 	SET available = v.available,
 	    on_hold = v.on_hold,
 	    version = v.version,
@@ -1488,11 +1497,11 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 			   created_at,
 			   updated_at,
 			   deleted_at
-			FROM balance 
-			WHERE organization_id = $1 
-			   AND ledger_id = $2 
-			   AND account_id = $3 
-			   AND key = $4 
+			FROM public.balance
+			WHERE organization_id = $1
+			   AND ledger_id = $2
+			   AND account_id = $3
+			   AND key = $4
 			   AND deleted_at IS NULL`
 
 	row := db.QueryRowContext(ctx, query, organizationID, ledgerID, accountID, key)
@@ -1620,7 +1629,7 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 	ctx, spanQuery := tracer.Start(ctx, "postgres.delete.exec")
 
 	result, err := db.ExecContext(ctx, `
-		UPDATE balance 
+		UPDATE public.balance
 		SET deleted_at = NOW()
 		WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
 		organizationID, ledgerID, id,
@@ -1704,7 +1713,7 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 	defer spanExec.End()
 
 	result, err := tx.ExecContext(ctxExec, `
-		UPDATE balance
+		UPDATE public.balance
 		SET deleted_at = NOW()
 		WHERE organization_id = $1
 		  AND ledger_id = $2
@@ -1789,7 +1798,7 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
 	args = append(args, time.Now().UTC(), organizationID, ledgerID, id)
 
-	queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
+	queryUpdate := `UPDATE public.balance SET ` + strings.Join(updates, ", ") +
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) + //nolint:mnd
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
@@ -1863,7 +1872,7 @@ func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, 
 	}
 
 	res, err := db.ExecContext(ctx, `
-		UPDATE balance
+		UPDATE public.balance
 		SET available = $1, on_hold = $2, version = $3, updated_at = $4
 		WHERE organization_id = $5 AND ledger_id = $6 AND id = $7 AND deleted_at IS NULL AND version < $3
 	`, b.Available, b.OnHold, b.Version, time.Now().UTC(), organizationID, ledgerID, id)
@@ -1926,7 +1935,7 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 		return fmt.Errorf("failed to perform database operation: %w", err)
 	}
 
-	query := `UPDATE balance SET allow_sending = $1, allow_receiving = $2, updated_at = NOW() WHERE organization_id = $3 AND ledger_id = $4 AND account_id = $5 AND deleted_at IS NULL`
+	query := `UPDATE public.balance SET allow_sending = $1, allow_receiving = $2, updated_at = NOW() WHERE organization_id = $3 AND ledger_id = $4 AND account_id = $5 AND deleted_at IS NULL`
 
 	result, err := db.ExecContext(ctx, query, *balance.AllowSending, *balance.AllowReceiving, organizationID, ledgerID, accountID)
 	if err != nil {
@@ -2075,7 +2084,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDAtTimestamp(ctx context.Con
 		"balance_version_after",
 		"created_at as op_created_at",
 	).
-		From("operation").
+		From("public.operation").
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Eq{"account_id": accountID}).
@@ -2109,7 +2118,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDAtTimestamp(ctx context.Con
 		"COALESCE(o.op_created_at, b.created_at) as updated_at",
 	).
 		Prefix("WITH latest_ops AS ("+latestOpsSql+")", latestOpsArgs...).
-		From("balance b").
+		From("public.balance b").
 		LeftJoin("latest_ops o ON b.id = o.balance_id").
 		Where(squirrel.Eq{"b.organization_id": organizationID}).
 		Where(squirrel.Eq{"b.ledger_id": ledgerID}).
