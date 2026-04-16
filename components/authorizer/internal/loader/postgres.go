@@ -6,6 +6,7 @@ package loader
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strconv"
@@ -653,19 +654,28 @@ func scanBalance(rows interface {
 }, router *shard.Router, shardFilter map[int32]struct{},
 ) (*engine.Balance, error) {
 	var (
-		id             string
-		org            string
-		ledger         string
-		accountID      string
-		alias          string
-		balanceKey     string
-		assetCode      string
-		availableRaw   string
-		onHoldRaw      string
-		version        int64
-		accountType    string
-		allowSending   bool
-		allowReceiving bool
+		id         string
+		org        string
+		ledger     string
+		accountID  string
+		alias      string
+		balanceKey string
+		assetCode  string
+		// availableRaw and onHoldRaw are scanned as *string so NULL values
+		// from the decimal columns do not silently become "" (which then
+		// panics/errors in decimal.NewFromString). A NULL is coerced to "0"
+		// below, matching the on-disk semantics of a zero-balance row.
+		availableRaw *string
+		onHoldRaw    *string
+		version      int64
+		accountType  string
+		// allow_sending/allow_receiving are scanned as sql.NullBool because a
+		// migration gap (pre-000003/000020) or manual back-fill could leave
+		// NULL even though current schema is NOT NULL. A NULL defaults to
+		// true — the fail-safe for a policy column: do NOT silently lock an
+		// account out of sending/receiving because of unexpected NULL.
+		allowSending   sql.NullBool
+		allowReceiving sql.NullBool
 	)
 
 	if err := rows.Scan(
@@ -697,7 +707,37 @@ func scanBalance(rows interface {
 		}
 	}
 
-	return buildBalance(id, org, ledger, accountID, alias, balanceKey, assetCode, availableRaw, onHoldRaw, version, accountType, allowSending, allowReceiving)
+	return buildBalance(id, org, ledger, accountID, alias, balanceKey, assetCode,
+		coalesceDecimalString(availableRaw),
+		coalesceDecimalString(onHoldRaw),
+		version, accountType,
+		coalesceAllowBool(allowSending),
+		coalesceAllowBool(allowReceiving),
+	)
+}
+
+// coalesceDecimalString returns the string value pointed to by p or "0" when
+// p is nil (NULL in the underlying column). "0" is the semantically correct
+// default for a missing decimal amount and parses cleanly via
+// decimal.NewFromString, preventing the previous NULL→""→parse-error panic.
+func coalesceDecimalString(p *string) string {
+	if p == nil {
+		return "0"
+	}
+
+	return *p
+}
+
+// coalesceAllowBool returns nb.Bool when valid, or true otherwise. true is the
+// fail-safe default for the allow_sending/allow_receiving policy flags: a
+// NULL (schema drift, manual backfill) must not silently revoke an account's
+// ability to transact. Operators can always flip the flag to false explicitly.
+func coalesceAllowBool(nb sql.NullBool) bool {
+	if !nb.Valid {
+		return true
+	}
+
+	return nb.Bool
 }
 
 // buildBalance converts raw scanned values to an engine.Balance.
@@ -891,19 +931,21 @@ func scanStreamingBalance(rows interface {
 }, router *shard.Router, shardFilter map[int32]struct{},
 ) (cursorRow, error) {
 	var (
-		id             string
-		org            string
-		ledger         string
-		accountID      string
-		alias          string
-		balanceKey     string
-		assetCode      string
-		availableRaw   string
-		onHoldRaw      string
+		id         string
+		org        string
+		ledger     string
+		accountID  string
+		alias      string
+		balanceKey string
+		assetCode  string
+		// See scanBalance for the rationale behind *string / sql.NullBool
+		// handling of the decimal and policy columns.
+		availableRaw   *string
+		onHoldRaw      *string
 		version        int64
 		accountType    string
-		allowSending   bool
-		allowReceiving bool
+		allowSending   sql.NullBool
+		allowReceiving sql.NullBool
 		updatedAt      time.Time
 	)
 
@@ -939,7 +981,13 @@ func scanStreamingBalance(rows interface {
 		}
 	}
 
-	balance, err := buildBalance(id, org, ledger, accountID, alias, balanceKey, assetCode, availableRaw, onHoldRaw, version, accountType, allowSending, allowReceiving)
+	balance, err := buildBalance(id, org, ledger, accountID, alias, balanceKey, assetCode,
+		coalesceDecimalString(availableRaw),
+		coalesceDecimalString(onHoldRaw),
+		version, accountType,
+		coalesceAllowBool(allowSending),
+		coalesceAllowBool(allowReceiving),
+	)
 	if err != nil {
 		return cursorRow{}, err
 	}

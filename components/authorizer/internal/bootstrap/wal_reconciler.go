@@ -277,7 +277,11 @@ func (r *walReconciler) seedCompletedSet(ctx context.Context) {
 // reconcile scans the WAL for stale cross-shard entries and re-publishes commit
 // intents for any that are not in the completed set.
 func (r *walReconciler) reconcile(ctx context.Context) {
-	if r == nil || r.service == nil {
+	// Nil-safety: mirror the guard in seedCompletedSet. Without r.service.pub
+	// the downstream publishCommitIntent call would fail at the publisher
+	// check; short-circuiting here avoids touching the WAL replay when we
+	// already know we cannot act on the result.
+	if r == nil || r.service == nil || r.service.pub == nil {
 		return
 	}
 

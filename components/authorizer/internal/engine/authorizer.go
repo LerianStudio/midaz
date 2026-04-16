@@ -256,7 +256,12 @@ func (e *Engine) ValidateRequestLimits(req *authorizerv1.AuthorizeRequest) *auth
 // UpsertBalances inserts new balances or updates existing ones using version-gated semantics.
 // Returns the number of newly inserted balances.
 func (e *Engine) UpsertBalances(balances []*Balance) int64 {
-	if e == nil {
+	// Nil-safety: mirror the guard used by sibling methods (ShardCount,
+	// GetBalance). A half-constructed engine where router was never set would
+	// otherwise panic on the first ResolveBalance call below. The worker-pool
+	// length check covers the equally pathological case of a router that
+	// resolves to a shard ID outside the materialized workers slice.
+	if e == nil || e.router == nil || len(e.workers) == 0 {
 		return 0
 	}
 
@@ -266,75 +271,97 @@ func (e *Engine) UpsertBalances(balances []*Balance) int64 {
 	var inserted int64
 
 	for _, balance := range balances {
-		if balance == nil {
-			continue
+		if e.upsertOneBalance(balance) {
+			inserted++
 		}
-
-		balanceKey := balance.BalanceKey
-		if balanceKey == "" {
-			balanceKey = constant.DefaultBalanceKey
-		}
-
-		workerID := e.router.ResolveBalance(balance.AccountAlias, balanceKey)
-		worker := e.workers[workerID]
-
-		lookupKey := balanceLookupKey(balance.OrganizationID, balance.LedgerID, balance.AccountAlias, balanceKey)
-
-		// Double-check locking (TOCTOU-safe pattern):
-		//
-		// 1. RLock the shard to check whether the balance already exists (fast path).
-		// 2. If not found, upgrade to a full Lock and re-check (slow path, handles the
-		//    race where another goroutine inserted between RUnlock and Lock).
-		//
-		// For existing balances, the window between RUnlock and the per-balance Lock below
-		// is intentional and safe: the pointer stability invariant guarantees the map entry
-		// is never replaced, so the pointer obtained under RLock remains valid. Concurrent
-		// Authorize/Replay may mutate the balance's Available/OnHold/Version fields during
-		// this window. The version-gated overwrite below ensures that only a newer snapshot
-		// from the database wins; any in-flight authorization mutations that incremented
-		// the version will cause the version guard to skip the overwrite, which is correct
-		// because the in-memory state already reflects the latest mutations.
-		//
-		// Caller contract: the snapshot passed to UpsertBalances must come from a database
-		// read that is at least as recent as the last WAL flush. This ensures that the
-		// Version field in the snapshot already accounts for all replayed mutations, so the
-		// version comparison (balance.Version > existing.Version) produces the correct result.
-		worker.mu.RLock()
-		existing, exists := worker.balances[lookupKey]
-		worker.mu.RUnlock()
-
-		if !exists || existing == nil {
-			worker.mu.Lock()
-
-			existing, exists = worker.balances[lookupKey]
-			if !exists || existing == nil {
-				inserted++
-				copyBalance := balance.clone()
-				copyBalance.BalanceKey = balanceKey
-				// Pointer stability invariant: once a balance pointer is inserted for a lookup key,
-				// future upserts mutate that same object in place and never replace the map entry.
-				// Authorize/Prepare rely on this invariant between map lookup and balance lock.
-				worker.balances[lookupKey] = copyBalance
-				worker.mu.Unlock()
-
-				continue
-			}
-
-			worker.mu.Unlock()
-		}
-
-		existing.mu.Lock()
-		if balance.Version > existing.Version {
-			existing.overwriteFrom(balance, balanceKey)
-		} else if balance.Version == existing.Version {
-			existing.overwritePolicyFrom(balance, balanceKey)
-		}
-		existing.mu.Unlock()
 	}
 
 	e.loaded.Add(inserted)
 
 	return inserted
+}
+
+// upsertOneBalance inserts or version-gated-updates a single balance.
+// Returns true when a new entry was inserted (so the caller can increment
+// the insertion counter). All nil-safety and bounds checks are co-located
+// here so UpsertBalances stays under the cyclomatic complexity threshold.
+func (e *Engine) upsertOneBalance(balance *Balance) bool {
+	if balance == nil {
+		return false
+	}
+
+	balanceKey := balance.BalanceKey
+	if balanceKey == "" {
+		balanceKey = constant.DefaultBalanceKey
+	}
+
+	workerID := e.router.ResolveBalance(balance.AccountAlias, balanceKey)
+
+	// Bounds check protects against a router misconfigured with a shard
+	// count larger than the materialized worker pool. Without this, the
+	// index below would panic with runtime out-of-range.
+	if workerID < 0 || workerID >= len(e.workers) {
+		return false
+	}
+
+	worker := e.workers[workerID]
+	if worker == nil {
+		return false
+	}
+
+	lookupKey := balanceLookupKey(balance.OrganizationID, balance.LedgerID, balance.AccountAlias, balanceKey)
+
+	// Double-check locking (TOCTOU-safe pattern):
+	//
+	// 1. RLock the shard to check whether the balance already exists (fast path).
+	// 2. If not found, upgrade to a full Lock and re-check (slow path, handles the
+	//    race where another goroutine inserted between RUnlock and Lock).
+	//
+	// For existing balances, the window between RUnlock and the per-balance Lock below
+	// is intentional and safe: the pointer stability invariant guarantees the map entry
+	// is never replaced, so the pointer obtained under RLock remains valid. Concurrent
+	// Authorize/Replay may mutate the balance's Available/OnHold/Version fields during
+	// this window. The version-gated overwrite below ensures that only a newer snapshot
+	// from the database wins; any in-flight authorization mutations that incremented
+	// the version will cause the version guard to skip the overwrite, which is correct
+	// because the in-memory state already reflects the latest mutations.
+	//
+	// Caller contract: the snapshot passed to UpsertBalances must come from a database
+	// read that is at least as recent as the last WAL flush. This ensures that the
+	// Version field in the snapshot already accounts for all replayed mutations, so the
+	// version comparison (balance.Version > existing.Version) produces the correct result.
+	worker.mu.RLock()
+	existing, exists := worker.balances[lookupKey]
+	worker.mu.RUnlock()
+
+	if !exists || existing == nil {
+		worker.mu.Lock()
+
+		existing, exists = worker.balances[lookupKey]
+		if !exists || existing == nil {
+			copyBalance := balance.clone()
+			copyBalance.BalanceKey = balanceKey
+			// Pointer stability invariant: once a balance pointer is inserted for a lookup key,
+			// future upserts mutate that same object in place and never replace the map entry.
+			// Authorize/Prepare rely on this invariant between map lookup and balance lock.
+			worker.balances[lookupKey] = copyBalance
+			worker.mu.Unlock()
+
+			return true
+		}
+
+		worker.mu.Unlock()
+	}
+
+	existing.mu.Lock()
+	if balance.Version > existing.Version {
+		existing.overwriteFrom(balance, balanceKey)
+	} else if balance.Version == existing.Version {
+		existing.overwritePolicyFrom(balance, balanceKey)
+	}
+	existing.mu.Unlock()
+
+	return false
 }
 
 // GetBalance returns a snapshot of the balance identified by the given keys.

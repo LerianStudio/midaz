@@ -659,6 +659,14 @@ func (s *authorizerService) commitLocalParticipants(
 			publishCommittedStatus()
 		}
 
+		// Nil-safety: although protobuf getters are nil-safe for the receiver,
+		// appending the resulting nil slice is a no-op yet still exercises a
+		// second nil deref path if commitResp itself is nil. Keep the guard
+		// explicit so a future engine refactor cannot reintroduce the hazard.
+		if commitResp == nil {
+			continue
+		}
+
 		res.snapshots = append(res.snapshots, commitResp.GetBalances()...)
 	}
 
@@ -954,6 +962,13 @@ func (s *authorizerService) commitRemotePeerGuarded(
 	guardedMark(r.txID)
 	guardedPublish()
 
+	// Defense in depth: a well-behaved client never returns (nil, nil), but a
+	// future mock or transport bug could. GetBalances() is nil-safe on a nil
+	// receiver but returning nil is harmless here; prefer the explicit check.
+	if commitResp == nil {
+		return nil, false
+	}
+
 	return commitResp.GetBalances(), false
 }
 
@@ -1029,10 +1044,20 @@ func (s *authorizerService) handleRemotePeerCommitError(
 	txID string,
 	intent *commitIntent,
 ) {
+	// Nil-safety: mirror the guard used in the abort path (abortAllPrepared at
+	// r.peer == nil). Without this, logging r.peer.addr below would panic
+	// whenever a prepareResult was constructed without a peer reference —
+	// which has been observed in recovery paths where the WAL knows the
+	// InstanceAddr but the live peer map no longer resolves it.
+	peerAddr := "<unknown>"
+	if r != nil && r.peer != nil {
+		peerAddr = r.peer.addr
+	}
+
 	if status.Code(err) == codes.NotFound {
 		s.logger.Warnf(
 			"CRITICAL: cross-shard peer commit reported prepared_tx not found (possible data loss): tx_id=%s peer=%s prepared_tx_id=%s",
-			txID, r.peer.addr, r.txID,
+			txID, peerAddr, r.txID,
 		)
 
 		intent.Status = commitIntentStatusManualIntervention
@@ -1049,7 +1074,7 @@ func (s *authorizerService) handleRemotePeerCommitError(
 
 	s.logger.Errorf(
 		"CRITICAL: cross-shard peer commit failed (PARTIAL COMMIT): tx_id=%s peer=%s prepared_tx_id=%s err=%v",
-		txID, r.peer.addr, r.txID, err,
+		txID, peerAddr, r.txID, err,
 	)
 }
 
