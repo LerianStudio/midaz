@@ -118,6 +118,19 @@ func (s *stubPeerClient) AbortPrepared(_ context.Context, _ *authorizerv1.AbortP
 	return &authorizerv1.AbortPreparedResponse{Aborted: true}, nil
 }
 
+// ResolveManualIntervention satisfies the BalanceAuthorizerClient interface
+// so stubPeerClient can be used in peer lists under the v1 contract. The 2PC
+// coordinator path never invokes this method on a peer client (admin RPCs
+// are inbound-only), so a trivial Unimplemented response is sufficient.
+func (s *stubPeerClient) ResolveManualIntervention(_ context.Context, _ *authorizerv1.ResolveManualInterventionRequest, _ ...grpc.CallOption) (*authorizerv1.ResolveManualInterventionResponse, error) {
+	return nil, errStubUnimplementedAdminRPC
+}
+
+// errStubUnimplementedAdminRPC is the sentinel returned by stub client
+// implementations for the admin RPC — peers never invoke it, so any call path
+// that reaches this method indicates a test regression.
+var errStubUnimplementedAdminRPC = errors.New("stub peer client does not implement ResolveManualIntervention")
+
 func TestPrepareAuthorizeAllowsEmptyOperationsWithoutPanic(t *testing.T) {
 	eng := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
 	defer eng.Close()

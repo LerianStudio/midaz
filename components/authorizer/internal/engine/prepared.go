@@ -413,6 +413,66 @@ func (s *preparedTxStore) SetPreparedObserver(observer PreparedObserver) {
 	s.observer = observer
 }
 
+// PreparedState enumerates the externally-observable lifecycle states of a
+// prepared transaction. Consumed by the admin RPC surface
+// (ResolveManualIntervention) so operators can see the prior state of a stuck
+// transaction before resolving it. Values are stable strings — they appear in
+// the admin RPC response and the audit log.
+const (
+	// PreparedStatePending: prepared, locks held, commit not yet attempted.
+	PreparedStatePending = "pending"
+	// PreparedStateCommitDecided: CommitPrepared was called but the WAL append
+	// failed; the transaction was re-enqueued awaiting retry.
+	PreparedStateCommitDecided = "commit_decided"
+	// PreparedStateCommitted: CommitPrepared succeeded and the idempotent
+	// committed-response is retained for duplicate-delivery safety.
+	PreparedStateCommitted = "already_committed"
+	// PreparedStateNotFound: no prepared or committed entry with the given ID.
+	PreparedStateNotFound = "not_found"
+)
+
+// InspectPreparedState reports the externally-observable state of a prepared
+// transaction without mutating the store. Returns PreparedStateNotFound when
+// neither the pending nor the committed map carries the given ID. Safe to call
+// concurrently with the reaper and with CommitPrepared/AbortPrepared — all
+// observations are taken under the store mutex.
+func (s *preparedTxStore) InspectPreparedState(id string) string {
+	if s == nil || id == "" {
+		return PreparedStateNotFound
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.pruneExpiredCommittedLocked(time.Now())
+
+	if _, ok := s.committed[id]; ok {
+		return PreparedStateCommitted
+	}
+
+	ptx, ok := s.pending[id]
+	if !ok || ptx == nil || ptx.done {
+		return PreparedStateNotFound
+	}
+
+	if ptx.commitDecided {
+		return PreparedStateCommitDecided
+	}
+
+	return PreparedStatePending
+}
+
+// InspectPreparedState exposes the prepStore's InspectPreparedState on the
+// engine. Used by the admin RPC (ResolveManualIntervention) to surface the
+// prior state of a stuck prepared transaction to operators.
+func (e *Engine) InspectPreparedState(preparedTxID string) string {
+	if e == nil || e.prepStore == nil {
+		return PreparedStateNotFound
+	}
+
+	return e.prepStore.InspectPreparedState(preparedTxID)
+}
+
 // Len returns the number of pending prepared transactions.
 func (s *preparedTxStore) Len() int {
 	if s == nil {

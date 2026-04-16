@@ -22,6 +22,12 @@ service BalanceAuthorizer {
   rpc CommitPrepared(CommitPreparedRequest) returns (CommitPreparedResponse);
   // AbortPrepared releases locks without any mutation for a prepared transaction.
   rpc AbortPrepared(AbortPreparedRequest) returns (AbortPreparedResponse);
+
+  // Admin RPC for resolving stuck prepared transactions that have been flagged
+  // for manual intervention. Requires AUTHORIZER_ADMIN_TOKEN in request
+  // metadata (distinct from the peer-auth HMAC used by 2PC RPCs). Every
+  // invocation is audit-logged regardless of outcome.
+  rpc ResolveManualIntervention(ResolveManualInterventionRequest) returns (ResolveManualInterventionResponse);
 }
 
 message AuthorizeRequest {
@@ -127,4 +133,49 @@ message AbortPreparedRequest {
 
 message AbortPreparedResponse {
   bool aborted = 1;
+}
+
+// ManualInterventionResolution enumerates the operator actions permitted on a
+// prepared transaction that has been flagged for manual review. Values are
+// stable — dashboards and audit trails pin on these names.
+enum ManualInterventionResolution {
+  // Sentinel default; rejected with InvalidArgument.
+  RESOLUTION_UNSPECIFIED = 0;
+  // Operator decision: force-commit the prepared transaction, mutating local
+  // balances and writing the WAL entry as if a normal CommitPrepared arrived.
+  RESOLUTION_FORCE_COMMIT = 1;
+  // Operator decision: force-abort the prepared transaction, releasing the
+  // locked balances without mutation. The intent is kept in
+  // MANUAL_INTERVENTION_REQUIRED so downstream consumers can see the trail.
+  RESOLUTION_FORCE_ABORT = 2;
+  // Operator decision: acknowledge the intervention (e.g. after external
+  // reconciliation) without mutating prepared state. Emits an audit event only.
+  RESOLUTION_MARK_INVESTIGATED = 3;
+}
+
+// ResolveManualInterventionRequest carries the operator's decision for a
+// single prepared transaction stuck awaiting resolution.
+message ResolveManualInterventionRequest {
+  // tx_id is the engine-assigned prepared_tx_id (e.g. "ptx-<uuid>"). This is
+  // the same identifier emitted by the MANUAL_INTERVENTION_REQUIRED topic and
+  // observed in operator dashboards.
+  string tx_id = 1;
+  // resolution selects the operator action. RESOLUTION_UNSPECIFIED is rejected.
+  ManualInterventionResolution resolution = 2;
+  // notes is a free-form operator comment persisted to the audit trail. MUST
+  // identify the operator (e.g. ticket ID, on-call handle).
+  string notes = 3;
+}
+
+// ResolveManualInterventionResponse returns the state transition observed and
+// a server-side timestamp suitable for correlating with the audit log.
+message ResolveManualInterventionResponse {
+  // prior_status is the PreparedTx state at the moment the RPC arrived, e.g.
+  // "pending", "commit_decided", "already_committed".
+  string prior_status = 1;
+  // new_status is the state after the resolution was applied, e.g. "committed",
+  // "aborted", "investigated".
+  string new_status = 2;
+  // timestamp is the server-side UTC RFC3339Nano timestamp of the resolution.
+  string timestamp = 3;
 }

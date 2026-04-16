@@ -21,13 +21,22 @@ import (
 // requirements only needs to update this single value.
 const testPeerAuthToken = "Str0ngPeerTokenValue!2026"
 
-// setTestPeerAuthToken installs a valid AUTHORIZER_PEER_AUTH_TOKEN for tests.
-// Peer-auth token is mandatory regardless of peer count (see B4 fix); every
-// LoadConfig-based test needs one unless it specifically probes the missing-
-// token rejection path.
+// testAdminToken is a strong, valid admin token used by tests that do not
+// specifically exercise admin-token validation. Intentionally distinct from
+// testPeerAuthToken so the least-privilege invariant (admin token != peer
+// token) holds across the suite. Must satisfy the 32-byte minimum enforced
+// by validateAdminToken (this literal is 36 bytes).
+const testAdminToken = "Str0ngAdminTokenValue!2026#Distinct1"
+
+// setTestPeerAuthToken installs valid AUTHORIZER_PEER_AUTH_TOKEN and
+// AUTHORIZER_ADMIN_TOKEN env vars for tests. Both tokens are mandatory at
+// LoadConfig time (peer-auth token via B4, admin token via D4-followup); every
+// LoadConfig-based test needs them unless it specifically probes one of the
+// missing/invalid rejection paths.
 func setTestPeerAuthToken(t *testing.T) {
 	t.Helper()
 	t.Setenv("AUTHORIZER_PEER_AUTH_TOKEN", testPeerAuthToken)
+	t.Setenv("AUTHORIZER_ADMIN_TOKEN", testAdminToken)
 }
 
 func TestLoadConfig_Success(t *testing.T) {
@@ -192,6 +201,7 @@ func TestLoadConfig_ParsesPeerShardRanges(t *testing.T) {
 	t.Setenv("AUTHORIZER_INSTANCE_ADDRESS", "authorizer-1:50051")
 	t.Setenv("AUTHORIZER_PEER_SHARD_RANGES", "0-1,6-7")
 	t.Setenv("AUTHORIZER_PEER_AUTH_TOKEN", "Str0ngPeerTokenValue!2026")
+	t.Setenv("AUTHORIZER_ADMIN_TOKEN", testAdminToken)
 
 	cfg, err := LoadConfig()
 	require.NoError(t, err)
@@ -244,6 +254,7 @@ func TestLoadConfig_ParsesPeerTransportFlags(t *testing.T) {
 	t.Setenv("AUTHORIZER_PEER_INSTANCES", "authorizer-2:50051")
 	t.Setenv("AUTHORIZER_INSTANCE_ADDRESS", "authorizer-1:50051")
 	t.Setenv("AUTHORIZER_PEER_AUTH_TOKEN", "Str0ngPeerTokenValue!2026")
+	t.Setenv("AUTHORIZER_ADMIN_TOKEN", testAdminToken)
 	t.Setenv("AUTHORIZER_PEER_INSECURE_ALLOWED", "true")
 	t.Setenv("AUTHORIZER_PEER_PREPARE_MAX_INFLIGHT", "32")
 

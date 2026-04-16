@@ -855,7 +855,8 @@ func normalizeUnauthorizedMethod(value string) string {
 		peerRPCMethodAbortPrepared,
 		peerRPCMethodLoadBalances,
 		peerRPCMethodGetBalance,
-		peerRPCMethodPublishBalanceOp:
+		peerRPCMethodPublishBalanceOp,
+		adminRPCMethodResolveManualIntervention:
 		return method
 	default:
 		return labelOther
@@ -879,7 +880,9 @@ func normalizeUnauthorizedReason(value string) string {
 		"invalid_hmac",
 		"nonce_replay",
 		"nonce_internal",
-		"hash_internal":
+		"hash_internal",
+		"missing_admin_token",
+		"invalid_admin_token":
 		return reason
 	default:
 		return labelOther

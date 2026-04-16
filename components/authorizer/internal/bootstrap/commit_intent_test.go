@@ -33,14 +33,15 @@ import (
 
 // Test sentinel errors for stub methods that should not be called.
 var (
-	errTestAuthorizeNotExpected              = errors.New("Authorize not expected in this test")
-	errTestAuthorizeStreamNotExpected        = errors.New("AuthorizeStream not expected in this test")
-	errTestLoadBalancesNotExpected           = errors.New("LoadBalances not expected in this test")
-	errTestGetBalanceNotExpected             = errors.New("GetBalance not expected in this test")
-	errTestPublishBalanceOperationsNotExpect = errors.New("PublishBalanceOperations not expected in this test")
-	errTestPrepareAuthorizeNotExpected       = errors.New("PrepareAuthorize not expected in this test")
-	errTestAbortPreparedNotExpected          = errors.New("AbortPrepared not expected in this test")
-	errTestBoom                              = errors.New("boom")
+	errTestAuthorizeNotExpected                 = errors.New("Authorize not expected in this test")
+	errTestAuthorizeStreamNotExpected           = errors.New("AuthorizeStream not expected in this test")
+	errTestLoadBalancesNotExpected              = errors.New("LoadBalances not expected in this test")
+	errTestGetBalanceNotExpected                = errors.New("GetBalance not expected in this test")
+	errTestPublishBalanceOperationsNotExpect    = errors.New("PublishBalanceOperations not expected in this test")
+	errTestPrepareAuthorizeNotExpected          = errors.New("PrepareAuthorize not expected in this test")
+	errTestAbortPreparedNotExpected             = errors.New("AbortPrepared not expected in this test")
+	errTestResolveManualInterventionNotExpected = errors.New("ResolveManualIntervention not expected in this test")
+	errTestBoom                                 = errors.New("boom")
 )
 
 // capturingPublisher records all published messages for test assertions.
@@ -118,6 +119,13 @@ func (t *trackingStubPeerClient) CommitPrepared(_ context.Context, req *authoriz
 
 func (t *trackingStubPeerClient) AbortPrepared(_ context.Context, _ *authorizerv1.AbortPreparedRequest, _ ...grpc.CallOption) (*authorizerv1.AbortPreparedResponse, error) {
 	return nil, errTestAbortPreparedNotExpected
+}
+
+// ResolveManualIntervention satisfies the BalanceAuthorizerClient interface so
+// trackingStubPeerClient can be used in peer lists. Peers never invoke the
+// admin RPC on each other, so a reject-by-default is safe.
+func (t *trackingStubPeerClient) ResolveManualIntervention(_ context.Context, _ *authorizerv1.ResolveManualInterventionRequest, _ ...grpc.CallOption) (*authorizerv1.ResolveManualInterventionResponse, error) {
+	return nil, errTestResolveManualInterventionNotExpected
 }
 
 func (t *trackingStubPeerClient) commitPreparedCalls() []string {

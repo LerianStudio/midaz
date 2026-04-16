@@ -68,6 +68,11 @@ var (
 	errConfigPeerAuthTokenWeak          = errors.New("AUTHORIZER_PEER_AUTH_TOKEN uses a denied weak value")
 	errConfigPeerAuthTokenShort         = errors.New("AUTHORIZER_PEER_AUTH_TOKEN too short")
 	errConfigPeerAuthTokenClasses       = errors.New("AUTHORIZER_PEER_AUTH_TOKEN must include at least 3 character classes")
+	errConfigAdminTokenRequired         = errors.New("AUTHORIZER_ADMIN_TOKEN is required (admin RPCs require a dedicated credential distinct from the peer-auth token)")
+	errConfigAdminTokenWeak             = errors.New("AUTHORIZER_ADMIN_TOKEN uses a denied weak value")
+	errConfigAdminTokenShort            = errors.New("AUTHORIZER_ADMIN_TOKEN too short")
+	errConfigAdminTokenClasses          = errors.New("AUTHORIZER_ADMIN_TOKEN must include at least 3 character classes")
+	errConfigAdminTokenEqualsPeer       = errors.New("AUTHORIZER_ADMIN_TOKEN must differ from AUTHORIZER_PEER_AUTH_TOKEN (least privilege requires a separate credential for admin operations)")
 	errConfigWALHMACKeyRequired         = errors.New("AUTHORIZER_WAL_HMAC_KEY is required")
 	errConfigWALHMACKeyShort            = errors.New("AUTHORIZER_WAL_HMAC_KEY must be at least 32 bytes")
 	errConfigWALHMACKeyWeak             = errors.New("AUTHORIZER_WAL_HMAC_KEY uses a denied weak value")
@@ -88,6 +93,12 @@ var (
 )
 
 const minPeerAuthTokenLength = 24
+
+// minAdminTokenLength is enforced at 32 bytes (256 bits) per the D4 admin-RPC
+// specification — admin operations bypass the normal 2PC path and mutate
+// prepared state directly, so we require more entropy than the peer-auth
+// token's 24-byte floor.
+const minAdminTokenLength = 32
 
 // minWALHMACKeyLength matches wal.MinHMACKeyLength (32 bytes / 256 bits).
 // Defined here (rather than imported) so the config package can validate
@@ -170,6 +181,21 @@ var deniedPeerAuthTokens = map[string]struct{}{
 	"password":               {},
 	"secret":                 {},
 	"secret-token":           {},
+}
+
+// deniedAdminTokens mirrors deniedPeerAuthTokens for AUTHORIZER_ADMIN_TOKEN.
+// Kept as a separate map so the admin token cannot accidentally share a
+// placeholder value with the peer-auth token — least privilege requires the
+// two credentials to be independent in every operator environment.
+var deniedAdminTokens = map[string]struct{}{
+	"midaz-local-admin-token": {},
+	"midaz-local-peer-token":  {},
+	"changeme":                {},
+	"password":                {},
+	"secret":                  {},
+	"secret-token":            {},
+	"admin":                   {},
+	"admin-token":             {},
 }
 
 // deniedWALHMACKeys lists obvious weak or placeholder HMAC keys that MUST be
@@ -278,6 +304,17 @@ type Config struct {
 	// Outbound requests are signed with PeerAuthToken; inbound verification accepts both.
 	PeerAuthTokenPrevious string
 
+	// AdminToken authenticates admin RPCs (e.g. ResolveManualIntervention).
+	// It is intentionally a distinct credential from PeerAuthToken — admin
+	// operations bypass the normal 2PC surface and mutate prepared state
+	// directly, so least privilege requires a separate token. Validation:
+	//   - required (unlike PeerAuthTokenPrevious, this is not optional);
+	//   - minimum 32 bytes;
+	//   - must include at least 3 character classes;
+	//   - must not appear in deniedAdminTokens;
+	//   - must differ from PeerAuthToken.
+	AdminToken string
+
 	// PeerInsecureAllowed explicitly allows insecure peer RPC transport in non-production
 	// environments when gRPC TLS is disabled.
 	PeerInsecureAllowed bool
@@ -325,6 +362,10 @@ func LoadConfig() (*Config, error) {
 	}
 
 	if err := loadPeerConfig(cfg); err != nil {
+		return nil, err
+	}
+
+	if err := loadAdminConfig(cfg); err != nil {
 		return nil, err
 	}
 
@@ -748,6 +789,76 @@ func loadPeerConfig(cfg *Config) error {
 	cfg.PeerPrepareBoundedWaitMs = peerPrepareBoundedWaitMs
 	cfg.PeerConnPoolSize = peerConnPoolSize
 	cfg.AsyncCommitIntent = asyncCommitIntent
+
+	return nil
+}
+
+// loadAdminConfig reads AUTHORIZER_ADMIN_TOKEN and populates cfg.AdminToken
+// after hygiene validation. Admin operations (e.g. ResolveManualIntervention)
+// require a dedicated credential distinct from the peer-auth HMAC so operator
+// actions cannot inherit peer-to-peer privilege and vice versa.
+func loadAdminConfig(cfg *Config) error {
+	adminToken := strings.TrimSpace(getenv("AUTHORIZER_ADMIN_TOKEN", ""))
+
+	if err := validateAdminToken(adminToken); err != nil {
+		return err
+	}
+
+	if cfg.PeerAuthToken != "" && adminToken == cfg.PeerAuthToken {
+		return errConfigAdminTokenEqualsPeer
+	}
+
+	cfg.AdminToken = adminToken
+
+	return nil
+}
+
+// validateAdminToken enforces the admin-token hygiene contract. It mirrors
+// validatePeerAuthToken's shape but uses a higher minimum length (32 bytes)
+// and a distinct denylist — admin tokens MUST NOT reuse peer placeholders.
+func validateAdminToken(token string) error {
+	trimmed := strings.TrimSpace(token)
+	if trimmed == "" {
+		return errConfigAdminTokenRequired
+	}
+
+	if _, denied := deniedAdminTokens[strings.ToLower(trimmed)]; denied {
+		return errConfigAdminTokenWeak
+	}
+
+	if len(trimmed) < minAdminTokenLength {
+		return fmt.Errorf("length=%d minimum=%d: %w", len(trimmed), minAdminTokenLength, errConfigAdminTokenShort)
+	}
+
+	hasLower := false
+	hasUpper := false
+	hasDigit := false
+	hasSymbol := false
+
+	for _, r := range trimmed {
+		switch {
+		case unicode.IsLower(r):
+			hasLower = true
+		case unicode.IsUpper(r):
+			hasUpper = true
+		case unicode.IsDigit(r):
+			hasDigit = true
+		default:
+			hasSymbol = true
+		}
+	}
+
+	classes := 0
+
+	for _, present := range []bool{hasLower, hasUpper, hasDigit, hasSymbol} {
+		if present {
+			classes++
+		}
+	}
+
+	if classes < minPeerAuthTokenCharacterClasses {
+		return errConfigAdminTokenClasses
+	}
 
 	return nil
 }

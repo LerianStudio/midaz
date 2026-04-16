@@ -70,6 +70,12 @@ const (
 	peerRPCMethodLoadBalances     = "/authorizer.v1.BalanceAuthorizer/LoadBalances"
 	peerRPCMethodGetBalance       = "/authorizer.v1.BalanceAuthorizer/GetBalance"
 	peerRPCMethodPublishBalanceOp = "/authorizer.v1.BalanceAuthorizer/PublishBalanceOperations"
+	// adminRPCMethodResolveManualIntervention is intentionally named with the
+	// "adminRPC" prefix to signal that it is NOT authenticated by the peer-auth
+	// HMAC flow — it uses the dedicated AUTHORIZER_ADMIN_TOKEN instead. Kept as
+	// a full gRPC method name so metric labels stay consistent with the peer
+	// RPCs.
+	adminRPCMethodResolveManualIntervention = "/authorizer.v1.BalanceAuthorizer/ResolveManualIntervention"
 )
 
 // Unauthorized RPC rejection reasons reported via authorizer_unauthorized_rpc_total.
@@ -99,6 +105,12 @@ const (
 	unauthorizedReasonNonceInternal = "nonce_internal"
 	// unauthorizedReasonHashInternal: internal body-hash computation error.
 	unauthorizedReasonHashInternal = "hash_internal"
+	// unauthorizedReasonMissingAdminToken: admin RPC invoked without the
+	// AUTHORIZER_ADMIN_TOKEN header. Emitted only for admin-auth rejections.
+	unauthorizedReasonMissingAdminToken = "missing_admin_token"
+	// unauthorizedReasonInvalidAdminToken: admin RPC invoked with a token that
+	// does not match AUTHORIZER_ADMIN_TOKEN (constant-time compare miss).
+	unauthorizedReasonInvalidAdminToken = "invalid_admin_token"
 )
 
 type peerNonceStore struct {
@@ -228,6 +240,7 @@ type authorizerService struct {
 	peers                  []*peerClient
 	peerAuthToken          string
 	peerAuthTokenPrev      string
+	adminToken             string
 	peerAuthMaxSkew        time.Duration
 	abortRPCDeadline       time.Duration
 	commitRPCDeadline      time.Duration
@@ -1421,6 +1434,7 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 		peers:                  peers,
 		peerAuthToken:          cfg.PeerAuthToken,
 		peerAuthTokenPrev:      cfg.PeerAuthTokenPrevious,
+		adminToken:             cfg.AdminToken,
 		peerAuthMaxSkew:        cfg.PeerAuthMaxSkew,
 		abortRPCDeadline:       cfg.PeerAbortTimeout,
 		commitRPCDeadline:      cfg.PeerCommitTimeout,
