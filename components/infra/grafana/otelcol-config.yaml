@@ -59,6 +59,15 @@ processors:
             "$1:********"
             )
 
+  # Backpressure: drop/refuse telemetry before the collector OOMs and starts
+  # blocking Midaz hot-path exporters. Runs BEFORE batch in every pipeline.
+  # soft_limit = limit_mib - spike_limit_mib (384 MiB) → start refusing.
+  # hard_limit = limit_mib (512 MiB) → force GC + refuse.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
   batch: {}
 
 exporters:
@@ -66,14 +75,44 @@ exporters:
     endpoint: http://127.0.0.1:9090/api/v1/otlp
     tls:
       insecure: true
+    timeout: 30s
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      num_consumers: 2
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
   otlphttp/traces:
     endpoint: http://127.0.0.1:4418
     tls:
       insecure: true
+    timeout: 30s
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      num_consumers: 2
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
   otlphttp/logs:
     endpoint: http://127.0.0.1:3100/otlp
     tls:
       insecure: true
+    timeout: 30s
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      num_consumers: 2
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
   debug/metrics:
     verbosity: detailed
   debug/traces:
@@ -86,15 +125,16 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [transform/mask-trace-fields, batch]
+      # memory_limiter MUST be first so we shed load before expensive work.
+      processors: [memory_limiter, transform/mask-trace-fields, batch]
       exporters: [debug/traces, otlphttp/traces]
     metrics:
       receivers: [otlp, prometheus/collector]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [debug/metrics, otlphttp/metrics]
     logs:
       receivers: [otlp]
-      processors: [transform/mask-log-body, batch]
+      processors: [memory_limiter, transform/mask-log-body, batch]
       exporters: [debug/logs, otlphttp/logs]
 #profiles:
 #  receivers: [otlp]

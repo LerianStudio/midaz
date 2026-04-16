@@ -302,6 +302,14 @@ services:
       DB_TRANSACTION_PASSWORD: ${DB_PASSWORD}
       DB_TRANSACTION_NAME: transaction
       DB_TRANSACTION_SSLMODE: ${DB_TRANSACTION_SSLMODE:-disable}
+      # Telemetry ON so benchmark numbers reflect real production overhead.
+      # Collector has memory_limiter + per-exporter queues/retries (see grafana/otelcol-config.yaml).
+      # Authorizer sits on the hottest path — strongly recommended to enable
+      # head-based trace sampling at very high TPS. Uncomment below for 5% sampling.
+      # OTEL_TRACES_SAMPLER: "parentbased_traceidratio"
+      # OTEL_TRACES_SAMPLER_ARG: "0.05"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "midaz-otel-lgtm:4317"
+      ENABLE_TELEMETRY: "true"
     depends_on:
       midaz-postgres-primary:
         condition: service_healthy
@@ -351,6 +359,14 @@ services:
       DB_TRANSACTION_PASSWORD: ${DB_PASSWORD}
       DB_TRANSACTION_NAME: transaction
       DB_TRANSACTION_SSLMODE: ${DB_TRANSACTION_SSLMODE:-disable}
+      # Telemetry ON so benchmark numbers reflect real production overhead.
+      # Collector has memory_limiter + per-exporter queues/retries (see grafana/otelcol-config.yaml).
+      # Authorizer sits on the hottest path — strongly recommended to enable
+      # head-based trace sampling at very high TPS. Uncomment below for 5% sampling.
+      # OTEL_TRACES_SAMPLER: "parentbased_traceidratio"
+      # OTEL_TRACES_SAMPLER_ARG: "0.05"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "midaz-otel-lgtm:4317"
+      ENABLE_TELEMETRY: "true"
     depends_on:
       midaz-postgres-primary:
         condition: service_healthy
@@ -413,8 +429,13 @@ services:
       MONGO_TRANSACTION_PASSWORD: ${MONGO_PASSWORD}
       MONGO_TRANSACTION_NAME: transaction
       <<: [*redis_env, *redpanda_env, *consumer_batch_env, *presplit_env, *authorizer_client_env]
-      OTEL_EXPORTER_OTLP_ENDPOINT: ""
-      ENABLE_TELEMETRY: "false"
+      # Telemetry ON so benchmark numbers reflect real production overhead.
+      # Collector has memory_limiter + per-exporter queues/retries (see grafana/otelcol-config.yaml).
+      # To reduce trace cardinality at very high TPS, uncomment the sampler below (5% parent-based).
+      # OTEL_TRACES_SAMPLER: "parentbased_traceidratio"
+      # OTEL_TRACES_SAMPLER_ARG: "0.05"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "midaz-otel-lgtm:4317"
+      ENABLE_TELEMETRY: "true"
     depends_on:
       midaz-postgres-primary:
         condition: service_healthy
@@ -560,8 +581,13 @@ services:
       MONGO_PASSWORD: ${MONGO_PASSWORD}
       MONGO_NAME: transaction
       <<: [*redis_env, *redpanda_env, *consumer_batch_env, *presplit_env, *authorizer_client_env]
-      OTEL_EXPORTER_OTLP_ENDPOINT: ""
-      ENABLE_TELEMETRY: "false"
+      # Telemetry ON so benchmark numbers reflect real production overhead.
+      # Collector has memory_limiter + per-exporter queues/retries (see grafana/otelcol-config.yaml).
+      # To reduce trace cardinality at very high TPS, uncomment the sampler below (5% parent-based).
+      # OTEL_TRACES_SAMPLER: "parentbased_traceidratio"
+      # OTEL_TRACES_SAMPLER_ARG: "0.05"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "midaz-otel-lgtm:4317"
+      ENABLE_TELEMETRY: "true"
     depends_on:
       midaz-redpanda-init:
         condition: service_completed_successfully
