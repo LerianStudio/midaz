@@ -30,6 +30,18 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 
 	logger.Infof("Trying to create new transaction")
 
+	// Mirror the query-path guard in get-balances.go:227. During an in-progress
+	// shard migration for any alias referenced by this transaction, writes must
+	// block briefly so the persisted rows don't race with migration cleanup and
+	// land on soon-to-be-deleted source keys.
+	if err := uc.waitForMigrationUnlock(ctx, organizationID, ledgerID, collectTransactionAliases(t)); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed due to in-progress shard migration", err)
+
+		logger.Errorf("Failed due to in-progress shard migration: %v", err)
+
+		return nil, err
+	}
+
 	description := constant.APPROVED
 	status := transaction.Status{
 		Code:        description,

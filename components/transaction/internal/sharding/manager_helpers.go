@@ -79,7 +79,7 @@ func (m *Manager) executeMigration(
 	alias string,
 	knownBalanceKeys []string,
 ) (int, error) {
-	if err := m.waitForDrain(ctx); err != nil {
+	if err := m.waitForDrain(ctx, organizationID, ledgerID, alias); err != nil {
 		return 0, err
 	}
 
@@ -106,9 +106,16 @@ func (m *Manager) executeMigration(
 	return len(sourceKeys), nil
 }
 
-// waitForDrain pauses for the configured MigrationDrainWait duration to let
-// in-flight operations on the source shard complete before migration proceeds.
-func (m *Manager) waitForDrain(ctx context.Context) error {
+// waitForDrain blocks until the per-alias in-flight counter reaches zero or the
+// drain ceiling (cfg.MigrationWaitMax) is exceeded. If sharding is disabled or
+// the alias is empty, it degrades to the legacy fixed-sleep behaviour controlled
+// by cfg.MigrationDrainWait so callers that don't track in-flight counts (e.g.
+// older tests) retain their prior semantics.
+func (m *Manager) waitForDrain(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) error {
+	if m.Enabled() && alias != "" {
+		return m.waitForDrainByCounter(ctx, organizationID, ledgerID, alias)
+	}
+
 	if m.cfg.MigrationDrainWait <= 0 {
 		return nil
 	}

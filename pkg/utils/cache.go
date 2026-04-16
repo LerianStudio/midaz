@@ -327,3 +327,20 @@ func ShardIsolationSetKey(shardID int) string {
 func ShardIsolationAccountKey(organizationID, ledgerID uuid.UUID, alias string) string {
 	return fmt.Sprintf("shard_isolation_account:{%s:%s}:%s", organizationID.String(), ledgerID.String(), alias)
 }
+
+// ShardInFlightCounterKey returns the Redis key used to track in-flight
+// write operations against (orgID, ledgerID, alias) so that
+// a migration can block until the source shard has drained.
+// Co-located on the account's own hash slot via the {orgID:ledgerID} tag.
+func ShardInFlightCounterKey(organizationID, ledgerID uuid.UUID, alias string) string {
+	return fmt.Sprintf("shard_inflight:{%s:%s}:%s", organizationID.String(), ledgerID.String(), alias)
+}
+
+// ShardAccountCooldownOverrideKey returns the Redis key that, when set, overrides
+// the per-account migration cooldown duration configured in sharding.Config.
+// The value is a Go duration string (e.g. "90s", "2m"). Key TTL defines how long
+// the override stays in effect; once the key expires, the static config default
+// is used again.
+func ShardAccountCooldownOverrideKey(organizationID uuid.UUID, alias string) string {
+	return fmt.Sprintf("shard:cooldown:account:{%s}:%s", organizationID.String(), alias)
+}

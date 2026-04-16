@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -552,7 +553,12 @@ func (e *Engine) prepareAuthorization(req *authorizerv1.AuthorizeRequest) (*auth
 	transactionStatus := req.GetTransactionStatus()
 
 	// Phase 1: Resolve all operations to their balance pointers.
-	resolved, uniqueBalances, rejection := e.resolveOperationBalances(normalized, organizationID, ledgerID)
+	// Metadata is consulted for shard overrides so a caller that has already
+	// resolved the authoritative shard (via ShardManager routing overrides) can
+	// bypass the router FNV and eliminate the divergence window that exists
+	// when routing has been re-pointed but the router hash still resolves the
+	// legacy shard.
+	resolved, uniqueBalances, rejection := e.resolveOperationBalances(normalized, organizationID, ledgerID, req.GetMetadata())
 	if rejection != nil {
 		return nil, rejection, func() {}
 	}
@@ -711,11 +717,49 @@ func stageOperations(
 	return prepared, changedOperations, nil
 }
 
+// ShardOverrideMetadataPrefix is the AuthorizeRequest.Metadata key prefix used
+// by callers (notably the transaction service after consulting ShardManager
+// routing overrides) to pass the authoritative shard ID for an operation.
+// Format: "shard:<alias>#<balanceKey>" -> stringified int32 shard id.
+//
+// This reuses the existing metadata map rather than introducing a new proto
+// field so authorizer and consumer deployments can roll out independently:
+// - Old callers that do not set the key keep the legacy FNV behaviour.
+// - New callers that do set the key eliminate the FNV-vs-override divergence.
+const ShardOverrideMetadataPrefix = "shard:"
+
+// shardOverrideMetadataKey composes the metadata key used to carry a shard
+// override for a specific (alias, balanceKey) pair.
+func shardOverrideMetadataKey(alias, balanceKey string) string {
+	return ShardOverrideMetadataPrefix + alias + "#" + balanceKey
+}
+
+// resolveShardForOperation returns the authoritative shard ID for the given
+// operation. When metadata carries a valid override for the (alias, balanceKey)
+// pair, it is used directly so authorizer routing matches the transaction
+// service's ShardManager.ResolveBalanceShard result. Otherwise the router's
+// FNV hash is used (legacy backward-compatible path).
+//
+// Returns (shardID, true) when a valid override was consumed; (shardID, false)
+// when falling back to FNV.
+func (e *Engine) resolveShardForOperation(alias, balanceKey string, metadata map[string]string) (int, bool) {
+	if len(metadata) > 0 {
+		if raw, ok := metadata[shardOverrideMetadataKey(alias, balanceKey)]; ok {
+			if parsed, err := strconv.Atoi(strings.TrimSpace(raw)); err == nil && parsed >= 0 && parsed < e.router.ShardCount() {
+				return parsed, true
+			}
+		}
+	}
+
+	return e.router.ResolveBalance(alias, balanceKey), false
+}
+
 // resolveOperationBalances resolves each operation to its in-memory balance pointer.
 // Returns the resolved operations, unique balance map, and a rejection response if any operation fails.
 func (e *Engine) resolveOperationBalances(
 	normalized []*authorizerv1.BalanceOperation,
 	organizationID, ledgerID string,
+	metadata map[string]string,
 ) ([]resolvedOp, map[string]*Balance, *authorizerv1.AuthorizeResponse) {
 	resolved := make([]resolvedOp, 0, len(normalized))
 	uniqueBalances := make(map[string]*Balance, len(normalized))
@@ -731,8 +775,21 @@ func (e *Engine) resolveOperationBalances(
 		}
 
 		canonicalAlias := op.GetAccountAlias()
-		workerID := e.router.ResolveBalance(canonicalAlias, balanceKey)
+		workerID, _ := e.resolveShardForOperation(canonicalAlias, balanceKey, metadata)
 		lookupKey := balanceLookupKey(organizationID, ledgerID, canonicalAlias, balanceKey)
+
+		// Bounds check protects against a corrupt metadata override that passes
+		// resolveShardForOperation's ShardCount gate but resolves to an index
+		// past the materialized worker pool (eg. router reconfigured
+		// post-boot, or a pathological test). Without this, the array read
+		// below would panic with runtime out-of-range.
+		if workerID < 0 || workerID >= len(e.workers) {
+			return nil, nil, &authorizerv1.AuthorizeResponse{
+				Authorized:       false,
+				RejectionCode:    RejectionInternalError,
+				RejectionMessage: "shard id out of range",
+			}
+		}
 
 		// Check if we already resolved this balance in this batch.
 		if bal, ok := uniqueBalances[lookupKey]; ok {

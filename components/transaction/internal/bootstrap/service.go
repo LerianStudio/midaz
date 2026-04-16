@@ -44,6 +44,7 @@ type Service struct {
 	BalanceSyncWorkerEnabled bool
 	*ShardRebalanceWorker
 	ShardRebalanceWorkerEnabled bool
+	*ShardRoutingSubscriber
 	*CircuitBreakerManager
 	libLog.Logger
 
@@ -105,6 +106,13 @@ func (app *Service) Run() {
 		if app.ShardRebalanceWorkerEnabled && app.ShardRebalanceWorker != nil {
 			opts = append(opts, libCommons.RunApp("Shard Rebalance Worker", app.ShardRebalanceWorker))
 		}
+	}
+
+	// Routing updates subscriber always runs when sharding is active regardless
+	// of consumer mode: API-only pods still need to invalidate their local
+	// route cache when another pod issues a SetRoutingOverride.
+	if app.ShardRoutingSubscriber != nil {
+		opts = append(opts, libCommons.RunApp("Shard Routing Subscriber", app.ShardRoutingSubscriber))
 	}
 
 	libCommons.NewLauncher(opts...).Run()
@@ -191,6 +199,12 @@ func (app *Service) appendConsumerRunnables(runnables []mbootstrap.RunnableConfi
 	if app.ShardRebalanceWorkerEnabled && app.ShardRebalanceWorker != nil {
 		runnables = append(runnables, mbootstrap.RunnableConfig{
 			Name: "Transaction Shard Rebalance Worker", Runnable: app.ShardRebalanceWorker,
+		})
+	}
+
+	if app.ShardRoutingSubscriber != nil {
+		runnables = append(runnables, mbootstrap.RunnableConfig{
+			Name: "Transaction Shard Routing Subscriber", Runnable: app.ShardRoutingSubscriber,
 		})
 	}
 

@@ -1566,6 +1566,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger.Info("Skipping consumer and worker initialization because CONSUMER_ENABLED=false")
 	}
 
+	// The routing subscriber is always wired when sharding is enabled, even in
+	// API-only mode, so every pod learns about routing overrides issued by its
+	// peers. Without it, route-cache entries for hot accounts stay stuck on the
+	// source shard across a migration boundary.
+	shardRoutingSubscriber := NewShardRoutingSubscriber(logger, shardManager)
+
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
 	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
@@ -1590,6 +1596,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BalanceSyncWorkerEnabled:    resolvedBalanceSyncWorkerEnabled,
 		ShardRebalanceWorker:        shardRebalanceWorker,
 		ShardRebalanceWorkerEnabled: resolvedShardRebalanceWorkerEnabled,
+		ShardRoutingSubscriber:      shardRoutingSubscriber,
 		CircuitBreakerManager:       brokerInfra.circuitBreakerManager,
 		ConsumerEnabled:             cfg.ConsumerEnabled,
 		Logger:                      logger,

@@ -43,6 +43,7 @@ type ConsumerService struct {
 	BalanceSyncWorkerEnabled bool
 	*ShardRebalanceWorker
 	ShardRebalanceWorkerEnabled bool
+	*ShardRoutingSubscriber
 	*CircuitBreakerManager
 	libLog.Logger
 
@@ -76,6 +77,10 @@ func (cs *ConsumerService) Run() {
 
 	if cs.ShardRebalanceWorkerEnabled && cs.ShardRebalanceWorker != nil {
 		opts = append(opts, libCommons.RunApp("Shard Rebalance Worker", cs.ShardRebalanceWorker))
+	}
+
+	if cs.ShardRoutingSubscriber != nil {
+		opts = append(opts, libCommons.RunApp("Shard Routing Subscriber", cs.ShardRoutingSubscriber))
 	}
 
 	if cs.CircuitBreakerManager != nil {
@@ -360,6 +365,7 @@ func InitConsumerWithOptions(opts *Options) (*ConsumerService, error) {
 	balanceSyncWorker := newBalanceSyncWorker(cfg, logger, redisConnection, useCase, balanceSyncWorkerEnabled)
 	shardRebalanceWorker := newShardRebalanceWorker(cfg, logger, shardManager, shardRouter, shardRebalanceWorkerEnabled)
 	resolvedShardRebalanceWorkerEnabled := shardRebalanceWorker != nil
+	shardRoutingSubscriber := NewShardRoutingSubscriber(logger, shardManager)
 
 	service := &ConsumerService{
 		MultiQueueConsumer:          multiQueueConsumer,
@@ -368,6 +374,7 @@ func InitConsumerWithOptions(opts *Options) (*ConsumerService, error) {
 		BalanceSyncWorkerEnabled:    balanceSyncWorkerEnabled,
 		ShardRebalanceWorker:        shardRebalanceWorker,
 		ShardRebalanceWorkerEnabled: resolvedShardRebalanceWorkerEnabled,
+		ShardRoutingSubscriber:      shardRoutingSubscriber,
 		CircuitBreakerManager:       brokerInfra.circuitBreakerManager,
 		Logger:                      logger,
 		authorizerCloser:            authorizerClient,

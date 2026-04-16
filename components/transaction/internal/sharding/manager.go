@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,6 +39,13 @@ var (
 	ErrInvalidShardID = errors.New("invalid shard id")
 	// ErrMigrationInProgress is returned when a migration lock is already held for the alias.
 	ErrMigrationInProgress = errors.New("account migration in progress")
+	// ErrUnexpectedEvalResultType is returned when Redis EVAL returns a value
+	// of an unexpected Go type (defensive; Redis ALWAYS returns int64 for
+	// numeric returns from Lua).
+	ErrUnexpectedEvalResultType = errors.New("unexpected eval result type")
+	// ErrInvalidChannelFormat is returned when a PubSub channel name does not
+	// match the expected shard_routing_updates:{org:ledger} layout.
+	ErrInvalidChannelFormat = errors.New("invalid shard routing updates channel format")
 )
 
 // Config holds configuration for the sharding Manager.
@@ -62,6 +70,16 @@ const (
 	defaultIsolationTTLMin             = 30
 	defaultShardMigrationCooldownSec   = 10
 	defaultAccountMigrationCooldownMin = 5
+
+	// drainPollInitial is the starting poll interval for the in-flight
+	// counter-based drain wait. It doubles on each iteration up to drainPollMax.
+	drainPollInitial = 200 * time.Microsecond
+	// drainPollMax caps the drain poll backoff so that cancellation remains responsive.
+	drainPollMax = 10 * time.Millisecond
+	// inFlightCounterTTL keeps the counter bounded if a pathological path forgets
+	// to decrement. 1m is long enough to cover any single write, short enough to
+	// self-heal if the decrement is missed.
+	inFlightCounterTTL = time.Minute
 )
 
 func defaultConfig() Config {
@@ -562,8 +580,35 @@ func (m *Manager) IsRebalancerPaused(ctx context.Context) (bool, error) {
 	return value == "1", nil
 }
 
+// rebalancePermitsScript atomically acquires 3 cooldown locks (source shard,
+// target shard, account). Returns 1 on success, 0 if any key is already held.
+// Using a single EVAL avoids the thundering-herd race where two rebalancers
+// both pass the source+target SETNX and one then DELs the keys as it loses
+// the account SETNX, handing them to the other racer.
+//
+// KEYS[1] = source shard cooldown key
+// KEYS[2] = target shard cooldown key
+// KEYS[3] = account cooldown key
+// ARGV[1] = shard cooldown TTL in milliseconds
+// ARGV[2] = account cooldown TTL in milliseconds
+// ARGV[3] = lock sentinel value.
+const rebalancePermitsScript = `
+if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
+if redis.call('EXISTS', KEYS[2]) == 1 then return 0 end
+if redis.call('EXISTS', KEYS[3]) == 1 then return 0 end
+redis.call('SET', KEYS[1], ARGV[3], 'PX', ARGV[1])
+redis.call('SET', KEYS[2], ARGV[3], 'PX', ARGV[1])
+redis.call('SET', KEYS[3], ARGV[3], 'PX', ARGV[2])
+return 1
+`
+
 // TryAcquireRebalancePermits atomically acquires the source shard, target shard,
-// and account cooldown locks. Returns false (without error) when any lock is held.
+// and account cooldown locks in a single Redis round-trip (Lua EVAL). Returns
+// false (without error) when any lock is held.
+//
+// Backwards-compatible signature: (ctx, sourceShard, targetShard, account).
+// The account cooldown TTL honors the per-account Redis override when present;
+// otherwise the configured AccountMigrationCooldown default is used.
 func (m *Manager) TryAcquireRebalancePermits(ctx context.Context, sourceShard, targetShard int, account HotAccount) (bool, error) {
 	if !m.Enabled() {
 		return false, nil
@@ -578,42 +623,112 @@ func (m *Manager) TryAcquireRebalancePermits(ctx context.Context, sourceShard, t
 	targetKey := utils.ShardRebalanceShardCooldownKey(targetShard)
 	accountKey := utils.ShardRebalanceAccountCooldownKey(account.OrganizationID, account.LedgerID, account.Alias)
 
-	sourceOK, err := rds.SetNX(ctx, sourceKey, "1", m.cfg.ShardMigrationCooldown).Result()
+	accountCooldown := m.resolveAccountCooldown(ctx, rds, account.OrganizationID, account.Alias)
+
+	shardTTLms := m.cfg.ShardMigrationCooldown.Milliseconds()
+	if shardTTLms <= 0 {
+		shardTTLms = (defaultShardMigrationCooldownSec * time.Second).Milliseconds()
+	}
+
+	accountTTLms := accountCooldown.Milliseconds()
+	if accountTTLms <= 0 {
+		accountTTLms = (defaultAccountMigrationCooldownMin * time.Minute).Milliseconds()
+	}
+
+	result, err := rds.Eval(
+		ctx,
+		rebalancePermitsScript,
+		[]string{sourceKey, targetKey, accountKey},
+		shardTTLms,
+		accountTTLms,
+		"1",
+	).Result()
 	if err != nil {
-		return false, fmt.Errorf("try acquire rebalance permits: source setnx: %w", err)
+		return false, fmt.Errorf("try acquire rebalance permits: eval: %w", err)
 	}
 
-	if !sourceOK {
-		return false, nil
+	acquired, ok := result.(int64)
+	if !ok {
+		return false, fmt.Errorf("%w: %T", ErrUnexpectedEvalResultType, result)
 	}
 
-	targetOK, err := rds.SetNX(ctx, targetKey, "1", m.cfg.ShardMigrationCooldown).Result()
+	return acquired == 1, nil
+}
+
+// resolveAccountCooldown returns the effective per-account migration cooldown,
+// honoring the Redis override key (ShardAccountCooldownOverrideKey) when present
+// and falling back to the configured default otherwise. Malformed override values
+// are treated as absent (log-and-fall-back) to avoid breaking rebalancing.
+func (m *Manager) resolveAccountCooldown(ctx context.Context, rds redis.UniversalClient, organizationID uuid.UUID, alias string) time.Duration {
+	if alias == "" {
+		return m.cfg.AccountMigrationCooldown
+	}
+
+	key := utils.ShardAccountCooldownOverrideKey(organizationID, alias)
+
+	raw, err := rds.Get(ctx, key).Result()
 	if err != nil {
-		_, _ = rds.Del(ctx, sourceKey).Result()
+		if !errors.Is(err, redis.Nil) && m.logger != nil {
+			m.logger.Warnf("resolve account cooldown override: %v", err)
+		}
 
-		return false, fmt.Errorf("try acquire rebalance permits: target setnx: %w", err)
+		return m.cfg.AccountMigrationCooldown
 	}
 
-	if !targetOK {
-		_, _ = rds.Del(ctx, sourceKey).Result()
+	override, parseErr := time.ParseDuration(strings.TrimSpace(raw))
+	if parseErr != nil || override <= 0 {
+		if m.logger != nil && parseErr != nil {
+			m.logger.Warnf("resolve account cooldown override: invalid value %q for %s: %v", raw, alias, parseErr)
+		}
 
-		return false, nil
+		return m.cfg.AccountMigrationCooldown
 	}
 
-	accountOK, err := rds.SetNX(ctx, accountKey, "1", m.cfg.AccountMigrationCooldown).Result()
+	return override
+}
+
+// SetAccountCooldownOverride sets (or clears, when cooldown <= 0) the per-account
+// migration cooldown override. The override is visible to all Manager instances
+// because the backing Redis key is cluster-wide. ttl controls how long the
+// override stays in effect (<=0 defaults to IsolationTTL so an operator who
+// forgets to clear doesn't leave the override stuck forever).
+func (m *Manager) SetAccountCooldownOverride(ctx context.Context, organizationID uuid.UUID, alias string, cooldown, ttl time.Duration) error {
+	if !m.Enabled() {
+		return ErrShardingManagerNotEnabled
+	}
+
+	if alias == "" {
+		return ErrAliasRequired
+	}
+
+	rds, err := m.conn.GetClient(ctx)
 	if err != nil {
-		_, _ = rds.Del(ctx, sourceKey, targetKey).Result()
-
-		return false, fmt.Errorf("try acquire rebalance permits: account setnx: %w", err)
+		return fmt.Errorf("set account cooldown override: get redis client: %w", err)
 	}
 
-	if !accountOK {
-		_, _ = rds.Del(ctx, sourceKey, targetKey).Result()
+	key := utils.ShardAccountCooldownOverrideKey(organizationID, alias)
 
-		return false, nil
+	if cooldown <= 0 {
+		if err := rds.Del(ctx, key).Err(); err != nil {
+			return fmt.Errorf("set account cooldown override: del: %w", err)
+		}
+
+		return nil
 	}
 
-	return true, nil
+	if ttl <= 0 {
+		ttl = m.cfg.IsolationTTL
+	}
+
+	if ttl <= 0 {
+		ttl = defaultIsolationTTLMin * time.Minute
+	}
+
+	if err := rds.Set(ctx, key, cooldown.String(), ttl).Err(); err != nil {
+		return fmt.Errorf("set account cooldown override: set: %w", err)
+	}
+
+	return nil
 }
 
 // GetShardIsolationCounts returns the number of isolated accounts per shard.
@@ -752,6 +867,326 @@ func parseIsolationMember(member string) (uuid.UUID, uuid.UUID, string, error) {
 
 func routeCacheKey(organizationID, ledgerID uuid.UUID, alias string) string {
 	return organizationID.String() + ":" + ledgerID.String() + ":" + alias
+}
+
+// InvalidateRouteCache removes the local route cache entry for the given tuple
+// so that the next ResolveBalanceShard call re-reads the authoritative override
+// from Redis. Safe to call when RouteCacheTTL is disabled (no-op).
+func (m *Manager) InvalidateRouteCache(organizationID, ledgerID uuid.UUID, alias string) {
+	if m == nil || alias == "" {
+		return
+	}
+
+	m.cacheMu.Lock()
+	delete(m.routeCache, routeCacheKey(organizationID, ledgerID, alias))
+	m.cacheMu.Unlock()
+}
+
+// RouteCacheSize returns the number of entries currently cached. Exposed for tests.
+func (m *Manager) RouteCacheSize() int {
+	if m == nil {
+		return 0
+	}
+
+	m.cacheMu.RLock()
+	defer m.cacheMu.RUnlock()
+
+	return len(m.routeCache)
+}
+
+// SubscriberMetrics counts cache invalidations triggered by PubSub messages.
+// Exposed for observability wiring in bootstrap; kept as a lightweight atomic
+// counter rather than pulling in an OTEL metrics dependency directly from this
+// package so unit tests can assert against it without a test exporter.
+//
+// Fields are accessed via atomic load/add so the subscriber goroutine and the
+// test/observability readers do not race under -race.
+type SubscriberMetrics struct {
+	invalidations atomic.Int64
+	decodeErrors  atomic.Int64
+}
+
+// InvalidationsTotal returns the total number of cache invalidations observed.
+func (m *SubscriberMetrics) InvalidationsTotal() int64 {
+	if m == nil {
+		return 0
+	}
+
+	return m.invalidations.Load()
+}
+
+// DecodeErrorsTotal returns the total number of malformed messages observed.
+func (m *SubscriberMetrics) DecodeErrorsTotal() int64 {
+	if m == nil {
+		return 0
+	}
+
+	return m.decodeErrors.Load()
+}
+
+// SubscribeRoutingUpdates pattern-subscribes to every shard-routing update
+// channel ("shard_routing_updates:{<org>:<ledger>}") and invalidates the local
+// route cache for each message received. The subscription runs until ctx is
+// cancelled or the Redis client closes the subscription. This must be run in
+// its own goroutine; the function blocks until ctx.Done or the subscription
+// terminates.
+//
+// Message format (published by SetRoutingOverride): "alias:shardID".
+// Channel format: "shard_routing_updates:{<organizationID>:<ledgerID>}".
+// Malformed messages/channels are logged and counted but do not terminate the loop.
+//
+// When organizationID is uuid.Nil the subscriber uses a wildcard pattern
+// matching all tenants (recommended for the transaction service, which serves
+// all tenants from a single process). When a specific organizationID and
+// ledgerID are supplied, only that pair is subscribed.
+func (m *Manager) SubscribeRoutingUpdates(ctx context.Context, organizationID, ledgerID uuid.UUID, metrics *SubscriberMetrics) error {
+	if !m.Enabled() {
+		return nil
+	}
+
+	rds, err := m.conn.GetClient(ctx)
+	if err != nil {
+		return fmt.Errorf("subscribe routing updates: get redis client: %w", err)
+	}
+
+	var pubsub *redis.PubSub
+
+	wildcard := organizationID == uuid.Nil || ledgerID == uuid.Nil
+
+	if wildcard {
+		pubsub = rds.PSubscribe(ctx, "shard_routing_updates:*")
+	} else {
+		pubsub = rds.Subscribe(ctx, utils.ShardRoutingUpdatesChannel(organizationID, ledgerID))
+	}
+
+	defer func() {
+		if closeErr := pubsub.Close(); closeErr != nil && m.logger != nil {
+			m.logger.Warnf("subscribe routing updates: close pubsub: %v", closeErr)
+		}
+	}()
+
+	// Receive once to force the subscription to be established before reading.
+	if _, err := pubsub.Receive(ctx); err != nil {
+		return fmt.Errorf("subscribe routing updates: receive ack: %w", err)
+	}
+
+	ch := pubsub.Channel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg, ok := <-ch:
+			if !ok {
+				return nil
+			}
+
+			m.handleRoutingUpdateMessage(msg.Channel, msg.Payload, metrics)
+		}
+	}
+}
+
+// parseRoutingChannel extracts (orgID, ledgerID) from a shard_routing_updates
+// channel name of the form "shard_routing_updates:{<orgID>:<ledgerID>}".
+func parseRoutingChannel(channel string) (uuid.UUID, uuid.UUID, error) {
+	const (
+		prefix                   = "shard_routing_updates:{"
+		expectedChannelBodyParts = 2
+	)
+
+	if !strings.HasPrefix(channel, prefix) || !strings.HasSuffix(channel, "}") {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("%w: channel=%s", ErrInvalidChannelFormat, channel)
+	}
+
+	body := channel[len(prefix) : len(channel)-1]
+
+	parts := strings.SplitN(body, ":", expectedChannelBodyParts)
+	if len(parts) != expectedChannelBodyParts {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("%w: body=%s", ErrInvalidChannelFormat, body)
+	}
+
+	orgID, err := uuid.Parse(parts[0])
+	if err != nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("parse organization id: %w", err)
+	}
+
+	ledgerID, err := uuid.Parse(parts[1])
+	if err != nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("parse ledger id: %w", err)
+	}
+
+	return orgID, ledgerID, nil
+}
+
+func (m *Manager) handleRoutingUpdateMessage(channel, payload string, metrics *SubscriberMetrics) {
+	if payload == "" {
+		return
+	}
+
+	orgID, ledgerID, err := parseRoutingChannel(channel)
+	if err != nil {
+		if metrics != nil {
+			metrics.decodeErrors.Add(1)
+		}
+
+		if m.logger != nil {
+			m.logger.Warnf("shard routing update: %v", err)
+		}
+
+		return
+	}
+
+	idx := strings.LastIndex(payload, ":")
+	if idx <= 0 || idx >= len(payload)-1 {
+		if metrics != nil {
+			metrics.decodeErrors.Add(1)
+		}
+
+		if m.logger != nil {
+			m.logger.Warnf("shard routing update: malformed payload %q", payload)
+		}
+
+		return
+	}
+
+	alias := payload[:idx]
+
+	m.InvalidateRouteCache(orgID, ledgerID, alias)
+
+	if metrics != nil {
+		metrics.invalidations.Add(1)
+	}
+}
+
+// IncrementInFlight records that a write operation for (orgID, ledgerID, alias)
+// has started. Callers must pair this with DecrementInFlight on the same
+// alias, typically via defer. Returns the post-increment counter value for
+// observability.
+func (m *Manager) IncrementInFlight(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (int64, error) {
+	if !m.Enabled() || alias == "" {
+		return 0, nil
+	}
+
+	rds, err := m.conn.GetClient(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("increment in-flight: get redis client: %w", err)
+	}
+
+	key := utils.ShardInFlightCounterKey(organizationID, ledgerID, alias)
+
+	value, err := rds.Incr(ctx, key).Result()
+	if err != nil {
+		return 0, fmt.Errorf("increment in-flight: incr: %w", err)
+	}
+
+	// Refresh TTL so an orphaned counter (missed decrement) self-heals.
+	if err := rds.Expire(ctx, key, inFlightCounterTTL).Err(); err != nil && m.logger != nil {
+		m.logger.Warnf("increment in-flight: refresh TTL for %s: %v", alias, err)
+	}
+
+	return value, nil
+}
+
+// DecrementInFlight records that a previously-counted write operation has
+// completed. It tolerates being called with no prior increment by clamping at 0.
+func (m *Manager) DecrementInFlight(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (int64, error) {
+	if !m.Enabled() || alias == "" {
+		return 0, nil
+	}
+
+	rds, err := m.conn.GetClient(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("decrement in-flight: get redis client: %w", err)
+	}
+
+	key := utils.ShardInFlightCounterKey(organizationID, ledgerID, alias)
+
+	value, err := rds.Decr(ctx, key).Result()
+	if err != nil {
+		return 0, fmt.Errorf("decrement in-flight: decr: %w", err)
+	}
+
+	if value < 0 {
+		// Clamp to zero; another racer will re-increment before we delete.
+		if err := rds.Set(ctx, key, 0, inFlightCounterTTL).Err(); err != nil && m.logger != nil {
+			m.logger.Warnf("decrement in-flight: clamp for %s: %v", alias, err)
+		}
+
+		value = 0
+	}
+
+	return value, nil
+}
+
+// getInFlight returns the current counter value, treating a missing key as 0.
+// Exposed for tests and the drain loop.
+func (m *Manager) getInFlight(ctx context.Context, rds redis.UniversalClient, organizationID, ledgerID uuid.UUID, alias string) (int64, error) {
+	raw, err := rds.Get(ctx, utils.ShardInFlightCounterKey(organizationID, ledgerID, alias)).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return 0, nil
+		}
+
+		return 0, fmt.Errorf("get in-flight: %w", err)
+	}
+
+	value, parseErr := strconv.ParseInt(raw, 10, 64)
+	if parseErr != nil {
+		return 0, fmt.Errorf("get in-flight: parse: %w", parseErr)
+	}
+
+	return value, nil
+}
+
+// waitForDrainByCounter blocks until the in-flight counter for alias reaches 0,
+// ctx is cancelled, or the per-manager drain ceiling (MigrationWaitMax) elapses.
+// Polls with exponential backoff starting at drainPollInitial capped at drainPollMax.
+// Returns nil when the counter is at 0 (drained) or when sharding is disabled.
+func (m *Manager) waitForDrainByCounter(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) error {
+	if !m.Enabled() || alias == "" {
+		return nil
+	}
+
+	rds, err := m.conn.GetClient(ctx)
+	if err != nil {
+		return fmt.Errorf("wait for drain: get redis client: %w", err)
+	}
+
+	// Bound the total wait. Using MigrationWaitMax keeps this consistent with
+	// WaitForAliasesUnlocked so a migrator can never block a worker longer
+	// than the per-request write-path guard already tolerates.
+	deadline := time.Now().UTC().Add(m.cfg.MigrationWaitMax)
+	if m.cfg.MigrationWaitMax <= 0 {
+		deadline = time.Now().UTC().Add(defaultMigrationWaitMaxMs * time.Millisecond)
+	}
+
+	backoff := drainPollInitial
+
+	for {
+		count, err := m.getInFlight(ctx, rds, organizationID, ledgerID, alias)
+		if err != nil {
+			return err
+		}
+
+		if count <= 0 {
+			return nil
+		}
+
+		if time.Now().UTC().After(deadline) {
+			return fmt.Errorf("%w: drain timeout for alias %s (in-flight=%d)", ErrMigrationInProgress, alias, count)
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for drain: %w", ctx.Err())
+		case <-time.After(backoff):
+		}
+
+		backoff *= 2
+		if backoff > drainPollMax {
+			backoff = drainPollMax
+		}
+	}
 }
 
 func (m *Manager) collectBalanceKeys(

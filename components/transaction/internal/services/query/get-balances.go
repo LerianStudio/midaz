@@ -232,6 +232,15 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		return nil, err
 	}
 
+	// Record in-flight writes against each alias so a concurrent migration's
+	// waitForDrainByCounter can observe actual progress instead of sleeping a
+	// fixed duration. Paired via defer so cancellation, panics, and early
+	// returns all decrement. Use context.Background() on decrement: if the
+	// request ctx was cancelled we still must decrement, otherwise the counter
+	// stays inflated and blocks future migrations until the 60s TTL expires.
+	inflightReleases := uc.trackInFlightWrites(ctx, organizationID, ledgerID, guardAliases)
+	defer inflightReleases()
+
 	balanceOperations, mapBalances, err := uc.buildBalanceOperations(ctx, organizationID, ledgerID, balances, validate)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to build balance operations", err)
