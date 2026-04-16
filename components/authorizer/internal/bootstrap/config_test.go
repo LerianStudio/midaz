@@ -5,6 +5,8 @@
 package bootstrap
 
 import (
+	"bytes"
+	"log"
 	"strconv"
 	"testing"
 	"time"
@@ -778,4 +780,130 @@ func TestLoadConfig_AcceptsWALHMACKeyRotation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("RotateTestHMACKey32bytes_curent1"), cfg.WALHMACKey)
 	require.Equal(t, []byte("RotateTestHMACKey32bytes_prev001"), cfg.WALHMACKeyPrevious)
+}
+
+// TestLoadConfig_RejectsMaxRecvBytesTooSmallForBatchCeiling proves the
+// MaxRecvBytes <-> MaxOperationsPerRequest cross-check fails closed when the
+// receive ceiling cannot physically fit the advertised batch size at the
+// conservative 64-bytes-per-op estimate. Without this guard, operators can
+// ship a config where gRPC truncates valid batches well below the advertised
+// MaxOperationsPerRequest.
+func TestLoadConfig_RejectsMaxRecvBytesTooSmallForBatchCeiling(t *testing.T) {
+	t.Setenv("ENV_NAME", "development")
+	t.Setenv("DB_TRANSACTION_HOST", "localhost")
+	t.Setenv("DB_TRANSACTION_PORT", "5432")
+	t.Setenv("DB_TRANSACTION_USER", "midaz")
+	t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
+	t.Setenv("DB_TRANSACTION_NAME", "transaction")
+	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+	// 2048 ops * 64 bytes = 131072 required; 4096 is far below.
+	t.Setenv("AUTHORIZER_MAX_OPERATIONS_PER_REQUEST", "2048")
+	t.Setenv("AUTHORIZER_MAX_RECV_BYTES", "4096")
+	setTestPeerAuthToken(t)
+
+	_, err := LoadConfig()
+	require.Error(t, err)
+	require.ErrorIs(t, err, errConfigMaxRecvBytesTooSmall)
+	require.ErrorContains(t, err, "AUTHORIZER_MAX_RECV_BYTES=4096")
+	require.ErrorContains(t, err, "AUTHORIZER_MAX_OPERATIONS_PER_REQUEST=2048")
+	require.ErrorContains(t, err, "131072 required")
+}
+
+// TestLoadConfig_AcceptsRaisedDefaultMaxRecvBytes proves the raised default
+// (from 4 KB to 256 KB) covers the default MaxOperationsPerRequest=2048 batch
+// ceiling at 64 bytes/op without operator intervention. This locks in the D5
+// remediation: out-of-the-box bootstrap is self-consistent.
+func TestLoadConfig_AcceptsRaisedDefaultMaxRecvBytes(t *testing.T) {
+	t.Setenv("ENV_NAME", "development")
+	t.Setenv("DB_TRANSACTION_HOST", "localhost")
+	t.Setenv("DB_TRANSACTION_PORT", "5432")
+	t.Setenv("DB_TRANSACTION_USER", "midaz")
+	t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
+	t.Setenv("DB_TRANSACTION_NAME", "transaction")
+	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+	setTestPeerAuthToken(t)
+
+	cfg, err := LoadConfig()
+	require.NoError(t, err)
+	assert.Equal(t, 256*1024, cfg.MaxReceiveMessageSizeBytes)
+	assert.Equal(t, 2048, cfg.MaxOperationsPerRequest)
+	// Invariant: default must satisfy the cross-check.
+	assert.GreaterOrEqual(t, cfg.MaxReceiveMessageSizeBytes, cfg.MaxOperationsPerRequest*estimatedAvgOpBytes)
+}
+
+// TestLoadConfig_WarnsOnReconcilerTimingWithoutAsync proves the D5 decouple:
+// when WAL_RECONCILER_ENABLED=true but ASYNC_COMMIT_INTENT=false and the
+// timing invariant is violated, bootstrap emits a WARN log instead of
+// failing. The reconciler is a safety net in that mode (peers finalize
+// synchronously), so degrading-to-warn lets operators see the signal
+// without blocking startup.
+func TestLoadConfig_WarnsOnReconcilerTimingWithoutAsync(t *testing.T) {
+	t.Setenv("ENV_NAME", "development")
+	t.Setenv("DB_TRANSACTION_HOST", "localhost")
+	t.Setenv("DB_TRANSACTION_PORT", "5432")
+	t.Setenv("DB_TRANSACTION_USER", "midaz")
+	t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
+	t.Setenv("DB_TRANSACTION_NAME", "transaction")
+	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+	t.Setenv("AUTHORIZER_WAL_RECONCILER_ENABLED", "true")
+	t.Setenv("AUTHORIZER_ASYNC_COMMIT_INTENT", "false")
+	// Violate timing: grace(30_000) + interval(10_000) = 40_000 >= prepareTimeout(20_000).
+	t.Setenv("AUTHORIZER_PREPARE_TIMEOUT_MS", "20000")
+	t.Setenv("AUTHORIZER_WAL_RECONCILER_GRACE_MS", "30000")
+	t.Setenv("AUTHORIZER_WAL_RECONCILER_INTERVAL_MS", "10000")
+	setTestPeerAuthToken(t)
+
+	// Capture stdlib log output. Bootstrap intentionally uses log.Printf
+	// because the structured logger is not yet initialized (see config.go).
+	var buf bytes.Buffer
+
+	origOut := log.Writer()
+	origFlags := log.Flags()
+
+	log.SetOutput(&buf)
+	log.SetFlags(0)
+
+	t.Cleanup(func() {
+		log.SetOutput(origOut)
+		log.SetFlags(origFlags)
+	})
+
+	cfg, err := LoadConfig()
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	assert.True(t, cfg.WALReconcilerEnabled)
+	assert.False(t, cfg.AsyncCommitIntent)
+
+	logged := buf.String()
+	assert.Contains(t, logged, "WARN reconciler timing invariant violated")
+	assert.Contains(t, logged, "grace=30000ms")
+	assert.Contains(t, logged, "interval=10000ms")
+	assert.Contains(t, logged, "prepareTimeout=20000ms")
+}
+
+// TestLoadConfig_RejectsReconcilerTimingWithAsync is the passthrough: with
+// ASYNC_COMMIT_INTENT=true the reconciler is the only finalization path, so
+// a timing-invariant violation must fail closed at bootstrap. This locks in
+// the pre-D5 behavior for the async path after the decouple refactor.
+func TestLoadConfig_RejectsReconcilerTimingWithAsync(t *testing.T) {
+	t.Setenv("ENV_NAME", "development")
+	t.Setenv("DB_TRANSACTION_HOST", "localhost")
+	t.Setenv("DB_TRANSACTION_PORT", "5432")
+	t.Setenv("DB_TRANSACTION_USER", "midaz")
+	t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
+	t.Setenv("DB_TRANSACTION_NAME", "transaction")
+	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+	t.Setenv("AUTHORIZER_WAL_RECONCILER_ENABLED", "true")
+	t.Setenv("AUTHORIZER_ASYNC_COMMIT_INTENT", "true")
+	t.Setenv("AUTHORIZER_PREPARE_TIMEOUT_MS", "20000")
+	t.Setenv("AUTHORIZER_WAL_RECONCILER_GRACE_MS", "30000")
+	t.Setenv("AUTHORIZER_WAL_RECONCILER_INTERVAL_MS", "10000")
+	setTestPeerAuthToken(t)
+
+	_, err := LoadConfig()
+	require.Error(t, err)
+	require.ErrorIs(t, err, errConfigReconcilerTiming)
+	require.ErrorContains(t, err, "grace=30000")
+	require.ErrorContains(t, err, "interval=10000")
+	require.ErrorContains(t, err, "prepareTimeout=20000")
 }

@@ -35,6 +35,7 @@ var (
 	errConfigCommittedRetention         = errors.New("AUTHORIZER_PREPARED_COMMITTED_RETENTION_MS must be > 0")
 	errConfigCommitRetryLimit           = errors.New("AUTHORIZER_PREPARE_COMMIT_RETRY_LIMIT must be > 0")
 	errConfigMaxRecvBytes               = errors.New("AUTHORIZER_MAX_RECV_BYTES out of range")
+	errConfigMaxRecvBytesTooSmall       = errors.New("AUTHORIZER_MAX_RECV_BYTES is too small for the configured AUTHORIZER_MAX_OPERATIONS_PER_REQUEST batch ceiling")
 	errConfigLatencySLO                 = errors.New("AUTHORIZER_AUTHORIZE_LATENCY_SLO_MS must be > 0")
 	errConfigTLSFiles                   = errors.New("AUTHORIZER_GRPC_TLS_CERT_FILE and AUTHORIZER_GRPC_TLS_KEY_FILE are required when TLS is enabled")
 	errConfigMissingPostgres            = errors.New("missing postgres configuration for authorizer")
@@ -98,17 +99,29 @@ const (
 
 // Default configuration values for the authorizer service.
 const (
-	defaultShardCount                  = 8
-	defaultWALBufferSize               = 65536
-	defaultWALFlushIntervalMs          = 1
-	defaultPrepareMaxPending           = 10000
-	defaultMaxOpsPerRequest            = 2048
-	defaultMaxBalancesPerRequest       = 2048
-	defaultReplayMutationsPerEntry     = 2048
-	defaultReplayBalancesPerEntry      = 2048
-	defaultPrepareCommitRetryLimit     = 3
-	defaultMaxConcurrentStreams        = 1000
-	defaultMaxRecvBytes                = 4 * 1024
+	defaultShardCount              = 8
+	defaultWALBufferSize           = 65536
+	defaultWALFlushIntervalMs      = 1
+	defaultPrepareMaxPending       = 10000
+	defaultMaxOpsPerRequest        = 2048
+	defaultMaxBalancesPerRequest   = 2048
+	defaultReplayMutationsPerEntry = 2048
+	defaultReplayBalancesPerEntry  = 2048
+	defaultPrepareCommitRetryLimit = 3
+	defaultMaxConcurrentStreams    = 1000
+	// defaultMaxRecvBytes is sized to comfortably fit the default
+	// MaxOperationsPerRequest batch ceiling (2048 ops). 4 KB (the previous
+	// default) truncated batches at ~60 ops once protobuf framing, operation
+	// IDs, and metadata were accounted for. 256 KB leaves 2x headroom above
+	// the cross-check floor (2048 * estimatedAvgOpBytes = 128 KB) so operators
+	// can run the default ceiling without tuning and still absorb slightly
+	// wider payloads before hitting gRPC truncation.
+	defaultMaxRecvBytes = 256 * 1024
+	// estimatedAvgOpBytes is the conservative per-operation wire-size estimate
+	// used by the MaxRecvBytes <-> MaxOperationsPerRequest cross-check. It
+	// accounts for the UUID, minimal metadata, and protobuf framing overhead.
+	// Operators running wider schemas should raise MaxRecvBytes explicitly.
+	estimatedAvgOpBytes                = 64
 	defaultPostgresPoolMaxConns        = 20
 	defaultPostgresPoolMinConns        = 2
 	defaultRedpandaProducerLingerMs    = 5
@@ -410,6 +423,18 @@ func loadCoreConfig() (*Config, error) {
 	maxReceiveBytes := getenvInt("AUTHORIZER_MAX_RECV_BYTES", defaultMaxRecvBytes)
 	if err := validateIntRange(maxReceiveBytes, 1, maxConfigReceiveMessageSizeBytes, errConfigMaxRecvBytes); err != nil {
 		return nil, err
+	}
+
+	// Cross-check: MaxRecvBytes must fit the configured batch ceiling at the
+	// conservative per-op estimate. Without this guard, operators can ship a
+	// config where the gRPC server silently truncates valid batches well below
+	// the advertised MaxOperationsPerRequest.
+	requiredRecvBytes := maxOperationsPerRequest * estimatedAvgOpBytes
+	if maxReceiveBytes < requiredRecvBytes {
+		return nil, fmt.Errorf(
+			"AUTHORIZER_MAX_RECV_BYTES=%d < AUTHORIZER_MAX_OPERATIONS_PER_REQUEST=%d * estimatedAvgOpBytes=%d (=%d required): %w",
+			maxReceiveBytes, maxOperationsPerRequest, estimatedAvgOpBytes, requiredRecvBytes, errConfigMaxRecvBytesTooSmall,
+		)
 	}
 
 	authorizeLatencySLOMs := getenvInt("AUTHORIZER_AUTHORIZE_LATENCY_SLO_MS", defaultAuthorizeLatencySLOMs)
@@ -735,12 +760,33 @@ func loadReconcilerConfig(cfg *Config) error {
 
 	// Reconciler must be able to act before peers auto-abort.
 	// grace + interval gives the worst-case time before first reconciler action on a stale entry.
+	//
+	// When AsyncCommitIntent=true, a violation is unsafe: the reconciler is the
+	// only path that finalizes committed/aborted entries, so it must fire
+	// before the prepare timeout window closes. We reject at bootstrap.
+	//
+	// When only WALReconcilerEnabled=true (AsyncCommitIntent=false), a
+	// violation is degraded-but-workable: peers still finalize synchronously,
+	// so the reconciler is a safety net rather than the primary path. We emit
+	// a WARN log so operators see the signal without blocking startup.
 	prepareTimeoutMs := int(cfg.PrepareTimeout.Milliseconds())
+	reconcilerTimingViolated := walReconcilerEnabled && walReconcilerGraceMs+walReconcilerIntervalMs >= prepareTimeoutMs
 
-	if walReconcilerEnabled && cfg.AsyncCommitIntent && walReconcilerGraceMs+walReconcilerIntervalMs >= prepareTimeoutMs {
+	switch {
+	case reconcilerTimingViolated && cfg.AsyncCommitIntent:
 		return fmt.Errorf(
 			"grace=%d interval=%d prepareTimeout=%d: %w",
 			walReconcilerGraceMs, walReconcilerIntervalMs, prepareTimeoutMs, errConfigReconcilerTiming,
+		)
+	case reconcilerTimingViolated:
+		// stdlib log.Printf is used intentionally; the structured logger is
+		// not yet initialized at bootstrap time (see getenvInt note).
+		log.Printf(
+			"authorizer bootstrap: WARN reconciler timing invariant violated "+
+				"(grace=%dms + interval=%dms >= prepareTimeout=%dms); "+
+				"reconciler may miss stale entries before peers auto-abort. "+
+				"Tighten AUTHORIZER_WAL_RECONCILER_GRACE_MS / _INTERVAL_MS or raise AUTHORIZER_PREPARE_TIMEOUT_MS",
+			walReconcilerGraceMs, walReconcilerIntervalMs, prepareTimeoutMs,
 		)
 	}
 
