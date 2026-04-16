@@ -124,6 +124,10 @@ func (r *Router) ResolveExternalBalanceKey(counterpartyAlias string) string {
 //
 // The aliases parameter uses raw account aliases (e.g., "@user_123"),
 // NOT the alias#key format (e.g., "@user_123#default").
+//
+// Deprecated: No production callers remain. Retained for integration-test
+// convenience (see consumer.redis_sharded_integration_test.go). Prefer
+// calling Resolve per alias at the call site.
 func (r *Router) ResolveTransaction(aliases []string) map[string]int {
 	result := make(map[string]int, len(aliases))
 

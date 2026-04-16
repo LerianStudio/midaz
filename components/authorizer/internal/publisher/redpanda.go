@@ -80,11 +80,6 @@ type RedpandaPublisher struct {
 	config Config
 }
 
-// NewRedpandaPublisher creates a franz-go publisher.
-func NewRedpandaPublisher(brokers []string, logger libLog.Logger) (*RedpandaPublisher, error) {
-	return NewRedpandaPublisherWithSecurity(brokers, logger, Config{}, SecurityConfig{})
-}
-
 // NewRedpandaPublisherWithSecurity creates a franz-go publisher with optional TLS/SASL.
 func NewRedpandaPublisherWithSecurity(
 	brokers []string,

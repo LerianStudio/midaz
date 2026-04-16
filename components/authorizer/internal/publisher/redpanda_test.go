@@ -14,7 +14,7 @@ import (
 )
 
 func TestNewRedpandaPublisher_ValidatesBrokers(t *testing.T) {
-	pub, err := NewRedpandaPublisher(nil, nil)
+	pub, err := NewRedpandaPublisherWithSecurity(nil, nil, Config{}, SecurityConfig{})
 	assert.Nil(t, pub)
 	require.Error(t, err)
 }

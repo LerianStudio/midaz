@@ -986,8 +986,7 @@ func (rr *RedisConsumerRepository) parseBalanceResults(
 	result any,
 	mapBalances map[string]*mmodel.Balance,
 ) ([]*mmodel.Balance, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-	_ = tracer
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only logger is needed in this JSON parsing helper
 
 	var balanceJSON []byte
 

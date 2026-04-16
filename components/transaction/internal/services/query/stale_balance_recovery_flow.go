@@ -27,8 +27,7 @@ func (uc *UseCase) recoverLaggedBalancesForAliases( //nolint:gocyclo,cyclop
 		return nil, aliases, nil
 	}
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-	_ = tracer
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only logger is needed; tracing is handled by the parent caller
 
 	partitionAliases := make(map[int32][]string)
 	seen := make(map[int32]struct{}, len(aliases))
