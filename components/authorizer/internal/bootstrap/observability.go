@@ -208,6 +208,27 @@ var (
 		Unit:        "1",
 		Description: "Ratio of loaded balances to expected at readiness flip; drifts if later LoadBalances RPCs add balances.",
 	}
+	// manualInterventionRequiredTotal counts every transition into
+	// MANUAL_INTERVENTION_REQUIRED, bucketed by reason. A sustained non-zero
+	// rate is the SLI operators alert on: at 100K TPS a 0.001% stuck-tx rate
+	// is 86,400 stuck transactions/day that require human action. Stable
+	// reason labels (see manualInterventionReason* constants in commit_intent.go):
+	// local_not_found, remote_not_found, invalid_transition, participant_missing_txid.
+	manualInterventionRequiredTotal = libMetrics.Metric{
+		Name:        "authorizer_manual_intervention_required_total",
+		Unit:        "1",
+		Description: "Total commit intents escalated to MANUAL_INTERVENTION_REQUIRED (reason=local_not_found|remote_not_found|invalid_transition|participant_missing_txid).",
+	}
+	// commitRecordsDLQTotal counts records routed to the commits DLQ topic
+	// after exponential-backoff retries were exhausted or a permanent
+	// classification was detected. Operators MUST alert on any non-zero
+	// rate — DLQ records indicate poison payloads that the recovery loop
+	// could not process.
+	commitRecordsDLQTotal = libMetrics.Metric{
+		Name:        "authorizer_commit_records_dlq_total",
+		Unit:        "1",
+		Description: "Total records routed to the commits DLQ topic (reason=permanent|retries_exhausted).",
+	}
 )
 
 type authorizerMetrics struct {
@@ -294,6 +315,38 @@ func (m *authorizerMetrics) RecordAuthorize(
 		}
 		m.factory.Counter(authorizeLatencySLOBreachesTotal).WithLabels(sloLabels).AddOne(ctx)
 	}
+}
+
+// RecordManualInterventionRequired increments the
+// authorizer_manual_intervention_required_total counter with a bounded
+// reason label. Callers MUST pass one of the stable manualInterventionReason*
+// values; any unknown value collapses to "other" to keep cardinality bounded.
+//
+// This is the single entry point for emitting the stuck-tx SLI — call it at
+// every site where a commit intent transitions to
+// MANUAL_INTERVENTION_REQUIRED (both local and remote NotFound paths, and
+// any future escalation point).
+func (m *authorizerMetrics) RecordManualInterventionRequired(ctx context.Context, reason string) {
+	if m == nil || m.factory == nil {
+		return
+	}
+
+	m.factory.Counter(manualInterventionRequiredTotal).
+		WithLabels(map[string]string{"reason": normalizeManualInterventionReason(reason)}).
+		AddOne(ctx)
+}
+
+// RecordCommitRecordsDLQ increments authorizer_commit_records_dlq_total
+// with a bounded reason label. Called when a record is routed to the
+// commits DLQ topic (either permanent classification or retries exhausted).
+func (m *authorizerMetrics) RecordCommitRecordsDLQ(ctx context.Context, reason string) {
+	if m == nil || m.factory == nil {
+		return
+	}
+
+	m.factory.Counter(commitRecordsDLQTotal).
+		WithLabels(map[string]string{"reason": normalizeDLQReason(reason)}).
+		AddOne(ctx)
 }
 
 // RecordUnauthorizedRPC increments authorizer_unauthorized_rpc_total with
@@ -837,8 +890,43 @@ func normalizeTopic(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "":
 		return labelUnknown
-	case "ledger.balance.operations", "ledger.balance.create", "authorizer.cross-shard.commits":
+	case "ledger.balance.operations",
+		"ledger.balance.create",
+		"authorizer.cross-shard.commits",
+		"authorizer.cross-shard.manual-intervention",
+		"authorizer.cross-shard.commits.dlq":
 		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return labelOther
+	}
+}
+
+// normalizeManualInterventionReason clamps the reason label on
+// authorizer_manual_intervention_required_total to the stable values emitted
+// by the escalation sites. Unknown values collapse to "other" to bound
+// cardinality.
+func normalizeManualInterventionReason(value string) string {
+	reason := strings.TrimSpace(strings.ToLower(value))
+	switch reason {
+	case "":
+		return labelUnknown
+	case "local_not_found", "remote_not_found", "invalid_transition", "participant_missing_txid":
+		return reason
+	default:
+		return labelOther
+	}
+}
+
+// normalizeDLQReason clamps the reason label on
+// authorizer_commit_records_dlq_total to the stable values emitted by the
+// recovery loop. Unknown values collapse to "other".
+func normalizeDLQReason(value string) string {
+	reason := strings.TrimSpace(strings.ToLower(value))
+	switch reason {
+	case "":
+		return labelUnknown
+	case "permanent", "retries_exhausted":
+		return reason
 	default:
 		return labelOther
 	}

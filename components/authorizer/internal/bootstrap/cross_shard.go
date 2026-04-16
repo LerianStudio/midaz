@@ -991,9 +991,18 @@ func (s *authorizerService) handleIncompleteCommit(
 		len(intent.Participants),
 	)
 
+	// FailedPrecondition is deliberate: the partial-commit state is durable
+	// (commit intent is written to Redpanda before any peer commit fires),
+	// so naive client retry on the same transaction after a partial commit
+	// risks double-spend. FailedPrecondition signals to callers that the
+	// current state prevents the operation and that retry without operator
+	// intervention is incorrect. Transaction service's mapAuthorizerRejection
+	// must map FailedPrecondition to a non-retryable business error
+	// (ErrTransactionRequiresManualIntervention) rather than the default
+	// ServiceUnavailable/retryable path.
 	return status.Error( //nolint:wrapcheck // gRPC status error
-		codes.Internal,
-		"transaction processing incomplete; recovery in progress",
+		codes.FailedPrecondition,
+		"transaction partial-commit durable; manual intervention required (do not retry)",
 	)
 }
 
@@ -1060,12 +1069,10 @@ func (s *authorizerService) handleRemotePeerCommitError(
 			txID, peerAddr, r.txID,
 		)
 
-		intent.Status = commitIntentStatusManualIntervention
-
-		if publishErr := s.publishCommitIntent(ctx, intent); publishErr != nil {
+		if escalateErr := s.escalateToManualIntervention(ctx, intent, manualInterventionReasonRemoteNotFound); escalateErr != nil {
 			s.logger.Errorf(
-				"cross-shard manual intervention status publish failed: tx_id=%s err=%v",
-				txID, publishErr,
+				"cross-shard manual intervention escalation failed: tx_id=%s err=%v",
+				txID, escalateErr,
 			)
 		}
 

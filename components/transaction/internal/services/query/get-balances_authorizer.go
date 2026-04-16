@@ -14,6 +14,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 
@@ -80,7 +82,7 @@ func (uc *UseCase) processAuthorizerAtomicOperation( //nolint:gocyclo,cyclop
 
 	resp, err := uc.Authorizer.Authorize(ctx, request)
 	if err != nil {
-		return nil, fmt.Errorf("process authorizer atomic operation: %w", pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, "authorizer"))
+		return nil, classifyAuthorizerError(err)
 	}
 
 	if !resp.GetAuthorized() && resp.GetRejectionCode() == authorizerRejectionBalanceNotFound { //nolint:nestif
@@ -94,7 +96,7 @@ func (uc *UseCase) processAuthorizerAtomicOperation( //nolint:gocyclo,cyclop
 
 		resp, err = uc.Authorizer.Authorize(ctx, request)
 		if err != nil {
-			return nil, fmt.Errorf("process authorizer atomic operation: %w", pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, "authorizer"))
+			return nil, classifyAuthorizerError(err)
 		}
 	}
 
@@ -223,6 +225,33 @@ func balanceToRedis(b *mmodel.Balance) mmodel.BalanceRedis {
 	}
 
 	return mmodel.ToBalanceRedis(b, pkgTransaction.SplitAliasWithKey(b.Alias))
+}
+
+// classifyAuthorizerError distinguishes retryable from non-retryable gRPC
+// error classes returned by the authorizer. The default (and every class
+// that was previously mapped) flows to ErrGRPCServiceUnavailable, which is
+// retryable. The FailedPrecondition path is new: the authorizer uses it to
+// signal a partial-commit state where the commit intent is durable and at
+// least one participant committed. Naive retry risks double-spend; the
+// caller MUST surface a non-retryable business error
+// (ErrTransactionRequiresManualIntervention) and route operator attention
+// to the manual-intervention recovery surface.
+func classifyAuthorizerError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if grpcstatus.Code(err) == codes.FailedPrecondition {
+		return fmt.Errorf(
+			"process authorizer atomic operation: %w",
+			pkg.ValidateBusinessError(constant.ErrTransactionRequiresManualIntervention, "authorizer"),
+		)
+	}
+
+	return fmt.Errorf(
+		"process authorizer atomic operation: %w",
+		pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, "authorizer"),
+	)
 }
 
 func mapAuthorizerRejection(rejectionCode string) error {

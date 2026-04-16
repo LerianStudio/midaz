@@ -100,6 +100,29 @@ ensure_topic() {
     --topic-config "retention.ms=$retention_ms"
 }
 
+# ensure_compacted_topic creates a log-compacted topic (cleanup.policy=compact).
+# Used for topics where operators need the LATEST state per key (e.g. the
+# manual-intervention topic: the last commit-intent payload per txID is the
+# truth; older states are garbage-collected by compaction).
+ensure_compacted_topic() {
+  topic="$1"
+  partitions="$2"
+
+  if rpk topic describe "$topic" $RPK_BROKER_FLAG $RPK_AUTH_FLAGS >/dev/null 2>&1; then
+    # For existing topics, just ensure the compaction policy is set.
+    rpk topic alter-config "$topic" \
+      $RPK_BROKER_FLAG $RPK_AUTH_FLAGS \
+      --set "cleanup.policy=compact"
+    return
+  fi
+
+  rpk topic create "$topic" \
+    $RPK_BROKER_FLAG $RPK_AUTH_FLAGS \
+    --partitions "$partitions" \
+    --replicas "$REPLICATION_FACTOR" \
+    --topic-config "cleanup.policy=compact"
+}
+
 # ensure_acl grants a single operation on a single topic to a principal.
 # Idempotent: rpk acl create exits 0 if the ACL already exists.
 ensure_acl() {
@@ -146,6 +169,15 @@ ensure_topic "ledger.balance.create.dlt" 4 -1
 ensure_topic "ledger.balance.operations.retry" 8 86400000
 ensure_topic "ledger.balance.operations.dlt" 4 -1
 ensure_topic "authorizer.cross-shard.commits" 4 604800000
+# DLQ for poison records that the commit intent recovery consumer could not
+# process after exponential backoff retries. Retained 30 days so operators
+# have a comfortable window to inspect and recover manually.
+ensure_topic "authorizer.cross-shard.commits.dlq" 4 2592000000
+# Log-compacted topic carrying the LAST state per txID for every commit
+# intent that transitioned into MANUAL_INTERVENTION_REQUIRED. Operators
+# subscribe here to get the current universe of stuck transactions without
+# tailing the entire commits topic. Compaction keeps the footprint bounded.
+ensure_compacted_topic "authorizer.cross-shard.manual-intervention" 4
 
 # Tenant-scoped ACLs (only applied when SASL is enabled; principals must exist
 # as SASL users on the broker). Service principals are named after the
@@ -164,6 +196,14 @@ ensure_topic "authorizer.cross-shard.commits" 4 604800000
 ensure_acl "${REDPANDA_AUTHORIZER_PRINCIPAL:-midaz-authorizer}" "authorizer.cross-shard.commits" write
 ensure_acl "${REDPANDA_AUTHORIZER_PRINCIPAL:-midaz-authorizer}" "authorizer.cross-shard.commits" read
 ensure_acl "${REDPANDA_AUTHORIZER_PRINCIPAL:-midaz-authorizer}" "authorizer.cross-shard.commits" describe
+# DLQ and manual-intervention topics: authorizer writes stuck-tx + poison
+# records; operator tooling reads from them (separate principal out of scope
+# for this change — operators can tail via the authorizer principal).
+for topic in authorizer.cross-shard.commits.dlq authorizer.cross-shard.manual-intervention; do
+  ensure_acl "${REDPANDA_AUTHORIZER_PRINCIPAL:-midaz-authorizer}" "$topic" write
+  ensure_acl "${REDPANDA_AUTHORIZER_PRINCIPAL:-midaz-authorizer}" "$topic" read
+  ensure_acl "${REDPANDA_AUTHORIZER_PRINCIPAL:-midaz-authorizer}" "$topic" describe
+done
 ensure_consumer_group_acl "${REDPANDA_AUTHORIZER_PRINCIPAL:-midaz-authorizer}" "authorizer-cross-shard-recovery"
 
 # --- Ledger principal (producer on ledger.*) ---

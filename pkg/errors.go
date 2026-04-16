@@ -1210,6 +1210,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error { //
 			Title:      "gRPC Service Unavailable",
 			Message:    "The balance service is temporarily unavailable. Please try again later.",
 		},
+		constant.ErrTransactionRequiresManualIntervention: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionRequiresManualIntervention.Error(),
+			Title:      "Transaction Requires Manual Intervention",
+			Message:    "The transaction is in a partial-commit state and requires operator intervention before it can be retried. Contact support with the transaction ID; do not retry automatically.",
+		},
 		constant.ErrConsumerLagStaleBalance: ServiceUnavailableError{
 			EntityType: entityType,
 			Code:       constant.ErrConsumerLagStaleBalance.Error(),

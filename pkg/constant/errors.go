@@ -180,6 +180,14 @@ var (
 	ErrWALAppendFailed                          = errors.New("0154")
 	ErrAuthorizationRejectedDuringConcurrency   = errors.New("0155")
 	ErrAuthorizerPeerAuthTokenRequired          = errors.New("0156")
+	// ErrTransactionRequiresManualIntervention signals that an authorizer 2PC
+	// transaction landed in a partial-commit state: the commit intent is
+	// durable in Redpanda and at least one participant committed, but at
+	// least one other participant did not. Naive retry by the caller on the
+	// same transaction risks double-spend, so the transaction service maps
+	// this to a non-retryable business error and surfaces it to the operator
+	// via the admin recovery surface (manual-intervention topic + DLQ).
+	ErrTransactionRequiresManualIntervention = errors.New("0157")
 	ErrShardCountInvalid                        = errors.New("shard count must be > 0")
 	ErrShardMultipleOwners                      = errors.New("shard assigned to multiple owners")
 	ErrShardNoOwner                             = errors.New("shard has no owner configured")

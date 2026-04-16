@@ -415,7 +415,12 @@ func TestAuthorizeCrossShardReturnsErrorOnPartialCommit(t *testing.T) {
 	resp, err := svc.authorizeCrossShard(context.Background(), req, shardOps)
 	require.Error(t, err)
 	require.Nil(t, resp)
-	require.Contains(t, err.Error(), "transaction processing incomplete; recovery in progress")
+	// Partial-commit state returns FailedPrecondition (non-retryable) so the
+	// transaction service maps it to ErrTransactionRequiresManualIntervention
+	// rather than the retryable ServiceUnavailable path. Prior to this
+	// change the code was Internal — see D4 scope item #6.
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	require.Contains(t, err.Error(), "manual intervention required")
 
 	peer.mu.Lock()
 	abortCalls := peer.abortCalls
@@ -493,11 +498,14 @@ func TestAuthorizeCrossShardTreatsPeerCommitNotFoundAsManualIntervention(t *test
 
 	// NotFound from a peer commit is now treated as ambiguous — the peer may have
 	// lost prepared state (restart, expiry). The coordinator must NOT blindly assume
-	// committed. Instead, the intent is flagged for manual intervention.
+	// committed. Instead, the intent is flagged for manual intervention and the
+	// response is FailedPrecondition so the transaction service maps it to a
+	// non-retryable business error (D4 scope item #5 + #6).
 	resp, err := svc.authorizeCrossShard(context.Background(), req, shardOps)
 	require.Error(t, err)
 	require.Nil(t, resp)
-	require.Contains(t, err.Error(), "transaction processing incomplete; recovery in progress")
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	require.Contains(t, err.Error(), "manual intervention required")
 
 	statuses := make([]string, 0, len(pub.messages))
 	for _, msg := range pub.messages {
@@ -1038,13 +1046,16 @@ func TestAuthorizeCrossShardAsyncCommitIntentPublishFailure(t *testing.T) {
 
 	resp, err := svc.authorizeCrossShard(context.Background(), req, shardOps)
 
-	// The response must be an Internal error (not Aborted), because the local
-	// commit already happened — the transaction is partially committed and the
-	// recovery mechanism needs to drive it to completion.
+	// The response must be a FailedPrecondition error (not Aborted), because
+	// the local commit already happened — the transaction is partially
+	// committed and the recovery mechanism needs to drive it to completion.
+	// FailedPrecondition is deliberate (D4 scope item #6): it is mapped by
+	// the transaction service to a non-retryable business error so naive
+	// client retry does not double-spend.
 	require.Error(t, err)
 	require.Nil(t, resp)
-	require.Equal(t, codes.Internal, status.Code(err))
-	require.Contains(t, err.Error(), "transaction processing incomplete; recovery in progress")
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	require.Contains(t, err.Error(), "manual intervention required")
 
 	// The local balance MUST have been debited. Even though the Redpanda
 	// publish failed, the local commit happened first in the async path

@@ -179,9 +179,18 @@ func (r *walReconciler) newSeedConsumer() *kgo.Client {
 	return client
 }
 
-// tryExtractCompletedTxID attempts to extract a completed transaction ID from
+// tryExtractCompletedTxID attempts to extract a terminal transaction ID from
 // a Kafka record. Returns the transaction ID if the record represents a
-// completed/committed intent, or empty string otherwise.
+// terminal intent state (COMPLETED, COMMITTED, or MANUAL_INTERVENTION_REQUIRED),
+// or empty string otherwise.
+//
+// MANUAL_INTERVENTION_REQUIRED is treated as terminal here because the WAL
+// reconciler's job is to re-publish intents the system hasn't been able to
+// drive to completion. Once an intent is in MANUAL_INTERVENTION_REQUIRED, the
+// automated recovery loop will not advance it further — a human operator must.
+// Leaving it out of the terminal set caused an infinite republish loop: every
+// reconciler cycle would re-publish the PREPARED intent reconstructed from the
+// WAL, the recovery loop would re-escalate, and the cycle would repeat.
 func tryExtractCompletedTxID(record *kgo.Record) string {
 	if record == nil || len(record.Value) == 0 {
 		return ""
@@ -192,11 +201,14 @@ func tryExtractCompletedTxID(record *kgo.Record) string {
 		return ""
 	}
 
-	if intent.Status != commitIntentStatusCompleted && intent.Status != commitIntentStatusCommitted {
+	switch intent.Status {
+	case commitIntentStatusCompleted,
+		commitIntentStatusCommitted,
+		commitIntentStatusManualIntervention:
+		return strings.TrimSpace(intent.TransactionID)
+	default:
 		return ""
 	}
-
-	return strings.TrimSpace(intent.TransactionID)
 }
 
 // seedCompletedSet does a one-shot read of the cross-shard commit topic to

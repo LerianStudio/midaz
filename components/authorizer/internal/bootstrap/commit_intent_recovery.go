@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -24,16 +25,19 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 
 	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/engine"
+	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/publisher"
 	brokersecurity "github.com/LerianStudio/midaz/v3/pkg/broker/security"
 	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 )
 
-// Sentinel errors for commit intent recovery validation.
+// Sentinel errors for commit intent recovery validation. Note:
+// errInvalidCommitIntentTransition lives in commit_intent.go because
+// escalateToManualIntervention raises it and callers in multiple files use
+// errors.Is against it.
 var (
 	errCommitIntentRecoveryConfigNil  = errors.New("commit intent recovery config is nil")
 	errCommitIntentRecoveryServiceNil = errors.New("commit intent recovery service is nil")
 	errParticipantMissingPreparedTxID = errors.New("participant missing prepared_tx_id")
-	errInvalidCommitIntentTransition  = errors.New("invalid commit intent status transition")
 	errRecoverPeerNotConfigured       = errors.New("recover peer commit failed: peer not configured")
 	errRecoverPeerNoGRPCClient        = errors.New("recover peer commit failed: no available gRPC client")
 	errRemotePreparedTxNotFound       = errors.New("remote prepared tx not found (requires manual intervention)")
@@ -41,6 +45,20 @@ var (
 )
 
 const defaultCommitIntentConsumerGroup = "authorizer-cross-shard-recovery"
+
+// CommitRecords retry + DLQ controls.
+const (
+	// commitRecordsMaxRetries caps the exponential-backoff retry budget for
+	// transient CommitRecords failures (network, broker unavailable). After
+	// exhaustion the record is routed to the DLQ topic so the consumer does
+	// not stall forever on a single poison offset.
+	commitRecordsMaxRetries          = 5
+	commitRecordsBackoffInitial      = 200 * time.Millisecond
+	commitRecordsBackoffMax          = 5 * time.Second
+	commitRecordsBackoffMaxExponent  = 20
+	shutdownWaitPollInterval         = 100 * time.Millisecond
+	defaultShutdownWaitTimeoutForRun = 30 * time.Second
+)
 
 // recoveryBackoff controls exponential backoff when the recovery loop
 // processes only skip-able / already-completed records and makes no
@@ -59,6 +77,18 @@ type commitIntentRecoveryRunner struct {
 	client       *kgo.Client
 	pollTimeout  time.Duration
 	consumerName string
+
+	// stopping signals Run() to exit cleanly on the next loop iteration.
+	// Close() sets it and then waits for running to become false (bounded by
+	// shutdownWaitTimeout). This prevents zombie in-flight recovery work
+	// during pod rollover.
+	stopping atomic.Bool
+	running  atomic.Bool
+
+	// shutdownWaitTimeout bounds how long Close() waits for Run() to exit
+	// cleanly before returning. Defaults to defaultShutdownWaitTimeoutForRun
+	// when zero.
+	shutdownWaitTimeout time.Duration
 }
 
 func newCommitIntentRecoveryRunner(cfg *Config, service *authorizerService, logger libLog.Logger) (*commitIntentRecoveryRunner, error) {
@@ -114,21 +144,49 @@ func newCommitIntentRecoveryRunner(cfg *Config, service *authorizerService, logg
 	}
 
 	return &commitIntentRecoveryRunner{
-		service:      service,
-		logger:       logger,
-		client:       client,
-		pollTimeout:  pollTimeout,
-		consumerName: group,
+		service:             service,
+		logger:              logger,
+		client:              client,
+		pollTimeout:         pollTimeout,
+		consumerName:        group,
+		shutdownWaitTimeout: defaultShutdownWaitTimeoutForRun,
 	}, nil
 }
 
-// Close shuts down the underlying Kafka consumer.
+// Close signals Run() to stop, waits for it to exit cleanly (bounded by
+// shutdownWaitTimeout), and closes the underlying Kafka consumer. Idempotent
+// and safe to call multiple times. Prevents zombie in-flight recovery
+// iterations during pod rollover — without the wait, the kgo client could be
+// closed while a goroutine was mid-fetch, triggering spurious error logs that
+// obscured real shutdown-time failures.
 func (r *commitIntentRecoveryRunner) Close() {
-	if r == nil || r.client == nil {
+	if r == nil {
 		return
 	}
 
-	r.client.Close()
+	r.stopping.Store(true)
+
+	waitTimeout := r.shutdownWaitTimeout
+	if waitTimeout <= 0 {
+		waitTimeout = defaultShutdownWaitTimeoutForRun
+	}
+
+	deadline := time.Now().Add(waitTimeout)
+
+	for r.running.Load() && time.Now().Before(deadline) {
+		time.Sleep(shutdownWaitPollInterval)
+	}
+
+	if r.running.Load() && r.logger != nil {
+		r.logger.Warnf(
+			"commit intent recovery runner: shutdown wait timed out after %s; forcing consumer close while Run is still active",
+			waitTimeout,
+		)
+	}
+
+	if r.client != nil {
+		r.client.Close()
+	}
 }
 
 // Run starts the commit intent recovery consumer loop.
@@ -137,12 +195,20 @@ func (r *commitIntentRecoveryRunner) Run(ctx context.Context) {
 		return
 	}
 
+	r.running.Store(true)
+	defer r.running.Store(false)
+
 	r.logger.Infof("Authorizer commit intent recovery consumer started: group=%s topic=%s", r.consumerName, crossShardCommitTopic)
 
 	var consecutiveNoOps int
 
 	for {
 		if ctx.Err() != nil {
+			return
+		}
+
+		if r.stopping.Load() {
+			r.logger.Infof("Authorizer commit intent recovery consumer stopping (Close signalled)")
 			return
 		}
 
@@ -234,12 +300,172 @@ func (r *commitIntentRecoveryRunner) processRecords(ctx context.Context, fetches
 			cycleRecovered = true
 		}
 
-		if err := r.client.CommitRecords(ctx, record); err != nil {
-			r.logger.Warnf("Authorizer commit intent recovery commit failed: partition=%d offset=%d err=%v", record.Partition, record.Offset, err)
-		}
+		r.commitRecordWithRetry(ctx, record)
 	}
 
 	return cycleProcessed, cycleRecovered
+}
+
+// commitRecordWithRetry applies exponential backoff to transient CommitRecords
+// failures and routes permanent failures (or retries-exhausted) to the DLQ
+// topic. The previous behaviour (a single warn-and-continue on error) risked
+// pinning the consumer on a poison offset indefinitely — any durable failure
+// on a specific record would prevent every subsequent record from committing,
+// gradually starving the recovery loop.
+//
+// Classification:
+//   - Permanent (context canceled, non-retryable broker error): route to DLQ
+//     immediately. The record is structurally commit-unfit.
+//   - Transient (network blip, broker unavailable, generic error): retry with
+//     exponential backoff up to commitRecordsMaxRetries. On exhaustion, route
+//     to DLQ so the consumer can continue with newer offsets.
+//
+// DLQ routing is best-effort: a failed DLQ publish emits a DLQ-publish error
+// log line, and the record offset is still NOT committed (the consumer will
+// re-observe it after rebalance). That is safer than committing a record
+// whose business processing was never confirmed.
+func (r *commitIntentRecoveryRunner) commitRecordWithRetry(ctx context.Context, record *kgo.Record) {
+	var lastErr error
+
+	for attempt := 0; attempt <= commitRecordsMaxRetries; attempt++ {
+		if ctx.Err() != nil {
+			return
+		}
+
+		err := r.client.CommitRecords(ctx, record)
+		if err == nil {
+			return
+		}
+
+		lastErr = err
+
+		if classifyCommitRecordsError(lastErr) == commitRecordsClassPermanent {
+			r.routeToDLQ(ctx, record, "permanent", lastErr)
+			return
+		}
+
+		if attempt == commitRecordsMaxRetries {
+			break
+		}
+
+		delay := exponentialCommitRecordsDelay(attempt)
+
+		r.logger.Warnf(
+			"Authorizer commit intent recovery commit transient failure: partition=%d offset=%d attempt=%d/%d delay=%s err=%v",
+			record.Partition, record.Offset, attempt+1, commitRecordsMaxRetries+1, delay, lastErr,
+		)
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(delay):
+		}
+	}
+
+	r.routeToDLQ(ctx, record, "retries_exhausted", lastErr)
+}
+
+// commitRecordsClass classifies a CommitRecords error as permanent or transient.
+type commitRecordsClass int
+
+const (
+	commitRecordsClassTransient commitRecordsClass = iota
+	commitRecordsClassPermanent
+)
+
+// classifyCommitRecordsError treats context cancellation as permanent (we are
+// shutting down) and every other error as transient (retryable). This is a
+// conservative default — operators can monitor authorizer_commit_records_dlq_total
+// to see when retries are exhausting for specific broker failure modes, and
+// extend this classifier if a new permanent-class signal emerges from
+// production telemetry.
+func classifyCommitRecordsError(err error) commitRecordsClass {
+	if err == nil {
+		return commitRecordsClassTransient
+	}
+
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return commitRecordsClassPermanent
+	}
+
+	return commitRecordsClassTransient
+}
+
+// exponentialCommitRecordsDelay returns the delay for a given retry attempt,
+// doubling each attempt and capped at commitRecordsBackoffMax. Bounded exponent
+// prevents overflow when attempts grow (though commitRecordsMaxRetries already
+// caps the loop).
+func exponentialCommitRecordsDelay(attempt int) time.Duration {
+	if attempt < 0 {
+		attempt = 0
+	}
+
+	if attempt > commitRecordsBackoffMaxExponent {
+		attempt = commitRecordsBackoffMaxExponent
+	}
+
+	delay := commitRecordsBackoffInitial * (1 << attempt)
+	if delay > commitRecordsBackoffMax {
+		delay = commitRecordsBackoffMax
+	}
+
+	return delay
+}
+
+// routeToDLQ publishes the poison record to the commits DLQ topic and
+// increments the DLQ counter. Best-effort: a failed DLQ publish is logged at
+// ERROR but does not block the consumer loop from progressing.
+func (r *commitIntentRecoveryRunner) routeToDLQ(ctx context.Context, record *kgo.Record, reason string, cause error) {
+	if r == nil || r.service == nil {
+		return
+	}
+
+	if r.service.metrics != nil {
+		r.service.metrics.RecordCommitRecordsDLQ(ctx, reason)
+	}
+
+	if r.logger != nil {
+		r.logger.Errorf(
+			"Authorizer commit intent recovery routing record to DLQ: partition=%d offset=%d reason=%s cause=%v",
+			record.Partition, record.Offset, reason, cause,
+		)
+	}
+
+	if r.service.pub == nil {
+		return
+	}
+
+	// Preserve the original headers so DLQ consumers can read the same
+	// HMAC signature (and anything else) the original topic carried. Add a
+	// dlq-reason header so operators can group records by failure class
+	// without re-parsing the payload.
+	headers := make(map[string]string, len(record.Headers)+1)
+	for _, h := range record.Headers {
+		headers[strings.ToLower(strings.TrimSpace(h.Key))] = string(h.Value)
+	}
+
+	headers["x-midaz-commit-records-dlq-reason"] = reason
+	if cause != nil {
+		headers["x-midaz-commit-records-dlq-cause"] = strings.TrimSpace(cause.Error())
+	}
+
+	partitionKey := ""
+	if record.Key != nil {
+		partitionKey = string(record.Key)
+	}
+
+	if err := r.service.pub.Publish(ctx, publisher.Message{
+		Topic:        crossShardCommitsDLQTopic,
+		PartitionKey: partitionKey,
+		Payload:      record.Value,
+		Headers:      headers,
+		ContentType:  "application/json",
+	}); err != nil && r.logger != nil {
+		r.logger.Errorf(
+			"Authorizer commit intent recovery DLQ publish failed (record will be re-observed after rebalance): partition=%d offset=%d err=%v",
+			record.Partition, record.Offset, err,
+		)
+	}
 }
 
 // updateNoOpCounter tracks consecutive cycles with no forward progress.
@@ -373,6 +599,13 @@ func (s *authorizerService) recoverCommitIntent(ctx context.Context, intent *com
 		}
 
 		if strings.TrimSpace(participant.PreparedTxID) == "" {
+			// This is an unrecoverable state: the participant lacks the
+			// prepared_tx_id required to drive commit. Emit the SLI counter
+			// so operators can alert on it alongside other escalation reasons.
+			if s.metrics != nil {
+				s.metrics.RecordManualInterventionRequired(ctx, manualInterventionReasonParticipantMissingID)
+			}
+
 			return newCommitsThisCall, errParticipantMissingPreparedTxID
 		}
 
@@ -429,7 +662,7 @@ func (s *authorizerService) recoverSingleParticipant(
 		return s.recoverLocalParticipant(ctx, intent, participant)
 	}
 
-	return s.recoverRemoteParticipant(ctx, participant)
+	return s.recoverRemoteParticipant(ctx, intent, participant)
 }
 
 func (s *authorizerService) recoverLocalParticipant(
@@ -452,17 +685,15 @@ func (s *authorizerService) recoverLocalParticipant(
 		participant.PreparedTxID,
 	)
 
-	if !validStatusTransition(intent.Status, commitIntentStatusManualIntervention) {
-		return fmt.Errorf(
-			"%w: %s -> %s for transaction_id=%s",
-			errInvalidCommitIntentTransition, intent.Status, commitIntentStatusManualIntervention, intent.TransactionID,
-		)
-	}
+	if escalateErr := s.escalateToManualIntervention(ctx, intent, manualInterventionReasonLocalNotFound); escalateErr != nil {
+		// Invalid-transition classification is emitted separately so
+		// operators can distinguish "state machine violated" from
+		// "escalation publish failed" on the counter.
+		if errors.Is(escalateErr, errInvalidCommitIntentTransition) && s.metrics != nil {
+			s.metrics.RecordManualInterventionRequired(ctx, manualInterventionReasonInvalidTransition)
+		}
 
-	intent.Status = commitIntentStatusManualIntervention
-
-	if publishErr := s.publishCommitIntent(ctx, intent); publishErr != nil {
-		return fmt.Errorf("publish recovery manual intervention status: %w", publishErr)
+		return fmt.Errorf("escalate local not-found: %w", escalateErr)
 	}
 
 	return errRecoveryEscalatedToManual
@@ -470,6 +701,7 @@ func (s *authorizerService) recoverLocalParticipant(
 
 func (s *authorizerService) recoverRemoteParticipant(
 	ctx context.Context,
+	intent *commitIntent,
 	participant *commitParticipant,
 ) error {
 	peer := s.peerByAddr(participant.InstanceAddr)
@@ -499,9 +731,29 @@ func (s *authorizerService) recoverRemoteParticipant(
 
 	if grpcstatus.Code(err) == codes.NotFound {
 		s.logger.Errorf(
-			"recover peer commit: remote prepared_tx not found (reaped or restarted): peer=%s prepared_tx_id=%s",
-			peer.addr, participant.PreparedTxID,
+			"recover peer commit: remote prepared_tx not found (reaped or restarted): peer=%s prepared_tx_id=%s transaction_id=%s",
+			peer.addr, participant.PreparedTxID, intent.TransactionID,
 		)
+
+		// Symmetric escalation: the local-not-found path escalates via
+		// escalateToManualIntervention. The remote-not-found path MUST match
+		// that behaviour so operators see a uniform signal and the DLQ /
+		// manual-intervention topic receive every stuck transaction regardless
+		// of which side of the 2PC lost its prepared state. Prior to this
+		// change, returning errRemotePreparedTxNotFound left the intent in
+		// PREPARED/COMMITTED status and the counter silent — the fix below
+		// preserves the sentinel for callers that switch on it while also
+		// driving durable escalation.
+		if escalateErr := s.escalateToManualIntervention(ctx, intent, manualInterventionReasonRemoteNotFound); escalateErr != nil {
+			if errors.Is(escalateErr, errInvalidCommitIntentTransition) && s.metrics != nil {
+				s.metrics.RecordManualInterventionRequired(ctx, manualInterventionReasonInvalidTransition)
+			}
+
+			s.logger.Errorf(
+				"recover peer commit: manual-intervention escalation failed: peer=%s prepared_tx_id=%s transaction_id=%s err=%v",
+				peer.addr, participant.PreparedTxID, intent.TransactionID, escalateErr,
+			)
+		}
 
 		return fmt.Errorf(
 			"%w: peer=%s prepared_tx_id=%s",
