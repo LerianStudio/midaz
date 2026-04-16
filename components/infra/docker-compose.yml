@@ -202,6 +202,60 @@ services:
     networks:
       - infra-network
 
+  # PgBouncer (D7) — transaction-pooled connection multiplexer sitting in
+  # front of midaz-postgres-primary. All app services connect here
+  # instead of directly to Postgres so a single service spike cannot
+  # exhaust the server's max_connections ceiling. Replicas are not
+  # pooled because the current dbresolver wiring opens far fewer conns
+  # on the read path; pooling them would only add hop latency.
+  midaz-pgbouncer:
+    image: edoburu/pgbouncer:1.23.1
+    container_name: midaz-pgbouncer
+    restart: always
+    environment:
+      DB_HOST: midaz-postgres-primary
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # DB_NAME="*" exposes every database on the primary via the same
+      # bouncer pool — both `transaction` and `onboarding` at once.
+      DB_NAME: "*"
+      POOL_MODE: transaction
+      AUTH_TYPE: scram-sha-256
+      # Pool sizing (D7). max_client_conn accommodates ~8 services
+      # each with ~1000 short-lived handles; default_pool_size is the
+      # per (db,user) server-side pool and should sit well under the
+      # PG max_connections budget. reserve_pool_size bursts for a few
+      # seconds when the primary pool saturates.
+      MAX_CLIENT_CONN: "10000"
+      DEFAULT_POOL_SIZE: "100"
+      MIN_POOL_SIZE: "20"
+      RESERVE_POOL_SIZE: "20"
+      RESERVE_POOL_TIMEOUT: "3"
+      SERVER_IDLE_TIMEOUT: "600"
+      SERVER_LIFETIME: "3600"
+      # Passthrough bookkeeping so PG slow-query logs identify the
+      # originating Midaz service, not the bouncer.
+      APPLICATION_NAME_ADD_HOST: "1"
+      # Disable bouncer-side query timeout; PG already enforces its own.
+      QUERY_TIMEOUT: "0"
+      QUERY_WAIT_TIMEOUT: "120"
+      CLIENT_LOGIN_TIMEOUT: "60"
+      # IGNORE_STARTUP_PARAMETERS avoids bouncer rejecting pgx's
+      # standard `extra_float_digits` / `search_path` negotiation.
+      IGNORE_STARTUP_PARAMETERS: "extra_float_digits,search_path,application_name"
+    ports:
+      - "${PGBOUNCER_PORT:-6432}:6432"
+    depends_on:
+      midaz-postgres-primary:
+        condition: service_healthy
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    networks:
+      - infra-network
+
   midaz-otel-lgtm:
     container_name: midaz-otel-lgtm
     image: grafana/otel-lgtm:latest
@@ -296,8 +350,11 @@ services:
       AUTHORIZER_WAL_RECONCILER_ENABLED: "true"
       AUTHORIZER_OWNED_SHARD_START: "0"
       AUTHORIZER_OWNED_SHARD_END: "3"
-      DB_TRANSACTION_HOST: midaz-postgres-primary
-      DB_TRANSACTION_PORT: ${DB_PORT}
+      # D7: route the writer pool through PgBouncer. Replicas stay
+      # direct because dbresolver already round-robins reads and the
+      # extra hop adds latency without pool benefit.
+      DB_TRANSACTION_HOST: midaz-pgbouncer
+      DB_TRANSACTION_PORT: "6432"
       DB_TRANSACTION_USER: ${DB_USER}
       DB_TRANSACTION_PASSWORD: ${DB_PASSWORD}
       DB_TRANSACTION_NAME: transaction
@@ -313,6 +370,8 @@ services:
     depends_on:
       midaz-postgres-primary:
         condition: service_healthy
+      midaz-pgbouncer:
+        condition: service_started
       midaz-redpanda:
         condition: service_started
     ulimits:
@@ -353,8 +412,11 @@ services:
       AUTHORIZER_WAL_RECONCILER_ENABLED: "true"
       AUTHORIZER_OWNED_SHARD_START: "4"
       AUTHORIZER_OWNED_SHARD_END: "7"
-      DB_TRANSACTION_HOST: midaz-postgres-primary
-      DB_TRANSACTION_PORT: ${DB_PORT}
+      # D7: route the writer pool through PgBouncer. Replicas stay
+      # direct because dbresolver already round-robins reads and the
+      # extra hop adds latency without pool benefit.
+      DB_TRANSACTION_HOST: midaz-pgbouncer
+      DB_TRANSACTION_PORT: "6432"
       DB_TRANSACTION_USER: ${DB_USER}
       DB_TRANSACTION_PASSWORD: ${DB_PASSWORD}
       DB_TRANSACTION_NAME: transaction
@@ -370,6 +432,8 @@ services:
     depends_on:
       midaz-postgres-primary:
         condition: service_healthy
+      midaz-pgbouncer:
+        condition: service_started
       midaz-redpanda:
         condition: service_started
     ulimits:
@@ -388,8 +452,9 @@ services:
       ENV_NAME: local
       SERVER_ADDRESS: ":3002"
       PLUGIN_AUTH_ENABLED: "false"
-      DB_ONBOARDING_HOST: midaz-postgres-primary
-      DB_ONBOARDING_PORT: ${DB_PORT}
+      # D7: onboarding pool also routed through PgBouncer.
+      DB_ONBOARDING_HOST: midaz-pgbouncer
+      DB_ONBOARDING_PORT: "6432"
       DB_ONBOARDING_USER: ${DB_USER}
       DB_ONBOARDING_PASSWORD: ${DB_PASSWORD}
       DB_ONBOARDING_NAME: onboarding
@@ -439,6 +504,8 @@ services:
     depends_on:
       midaz-postgres-primary:
         condition: service_healthy
+      midaz-pgbouncer:
+        condition: service_started
       midaz-redpanda:
         condition: service_started
       midaz-valkey:
@@ -470,6 +537,8 @@ services:
     depends_on:
       midaz-postgres-primary:
         condition: service_healthy
+      midaz-pgbouncer:
+        condition: service_started
       midaz-redpanda:
         condition: service_started
       midaz-valkey:
@@ -501,6 +570,8 @@ services:
     depends_on:
       midaz-postgres-primary:
         condition: service_healthy
+      midaz-pgbouncer:
+        condition: service_started
       midaz-redpanda:
         condition: service_started
       midaz-valkey:
@@ -532,6 +603,8 @@ services:
     depends_on:
       midaz-postgres-primary:
         condition: service_healthy
+      midaz-pgbouncer:
+        condition: service_started
       midaz-redpanda:
         condition: service_started
       midaz-valkey:
@@ -560,8 +633,9 @@ services:
     environment:
       ENV_NAME: local
       # Consumer uses unprefixed DB vars (different from ledger's DB_TRANSACTION_* prefix).
-      DB_HOST: midaz-postgres-primary
-      DB_PORT: ${DB_PORT}
+      # D7: routed through PgBouncer like every other writer.
+      DB_HOST: midaz-pgbouncer
+      DB_PORT: "6432"
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: transaction
@@ -593,6 +667,8 @@ services:
         condition: service_completed_successfully
       midaz-postgres-primary:
         condition: service_healthy
+      midaz-pgbouncer:
+        condition: service_started
       midaz-valkey:
         condition: service_started
       midaz-mongodb:

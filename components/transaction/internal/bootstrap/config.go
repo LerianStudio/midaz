@@ -49,6 +49,7 @@ import (
 	brokerpkg "github.com/LerianStudio/midaz/v3/pkg/broker"
 	brokersecurity "github.com/LerianStudio/midaz/v3/pkg/broker/security"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/dbpool"
 	"github.com/LerianStudio/midaz/v3/pkg/fence"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
@@ -230,7 +231,8 @@ func recoverDirtyMigration(connectionString string, expectedVersion int64, logge
 
 	db, err := sql.Open("pgx", connectionString)
 	if err != nil {
-		return fmt.Errorf("failed to open PostgreSQL connection for migration recovery: %w", err)
+		return fmt.Errorf("failed to open PostgreSQL connection for migration recovery: %w",
+			dbpool.ScrubDSNInError(err, connectionString))
 	}
 
 	defer func() {
@@ -240,7 +242,8 @@ func recoverDirtyMigration(connectionString string, expectedVersion int64, logge
 	}()
 
 	if err := db.PingContext(ctx); err != nil {
-		return fmt.Errorf("failed to ping PostgreSQL for migration recovery: %w", err)
+		return fmt.Errorf("failed to ping PostgreSQL for migration recovery: %w",
+			dbpool.ScrubDSNInError(err, connectionString))
 	}
 
 	version, dirty, err := readMigrationState(ctx, db)
@@ -311,7 +314,12 @@ func ensurePostgresConnectionReady(cfg *Config, connection *libPostgres.Postgres
 	logger.Warnf("Dirty PostgreSQL migration detected at version %d. Attempting automatic recovery in environment %q", version, cfg.EnvName)
 
 	if recoveryErr := recoverDirtyMigration(connection.ConnectionStringPrimary, version, logger); recoveryErr != nil {
-		return fmt.Errorf("failed to recover dirty PostgreSQL migration version %d: %w", version, recoveryErr)
+		// pgx historically echoes the DSN in open/ping error messages. Scrub
+		// the password before wrapping so the error chain never carries the
+		// plaintext credential into logs, traces, or crash dumps.
+		scrubbed := dbpool.ScrubDSNInError(recoveryErr, connection.ConnectionStringPrimary)
+
+		return fmt.Errorf("failed to recover dirty PostgreSQL migration version %d: %w", version, scrubbed)
 	}
 
 	if _, retryErr := connection.GetDB(); retryErr != nil {
@@ -725,6 +733,20 @@ func initPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Pos
 	maxOpenConns := utils.EnvFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
 	maxIdleConns := utils.EnvFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
 
+	const percentDivisor = 100.0
+
+	if err := dbpool.ValidatePoolBudget(
+		cfg.DBPoolBudgetMaxConnections,
+		float64(cfg.DBPoolBudgetRatioPercent)/percentDivisor,
+		[]dbpool.PoolBudget{{
+			Name:              "transaction",
+			MaxConns:          maxOpenConns,
+			ExpectedInstances: cfg.DBPoolBudgetInstances,
+		}},
+	); err != nil {
+		return nil, err
+	}
+
 	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
 
@@ -1047,6 +1069,20 @@ type Config struct {
 	PrefixedMaxIdleConnections int `env:"DB_TRANSACTION_MAX_IDLE_CONNS"`
 	MaxOpenConnections         int `env:"DB_MAX_OPEN_CONNS"`
 	MaxIdleConnections         int `env:"DB_MAX_IDLE_CONNS"`
+
+	// Pool budget validation (D7). These bound the aggregate
+	// MaxOpenConnections * DBPoolBudgetInstances against the declared
+	// PostgreSQL max_connections ceiling so no single deploy can exhaust
+	// the server. Operators MUST set DB_POOL_BUDGET_MAX_CONNECTIONS in
+	// production to match the `max_connections` on the PG cluster; the
+	// default of 0 disables fail-closed validation for local development.
+	// Ratio is expressed as an integer percent (0..100) because
+	// lib-commons/v2 SetConfigFromEnvVars does not support float64
+	// fields — it reflect.Value.SetString-panics on them. Convert at
+	// use-site to a float.
+	DBPoolBudgetMaxConnections int `env:"DB_POOL_BUDGET_MAX_CONNECTIONS" default:"0"`
+	DBPoolBudgetInstances      int `env:"DB_POOL_BUDGET_INSTANCES" default:"1"`
+	DBPoolBudgetRatioPercent   int `env:"DB_POOL_BUDGET_RATIO_PERCENT" default:"80"`
 
 	// MongoDB - prefixed vars for unified ledger deployment
 	PrefixedMongoURI          string `env:"MONGO_TRANSACTION_URI"`

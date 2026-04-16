@@ -201,6 +201,23 @@ func NewPostgresLoaderWithConfig(ctx context.Context, dsn string, router *shard.
 		return nil, fmt.Errorf("connect postgres: %w", err)
 	}
 
+	// Explicit startup ping (D7). pgxpool.NewWithConfig is lazy and does
+	// not establish a physical connection until the first query; a bad
+	// DSN, unreachable host, or SSL handshake failure would otherwise
+	// surface on the first load — after the readiness gate already
+	// flipped green. We bound the check at 30s so a slow DNS/TLS dance
+	// cannot stall bootstrap indefinitely.
+	const pingTimeout = 30 * time.Second
+
+	pingCtx, cancel := context.WithTimeout(ctx, pingTimeout)
+	defer cancel()
+
+	if pingErr := pool.Ping(pingCtx); pingErr != nil {
+		pool.Close()
+
+		return nil, fmt.Errorf("ping postgres pool: %w", pingErr)
+	}
+
 	return &PostgresLoader{pool: pool, router: router, envName: poolConfig.EnvName}, nil
 }
 
