@@ -179,6 +179,7 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 //	@Param			legal_name			query		string																	false	"Filter organizations by legal name (case-insensitive, prefix match)"	maxLength(256)
 //	@Param			doing_business_as	query		string																	false	"Filter organizations by doing business as name (case-insensitive, prefix match)"	maxLength(256)
 //	@Param			status				query		string																	false	"Filter organizations by status"	Enums(ACTIVE, INACTIVE)
+//	@Param			legal_document		query		string																	false	"Filter organizations by legal document (exact match)"
 //	@Success		200					{object}	http.Pagination{items=[]mmodel.Organization}	"Successfully retrieved organizations list"
 //	@Failure		400					{object}	mmodel.Error															"Invalid query parameters"
 //	@Failure		401					{object}	mmodel.Error															"Unauthorized access"

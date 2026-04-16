@@ -62,6 +62,9 @@ type QueryHeader struct {
 	AssetCode                           *string
 	EntityID                            *string
 	KeyValue                            *string
+	Blocked                             *bool
+	ParentAccountID                     *string
+	LegalDocument                       *string
 }
 
 // Pagination entity from query parameter from get apis
@@ -136,6 +139,9 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		assetCode                           *string
 		entityID                            *string
 		keyValue                            *string
+		blocked                             *bool
+		parentAccountID                     *string
+		legalDocument                       *string
 	)
 
 	for key, value := range params {
@@ -221,6 +227,13 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			entityID = &value
 		case key == "key_value":
 			keyValue = &value
+		case key == "blocked":
+			v := strings.ToLower(value) == "true"
+			blocked = &v
+		case key == "parent_account_id":
+			parentAccountID = &value
+		case key == "legal_document":
+			legalDocument = &value
 		}
 	}
 
@@ -270,6 +283,12 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		}
 	}
 
+	if parentAccountID != nil {
+		if _, err := uuid.Parse(*parentAccountID); err != nil {
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "parent_account_id")
+		}
+	}
+
 	query := &QueryHeader{
 		Metadata:                            metadata,
 		Limit:                               limit,
@@ -306,6 +325,9 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		AssetCode:                           assetCode,
 		EntityID:                            entityID,
 		KeyValue:                            keyValue,
+		Blocked:                             blocked,
+		ParentAccountID:                     parentAccountID,
+		LegalDocument:                       legalDocument,
 	}
 
 	return query, nil

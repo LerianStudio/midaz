@@ -436,6 +436,10 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 		findAll = findAll.Where(squirrel.Expr("status = ?", *filter.Status))
 	}
 
+	if !libCommons.IsNilOrEmpty(filter.LegalDocument) {
+		findAll = findAll.Where(squirrel.Expr("legal_document = ?", *filter.LegalDocument))
+	}
+
 	query, args, err := findAll.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)

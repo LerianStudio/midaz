@@ -262,7 +262,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		findAll = findAll.Where(squirrel.Expr("segment_id = ?", *segmentID))
 	}
 
-	// Apply account-specific filters (status, type, asset_code)
+	// Apply account-specific filters (status, type, asset_code, entity_id, blocked, parent_account_id)
 	if !libCommons.IsNilOrEmpty(filter.Status) {
 		findAll = findAll.Where(squirrel.Expr("status = ?", *filter.Status))
 	}
@@ -273,6 +273,18 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	if !libCommons.IsNilOrEmpty(filter.AssetCode) {
 		findAll = findAll.Where(squirrel.Expr("asset_code = ?", *filter.AssetCode))
+	}
+
+	if !libCommons.IsNilOrEmpty(filter.EntityID) {
+		findAll = findAll.Where(squirrel.Expr("entity_id = ?", *filter.EntityID))
+	}
+
+	if filter.Blocked != nil {
+		findAll = findAll.Where(squirrel.Expr("blocked = ?", *filter.Blocked))
+	}
+
+	if !libCommons.IsNilOrEmpty(filter.ParentAccountID) {
+		findAll = findAll.Where(squirrel.Expr("parent_account_id = ?", *filter.ParentAccountID))
 	}
 
 	findAll = findAll.OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
