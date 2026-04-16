@@ -13,6 +13,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testPeerAuthToken is a strong, valid peer-auth token used by tests that do
+// not specifically exercise peer-auth token validation. Kept as a package-level
+// constant so a future rotation of the denied-tokens list or the strength
+// requirements only needs to update this single value.
+const testPeerAuthToken = "Str0ngPeerTokenValue!2026"
+
+// setTestPeerAuthToken installs a valid AUTHORIZER_PEER_AUTH_TOKEN for tests.
+// Peer-auth token is mandatory regardless of peer count (see B4 fix); every
+// LoadConfig-based test needs one unless it specifically probes the missing-
+// token rejection path.
+func setTestPeerAuthToken(t *testing.T) {
+	t.Helper()
+	t.Setenv("AUTHORIZER_PEER_AUTH_TOKEN", testPeerAuthToken)
+}
+
 func TestLoadConfig_Success(t *testing.T) {
 	t.Setenv("ENV_NAME", "development")
 	t.Setenv("DB_TRANSACTION_HOST", "localhost")
@@ -23,6 +38,7 @@ func TestLoadConfig_Success(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
 	t.Setenv("AUTHORIZER_SHARD_COUNT", "8")
 	t.Setenv("AUTHORIZER_SHARD_IDS", "0,1,2")
+	setTestPeerAuthToken(t)
 
 	cfg, err := LoadConfig()
 	require.NoError(t, err)
@@ -49,6 +65,7 @@ func TestLoadConfig_RejectsInvalidAuthorizeLatencySLO(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_NAME", "transaction")
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
 	t.Setenv("AUTHORIZER_AUTHORIZE_LATENCY_SLO_MS", "0")
+	setTestPeerAuthToken(t)
 
 	_, err := LoadConfig()
 	require.Error(t, err)
@@ -64,6 +81,7 @@ func TestLoadConfig_AllowsDisablingReplayStrictModeExplicitly(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_NAME", "transaction")
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
 	t.Setenv("AUTHORIZER_WAL_REPLAY_STRICT_MODE", "false")
+	setTestPeerAuthToken(t)
 
 	cfg, err := LoadConfig()
 	require.NoError(t, err)
@@ -78,6 +96,7 @@ func TestLoadConfig_RejectsDisableSSLInProductionLikeEnv(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
 	t.Setenv("DB_TRANSACTION_NAME", "transaction")
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+	setTestPeerAuthToken(t)
 
 	_, err := LoadConfig()
 	require.Error(t, err)
@@ -93,6 +112,7 @@ func TestLoadConfig_DefaultsSSLModeToRequire(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_NAME", "transaction")
 	t.Setenv("DB_TRANSACTION_SSLMODE", "")
 	t.Setenv("DB_SSLMODE", "")
+	setTestPeerAuthToken(t)
 
 	cfg, err := LoadConfig()
 	require.NoError(t, err)
@@ -138,6 +158,26 @@ func TestLoadConfig_RequiresPeerAuthTokenWhenPeersConfigured(t *testing.T) {
 	assert.ErrorContains(t, err, "AUTHORIZER_PEER_AUTH_TOKEN")
 }
 
+// TestBootstrap_RejectsEmptyPeerAuthToken proves AUTHORIZER_PEER_AUTH_TOKEN is
+// mandatory even without AUTHORIZER_PEER_INSTANCES — a single-instance
+// authorizer cannot start without a peer-auth token (closes B4).
+func TestBootstrap_RejectsEmptyPeerAuthToken(t *testing.T) {
+	t.Setenv("ENV_NAME", "development")
+	t.Setenv("DB_TRANSACTION_HOST", "localhost")
+	t.Setenv("DB_TRANSACTION_PORT", "5432")
+	t.Setenv("DB_TRANSACTION_USER", "midaz")
+	t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
+	t.Setenv("DB_TRANSACTION_NAME", "transaction")
+	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+	// No AUTHORIZER_PEER_INSTANCES set — single-instance topology.
+	t.Setenv("AUTHORIZER_PEER_AUTH_TOKEN", "")
+
+	_, err := LoadConfig()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "AUTHORIZER_PEER_AUTH_TOKEN")
+	require.ErrorContains(t, err, "required for single-instance deployments too")
+}
+
 func TestLoadConfig_ParsesPeerShardRanges(t *testing.T) {
 	t.Setenv("ENV_NAME", "development")
 	t.Setenv("DB_TRANSACTION_HOST", "localhost")
@@ -168,6 +208,7 @@ func TestLoadConfig_RequiresTLSFilesWhenGRPCTLSEnabled(t *testing.T) {
 	t.Setenv("AUTHORIZER_GRPC_TLS_ENABLED", "true")
 	t.Setenv("AUTHORIZER_GRPC_TLS_CERT_FILE", "")
 	t.Setenv("AUTHORIZER_GRPC_TLS_KEY_FILE", "")
+	setTestPeerAuthToken(t)
 
 	_, err := LoadConfig()
 	require.Error(t, err)
@@ -183,6 +224,7 @@ func TestLoadConfig_RejectsNegativePeerPrepareMaxInFlight(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_NAME", "transaction")
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
 	t.Setenv("AUTHORIZER_PEER_PREPARE_MAX_INFLIGHT", "-1")
+	setTestPeerAuthToken(t)
 
 	_, err := LoadConfig()
 	require.Error(t, err)
@@ -253,6 +295,7 @@ func TestLoadConfig_ValidatesOwnedShardBounds(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
 	t.Setenv("AUTHORIZER_SHARD_COUNT", "8")
 	t.Setenv("AUTHORIZER_OWNED_SHARD_START", "-1")
+	setTestPeerAuthToken(t)
 
 	_, err := LoadConfig()
 	require.Error(t, err)
@@ -275,6 +318,7 @@ func TestLoadConfig_RejectsInvalidPrepareSettings(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_NAME", "transaction")
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
 	t.Setenv("AUTHORIZER_PREPARE_TIMEOUT_MS", "0")
+	setTestPeerAuthToken(t)
 
 	_, err := LoadConfig()
 	require.Error(t, err)
@@ -324,6 +368,7 @@ func TestLoadConfig_RejectsNegativeRequestAndReplayLimits(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
 	t.Setenv("DB_TRANSACTION_NAME", "transaction")
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+	setTestPeerAuthToken(t)
 
 	t.Setenv("AUTHORIZER_MAX_OPERATIONS_PER_REQUEST", "-1")
 
@@ -362,6 +407,7 @@ func TestLoadConfig_RejectsShardCountAboveInt32Range(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_NAME", "transaction")
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
 	t.Setenv("AUTHORIZER_SHARD_COUNT", "2147483649")
+	setTestPeerAuthToken(t)
 
 	_, err := LoadConfig()
 	require.Error(t, err)
@@ -383,6 +429,7 @@ func TestLoadConfig_ParsesNewPeerPerformanceFields(t *testing.T) {
 	t.Setenv("AUTHORIZER_WAL_RECONCILER_ENABLED", "true")
 	// Ensure timing constraint is satisfied: grace(30s) + interval(10s) < prepareTimeout(60s).
 	t.Setenv("AUTHORIZER_PREPARE_TIMEOUT_MS", "60000")
+	setTestPeerAuthToken(t)
 
 	cfg, err := LoadConfig()
 	require.NoError(t, err)
@@ -402,6 +449,7 @@ func TestLoadConfig_RejectsAsyncCommitIntentWithoutReconciler(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
 	t.Setenv("AUTHORIZER_ASYNC_COMMIT_INTENT", "true")
 	t.Setenv("AUTHORIZER_WAL_RECONCILER_ENABLED", "false")
+	setTestPeerAuthToken(t)
 
 	_, err := LoadConfig()
 	require.Error(t, err)
@@ -417,6 +465,7 @@ func TestLoadConfig_RejectsInvalidPeerPrepareBoundedWaitMs(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_NAME", "transaction")
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
 	t.Setenv("AUTHORIZER_PEER_PREPARE_BOUNDED_WAIT_MS", "-1")
+	setTestPeerAuthToken(t)
 
 	_, err := LoadConfig()
 	require.Error(t, err)
@@ -432,6 +481,7 @@ func TestLoadConfig_RejectsInvalidPeerConnPoolSize(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_NAME", "transaction")
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
 	t.Setenv("AUTHORIZER_PEER_CONN_POOL_SIZE", "0")
+	setTestPeerAuthToken(t)
 
 	_, err := LoadConfig()
 	require.Error(t, err)
@@ -446,6 +496,7 @@ func TestLoadConfig_WALReconcilerDefaults(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
 	t.Setenv("DB_TRANSACTION_NAME", "transaction")
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+	setTestPeerAuthToken(t)
 
 	cfg, err := LoadConfig()
 	require.NoError(t, err)
@@ -469,6 +520,7 @@ func TestLoadConfig_WALReconcilerCustomValues(t *testing.T) {
 	t.Setenv("AUTHORIZER_WAL_RECONCILER_LOOKBACK_MS", "600000")
 	t.Setenv("AUTHORIZER_WAL_RECONCILER_GRACE_MS", "60000")
 	t.Setenv("AUTHORIZER_WAL_RECONCILER_COMPLETED_TTL_MS", "1200000")
+	setTestPeerAuthToken(t)
 
 	cfg, err := LoadConfig()
 	require.NoError(t, err)
@@ -488,6 +540,7 @@ func TestLoadConfig_RejectsZeroReconcilerInterval(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_NAME", "transaction")
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
 	t.Setenv("AUTHORIZER_WAL_RECONCILER_INTERVAL_MS", "0")
+	setTestPeerAuthToken(t)
 
 	_, err := LoadConfig()
 	require.Error(t, err)
@@ -567,6 +620,7 @@ func TestLoadConfig_RejectsValuesAboveMaxCeiling(t *testing.T) {
 			t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
 			t.Setenv("DB_TRANSACTION_NAME", "transaction")
 			t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+			setTestPeerAuthToken(t)
 
 			// Set the target env var to maxValue + 1 (one above the ceiling).
 			t.Setenv(tc.envVar, strconv.Itoa(tc.maxValue+1))
@@ -588,6 +642,7 @@ func TestLoadConfig_RejectsLookbackNotGreaterThanGrace(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
 	t.Setenv("AUTHORIZER_WAL_RECONCILER_LOOKBACK_MS", "30000")
 	t.Setenv("AUTHORIZER_WAL_RECONCILER_GRACE_MS", "30000")
+	setTestPeerAuthToken(t)
 
 	_, err := LoadConfig()
 	require.Error(t, err)
@@ -607,6 +662,7 @@ func TestWALPathProductionRejectsTmp(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_NAME", "transaction")
 	t.Setenv("DB_TRANSACTION_SSLMODE", "require")
 	t.Setenv("AUTHORIZER_WAL_PATH", "/tmp/forbidden-authorizer.wal")
+	setTestPeerAuthToken(t)
 
 	_, err := LoadConfig()
 	require.Error(t, err)
@@ -626,6 +682,7 @@ func TestWALPathDevelopmentAcceptsTmp(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_NAME", "transaction")
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
 	t.Setenv("AUTHORIZER_WAL_PATH", "/tmp/dev-authorizer.wal")
+	setTestPeerAuthToken(t)
 
 	cfg, err := LoadConfig()
 	require.NoError(t, err)
@@ -715,6 +772,7 @@ func TestLoadConfig_AcceptsWALHMACKeyRotation(t *testing.T) {
 	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
 	t.Setenv("AUTHORIZER_WAL_HMAC_KEY", "RotateTestHMACKey32bytes_curent1")
 	t.Setenv("AUTHORIZER_WAL_HMAC_KEY_PREVIOUS", "RotateTestHMACKey32bytes_prev001")
+	setTestPeerAuthToken(t)
 
 	cfg, err := LoadConfig()
 	require.NoError(t, err)

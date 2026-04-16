@@ -44,7 +44,7 @@ var (
 	errConfigPeerCommitTimeout          = errors.New("AUTHORIZER_PEER_COMMIT_TIMEOUT_MS must be > 0")
 	errConfigPeerAuthMaxSkew            = errors.New("AUTHORIZER_PEER_AUTH_MAX_SKEW_MS must be > 0")
 	errConfigPeerNonceEntries           = errors.New("AUTHORIZER_PEER_NONCE_MAX_ENTRIES out of range")
-	errConfigPeerAuthTokenRequired      = errors.New("AUTHORIZER_PEER_AUTH_TOKEN is required when AUTHORIZER_PEER_INSTANCES is configured")
+	errConfigPeerAuthTokenRequired      = errors.New("AUTHORIZER_PEER_AUTH_TOKEN is required (required for single-instance deployments too; serves as local-daemon authentication)")
 	errConfigPeerInstanceAddress        = errors.New("AUTHORIZER_INSTANCE_ADDRESS must be a routable host:port when AUTHORIZER_PEER_INSTANCES is configured")
 	errConfigPeerAuthTokenPrevDuplicate = errors.New("AUTHORIZER_PEER_AUTH_TOKEN_PREVIOUS must differ from AUTHORIZER_PEER_AUTH_TOKEN")
 	errConfigPeerPrepareMaxInFlight     = errors.New("AUTHORIZER_PEER_PREPARE_MAX_INFLIGHT out of range")
@@ -655,14 +655,8 @@ func loadPeerConfig(cfg *Config) error {
 	peerAuthToken := strings.TrimSpace(getenv("AUTHORIZER_PEER_AUTH_TOKEN", ""))
 	peerAuthTokenPrevious := strings.TrimSpace(getenv("AUTHORIZER_PEER_AUTH_TOKEN_PREVIOUS", ""))
 
-	if len(peerInstances) > 0 && peerAuthToken == "" {
-		return errConfigPeerAuthTokenRequired
-	}
-
-	if len(peerInstances) > 0 {
-		if err := validatePeerInstanceConfig(cfg.InstanceAddress, peerAuthToken, peerAuthTokenPrevious); err != nil {
-			return err
-		}
+	if err := validatePeerAuthTokensAndAddress(peerAuthToken, peerAuthTokenPrevious, cfg.InstanceAddress, len(peerInstances) > 0); err != nil {
+		return err
 	}
 
 	peerInsecureAllowed := utils.IsTruthyString(getenv("AUTHORIZER_PEER_INSECURE_ALLOWED", "false"))
@@ -695,30 +689,6 @@ func loadPeerConfig(cfg *Config) error {
 	cfg.PeerPrepareBoundedWaitMs = peerPrepareBoundedWaitMs
 	cfg.PeerConnPoolSize = peerConnPoolSize
 	cfg.AsyncCommitIntent = asyncCommitIntent
-
-	return nil
-}
-
-func validatePeerInstanceConfig(instanceAddress, peerAuthToken, peerAuthTokenPrevious string) error {
-	if strings.HasPrefix(instanceAddress, ":") {
-		return errConfigPeerInstanceAddress
-	}
-
-	if err := validatePeerAuthToken(peerAuthToken); err != nil {
-		return err
-	}
-
-	if peerAuthTokenPrevious == "" {
-		return nil
-	}
-
-	if err := validatePeerAuthToken(peerAuthTokenPrevious); err != nil {
-		return fmt.Errorf("AUTHORIZER_PEER_AUTH_TOKEN_PREVIOUS is invalid: %w", err)
-	}
-
-	if peerAuthTokenPrevious == peerAuthToken {
-		return errConfigPeerAuthTokenPrevDuplicate
-	}
 
 	return nil
 }
@@ -912,6 +882,43 @@ func getenvInt32(name string, fallback int32) int32 {
 	}
 
 	return int32(parsed)
+}
+
+// validatePeerAuthTokensAndAddress enforces the B4 peer-auth contract at
+// bootstrap:
+//   - AUTHORIZER_PEER_AUTH_TOKEN is mandatory regardless of peer count. The
+//     token authenticates callers (transaction service, sidecars, operator
+//     tooling) for every internal RPC — single-instance deployments included.
+//     See components/authorizer/internal/bootstrap/grpc.go#Authorize SECURITY
+//     notes for the full threat model.
+//   - InstanceAddress must be a routable host:port only when peers are
+//     configured; token strength/rotation pairing applies unconditionally.
+func validatePeerAuthTokensAndAddress(token, previousToken, instanceAddress string, peersConfigured bool) error {
+	if token == "" {
+		return errConfigPeerAuthTokenRequired
+	}
+
+	if peersConfigured && strings.HasPrefix(instanceAddress, ":") {
+		return errConfigPeerInstanceAddress
+	}
+
+	if err := validatePeerAuthToken(token); err != nil {
+		return err
+	}
+
+	if previousToken == "" {
+		return nil
+	}
+
+	if err := validatePeerAuthToken(previousToken); err != nil {
+		return fmt.Errorf("AUTHORIZER_PEER_AUTH_TOKEN_PREVIOUS is invalid: %w", err)
+	}
+
+	if previousToken == token {
+		return errConfigPeerAuthTokenPrevDuplicate
+	}
+
+	return nil
 }
 
 func validatePeerAuthToken(token string) error {

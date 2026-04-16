@@ -440,6 +440,11 @@ func TestBodyHashTamperingReturnsPermissionDenied(t *testing.T) {
 }
 
 func TestAuthorizeInternalRPCFailedPreconditionWhenTokenEmptyButPeersExist(t *testing.T) {
+	// B4: an empty peer-auth token now yields Unauthenticated regardless of
+	// peer count. Previously returned FailedPrecondition only when peers > 0
+	// and silently allowed the request when peers == 0 — single-instance
+	// authorizers accepted LoadBalances/GetBalance/PublishBalanceOperations
+	// from any caller that could reach :50051.
 	svc := &authorizerService{
 		peerAuthToken: "",
 		peers: []*peerClient{
@@ -449,7 +454,7 @@ func TestAuthorizeInternalRPCFailedPreconditionWhenTokenEmptyButPeersExist(t *te
 
 	err := svc.authorizeInternalRPC(context.Background(), peerRPCMethodGetBalance, &authorizerv1.GetBalanceRequest{})
 	require.Error(t, err)
-	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	require.Equal(t, codes.Unauthenticated, status.Code(err))
 }
 
 func TestPeerNonceStoreCapacityExhaustion(t *testing.T) {
@@ -516,6 +521,9 @@ func TestAuthorizePeerRPC_RejectsBodyHashTampering(t *testing.T) {
 }
 
 func TestAuthorizeInternalRPC_FailsPreconditionWhenPeersWithoutToken(t *testing.T) {
+	// B4: empty peer-auth token is Unauthenticated regardless of peer count.
+	// Kept as a second (slightly different fixture) regression guard against
+	// the pre-fix escape-hatch returning.
 	svc := &authorizerService{
 		peerAuthToken: "",
 		peers: []*peerClient{
@@ -525,7 +533,7 @@ func TestAuthorizeInternalRPC_FailsPreconditionWhenPeersWithoutToken(t *testing.
 
 	err := svc.authorizeInternalRPC(context.Background(), peerRPCMethodGetBalance, &authorizerv1.GetBalanceRequest{})
 	require.Error(t, err)
-	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	require.Equal(t, codes.Unauthenticated, status.Code(err))
 }
 
 func TestPeerNonceStoreReacceptsAfterWindowElapses(t *testing.T) {
@@ -578,4 +586,118 @@ func TestPeerNonceStoreReacceptsAfterWindowElapses(t *testing.T) {
 	for _, nonce := range initialNonces {
 		require.True(t, store.MarkIfNew(nonce, afterThirdWindow), "old nonce %q should be re-accepted after full eviction", nonce)
 	}
+}
+
+// TestAuthorizeInternalRPC_RejectsUnauthenticatedRequest_ZeroPeers exercises
+// the B4 fix: a single-instance authorizer (peers == 0) with a configured
+// peer-auth token must reject every internal RPC that lacks valid HMAC
+// headers. Prior to the fix, the service short-circuited to `return nil`
+// when peers == 0, meaning anyone reachable on :50051 could invoke
+// LoadBalances/GetBalance/PublishBalanceOperations/Authorize without creds.
+func TestAuthorizeInternalRPC_RejectsUnauthenticatedRequest_ZeroPeers(t *testing.T) {
+	svc := &authorizerService{
+		peerAuthToken:  "peer-secret",
+		peers:          nil, // single-instance topology
+		peerNonceStore: newPeerNonceStore(defaultPeerAuthMaxSkew, 100000),
+	}
+
+	// No metadata, no peer-auth headers — must be rejected.
+	err := svc.authorizeInternalRPC(context.Background(), peerRPCMethodGetBalance, &authorizerv1.GetBalanceRequest{})
+	require.Error(t, err)
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+// TestAuthorizeInternalRPC_AcceptsValidPeerToken_ZeroPeers is the positive
+// complement to the rejection test: the same zero-peer bootstrap accepts
+// requests that present valid peer-auth HMAC credentials. Proves the B4
+// fix does not break the legitimate caller path (transaction service).
+func TestAuthorizeInternalRPC_AcceptsValidPeerToken_ZeroPeers(t *testing.T) {
+	svc := &authorizerService{
+		peerAuthToken:   "peer-secret",
+		peerAuthMaxSkew: defaultPeerAuthMaxSkew,
+		peers:           nil,
+		peerNonceStore:  newPeerNonceStore(defaultPeerAuthMaxSkew, 100000),
+	}
+
+	req := &authorizerv1.GetBalanceRequest{OrganizationId: "org", LedgerId: "ledger", AccountAlias: "@alice", BalanceKey: "default"}
+	ctx := peerAuthIncomingContext(t, "peer-secret", peerRPCMethodGetBalance, req)
+
+	err := svc.authorizeInternalRPC(ctx, peerRPCMethodGetBalance, req)
+	require.NoError(t, err, "zero-peer authorizer must accept a properly-signed internal RPC")
+}
+
+// TestUnauthorizedRPCCounterIncrements proves the normalizer keeps metric
+// cardinality bounded: the known reason labels pass through unchanged, the
+// known method labels pass through unchanged, and unknown values collapse
+// to "other" / "unknown" so a probing attacker cannot blow up the counter.
+func TestUnauthorizedRPCCounterIncrements(t *testing.T) {
+	t.Run("known reasons preserved", func(t *testing.T) {
+		for _, reason := range []string{
+			"missing_token", "missing_headers", "bad_timestamp", "timestamp_skew",
+			"wrong_algo", "body_mismatch", "invalid_hmac", "nonce_replay",
+			"nonce_internal", "hash_internal",
+		} {
+			require.Equal(t, reason, normalizeUnauthorizedReason(reason))
+		}
+	})
+
+	t.Run("unknown reason collapses to other", func(t *testing.T) {
+		require.Equal(t, labelOther, normalizeUnauthorizedReason("not-a-reason"))
+	})
+
+	t.Run("empty reason maps to unknown", func(t *testing.T) {
+		require.Equal(t, labelUnknown, normalizeUnauthorizedReason(""))
+	})
+
+	t.Run("known methods preserved", func(t *testing.T) {
+		for _, method := range []string{
+			peerRPCMethodAuthorize,
+			peerRPCMethodAuthorizeStream,
+			peerRPCMethodPrepareAuthorize,
+			peerRPCMethodCommitPrepared,
+			peerRPCMethodAbortPrepared,
+			peerRPCMethodLoadBalances,
+			peerRPCMethodGetBalance,
+			peerRPCMethodPublishBalanceOp,
+		} {
+			require.Equal(t, method, normalizeUnauthorizedMethod(method))
+		}
+	})
+
+	t.Run("unknown method collapses to other", func(t *testing.T) {
+		require.Equal(t, labelOther, normalizeUnauthorizedMethod("/attacker/probe"))
+	})
+
+	t.Run("empty method maps to unknown", func(t *testing.T) {
+		require.Equal(t, labelUnknown, normalizeUnauthorizedMethod(""))
+	})
+
+	t.Run("recordUnauthorizedRPC is safe with nil metrics", func(t *testing.T) {
+		svc := &authorizerService{peerAuthToken: "peer-secret", logger: mustInitLogger(t)}
+		// Must not panic when metrics are nil (common in unit tests).
+		svc.recordUnauthorizedRPC(context.Background(), peerRPCMethodLoadBalances, unauthorizedReasonInvalidHMAC)
+	})
+}
+
+// TestAuthorize_RequiresPeerAuthHeaders proves the fast-path Authorize RPC is
+// now protected — pre-B4 it had no peer-auth gate at all (Authorize went
+// straight to engine.Authorize, relying on network isolation).
+func TestAuthorize_RequiresPeerAuthHeaders(t *testing.T) {
+	eng := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
+	defer eng.Close()
+
+	svc := &authorizerService{
+		engine:          eng,
+		logger:          mustInitLogger(t),
+		peerAuthToken:   "peer-secret",
+		peerAuthMaxSkew: defaultPeerAuthMaxSkew,
+		peerNonceStore:  newPeerNonceStore(defaultPeerAuthMaxSkew, 100000),
+	}
+
+	// No peer-auth headers.
+	_, err := svc.Authorize(context.Background(), &authorizerv1.AuthorizeRequest{
+		OrganizationId: "org", LedgerId: "ledger",
+	})
+	require.Error(t, err)
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
 }

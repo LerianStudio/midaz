@@ -62,12 +62,43 @@ const (
 )
 
 const (
+	peerRPCMethodAuthorize        = "/authorizer.v1.BalanceAuthorizer/Authorize"
+	peerRPCMethodAuthorizeStream  = "/authorizer.v1.BalanceAuthorizer/AuthorizeStream"
 	peerRPCMethodPrepareAuthorize = "/authorizer.v1.BalanceAuthorizer/PrepareAuthorize"
 	peerRPCMethodCommitPrepared   = "/authorizer.v1.BalanceAuthorizer/CommitPrepared"
 	peerRPCMethodAbortPrepared    = "/authorizer.v1.BalanceAuthorizer/AbortPrepared"
 	peerRPCMethodLoadBalances     = "/authorizer.v1.BalanceAuthorizer/LoadBalances"
 	peerRPCMethodGetBalance       = "/authorizer.v1.BalanceAuthorizer/GetBalance"
 	peerRPCMethodPublishBalanceOp = "/authorizer.v1.BalanceAuthorizer/PublishBalanceOperations"
+)
+
+// Unauthorized RPC rejection reasons reported via authorizer_unauthorized_rpc_total.
+// Values are stable metric labels — changing them is a breaking dashboard/alert change.
+const (
+	// unauthorizedReasonMissingToken: inbound request arrived while the server has
+	// no peer-auth token configured (bootstrap misconfiguration — should be
+	// impossible after B4 fix but kept as defense-in-depth).
+	unauthorizedReasonMissingToken = "missing_token"
+	// unauthorizedReasonMissingHeaders: one or more peer-auth headers absent.
+	unauthorizedReasonMissingHeaders = "missing_headers"
+	// unauthorizedReasonBadTimestamp: timestamp header is not a valid unix seconds integer.
+	unauthorizedReasonBadTimestamp = "bad_timestamp"
+	// unauthorizedReasonTimestampSkew: timestamp is outside the accepted clock-skew window.
+	unauthorizedReasonTimestampSkew = "timestamp_skew"
+	// unauthorizedReasonWrongAlgo: request signed for a different RPC method than invoked
+	// (method-binding violation; treated as algorithm/protocol mismatch).
+	unauthorizedReasonWrongAlgo = "wrong_algo"
+	// unauthorizedReasonBodyMismatch: body hash does not match computed hash of request body.
+	unauthorizedReasonBodyMismatch = "body_mismatch"
+	// unauthorizedReasonInvalidHMAC: HMAC signature does not match either the current or
+	// previous token signature.
+	unauthorizedReasonInvalidHMAC = "invalid_hmac"
+	// unauthorizedReasonNonceReplay: nonce has been seen before within the replay window.
+	unauthorizedReasonNonceReplay = "nonce_replay"
+	// unauthorizedReasonNonceInternal: peer nonce store not initialized (bootstrap bug).
+	unauthorizedReasonNonceInternal = "nonce_internal"
+	// unauthorizedReasonHashInternal: internal body-hash computation error.
+	unauthorizedReasonHashInternal = "hash_internal"
 )
 
 type peerNonceStore struct {
@@ -209,13 +240,21 @@ type authorizerService struct {
 
 // Authorize processes a transaction authorization request.
 //
-// SECURITY: This RPC intentionally has no peer authentication.
-// The Authorize endpoint is designed to be called by the transaction
-// service as a trusted internal sidecar, relying on network isolation
-// (Kubernetes NetworkPolicy, Docker network, or equivalent) rather than
-// application-layer auth. Peer authentication (authorizePeerRPC) is
-// applied only to shard-to-shard 2PC coordination RPCs.
+// SECURITY: All internal RPCs require peer-auth headers regardless of peer
+// count. The peer-auth token is a local-daemon authentication requirement,
+// not a cross-instance-only feature. Single-instance deployments MUST still
+// configure AUTHORIZER_PEER_AUTH_TOKEN, and callers (the transaction service
+// as well as any sidecar tooling) MUST sign every internal RPC. Network
+// isolation (Kubernetes NetworkPolicy, Docker network, or equivalent) is a
+// defense-in-depth control, not the sole gate; a misconfigured NetworkPolicy
+// or internal recon tool reaching :50051 cannot issue LoadBalances,
+// GetBalance, PublishBalanceOperations, or Authorize without valid HMAC
+// credentials.
 func (s *authorizerService) Authorize(ctx context.Context, req *authorizerv1.AuthorizeRequest) (*authorizerv1.AuthorizeResponse, error) {
+	if err := s.authorizeInternalRPC(ctx, peerRPCMethodAuthorize, req); err != nil {
+		return nil, err
+	}
+
 	return s.authorizeWithMetric(ctx, req, "authorize")
 }
 
@@ -333,6 +372,10 @@ func (s *authorizerService) AuthorizeStream(stream grpc.BidiStreamingServer[auth
 			return fmt.Errorf("stream recv: %w", err)
 		}
 
+		if err := s.authorizeInternalRPC(stream.Context(), peerRPCMethodAuthorizeStream, req); err != nil {
+			return err
+		}
+
 		resp, err := s.authorizeWithMetric(stream.Context(), req, "authorize_stream")
 		if err != nil {
 			if req != nil {
@@ -445,15 +488,40 @@ func (s *authorizerService) authorizeInternalRPC(ctx context.Context, expectedMe
 		return status.Error(codes.Internal, "authorizer service not initialized") //nolint:wrapcheck // gRPC status error
 	}
 
+	// Peer authentication is mandatory for every internal RPC regardless of
+	// whether peers are configured. Single-instance deployments MUST also
+	// supply AUTHORIZER_PEER_AUTH_TOKEN; the token is a local-daemon
+	// authentication requirement, not a cross-instance-only feature. Any
+	// request that reaches :50051 without valid HMAC headers is rejected.
 	if s.peerAuthToken == "" {
-		if len(s.peers) > 0 {
-			return status.Error(codes.FailedPrecondition, "peer authentication required but not configured") //nolint:wrapcheck // gRPC status error
-		}
+		s.recordUnauthorizedRPC(ctx, expectedMethod, unauthorizedReasonMissingToken)
 
-		return nil
+		return status.Error(codes.Unauthenticated, "peer authentication required (AUTHORIZER_PEER_AUTH_TOKEN not configured)") //nolint:wrapcheck // gRPC status error
 	}
 
 	return s.authorizePeerRPC(ctx, expectedMethod, req)
+}
+
+// recordUnauthorizedRPC emits authorizer_unauthorized_rpc_total and an audit
+// log line for every peer-auth rejection. Metric labels are method (gRPC full
+// method name or "unknown" when unavailable) and reason (stable enum).
+func (s *authorizerService) recordUnauthorizedRPC(ctx context.Context, method, reason string) {
+	if s == nil {
+		return
+	}
+
+	normalizedMethod := method
+	if normalizedMethod == "" {
+		normalizedMethod = labelUnknown
+	}
+
+	if s.metrics != nil {
+		s.metrics.RecordUnauthorizedRPC(ctx, normalizedMethod, reason)
+	}
+
+	if s.logger != nil {
+		s.logger.Warnf("Authorizer internal RPC rejected: method=%s reason=%s", normalizedMethod, reason)
+	}
 }
 
 // withPeerAuth delegates to the shared mgrpc.WithPeerAuth package.
@@ -463,11 +531,15 @@ func withPeerAuth(ctx context.Context, token, method string, req proto.Message) 
 
 func (s *authorizerService) authorizePeerRPC(ctx context.Context, expectedMethod string, req proto.Message) error { //nolint:cyclop,gocyclo // peer auth validation requires sequential checks
 	if s.peerAuthToken == "" {
-		return status.Error(codes.FailedPrecondition, "peer authentication is not configured") //nolint:wrapcheck // gRPC status error
+		s.recordUnauthorizedRPC(ctx, expectedMethod, unauthorizedReasonMissingToken)
+
+		return status.Error(codes.Unauthenticated, "peer authentication is not configured") //nolint:wrapcheck // gRPC status error
 	}
 
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
+		s.recordUnauthorizedRPC(ctx, expectedMethod, unauthorizedReasonMissingHeaders)
+
 		return status.Error(codes.PermissionDenied, "missing peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
@@ -478,6 +550,8 @@ func (s *authorizerService) authorizePeerRPC(ctx context.Context, expectedMethod
 
 	receivedSignature := md.Get(mgrpc.PeerAuthSignatureHeader)
 	if len(receivedTimestamp) == 0 || len(receivedNonce) == 0 || len(receivedMethod) == 0 || len(receivedBodyHash) == 0 || len(receivedSignature) == 0 {
+		s.recordUnauthorizedRPC(ctx, expectedMethod, unauthorizedReasonMissingHeaders)
+
 		return status.Error(codes.PermissionDenied, "missing peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
@@ -488,15 +562,21 @@ func (s *authorizerService) authorizePeerRPC(ctx context.Context, expectedMethod
 	providedSignature := strings.TrimSpace(receivedSignature[0])
 
 	if rawNonce == "" || rawMethod == "" || rawBodyHash == "" || providedSignature == "" {
+		s.recordUnauthorizedRPC(ctx, expectedMethod, unauthorizedReasonMissingHeaders)
+
 		return status.Error(codes.PermissionDenied, "invalid peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
 	if expectedMethod != "" && rawMethod != expectedMethod {
+		s.recordUnauthorizedRPC(ctx, expectedMethod, unauthorizedReasonWrongAlgo)
+
 		return status.Error(codes.PermissionDenied, "invalid peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
 	unixSeconds, err := strconv.ParseInt(rawTimestamp, 10, 64)
 	if err != nil {
+		s.recordUnauthorizedRPC(ctx, expectedMethod, unauthorizedReasonBadTimestamp)
+
 		return status.Error(codes.PermissionDenied, "invalid peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
@@ -509,15 +589,21 @@ func (s *authorizerService) authorizePeerRPC(ctx context.Context, expectedMethod
 	}
 
 	if issuedAt.After(now.Add(maxSkew)) || now.Sub(issuedAt) > maxSkew {
+		s.recordUnauthorizedRPC(ctx, expectedMethod, unauthorizedReasonTimestampSkew)
+
 		return status.Error(codes.PermissionDenied, "expired peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
 	expectedBodyHash, hashErr := mgrpc.HashPeerAuthBody(req)
 	if hashErr != nil {
+		s.recordUnauthorizedRPC(ctx, expectedMethod, unauthorizedReasonHashInternal)
+
 		return status.Errorf(codes.Internal, "hash peer auth body: %v", hashErr) //nolint:wrapcheck // gRPC status error
 	}
 
 	if subtle.ConstantTimeCompare([]byte(rawBodyHash), []byte(expectedBodyHash)) != 1 {
+		s.recordUnauthorizedRPC(ctx, expectedMethod, unauthorizedReasonBodyMismatch)
+
 		return status.Error(codes.PermissionDenied, "invalid peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
@@ -536,14 +622,20 @@ func (s *authorizerService) authorizePeerRPC(ctx context.Context, expectedMethod
 	}
 
 	if !validSignature {
+		s.recordUnauthorizedRPC(ctx, expectedMethod, unauthorizedReasonInvalidHMAC)
+
 		return status.Error(codes.PermissionDenied, "invalid peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
 	if s.peerNonceStore == nil {
+		s.recordUnauthorizedRPC(ctx, expectedMethod, unauthorizedReasonNonceInternal)
+
 		return status.Error(codes.Internal, "peer nonce store not initialized") //nolint:wrapcheck // gRPC status error
 	}
 
 	if !s.peerNonceStore.MarkIfNew(rawNonce, now) {
+		s.recordUnauthorizedRPC(ctx, expectedMethod, unauthorizedReasonNonceReplay)
+
 		return status.Error(codes.PermissionDenied, "replayed peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 

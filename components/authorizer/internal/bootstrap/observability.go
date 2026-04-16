@@ -150,6 +150,11 @@ var (
 		Unit:        "1",
 		Description: "Total authorization requests above configured latency SLO (telemetry-only, no behavior trigger).",
 	}
+	unauthorizedRPCTotal = libMetrics.Metric{
+		Name:        "authorizer_unauthorized_rpc_total",
+		Unit:        "1",
+		Description: "Total internal RPCs rejected due to peer-auth failures (missing token, invalid HMAC, replay, skew, etc.).",
+	}
 )
 
 type authorizerMetrics struct {
@@ -225,6 +230,26 @@ func (m *authorizerMetrics) RecordAuthorize(
 		}
 		m.factory.Counter(authorizeLatencySLOBreachesTotal).WithLabels(sloLabels).AddOne(ctx)
 	}
+}
+
+// RecordUnauthorizedRPC increments authorizer_unauthorized_rpc_total with
+// stable labels {method, reason}. method is the gRPC full method name of the
+// RPC the caller attempted to invoke; reason is one of the stable values
+// defined in grpc.go (missing_token, missing_headers, bad_timestamp,
+// timestamp_skew, wrong_algo, body_mismatch, invalid_hmac, nonce_replay,
+// nonce_internal, hash_internal). Operators MUST alert on any sustained
+// non-zero rate — this counter represents a security event (peer-auth denied).
+func (m *authorizerMetrics) RecordUnauthorizedRPC(ctx context.Context, method, reason string) {
+	if m == nil || m.factory == nil {
+		return
+	}
+
+	labels := map[string]string{
+		"method": normalizeUnauthorizedMethod(method),
+		"reason": normalizeUnauthorizedReason(reason),
+	}
+
+	m.factory.Counter(unauthorizedRPCTotal).WithLabels(labels).AddOne(ctx)
 }
 
 // RecordPublish records metrics for a Redpanda publish attempt including latency and error counts.
@@ -521,6 +546,52 @@ func normalizeReplaySkipReason(value string) string {
 
 	switch reason {
 	case "missing_balance", "version_mismatch", "mutation_limit_exceeded", "lock_limit_exceeded":
+		return reason
+	default:
+		return labelOther
+	}
+}
+
+// normalizeUnauthorizedMethod clamps the method label to the known authorizer
+// RPC surface so an attacker cannot explode metric cardinality by probing
+// arbitrary method names before peer-auth rejects them.
+func normalizeUnauthorizedMethod(value string) string {
+	method := strings.TrimSpace(value)
+	switch method {
+	case "":
+		return labelUnknown
+	case peerRPCMethodAuthorize,
+		peerRPCMethodAuthorizeStream,
+		peerRPCMethodPrepareAuthorize,
+		peerRPCMethodCommitPrepared,
+		peerRPCMethodAbortPrepared,
+		peerRPCMethodLoadBalances,
+		peerRPCMethodGetBalance,
+		peerRPCMethodPublishBalanceOp:
+		return method
+	default:
+		return labelOther
+	}
+}
+
+// normalizeUnauthorizedReason validates that the caller passed one of the
+// stable reason values — any unknown value collapses to "other" to keep the
+// counter cardinality bounded.
+func normalizeUnauthorizedReason(value string) string {
+	reason := strings.TrimSpace(strings.ToLower(value))
+	switch reason {
+	case "":
+		return labelUnknown
+	case "missing_token",
+		"missing_headers",
+		"bad_timestamp",
+		"timestamp_skew",
+		"wrong_algo",
+		"body_mismatch",
+		"invalid_hmac",
+		"nonce_replay",
+		"nonce_internal",
+		"hash_internal":
 		return reason
 	default:
 		return labelOther
