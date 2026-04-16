@@ -9,8 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -135,12 +137,14 @@ func (s *authorizerService) authorizeCrossShard(
 		CreatedAt:      time.Now(),
 	}
 
-	// ─── PHASE 2: COMMIT (sequential for correctness) ───────────────────
+	// ─── PHASE 2: COMMIT (local sequential, remote parallel) ─────────────
 	//
-	// Commit order: local first, then peers. If the local commit fails we
-	// still have the durable commit intent in Redpanda — recovery can retry.
-	// The intent makes partial-commit states recoverable rather than
-	// requiring manual intervention.
+	// Commit order: local first, then peers in parallel. If the local commit
+	// fails we still have the durable commit intent in Redpanda — recovery
+	// can retry. Remote peers are fanned out concurrently via
+	// commitAllRemotePeers; latency is bounded by the slowest peer, not the
+	// sum. Commit must attempt every peer even on partial failure so recovery
+	// has a clear per-peer signal.
 
 	allSnapshots := make([]*authorizerv1.BalanceSnapshot, 0, len(results))
 
@@ -247,12 +251,14 @@ func (s *authorizerService) partitionShardOps(
 }
 
 // orderedPrepare represents a single participant's prepare function with its
-// shard range for deterministic ordering.
+// shard range for deterministic ordering. The run function receives the
+// errgroup-derived context so that remote gRPC calls are cancelled when any
+// peer short-circuits the prepare phase (rejection or error).
 type orderedPrepare struct {
 	shardStart int
 	shardEnd   int
 	peerAddr   string
-	run        func() prepareResult
+	run        func(ctx context.Context) prepareResult
 }
 
 func (s *authorizerService) executePreparePhase(
@@ -285,7 +291,7 @@ func (s *authorizerService) executePreparePhase(
 }
 
 func (s *authorizerService) buildOrderedPrepares(
-	ctx context.Context,
+	_ context.Context,
 	localOps []*authorizerv1.BalanceOperation,
 	peerOpsMap map[*peerClient][]*authorizerv1.BalanceOperation,
 	buildSubRequest func([]*authorizerv1.BalanceOperation) *authorizerv1.AuthorizeRequest,
@@ -298,7 +304,10 @@ func (s *authorizerService) buildOrderedPrepares(
 			shardStart: s.ownedShardStart,
 			shardEnd:   s.ownedShardEnd,
 			peerAddr:   s.instanceAddr,
-			run: func() prepareResult {
+			// Local participant does not issue network I/O; the engine call is
+			// synchronous and cannot be cancelled mid-flight, so the ctx param
+			// is intentionally unused here.
+			run: func(_ context.Context) prepareResult {
 				return s.prepareLocalParticipant(buildSubRequest(localOps))
 			},
 		})
@@ -312,8 +321,8 @@ func (s *authorizerService) buildOrderedPrepares(
 			shardStart: currentPeer.shardStart,
 			shardEnd:   currentPeer.shardEnd,
 			peerAddr:   currentPeer.addr,
-			run: func() prepareResult {
-				return s.prepareRemoteParticipant(ctx, currentPeer, buildSubRequest(currentOps))
+			run: func(rpcCtx context.Context) prepareResult {
+				return s.prepareRemoteParticipant(rpcCtx, currentPeer, buildSubRequest(currentOps))
 			},
 		})
 	}
@@ -390,35 +399,142 @@ func sortPreparesByShardOrder(prepares []orderedPrepare) {
 	})
 }
 
+// errPrepareShortCircuit is a sentinel used internally by runPrepareSequence
+// to trigger early cancellation of the errgroup when any participant rejects
+// or errors. It is never returned to the caller — results are inspected by
+// evaluateDecisionAndAbort to build the final response.
+var errPrepareShortCircuit = errors.New("prepare short-circuit")
+
+// runPrepareSequence fans out PrepareAuthorize calls to all participants in
+// parallel. Latency is dominated by the slowest participant rather than the
+// sum of all RTTs, which is critical for high-TPS cross-shard workloads.
+//
+// Ordering semantics:
+//   - orderedPrepares is pre-sorted by shard range so that lock acquisition
+//     downstream remains deterministic. RPC dispatch itself is unordered
+//     (parallel), but result indices preserve the input order. Downstream
+//     consumers (evaluateDecisionAndAbort, abortAllPrepared, commit phase)
+//     iterate results in that stable order.
+//   - Per-participant lock ordering is enforced inside each engine's
+//     PrepareAuthorize and is not affected by this change.
+//
+// Short-circuit semantics:
+//   - On the first participant that returns an error or a non-authorized
+//     response, the derived context is cancelled so in-flight peer RPCs
+//     unblock promptly.
+//   - Participants that complete before cancellation have their results
+//     recorded. Participants cancelled mid-flight return a non-nil error
+//     (context.Canceled or a wrapped RPC error), which evaluateDecisionAndAbort
+//     treats as a prepare failure — abort is then driven against every
+//     participant that produced a prepared_tx_id.
+//
+// Concurrency safety:
+//   - Each goroutine writes to its own pre-allocated slot (results[i]).
+//     No shared mutable state, no locks required.
 func (s *authorizerService) runPrepareSequence(
 	ctx context.Context,
 	req *authorizerv1.AuthorizeRequest,
 	orderedPrepares []orderedPrepare,
 ) ([]prepareResult, error) {
-	results := make([]prepareResult, 0, len(orderedPrepares))
+	if len(orderedPrepares) == 0 {
+		return nil, nil
+	}
 
-	for _, ordered := range orderedPrepares {
-		if err := ctx.Err(); err != nil {
-			//nolint:contextcheck // abort uses fresh context to ensure cleanup completes
-			abortErr := s.abortAllPrepared(context.Background(), results)
-			if abortErr != nil {
-				s.logger.Errorf("cross-shard prepare cancellation rollback failed: tx_id=%s err=%v", req.GetTransactionId(), abortErr)
+	if err := ctx.Err(); err != nil {
+		return nil, s.handlePrepareCtxCancelled(ctx, req, nil, err)
+	}
 
-				return nil, status.Error(codes.Internal, "cross-shard rollback failed") //nolint:wrapcheck // gRPC status error
+	slots := make([]prepareResult, len(orderedPrepares))
+	executed := make([]bool, len(orderedPrepares))
+
+	group, groupCtx := errgroup.WithContext(ctx)
+
+	for i := range orderedPrepares {
+		idx := i
+		ordered := orderedPrepares[i]
+
+		group.Go(func() error {
+			// If the group was already cancelled (another participant failed),
+			// skip this participant entirely. It will be filtered out of results.
+			if err := groupCtx.Err(); err != nil {
+				return nil //nolint:nilerr // cancellation propagated by errgroup, not this goroutine
 			}
 
-			return nil, status.Error(codes.DeadlineExceeded, "cross-shard prepare deadline exceeded") //nolint:wrapcheck // gRPC status error
-		}
+			r := ordered.run(groupCtx)
+			slots[idx] = r
+			executed[idx] = true
 
-		r := ordered.run()
-		results = append(results, r)
+			// Trigger short-circuit: either a transport/engine error, or a
+			// business-level rejection. Returning a sentinel cancels groupCtx,
+			// which unblocks any in-flight peer gRPC calls.
+			if r.err != nil || (r.resp != nil && !r.resp.GetAuthorized()) {
+				return errPrepareShortCircuit
+			}
 
-		if r.err != nil || (r.resp != nil && !r.resp.GetAuthorized()) {
-			break
+			return nil
+		})
+	}
+
+	// errgroup.Wait returns the first non-nil error. We deliberately ignore
+	// errPrepareShortCircuit (expected signalling) and surface only genuine
+	// ctx cancellation from the parent.
+	if err := group.Wait(); err != nil && !errors.Is(err, errPrepareShortCircuit) {
+		executedResults := collectExecutedPrepareResults(slots, executed)
+
+		return nil, s.handlePrepareCtxCancelled(ctx, req, executedResults, err)
+	}
+
+	// errgroup.Wait returns nil when all goroutines return nil — but a
+	// goroutine may return nil after observing groupCtx.Err() (no-op short
+	// circuit). Surface parent ctx cancellation explicitly so the coordinator
+	// aborts any partial preparations rather than silently proceeding to
+	// commit with a partial participant set.
+	if err := ctx.Err(); err != nil {
+		executedResults := collectExecutedPrepareResults(slots, executed)
+
+		return nil, s.handlePrepareCtxCancelled(ctx, req, executedResults, err)
+	}
+
+	return collectExecutedPrepareResults(slots, executed), nil
+}
+
+// collectExecutedPrepareResults returns only the slots that actually ran,
+// preserving the pre-sorted (shard-deterministic) index order.
+func collectExecutedPrepareResults(slots []prepareResult, executed []bool) []prepareResult {
+	out := make([]prepareResult, 0, len(slots))
+
+	for i := range slots {
+		if executed[i] {
+			out = append(out, slots[i])
 		}
 	}
 
-	return results, nil //nolint:nilerr // error is captured in prepareResult.err, not the function return
+	return out
+}
+
+// handlePrepareCtxCancelled drives abort for any participant that managed to
+// prepare before the parent context was cancelled, and returns the gRPC status
+// to propagate to the caller. The parent ctx is accepted (and unused for the
+// abort RPC itself) to satisfy contextcheck: abort must use a fresh
+// background context because the parent is already cancelled.
+func (s *authorizerService) handlePrepareCtxCancelled(
+	_ context.Context,
+	req *authorizerv1.AuthorizeRequest,
+	partial []prepareResult,
+	ctxErr error,
+) error {
+	//nolint:contextcheck // abort MUST use a fresh context because the inherited ctx is already cancelled
+	abortErr := s.abortAllPrepared(context.Background(), partial)
+	if abortErr != nil {
+		s.logger.Errorf(
+			"cross-shard prepare cancellation rollback failed: tx_id=%s err=%v ctx_err=%v",
+			req.GetTransactionId(), abortErr, ctxErr,
+		)
+
+		return status.Error(codes.Internal, "cross-shard rollback failed") //nolint:wrapcheck // gRPC status error
+	}
+
+	return status.Error(codes.DeadlineExceeded, "cross-shard prepare deadline exceeded") //nolint:wrapcheck // gRPC status error
 }
 
 func (s *authorizerService) evaluateDecisionAndAbort(
@@ -686,6 +802,28 @@ func (s *authorizerService) runLocalCommitPhase(
 	return s.syncCommitPhase(ctx, results, intent, req, committedAny, publishCommittedStatus)
 }
 
+// remoteCommitOutcome captures the result of a single remote peer commit so
+// that parallel goroutines can report back through a single channel without
+// sharing mutable slices across goroutines.
+type remoteCommitOutcome struct {
+	idx       int
+	snapshots []*authorizerv1.BalanceSnapshot
+	failed    bool
+}
+
+// commitAllRemotePeers fans out CommitPrepared to every remote peer in
+// parallel. Unlike prepare, commit MUST attempt every peer even if one fails —
+// partial-commit recovery relies on a clear signal of which peers committed
+// versus which need recovery. Therefore this function does not short-circuit
+// and does not propagate cancellation between peers on failure. Per-peer
+// deadlines are set inside commitRemotePeerGuarded via context.WithTimeout.
+//
+// Concurrency safety:
+//   - intent mutation (markParticipantCommitted) and the committedAny flag
+//     are protected by intentMu so the first-committed publish fires exactly
+//     once even under parallel completion.
+//   - Per-peer snapshot slices are collected via per-goroutine locals and
+//     reassembled in deterministic (input) order after Wait.
 func (s *authorizerService) commitAllRemotePeers(
 	ctx context.Context,
 	results []prepareResult,
@@ -694,9 +832,33 @@ func (s *authorizerService) commitAllRemotePeers(
 	committedAny *bool,
 	publishCommittedStatus func(),
 ) ([]*authorizerv1.BalanceSnapshot, bool) {
-	var allSnapshots []*authorizerv1.BalanceSnapshot
+	// Gate intent mutation + committedAny toggling so the "first committed"
+	// publish fires exactly once even when peers complete concurrently.
+	var intentMu sync.Mutex
 
-	anyFailed := false
+	guardedPublish := func() {
+		intentMu.Lock()
+		defer intentMu.Unlock()
+
+		if !*committedAny {
+			*committedAny = true
+
+			publishCommittedStatus()
+		}
+	}
+
+	guardedMark := func(preparedTxID string) {
+		intentMu.Lock()
+		defer intentMu.Unlock()
+
+		markParticipantCommitted(intent, preparedTxID)
+	}
+
+	// Per-slot outcome storage preserves deterministic ordering of snapshots
+	// in the final response (matches original sequential behaviour).
+	outcomes := make([]remoteCommitOutcome, len(results))
+
+	var wg sync.WaitGroup
 
 	for i := range results {
 		r := &results[i]
@@ -704,17 +866,95 @@ func (s *authorizerService) commitAllRemotePeers(
 			continue
 		}
 
-		snapshots, failed := s.commitRemotePeer(ctx, r, txID, intent, committedAny, publishCommittedStatus)
-		if failed {
+		idx := i
+		participant := r
+
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			snapshots, failed := s.commitRemotePeerGuarded(
+				ctx,
+				participant,
+				txID,
+				intent,
+				guardedPublish,
+				guardedMark,
+			)
+
+			outcomes[idx] = remoteCommitOutcome{idx: idx, snapshots: snapshots, failed: failed}
+		}()
+	}
+
+	wg.Wait()
+
+	var (
+		allSnapshots []*authorizerv1.BalanceSnapshot
+		anyFailed    bool
+	)
+
+	for _, o := range outcomes {
+		if o.failed {
 			anyFailed = true
 
 			continue
 		}
 
-		allSnapshots = append(allSnapshots, snapshots...)
+		allSnapshots = append(allSnapshots, o.snapshots...)
 	}
 
 	return allSnapshots, anyFailed
+}
+
+// commitRemotePeerGuarded is the concurrency-safe wrapper around the per-peer
+// commit path. It delegates the RPC to commitRemotePeerRPC and routes
+// intent mutation through the caller-provided guarded functions so that the
+// "first committed" publish fires exactly once across all parallel peers.
+func (s *authorizerService) commitRemotePeerGuarded(
+	ctx context.Context,
+	r *prepareResult,
+	txID string,
+	intent *commitIntent,
+	guardedPublish func(),
+	guardedMark func(string),
+) ([]*authorizerv1.BalanceSnapshot, bool) {
+	commitCtx, cancel := context.WithTimeout(ctx, s.resolveCommitDeadline())
+	defer cancel()
+
+	commitReq := &authorizerv1.CommitPreparedRequest{PreparedTxId: r.txID}
+
+	authCtx, authErr := withPeerAuth(commitCtx, s.peerAuthToken, peerRPCMethodCommitPrepared, commitReq)
+	if authErr != nil {
+		s.logger.Errorf(
+			"CRITICAL: cross-shard peer commit auth failed (PARTIAL COMMIT): tx_id=%s peer=%s prepared_tx_id=%s err=%v",
+			txID, r.peer.addr, r.txID, authErr,
+		)
+
+		return nil, true
+	}
+
+	commitClient := r.peer.pickClient()
+	if commitClient == nil {
+		s.logger.Errorf(
+			"CRITICAL: cross-shard peer commit has no available gRPC client: tx_id=%s peer=%s prepared_tx_id=%s",
+			txID, r.peer.addr, r.txID,
+		)
+
+		return nil, true
+	}
+
+	commitResp, err := commitClient.CommitPrepared(authCtx, commitReq)
+	if err != nil {
+		s.handleRemotePeerCommitError(ctx, err, r, txID, intent)
+
+		return nil, true
+	}
+
+	guardedMark(r.txID)
+	guardedPublish()
+
+	return commitResp.GetBalances(), false
 }
 
 func (s *authorizerService) handleIncompleteCommit(
@@ -778,59 +1018,6 @@ func (s *authorizerService) finalizeCommit(
 			true,
 		)
 	}
-}
-
-// commitRemotePeer drives the commit phase for a single remote peer participant.
-// Returns the balance snapshots on success and a boolean indicating failure.
-func (s *authorizerService) commitRemotePeer(
-	ctx context.Context,
-	r *prepareResult,
-	txID string,
-	intent *commitIntent,
-	committedAny *bool,
-	publishCommittedStatus func(),
-) ([]*authorizerv1.BalanceSnapshot, bool) {
-	commitCtx, cancel := context.WithTimeout(ctx, s.resolveCommitDeadline())
-	defer cancel()
-
-	commitReq := &authorizerv1.CommitPreparedRequest{PreparedTxId: r.txID}
-
-	authCtx, authErr := withPeerAuth(commitCtx, s.peerAuthToken, peerRPCMethodCommitPrepared, commitReq)
-	if authErr != nil {
-		s.logger.Errorf(
-			"CRITICAL: cross-shard peer commit auth failed (PARTIAL COMMIT): tx_id=%s peer=%s prepared_tx_id=%s err=%v",
-			txID, r.peer.addr, r.txID, authErr,
-		)
-
-		return nil, true
-	}
-
-	commitClient := r.peer.pickClient()
-	if commitClient == nil {
-		s.logger.Errorf(
-			"CRITICAL: cross-shard peer commit has no available gRPC client: tx_id=%s peer=%s prepared_tx_id=%s",
-			txID, r.peer.addr, r.txID,
-		)
-
-		return nil, true
-	}
-
-	commitResp, err := commitClient.CommitPrepared(authCtx, commitReq)
-	if err != nil {
-		s.handleRemotePeerCommitError(ctx, err, r, txID, intent)
-
-		return nil, true
-	}
-
-	markParticipantCommitted(intent, r.txID)
-
-	if !*committedAny {
-		*committedAny = true
-
-		publishCommittedStatus()
-	}
-
-	return commitResp.GetBalances(), false
 }
 
 // handleRemotePeerCommitError logs and escalates errors from a remote peer

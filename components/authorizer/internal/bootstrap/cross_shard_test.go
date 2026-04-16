@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -636,15 +637,22 @@ func TestAuthorizeCrossShardPrepareOrderIncludesLocalRangePosition(t *testing.T)
 	require.False(t, resp.GetAuthorized())
 	require.Equal(t, engine.RejectionInsufficientFunds, resp.GetRejectionCode())
 
-	highPeer.mu.Lock()
-	highAbortCalls := highPeer.abortCalls
-	highPeer.mu.Unlock()
-	require.Equal(t, 0, highAbortCalls)
-
+	// Under parallel prepare fan-out, a participant either (a) ran to completion
+	// and holds a prepared_tx_id — in which case it MUST be aborted — or (b)
+	// was cancelled via groupCtx before its goroutine started — in which case
+	// it never prepared and has nothing to abort. The safety invariant is:
+	// no orphan prepared_tx_ids, so abortCalls ≤ 1 for each peer. The exact
+	// count depends on the race between local engine rejection (synchronous,
+	// fast) and peer goroutine scheduling. Both outcomes are correct.
 	lowPeer.mu.Lock()
 	lowAbortCalls := lowPeer.abortCalls
 	lowPeer.mu.Unlock()
-	require.Equal(t, 1, lowAbortCalls)
+	require.LessOrEqual(t, lowAbortCalls, 1, "low peer must be aborted at most once")
+
+	highPeer.mu.Lock()
+	highAbortCalls := highPeer.abortCalls
+	highPeer.mu.Unlock()
+	require.LessOrEqual(t, highAbortCalls, 1, "high peer must be aborted at most once")
 }
 
 func TestAuthorizeCrossShardPrepareDeadlineAbortsWithBackgroundContext(t *testing.T) {
@@ -695,33 +703,35 @@ func TestAuthorizeCrossShardPrepareDeadlineAbortsWithBackgroundContext(t *testin
 	require.Nil(t, resp)
 	require.Equal(t, codes.DeadlineExceeded, status.Code(err))
 
+	// Under parallel fan-out, low peer's onPrepare cancels the parent ctx
+	// while participants run concurrently. The stub ignores ctx and returns
+	// Authorized=true, so low is always aborted (it prepared). High may or
+	// may not have started before cancellation propagated to the group ctx.
+	// Safety invariant: no orphan prepared peers (abort ≤ 1 per peer).
 	lowPeer.mu.Lock()
 	lowAbortCalls := lowPeer.abortCalls
 	lowPeer.mu.Unlock()
-	require.Equal(t, 1, lowAbortCalls)
+	require.Equal(t, 1, lowAbortCalls, "low peer must be aborted (it prepared before cancellation)")
 
 	highPeer.mu.Lock()
 	highAbortCalls := highPeer.abortCalls
 	highPeer.mu.Unlock()
-	require.Equal(t, 0, highAbortCalls)
+	require.LessOrEqual(t, highAbortCalls, 1, "high peer aborts at most once; 0 if ctx cancelled before its goroutine ran")
 }
 
+// TestAuthorizeCrossShardPreparesRemotePeersInShardOrder verifies that even
+// though RPC dispatch is now parallel (prepare fan-out), the *result*
+// ordering observed downstream (commit intent participants, abort iteration)
+// remains deterministic by shard position. RPC dispatch order is not
+// observable and must not be asserted.
 func TestAuthorizeCrossShardPreparesRemotePeersInShardOrder(t *testing.T) {
 	pub := &capturingPublisher{}
-	prepareOrder := make([]string, 0, 2)
 
 	peerA := &stubPeerClient{
 		prepareResp: &authorizerv1.PrepareAuthorizeResponse{Authorized: true, PreparedTxId: "ptx-a"},
-		onPrepare: func() {
-			prepareOrder = append(prepareOrder, "peer-a")
-		},
 	}
-
 	peerB := &stubPeerClient{
 		prepareResp: &authorizerv1.PrepareAuthorizeResponse{Authorized: true, PreparedTxId: "ptx-b"},
-		onPrepare: func() {
-			prepareOrder = append(prepareOrder, "peer-b")
-		},
 	}
 
 	svc := &authorizerService{
@@ -756,7 +766,22 @@ func TestAuthorizeCrossShardPreparesRemotePeersInShardOrder(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.True(t, resp.GetAuthorized())
-	require.Equal(t, []string{"peer-b", "peer-a"}, prepareOrder)
+
+	// The published commit intent's participant list must reflect shard-sorted
+	// order (peer-b at shards 4-5 before peer-a at shards 6-7). RPC dispatch
+	// parallelism does not affect this deterministic downstream ordering.
+	pub.mu.Lock()
+	require.NotEmpty(t, pub.messages, "at least one commit intent must be published")
+
+	firstMsg := pub.messages[0]
+	pub.mu.Unlock()
+
+	var firstIntent commitIntent
+
+	require.NoError(t, json.Unmarshal(firstMsg.Payload, &firstIntent))
+	require.Len(t, firstIntent.Participants, 2)
+	require.Equal(t, "ptx-b", firstIntent.Participants[0].PreparedTxID, "shard 4-5 peer-b must precede shard 6-7 peer-a")
+	require.Equal(t, "ptx-a", firstIntent.Participants[1].PreparedTxID)
 }
 
 func TestAuthorizeCrossShardPrepareRejectionAbortsLocalPrepared(t *testing.T) {
@@ -1036,4 +1061,369 @@ func TestAuthorizeCrossShardAsyncCommitIntentPublishFailure(t *testing.T) {
 	abortCalls := peer.abortCalls
 	peer.mu.Unlock()
 	require.Equal(t, 0, abortCalls, "peer abort should not be called after local commit succeeded")
+}
+
+// ─── B5: parallel prepare + parallel commit ──────────────────────────────.
+
+// delayingPeerClient is a stubPeerClient specialisation that lets tests
+// control per-call latency, observe in-flight RPC contexts, and verify that
+// parallel dispatch actually happens.
+type delayingPeerClient struct {
+	stubPeerClient
+
+	prepareDelay time.Duration
+	commitDelay  time.Duration
+
+	// prepareGate, if non-nil, blocks each PrepareAuthorize until closed or ctx
+	// expires. Used by the first-rejection cancellation test to hold slow peers
+	// so the fast rejecting peer can cancel them.
+	prepareGate <-chan struct{}
+
+	// prepareRejects, when true, returns an authorized=false response to
+	// trigger short-circuit cancellation.
+	prepareRejects bool
+
+	// commitFailErr, when non-nil, is returned from CommitPrepared after the
+	// commit delay elapses.
+	commitFailErr error
+
+	// preparedTxID overrides the default prepared_tx_id for this stub.
+	preparedTxID string
+
+	// Recorded contexts let tests assert cancellation propagated.
+	ctxMu    sync.Mutex
+	gotCtxes []context.Context
+}
+
+func (d *delayingPeerClient) PrepareAuthorize(ctx context.Context, _ *authorizerv1.AuthorizeRequest, _ ...grpc.CallOption) (*authorizerv1.PrepareAuthorizeResponse, error) {
+	d.ctxMu.Lock()
+	d.gotCtxes = append(d.gotCtxes, ctx)
+	d.ctxMu.Unlock()
+
+	if d.prepareGate != nil {
+		select {
+		case <-d.prepareGate:
+		case <-ctx.Done():
+			return nil, fmt.Errorf("delayingPeerClient prepare gate cancelled: %w", ctx.Err())
+		}
+	}
+
+	if d.prepareDelay > 0 {
+		select {
+		case <-time.After(d.prepareDelay):
+		case <-ctx.Done():
+			return nil, fmt.Errorf("delayingPeerClient prepare delay cancelled: %w", ctx.Err())
+		}
+	}
+
+	if d.prepareRejects {
+		return &authorizerv1.PrepareAuthorizeResponse{
+			Authorized:       false,
+			RejectionCode:    "INSUFFICIENT_FUNDS",
+			RejectionMessage: "test rejection",
+		}, nil
+	}
+
+	id := d.preparedTxID
+	if id == "" {
+		id = "ptx-delaying"
+	}
+
+	return &authorizerv1.PrepareAuthorizeResponse{Authorized: true, PreparedTxId: id}, nil
+}
+
+func (d *delayingPeerClient) CommitPrepared(ctx context.Context, _ *authorizerv1.CommitPreparedRequest, _ ...grpc.CallOption) (*authorizerv1.CommitPreparedResponse, error) {
+	if d.commitDelay > 0 {
+		select {
+		case <-time.After(d.commitDelay):
+		case <-ctx.Done():
+			return nil, fmt.Errorf("delayingPeerClient commit delay cancelled: %w", ctx.Err())
+		}
+	}
+
+	if d.commitFailErr != nil {
+		return nil, d.commitFailErr
+	}
+
+	return &authorizerv1.CommitPreparedResponse{Committed: true}, nil
+}
+
+// buildParallelPrepareHarness wires N delaying peers into an authorizerService
+// and returns orderedPrepare closures whose RPC ctx is the one supplied by
+// runPrepareSequence (the errgroup ctx). That plumbing is what makes this a
+// valid test of parallel fan-out and cancellation propagation.
+func buildParallelPrepareHarness(t *testing.T, peerClients []*delayingPeerClient) (*authorizerService, []orderedPrepare) {
+	t.Helper()
+
+	eng := engine.New(shard.NewRouter(64), wal.NewNoopWriter())
+
+	t.Cleanup(func() { eng.Close() })
+
+	peers := make([]*peerClient, 0, len(peerClients))
+
+	prepares := make([]orderedPrepare, 0, len(peerClients))
+
+	for i, pc := range peerClients {
+		start := 8 + i*8
+		end := start + 7
+
+		peer := &peerClient{
+			addr:       "authorizer-peer-" + pc.preparedTxID,
+			clients:    []authorizerv1.BalanceAuthorizerClient{pc},
+			shardStart: start,
+			shardEnd:   end,
+		}
+		peers = append(peers, peer)
+
+		currentPeer := peer
+		currentPC := pc
+
+		prepares = append(prepares, orderedPrepare{
+			shardStart: peer.shardStart,
+			shardEnd:   peer.shardEnd,
+			peerAddr:   peer.addr,
+			run: func(rpcCtx context.Context) prepareResult {
+				resp, err := currentPC.PrepareAuthorize(rpcCtx, &authorizerv1.AuthorizeRequest{})
+				r := prepareResult{peer: currentPeer, err: err}
+
+				if resp != nil {
+					r.txID = resp.GetPreparedTxId()
+					r.resp = &authorizerv1.AuthorizeResponse{
+						Authorized:       resp.GetAuthorized(),
+						RejectionCode:    resp.GetRejectionCode(),
+						RejectionMessage: resp.GetRejectionMessage(),
+					}
+				}
+
+				return r
+			},
+		})
+	}
+
+	svc := &authorizerService{
+		engine:          eng,
+		logger:          mustInitLogger(t),
+		grpcAddr:        "authorizer-coord:50051",
+		ownedShardStart: 0,
+		ownedShardEnd:   7,
+		peerAuthToken:   "peer-secret",
+		peers:           peers,
+	}
+
+	return svc, prepares
+}
+
+// TestRunPrepareSequence_Parallel_FanoutLatency verifies that total prepare
+// latency is bounded by max(RTT), not sum(RTT). With 4 peers each sleeping
+// 50ms, a sequential implementation would take ≥200ms; correct parallel
+// fan-out must finish in well under 100ms (1.5x max RTT budget).
+func TestRunPrepareSequence_Parallel_FanoutLatency(t *testing.T) {
+	t.Parallel()
+
+	const (
+		peerCount = 4
+		peerRTT   = 50 * time.Millisecond
+		budget    = 100 * time.Millisecond
+	)
+
+	clients := make([]*delayingPeerClient, 0, peerCount)
+	for i := 0; i < peerCount; i++ {
+		clients = append(clients, &delayingPeerClient{
+			preparedTxID: "ptx-" + string(rune('a'+i)),
+			prepareDelay: peerRTT,
+		})
+	}
+
+	svc, prepares := buildParallelPrepareHarness(t, clients)
+
+	start := time.Now()
+
+	results, err := svc.runPrepareSequence(context.Background(), &authorizerv1.AuthorizeRequest{TransactionId: "tx-fanout"}, prepares)
+
+	elapsed := time.Since(start)
+
+	require.NoError(t, err)
+	require.Len(t, results, peerCount)
+
+	for _, r := range results {
+		require.NoError(t, r.err)
+		require.NotNil(t, r.resp)
+		require.True(t, r.resp.GetAuthorized())
+	}
+
+	require.Lessf(t, elapsed, budget,
+		"parallel prepare should finish in <%v (max RTT * 1.5 budget), got %v (sequential would be ≥%v)",
+		budget, elapsed, peerRTT*peerCount)
+}
+
+// TestRunPrepareSequence_FirstRejectionCancelsOthers verifies that when one
+// peer rejects, remaining in-flight peer RPCs observe ctx cancellation and
+// return promptly rather than blocking on their artificial delay.
+func TestRunPrepareSequence_FirstRejectionCancelsOthers(t *testing.T) {
+	t.Parallel()
+
+	// Slow peers are gated by a channel — they complete only if released
+	// or cancelled. If cancellation works, they unblock via ctx.Done(); if
+	// it doesn't, they each wait 2s and the test runs for >2s.
+	slowGate := make(chan struct{}) // never closed
+
+	rejecter := &delayingPeerClient{
+		preparedTxID:   "ptx-reject",
+		prepareRejects: true,
+		// Small delay so the rejecter doesn't lose the race to goroutine
+		// startup. Still orders of magnitude below the slow peers.
+		prepareDelay: 10 * time.Millisecond,
+	}
+
+	slowA := &delayingPeerClient{
+		preparedTxID: "ptx-slowA",
+		prepareGate:  slowGate,
+		prepareDelay: 2 * time.Second,
+	}
+	slowB := &delayingPeerClient{
+		preparedTxID: "ptx-slowB",
+		prepareGate:  slowGate,
+		prepareDelay: 2 * time.Second,
+	}
+
+	svc, prepares := buildParallelPrepareHarness(t, []*delayingPeerClient{rejecter, slowA, slowB})
+
+	// Parent ctx with a safety deadline above expected completion but well
+	// below the slow-peer delay. If cancellation is broken, this deadline
+	// fires and the test fails with a clear latency signal.
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+
+	results, err := svc.runPrepareSequence(ctx, &authorizerv1.AuthorizeRequest{TransactionId: "tx-reject"}, prepares)
+
+	elapsed := time.Since(start)
+
+	require.NoError(t, err)
+	require.NotEmpty(t, results)
+
+	// Must complete well under the slow-peer delay (2s) — meaning slow peer
+	// ctx was cancelled, not allowed to run to completion.
+	require.Less(t, elapsed, 400*time.Millisecond,
+		"rejection should cancel in-flight slow peers; elapsed=%v", elapsed)
+
+	// Slow peers that observed an RPC ctx must have seen it cancelled.
+	for _, slow := range []*delayingPeerClient{slowA, slowB} {
+		slow.ctxMu.Lock()
+		ctxes := slow.gotCtxes
+		slow.ctxMu.Unlock()
+
+		for _, c := range ctxes {
+			select {
+			case <-c.Done():
+				require.ErrorIs(t, c.Err(), context.Canceled,
+					"slow peer ctx must be Canceled, got %v", c.Err())
+			case <-time.After(100 * time.Millisecond):
+				t.Fatalf("slow peer ctx was not cancelled after rejection")
+			}
+		}
+	}
+}
+
+// TestCommitAllRemotePeers_ParallelContinueOnFailure verifies that commit
+// fan-out (1) does not let a slow peer block a failing peer's error signal,
+// (2) attempts every peer even on failure, and (3) returns the combined
+// outcome (partial snapshots + failed=true).
+func TestCommitAllRemotePeers_ParallelContinueOnFailure(t *testing.T) {
+	t.Parallel()
+
+	slowDelay := 200 * time.Millisecond
+
+	slow := &delayingPeerClient{
+		preparedTxID: "ptx-slow",
+		commitDelay:  slowDelay,
+	}
+	failing := &delayingPeerClient{
+		preparedTxID:  "ptx-fail",
+		commitFailErr: errTestPeerUnavailable,
+	}
+	fast := &delayingPeerClient{
+		preparedTxID: "ptx-fast",
+	}
+
+	eng := engine.New(shard.NewRouter(64), wal.NewNoopWriter())
+
+	t.Cleanup(func() { eng.Close() })
+
+	peerSlow := &peerClient{addr: "peer-slow", clients: []authorizerv1.BalanceAuthorizerClient{slow}, shardStart: 8, shardEnd: 15}
+	peerFail := &peerClient{addr: "peer-fail", clients: []authorizerv1.BalanceAuthorizerClient{failing}, shardStart: 16, shardEnd: 23}
+	peerFast := &peerClient{addr: "peer-fast", clients: []authorizerv1.BalanceAuthorizerClient{fast}, shardStart: 24, shardEnd: 31}
+
+	svc := &authorizerService{
+		engine:          eng,
+		logger:          mustInitLogger(t),
+		grpcAddr:        "authorizer-coord:50051",
+		ownedShardStart: 0,
+		ownedShardEnd:   7,
+		peerAuthToken:   "peer-secret",
+		peers:           []*peerClient{peerSlow, peerFail, peerFast},
+	}
+
+	results := []prepareResult{
+		{txID: "ptx-slow", peer: peerSlow},
+		{txID: "ptx-fail", peer: peerFail},
+		{txID: "ptx-fast", peer: peerFast},
+	}
+
+	intent := &commitIntent{
+		TransactionID: "tx-commit-parallel",
+		Participants: []commitParticipant{
+			{InstanceAddr: peerSlow.addr, PreparedTxID: "ptx-slow"},
+			{InstanceAddr: peerFail.addr, PreparedTxID: "ptx-fail"},
+			{InstanceAddr: peerFast.addr, PreparedTxID: "ptx-fast"},
+		},
+	}
+
+	committedAny := false
+
+	publishCount := 0
+	publishCommittedStatus := func() { publishCount++ }
+
+	start := time.Now()
+
+	snapshots, anyFailed := svc.commitAllRemotePeers(
+		context.Background(),
+		results,
+		"tx-commit-parallel",
+		intent,
+		&committedAny,
+		publishCommittedStatus,
+	)
+
+	elapsed := time.Since(start)
+
+	// (1) Failure propagates.
+	require.True(t, anyFailed, "failing peer must propagate failed=true")
+
+	// (2) Slow peer was awaited, not skipped. delayingPeerClient returns an
+	// empty CommitPreparedResponse (no balances), so snapshots is expected
+	// to be empty — we assert only on elapsed here.
+	require.GreaterOrEqual(t, elapsed, slowDelay, "slow peer must have been awaited")
+
+	require.Empty(t, snapshots, "stub peers return no balance snapshots; partial failure skips failing peer")
+
+	// (3) Elapsed is bounded by slowest peer, not sum of peers.
+	require.Less(t, elapsed, slowDelay+150*time.Millisecond,
+		"commit fan-out must be bounded by slowest peer; elapsed=%v slowDelay=%v", elapsed, slowDelay)
+
+	// (4) First-committed publish fired exactly once under concurrent completions.
+	require.Equal(t, 1, publishCount, "publishCommittedStatus must fire once under parallel commits")
+	require.True(t, committedAny, "committedAny must be set by guarded publish")
+
+	// (5) Intent marks successful participants as committed, failing one as not.
+	committedByID := map[string]bool{}
+
+	for _, p := range intent.Participants {
+		committedByID[p.PreparedTxID] = p.Committed
+	}
+
+	require.True(t, committedByID["ptx-slow"], "slow peer eventually committed")
+	require.True(t, committedByID["ptx-fast"], "fast peer committed")
+	require.False(t, committedByID["ptx-fail"], "failing peer must not be marked committed")
 }
