@@ -149,6 +149,11 @@ func (s *authorizerService) authorizeCrossShard(
 		Status:         commitIntentStatusPrepared,
 		Participants:   buildParticipants(results, s.instanceAddr),
 		CreatedAt:      time.Now(),
+		// Capture the (alias, balance_key) targets up-front so both the
+		// happy-path completion AND a downstream recovery replay (which
+		// reads the PREPARED intent from Redpanda) can emit a
+		// cache-invalidation event with accurate targets.
+		Aliases: buildCacheInvalidationTargets(req.GetOperations()),
 	}
 
 	// ─── PHASE 2: COMMIT (local sequential, remote parallel) ─────────────

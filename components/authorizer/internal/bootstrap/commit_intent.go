@@ -16,6 +16,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/publisher"
 	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/wal"
+	crossshardevents "github.com/LerianStudio/midaz/v3/pkg/crossshard/events"
+	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 )
 
 // errCommitIntentPublisherNotConfigured is returned when publishCommitIntent is
@@ -58,7 +60,11 @@ const crossShardCommitsDLQTopic = "authorizer.cross-shard.commits.dlq"
 // Consumers purge the affected balance cache keys so subsequent reads hit
 // the database and observe the post-recovery state. This closes the stale-
 // cache window between "recovery completes" and "next LoadBalances".
-const crossShardCacheInvalidationTopic = "authorizer.cross-shard.cache-invalidation"
+//
+// The authoritative topic name lives in pkg/crossshard/events so producers
+// and consumers share one constant. This local alias is retained for legacy
+// references inside the authorizer package.
+const crossShardCacheInvalidationTopic = crossshardevents.TopicCacheInvalidation
 
 // Manual-intervention reason labels used by the
 // authorizer_manual_intervention_required_total counter and the
@@ -98,6 +104,27 @@ type commitIntent struct {
 	Status         string              `json:"status"`
 	Participants   []commitParticipant `json:"participants"`
 	CreatedAt      time.Time           `json:"created_at"`
+	// Aliases is the (alias, balance_key) set that this 2PC transaction
+	// touched on the coordinator. It is captured at PREPARED-intent
+	// construction time (from the AuthorizeRequest operations) so the
+	// downstream cache-invalidation consumer can DEL targeted keys without
+	// re-reading PostgreSQL. Empty on legacy records from before the
+	// broadened contract — consumers must treat omission as "unknown" and
+	// fall back to a ledger-scoped scan.
+	Aliases []cacheInvalidationTarget `json:"aliases,omitempty"`
+}
+
+// cloneAliasTargets returns a defensive copy so the published payload does
+// not share the intent's slice header. Nil-safe.
+func cloneAliasTargets(in []cacheInvalidationTarget) []cacheInvalidationTarget {
+	if len(in) == 0 {
+		return []cacheInvalidationTarget{}
+	}
+
+	out := make([]cacheInvalidationTarget, len(in))
+	copy(out, in)
+
+	return out
 }
 
 // commitParticipant tracks a single participant (local or remote) in the 2PC
@@ -109,6 +136,52 @@ type commitParticipant struct {
 	PreparedTxID string `json:"prepared_tx_id"`
 	Committed    bool   `json:"committed"`
 	IsLocal      bool   `json:"is_local"`
+}
+
+// buildCacheInvalidationTargets extracts the unique (account_alias,
+// balance_key) tuples from an AuthorizeRequest's operation list. Duplicates
+// across operations are collapsed (they would DEL the same Redis key
+// anyway); empty aliases are skipped. Order is preserved from first
+// occurrence for deterministic test expectations.
+//
+// Callers are expected to pass the SAME operations slice that the 2PC
+// prepare/commit phases used. Keeping the derivation in one place means the
+// recovery path — which only has the serialized commit intent, not the
+// original request — can rely on intent.Aliases being an accurate mirror
+// of the authoritative set.
+func buildCacheInvalidationTargets(operations []*authorizerv1.BalanceOperation) []cacheInvalidationTarget {
+	if len(operations) == 0 {
+		return nil
+	}
+
+	targets := make([]cacheInvalidationTarget, 0, len(operations))
+	seen := make(map[string]struct{}, len(operations))
+
+	for _, op := range operations {
+		if op == nil {
+			continue
+		}
+
+		alias := op.GetAccountAlias()
+		if alias == "" {
+			continue
+		}
+
+		balanceKey := op.GetBalanceKey()
+		dedupeKey := alias + "#" + balanceKey
+
+		if _, ok := seen[dedupeKey]; ok {
+			continue
+		}
+
+		seen[dedupeKey] = struct{}{}
+		targets = append(targets, cacheInvalidationTarget{
+			Alias:      alias,
+			BalanceKey: balanceKey,
+		})
+	}
+
+	return targets
 }
 
 // buildParticipants constructs the participant list from prepare results. Each
@@ -179,24 +252,32 @@ func (s *authorizerService) publishManualIntervention(ctx context.Context, inten
 	return nil
 }
 
-// cacheInvalidationEvent is the payload written to
-// crossShardCacheInvalidationTopic. It carries the minimum information a
-// cache consumer needs to purge the right keys — the transaction ID (for
-// correlation / idempotency), the org+ledger tuple that bounds the cache
-// namespace, and the InstanceAddr list so operators can trace which
-// participants drove the completion.
-type cacheInvalidationEvent struct {
-	TransactionID  string    `json:"transaction_id"`
-	OrganizationID string    `json:"organization_id"`
-	LedgerID       string    `json:"ledger_id"`
-	Reason         string    `json:"reason"`
-	EmittedAt      time.Time `json:"emitted_at"`
-}
+// cacheInvalidationEvent is an internal alias of the exported contract
+// defined in pkg/crossshard/events.CacheInvalidationEvent. The consumer side
+// (components/transaction) imports the same struct, so any schema drift
+// becomes a compile-time error.
+//
+// The broadened schema carries Aliases (a slice of {alias, balance_key}
+// targets). A non-empty Aliases lets consumers issue targeted DEL calls
+// against the exact cache keys; an empty slice is a documented fallback
+// (see publishCacheInvalidation for why the producer may emit it empty).
+type cacheInvalidationEvent = crossshardevents.CacheInvalidationEvent
+
+// cacheInvalidationTarget mirrors the exported target type for local
+// construction.
+type cacheInvalidationTarget = crossshardevents.CacheInvalidationTarget
 
 // publishCacheInvalidation serializes a cacheInvalidationEvent and writes it
 // to crossShardCacheInvalidationTopic. This is best-effort: the primary
 // durability contract (commits topic) must already have succeeded before
 // this is called, and failures here are logged but never roll back recovery.
+//
+// aliases is the list of (alias, balance_key) targets whose Redis cache
+// entries should be purged. It MAY be empty: when the caller cannot derive
+// targets (rare recovery edge case where the locked-balance metadata is
+// absent from the commit intent), an empty slice signals to the consumer
+// that a ledger-scoped fallback scan is appropriate. The primary path
+// always populates the slice from the commit intent's Aliases field.
 func (s *authorizerService) publishCacheInvalidation(ctx context.Context, intent *commitIntent) error {
 	if s == nil || intent == nil {
 		return errCommitIntentPublisherNotConfigured
@@ -210,7 +291,8 @@ func (s *authorizerService) publishCacheInvalidation(ctx context.Context, intent
 		TransactionID:  intent.TransactionID,
 		OrganizationID: intent.OrganizationID,
 		LedgerID:       intent.LedgerID,
-		Reason:         "recovery_drive_to_completion",
+		Aliases:        cloneAliasTargets(intent.Aliases),
+		Reason:         crossshardevents.ReasonRecoveryDriveToCompletion,
 		EmittedAt:      time.Now().UTC(),
 	}
 

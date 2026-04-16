@@ -44,6 +44,7 @@ type ConsumerService struct {
 	*ShardRebalanceWorker
 	ShardRebalanceWorkerEnabled bool
 	*ShardRoutingSubscriber
+	*CacheInvalidationConsumer
 	*CircuitBreakerManager
 	libLog.Logger
 
@@ -81,6 +82,10 @@ func (cs *ConsumerService) Run() {
 
 	if cs.ShardRoutingSubscriber != nil {
 		opts = append(opts, libCommons.RunApp("Shard Routing Subscriber", cs.ShardRoutingSubscriber))
+	}
+
+	if cs.CacheInvalidationConsumer != nil {
+		opts = append(opts, libCommons.RunApp("Cache Invalidation Consumer", cs.CacheInvalidationConsumer))
 	}
 
 	if cs.CircuitBreakerManager != nil {
@@ -367,6 +372,11 @@ func InitConsumerWithOptions(opts *Options) (*ConsumerService, error) {
 	resolvedShardRebalanceWorkerEnabled := shardRebalanceWorker != nil
 	shardRoutingSubscriber := NewShardRoutingSubscriber(logger, shardManager)
 
+	cacheInvalidationConsumer, err := NewCacheInvalidationConsumer(cfg, logger, seedBrokers, redisConnection, telemetry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize cache invalidation consumer: %w", err)
+	}
+
 	service := &ConsumerService{
 		MultiQueueConsumer:          multiQueueConsumer,
 		RedisQueueConsumer:          redisQueueConsumer,
@@ -375,6 +385,7 @@ func InitConsumerWithOptions(opts *Options) (*ConsumerService, error) {
 		ShardRebalanceWorker:        shardRebalanceWorker,
 		ShardRebalanceWorkerEnabled: resolvedShardRebalanceWorkerEnabled,
 		ShardRoutingSubscriber:      shardRoutingSubscriber,
+		CacheInvalidationConsumer:   cacheInvalidationConsumer,
 		CircuitBreakerManager:       brokerInfra.circuitBreakerManager,
 		Logger:                      logger,
 		authorizerCloser:            authorizerClient,

@@ -395,7 +395,47 @@ func (r *walReconciler) buildIntentFromWALEntry(entry *wal.Entry) *commitIntent 
 		Status:         commitIntentStatusPrepared,
 		Participants:   participants,
 		CreatedAt:      entry.CreatedAt,
+		// Derive cache-invalidation targets from the WAL mutations so a
+		// post-restart recovery replay can still issue targeted DELs.
+		// Legacy entries without Mutations (prepared-intent-only) fall
+		// back to an empty slice, which the consumer interprets as "scan
+		// required" (see cacheInvalidationEvent.Aliases documentation).
+		Aliases: aliasTargetsFromMutations(entry.Mutations),
 	}
+}
+
+// aliasTargetsFromMutations projects the WAL mutation list onto the
+// cache-invalidation target shape. Deduplicates on (alias, balance_key)
+// because the mutation list may record pre/post pairs for the same balance.
+// Nil-safe: returns nil for empty input so intent.Aliases is omitted from
+// JSON (omitempty) when the WAL entry carries no mutations.
+func aliasTargetsFromMutations(mutations []wal.BalanceMutation) []cacheInvalidationTarget {
+	if len(mutations) == 0 {
+		return nil
+	}
+
+	targets := make([]cacheInvalidationTarget, 0, len(mutations))
+	seen := make(map[string]struct{}, len(mutations))
+
+	for _, m := range mutations {
+		alias := m.AccountAlias
+		if alias == "" {
+			continue
+		}
+
+		dedupeKey := alias + "#" + m.BalanceKey
+		if _, ok := seen[dedupeKey]; ok {
+			continue
+		}
+
+		seen[dedupeKey] = struct{}{}
+		targets = append(targets, cacheInvalidationTarget{
+			Alias:      alias,
+			BalanceKey: m.BalanceKey,
+		})
+	}
+
+	return targets
 }
 
 func (r *walReconciler) isCompleted(txID string) bool {

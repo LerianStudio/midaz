@@ -1138,41 +1138,52 @@ type Config struct {
 	RedpandaSASLMechanism          string `env:"REDPANDA_SASL_MECHANISM" default:"SCRAM-SHA-256"`
 	RedpandaSASLUsername           string `env:"REDPANDA_SASL_USERNAME"`
 	RedpandaSASLPassword           string `env:"REDPANDA_SASL_PASSWORD"`
-	TransactionEventsEnabled       bool   `env:"TRANSACTION_EVENTS_ENABLED" default:"true"`
-	AuditLogEnabled                bool   `env:"AUDIT_LOG_ENABLED" default:"true"`
-	OtelServiceName                string `env:"OTEL_RESOURCE_SERVICE_NAME"`
-	OtelLibraryName                string `env:"OTEL_LIBRARY_NAME"`
-	OtelServiceVersion             string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
-	OtelDeploymentEnv              string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
-	OtelColExporterEndpoint        string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
-	EnableTelemetry                bool   `env:"ENABLE_TELEMETRY"`
-	RedisHost                      string `env:"REDIS_HOST"`
-	RedisMasterName                string `env:"REDIS_MASTER_NAME" default:""`
-	RedisPassword                  string `env:"REDIS_PASSWORD"`
-	RedisDB                        int    `env:"REDIS_DB" default:"0"`
-	RedisProtocol                  int    `env:"REDIS_PROTOCOL" default:"3"`
-	RedisTLS                       bool   `env:"REDIS_TLS" default:"false"`
-	RedisCACert                    string `env:"REDIS_CA_CERT"`
-	RedisUseGCPIAM                 bool   `env:"REDIS_USE_GCP_IAM" default:"false"`
-	RedisServiceAccount            string `env:"REDIS_SERVICE_ACCOUNT" default:""`
-	GoogleApplicationCredentials   string `env:"GOOGLE_APPLICATION_CREDENTIALS" default:""`
-	RedisTokenLifeTime             int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
-	RedisTokenRefreshDuration      int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
-	RedisPoolSize                  int    `env:"REDIS_POOL_SIZE" default:"10"`
-	RedisMinIdleConns              int    `env:"REDIS_MIN_IDLE_CONNS" default:"0"`
-	RedisReadTimeout               int    `env:"REDIS_READ_TIMEOUT" default:"3"`
-	RedisWriteTimeout              int    `env:"REDIS_WRITE_TIMEOUT" default:"3"`
-	RedisDialTimeout               int    `env:"REDIS_DIAL_TIMEOUT" default:"5"`
-	RedisPoolTimeout               int    `env:"REDIS_POOL_TIMEOUT" default:"2"`
-	RedisMaxRetries                int    `env:"REDIS_MAX_RETRIES" default:"3"`
-	RedisMinRetryBackoff           int    `env:"REDIS_MIN_RETRY_BACKOFF" default:"8"`
-	RedisMaxRetryBackoff           int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
-	AuthEnabled                    bool   `env:"PLUGIN_AUTH_ENABLED"`
-	AuthHost                       string `env:"PLUGIN_AUTH_HOST"`
-	ProtoAddress                   string `env:"PROTO_ADDRESS"`
-	AuthorizerEnabled              bool   `env:"AUTHORIZER_ENABLED" default:"false"`
-	AuthorizerHost                 string `env:"AUTHORIZER_HOST" default:"127.0.0.1"`
-	AuthorizerPort                 string `env:"AUTHORIZER_PORT" default:"50051"`
+
+	// Cache-invalidation consumer (authorizer 2PC recovery → Redis DEL).
+	// Default ENABLED=true because leaving the consumer off means stale
+	// cache entries survive until TTL after a cross-shard recovery.
+	// Operators CAN disable in deployments that run the transaction
+	// service without authorizer integration — set the env to false.
+	CacheInvalidationConsumerEnabled     bool   `env:"CACHE_INVALIDATION_CONSUMER_ENABLED" default:"true"`
+	CacheInvalidationConsumerGroup       string `env:"CACHE_INVALIDATION_CONSUMER_GROUP" default:"transaction-cache-invalidation"`
+	CacheInvalidationTopic               string `env:"CACHE_INVALIDATION_TOPIC" default:"authorizer.cross-shard.cache-invalidation"`
+	CacheInvalidationMaxTransientRetries int    `env:"CACHE_INVALIDATION_MAX_TRANSIENT_RETRIES" default:"5"`
+
+	TransactionEventsEnabled     bool   `env:"TRANSACTION_EVENTS_ENABLED" default:"true"`
+	AuditLogEnabled              bool   `env:"AUDIT_LOG_ENABLED" default:"true"`
+	OtelServiceName              string `env:"OTEL_RESOURCE_SERVICE_NAME"`
+	OtelLibraryName              string `env:"OTEL_LIBRARY_NAME"`
+	OtelServiceVersion           string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
+	OtelDeploymentEnv            string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
+	OtelColExporterEndpoint      string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	EnableTelemetry              bool   `env:"ENABLE_TELEMETRY"`
+	RedisHost                    string `env:"REDIS_HOST"`
+	RedisMasterName              string `env:"REDIS_MASTER_NAME" default:""`
+	RedisPassword                string `env:"REDIS_PASSWORD"`
+	RedisDB                      int    `env:"REDIS_DB" default:"0"`
+	RedisProtocol                int    `env:"REDIS_PROTOCOL" default:"3"`
+	RedisTLS                     bool   `env:"REDIS_TLS" default:"false"`
+	RedisCACert                  string `env:"REDIS_CA_CERT"`
+	RedisUseGCPIAM               bool   `env:"REDIS_USE_GCP_IAM" default:"false"`
+	RedisServiceAccount          string `env:"REDIS_SERVICE_ACCOUNT" default:""`
+	GoogleApplicationCredentials string `env:"GOOGLE_APPLICATION_CREDENTIALS" default:""`
+	RedisTokenLifeTime           int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
+	RedisTokenRefreshDuration    int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
+	RedisPoolSize                int    `env:"REDIS_POOL_SIZE" default:"10"`
+	RedisMinIdleConns            int    `env:"REDIS_MIN_IDLE_CONNS" default:"0"`
+	RedisReadTimeout             int    `env:"REDIS_READ_TIMEOUT" default:"3"`
+	RedisWriteTimeout            int    `env:"REDIS_WRITE_TIMEOUT" default:"3"`
+	RedisDialTimeout             int    `env:"REDIS_DIAL_TIMEOUT" default:"5"`
+	RedisPoolTimeout             int    `env:"REDIS_POOL_TIMEOUT" default:"2"`
+	RedisMaxRetries              int    `env:"REDIS_MAX_RETRIES" default:"3"`
+	RedisMinRetryBackoff         int    `env:"REDIS_MIN_RETRY_BACKOFF" default:"8"`
+	RedisMaxRetryBackoff         int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
+	AuthEnabled                  bool   `env:"PLUGIN_AUTH_ENABLED"`
+	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
+	ProtoAddress                 string `env:"PROTO_ADDRESS"`
+	AuthorizerEnabled            bool   `env:"AUTHORIZER_ENABLED" default:"false"`
+	AuthorizerHost               string `env:"AUTHORIZER_HOST" default:"127.0.0.1"`
+	AuthorizerPort               string `env:"AUTHORIZER_PORT" default:"50051"`
 	// AuthorizerTimeoutMS bounds a single authorizer gRPC call. The default budget
 	// covers cross-shard 2PC (peer Prepare + peer Commit round-trips), the WAL
 	// fsync before acknowledging Prepare, plus headroom for GC pauses at the
@@ -1648,6 +1659,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger.Warnf("External pre-split Redis pre-warm failed: %v", err)
 	}
 
+	cacheInvalidationConsumer, err := NewCacheInvalidationConsumer(cfg, logger, seedBrokers, redisConnection, telemetry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize cache invalidation consumer: %w", err)
+	}
+
 	service := &Service{
 		Server:                      server,
 		ServerGRPC:                  serverGRPC,
@@ -1658,6 +1674,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		ShardRebalanceWorker:        shardRebalanceWorker,
 		ShardRebalanceWorkerEnabled: resolvedShardRebalanceWorkerEnabled,
 		ShardRoutingSubscriber:      shardRoutingSubscriber,
+		CacheInvalidationConsumer:   cacheInvalidationConsumer,
 		CircuitBreakerManager:       brokerInfra.circuitBreakerManager,
 		ConsumerEnabled:             cfg.ConsumerEnabled,
 		Logger:                      logger,

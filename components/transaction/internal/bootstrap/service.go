@@ -45,6 +45,7 @@ type Service struct {
 	*ShardRebalanceWorker
 	ShardRebalanceWorkerEnabled bool
 	*ShardRoutingSubscriber
+	*CacheInvalidationConsumer
 	*CircuitBreakerManager
 	libLog.Logger
 
@@ -113,6 +114,13 @@ func (app *Service) Run() {
 	// route cache when another pod issues a SetRoutingOverride.
 	if app.ShardRoutingSubscriber != nil {
 		opts = append(opts, libCommons.RunApp("Shard Routing Subscriber", app.ShardRoutingSubscriber))
+	}
+
+	// Cache-invalidation consumer runs even when ConsumerEnabled=false,
+	// because API-only pods also hold read-through Redis caches that must
+	// be purged after an authorizer 2PC recovery completes on a peer.
+	if app.CacheInvalidationConsumer != nil {
+		opts = append(opts, libCommons.RunApp("Cache Invalidation Consumer", app.CacheInvalidationConsumer))
 	}
 
 	libCommons.NewLauncher(opts...).Run()
