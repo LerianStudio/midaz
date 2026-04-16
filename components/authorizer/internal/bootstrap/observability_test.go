@@ -5,11 +5,16 @@
 package bootstrap
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
+	libMetrics "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
 )
 
 func TestNormalizeReplaySkipReason(t *testing.T) {
@@ -225,6 +230,91 @@ func TestNormalizeStageCapsLengthAndFallback(t *testing.T) {
 	require.Equal(t, "unknown", normalizeStage("   "))
 	require.Equal(t, "wal_append", normalizeStage("  WAL_APPEND  "))
 	require.Len(t, normalizeStage("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"), 64)
+}
+
+// TestHistogramBucketBoundariesMatchSLOTargets verifies every latency
+// histogram is registered with the explicit bucket boundaries declared
+// in observability.go — guarding against a regression where the OTEL
+// SDK default buckets ({0, 5, 10, 25, 50, 75, 100, 250, 500, ...} ms)
+// collapse sub-ms latencies and miss the authorize SLO edge (150 ms),
+// forcing dashboards to interpolate instead of observe (see FINAL_REVIEW.md#B7).
+//
+// The test builds a MeterProvider wired to an in-memory ManualReader,
+// constructs a MetricsFactory against it, records a single sample per
+// histogram, collects the ResourceMetrics snapshot, and asserts the
+// Bounds of each HistogramDataPoint match the configured buckets.
+func TestHistogramBucketBoundariesMatchSLOTargets(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+
+	t.Cleanup(func() { _ = mp.Shutdown(context.Background()) })
+
+	factory := libMetrics.NewMetricsFactory(mp.Meter("authorizer-test"), nil)
+
+	// Record one sample per histogram so the SDK emits a data point.
+	factory.Histogram(authorizeLatencyMs).Record(context.Background(), 100)
+	factory.Histogram(engineLockWaitMs).Record(context.Background(), 1)
+	factory.Histogram(engineLockHoldMs).Record(context.Background(), 1)
+	factory.Histogram(redpandaPublishLatencyMs).Record(context.Background(), 5)
+	factory.Histogram(walFsyncLatencyMs).Record(context.Background(), 1)
+
+	var rm metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(context.Background(), &rm))
+	require.NotEmpty(t, rm.ScopeMetrics, "expected at least one scope metric")
+
+	// Flatten metrics by name for lookup.
+	byName := make(map[string]metricdata.Metrics)
+
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			byName[m.Name] = m
+		}
+	}
+
+	cases := []struct {
+		name string
+		want []float64
+	}{
+		{name: authorizeLatencyMs.Name, want: authorizeLatencyBucketsMs},
+		{name: engineLockWaitMs.Name, want: engineLockBucketsMs},
+		{name: engineLockHoldMs.Name, want: engineLockBucketsMs},
+		{name: redpandaPublishLatencyMs.Name, want: redpandaPublishBucketsMs},
+		{name: walFsyncLatencyMs.Name, want: walFsyncBucketsMs},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m, ok := byName[tc.name]
+			require.True(t, ok, "metric %q not emitted", tc.name)
+
+			hist, ok := m.Data.(metricdata.Histogram[int64])
+			require.Truef(t, ok, "metric %q is %T, want metricdata.Histogram[int64]", tc.name, m.Data)
+			require.NotEmpty(t, hist.DataPoints, "metric %q has no data points", tc.name)
+
+			require.Equal(t, tc.want, hist.DataPoints[0].Bounds,
+				"metric %q bucket boundaries drifted from SLO-aligned configuration", tc.name)
+		})
+	}
+}
+
+// TestAuthorizeLatencyBucketsContainSLOEdge guards the SLO-to-bucket
+// contract: if defaultAuthorizeLatencySLOMs ever changes, the bucket
+// boundaries MUST contain that exact edge so dashboards can report
+// "% of requests above SLO" without interpolation.
+func TestAuthorizeLatencyBucketsContainSLOEdge(t *testing.T) {
+	want := float64(defaultAuthorizeLatencySLOMs)
+	found := false
+
+	for _, b := range authorizeLatencyBucketsMs {
+		if b == want {
+			found = true
+			break
+		}
+	}
+
+	require.Truef(t, found,
+		"authorizeLatencyBucketsMs %v must contain SLO edge %.0f ms (defaultAuthorizeLatencySLOMs)",
+		authorizeLatencyBucketsMs, want)
 }
 
 func TestNormalizeLogTokenSanitizesControlCharsAndLength(t *testing.T) {

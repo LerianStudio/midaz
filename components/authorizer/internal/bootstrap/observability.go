@@ -36,6 +36,34 @@ var (
 	_ wal.Observer    = (*authorizerMetrics)(nil)
 )
 
+// Explicit histogram bucket boundaries (ms) aligned with SLO targets.
+// The OTEL SDK defaults ({0, 5, 10, 25, 50, 75, 100, 250, 500, ...} ms)
+// collapse sub-millisecond latencies and do not cross the 150 ms
+// authorize-latency SLO boundary — forcing dashboards to interpolate.
+// These boundaries are applied at instrument creation time via
+// libMetrics.Metric.Buckets, which lib-commons passes to the OTEL SDK
+// as metric.WithExplicitBucketBoundaries when the instrument is created.
+// All histograms record int64 milliseconds via durationMillis(); the
+// boundary values are expressed as float64 because the OTEL metric API
+// requires float64 bounds regardless of the instrument value type.
+var (
+	// authorizeLatencyBucketsMs covers sub-ms through 1s with an explicit
+	// edge at 150 ms matching defaultAuthorizeLatencySLOMs.
+	authorizeLatencyBucketsMs = []float64{0.5, 1, 2, 5, 10, 25, 50, 100, 150, 250, 500, 1000}
+
+	// engineLockBucketsMs reuses the authorize-latency shape so lock wait
+	// and hold P99s can be compared against the authorize SLO directly.
+	engineLockBucketsMs = []float64{0.5, 1, 2, 5, 10, 25, 50, 100, 150, 250, 500, 1000}
+
+	// redpandaPublishBucketsMs aligns with downstream publish SLO targets
+	// (same shape as authorize latency; 150 ms edge shared with SLO).
+	redpandaPublishBucketsMs = []float64{0.5, 1, 2, 5, 10, 25, 50, 100, 150, 250, 500, 1000}
+
+	// walFsyncBucketsMs is tighter and tops out at 25 ms because WAL
+	// fsync beyond that is a hard failure indicator, not a percentile.
+	walFsyncBucketsMs = []float64{0.1, 0.5, 1, 2, 5, 10, 25}
+)
+
 var (
 	authorizeRequestsTotal = libMetrics.Metric{
 		Name:        "authorizer_authorize_requests_total",
@@ -46,6 +74,7 @@ var (
 		Name:        "authorizer_authorize_latency_ms",
 		Unit:        "ms",
 		Description: "Authorization request latency in milliseconds.",
+		Buckets:     authorizeLatencyBucketsMs,
 	}
 	authorizeOperationsPerRequest = libMetrics.Metric{
 		Name:        "authorizer_operations_per_request",
@@ -61,11 +90,13 @@ var (
 		Name:        "authorizer_engine_lock_wait_ms",
 		Unit:        "ms",
 		Description: "Total lock wait time while acquiring balance locks.",
+		Buckets:     engineLockBucketsMs,
 	}
 	engineLockHoldMs = libMetrics.Metric{
 		Name:        "authorizer_engine_lock_hold_ms",
 		Unit:        "ms",
 		Description: "Lock hold duration for balance-locked authorization critical section.",
+		Buckets:     engineLockBucketsMs,
 	}
 	walQueueDepth = libMetrics.Metric{
 		Name:        "authorizer_wal_queue_depth",
@@ -91,11 +122,13 @@ var (
 		Name:        "authorizer_wal_fsync_latency_ms",
 		Unit:        "ms",
 		Description: "WAL fsync latency in milliseconds.",
+		Buckets:     walFsyncBucketsMs,
 	}
 	redpandaPublishLatencyMs = libMetrics.Metric{
 		Name:        "authorizer_redpanda_publish_latency_ms",
 		Unit:        "ms",
 		Description: "Redpanda publish latency in milliseconds.",
+		Buckets:     redpandaPublishBucketsMs,
 	}
 	redpandaPublishErrorsTotal = libMetrics.Metric{
 		Name:        "authorizer_redpanda_publish_errors_total",
