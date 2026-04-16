@@ -594,3 +594,130 @@ func TestLoadConfig_RejectsLookbackNotGreaterThanGrace(t *testing.T) {
 	require.ErrorContains(t, err, "AUTHORIZER_WAL_RECONCILER_LOOKBACK_MS")
 	require.ErrorContains(t, err, "AUTHORIZER_WAL_RECONCILER_GRACE_MS")
 }
+
+// TestWALPathProductionRejectsTmp proves a production-like ENV_NAME refuses
+// to persist WAL state under /tmp. /tmp is world-writable on POSIX systems
+// and a classic target for symlink-swap + tmpfs-eviction attacks.
+func TestWALPathProductionRejectsTmp(t *testing.T) {
+	t.Setenv("ENV_NAME", "production")
+	t.Setenv("DB_TRANSACTION_HOST", "localhost")
+	t.Setenv("DB_TRANSACTION_PORT", "5432")
+	t.Setenv("DB_TRANSACTION_USER", "midaz")
+	t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
+	t.Setenv("DB_TRANSACTION_NAME", "transaction")
+	t.Setenv("DB_TRANSACTION_SSLMODE", "require")
+	t.Setenv("AUTHORIZER_WAL_PATH", "/tmp/forbidden-authorizer.wal")
+
+	_, err := LoadConfig()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "AUTHORIZER_WAL_PATH")
+	require.ErrorContains(t, err, "/tmp")
+}
+
+// TestWALPathDevelopmentAcceptsTmp documents the complementary case: /tmp is
+// fine in non-production envs so local `make up` flows don't need to provision
+// /var/lib/midaz before iterating.
+func TestWALPathDevelopmentAcceptsTmp(t *testing.T) {
+	t.Setenv("ENV_NAME", "development")
+	t.Setenv("DB_TRANSACTION_HOST", "localhost")
+	t.Setenv("DB_TRANSACTION_PORT", "5432")
+	t.Setenv("DB_TRANSACTION_USER", "midaz")
+	t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
+	t.Setenv("DB_TRANSACTION_NAME", "transaction")
+	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+	t.Setenv("AUTHORIZER_WAL_PATH", "/tmp/dev-authorizer.wal")
+
+	cfg, err := LoadConfig()
+	require.NoError(t, err)
+	require.Equal(t, "/tmp/dev-authorizer.wal", cfg.WALPath)
+}
+
+// TestLoadConfig_RejectsMissingWALHMACKey proves AUTHORIZER_WAL_HMAC_KEY is
+// load-fails-closed. Operators cannot accidentally run without authenticated
+// WAL frames.
+func TestLoadConfig_RejectsMissingWALHMACKey(t *testing.T) {
+	t.Setenv("ENV_NAME", "development")
+	t.Setenv("DB_TRANSACTION_HOST", "localhost")
+	t.Setenv("DB_TRANSACTION_PORT", "5432")
+	t.Setenv("DB_TRANSACTION_USER", "midaz")
+	t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
+	t.Setenv("DB_TRANSACTION_NAME", "transaction")
+	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+	t.Setenv("AUTHORIZER_WAL_HMAC_KEY", "")
+
+	_, err := LoadConfig()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "AUTHORIZER_WAL_HMAC_KEY")
+}
+
+// TestLoadConfig_RejectsShortWALHMACKey proves the 32-byte minimum is
+// enforced at startup, not only at HMAC construction.
+func TestLoadConfig_RejectsShortWALHMACKey(t *testing.T) {
+	t.Setenv("ENV_NAME", "development")
+	t.Setenv("DB_TRANSACTION_HOST", "localhost")
+	t.Setenv("DB_TRANSACTION_PORT", "5432")
+	t.Setenv("DB_TRANSACTION_USER", "midaz")
+	t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
+	t.Setenv("DB_TRANSACTION_NAME", "transaction")
+	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+	t.Setenv("AUTHORIZER_WAL_HMAC_KEY", "Short1Key")
+
+	_, err := LoadConfig()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "AUTHORIZER_WAL_HMAC_KEY")
+}
+
+// TestLoadConfig_RejectsWeakWALHMACKey proves denylisted placeholder values
+// (e.g. "changeme", "password") are rejected regardless of length padding.
+func TestLoadConfig_RejectsWeakWALHMACKey(t *testing.T) {
+	t.Setenv("ENV_NAME", "development")
+	t.Setenv("DB_TRANSACTION_HOST", "localhost")
+	t.Setenv("DB_TRANSACTION_PORT", "5432")
+	t.Setenv("DB_TRANSACTION_USER", "midaz")
+	t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
+	t.Setenv("DB_TRANSACTION_NAME", "transaction")
+	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+	t.Setenv("AUTHORIZER_WAL_HMAC_KEY", "00000000000000000000000000000000")
+
+	_, err := LoadConfig()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "AUTHORIZER_WAL_HMAC_KEY")
+}
+
+// TestLoadConfig_RejectsDuplicateWALHMACPreviousKey prevents operators from
+// rotating to the same key twice (which would defeat the purpose of rotation
+// and leaves a visible audit trail).
+func TestLoadConfig_RejectsDuplicateWALHMACPreviousKey(t *testing.T) {
+	t.Setenv("ENV_NAME", "development")
+	t.Setenv("DB_TRANSACTION_HOST", "localhost")
+	t.Setenv("DB_TRANSACTION_PORT", "5432")
+	t.Setenv("DB_TRANSACTION_USER", "midaz")
+	t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
+	t.Setenv("DB_TRANSACTION_NAME", "transaction")
+	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+	t.Setenv("AUTHORIZER_WAL_HMAC_KEY", "RotateTestHMACKey32bytes_curent1")
+	t.Setenv("AUTHORIZER_WAL_HMAC_KEY_PREVIOUS", "RotateTestHMACKey32bytes_curent1")
+
+	_, err := LoadConfig()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "AUTHORIZER_WAL_HMAC_KEY_PREVIOUS")
+}
+
+// TestLoadConfig_AcceptsWALHMACKeyRotation proves a distinct previous key is
+// accepted and surfaced on the Config.
+func TestLoadConfig_AcceptsWALHMACKeyRotation(t *testing.T) {
+	t.Setenv("ENV_NAME", "development")
+	t.Setenv("DB_TRANSACTION_HOST", "localhost")
+	t.Setenv("DB_TRANSACTION_PORT", "5432")
+	t.Setenv("DB_TRANSACTION_USER", "midaz")
+	t.Setenv("DB_TRANSACTION_PASSWORD", "secret")
+	t.Setenv("DB_TRANSACTION_NAME", "transaction")
+	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+	t.Setenv("AUTHORIZER_WAL_HMAC_KEY", "RotateTestHMACKey32bytes_curent1")
+	t.Setenv("AUTHORIZER_WAL_HMAC_KEY_PREVIOUS", "RotateTestHMACKey32bytes_prev001")
+
+	cfg, err := LoadConfig()
+	require.NoError(t, err)
+	require.Equal(t, []byte("RotateTestHMACKey32bytes_curent1"), cfg.WALHMACKey)
+	require.Equal(t, []byte("RotateTestHMACKey32bytes_prev001"), cfg.WALHMACKeyPrevious)
+}

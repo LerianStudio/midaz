@@ -33,10 +33,17 @@ const (
 // PREPARED commit intent so the existing recovery runner can drive the transaction
 // to completion. This closes the reliability gap when AsyncCommitIntent is enabled
 // and the publish fails after local commit.
+//
+// SECURITY NOTE: The reconciler republishes commit intents derived from WAL
+// entries, so WAL integrity is a transitive requirement for the 2PC protocol.
+// walHMACKeys are passed to wal.Replay so tampered frames are rejected before
+// any intent is constructed.
 type walReconciler struct {
 	service      *authorizerService
+	observer     wal.Observer
 	logger       libLog.Logger
 	walPath      string
+	walHMACKeys  [][]byte
 	interval     time.Duration
 	lookback     time.Duration
 	grace        time.Duration
@@ -55,7 +62,7 @@ type walReconciler struct {
 	redpandaSASLPassword    string
 }
 
-func newWALReconciler(cfg *Config, svc *authorizerService, logger libLog.Logger) *walReconciler {
+func newWALReconciler(cfg *Config, svc *authorizerService, logger libLog.Logger, observer wal.Observer) *walReconciler {
 	interval := cfg.WALReconcilerInterval
 	if interval <= 0 {
 		interval = defaultReconcilerInterval
@@ -76,10 +83,17 @@ func newWALReconciler(cfg *Config, svc *authorizerService, logger libLog.Logger)
 		completedTTL = defaultReconcilerCompletedTTL
 	}
 
+	walHMACKeys := [][]byte{cfg.WALHMACKey}
+	if len(cfg.WALHMACKeyPrevious) > 0 {
+		walHMACKeys = append(walHMACKeys, cfg.WALHMACKeyPrevious)
+	}
+
 	return &walReconciler{
 		service:      svc,
+		observer:     observer,
 		logger:       logger,
 		walPath:      cfg.WALPath,
+		walHMACKeys:  walHMACKeys,
 		interval:     interval,
 		lookback:     lookback,
 		grace:        grace,
@@ -267,7 +281,7 @@ func (r *walReconciler) reconcile(ctx context.Context) {
 		return
 	}
 
-	entries, err := wal.Replay(r.walPath)
+	entries, err := wal.Replay(r.walPath, r.walHMACKeys, r.observer)
 	if err != nil {
 		r.logger.Warnf("Authorizer WAL reconciler replay failed: %v", err)
 		return

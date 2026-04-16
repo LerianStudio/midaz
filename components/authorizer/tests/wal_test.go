@@ -18,11 +18,31 @@ import (
 	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 )
 
+// testWALHMACKey is a 32-byte key shared across authorizer/tests package wal
+// scenarios. Production WAL uses a key from AUTHORIZER_WAL_HMAC_KEY validated
+// against the deny list and character-class policy in bootstrap/config.go.
+var testWALHMACKey = []byte("integration-tests-wal-hmac-key!!")
+
+// replaySkipObserver captures the reasons passed to ObserveWALReplaySkipped so
+// tests can prove a skip metric actually fired (not just that NoError was
+// returned -- which a silent drop would also satisfy).
+type replaySkipObserver struct {
+	reasons []string
+}
+
+func (o *replaySkipObserver) ObserveAuthorizeLockWait(_, _ int, _ time.Duration) {}
+func (o *replaySkipObserver) ObserveAuthorizeLockHold(_, _ int, _ time.Duration) {}
+func (o *replaySkipObserver) ObserveWALAppendFailure(_ error)                    {}
+
+func (o *replaySkipObserver) ObserveWALReplaySkipped(reason, _ string, _ int) {
+	o.reasons = append(o.reasons, reason)
+}
+
 func TestWALAppendAndRecovery(t *testing.T) {
 	tempDir := t.TempDir()
 	walPath := filepath.Join(tempDir, "authorizer.wal")
 
-	writer, err := wal.NewRingBufferWriter(walPath, 1024, time.Millisecond)
+	writer, err := wal.NewRingBufferWriter(walPath, 1024, time.Millisecond, testWALHMACKey)
 	require.NoError(t, err)
 
 	router := shard.NewRouter(8)
@@ -48,7 +68,7 @@ func TestWALAppendAndRecovery(t *testing.T) {
 
 	require.NoError(t, writer.Close())
 
-	entries, err := wal.Replay(walPath)
+	entries, err := wal.Replay(walPath, [][]byte{testWALHMACKey}, nil)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 
@@ -84,6 +104,8 @@ func TestReplayEntriesSkipsVersionMismatchWithoutMutation(t *testing.T) {
 
 	defer recoveryEngine.Close()
 
+	observer := &replaySkipObserver{}
+	recoveryEngine.SetObserver(observer)
 	recoveryEngine.ConfigureReplayPolicy(2048, 2048, false)
 	recoveryEngine.UpsertBalances(seedRecoveryBalances())
 
@@ -103,6 +125,13 @@ func TestReplayEntriesSkipsVersionMismatchWithoutMutation(t *testing.T) {
 		},
 	}})
 	require.NoError(t, err)
+
+	// STRONGER ASSERTION: the skip must be observable through the metrics
+	// pipeline. A silent drop (no observer fire) would also satisfy
+	// require.NoError above, which is why the bare NoError assertion was
+	// insufficient for detecting regressions.
+	require.Equal(t, []string{"version_mismatch"}, observer.reasons,
+		"version mismatch must emit exactly one skip metric")
 
 	alice, ok := recoveryEngine.GetBalance("org", "ledger", "@alice", constant.DefaultBalanceKey)
 	require.True(t, ok)

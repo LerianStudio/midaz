@@ -124,6 +124,16 @@ var (
 		Description: "WAL fsync latency in milliseconds.",
 		Buckets:     walFsyncBucketsMs,
 	}
+	walHMACVerifyFailedTotal = libMetrics.Metric{
+		Name:        "authorizer_wal_hmac_verify_failed_total",
+		Unit:        "1",
+		Description: "Total number of WAL frames that failed HMAC-SHA256 verification on replay (tamper or key-rotation signal).",
+	}
+	walTruncationTotal = libMetrics.Metric{
+		Name:        "authorizer_wal_truncation_total",
+		Unit:        "1",
+		Description: "Total number of WAL self-healing truncations (corruption, partial writes, HMAC mismatches).",
+	}
 	redpandaPublishLatencyMs = libMetrics.Metric{
 		Name:        "authorizer_redpanda_publish_latency_ms",
 		Unit:        "ms",
@@ -358,6 +368,54 @@ func (m *authorizerMetrics) ObserveWALFsyncLatency(latency time.Duration) {
 	}
 
 	m.factory.Histogram(walFsyncLatencyMs).Record(context.Background(), durationMillis(latency))
+}
+
+// ObserveWALHMACVerifyFailed emits a high-severity security metric and audit
+// log line whenever a WAL frame fails HMAC verification on replay. Operators
+// MUST alert on any non-zero rate; sustained failures indicate either disk
+// corruption, key rotation misconfiguration, or deliberate tampering.
+func (m *authorizerMetrics) ObserveWALHMACVerifyFailed(offset int64, reason string) {
+	if m == nil {
+		return
+	}
+
+	normalizedReason := normalizeStage(reason)
+
+	if m.factory != nil {
+		m.factory.Counter(walHMACVerifyFailedTotal).
+			WithLabels(map[string]string{"reason": normalizedReason}).
+			AddOne(context.Background())
+	}
+
+	if m.logger != nil {
+		m.logger.Errorf(
+			"Authorizer WAL HMAC verify failed (SECURITY): offset=%d reason=%s — investigate immediately",
+			offset, normalizedReason,
+		)
+	}
+}
+
+// ObserveWALTruncation records every self-healing WAL truncation. Expected
+// during crash recovery; unexpected when co-occurring with HMAC failures.
+func (m *authorizerMetrics) ObserveWALTruncation(offset int64, reason string) {
+	if m == nil {
+		return
+	}
+
+	normalizedReason := normalizeStage(reason)
+
+	if m.factory != nil {
+		m.factory.Counter(walTruncationTotal).
+			WithLabels(map[string]string{"reason": normalizedReason}).
+			AddOne(context.Background())
+	}
+
+	if m.logger != nil {
+		m.logger.Warnf(
+			"Authorizer WAL self-healing truncation: offset=%d reason=%s",
+			offset, normalizedReason,
+		)
+	}
 }
 
 func bucketOperationCount(operationCount int) string {

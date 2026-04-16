@@ -6,10 +6,11 @@ package wal
 
 import (
 	"bufio"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"hash/crc32"
 	"math"
 	"os"
 	"path/filepath"
@@ -21,7 +22,21 @@ import (
 )
 
 const (
-	recordHeaderSize = 8
+	// Record frame layout (little-endian):
+	//   offset  0..4   — payload length (uint32)
+	//   offset  4..36  — HMAC-SHA256(key, lenBytes || payload) (32 bytes)
+	//   offset 36..40  — reserved, zero-filled (reserved for future frame flags / seq)
+	//   offset 40..    — payload (JSON-encoded Entry)
+	//
+	// The HMAC covers the length prefix so truncation that changes the
+	// declared payload size is detected on replay.
+	recordHMACSize     = sha256.Size
+	recordReservedSize = 4
+	recordHeaderSize   = 4 + recordHMACSize + recordReservedSize
+
+	// MinHMACKeyLength is the minimum acceptable length (in bytes) for the WAL
+	// HMAC key. 32 bytes = 256 bits, matching the block size of SHA-256.
+	MinHMACKeyLength = 32
 
 	// walDirPerm is the permission mode for the WAL directory.
 	walDirPerm = 0o700
@@ -48,13 +63,19 @@ type WALParticipant struct {
 // CrossShard, Participants) use omitempty so entries written before those fields
 // existed remain byte-compatible when round-tripped through marshal/unmarshal --
 // the keys are simply absent rather than present with zero values.
+//
+// LEGACY FIELDS (unread on replay): Pending, TransactionStatus and Operations
+// are persisted for historical compatibility and external offline tooling but
+// are NOT consumed by Engine.ReplayEntries — which only reconstructs balance
+// state from Mutations. Do not rely on them for in-process recovery; they are
+// kept in the schema solely so older WAL files remain parseable.
 type Entry struct {
 	TransactionID     string                           `json:"transactionId"`
 	OrganizationID    string                           `json:"organizationId"`
 	LedgerID          string                           `json:"ledgerId"`
-	Pending           bool                             `json:"pending"`
-	TransactionStatus string                           `json:"transactionStatus"`
-	Operations        []*authorizerv1.BalanceOperation `json:"operations"`
+	Pending           bool                             `json:"pending"`           // legacy: unread on replay
+	TransactionStatus string                           `json:"transactionStatus"` // legacy: unread on replay
+	Operations        []*authorizerv1.BalanceOperation `json:"operations"`        // legacy: unread on replay
 	Mutations         []BalanceMutation                `json:"mutations,omitempty"`
 	CrossShard        bool                             `json:"crossShard,omitempty"`
 	Participants      []WALParticipant                 `json:"participants,omitempty"`
@@ -83,6 +104,15 @@ type Observer interface {
 	ObserveWALAppendDropped(err error)
 	ObserveWALWriteError(stage string, err error)
 	ObserveWALFsyncLatency(latency time.Duration)
+	// ObserveWALHMACVerifyFailed is emitted when a WAL frame fails HMAC
+	// verification on replay. This typically indicates tampering, key
+	// rotation without the previous key configured, or on-disk corruption.
+	ObserveWALHMACVerifyFailed(offset int64, reason string)
+	// ObserveWALTruncation is emitted when replay truncates trailing bytes of
+	// the WAL file (corruption, partial write, HMAC mismatch). offset is the
+	// byte offset at which the file was truncated; reason is a short label
+	// identifying why truncation was performed.
+	ObserveWALTruncation(offset int64, reason string)
 }
 
 type noopWriter struct{}
@@ -109,6 +139,7 @@ type RingBufferWriter struct {
 	flush        *time.Ticker
 	obs          Observer
 	syncOnAppend bool
+	hmacKey      []byte
 
 	entries chan Entry
 	stop    chan struct{}
@@ -120,25 +151,32 @@ type RingBufferWriter struct {
 }
 
 // NewRingBufferWriter creates a file-backed WAL writer.
-func NewRingBufferWriter(path string, bufferSize int, flushInterval time.Duration) (*RingBufferWriter, error) {
-	return NewRingBufferWriterWithOptions(path, bufferSize, flushInterval, false, nil)
+// The hmacKey must be at least MinHMACKeyLength bytes; shorter keys are rejected.
+func NewRingBufferWriter(path string, bufferSize int, flushInterval time.Duration, hmacKey []byte) (*RingBufferWriter, error) {
+	return NewRingBufferWriterWithOptions(path, bufferSize, flushInterval, false, nil, hmacKey)
 }
 
 // NewRingBufferWriterWithObserver creates a file-backed WAL writer with observability hooks.
-func NewRingBufferWriterWithObserver(path string, bufferSize int, flushInterval time.Duration, observer Observer) (*RingBufferWriter, error) {
-	return NewRingBufferWriterWithOptions(path, bufferSize, flushInterval, false, observer)
+func NewRingBufferWriterWithObserver(path string, bufferSize int, flushInterval time.Duration, observer Observer, hmacKey []byte) (*RingBufferWriter, error) {
+	return NewRingBufferWriterWithOptions(path, bufferSize, flushInterval, false, observer, hmacKey)
 }
 
 // NewRingBufferWriterWithOptions creates a file-backed WAL writer with optional synchronous append semantics.
+// The hmacKey is used to sign every appended frame with HMAC-SHA256; it MUST be >= MinHMACKeyLength.
 func NewRingBufferWriterWithOptions(
 	path string,
 	bufferSize int,
 	flushInterval time.Duration,
 	syncOnAppend bool,
 	observer Observer,
+	hmacKey []byte,
 ) (*RingBufferWriter, error) {
 	if path == "" {
 		return nil, constant.ErrWALPathEmpty
+	}
+
+	if len(hmacKey) < MinHMACKeyLength {
+		return nil, fmt.Errorf("hmac key length=%d minimum=%d: %w", len(hmacKey), MinHMACKeyLength, constant.ErrWALHMACKeyRequired)
 	}
 
 	if bufferSize <= 0 {
@@ -153,10 +191,18 @@ func NewRingBufferWriterWithOptions(
 		return nil, fmt.Errorf("create wal directory: %w", err)
 	}
 
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, walFilePerm)
+	// O_NOFOLLOW (POSIX): refuse to open the WAL file if it is a symlink.
+	// Prevents an attacker with filesystem access from swapping the WAL path
+	// for a symlink pointing at an arbitrary victim file.
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY|openNoFollowFlag(), walFilePerm)
 	if err != nil {
 		return nil, fmt.Errorf("open wal file: %w", err)
 	}
+
+	// Defensive copy of the key so the caller cannot mutate signing material
+	// after construction.
+	keyCopy := make([]byte, len(hmacKey))
+	copy(keyCopy, hmacKey)
 
 	r := &RingBufferWriter{
 		file:         file,
@@ -164,6 +210,7 @@ func NewRingBufferWriterWithOptions(
 		flush:        time.NewTicker(flushInterval),
 		obs:          observer,
 		syncOnAppend: syncOnAppend,
+		hmacKey:      keyCopy,
 		entries:      make(chan Entry, bufferSize),
 		stop:         make(chan struct{}),
 		done:         make(chan struct{}),
@@ -215,7 +262,7 @@ func (r *RingBufferWriter) appendSync(entry Entry) error {
 		return constant.ErrWALWriterNotAvailable
 	}
 
-	frame, err := encodeEntryFrame(entry)
+	frame, err := encodeEntryFrame(entry, r.hmacKey)
 	if err != nil {
 		r.observeWriteError("encode", err)
 		err = fmt.Errorf("encode wal entry: %w", err)
@@ -333,7 +380,7 @@ func (r *RingBufferWriter) writeEntry(entry Entry) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	frame, err := encodeEntryFrame(entry)
+	frame, err := encodeEntryFrame(entry, r.hmacKey)
 	if err != nil {
 		r.observeWriteError("encode", err)
 		r.setError(fmt.Errorf("encode wal entry: %w", err))
@@ -432,7 +479,29 @@ func (r *RingBufferWriter) observeFsyncLatency(latency time.Duration) {
 	r.obs.ObserveWALFsyncLatency(latency)
 }
 
-func encodeEntryFrame(entry Entry) ([]byte, error) {
+// computeFrameHMAC returns HMAC-SHA256(key, lenBytes || payload).
+// Including the length prefix in the MAC input binds the declared payload
+// size to the payload bytes, so a tampered header that lies about length
+// cannot pass verification even if the payload is re-signed separately.
+func computeFrameHMAC(key, lenBytes, payload []byte) []byte {
+	mac := hmac.New(sha256.New, key)
+	mac.Write(lenBytes)
+	mac.Write(payload)
+
+	return mac.Sum(nil)
+}
+
+// encodeEntryFrame serializes entry as a length-prefixed frame authenticated
+// by HMAC-SHA256. The reserved trailing 4 bytes of the header are zero-filled;
+// they are reserved for a future monotonic sequence number or frame flags and
+// are covered neither by the HMAC nor by any current reader (they MUST stay
+// zero so older readers that ignore them continue to verify correctly if the
+// layout is extended later).
+func encodeEntryFrame(entry Entry, hmacKey []byte) ([]byte, error) {
+	if len(hmacKey) < MinHMACKeyLength {
+		return nil, fmt.Errorf("hmac key length=%d minimum=%d: %w", len(hmacKey), MinHMACKeyLength, constant.ErrWALHMACKeyRequired)
+	}
+
 	payload, err := json.Marshal(entry)
 	if err != nil {
 		return nil, fmt.Errorf("marshal wal entry: %w", err)
@@ -444,7 +513,10 @@ func encodeEntryFrame(entry Entry) ([]byte, error) {
 
 	frame := make([]byte, recordHeaderSize+len(payload))
 	binary.LittleEndian.PutUint32(frame[:4], uint32(len(payload))) //nolint:gosec // length validated above against MaxUint32
-	binary.LittleEndian.PutUint32(frame[4:8], crc32.ChecksumIEEE(payload))
+
+	mac := computeFrameHMAC(hmacKey, frame[:4], payload)
+	copy(frame[4:4+recordHMACSize], mac)
+	// frame[4+recordHMACSize : recordHeaderSize] is the reserved zero-filled region.
 	copy(frame[recordHeaderSize:], payload)
 
 	return frame, nil

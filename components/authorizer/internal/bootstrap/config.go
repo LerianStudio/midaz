@@ -67,9 +67,20 @@ var (
 	errConfigPeerAuthTokenWeak          = errors.New("AUTHORIZER_PEER_AUTH_TOKEN uses a denied weak value")
 	errConfigPeerAuthTokenShort         = errors.New("AUTHORIZER_PEER_AUTH_TOKEN too short")
 	errConfigPeerAuthTokenClasses       = errors.New("AUTHORIZER_PEER_AUTH_TOKEN must include at least 3 character classes")
+	errConfigWALHMACKeyRequired         = errors.New("AUTHORIZER_WAL_HMAC_KEY is required")
+	errConfigWALHMACKeyShort            = errors.New("AUTHORIZER_WAL_HMAC_KEY must be at least 32 bytes")
+	errConfigWALHMACKeyWeak             = errors.New("AUTHORIZER_WAL_HMAC_KEY uses a denied weak value")
+	errConfigWALHMACKeyClasses          = errors.New("AUTHORIZER_WAL_HMAC_KEY must include at least 3 character classes")
+	errConfigWALHMACKeyPrevDuplicate    = errors.New("AUTHORIZER_WAL_HMAC_KEY_PREVIOUS must differ from AUTHORIZER_WAL_HMAC_KEY")
+	errConfigWALPathInTmpProduction     = errors.New("AUTHORIZER_WAL_PATH must not live under /tmp in production-like environments")
 )
 
 const minPeerAuthTokenLength = 24
+
+// minWALHMACKeyLength matches wal.MinHMACKeyLength (32 bytes / 256 bits).
+// Defined here (rather than imported) so the config package can validate
+// without a circular import from wal → bootstrap.
+const minWALHMACKeyLength = 32
 
 const (
 	maxConfigPrepareMaxPending               = 1_000_000
@@ -134,24 +145,42 @@ var deniedPeerAuthTokens = map[string]struct{}{
 	"secret-token":           {},
 }
 
+// deniedWALHMACKeys lists obvious weak or placeholder HMAC keys that MUST be
+// rejected before the authorizer starts. Additions should lowercase the value
+// before inserting; lookups normalize with strings.ToLower.
+var deniedWALHMACKeys = map[string]struct{}{
+	"changeme":                         {},
+	"midaz-local-wal-hmac-key":         {},
+	"00000000000000000000000000000000": {},
+	"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {},
+	"password":                         {},
+	"secret":                           {},
+}
+
 // Config is the runtime configuration for the authorizer service.
 type Config struct {
-	EnvName                            string
-	GRPCAddress                        string
-	InstanceAddress                    string
-	ShardCount                         int
-	ShardIDs                           []int32
-	AuthorizeLatencySLO                time.Duration
-	EnableTelemetry                    bool
-	OtelServiceName                    string
-	OtelLibraryName                    string
-	OtelServiceVersion                 string
-	OtelDeploymentEnv                  string
-	OtelColExporterEndpoint            string
-	WALPath                            string
-	WALBufferSize                      int
-	WALFlushInterval                   time.Duration
-	WALSyncOnAppend                    bool
+	EnvName                 string
+	GRPCAddress             string
+	InstanceAddress         string
+	ShardCount              int
+	ShardIDs                []int32
+	AuthorizeLatencySLO     time.Duration
+	EnableTelemetry         bool
+	OtelServiceName         string
+	OtelLibraryName         string
+	OtelServiceVersion      string
+	OtelDeploymentEnv       string
+	OtelColExporterEndpoint string
+	WALPath                 string
+	WALBufferSize           int
+	WALFlushInterval        time.Duration
+	WALSyncOnAppend         bool
+	// WALHMACKey is the 32+ byte shared secret used to authenticate WAL frames
+	// (HMAC-SHA256). Loaded from AUTHORIZER_WAL_HMAC_KEY; required at startup.
+	WALHMACKey []byte
+	// WALHMACKeyPrevious is an optional previous key accepted on verification
+	// during key rotation. Loaded from AUTHORIZER_WAL_HMAC_KEY_PREVIOUS.
+	WALHMACKeyPrevious                 []byte
 	PrepareTimeout                     time.Duration
 	PrepareMaxPending                  int
 	MaxOperationsPerRequest            int
@@ -310,8 +339,17 @@ func loadCoreConfig() (*Config, error) {
 	otelDeploymentEnv := getenv("OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT", envName)
 	otelCollectorEndpoint := getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 
-	walPath := getenv("AUTHORIZER_WAL_PATH", "/tmp/midaz-authorizer-wal.log")
+	// Default WAL path is explicitly outside /tmp because /tmp is world-writable
+	// on POSIX systems and a common target for symlink-swap attacks. Operators
+	// may still override via AUTHORIZER_WAL_PATH, but validateWALPath() rejects
+	// /tmp-rooted paths in production-like environments.
+	walPath := getenv("AUTHORIZER_WAL_PATH", "/var/lib/midaz/authorizer/wal.log")
 	walBufferSize := getenvInt("AUTHORIZER_WAL_BUFFER_SIZE", defaultWALBufferSize)
+
+	walHMACKeyRaw, walHMACKeyPreviousRaw, err := loadWALHMACKeys()
+	if err != nil {
+		return nil, err
+	}
 
 	walFlushIntervalMs := getenvInt("AUTHORIZER_WAL_FLUSH_INTERVAL_MS", defaultWALFlushIntervalMs)
 	if walFlushIntervalMs < 0 {
@@ -451,6 +489,8 @@ func loadCoreConfig() (*Config, error) {
 		WALBufferSize:                      walBufferSize,
 		WALFlushInterval:                   time.Duration(walFlushIntervalMs) * time.Millisecond,
 		WALSyncOnAppend:                    walSyncOnAppend,
+		WALHMACKey:                         []byte(walHMACKeyRaw),
+		WALHMACKeyPrevious:                 []byte(walHMACKeyPreviousRaw),
 		PrepareTimeout:                     time.Duration(prepareTimeoutMs) * time.Millisecond,
 		PrepareMaxPending:                  prepareMaxPending,
 		MaxOperationsPerRequest:            maxOperationsPerRequest,
@@ -740,6 +780,15 @@ func validateWALPath(cfg *Config) error {
 		return fmt.Errorf("invalid AUTHORIZER_WAL_PATH=%q: %w", cfg.WALPath, err)
 	}
 
+	// In production-like environments, disallow WAL paths rooted at /tmp.
+	// /tmp is world-writable and a common target for symlink-swap attacks,
+	// and persisting durable state there risks loss on reboot under tmpfs.
+	if !brokersecurity.IsNonProductionEnvironment(cfg.EnvName) {
+		if strings.HasPrefix(resolvedWALPath, "/tmp/") || resolvedWALPath == "/tmp" {
+			return fmt.Errorf("path=%q env=%q: %w", resolvedWALPath, cfg.EnvName, errConfigWALPathInTmpProduction)
+		}
+	}
+
 	cfg.WALPath = resolvedWALPath
 
 	return nil
@@ -907,6 +956,83 @@ func validatePeerAuthToken(token string) error {
 
 	if classes < minPeerAuthTokenCharacterClasses {
 		return errConfigPeerAuthTokenClasses
+	}
+
+	return nil
+}
+
+// loadWALHMACKeys reads AUTHORIZER_WAL_HMAC_KEY and its optional _PREVIOUS
+// companion from the environment and runs the hygiene checks. Extracted from
+// loadCoreConfig to keep that function's cognitive complexity within budget.
+func loadWALHMACKeys() (current, previous string, err error) {
+	current = strings.TrimSpace(getenv("AUTHORIZER_WAL_HMAC_KEY", ""))
+	previous = strings.TrimSpace(getenv("AUTHORIZER_WAL_HMAC_KEY_PREVIOUS", ""))
+
+	if keyErr := validateWALHMACKey(current); keyErr != nil {
+		return "", "", keyErr
+	}
+
+	if previous == "" {
+		return current, "", nil
+	}
+
+	if keyErr := validateWALHMACKey(previous); keyErr != nil {
+		return "", "", fmt.Errorf("AUTHORIZER_WAL_HMAC_KEY_PREVIOUS is invalid: %w", keyErr)
+	}
+
+	if previous == current {
+		return "", "", errConfigWALHMACKeyPrevDuplicate
+	}
+
+	return current, previous, nil
+}
+
+// validateWALHMACKey enforces the same hygiene we apply to peer auth tokens
+// (denylist, minimum length, character-class diversity) for the WAL HMAC key.
+// The minimum length is 32 bytes so there is at least 256 bits of entropy
+// available, matching the block size of SHA-256.
+func validateWALHMACKey(key string) error {
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" {
+		return errConfigWALHMACKeyRequired
+	}
+
+	if _, denied := deniedWALHMACKeys[strings.ToLower(trimmed)]; denied {
+		return errConfigWALHMACKeyWeak
+	}
+
+	if len(trimmed) < minWALHMACKeyLength {
+		return fmt.Errorf("length=%d minimum=%d: %w", len(trimmed), minWALHMACKeyLength, errConfigWALHMACKeyShort)
+	}
+
+	hasLower := false
+	hasUpper := false
+	hasDigit := false
+	hasSymbol := false
+
+	for _, r := range trimmed {
+		switch {
+		case unicode.IsLower(r):
+			hasLower = true
+		case unicode.IsUpper(r):
+			hasUpper = true
+		case unicode.IsDigit(r):
+			hasDigit = true
+		default:
+			hasSymbol = true
+		}
+	}
+
+	classes := 0
+
+	for _, present := range []bool{hasLower, hasUpper, hasDigit, hasSymbol} {
+		if present {
+			classes++
+		}
+	}
+
+	if classes < minPeerAuthTokenCharacterClasses {
+		return errConfigWALHMACKeyClasses
 	}
 
 	return nil

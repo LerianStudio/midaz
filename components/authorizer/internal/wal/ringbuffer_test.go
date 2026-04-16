@@ -16,7 +16,7 @@ import (
 func TestWALEntryBackwardCompatDeserializesWithoutCrossShardFields(t *testing.T) {
 	walPath := filepath.Join(t.TempDir(), "authorizer-backcompat.wal")
 
-	writer, err := NewRingBufferWriterWithOptions(walPath, 16, time.Hour, true, nil)
+	writer, err := NewRingBufferWriterWithOptions(walPath, 16, time.Hour, true, nil, testHMACKey)
 	require.NoError(t, err)
 
 	// Write an entry WITHOUT CrossShard/Participants (simulating old format).
@@ -30,7 +30,7 @@ func TestWALEntryBackwardCompatDeserializesWithoutCrossShardFields(t *testing.T)
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
-	entries, err := Replay(walPath)
+	entries, err := Replay(walPath, [][]byte{testHMACKey}, nil)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	require.Equal(t, "tx-old-format", entries[0].TransactionID)
@@ -43,7 +43,7 @@ func TestWALEntryBackwardCompatDeserializesWithoutCrossShardFields(t *testing.T)
 func TestWALEntryCrossShardRoundTrip(t *testing.T) {
 	walPath := filepath.Join(t.TempDir(), "authorizer-crossshard.wal")
 
-	writer, err := NewRingBufferWriterWithOptions(walPath, 16, time.Hour, true, nil)
+	writer, err := NewRingBufferWriterWithOptions(walPath, 16, time.Hour, true, nil, testHMACKey)
 	require.NoError(t, err)
 
 	participants := []WALParticipant{
@@ -64,7 +64,7 @@ func TestWALEntryCrossShardRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
-	entries, err := Replay(walPath)
+	entries, err := Replay(walPath, [][]byte{testHMACKey}, nil)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 
@@ -89,7 +89,7 @@ func TestWALEntryCrossShardRoundTrip(t *testing.T) {
 func TestWALEntryMixedOldAndNewFormatsReplay(t *testing.T) {
 	walPath := filepath.Join(t.TempDir(), "authorizer-mixed.wal")
 
-	writer, err := NewRingBufferWriterWithOptions(walPath, 16, time.Hour, true, nil)
+	writer, err := NewRingBufferWriterWithOptions(walPath, 16, time.Hour, true, nil, testHMACKey)
 	require.NoError(t, err)
 
 	// Write an old-format entry (no cross-shard fields).
@@ -115,7 +115,7 @@ func TestWALEntryMixedOldAndNewFormatsReplay(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
-	entries, err := Replay(walPath)
+	entries, err := Replay(walPath, [][]byte{testHMACKey}, nil)
 	require.NoError(t, err)
 	require.Len(t, entries, 2)
 
@@ -167,7 +167,7 @@ func TestWALEntryDeserializesFromLegacyJSON(t *testing.T) {
 func TestRingBufferWriterSyncOnAppendPersistsImmediately(t *testing.T) {
 	walPath := filepath.Join(t.TempDir(), "authorizer.wal")
 
-	writer, err := NewRingBufferWriterWithOptions(walPath, 16, time.Hour, true, nil)
+	writer, err := NewRingBufferWriterWithOptions(walPath, 16, time.Hour, true, nil, testHMACKey)
 	require.NoError(t, err)
 
 	defer func() {
@@ -183,7 +183,7 @@ func TestRingBufferWriterSyncOnAppendPersistsImmediately(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	entries, err := Replay(walPath)
+	entries, err := Replay(walPath, [][]byte{testHMACKey}, nil)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	require.Equal(t, "tx-1", entries[0].TransactionID)

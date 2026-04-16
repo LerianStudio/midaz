@@ -69,11 +69,16 @@ func (p *reconcilerCapturingPublisher) count() int {
 	return len(p.messages)
 }
 
+// testWALHMACKey is a fixed 32-byte key used by bootstrap-package tests that
+// need to produce a verifiable WAL file. Real keys are loaded from the
+// environment at bootstrap time; see TestLoadConfig_AcceptsValidWALHMACKey.
+var testWALHMACKey = []byte("reconciler-test-hmac-key-32bytes")
+
 // writeWALEntry writes a single WAL entry to the given path.
 func writeWALEntry(t *testing.T, walPath string, entry wal.Entry) {
 	t.Helper()
 
-	writer, err := wal.NewRingBufferWriterWithOptions(walPath, 16, time.Hour, true, nil)
+	writer, err := wal.NewRingBufferWriterWithOptions(walPath, 16, time.Hour, true, nil, testWALHMACKey)
 	require.NoError(t, err)
 
 	require.NoError(t, writer.Append(entry))
@@ -89,6 +94,7 @@ func newTestReconciler(walPath string, pub publisher.Publisher) *walReconciler {
 		service:      svc,
 		logger:       reconcilerTestLogger{},
 		walPath:      walPath,
+		walHMACKeys:  [][]byte{testWALHMACKey},
 		interval:     10 * time.Second,
 		lookback:     5 * time.Minute,
 		grace:        30 * time.Second,

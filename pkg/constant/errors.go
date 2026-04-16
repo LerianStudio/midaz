@@ -170,6 +170,8 @@ var (
 	ErrWALBufferFull                            = errors.New("wal buffer is full")
 	ErrWALWriterNotAvailable                    = errors.New("wal writer is not available")
 	ErrWALPayloadTooLarge                       = errors.New("wal entry payload too large")
+	ErrWALHMACKeyRequired                       = errors.New("wal hmac key is required")
+	ErrWALHMACVerifyFailed                      = errors.New("wal entry hmac verification failed")
 	ErrPostgresLoaderNotInit                    = errors.New("postgres loader is not initialized")
 	ErrRedpandaBrokersEmpty                     = errors.New("redpanda brokers cannot be empty")
 	ErrRedpandaPublisherNil                     = errors.New("redpanda publisher is nil")

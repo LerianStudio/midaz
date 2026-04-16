@@ -5,11 +5,11 @@
 package wal
 
 import (
+	"crypto/hmac"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"io"
 	"os"
 
@@ -18,15 +18,32 @@ import (
 
 const replayInitialCap = 1024
 
-// Replay reads WAL entries from disk.
-func Replay(path string) ([]Entry, error) {
+// Replay reads WAL entries from disk, verifying every frame's HMAC-SHA256 tag
+// before surfacing its payload. keys is a non-empty list of candidate HMAC
+// keys: the current key first, followed by any previous keys accepted during
+// rotation. The first key that verifies a frame wins; if none verify, the
+// frame (and everything after it) is treated as corrupt and truncated. When
+// obs is non-nil, HMAC failures and truncations are reported as security
+// metrics before the file is truncated.
+func Replay(path string, keys [][]byte, obs Observer) ([]Entry, error) {
 	if path == "" {
 		return nil, constant.ErrWALPathEmpty
 	}
 
+	if len(keys) == 0 {
+		return nil, constant.ErrWALHMACKeyRequired
+	}
+
+	for i, k := range keys {
+		if len(k) < MinHMACKeyLength {
+			return nil, fmt.Errorf("key index=%d length=%d minimum=%d: %w", i, len(k), MinHMACKeyLength, constant.ErrWALHMACKeyRequired)
+		}
+	}
+
 	// NOTE: O_RDWR is intentional — Replay performs self-healing truncation
 	// of corrupt/incomplete trailing frames, which requires write access.
-	file, err := os.OpenFile(path, os.O_RDWR, 0)
+	// O_NOFOLLOW rejects symlinks; Windows treats the flag as zero.
+	file, err := os.OpenFile(path, os.O_RDWR|openNoFollowFlag(), 0)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -42,7 +59,7 @@ func Replay(path string) ([]Entry, error) {
 	var validOffset int64
 
 	for {
-		entry, bytesRead, done, loopErr := readNextEntry(file, header, validOffset)
+		entry, bytesRead, done, loopErr := readNextEntry(file, header, validOffset, keys, obs)
 		if loopErr != nil {
 			return nil, loopErr
 		}
@@ -60,10 +77,10 @@ func Replay(path string) ([]Entry, error) {
 
 // readNextEntry reads a single WAL frame from file and returns the entry, number of bytes read,
 // whether reading is done, and any error. On corrupt/incomplete frames it truncates to validOffset.
-func readNextEntry(file *os.File, header []byte, validOffset int64) (Entry, int64, bool, error) {
+func readNextEntry(file *os.File, header []byte, validOffset int64, keys [][]byte, obs Observer) (Entry, int64, bool, error) {
 	_, err := io.ReadFull(file, header)
 	if err != nil {
-		headerErr := handleHeaderReadErr(file, err, validOffset)
+		headerErr := handleHeaderReadErr(file, err, validOffset, obs)
 		if headerErr != nil {
 			return Entry{}, 0, false, headerErr
 		}
@@ -72,10 +89,10 @@ func readNextEntry(file *os.File, header []byte, validOffset int64) (Entry, int6
 	}
 
 	payloadLength := binary.LittleEndian.Uint32(header[:4])
-	expectedChecksum := binary.LittleEndian.Uint32(header[4:8])
+	expectedHMAC := header[4 : 4+recordHMACSize]
 
 	if payloadLength == 0 {
-		if truncateErr := truncateFile(file, validOffset); truncateErr != nil {
+		if truncateErr := truncateFileWithObs(file, validOffset, "zero_length_frame", obs); truncateErr != nil {
 			return Entry{}, 0, false, truncateErr
 		}
 
@@ -85,7 +102,7 @@ func readNextEntry(file *os.File, header []byte, validOffset int64) (Entry, int6
 	payload := make([]byte, int(payloadLength))
 
 	if _, err := io.ReadFull(file, payload); err != nil {
-		payloadErr := handlePayloadReadErr(file, err, validOffset)
+		payloadErr := handlePayloadReadErr(file, err, validOffset, obs)
 		if payloadErr != nil {
 			return Entry{}, 0, false, payloadErr
 		}
@@ -93,8 +110,12 @@ func readNextEntry(file *os.File, header []byte, validOffset int64) (Entry, int6
 		return Entry{}, 0, true, nil
 	}
 
-	if crc32.ChecksumIEEE(payload) != expectedChecksum {
-		if truncateErr := truncateFile(file, validOffset); truncateErr != nil {
+	if !verifyFrameHMAC(keys, header[:4], payload, expectedHMAC) {
+		if obs != nil {
+			obs.ObserveWALHMACVerifyFailed(validOffset, "hmac_mismatch")
+		}
+
+		if truncateErr := truncateFileWithObs(file, validOffset, "hmac_mismatch", obs); truncateErr != nil {
 			return Entry{}, 0, false, truncateErr
 		}
 
@@ -103,7 +124,7 @@ func readNextEntry(file *os.File, header []byte, validOffset int64) (Entry, int6
 
 	var entry Entry
 	if err := json.Unmarshal(payload, &entry); err != nil {
-		if truncateErr := truncateFile(file, validOffset); truncateErr != nil {
+		if truncateErr := truncateFileWithObs(file, validOffset, "json_unmarshal_failed", obs); truncateErr != nil {
 			return Entry{}, 0, false, truncateErr
 		}
 
@@ -115,15 +136,33 @@ func readNextEntry(file *os.File, header []byte, validOffset int64) (Entry, int6
 	return entry, bytesRead, false, nil
 }
 
+// verifyFrameHMAC tries each key in order using constant-time comparison
+// (hmac.Equal). Returns true on the first match. This enables zero-downtime
+// key rotation: the writer signs with the current key, and the reader accepts
+// the current key OR the previous key while both are deployed.
+func verifyFrameHMAC(keys [][]byte, lenBytes, payload, expected []byte) bool {
+	for _, key := range keys {
+		if len(key) < MinHMACKeyLength {
+			continue
+		}
+
+		if hmac.Equal(computeFrameHMAC(key, lenBytes, payload), expected) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // handleHeaderReadErr handles errors from reading the WAL frame header.
 // Returns nil when the caller should break, or a wrapped error to propagate.
-func handleHeaderReadErr(file *os.File, err error, validOffset int64) error {
+func handleHeaderReadErr(file *os.File, err error, validOffset int64, obs Observer) error {
 	if errors.Is(err, io.EOF) {
 		return nil
 	}
 
 	if errors.Is(err, io.ErrUnexpectedEOF) {
-		if truncateErr := truncateFile(file, validOffset); truncateErr != nil {
+		if truncateErr := truncateFileWithObs(file, validOffset, "partial_header", obs); truncateErr != nil {
 			return truncateErr
 		}
 
@@ -135,9 +174,9 @@ func handleHeaderReadErr(file *os.File, err error, validOffset int64) error {
 
 // handlePayloadReadErr handles errors from reading the WAL frame payload.
 // Returns nil when the caller should break, or a wrapped error to propagate.
-func handlePayloadReadErr(file *os.File, err error, validOffset int64) error {
+func handlePayloadReadErr(file *os.File, err error, validOffset int64, obs Observer) error {
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-		if truncateErr := truncateFile(file, validOffset); truncateErr != nil {
+		if truncateErr := truncateFileWithObs(file, validOffset, "partial_payload", obs); truncateErr != nil {
 			return truncateErr
 		}
 
@@ -147,10 +186,15 @@ func handlePayloadReadErr(file *os.File, err error, validOffset int64) error {
 	return fmt.Errorf("read wal payload: %w", err)
 }
 
-// truncateFile wraps os.File.Truncate with error context.
-func truncateFile(file *os.File, offset int64) error {
+// truncateFileWithObs truncates file at offset and emits a security-observable
+// audit event so the truncation does not go unnoticed.
+func truncateFileWithObs(file *os.File, offset int64, reason string, obs Observer) error {
 	if err := file.Truncate(offset); err != nil {
 		return fmt.Errorf("truncate wal file at offset %d: %w", offset, err)
+	}
+
+	if obs != nil {
+		obs.ObserveWALTruncation(offset, reason)
 	}
 
 	return nil

@@ -943,7 +943,14 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 		cfg.EnableTelemetry,
 	)
 
-	entries, err := wal.Replay(cfg.WALPath)
+	// Replay verifies every frame's HMAC against the current key; rotation is
+	// enabled by supplying AUTHORIZER_WAL_HMAC_KEY_PREVIOUS (WALHMACKeyPrevious).
+	replayKeys := [][]byte{cfg.WALHMACKey}
+	if len(cfg.WALHMACKeyPrevious) > 0 {
+		replayKeys = append(replayKeys, cfg.WALHMACKeyPrevious)
+	}
+
+	entries, err := wal.Replay(cfg.WALPath, replayKeys, metricRecorder)
 	if err != nil {
 		return fmt.Errorf("replay wal: %w", err)
 	}
@@ -960,6 +967,7 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 		cfg.WALFlushInterval,
 		cfg.WALSyncOnAppend,
 		metricRecorder,
+		cfg.WALHMACKey,
 	)
 	if err != nil {
 		return fmt.Errorf("initialize WAL writer: %w", err)
@@ -1204,7 +1212,7 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 		go recoveryRunner.Run(recoveryCtx)
 
 		if cfg.WALReconcilerEnabled && cfg.AsyncCommitIntent {
-			reconciler := newWALReconciler(cfg, service, logger)
+			reconciler := newWALReconciler(cfg, service, logger, metricRecorder)
 			service.walReconciler = reconciler
 			reconcilerCtx, stopReconciler := context.WithCancel(ctx)
 
