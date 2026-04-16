@@ -195,6 +195,11 @@ var (
 	ErrPeerShardRangesOverlap                   = errors.New("peer shard ranges overlap")
 	ErrLocalShardCoverageIncomplete             = errors.New("local shard ownership must cover all shards without peers")
 	ErrPeerTLSCANoCertificates                  = errors.New("parse AUTHORIZER_PEER_TLS_CA_FILE: no certificates found")
+	ErrPreparedIntentNil                        = errors.New("prepared intent is nil")
+	ErrPreparedIntentEmptyRequest               = errors.New("prepared intent request payload is empty")
+	ErrPreparedIntentEmptyTxID                  = errors.New("prepared intent tx id is empty")
+	ErrPreparedIntentReplayRejected             = errors.New("prepared intent replay rejected")
+	ErrLoaderConsumeRequired                    = errors.New("loader consume callback is required")
 )
 
 // List of CRM errors.

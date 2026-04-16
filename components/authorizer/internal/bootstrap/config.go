@@ -203,27 +203,32 @@ type Config struct {
 	PostgresPoolMaxConnIdle            time.Duration
 	PostgresPoolHealthCheck            time.Duration
 	PostgresConnectTimeout             time.Duration
-	RedpandaEnabled                    bool
-	RedpandaBrokers                    []string
-	RedpandaTLSEnabled                 bool
-	RedpandaTLSInsecureSkip            bool
-	RedpandaTLSCAFile                  string
-	RedpandaSASLEnabled                bool
-	RedpandaSASLMechanism              string
-	RedpandaSASLUsername               string
-	RedpandaSASLPassword               string
-	RedpandaProducerLinger             time.Duration
-	RedpandaMaxBufferedRecords         int
-	RedpandaRecordRetries              int
-	RedpandaDeliveryTimeout            time.Duration
-	RedpandaPublishTimeout             time.Duration
-	RedpandaBackpressurePolicy         string
-	CommitIntentConsumerGroup          string
-	CommitIntentPollTimeout            time.Duration
-	PeerAbortTimeout                   time.Duration
-	PeerCommitTimeout                  time.Duration
-	PeerAuthMaxSkew                    time.Duration
-	PeerNonceMaxEntries                int
+	// PostgresStatementTimeout is applied as the `statement_timeout` runtime
+	// parameter on every pool connection. Bounds worst-case scan latency
+	// during cold start so a degraded PG replica cannot hang bootstrap past
+	// the readiness gate timeout (D1 audit finding #3).
+	PostgresStatementTimeout   time.Duration
+	RedpandaEnabled            bool
+	RedpandaBrokers            []string
+	RedpandaTLSEnabled         bool
+	RedpandaTLSInsecureSkip    bool
+	RedpandaTLSCAFile          string
+	RedpandaSASLEnabled        bool
+	RedpandaSASLMechanism      string
+	RedpandaSASLUsername       string
+	RedpandaSASLPassword       string
+	RedpandaProducerLinger     time.Duration
+	RedpandaMaxBufferedRecords int
+	RedpandaRecordRetries      int
+	RedpandaDeliveryTimeout    time.Duration
+	RedpandaPublishTimeout     time.Duration
+	RedpandaBackpressurePolicy string
+	CommitIntentConsumerGroup  string
+	CommitIntentPollTimeout    time.Duration
+	PeerAbortTimeout           time.Duration
+	PeerCommitTimeout          time.Duration
+	PeerAuthMaxSkew            time.Duration
+	PeerNonceMaxEntries        int
 
 	// PeerInstances lists the gRPC addresses of other authorizer instances
 	// in the cluster (e.g., "authorizer-2:50051"). Used for cross-shard
@@ -428,6 +433,9 @@ func loadCoreConfig() (*Config, error) {
 	postgresPoolMaxConnIdleMs := getenvInt("AUTHORIZER_DB_MAX_CONN_IDLE_MS", int((defaultPoolMaxConnIdleMin * time.Minute).Milliseconds()))
 	postgresPoolHealthCheckMs := getenvInt("AUTHORIZER_DB_HEALTHCHECK_MS", int((defaultPoolHealthCheckSec * time.Second).Milliseconds()))
 	postgresConnectTimeoutMs := getenvInt("AUTHORIZER_DB_CONNECT_TIMEOUT_MS", int((defaultPoolConnectTimeoutSec * time.Second).Milliseconds()))
+	// 0 = no statement_timeout. Production deployments should set this to
+	// something in the 30s-120s range; tests and local dev leave it unset.
+	postgresStatementTimeoutMs := getenvInt("AUTHORIZER_DB_STATEMENT_TIMEOUT_MS", 0)
 	redpandaEnabled := utils.IsTruthyString(getenv("AUTHORIZER_REDPANDA_ENABLED", "true"))
 
 	postgresDSN, err := buildPostgresDSN(envName)
@@ -513,6 +521,7 @@ func loadCoreConfig() (*Config, error) {
 		PostgresPoolMaxConnIdle:            time.Duration(postgresPoolMaxConnIdleMs) * time.Millisecond,
 		PostgresPoolHealthCheck:            time.Duration(postgresPoolHealthCheckMs) * time.Millisecond,
 		PostgresConnectTimeout:             time.Duration(postgresConnectTimeoutMs) * time.Millisecond,
+		PostgresStatementTimeout:           time.Duration(postgresStatementTimeoutMs) * time.Millisecond,
 		RedpandaEnabled:                    redpandaEnabled,
 		RedpandaBrokers:                    rpCfg.brokers,
 		RedpandaTLSEnabled:                 rpCfg.tlsEnabled,

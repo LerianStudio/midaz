@@ -1166,6 +1166,79 @@ func applyNonPendingOperation(available, onHold int64, op string, amount int64) 
 	return available, onHold, nil
 }
 
+// AppendWALEntry surfaces the engine's configured WAL writer to bootstrap
+// callers that need to persist out-of-band records (e.g., prepared-intent
+// markers used for post-restart 2PC recovery). The engine does NOT consume
+// these records itself — the bootstrap replay path reads them and takes the
+// appropriate action. Returns the underlying writer's error verbatim.
+//
+// Callers MUST supply entries that are safe to round-trip through encode /
+// replay: JSON-serializable, HMAC-coverable, and idempotent when replayed
+// alongside mutation entries.
+func (e *Engine) AppendWALEntry(entry wal.Entry) error {
+	if e == nil || e.wal == nil {
+		return fmt.Errorf("%w", constant.ErrAuthorizerEngineNotInitialized)
+	}
+
+	return e.wal.Append(entry) //nolint:wrapcheck // forwarded verbatim
+}
+
+// LookupPreparedTxByID returns the prepStore-managed PreparedTx for a given
+// engine-assigned prepared tx ID. Returns nil if not present. Used by the
+// prepared-intent replay path to detect whether an intent has already been
+// restored by an earlier replay pass (idempotency guarantee).
+func (e *Engine) LookupPreparedTxByID(preparedTxID string) *PreparedTx {
+	if e == nil || e.prepStore == nil {
+		return nil
+	}
+
+	e.prepStore.mu.Lock()
+	defer e.prepStore.mu.Unlock()
+
+	ptx, ok := e.prepStore.pending[preparedTxID]
+	if !ok {
+		return nil
+	}
+
+	return ptx
+}
+
+// RestorePreparedTxWithID overrides the engine-generated ID on a PreparedTx.
+// Used only by the prepared-intent replay path so the restored prepared tx
+// appears in prepStore under the SAME ID as the pre-crash original —
+// coordinators calling CommitPrepared(originalID) after the restart will
+// therefore find and commit the restored entry. The swap is done under
+// the prepStore lock to ensure consistency with concurrent reapers.
+//
+// This method is intentionally limited to the bootstrap replay flow; the
+// engine never calls it internally. Calling it on a PreparedTx already
+// present in prepStore returns an error to prevent accidental collisions.
+func (e *Engine) RestorePreparedTxWithID(restoredID string, original *PreparedTx) error {
+	if e == nil || e.prepStore == nil {
+		return fmt.Errorf("%w", constant.ErrPreparedTxStoreNil)
+	}
+
+	if original == nil {
+		return fmt.Errorf("%w", constant.ErrPreparedTransactionNil)
+	}
+
+	e.prepStore.mu.Lock()
+	defer e.prepStore.mu.Unlock()
+
+	if _, exists := e.prepStore.pending[restoredID]; exists {
+		return fmt.Errorf("%w: %s", constant.ErrPreparedTxAlreadyExists, restoredID)
+	}
+
+	// Remove the engine-assigned placeholder key and reinsert under the
+	// originally-persisted ID, rewriting the PreparedTx.ID field so commit /
+	// abort paths produce the correct audit trail.
+	delete(e.prepStore.pending, original.ID)
+	original.ID = restoredID
+	e.prepStore.pending[restoredID] = original
+
+	return nil
+}
+
 // Close stops the auto-abort goroutine. Safe to call multiple times.
 func (e *Engine) Close() {
 	if e == nil {

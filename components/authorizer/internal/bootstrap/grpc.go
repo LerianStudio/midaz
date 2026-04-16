@@ -711,6 +711,25 @@ func (s *authorizerService) PrepareAuthorize(ctx context.Context, req *authorize
 	preparedTxID := ""
 	if ptx != nil {
 		preparedTxID = ptx.ID
+
+		// Persist the prepared intent to the WAL (D1 audit finding #2).
+		// A crash between here and CommitPrepared would otherwise leave the
+		// coordinator holding a prepared_tx_id that points at nothing; on
+		// restart replayPreparedIntents re-prepares this transaction so
+		// coordinator-initiated CommitPrepared / AbortPrepared calls find
+		// the matching entry.
+		//
+		// Persistence failure is non-fatal to the prepare: the in-memory
+		// prepStore entry remains live, the caller receives the standard
+		// PrepareAuthorizeResponse, and the WAL write-error metric
+		// (observeWALWriteError counter) carries the signal so operators
+		// can alert on append failures independently. Failing the prepare
+		// here would discard a perfectly good in-memory lock purely
+		// because the durability-enhancement path failed — making the
+		// enhancement strictly worse than the baseline behavior.
+		if persistErr := persistPreparedIntent(s.engine, ptx, s.logger); persistErr != nil {
+			s.logger.Warnf("prepared-intent WAL persistence degraded (prepare continues) tx=%s err=%v", preparedTxID, persistErr)
+		}
 	}
 
 	return &authorizerv1.PrepareAuthorizeResponse{
@@ -1023,6 +1042,23 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 	metricRecorder := newAuthorizerMetrics(telemetry, logger, cfg.AuthorizeLatencySLO)
 	router := shard.NewRouter(cfg.ShardCount)
 
+	// Readiness gate (D1 audit finding #1): the gRPC health service is
+	// created up-front and pinned to NOT_SERVING until the initial balance
+	// load AND WAL replay complete. Flipping to SERVING too early allows
+	// the transaction component and other gRPC clients to route Authorize
+	// RPCs against an empty engine — every request would then be rejected
+	// with "balance not found" despite the balance existing in PostgreSQL.
+	//
+	// We construct the health server before the load begins and register it
+	// on the gRPC server later in this function; the listener only binds
+	// after load+replay so on cold start clients see connection refused
+	// (which k8s readiness interprets as NotReady, identical to NOT_SERVING).
+	// Post-load the listener binds and the health status is promoted, giving
+	// operators a single flip transition to watch for.
+	healthServer := grpcHealth.NewServer()
+	healthServer.SetServingStatus("authorizer.v1.BalanceAuthorizer", grpcHealthV1.HealthCheckResponse_NOT_SERVING)
+	healthServer.SetServingStatus("", grpcHealthV1.HealthCheckResponse_NOT_SERVING)
+
 	eng := engine.New(router, wal.NewNoopWriter())
 	defer eng.Close()
 
@@ -1048,6 +1084,8 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 		MaxConnIdleTime:   cfg.PostgresPoolMaxConnIdle,
 		HealthCheckPeriod: cfg.PostgresPoolHealthCheck,
 		ConnectTimeout:    cfg.PostgresConnectTimeout,
+		EnvName:           cfg.EnvName,
+		StatementTimeout:  cfg.PostgresStatementTimeout,
 	})
 	if err != nil {
 		return fmt.Errorf("initialize postgres loader: %w", err)
@@ -1055,12 +1093,30 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 
 	defer balanceLoader.Close()
 
-	initial, err := balanceLoader.LoadBalances(ctx, "", "", cfg.ShardIDs)
+	// Streaming load (D1 audit finding #3): keyset-paginated batches fan out to
+	// UpsertBalances workers so cold start memory use is bounded to one
+	// batch × workers instead of the previous unbounded full-table scan that
+	// pinned ~50GB for large ledgers. On failure the error propagates up to
+	// the caller which terminates the process — by design, health has not
+	// yet been flipped to SERVING so readiness consumers (k8s, LB) will
+	// see NOT_SERVING and route traffic elsewhere.
+	var loaded int64
+
+	loaded, err = balanceLoader.LoadBalancesStreaming(
+		ctx,
+		"",
+		"",
+		cfg.ShardIDs,
+		time.Time{}, // zero == include all rows
+		func(batch []*engine.Balance) error {
+			eng.UpsertBalances(batch)
+			return nil
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("load initial balances: %w", err)
 	}
 
-	loaded := eng.UpsertBalances(initial)
 	logger.Infof("Authorizer loaded balances from PostgreSQL: %d", loaded)
 	logger.Infof(
 		"Authorizer runtime config: grpc_address=%s shards=%d shard_ids=%v wal_buffer_size=%d wal_flush_interval_ms=%d wal_sync_on_append=%t prepare_timeout_ms=%d prepare_max_pending=%d max_ops_per_request=%d max_unique_balances_per_request=%d wal_replay_max_mutations=%d wal_replay_max_unique_balances=%d wal_replay_strict_mode=%t authorize_latency_slo_ms=%d max_streams=%d max_recv_bytes=%d postgres_pool_max_conns=%d postgres_pool_min_conns=%d postgres_conn_lifetime_ms=%d postgres_conn_idle_ms=%d postgres_healthcheck_ms=%d redpanda_enabled=%t redpanda_backpressure_policy=%s redpanda_retries=%d redpanda_delivery_timeout_ms=%d redpanda_publish_timeout_ms=%d telemetry_enabled=%t",
@@ -1110,6 +1166,17 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 	}
 
 	logger.Infof("Authorizer replayed WAL entries: %d", len(entries))
+
+	// Prepared-intent replay (D1 audit finding #2): rebuild in-memory
+	// prepStore entries for prepared-but-not-committed 2PC transactions so
+	// post-restart CommitPrepared / AbortPrepared calls from coordinators
+	// find the matching entry. This MUST run AFTER ReplayEntries (so balance
+	// state reflects all committed mutations) and BEFORE the readiness gate
+	// flips to SERVING (so the first incoming RPC is served against a
+	// fully-restored prepStore).
+	if err := replayPreparedIntents(eng, entries, logger, cfg.WALReplayStrictMode, cfg.PrepareTimeout); err != nil {
+		return fmt.Errorf("replay prepared intents: %w", err)
+	}
 
 	writer, err := wal.NewRingBufferWriterWithOptions(
 		cfg.WALPath,
@@ -1383,10 +1450,23 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 		logger.Infof("Authorizer gRPC reflection enabled")
 	}
 
-	healthServer := grpcHealth.NewServer()
+	// Register the health server that was constructed up-front in NOT_SERVING
+	// mode. Flip to SERVING only after the initial balance load and WAL
+	// replay have both completed — both prerequisites are satisfied above
+	// before we reach this point (load errors return early; replay errors
+	// return early). LoadedBalances is captured as the observed gauge value
+	// so operators can see in dashboards the exact count that gated readiness.
+	grpcHealthV1.RegisterHealthServer(server, healthServer)
+
+	metricRecorder.ObserveLoadedBalancesAbsolute(ctx, eng.LoadedBalances())
+
 	healthServer.SetServingStatus("authorizer.v1.BalanceAuthorizer", grpcHealthV1.HealthCheckResponse_SERVING)
 	healthServer.SetServingStatus("", grpcHealthV1.HealthCheckResponse_SERVING)
-	grpcHealthV1.RegisterHealthServer(server, healthServer)
+
+	logger.Infof(
+		"Authorizer health flipped to SERVING (loaded_balances=%d)",
+		eng.LoadedBalances(),
+	)
 
 	lc := net.ListenConfig{}
 

@@ -80,6 +80,50 @@ type Entry struct {
 	CrossShard        bool                             `json:"crossShard,omitempty"`
 	Participants      []WALParticipant                 `json:"participants,omitempty"`
 	CreatedAt         time.Time                        `json:"createdAt"`
+
+	// PreparedIntent, when non-nil, marks this entry as a prepared-but-not-yet-
+	// committed 2PC intent (D1 audit finding #2). Replay distinguishes prepared
+	// intents from committed mutations by the presence of this field: Mutations
+	// is nil on prepared intents and set on commits. When replay encounters a
+	// prepared intent without a matching subsequent committed entry, the
+	// authorizer re-issues PrepareAuthorize to rebuild the in-memory lock and
+	// the prepStore map entry — closing the double-spend window where a
+	// coordinator's post-restart CommitPrepared would otherwise find nothing.
+	PreparedIntent *PreparedIntent `json:"preparedIntent,omitempty"`
+}
+
+// PreparedIntent records the minimum state needed to re-prepare a transaction
+// after an authorizer restart. The embedded AuthorizeRequest is the original
+// client payload (proto-serialized JSON via protojson) so the replay path can
+// pass it verbatim to PrepareAuthorize and obtain an identical set of locks
+// and validation results as the pre-crash prepare did.
+type PreparedIntent struct {
+	// PreparedTxID is the engine-assigned identifier returned by the original
+	// PrepareAuthorize call. Coordinators use it to call CommitPrepared /
+	// AbortPrepared; replay MUST restore the same ID so post-restart RPCs
+	// from the coordinator find the re-prepared entry.
+	PreparedTxID string `json:"preparedTxId"`
+
+	// WorkerIDs lists the shard router worker IDs that hold locks for this
+	// prepared transaction. Stored for operational visibility — replay does
+	// not consume this directly because re-prepare deterministically
+	// re-resolves the same workers via the router.
+	WorkerIDs []int `json:"workerIds,omitempty"`
+
+	// LockedBalanceKeys lists the lookup keys of every balance held under
+	// the prepared transaction's locks (organizationID:ledgerID:alias:key).
+	// Operational / forensic metadata; not consumed on replay.
+	LockedBalanceKeys []string `json:"lockedBalanceKeys,omitempty"`
+
+	// RequestJSON is the protojson-serialized AuthorizeRequest that produced
+	// this prepare. Replay decodes it back into an AuthorizeRequest and
+	// re-invokes PrepareAuthorize.
+	RequestJSON []byte `json:"requestJson,omitempty"`
+
+	// PreparedAt is the wall-clock time of the original prepare. Replay uses
+	// this to detect prepared intents that are already past the prepare
+	// timeout — those should be auto-aborted rather than restored.
+	PreparedAt time.Time `json:"preparedAt"`
 }
 
 // BalanceMutation stores post-authorization balance state for WAL replay.

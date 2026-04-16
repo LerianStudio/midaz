@@ -155,6 +155,27 @@ var (
 		Unit:        "1",
 		Description: "Total internal RPCs rejected due to peer-auth failures (missing token, invalid HMAC, replay, skew, etc.).",
 	}
+	// loadedBalancesAbsolute is the total count of balances upserted into the
+	// in-memory engine at boot time. Emitted once the readiness gate flips to
+	// SERVING so operators can correlate boot progress against expected scale.
+	// Intentionally a gauge (not counter) so cold restarts reset to zero —
+	// dashboards can detect restarts by watching for the drop.
+	loadedBalancesAbsolute = libMetrics.Metric{
+		Name:        "authorizer_loaded_balances_absolute",
+		Unit:        "1",
+		Description: "Number of balances currently loaded into the authorizer engine (set at bootstrap post-load).",
+	}
+	// loadedBalancesRatio is the ratio of observed loaded balances to the
+	// expected count captured at the initial LoadBalances call. The expected
+	// value is the same count used as the readiness-gate threshold: the
+	// gauge reads 1.0 immediately after the flip, then drifts if background
+	// LoadBalances RPCs add more shards. Useful for alerting on bootstrap
+	// regressions ("gauge < 0.99 for 5m" indicates partial load).
+	loadedBalancesRatio = libMetrics.Metric{
+		Name:        "authorizer_loaded_balances_ratio",
+		Unit:        "1",
+		Description: "Ratio of loaded balances to expected at readiness flip; drifts if later LoadBalances RPCs add balances.",
+	}
 )
 
 type authorizerMetrics struct {
@@ -354,6 +375,30 @@ func (m *authorizerMetrics) ObserveWALQueueDepth(depth int) {
 	}
 
 	m.factory.Gauge(walQueueDepth).Set(context.Background(), int64(depth))
+}
+
+// ObserveLoadedBalancesAbsolute records the total balance count loaded into
+// the engine at readiness-flip time. This is the single source of truth
+// operators should correlate against expected counts when diagnosing cold
+// start regressions. Called once per process from bootstrap.Run() at the
+// moment health flips to SERVING.
+//
+// ctx is accepted so the metric emission participates in the trace that
+// Run() is currently executing under — otherwise the Gauge would look like
+// it originated from a detached background worker.
+func (m *authorizerMetrics) ObserveLoadedBalancesAbsolute(ctx context.Context, loaded int64) {
+	if m == nil || m.factory == nil {
+		return
+	}
+
+	m.factory.Gauge(loadedBalancesAbsolute).Set(ctx, loaded)
+
+	// Ratio against itself at boot is trivially 1.0 — recording it here
+	// establishes the baseline so any later LoadBalances RPC that grows the
+	// engine's balance count pushes the ratio above 1.0. An alert of the
+	// form "ratio deviates from 1.0 for > N min" catches partial loads
+	// (count < expected) and late shard expansions (count > expected).
+	m.factory.Gauge(loadedBalancesRatio).Set(ctx, 1)
 }
 
 // ObserveWALAppendDropped records a dropped WAL append due to a full buffer and logs a warning.
