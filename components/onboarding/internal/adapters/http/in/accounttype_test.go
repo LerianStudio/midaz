@@ -166,7 +166,7 @@ func TestHandler_CreateAccountType(t *testing.T) {
 			bodyBytes, err := json.Marshal(tt.payload)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types", bytes.NewReader(bodyBytes))
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types", bytes.NewReader(bodyBytes))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -388,7 +388,7 @@ func TestHandler_UpdateAccountType(t *testing.T) {
 			bodyBytes, err := json.Marshal(tt.payload)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest(nethttp.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), bytes.NewReader(bodyBytes))
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), bytes.NewReader(bodyBytes))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -533,7 +533,7 @@ func TestHandler_GetAccountTypeByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -829,7 +829,7 @@ func TestHandler_GetAllAccountTypes(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types"+tt.queryParams, nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types"+tt.queryParams, nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -945,7 +945,7 @@ func TestHandler_DeleteAccountTypeByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert

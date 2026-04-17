@@ -680,6 +680,30 @@ func TestAuthorizeCrossShardPrepareDeadlineAbortsWithBackgroundContext(t *testin
 	eng := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
 	defer eng.Close()
 
+	// Preload the local @local balance so the local participant's prepare
+	// succeeds rather than racing to reject with BALANCE_NOT_FOUND. Without
+	// this seed, the local engine call (synchronous, fast) can short-circuit
+	// the errgroup before lowPeer's goroutine ever runs — which means
+	// lowPeer.onPrepare never fires cancel(), parent ctx never gets cancelled,
+	// and the coordinator returns the local rejection instead of the
+	// DeadlineExceeded this test is designed to observe. Seeding @local makes
+	// cancellation the only termination path: lowPeer MUST run (no other
+	// source of short-circuit), its onPrepare fires cancel deterministically,
+	// and runPrepareSequence detects ctx.Err() after Wait() returns.
+	eng.UpsertBalances([]*engine.Balance{{
+		ID:             "b-local",
+		OrganizationID: "org",
+		LedgerID:       "ledger",
+		AccountAlias:   "@local",
+		BalanceKey:     constant.DefaultBalanceKey,
+		AssetCode:      "USD",
+		Available:      1000,
+		Scale:          2,
+		Version:        1,
+		AllowSending:   true,
+		AllowReceiving: true,
+	}})
+
 	lowPeer := &stubPeerClient{}
 	highPeer := &stubPeerClient{}
 

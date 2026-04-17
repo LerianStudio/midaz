@@ -190,7 +190,7 @@ func TestBalanceHandler_GetAllBalances(t *testing.T) { //nolint:funlen
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/balances"+tt.queryParams, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/balances"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -362,7 +362,7 @@ func TestBalanceHandler_GetAllBalancesByAccountID(t *testing.T) { //nolint:funle
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/accounts/"+accountID.String()+"/balances"+tt.queryParams, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/accounts/"+accountID.String()+"/balances"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -521,7 +521,7 @@ func TestBalanceHandler_GetBalancesByAlias(t *testing.T) { //nolint:funlen
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/"+tt.alias, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/"+tt.alias, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -667,7 +667,7 @@ func TestBalanceHandler_GetBalanceByID(t *testing.T) { //nolint:funlen
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/balances/"+balanceID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/balances/"+balanceID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -824,7 +824,7 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) { //nolint:funlen
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodDelete, "/test/"+orgID.String()+"/"+ledgerID.String()+"/balances/"+balanceID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/test/"+orgID.String()+"/"+ledgerID.String()+"/balances/"+balanceID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -986,7 +986,7 @@ func TestBalanceHandler_GetBalancesExternalByCode(t *testing.T) { //nolint:funle
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/accounts/external/"+tt.code+"/balances", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/accounts/external/"+tt.code+"/balances", http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1162,7 +1162,7 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) { //nolint:funlen
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPatch, "/test/"+orgID.String()+"/"+ledgerID.String()+"/balances/"+balanceID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/test/"+orgID.String()+"/"+ledgerID.String()+"/balances/"+balanceID.String(), http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -1457,7 +1457,7 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) { //nolint:funlen
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/accounts/"+accountID.String()+"/balances", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/accounts/"+accountID.String()+"/balances", http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -1748,7 +1748,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) { //nolint:funlen
 				testURL += "?date=" + url.QueryEscape(tt.date)
 			}
 
-			req := httptest.NewRequest(http.MethodGet, testURL, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, testURL, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -2054,7 +2054,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) { //nolint:f
 				testURL += "?date=" + url.QueryEscape(tt.date)
 			}
 
-			req := httptest.NewRequest(http.MethodGet, testURL, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, testURL, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert

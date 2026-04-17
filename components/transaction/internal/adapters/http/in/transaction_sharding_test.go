@@ -36,7 +36,7 @@ func TestMigrateAccountShardReturnsBadRequestWhenContextIDsMissing(t *testing.T)
 		return handler.MigrateAccountShard(&migrateAccountShardInput{Alias: "@alice", TargetShard: intPtr(1)}, c)
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/migrate", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/migrate", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
@@ -61,7 +61,7 @@ func TestMigrateAccountShardReturnsBadRequestOnInvalidPayload(t *testing.T) {
 		return handler.MigrateAccountShard(nil, c)
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/migrate", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/migrate", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
@@ -85,7 +85,7 @@ func TestMigrateAccountShardReturnsBadRequestWhenLedgerIDMissing(t *testing.T) {
 		return handler.MigrateAccountShard(&migrateAccountShardInput{Alias: "@alice", TargetShard: intPtr(0)}, c)
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/migrate", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/migrate", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
@@ -105,7 +105,7 @@ func TestMigrateAccountShardInputAcceptsTargetShardZero(t *testing.T) {
 		return c.SendStatus(http.StatusNoContent)
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/migrate", strings.NewReader(`{"alias":"@alice","targetShard":0}`))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/migrate", strings.NewReader(`{"alias":"@alice","targetShard":0}`))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req)
@@ -128,7 +128,7 @@ func TestMigrateAccountShardReturnsBadRequestWhenTargetShardMissing(t *testing.T
 		return handler.MigrateAccountShard(&migrateAccountShardInput{Alias: "@alice", TargetShard: nil}, c)
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/migrate", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/migrate", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
@@ -153,7 +153,7 @@ func TestMigrateAccountShardReturnsServiceUnavailableWhenCommandMissing(t *testi
 		return handler.MigrateAccountShard(&migrateAccountShardInput{Alias: "@alice", TargetShard: intPtr(1)}, c)
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/migrate", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/migrate", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
@@ -202,7 +202,7 @@ func TestShardingRebalanceRoutesRequireControlPlaneToken(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			req := httptest.NewRequestWithContext(t.Context(), tc.method, tc.path, strings.NewReader(tc.body))
 			if tc.body != "" {
 				req.Header.Set("Content-Type", "application/json")
 			}
@@ -260,7 +260,7 @@ func TestShardingRebalanceRoutesValidateControlPlaneToken(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			unauthorizedReq := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			unauthorizedReq := httptest.NewRequestWithContext(t.Context(), tc.method, tc.path, strings.NewReader(tc.body))
 			if tc.body != "" {
 				unauthorizedReq.Header.Set("Content-Type", "application/json")
 			}
@@ -276,7 +276,7 @@ func TestShardingRebalanceRoutesValidateControlPlaneToken(t *testing.T) {
 			assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 			assert.Contains(t, strings.TrimSpace(string(unauthorizedBody)), "Unauthorized")
 
-			authorizedReq := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			authorizedReq := httptest.NewRequestWithContext(t.Context(), tc.method, tc.path, strings.NewReader(tc.body))
 			if tc.body != "" {
 				authorizedReq.Header.Set("Content-Type", "application/json")
 			}

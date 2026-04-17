@@ -387,7 +387,7 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) { //nolint:fun
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes", http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -578,7 +578,7 @@ func TestOperationRouteHandler_GetOperationRouteByID(t *testing.T) { //nolint:fu
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/"+operationRouteID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/"+operationRouteID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -909,7 +909,7 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) { //nolint:fun
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/"+operationRouteID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/"+operationRouteID.String(), http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -1096,7 +1096,7 @@ func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) { //nolint
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/"+operationRouteID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/"+operationRouteID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1377,7 +1377,7 @@ func TestOperationRouteHandler_GetAllOperationRoutes(t *testing.T) { //nolint:fu
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes"+tt.queryParams, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert

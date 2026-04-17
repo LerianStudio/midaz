@@ -172,7 +172,7 @@ func TestHandler_CreateLedger(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers", nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers", nethttp.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -389,7 +389,7 @@ func TestHandler_UpdateLedger(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String(), nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String(), nethttp.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -531,7 +531,7 @@ func TestHandler_GetLedgerByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String(), nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String(), nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -819,7 +819,7 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers"+tt.queryParams, nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers"+tt.queryParams, nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -960,7 +960,7 @@ func TestHandler_DeleteLedgerByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String(), nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String(), nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1037,7 +1037,7 @@ func TestHandler_CountLedgers(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/metrics/count", nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/metrics/count", nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1119,7 +1119,7 @@ func TestHandler_CreateLedger_Validation(t *testing.T) {
 			bodyBytes, err := json.Marshal(tt.requestBody)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers", bytes.NewReader(bodyBytes))
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers", bytes.NewReader(bodyBytes))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 

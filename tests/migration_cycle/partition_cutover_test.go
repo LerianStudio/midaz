@@ -17,6 +17,7 @@ package migration_cycle_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,8 +37,11 @@ func applyFile(t *testing.T, db *sql.DB, relPath string) error {
 	bytes, err := os.ReadFile(filepath.Join(migrationsPath, relPath))
 	require.NoError(t, err, "read migration %s", relPath)
 
-	_, err = db.ExecContext(context.Background(), string(bytes))
-	return err
+	if _, err := db.ExecContext(context.Background(), string(bytes)); err != nil {
+		return fmt.Errorf("apply migration %s: %w", relPath, err)
+	}
+
+	return nil
 }
 
 // seedMinimalSchema creates the smallest version of the legacy operation and
@@ -110,6 +114,7 @@ func countRows(t *testing.T, db *sql.DB, table string) int64 {
 	t.Helper()
 
 	var n int64
+
 	err := db.QueryRowContext(context.Background(), "SELECT count(*) FROM "+table).Scan(&n)
 	require.NoError(t, err)
 
@@ -168,6 +173,7 @@ func TestPartitionCutover_ControlTableStartsLegacyOnly(t *testing.T) {
 	require.NoError(t, applyFile(t, container.DB, "000021_partition_migration_state.up.sql"))
 
 	var phase string
+
 	err := container.DB.QueryRowContext(context.Background(),
 		"SELECT phase FROM partition_migration_state WHERE id=1").Scan(&phase)
 	require.NoError(t, err)
@@ -200,18 +206,7 @@ func TestPartitionCutover_AtomicSwapAbortsOnCountMismatch(t *testing.T) {
 	require.NoError(t, applyFile(t, container.DB, "000021_partition_migration_state.up.sql"))
 
 	// Seed one legacy operation, zero partitioned: counts disagree.
-	_, err := container.DB.ExecContext(context.Background(), `
-		INSERT INTO operation (
-			id, transaction_id, description, type, asset_code, amount,
-			available_balance, on_hold_balance, available_balance_after, on_hold_balance_after,
-			status, account_id, account_alias, balance_id, chart_of_accounts,
-			organization_id, ledger_id, created_at, updated_at
-		) VALUES (
-			gen_random_uuid(), gen_random_uuid(), 'seed', 'DEBIT', 'USD', 10,
-			100, 0, 90, 0,
-			'APPROVED', gen_random_uuid(), '@a', gen_random_uuid(), '1000',
-			gen_random_uuid(), gen_random_uuid(), now(), now()
-		)`)
+	_, err := container.DB.ExecContext(context.Background(), "\n\t\tINSERT INTO operation (\n\t\t\tid, transaction_id, description, type, asset_code, amount,\n\t\t\tavailable_balance, on_hold_balance, available_balance_after, on_hold_balance_after,\n\t\t\tstatus, account_id, account_alias, balance_id, chart_of_accounts,\n\t\t\torganization_id, ledger_id, created_at, updated_at\n\t\t) VALUES (\n\t\t\tgen_random_uuid(), 'seed', 'DEBIT', 'USD', 10,\n\t\t\t100, 0, 90, 0,\n\t\t\t'APPROVED', gen_random_uuid(), '@a', gen_random_uuid(), '1000',\n\t\t\tgen_random_uuid(), now(), now()")
 	require.NoError(t, err)
 
 	err = applyFile(t, container.DB, "staged_cutover/000022_atomic_swap_operation.up.sql")

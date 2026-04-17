@@ -75,14 +75,14 @@ type ContainerResult struct {
 //
 // Accepts testing.TB so benchmarks can call it too — the signature was widened
 // from *testing.T during Batch B to support BenchmarkTransactionsContention_HotBalance.
-func SetupContainer(t testing.TB) *ContainerResult {
-	t.Helper()
-	return SetupContainerWithConfig(t, DefaultContainerConfig())
+func SetupContainer(tb testing.TB) *ContainerResult {
+	tb.Helper()
+	return SetupContainerWithConfig(tb, DefaultContainerConfig())
 }
 
 // SetupContainerWithConfig starts a PostgreSQL container with custom configuration.
-func SetupContainerWithConfig(t testing.TB, cfg ContainerConfig) *ContainerResult {
-	t.Helper()
+func SetupContainerWithConfig(tb testing.TB, cfg ContainerConfig) *ContainerResult {
+	tb.Helper()
 
 	ctx := context.Background()
 
@@ -107,26 +107,26 @@ func SetupContainerWithConfig(t testing.TB, cfg ContainerConfig) *ContainerResul
 		ContainerRequest: req,
 		Started:          true,
 	})
-	require.NoError(t, err, "failed to start PostgreSQL container")
+	require.NoError(tb, err, "failed to start PostgreSQL container")
 
 	host, err := ctr.Host(ctx)
-	require.NoError(t, err, "failed to get container host")
+	require.NoError(tb, err, "failed to get container host")
 
-	port := waitForMappedPort(t, ctx, ctr, postgresPortID)
+	port := waitForMappedPort(tb, ctx, ctr, postgresPortID)
 
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		host, port.Port(), cfg.DBUser, cfg.DBPassword, cfg.DBName)
 
 	db, err := sql.Open("pgx", dsn)
-	require.NoError(t, err, "failed to open database connection")
+	require.NoError(tb, err, "failed to open database connection")
 
-	require.NoError(t, db.PingContext(context.Background()), "failed to ping database")
+	require.NoError(tb, db.PingContext(context.Background()), "failed to ping database")
 
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		db.Close()
 
 		if err := ctr.Terminate(context.Background()); err != nil {
-			t.Logf("failed to terminate PostgreSQL container: %v", err)
+			tb.Logf("failed to terminate PostgreSQL container: %v", err)
 		}
 	})
 
@@ -140,8 +140,8 @@ func SetupContainerWithConfig(t testing.TB, cfg ContainerConfig) *ContainerResul
 	}
 }
 
-func waitForMappedPort(t testing.TB, ctx context.Context, ctr testcontainers.Container, portID string) nat.Port { //nolint:revive // ctx must follow t for test helper pattern
-	t.Helper()
+func waitForMappedPort(tb testing.TB, ctx context.Context, ctr testcontainers.Container, portID string) nat.Port { //nolint:revive // ctx must follow tb for test helper pattern
+	tb.Helper()
 
 	deadline := time.Now().Add(mappedPortTimeout)
 
@@ -160,7 +160,7 @@ func waitForMappedPort(t testing.TB, ctx context.Context, ctr testcontainers.Con
 		time.Sleep(postgresPortPollSleep)
 	}
 
-	require.NoError(t, lastErr, "failed to get PostgreSQL mapped port %s after %v", portID, mappedPortTimeout)
+	require.NoError(tb, lastErr, "failed to get PostgreSQL mapped port %s after %v", portID, mappedPortTimeout)
 
 	return ""
 }

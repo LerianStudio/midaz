@@ -227,7 +227,7 @@ func TestErrorCodeTransformerMiddleware(t *testing.T) {
 				return c.Status(tt.handlerStatus).JSON(tt.handlerBody)
 			})
 
-			req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 			resp, err := app.Test(req)
 			require.NoError(t, err)
 
@@ -267,7 +267,7 @@ func TestErrorCodeTransformerPreservesAllFields(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 

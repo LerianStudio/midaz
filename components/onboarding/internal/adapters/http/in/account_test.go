@@ -216,7 +216,7 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts", http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", "Bearer test-token")
 			resp, err := app.Test(req)
@@ -527,7 +527,7 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts"+tt.queryParams, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -675,7 +675,7 @@ func TestAccountHandler_GetAccountByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -827,7 +827,7 @@ func TestAccountHandler_GetAccountExternalByCode(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/external/"+tt.code, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/external/"+tt.code, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -977,7 +977,7 @@ func TestAccountHandler_GetAccountByAlias(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/alias/"+tt.alias, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/alias/"+tt.alias, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1228,7 +1228,7 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String(), http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -1368,7 +1368,7 @@ func TestAccountHandler_DeleteAccountByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1448,7 +1448,7 @@ func TestAccountHandler_CountAccounts(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/metrics/count", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/metrics/count", http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert

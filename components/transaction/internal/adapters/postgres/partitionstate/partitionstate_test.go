@@ -22,6 +22,7 @@ func newReaderWithSQLMock(t *testing.T, ttl time.Duration) (*Reader, sqlmock.Sql
 	require.NoError(t, err)
 
 	r := NewReader(db, ttl, nil)
+
 	return r, mock, func() { _ = db.Close() }
 }
 
@@ -95,7 +96,7 @@ func TestReader_DBFailureWithCacheReturnsStale(t *testing.T) {
 	mock.ExpectQuery("SELECT phase").
 		WillReturnRows(sqlmock.NewRows([]string{"phase"}).AddRow(string(PhaseDualWrite)))
 	mock.ExpectQuery("SELECT phase").
-		WillReturnError(errors.New("db down"))
+		WillReturnError(errors.New("db down")) //nolint:err113 // test-only error fixture for go-sqlmock failure injection.
 
 	_, err := r.Phase(context.Background())
 	require.NoError(t, err)

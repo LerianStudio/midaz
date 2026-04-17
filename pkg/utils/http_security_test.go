@@ -93,7 +93,7 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 		app.Use(SecurityHeadersMiddleware)
 		app.Get("/v1/health", func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/health", http.NoBody)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/health", http.NoBody)
 		resp, err := app.Test(req)
 		require.NoError(t, err)
 
@@ -113,7 +113,7 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 		app.Use(SecurityHeadersMiddleware)
 		app.Get("/swagger/index.html", func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 
-		req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", http.NoBody)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/swagger/index.html", http.NoBody)
 		resp, err := app.Test(req)
 		require.NoError(t, err)
 
@@ -132,7 +132,7 @@ func TestSwaggerRequestToken(t *testing.T) {
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", http.NoBody)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/swagger/index.html", http.NoBody)
 		req.Header.Set("X-Swagger-Token", "header-token")
 
 		resp, err := app.Test(req)
@@ -148,7 +148,7 @@ func TestSwaggerRequestToken(t *testing.T) {
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", http.NoBody)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/swagger/index.html", http.NoBody)
 		req.AddCookie(&http.Cookie{Name: SwaggerTokenCookieName, Value: "cookie-token"})
 
 		resp, err := app.Test(req)
@@ -164,7 +164,7 @@ func TestSwaggerRequestToken(t *testing.T) {
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/swagger/index.html?token=query-token", http.NoBody)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/swagger/index.html?token=query-token", http.NoBody)
 
 		resp, err := app.Test(req)
 		require.NoError(t, err)
@@ -186,7 +186,7 @@ func TestSwaggerRateLimitMiddleware(t *testing.T) {
 	})
 
 	for i := 0; i < 2; i++ {
-		req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", http.NoBody)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/swagger/index.html", http.NoBody)
 		req.RemoteAddr = "10.0.0.1:12345"
 
 		resp, err := app.Test(req)
@@ -196,7 +196,7 @@ func TestSwaggerRateLimitMiddleware(t *testing.T) {
 		resp.Body.Close()
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/swagger/index.html", http.NoBody)
 	req.RemoteAddr = "10.0.0.1:12345"
 
 	resp, err := app.Test(req)
@@ -219,7 +219,7 @@ func TestShardingControlPlaneMiddleware(t *testing.T) { //nolint:funlen
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody))
+		resp, err := app.Test(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody))
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
@@ -239,7 +239,7 @@ func TestShardingControlPlaneMiddleware(t *testing.T) { //nolint:funlen
 		})
 
 		t.Run("missing_header_returns_401", func(t *testing.T) {
-			resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody))
+			resp, err := app.Test(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody))
 			require.NoError(t, err)
 			assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode)
 
@@ -247,7 +247,7 @@ func TestShardingControlPlaneMiddleware(t *testing.T) { //nolint:funlen
 		})
 
 		t.Run("invalid_header_returns_401", func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
 			req.Header.Set(ShardingControlTokenHeader, "wrong-token")
 
 			resp, err := app.Test(req)
@@ -270,7 +270,7 @@ func TestShardingControlPlaneMiddleware(t *testing.T) { //nolint:funlen
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
 		req.Header.Set(ShardingControlTokenHeader, "12345678901234567890123456789012")
 
 		resp, err := app.Test(req)
@@ -292,7 +292,7 @@ func TestShardingControlPlaneMiddleware(t *testing.T) { //nolint:funlen
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody))
+		resp, err := app.Test(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody))
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
@@ -311,7 +311,7 @@ func TestShardingControlPlaneMiddleware(t *testing.T) { //nolint:funlen
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
 		req.Header.Set(ShardingControlTokenHeader, "short-token")
 
 		resp, err := app.Test(req)
@@ -333,7 +333,7 @@ func TestShardingControlPlaneMiddleware(t *testing.T) { //nolint:funlen
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
 		req.Header.Set(ShardingControlTokenHeader, knownPlaceholderToken)
 
 		resp, err := app.Test(req)
@@ -357,7 +357,7 @@ func TestShardingControlPlaneMiddleware(t *testing.T) { //nolint:funlen
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		req1 := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
+		req1 := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
 		req1.Header.Set(ShardingControlTokenHeader, "12345678901234567890123456789012")
 		req1.RemoteAddr = "10.0.0.1:12345"
 
@@ -367,7 +367,7 @@ func TestShardingControlPlaneMiddleware(t *testing.T) { //nolint:funlen
 
 		resp.Body.Close()
 
-		req2 := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
+		req2 := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
 		req2.Header.Set(ShardingControlTokenHeader, "12345678901234567890123456789012")
 		req2.RemoteAddr = "10.0.0.1:12345"
 

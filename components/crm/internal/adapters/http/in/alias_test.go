@@ -359,7 +359,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) { //nolint:funlen
 				http.WithBody(new(mmodel.CreateAliasInput), handler.CreateAlias),
 			)
 
-			req := httptest.NewRequest(nethttp.MethodPost, "/v1/holders/"+holderID.String()+"/aliases", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPost, "/v1/holders/"+holderID.String()+"/aliases", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
@@ -545,7 +545,7 @@ func TestAliasHandler_GetAliasByID(t *testing.T) { //nolint:funlen
 				url += "?include_deleted=" + tt.includeDeleted
 			}
 
-			req := httptest.NewRequest(nethttp.MethodGet, url, nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodGet, url, nethttp.NoBody)
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
@@ -827,7 +827,7 @@ func TestAliasHandler_UpdateAlias(t *testing.T) { //nolint:funlen
 				http.WithBody(new(mmodel.UpdateAliasInput), handler.UpdateAlias),
 			)
 
-			req := httptest.NewRequest(nethttp.MethodPatch, "/v1/holders/"+holderID.String()+"/aliases/"+aliasID.String(), bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPatch, "/v1/holders/"+holderID.String()+"/aliases/"+aliasID.String(), bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
@@ -963,7 +963,7 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) { //nolint:funlen
 				url += "?hard_delete=" + tt.hardDelete
 			}
 
-			req := httptest.NewRequest(nethttp.MethodDelete, url, nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodDelete, url, nethttp.NoBody)
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
@@ -1080,7 +1080,7 @@ func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
 			)
 
 			url := "/v1/holders/" + holderID.String() + "/aliases/" + aliasID.String() + "/related-parties/" + relatedPartyID.String()
-			req := httptest.NewRequest(nethttp.MethodDelete, url, nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodDelete, url, nethttp.NoBody)
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
@@ -1247,7 +1247,7 @@ func TestAliasHandler_GetAllAliases(t *testing.T) { //nolint:funlen
 				handler.GetAllAliases,
 			)
 
-			req := httptest.NewRequest(nethttp.MethodGet, "/v1/aliases"+tt.queryParams, nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodGet, "/v1/aliases"+tt.queryParams, nethttp.NoBody)
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 

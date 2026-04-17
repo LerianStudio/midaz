@@ -10,7 +10,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/google/uuid"
-	goredis "github.com/redis/go-redis/v9"
+	goredis "github.com/redis/go-redis/v9" //nolint:depguard // test-only: miniredis-backed client for cache-state assertions in balance-key pre-split tests.
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

@@ -296,7 +296,7 @@ func TestOperationHandler_GetAllOperationsByAccount(t *testing.T) { //nolint:fun
 				handler.GetAllOperationsByAccount,
 			)
 
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String()+"/operations"+tt.queryParams, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String()+"/operations"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -464,7 +464,7 @@ func TestOperationHandler_GetOperationByAccount(t *testing.T) { //nolint:funlen
 				handler.GetOperationByAccount,
 			)
 
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String()+"/operations/"+operationID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String()+"/operations/"+operationID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -683,7 +683,7 @@ func TestOperationHandler_UpdateOperation(t *testing.T) { //nolint:funlen
 				pkgHTTP.WithBody(new(operation.UpdateOperationInput), handler.UpdateOperation),
 			)
 
-			req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/operations/"+operationID.String(), bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/operations/"+operationID.String(), bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 

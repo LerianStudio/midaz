@@ -344,7 +344,7 @@ func TestGetIdempotencyKeyAndTTL_WithValidValues(t *testing.T) {
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 	req.Header.Set(libConstants.IdempotencyKey, "test-key")
 	req.Header.Set(libConstants.IdempotencyTTL, "60")
 
@@ -368,7 +368,7 @@ func TestGetIdempotencyKeyAndTTL_WithInvalidTTL(t *testing.T) {
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 	req.Header.Set(libConstants.IdempotencyKey, "test-key")
 	req.Header.Set(libConstants.IdempotencyTTL, "invalid")
 
@@ -392,7 +392,7 @@ func TestGetIdempotencyKeyAndTTL_WithNegativeTTL(t *testing.T) {
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 	req.Header.Set(libConstants.IdempotencyKey, "test-key")
 	req.Header.Set(libConstants.IdempotencyTTL, "-1")
 
@@ -417,7 +417,7 @@ func TestGetIdempotencyKeyAndTTL_WithExcessiveTTL(t *testing.T) {
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 	req.Header.Set(libConstants.IdempotencyKey, "test-key")
 	req.Header.Set(libConstants.IdempotencyTTL, "999999")
 
@@ -440,7 +440,7 @@ func TestGetIdempotencyKeyAndTTL_WithEmptyHeaders(t *testing.T) {
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
@@ -460,7 +460,7 @@ func TestGetFileFromHeader_NoFile(t *testing.T) {
 		return c.SendStatus(fiber.StatusBadRequest)
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/upload", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/upload", http.NoBody)
 	req.Header.Set("Content-Type", "multipart/form-data")
 
 	resp, err := app.Test(req, -1)
@@ -489,7 +489,7 @@ func TestGetFileFromHeader_InvalidExtension(t *testing.T) {
 
 	writer.Close()
 
-	req := httptest.NewRequest(http.MethodPost, "/upload", body)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/upload", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := app.Test(req, -1)
@@ -518,7 +518,7 @@ func TestGetFileFromHeader_EmptyFile(t *testing.T) {
 
 	writer.Close()
 
-	req := httptest.NewRequest(http.MethodPost, "/upload", body)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/upload", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := app.Test(req, -1)
@@ -553,7 +553,7 @@ func TestGetFileFromHeader_ValidFile(t *testing.T) {
 
 	writer.Close()
 
-	req := httptest.NewRequest(http.MethodPost, "/upload", body)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/upload", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := app.Test(req, -1)
@@ -668,7 +668,7 @@ func TestGetUUIDFromLocals_ValidUUID(t *testing.T) {
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test/"+testUUID.String(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test/"+testUUID.String(), http.NoBody)
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
@@ -689,7 +689,7 @@ func TestGetUUIDFromLocals_NilValue(t *testing.T) {
 		return c.SendStatus(fiber.StatusBadRequest)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
@@ -711,7 +711,7 @@ func TestGetUUIDFromLocals_WrongType(t *testing.T) {
 		return c.SendStatus(fiber.StatusBadRequest)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
@@ -733,7 +733,7 @@ func TestGetUUIDFromLocals_WrongTypeInteger(t *testing.T) {
 		return c.SendStatus(fiber.StatusBadRequest)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
@@ -763,7 +763,7 @@ func TestGetUUIDFromLocals_DifferentKeys(t *testing.T) {
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)

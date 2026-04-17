@@ -311,7 +311,7 @@ func TestHolderHandler_CreateHolder(t *testing.T) { //nolint:funlen,gocyclo,cycl
 				http.WithBody(new(mmodel.CreateHolderInput), handler.CreateHolder),
 			)
 
-			req := httptest.NewRequest(nethttp.MethodPost, "/v1/holders", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPost, "/v1/holders", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -490,7 +490,7 @@ func TestHolderHandler_GetHolderByID(t *testing.T) { //nolint:funlen
 				url += "?include_deleted=" + tt.includeDeleted
 			}
 
-			req := httptest.NewRequest(nethttp.MethodGet, url, nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodGet, url, nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -677,7 +677,7 @@ func TestHolderHandler_UpdateHolder(t *testing.T) { //nolint:funlen
 				http.WithBody(new(mmodel.UpdateHolderInput), handler.UpdateHolder),
 			)
 
-			req := httptest.NewRequest(nethttp.MethodPatch, "/v1/holders/"+holderID.String(), bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPatch, "/v1/holders/"+holderID.String(), bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -880,7 +880,7 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) { //nolint:funlen
 				url += "?hard_delete=" + tt.hardDelete
 			}
 
-			req := httptest.NewRequest(nethttp.MethodDelete, url, nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodDelete, url, nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -1253,7 +1253,7 @@ func TestHolderHandler_GetAllHolders(t *testing.T) { //nolint:funlen
 				handler.GetAllHolders,
 			)
 
-			req := httptest.NewRequest(nethttp.MethodGet, "/v1/holders"+tt.queryParams, nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodGet, "/v1/holders"+tt.queryParams, nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)

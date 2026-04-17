@@ -191,7 +191,7 @@ func TestHandler_CreateSegment(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments", http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -430,7 +430,7 @@ func TestHandler_UpdateSegment(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments/"+segmentID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments/"+segmentID.String(), http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -593,7 +593,7 @@ func TestHandler_GetSegmentByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments/"+segmentID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments/"+segmentID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -888,7 +888,7 @@ func TestHandler_GetAllSegments(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments"+tt.queryParams, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1004,7 +1004,7 @@ func TestHandler_DeleteSegmentByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments/"+segmentID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments/"+segmentID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1084,7 +1084,7 @@ func TestHandler_CountSegments(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments/metrics/count", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments/metrics/count", http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert

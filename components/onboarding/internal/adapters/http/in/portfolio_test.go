@@ -155,7 +155,7 @@ func TestHandler_CreatePortfolio(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios", http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -394,7 +394,7 @@ func TestHandler_UpdatePortfolio(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/"+portfolioID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/"+portfolioID.String(), http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -557,7 +557,7 @@ func TestHandler_GetPortfolioByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/"+portfolioID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/"+portfolioID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -852,7 +852,7 @@ func TestHandler_GetAllPortfolios(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios"+tt.queryParams, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -968,7 +968,7 @@ func TestHandler_DeletePortfolioByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/"+portfolioID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/"+portfolioID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1048,7 +1048,7 @@ func TestHandler_CountPortfolios(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/metrics/count", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/metrics/count", http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert

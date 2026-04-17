@@ -71,7 +71,7 @@ func TestWithError_EntityConflictError_Returns409(t *testing.T) {
 				return WithError(c, tt.err)
 			})
 
-			req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 			resp, err := app.Test(req)
 			require.NoError(t, err)
 
@@ -100,7 +100,7 @@ func TestWithError_EntityNotFoundError_Returns404(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 
@@ -126,7 +126,7 @@ func TestWithError_ValidationError_Returns400(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 
@@ -152,7 +152,7 @@ func TestWithError_UnprocessableOperationError_Returns422(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 
@@ -178,7 +178,7 @@ func TestWithError_UnauthorizedError_Returns401(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 
@@ -204,7 +204,7 @@ func TestWithError_ForbiddenError_Returns403(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 
@@ -230,7 +230,7 @@ func TestWithError_ServiceUnavailableConsumerLagStaleBalance_SetsRetryAfterHeade
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 

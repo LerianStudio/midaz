@@ -228,7 +228,7 @@ func TestAssetRateHandler_CreateOrUpdateAssetRate(t *testing.T) { //nolint:funle
 				pkgHTTP.WithBody(new(assetrate.CreateAssetRateInput), handler.CreateOrUpdateAssetRate),
 			)
 
-			req := httptest.NewRequest(http.MethodPut, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -386,7 +386,7 @@ func TestAssetRateHandler_GetAssetRateByExternalID(t *testing.T) { //nolint:funl
 				handler.GetAssetRateByExternalID,
 			)
 
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates/"+externalID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates/"+externalID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -591,7 +591,7 @@ func TestAssetRateHandler_GetAllAssetRatesByAssetCode(t *testing.T) { //nolint:f
 				handler.GetAllAssetRatesByAssetCode,
 			)
 
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates/from/"+assetCode+tt.queryParams, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates/from/"+assetCode+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)

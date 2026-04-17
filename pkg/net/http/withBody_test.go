@@ -170,7 +170,7 @@ func TestParseUUIDPathParameters(t *testing.T) {
 				return c.SendStatus(fiber.StatusOK)
 			})
 
-			req := httptest.NewRequest(http.MethodGet, tc.requestPath, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tc.requestPath, http.NoBody)
 			resp, err := app.Test(req, -1)
 			require.NoError(t, err)
 

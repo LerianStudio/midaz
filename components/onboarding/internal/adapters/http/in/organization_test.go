@@ -165,7 +165,7 @@ func TestHandler_CreateOrganization(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations", nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPost, "/v1/organizations", nethttp.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -377,7 +377,7 @@ func TestHandler_UpdateOrganization(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodPatch, "/v1/organizations/"+orgID.String(), nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPatch, "/v1/organizations/"+orgID.String(), nethttp.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -516,7 +516,7 @@ func TestHandler_GetOrganizationByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations/"+orgID.String(), nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodGet, "/v1/organizations/"+orgID.String(), nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -796,7 +796,7 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 			app.Get("/v1/organizations", handler.GetAllOrganizations)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations"+tt.queryParams, nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodGet, "/v1/organizations"+tt.queryParams, nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -934,7 +934,7 @@ func TestHandler_DeleteOrganizationByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodDelete, "/v1/organizations/"+orgID.String(), nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodDelete, "/v1/organizations/"+orgID.String(), nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1003,7 +1003,7 @@ func TestHandler_CountOrganizations(t *testing.T) {
 			app.Head("/v1/organizations/metrics/count", handler.CountOrganizations)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodHead, "/v1/organizations/metrics/count", nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodHead, "/v1/organizations/metrics/count", nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1073,7 +1073,7 @@ func TestHandler_GetOrganizationByID_InvalidUUID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations/"+tt.pathID, nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodGet, "/v1/organizations/"+tt.pathID, nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1167,7 +1167,7 @@ func TestProperty_Organization_FieldLengths(t *testing.T) {
 			app.Post("/v1/organizations", http.WithBody(new(mmodel.CreateOrganizationInput), handler.CreateOrganization))
 
 			body, _ := json.Marshal(payload)
-			req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations", bytes.NewBuffer(body))
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPost, "/v1/organizations", bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -1222,7 +1222,7 @@ func TestProperty_Headers_InvalidFormats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations", nethttp.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodGet, "/v1/organizations", nethttp.NoBody)
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}
@@ -1290,7 +1290,7 @@ func TestProperty_ContentType_Variations(t *testing.T) {
 
 			body, _ := json.Marshal(payload)
 
-			req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations", bytes.NewBuffer(body))
+			req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPost, "/v1/organizations", bytes.NewBuffer(body))
 			if ct != "" {
 				req.Header.Set("Content-Type", ct)
 			}
@@ -1342,7 +1342,7 @@ func TestProperty_Headers_MissingContentType(t *testing.T) {
 
 	// POST with JSON body but no Content-Type header
 	body := []byte(`{"legalName":"Test Org","legalDocument":"12345678901234","address":{"country":"US"}}`)
-	req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations", bytes.NewBuffer(body))
+	req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPost, "/v1/organizations", bytes.NewBuffer(body))
 	// Explicitly NOT setting Content-Type
 
 	resp, err := app.Test(req)
@@ -1385,7 +1385,7 @@ func TestProperty_Headers_DuplicateContentType(t *testing.T) {
 	app.Post("/v1/organizations", http.WithBody(new(mmodel.CreateOrganizationInput), handler.CreateOrganization))
 
 	body := []byte(`{"legalName":"Test Org","legalDocument":"12345678901234","address":{"country":"US"}}`)
-	req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations", bytes.NewBuffer(body))
+	req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPost, "/v1/organizations", bytes.NewBuffer(body))
 	// Add duplicate Content-Type headers
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Content-Type", "application/json")
@@ -1430,7 +1430,7 @@ func TestProperty_Headers_DuplicateXRequestId(t *testing.T) {
 	app.Post("/v1/organizations", http.WithBody(new(mmodel.CreateOrganizationInput), handler.CreateOrganization))
 
 	body := []byte(`{"legalName":"Test Org","legalDocument":"12345678901234","address":{"country":"US"}}`)
-	req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations", bytes.NewBuffer(body))
+	req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPost, "/v1/organizations", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	// Add duplicate X-Request-Id headers
 	req.Header.Add("X-Request-Id", "req-123")
@@ -1507,7 +1507,7 @@ func FuzzCreateOrganization_LegalName(f *testing.F) {
 			},
 		)
 
-		req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations", nethttp.NoBody)
+		req := httptest.NewRequestWithContext(t.Context(), nethttp.MethodPost, "/v1/organizations", nethttp.NoBody)
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
 

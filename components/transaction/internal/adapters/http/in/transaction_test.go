@@ -293,7 +293,7 @@ func TestTransactionHandler_GetTransaction(t *testing.T) { //nolint:funlen
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+tt.queryParams, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -419,7 +419,7 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit", http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -524,7 +524,7 @@ func TestRevertTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -602,7 +602,7 @@ func TestRevertTransaction_AlreadyHasRevert_ReturnsError(t *testing.T) {
 	)
 
 	// Act
-	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
@@ -693,7 +693,7 @@ func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
 	)
 
 	// Act
-	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
@@ -758,7 +758,7 @@ func TestRevertTransaction_GetParentError_ReturnsError(t *testing.T) {
 	)
 
 	// Act
-	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
@@ -837,7 +837,7 @@ func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 	)
 
 	// Act
-	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
@@ -930,7 +930,7 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 	)
 
 	// Act
-	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
@@ -997,7 +997,7 @@ func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 	)
 
 	// Act
-	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
@@ -1106,7 +1106,7 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 	)
 
 	// Act
-	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
@@ -1210,7 +1210,7 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 	)
 
 	// Act
-	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
@@ -1284,7 +1284,7 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 			}`
 
 			// Act
-			req := httptest.NewRequest(http.MethodPost,
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
 				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/json",
 				strings.NewReader(requestBody))
 			req.Header.Set("Content-Type", "application/json")
@@ -1365,7 +1365,7 @@ func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
 			}`
 
 			// Act
-			req := httptest.NewRequest(http.MethodPost,
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
 				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/inflow",
 				strings.NewReader(requestBody))
 			req.Header.Set("Content-Type", "application/json")
@@ -1446,7 +1446,7 @@ func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
 			}`
 
 			// Act
-			req := httptest.NewRequest(http.MethodPost,
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
 				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/outflow",
 				strings.NewReader(requestBody))
 			req.Header.Set("Content-Type", "application/json")
@@ -1714,7 +1714,7 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) { //nolint:funlen
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions"+tt.queryParams, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1963,7 +1963,7 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) { //nolint:funlen
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPatch,
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch,
 				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String(),
 				strings.NewReader(tt.requestBody))
 			req.Header.Set("Content-Type", "application/json")
@@ -2037,7 +2037,7 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 			}`
 
 			// Act
-			req := httptest.NewRequest(http.MethodPost,
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
 				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/annotation",
 				strings.NewReader(requestBody))
 			req.Header.Set("Content-Type", "application/json")
@@ -2089,7 +2089,7 @@ func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) { //nolint:funlen
 			name: "deprecation headers present on missing file error",
 			setupRequest: func(orgID, ledgerID uuid.UUID) *http.Request {
 				// Request without file - will fail validation but should still have deprecation headers
-				req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl", http.NoBody)
+				req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl", http.NoBody)
 				req.Header.Set("Content-Type", "multipart/form-data")
 
 				return req
@@ -2125,7 +2125,7 @@ func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) { //nolint:funlen
 		{
 			name: "deprecation headers present with invalid query parameters",
 			setupRequest: func(orgID, ledgerID uuid.UUID) *http.Request {
-				req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl?start_date=invalid-format", http.NoBody)
+				req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl?start_date=invalid-format", http.NoBody)
 				req.Header.Set("Content-Type", "multipart/form-data")
 
 				return req
@@ -2154,7 +2154,7 @@ func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) { //nolint:funlen
 		{
 			name: "Link header contains dynamic organization_id and ledger_id",
 			setupRequest: func(orgID, ledgerID uuid.UUID) *http.Request {
-				req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl", http.NoBody)
+				req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl", http.NoBody)
 				req.Header.Set("Content-Type", "multipart/form-data")
 
 				return req
@@ -2271,7 +2271,7 @@ func TestCreateTransactionDSL_DeprecationHeaders_DifferentIDs(t *testing.T) {
 				handler.CreateTransactionDSL,
 			)
 
-			req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl", http.NoBody)
 			req.Header.Set("Content-Type", "multipart/form-data")
 
 			resp, err := app.Test(req)
@@ -2605,7 +2605,7 @@ func TestCancelTransaction(t *testing.T) { //nolint:funlen
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/cancel", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/cancel", http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert

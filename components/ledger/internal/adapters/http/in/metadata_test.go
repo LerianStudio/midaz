@@ -158,7 +158,7 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) { //nolint:funle
 			require.NoError(t, err)
 
 			url := "/v1/settings/metadata-indexes/entities/" + tt.entityName
-			req := httptest.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, url, bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := app.Test(req)
@@ -227,7 +227,7 @@ func TestMetadataIndexHandler_CreateMetadataIndex_InvalidPayload(t *testing.T) {
 				return handler.CreateMetadataIndex(tt.payload, c)
 			})
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/settings/metadata-indexes/entities/transaction", bytes.NewReader([]byte("{}")))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/settings/metadata-indexes/entities/transaction", bytes.NewReader([]byte("{}")))
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := app.Test(req)
@@ -269,7 +269,7 @@ func TestMetadataIndexHandler_CreateMetadataIndex_EmptyEntityName(t *testing.T) 
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/settings/metadata-indexes/entities", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/settings/metadata-indexes/entities", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req)
@@ -504,7 +504,7 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) { //nolint:goc
 				return handler.GetAllMetadataIndexes(c)
 			})
 
-			req := httptest.NewRequest(http.MethodGet, "/v1/settings/metadata-indexes"+tt.queryParams, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/settings/metadata-indexes"+tt.queryParams, http.NoBody)
 
 			resp, err := app.Test(req)
 			require.NoError(t, err)
@@ -615,7 +615,7 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 			})
 
 			url := "/v1/settings/metadata-indexes/entities/" + tt.entityName + "/key/" + tt.indexKey
-			req := httptest.NewRequest(http.MethodDelete, url, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, url, http.NoBody)
 
 			resp, err := app.Test(req)
 			require.NoError(t, err)
@@ -649,7 +649,7 @@ func TestMetadataIndexHandler_DeleteMetadataIndex_EmptyEntityName(t *testing.T) 
 		return handler.DeleteMetadataIndex(c)
 	})
 
-	req := httptest.NewRequest(http.MethodDelete, "/v1/settings/metadata-indexes/entities", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/v1/settings/metadata-indexes/entities", http.NoBody)
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)
@@ -681,7 +681,7 @@ func TestMetadataIndexHandler_DeleteMetadataIndex_EmptyIndexKey(t *testing.T) {
 		return handler.DeleteMetadataIndex(c)
 	})
 
-	req := httptest.NewRequest(http.MethodDelete, "/v1/settings/metadata-indexes/entities/transaction/key", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/v1/settings/metadata-indexes/entities/transaction/key", http.NoBody)
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)

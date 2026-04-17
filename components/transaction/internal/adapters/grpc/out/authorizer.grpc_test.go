@@ -82,6 +82,10 @@ func (s *stubBalanceAuthorizerClient) AbortPrepared(_ context.Context, _ *author
 	return &authorizerv1.AbortPreparedResponse{}, nil
 }
 
+func (s *stubBalanceAuthorizerClient) ResolveManualIntervention(_ context.Context, _ *authorizerv1.ResolveManualInterventionRequest, _ ...grpc.CallOption) (*authorizerv1.ResolveManualInterventionResponse, error) {
+	return &authorizerv1.ResolveManualInterventionResponse{}, nil
+}
+
 func TestParseShardRanges_AllowsNonOverlappingRanges(t *testing.T) {
 	t.Parallel()
 

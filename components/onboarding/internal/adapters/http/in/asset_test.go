@@ -223,7 +223,7 @@ func TestHandler_CreateAsset(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets", http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", "Bearer test-token")
 			resp, err := app.Test(req)
@@ -449,7 +449,7 @@ func TestHandler_UpdateAsset(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -597,7 +597,7 @@ func TestHandler_GetAssetByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -901,7 +901,7 @@ func TestHandler_GetAllAssets(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets"+tt.queryParams, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1040,7 +1040,7 @@ func TestHandler_DeleteAssetByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1120,7 +1120,7 @@ func TestHandler_CountAssets(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/metrics/count", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/metrics/count", http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert

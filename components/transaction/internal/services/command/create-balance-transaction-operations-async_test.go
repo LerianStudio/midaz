@@ -2032,7 +2032,7 @@ func TestValidateBalancesNotNil(t *testing.T) {
 		err := validateBalancesNotNil([]*mmodel.Balance{{Alias: "@acc#default"}, nil})
 
 		require.Error(t, err)
-		assert.ErrorIs(t, err, errInvalidPayloadNilBalance)
+		require.ErrorIs(t, err, errInvalidPayloadNilBalance)
 		assert.Contains(t, err.Error(), "at index 1")
 	})
 

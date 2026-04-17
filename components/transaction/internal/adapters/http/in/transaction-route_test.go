@@ -181,7 +181,7 @@ func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) { //nolint
 				pkgHTTP.WithBody(new(mmodel.CreateTransactionRouteInput), handler.CreateTransactionRoute),
 			)
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -328,7 +328,7 @@ func TestTransactionRouteHandler_GetTransactionRouteByID(t *testing.T) { //nolin
 				handler.GetTransactionRouteByID,
 			)
 
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes/"+transactionRouteID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes/"+transactionRouteID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -530,7 +530,7 @@ func TestTransactionRouteHandler_UpdateTransactionRoute(t *testing.T) { //nolint
 				pkgHTTP.WithBody(new(mmodel.UpdateTransactionRouteInput), handler.UpdateTransactionRoute),
 			)
 
-			req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes/"+transactionRouteID.String(), bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes/"+transactionRouteID.String(), bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -667,7 +667,7 @@ func TestTransactionRouteHandler_DeleteTransactionRouteByID(t *testing.T) { //no
 				handler.DeleteTransactionRouteByID,
 			)
 
-			req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes/"+transactionRouteID.String(), http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes/"+transactionRouteID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -919,7 +919,7 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) { //nolin
 				handler.GetAllTransactionRoutes,
 			)
 
-			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes"+tt.queryParams, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
