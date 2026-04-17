@@ -32,10 +32,14 @@ import (
 )
 
 const (
-	CronTimeToRun     = 30 * time.Minute
-	MessageTimeOfLife = 30
+	// CronTimeToRun     = 30 * time.Minute
+	// MessageTimeOfLife = 30
+	// MaxWorkers        = 100
+	// CycleLockTTL      = 1800 // 30 minutes in seconds — matches CronTimeToRun
+	CronTimeToRun     = 3 * time.Minute
+	MessageTimeOfLife = 3
 	MaxWorkers        = 100
-	ConsumerLockTTL   = 1500 // 25 minutes in seconds
+	CycleLockTTL      = 60 // seconds
 )
 
 type RedisQueueConsumer struct {
@@ -111,9 +115,24 @@ func (r *RedisQueueConsumer) runSingleTenant() error {
 			return nil
 
 		case <-ticker.C:
-			r.readMessagesAndProcess(ctx)
+			r.executeCycle(ctx)
 		}
 	}
+}
+
+// executeCycle acquires the cycle-level distributed lock and, if this pod is the
+// leader, processes all backup queue messages. Extracted from the ticker case to
+// scope the defer-based lock release correctly (defer inside a for-select does not
+// run at the end of each iteration).
+func (r *RedisQueueConsumer) executeCycle(ctx context.Context) {
+	acquired, release := r.acquireCycleLock(ctx)
+	if !acquired {
+		return
+	}
+
+	defer release()
+
+	r.readMessagesAndProcess(ctx)
 }
 
 // runMultiTenant runs the Redis queue consumer iterating over all active tenants.
@@ -136,42 +155,100 @@ func (r *RedisQueueConsumer) runMultiTenant() error {
 			return nil
 
 		case <-ticker.C:
-			tenantIDs := r.tenantCache.TenantIDs()
-			if len(tenantIDs) == 0 {
-				r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer: no tenants in cache, skipping cycle")
-
-				continue
-			}
-
-			for _, tenantID := range tenantIDs {
-				if ctx.Err() != nil {
-					r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer: shutting down...")
-					return nil
-				}
-
-				tenantCtx := tmcore.ContextWithTenantID(ctx, tenantID)
-
-				conn, err := r.pgManager.GetConnection(tenantCtx, tenantID)
-				if err != nil {
-					r.Logger.Log(ctx, libLog.LevelError, fmt.Sprintf("RedisQueueConsumer: failed to get PG connection for tenant %s: %v", tenantID, err))
-
-					continue
-				}
-
-				db, err := conn.GetDB()
-				if err != nil {
-					r.Logger.Log(ctx, libLog.LevelError, fmt.Sprintf("RedisQueueConsumer: failed to get DB for tenant %s: %v", tenantID, err))
-
-					continue
-				}
-
-				tenantCtx = tmcore.ContextWithPG(tenantCtx, db)
-				tenantCtx = tmcore.ContextWithPG(tenantCtx, db, constant.ModuleTransaction)
-
-				r.readMessagesAndProcess(tenantCtx)
-			}
+			r.executeMultiTenantCycle(ctx)
 		}
 	}
+}
+
+// executeMultiTenantCycle acquires the cycle-level distributed lock and, if this
+// pod is the leader, processes backup queue messages for every active tenant.
+// Extracted from the ticker case to scope the defer-based lock release correctly.
+func (r *RedisQueueConsumer) executeMultiTenantCycle(ctx context.Context) {
+	acquired, release := r.acquireCycleLock(ctx)
+	if !acquired {
+		return
+	}
+
+	defer release()
+
+	tenantIDs := r.tenantCache.TenantIDs()
+	if len(tenantIDs) == 0 {
+		r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer: no tenants in cache, skipping cycle")
+
+		return
+	}
+
+	for _, tenantID := range tenantIDs {
+		if ctx.Err() != nil {
+			r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer: context cancelled, stopping tenant iteration")
+
+			return
+		}
+
+		tenantCtx := tmcore.ContextWithTenantID(ctx, tenantID)
+
+		conn, err := r.pgManager.GetConnection(tenantCtx, tenantID)
+		if err != nil {
+			r.Logger.Log(ctx, libLog.LevelError, fmt.Sprintf("RedisQueueConsumer: failed to get PG connection for tenant %s: %v", tenantID, err))
+
+			continue
+		}
+
+		db, err := conn.GetDB()
+		if err != nil {
+			r.Logger.Log(ctx, libLog.LevelError, fmt.Sprintf("RedisQueueConsumer: failed to get DB for tenant %s: %v", tenantID, err))
+
+			continue
+		}
+
+		tenantCtx = tmcore.ContextWithPG(tenantCtx, db)
+		tenantCtx = tmcore.ContextWithPG(tenantCtx, db, constant.ModuleTransaction)
+
+		r.readMessagesAndProcess(tenantCtx)
+	}
+}
+
+// acquireCycleLock attempts to acquire the cycle-level distributed lock via SetNX.
+// Returns (true, releaseFunc) if the lock was acquired, or (false, nil) if another
+// pod already holds it or an error occurred.
+// The release function deletes the lock key; callers should defer it.
+func (r *RedisQueueConsumer) acquireCycleLock(ctx context.Context) (bool, func()) {
+	cycleLockKey := utils.RedisConsumerCycleLockKey()
+	podID := podIdentifier()
+
+	success, err := r.TransactionHandler.Command.TransactionRedisRepo.SetNX(ctx, cycleLockKey, podID, CycleLockTTL)
+	if err != nil {
+		r.Logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to acquire backup consumer cycle lock: %v", err))
+
+		return false, nil
+	}
+
+	if !success {
+		r.Logger.Log(ctx, libLog.LevelInfo, "Another pod holds the backup consumer lock, skipping cycle")
+
+		return false, nil
+	}
+
+	r.Logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Cycle lock acquired by pod %s", podID))
+
+	release := func() {
+		if delErr := r.TransactionHandler.Command.TransactionRedisRepo.Del(ctx, cycleLockKey); delErr != nil {
+			r.Logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to release backup consumer cycle lock: %v", delErr))
+		}
+	}
+
+	return true, release
+}
+
+// podIdentifier returns a stable identifier for the current pod, used as the
+// value stored in the cycle lock for debugging and observability.
+func podIdentifier() string {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return "unknown"
+	}
+
+	return hostname
 }
 
 func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
@@ -242,8 +319,10 @@ Outer:
 	r.Logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Finished processing total of %d eligible messages", len(messages)-totalMessagesLessThanOneHour))
 }
 
-// processMessage handles a single Redis backup queue message: acquires a distributed lock,
-// rebuilds balances and operations, and writes the transaction via the async path.
+// processMessage handles a single Redis backup queue message: rebuilds balances
+// and operations, and writes the transaction via the async path.
+// Duplicate-processing prevention is handled at the cycle level by acquireCycleLock;
+// only the leader pod reaches this method.
 func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m mmodel.TransactionRedisQueue) {
 	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled
 
@@ -267,32 +346,6 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 		return
 	default:
 	}
-
-	// Acquire distributed lock to prevent duplicate processing across pods
-	lockKey := utils.RedisConsumerLockKey(m.OrganizationID, m.LedgerID, m.TransactionID.String())
-
-	_, spanLock := tracer.Start(msgCtxWithSpan, "redis.consumer.acquire_lock")
-
-	success, err := r.TransactionHandler.Command.TransactionRedisRepo.SetNX(msgCtxWithSpan, lockKey, "", ConsumerLockTTL)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanLock, "Failed to acquire lock", err)
-		spanLock.End()
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to acquire lock for message %s: %v", key, err))
-
-		return
-	}
-
-	if !success {
-		libOpentelemetry.HandleSpanEvent(spanLock, "Lock already held by another pod")
-		spanLock.End()
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Message %s already being processed by another pod, skipping", key))
-
-		return
-	}
-
-	spanLock.End()
 
 	if m.Validate == nil {
 		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Message (key: %s) has nil Validate field, skipping. Message will remain in queue.", key))

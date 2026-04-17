@@ -332,6 +332,19 @@ func TestLedgerSettingsInternalKey(t *testing.T) {
 	}
 }
 
+func TestRedisConsumerCycleLockKey(t *testing.T) {
+	t.Parallel()
+
+	result := RedisConsumerCycleLockKey()
+
+	assert.Equal(t, "lock:{transactions}:backup-consumer-cycle", result,
+		"cycle lock key must use {transactions} hash tag for Redis Cluster routing")
+
+	// Call twice to ensure deterministic output (no randomness).
+	assert.Equal(t, result, RedisConsumerCycleLockKey(),
+		"cycle lock key must be deterministic across calls")
+}
+
 func TestCacheKeyConstants(t *testing.T) {
 	t.Parallel()
 
