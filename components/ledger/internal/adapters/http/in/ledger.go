@@ -7,7 +7,6 @@ package in
 import (
 	"fmt"
 	"os"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -176,7 +175,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	if headerParams.Status != nil {
 		validStatuses := map[string]bool{"ACTIVE": true, "INACTIVE": true}
 		if !validStatuses[*headerParams.Status] {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "status")
+			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLedger, "status")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid status value", err)
 
@@ -196,7 +195,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 	if headerParams.Metadata != nil {
 		if headerParams.HasNameFilters() {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "metadata cannot be combined with name filters (name)")
+			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLedger, "metadata cannot be combined with name filters (name)")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters: metadata and name filters are mutually exclusive", err)
 
@@ -344,7 +343,7 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Ledger with ID: %s", id.String()))
 
 	if os.Getenv("ENV_NAME") == "production" {
-		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, reflect.TypeOf(mmodel.Ledger{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, constant.EntityLedger)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove ledger on command", err)
 

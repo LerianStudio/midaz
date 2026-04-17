@@ -7,7 +7,6 @@ package in
 import (
 	"fmt"
 	"os"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -206,7 +205,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	if headerParams.Status != nil {
 		validStatuses := map[string]bool{"ACTIVE": true, "INACTIVE": true}
 		if !validStatuses[*headerParams.Status] {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, reflect.TypeOf(mmodel.Organization{}).Name(), "status")
+			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityOrganization, "status")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid status value", err)
 
@@ -226,7 +225,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 	if headerParams.Metadata != nil {
 		if headerParams.HasNameFilters() {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, reflect.TypeOf(mmodel.Organization{}).Name(), "metadata cannot be combined with name filters (legal_name, doing_business_as)")
+			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityOrganization, "metadata cannot be combined with name filters (legal_name, doing_business_as)")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters: metadata and name filters are mutually exclusive", err)
 
@@ -302,7 +301,7 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Organization with ID: %s", id.String()))
 
 	if os.Getenv("ENV_NAME") == "production" {
-		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, reflect.TypeOf(mmodel.Organization{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, constant.EntityOrganization)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove organization in production environment", err)
 
