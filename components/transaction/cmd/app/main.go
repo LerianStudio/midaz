@@ -6,9 +6,11 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap"
@@ -28,25 +30,81 @@ import (
 // @in							header
 // @name						Authorization
 // @description				Bearer token authentication. Format: 'Bearer {access_token}'. Only required when auth plugin is enabled.
-func main() {
-	libCommons.InitLocalEnvConfig()
 
-	logger, err := libZap.InitializeLoggerWithError()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+// runner is the minimal contract the transaction binary needs from the
+// bootstrap Service. It exists so tests can inject a fake without spinning
+// up the real infrastructure (Postgres/Mongo/Redis/Redpanda/gRPC).
+type runner interface {
+	Run()
+}
 
-		os.Exit(1)
+// deps injects the side-effectful constructors. Real impls in realDeps() call
+// into libCommons/libZap/bootstrap; tests substitute fakes.
+type deps struct {
+	initEnvConfig func() error
+	initLogger    func() (libLog.Logger, error)
+	initService   func(logger libLog.Logger) (runner, error)
+}
+
+// realDeps wires the production constructors. The env-config call returns nil
+// because libCommons.InitLocalEnvConfig is void; we preserve its current
+// fire-and-forget behavior rather than inventing errors it never had.
+func realDeps() deps {
+	return deps{
+		initEnvConfig: func() error {
+			libCommons.InitLocalEnvConfig()
+			return nil
+		},
+		initLogger: libZap.InitializeLoggerWithError,
+		initService: func(logger libLog.Logger) (runner, error) {
+			svc, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
+				Logger: logger,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("init transaction service: %w", err)
+			}
+
+			return svc, nil
+		},
+	}
+}
+
+// run executes the transaction bootstrap sequence and returns a process exit
+// code. main() is a one-liner around this so the bootstrap is trivially
+// unit-testable. Behavior must remain identical to the pre-refactor main():
+//   - --healthcheck exits 0 without side effects
+//   - env/logger/service init order is preserved
+//   - logger.Sync is called on service-init failure only (matches original flow)
+//   - service.Run() has no error return; failure modes stay inside the service
+func run(args []string, stderr io.Writer, d deps) int {
+	if len(args) > 1 && args[1] == "--healthcheck" {
+		return 0
 	}
 
-	service, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
-		Logger: logger,
-	})
+	if err := d.initEnvConfig(); err != nil {
+		fmt.Fprintf(stderr, "failed to initialize env config: %v\n", err)
+		return 1
+	}
+
+	logger, err := d.initLogger()
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to initialize logger: %v\n", err)
+		return 1
+	}
+
+	service, err := d.initService(logger)
 	if err != nil {
 		logger.Errorf("Failed to initialize transaction service: %v", err)
 		_ = logger.Sync()
 
-		os.Exit(1)
+		return 1
 	}
 
 	service.Run()
+
+	return 0
+}
+
+func main() {
+	os.Exit(run(os.Args, os.Stderr, realDeps()))
 }
