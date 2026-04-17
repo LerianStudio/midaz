@@ -62,7 +62,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		return fmt.Errorf("transaction payload has nil Transaction field")
 	}
 
-	backupStatusForCleanup := t.Transaction.Status.Code
+	backupStatusForCleanup := utils.ExpectedBackupStatusForCleanup(t.Transaction.Status.Code, t.Validate)
 
 	// Legacy payload compatibility: messages from v3.5.x lack the Version field.
 	// Their balance persistence relied on UpdateBalances() in the consumer, which
@@ -152,7 +152,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
 		if backupStatusForCleanup == "" {
-			backupStatusForCleanup = tran.Status.Code
+			backupStatusForCleanup = utils.ExpectedBackupStatusForCleanup(tran.Status.Code, t.Validate)
 		}
 
 		go uc.RemoveTransactionFromRedisQueueIfStatus(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID, backupStatusForCleanup)

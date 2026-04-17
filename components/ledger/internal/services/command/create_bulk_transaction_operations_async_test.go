@@ -7,8 +7,11 @@ package command
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
@@ -446,6 +449,150 @@ func TestCreateBulkTransactionOperationsAsync_StatusTransition_BelowThreshold(t 
 	assert.Equal(t, int64(0), result.TransactionsAttempted) // No inserts
 	assert.Equal(t, int64(1), result.TransactionsUpdateAttempted)
 	assert.Equal(t, int64(1), result.TransactionsUpdated)
+}
+
+func TestCreateBulkTransactionOperationsAsync_MixedInsertedAndDuplicate_CleansDuplicateBackup(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo:         mockTransactionRepo,
+		OperationRepo:           mockOperationRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		BalanceRepo:             mockBalanceRepo,
+		RabbitMQRepo:            mockRabbitMQRepo,
+		TransactionRedisRepo:    mockRedisRepo,
+	}
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	insertedTxID := uuid.New().String()
+	duplicateTxID := uuid.New().String()
+
+	payloads := []transaction.TransactionProcessingPayload{
+		{
+			Transaction: &transaction.Transaction{
+				ID:             insertedTxID,
+				OrganizationID: orgID.String(),
+				LedgerID:       ledgerID.String(),
+				Status:         transaction.Status{Code: constant.APPROVED},
+				Operations: []*operation.Operation{
+					{ID: uuid.New().String(), TransactionID: insertedTxID},
+				},
+			},
+			Validate:      &mtransaction.Responses{Aliases: []string{"alias1"}},
+			Balances:      []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(100)}},
+			BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
+			Version:       "v2",
+		},
+		{
+			Transaction: &transaction.Transaction{
+				ID:             duplicateTxID,
+				OrganizationID: orgID.String(),
+				LedgerID:       ledgerID.String(),
+				Status:         transaction.Status{Code: constant.APPROVED},
+				Operations: []*operation.Operation{
+					{ID: uuid.New().String(), TransactionID: duplicateTxID},
+				},
+			},
+			Validate:      &mtransaction.Responses{Aliases: []string{"alias2"}},
+			Balances:      []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias2", Available: decimal.NewFromInt(100)}},
+			BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias2", Available: decimal.NewFromInt(50)}},
+			Version:       "v2",
+		},
+	}
+
+	mockTx := &mockDBTransaction{}
+	mockTransactionRepo.EXPECT().
+		BeginTx(gomock.Any()).
+		Return(mockTx, nil).
+		Times(1)
+
+	mockTransactionRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), mockTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted:   2,
+			Inserted:    1,
+			Ignored:     1,
+			InsertedIDs: []string{insertedTxID},
+		}, nil).
+		Times(1)
+
+	mockOperationRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), mockTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 2,
+			Inserted:  1,
+			Ignored:   1,
+		}, nil).
+		Times(1)
+
+	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+
+	rawQueue, err := json.Marshal(mmodel.TransactionRedisQueue{TransactionStatus: constant.CREATED})
+	require.NoError(t, err)
+
+	var removeWG sync.WaitGroup
+	removeWG.Add(2)
+
+	var delWG sync.WaitGroup
+	delWG.Add(2)
+
+	mockRedisRepo.EXPECT().
+		ReadMessageFromQueue(gomock.Any(), gomock.Any()).
+		Return(rawQueue, nil).
+		AnyTimes()
+
+	mockRedisRepo.EXPECT().
+		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ string) error {
+			removeWG.Done()
+			return nil
+		}).
+		Times(2)
+
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ string) error {
+			delWG.Done()
+			return nil
+		}).
+		Times(2)
+
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), payloads)
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), result.TransactionsAttempted)
+	assert.Equal(t, int64(1), result.TransactionsInserted)
+	assert.Equal(t, int64(1), result.TransactionsIgnored)
+
+	waitWithTimeout := func(wg *sync.WaitGroup, what string) {
+		t.Helper()
+
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out waiting for %s", what)
+		}
+	}
+
+	waitWithTimeout(&removeWG, "backup queue cleanup")
+	waitWithTimeout(&delWG, "write-behind cleanup")
 }
 
 func TestCreateBulkTransactionOperationsAsync_NilTransaction_Skipped(t *testing.T) {

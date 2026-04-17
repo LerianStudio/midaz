@@ -22,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/repository"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/vmihailenco/msgpack/v5"
@@ -509,30 +510,12 @@ func (uc *UseCase) processMetadataAndEvents(
 
 		tx := payload.Transaction
 
-		// Skip if this transaction was not actually inserted (duplicate)
-		// If insertedTxIDs is empty, process all (fallback or status-update scenarios)
-		if len(insertedTxIDs) > 0 {
-			if _, wasInserted := insertedTxIDs[tx.ID]; !wasInserted {
-				logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf(
-					"Skipping events for duplicate transaction %s", tx.ID))
-
-				continue
-			}
-		}
-
-		// Send events asynchronously with context that preserves trace but survives parent cancellation
-		go func() {
-			opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
-			defer cancel()
-
-			uc.SendTransactionEvents(opCtx, tx)
-		}()
-
-		// Clean up backup queue with context that preserves trace but survives parent cancellation
+		// Clean up backup/write-behind entries for every payload that reached this stage,
+		// including duplicates ignored by INSERT ... ON CONFLICT DO NOTHING.
 		orgID, ledgerID, err := uc.extractOrgLedgerIDs(payload)
 		if err == nil {
 			useConditionalCleanup := strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true"
-			expectedStatus := tx.Status.Code
+			expectedStatus := utils.ExpectedBackupStatusForCleanup(tx.Status.Code, payload.Validate)
 
 			go func(orgID, ledgerID uuid.UUID, txID, status string) {
 				opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
@@ -552,6 +535,25 @@ func (uc *UseCase) processMetadataAndEvents(
 				uc.DeleteWriteBehindTransaction(opCtx, orgID, ledgerID, txID)
 			}(orgID, ledgerID, tx.ID)
 		}
+
+		// Skip if this transaction was not actually inserted (duplicate)
+		// If insertedTxIDs is empty, process all (fallback or status-update scenarios)
+		if len(insertedTxIDs) > 0 {
+			if _, wasInserted := insertedTxIDs[tx.ID]; !wasInserted {
+				logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf(
+					"Skipping events for duplicate transaction %s", tx.ID))
+
+				continue
+			}
+		}
+
+		// Send events asynchronously with context that preserves trace but survives parent cancellation
+		go func() {
+			opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
+			defer cancel()
+
+			uc.SendTransactionEvents(opCtx, tx)
+		}()
 	}
 }
 
