@@ -380,6 +380,12 @@ type TransactionProcessingPayload struct {
 
 	// Input transaction data (renamed from ParseDSL for clarity)
 	Input *mtransaction.Transaction `json:"input" msgpack:"ParseDSL"`
+
+	// Version discriminates the payload format for rolling-update compatibility.
+	// "v2": produced by v3.6.2+ — balance persistence is handled by BalanceSyncWorker.
+	// ""  : produced by v3.5.x  — consumer must call UpdateBalances() directly,
+	//       because the sync worker may not have ZSET entries for these transactions.
+	Version string `json:"version,omitempty" msgpack:"Version,omitempty"`
 }
 
 // TransactionResponse represents a success response containing a single transaction.

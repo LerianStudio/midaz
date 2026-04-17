@@ -151,7 +151,10 @@ func PendingTransactionLockKey(organizationID, ledgerID uuid.UUID, transactionID
 
 // RedisConsumerLockKey returns a key with the following format to be used on redis cluster:
 // "redis_consumer_lock:{organizationID:ledgerID}:transactionID"
-// This key is used to prevent duplicate processing of the same transaction across multiple pods.
+//
+// Deprecated: This per-transaction lock has been replaced by the cycle-level lock
+// (RedisConsumerCycleLockKey). Retained for reference during rolling deployments
+// where old pods may still hold per-transaction locks.
 func RedisConsumerLockKey(organizationID, ledgerID uuid.UUID, transactionID string) string {
 	var builder strings.Builder
 
@@ -168,6 +171,15 @@ func RedisConsumerLockKey(organizationID, ledgerID uuid.UUID, transactionID stri
 	builder.WriteString(transactionID)
 
 	return builder.String()
+}
+
+// RedisConsumerCycleLockKey returns the distributed lock key used for leader election
+// in the Redis backup queue consumer. Only one pod acquires this lock per processing
+// cycle, eliminating N×M SetNX calls (N pods × M messages) in favor of N×1.
+// Format: "lock:{transactions}:backup-consumer-cycle"
+// The {transactions} hash tag ensures the key routes to the correct Redis Cluster slot.
+func RedisConsumerCycleLockKey() string {
+	return "lock:{transactions}:backup-consumer-cycle"
 }
 
 // LedgerSettingsInternalKey returns a key with the following format to be used on redis cluster:
