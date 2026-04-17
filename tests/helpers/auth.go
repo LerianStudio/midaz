@@ -61,6 +61,7 @@ func AuthenticateFromEnv() error {
 
 	ctx := context.Background()
 
+	//nolint:gosec // G704: authURL is test-controlled configuration, not user input
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, authURL, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("create auth request: %w", err)
@@ -84,7 +85,7 @@ func AuthenticateFromEnv() error {
 	}
 
 	var out struct {
-		AccessToken string `json:"accessToken"` //nolint:gosec // Not actually a secret, just the field name
+		AccessToken string `json:"accessToken"`
 		Token       string `json:"token"`
 	}
 

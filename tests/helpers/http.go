@@ -60,7 +60,7 @@ func (c *HTTPClient) RequestFull(ctx context.Context, method, path string, heade
 		req.Header.Set(k, v)
 	}
 
-	resp, err := c.client.Do(req) //nolint:gosec // G704: SSRF intentional in test helper
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return 0, nil, nil, fmt.Errorf("execute request: %w", err)
 	}
@@ -99,7 +99,7 @@ func (c *HTTPClient) RequestRaw(ctx context.Context, method, path string, header
 		req.Header.Set(k, v)
 	}
 
-	resp, err := c.client.Do(req) //nolint:gosec // G704: SSRF intentional in test helper
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return 0, nil, nil, fmt.Errorf("execute request: %w", err)
 	}
@@ -138,7 +138,7 @@ func (c *HTTPClient) RequestWithHeaderValues(ctx context.Context, method, path s
 		}
 	}
 
-	resp, err := c.client.Do(req) //nolint:gosec // G704: SSRF intentional in test helper
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return 0, nil, nil, fmt.Errorf("execute request: %w", err)
 	}

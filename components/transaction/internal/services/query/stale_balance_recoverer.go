@@ -69,7 +69,7 @@ func (r *FranzStaleBalanceRecoverer) RecoverLaggedAliases(
 	organizationID, ledgerID uuid.UUID,
 	laggedAliasesByPartition map[int32][]string,
 ) (map[string]*mmodel.Balance, error) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only tracer is needed; logger/tenant/trackingID are intentionally ignored.
 
 	ctx, span := tracer.Start(ctx, "query.recover_lagged_aliases")
 	defer span.End()

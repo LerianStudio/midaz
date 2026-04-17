@@ -398,7 +398,8 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 
 	out := make(map[string]string, len(keys))
 
-	for i, v := range res {
+	for i := range keys {
+		v := res[i]
 		if v == nil {
 			continue
 		}

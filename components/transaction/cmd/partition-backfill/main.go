@@ -117,20 +117,20 @@ func run() error {
 	flag.IntVar(&batchSize, "batch-size", defaultBatchSize, "rows per keyset page (1..100000)")
 	flag.IntVar(&logEvery, "log-every", defaultLogEvery, "log progress every N rows")
 	flag.BoolVar(&dryRun, "dry-run", false, "issue SELECTs but skip INSERTs")
-	flag.Parse()
+	flag.Parse() //nolint:revive // CLI entry point: flag.Parse is expected to live in run(), called once from main().
 
 	spec, ok := specs[table]
 	if !ok {
-		return fmt.Errorf("unknown --table=%q (valid: operation, balance)", table)
+		return fmt.Errorf("unknown --table=%q (valid: operation, balance)", table) //nolint:err113 // CLI user-facing validation error; no caller will errors.Is() against it.
 	}
 
 	if batchSize < minBatchSize || batchSize > maxBatchSize {
-		return fmt.Errorf("--batch-size=%d out of range [%d, %d]", batchSize, minBatchSize, maxBatchSize)
+		return fmt.Errorf("--batch-size=%d out of range [%d, %d]", batchSize, minBatchSize, maxBatchSize) //nolint:err113 // CLI user-facing validation error; no caller will errors.Is() against it.
 	}
 
 	dsn := os.Getenv(envDSN)
 	if dsn == "" {
-		return fmt.Errorf("required environment variable %s is empty", envDSN)
+		return fmt.Errorf("required environment variable %s is empty", envDSN) //nolint:err113 // CLI user-facing validation error; no caller will errors.Is() against it.
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -167,7 +167,7 @@ func run() error {
 // backfill performs the keyset-paginated copy and returns the total rows
 // inserted.
 func backfill(ctx context.Context, db *sql.DB, spec tableSpec, batchSize, logEvery int, dryRun bool) (int64, error) {
-	selectSQL := fmt.Sprintf(
+	selectSQL := fmt.Sprintf( //nolint:gosec // G201: table and column names come from the hard-coded specs map in this package, not user input
 		`SELECT %s FROM %s WHERE %s > $1 ORDER BY %s ASC LIMIT $2`,
 		strings.Join(spec.columns, ", "),
 		spec.legacyTable,
@@ -208,7 +208,7 @@ func backfill(ctx context.Context, db *sql.DB, spec tableSpec, batchSize, logEve
 		}
 
 		if !dryRun {
-			if err = copyPage(ctx, db, insertSQL, values); err != nil {
+			if err := copyPage(ctx, db, insertSQL, values); err != nil {
 				return total, err
 			}
 		}
@@ -219,6 +219,7 @@ func backfill(ctx context.Context, db *sql.DB, spec tableSpec, batchSize, logEve
 
 		if sinceL >= int64(logEvery) {
 			fmt.Printf("partition-backfill: %d rows copied, cursor=%s\n", total, lastCursor)
+
 			sinceL = 0
 		}
 
@@ -274,6 +275,7 @@ func copyPage(ctx context.Context, db *sql.DB, insertSQL string, values [][]any)
 	}
 
 	committed := false
+
 	defer func() {
 		if !committed {
 			_ = tx.Rollback()
@@ -310,16 +312,17 @@ func assertCounts(ctx context.Context, db *sql.DB, spec tableSpec) error {
 	var legacy, part int64
 
 	if err := db.QueryRowContext(ctx,
-		fmt.Sprintf(`SELECT count(*) FROM %s`, spec.legacyTable)).Scan(&legacy); err != nil {
+		"SELECT count(*) FROM "+spec.legacyTable).Scan(&legacy); err != nil {
 		return fmt.Errorf("count legacy: %w", err)
 	}
 
 	if err := db.QueryRowContext(ctx,
-		fmt.Sprintf(`SELECT count(*) FROM %s`, spec.partitionedTable)).Scan(&part); err != nil {
+		"SELECT count(*) FROM "+spec.partitionedTable).Scan(&part); err != nil {
 		return fmt.Errorf("count partitioned: %w", err)
 	}
 
 	if legacy != part {
+		//nolint:err113 // CLI operator-facing assertion failure with rich context; no caller will errors.Is() against it.
 		return fmt.Errorf("post-copy row count mismatch: legacy=%d partitioned=%d (delta=%d). "+
 			"If dual-write was catching up during the copy, wait and re-run. "+
 			"If partitioned > legacy, someone wrote to the shell out-of-band — investigate before proceeding",

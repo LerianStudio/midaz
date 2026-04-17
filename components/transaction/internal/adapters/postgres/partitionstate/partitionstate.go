@@ -95,12 +95,14 @@ func NewReader(db DB, ttl time.Duration, log logger) *Reader {
 // behavior.
 func (r *Reader) Phase(ctx context.Context) (Phase, error) {
 	r.mu.RLock()
+
 	if r.ok && r.now().Sub(r.fetched) < r.ttl {
 		p := r.phase
 		r.mu.RUnlock()
 
 		return p, nil
 	}
+
 	r.mu.RUnlock()
 
 	return r.refresh(ctx)

@@ -116,7 +116,7 @@ func WaitForHTTP200(fullURL string, timeout time.Duration) error {
 	for {
 		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, fullURL, http.NoBody)
 
-		resp, err := client.Do(req) //nolint:gosec // G704: SSRF intentional in test helper
+		resp, err := client.Do(req)
 		if err == nil {
 			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {

@@ -121,7 +121,7 @@ type UseCase struct {
 
 // CheckHealth returns nil for unified mode (in-process calls don't need health checks).
 func (uc *UseCase) CheckHealth(ctx context.Context) error {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only tracer is needed; logger/tenant/trackingID are intentionally ignored.
 
 	_, span := tracer.Start(ctx, "command.check_health")
 	defer span.End()

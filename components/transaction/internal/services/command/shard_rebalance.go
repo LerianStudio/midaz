@@ -36,7 +36,7 @@ type ShardRebalanceStatus struct {
 
 // SetShardRebalancePaused pauses or resumes the shard rebalancer.
 func (uc *UseCase) SetShardRebalancePaused(ctx context.Context, paused bool) error {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only tracer is needed; logger/tenant/trackingID are intentionally ignored.
 
 	ctx, span := tracer.Start(ctx, "command.set_shard_rebalance_paused")
 	defer span.End()
@@ -54,7 +54,7 @@ func (uc *UseCase) SetShardRebalancePaused(ctx context.Context, paused bool) err
 
 // GetShardRebalanceStatus returns the current shard rebalance status.
 func (uc *UseCase) GetShardRebalanceStatus(ctx context.Context) (*ShardRebalanceStatus, error) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only tracer is needed; logger/tenant/trackingID are intentionally ignored.
 
 	ctx, span := tracer.Start(ctx, "command.get_shard_rebalance_status")
 	defer span.End()
@@ -87,7 +87,7 @@ func (uc *UseCase) MigrateAccountShard(
 	alias string,
 	targetShard int,
 ) (*internalsharding.MigrationResult, error) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only tracer is needed; logger/tenant/trackingID are intentionally ignored.
 
 	ctx, span := tracer.Start(ctx, "command.migrate_account_shard")
 	defer span.End()

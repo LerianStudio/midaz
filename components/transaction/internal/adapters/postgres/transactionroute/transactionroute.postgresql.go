@@ -820,6 +820,7 @@ func toOperationRouteEntity(
 		UpdatedAt:      updatedAt,
 	}
 
+	//nolint:nestif // complexity 4 is acceptable here: each branch handles a distinct account-rule shape (typed list vs scalar) and splitting adds indirection without clarity.
 	if accountRuleType != "" || accountRuleValidIf != "" {
 		account := &mmodel.AccountRule{
 			RuleType: accountRuleType,

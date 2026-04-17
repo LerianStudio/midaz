@@ -225,7 +225,7 @@ func NewConsumerRoutesWithSecurity(
 		maxRetryAttempts = defaultMaxRetryAttempts
 	}
 
-	runCtx, cancel := context.WithCancel(context.Background())
+	runCtx, cancel := context.WithCancel(context.Background()) //nolint:gosec // G118: cancel is stored in ConsumerRoutes.cancel and invoked in Stop()
 
 	if logger == nil {
 		if l, err := libZap.InitializeLoggerWithError(); err == nil {
