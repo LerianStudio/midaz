@@ -102,7 +102,7 @@ require (
 )
 
 require (
-	github.com/LerianStudio/lib-commons/v4 v4.6.1-0.20260416134329-1da10dd5a7ed
+	github.com/LerianStudio/lib-commons/v4 v4.6.1
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.6.0

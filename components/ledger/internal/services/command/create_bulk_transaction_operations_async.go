@@ -385,7 +385,7 @@ func (uc *UseCase) bulkInsertOperationsTx(
 	// Validate direction on all operations before bulk insert.
 	for _, op := range operations {
 		if op != nil {
-			if err := validateOperationDirection(op, logger, ctx); err != nil {
+			if err := validateOperationDirection(ctx, logger, op); err != nil {
 				return err
 			}
 		}

@@ -32,14 +32,10 @@ import (
 )
 
 const (
-	// CronTimeToRun     = 30 * time.Minute
-	// MessageTimeOfLife = 30
-	// MaxWorkers        = 100
-	// CycleLockTTL      = 1800 // 30 minutes in seconds — matches CronTimeToRun
-	CronTimeToRun     = 3 * time.Minute
-	MessageTimeOfLife = 3
+	CronTimeToRun     = 30 * time.Minute
+	MessageTimeOfLife = 30
 	MaxWorkers        = 100
-	CycleLockTTL      = 60 // seconds
+	CycleLockTTL      = 1800 // 30 minutes in seconds — matches CronTimeToRun
 )
 
 type RedisQueueConsumer struct {

@@ -112,7 +112,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	logger.Log(ctx, libLog.LevelInfo, "Trying to create new operations")
 
 	for _, oper := range tran.Operations {
-		if err := validateOperationDirection(oper, logger, ctx); err != nil {
+		if err := validateOperationDirection(ctx, logger, oper); err != nil {
 			return err
 		}
 
@@ -431,7 +431,7 @@ func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organi
 // validateOperationDirection checks the direction field of an operation.
 // Empty direction is allowed with a warning (v3.5.3 messages lack this field).
 // Non-empty direction must be one of the valid values ("debit", "credit").
-func validateOperationDirection(oper *operation.Operation, logger libLog.Logger, ctx context.Context) error {
+func validateOperationDirection(ctx context.Context, logger libLog.Logger, oper *operation.Operation) error {
 	if oper.Direction == "" {
 		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(
 			"Operation %s has empty direction, may be from pre-migration message", oper.ID))
