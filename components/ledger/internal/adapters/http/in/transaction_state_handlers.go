@@ -483,6 +483,22 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
+	ctxBackupSeed, spanBackupSeed := tracer.Start(ctx, "handler.commit_or_cancel_transaction.pre_seed_backup")
+
+	if backupErr := handler.Command.SendTransactionToRedisQueue(ctxBackupSeed, organizationID, ledgerID, tran.IDtoUUID(), transactionInput, validate, transactionStatus, action, time.Now(), nil); backupErr != nil {
+		libOpentelemetry.HandleSpanError(spanBackupSeed, "Failed to pre-seed transaction backup cache", backupErr)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to pre-seed commit/cancel transaction backup cache: %v", backupErr))
+
+		spanBackupSeed.End()
+
+		deleteLockOnError()
+
+		return http.WithError(c, pkg.ValidateBusinessError(backupErr, constant.EntityTransaction))
+	}
+
+	spanBackupSeed.End()
+
 	result, err := handler.Command.ProcessBalanceOperations(ctx, command.ProcessBalanceOperationsInput{
 		OrganizationID:    organizationID,
 		LedgerID:          ledgerID,
@@ -495,6 +511,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to process balance operations", libLog.Err(err))
+
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, organizationID, ledgerID, tran.IDtoUUID().String())
 
 		deleteLockOnError()
 
