@@ -232,14 +232,14 @@ tidy:
 
 .PHONY: sec
 sec:
-	$(call title1,"Running security checks using gosec")
-	@if ! command -v gosec >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing gosec...$(NC)"; \
-		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
+	$(call title1,"Running security checks using gosec (via golangci-lint)")
+	@if ! command -v golangci-lint >/dev/null 2>&1; then \
+		echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
+		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
 	fi
 	@if find . -name "*.go" -type f | grep -q .; then \
 		echo "$(CYAN)Running security checks...$(NC)"; \
-		gosec ./...; \
+		golangci-lint run --enable-only=gosec --timeout=5m ./...; \
 		echo "$(GREEN)$(BOLD)[ok]$(NC) Security checks completed$(GREEN) ✔️$(NC)"; \
 	else \
 		echo "$(YELLOW)No Go files found, skipping security checks$(NC)"; \

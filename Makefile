@@ -146,6 +146,11 @@ help:
 	@echo "  make sec SARIF=1                 - Run security checks with SARIF output"
 	@echo ""
 	@echo ""
+	@echo "CI Commands:"
+	@echo "  make ci                          - Run local CI pipeline (tidy, docs, lint, checks, unit tests, sec, build)"
+	@echo "  make ci-full                     - Run 'ci' plus integration tests (requires Docker for testcontainers)"
+	@echo ""
+	@echo ""
 	@echo "Git Hook Commands:"
 	@echo "  make setup-git-hooks             - Install and configure git hooks"
 	@echo "  make check-hooks                 - Verify git hooks installation status"
@@ -370,18 +375,18 @@ SARIF ?= 0
 
 .PHONY: sec-gosec
 sec-gosec:
-	@if ! command -v gosec >/dev/null 2>&1; then \
-		echo "Installing gosec..."; \
-		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
+	@if ! command -v golangci-lint >/dev/null 2>&1; then \
+		echo "Installing golangci-lint..."; \
+		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
 	fi
 	@if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
-		echo "Running gosec on components/ and pkg/ folders..."; \
+		echo "Running gosec (via golangci-lint) on components/ and pkg/ folders..."; \
 		if [ "$(SARIF)" = "1" ]; then \
 			echo "Generating SARIF output: gosec-report.sarif"; \
-			gosec -fmt sarif -out gosec-report.sarif ./components/... ./pkg/...; \
+			golangci-lint run --enable-only=gosec --timeout=5m --output.sarif.path=gosec-report.sarif ./components/... ./pkg/...; \
 			echo "[ok] SARIF report generated: gosec-report.sarif"; \
 		else \
-			gosec ./components/... ./pkg/...; \
+			golangci-lint run --enable-only=gosec --timeout=5m ./components/... ./pkg/...; \
 		fi; \
 	else \
 		echo "No Go files found, skipping gosec"; \
@@ -406,6 +411,37 @@ sec:
 	@$(MAKE) sec-gosec SARIF=$(SARIF)
 	@$(MAKE) sec-govulncheck
 	@echo "[ok] Security checks completed"
+
+#-------------------------------------------------------
+# CI Commands
+#-------------------------------------------------------
+
+.PHONY: ci ci-full
+
+ci:
+	$(call print_title,Running local CI verification pipeline)
+	@$(MAKE) tidy
+	@$(MAKE) generate-docs
+	@$(MAKE) lint
+	@$(MAKE) check-logs
+	@$(MAKE) check-tests
+	@$(MAKE) migrate-lint
+	@$(MAKE) test
+	@$(MAKE) sec
+	@$(MAKE) build
+	@echo ""
+	@echo "=========================================="
+	@echo "   [ok] Local CI verification passed"
+	@echo "=========================================="
+
+ci-full:
+	$(call print_title,Running full CI verification pipeline [includes integration tests])
+	@$(MAKE) ci
+	@$(MAKE) test-integration
+	@echo ""
+	@echo "=========================================="
+	@echo "   [ok] Full CI verification passed"
+	@echo "=========================================="
 
 #-------------------------------------------------------
 # Git Hook Commands
