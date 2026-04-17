@@ -1318,22 +1318,18 @@ func TestIntegration_AccountRepository_FindAll_FiltersByStatus(t *testing.T) {
 	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, blockedParams)
 
 	ctx := context.Background()
-	filter := http.Pagination{
+	statusFilter := "ACTIVE"
+	filter := http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "asc",
 		StartDate: time.Now().Add(-24 * time.Hour),
 		EndDate:   time.Now().Add(24 * time.Hour),
-	}
-
-	// Create AccountFilter with status filter
-	statusFilter := "ACTIVE"
-	accFilter := AccountFilter{
-		Status: &statusFilter,
+		Status:    &statusFilter,
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, accFilter, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
 
 	// Assert
 	require.NoError(t, err)
@@ -1379,22 +1375,18 @@ func TestIntegration_AccountRepository_FindAll_FiltersByType(t *testing.T) {
 	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, externalParams)
 
 	ctx := context.Background()
-	filter := http.Pagination{
+	typeFilter := "deposit"
+	filter := http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "asc",
 		StartDate: time.Now().Add(-24 * time.Hour),
 		EndDate:   time.Now().Add(24 * time.Hour),
-	}
-
-	// Create AccountFilter with type filter
-	typeFilter := "deposit"
-	accFilter := AccountFilter{
-		Type: &typeFilter,
+		Type:      &typeFilter,
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, accFilter, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
 
 	// Assert
 	require.NoError(t, err)
@@ -1440,22 +1432,18 @@ func TestIntegration_AccountRepository_FindAll_FiltersByAssetCode(t *testing.T) 
 	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, eurParams)
 
 	ctx := context.Background()
-	filter := http.Pagination{
+	assetCodeFilter := "USD"
+	filter := http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "asc",
 		StartDate: time.Now().Add(-24 * time.Hour),
 		EndDate:   time.Now().Add(24 * time.Hour),
-	}
-
-	// Create AccountFilter with asset_code filter
-	assetCodeFilter := "USD"
-	accFilter := AccountFilter{
 		AssetCode: &assetCodeFilter,
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, accFilter, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
 
 	// Assert
 	require.NoError(t, err)
@@ -1513,26 +1501,22 @@ func TestIntegration_AccountRepository_FindAll_CombinesMultipleFiltersWithAND(t 
 	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc4Params)
 
 	ctx := context.Background()
-	filter := http.Pagination{
+	statusFilter := "ACTIVE"
+	typeFilter := "deposit"
+	assetCodeFilter := "USD"
+	filter := http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "asc",
 		StartDate: time.Now().Add(-24 * time.Hour),
 		EndDate:   time.Now().Add(24 * time.Hour),
-	}
-
-	// Create AccountFilter with all filters (AND logic)
-	statusFilter := "ACTIVE"
-	typeFilter := "deposit"
-	assetCodeFilter := "USD"
-	accFilter := AccountFilter{
 		Status:    &statusFilter,
 		Type:      &typeFilter,
 		AssetCode: &assetCodeFilter,
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, accFilter, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
 
 	// Assert
 	require.NoError(t, err)
@@ -1573,7 +1557,7 @@ func TestIntegration_AccountRepository_FindAll_EmptyFilterReturnsAll(t *testing.
 	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc3Params)
 
 	ctx := context.Background()
-	filter := http.Pagination{
+	filter := http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "asc",
@@ -1581,11 +1565,8 @@ func TestIntegration_AccountRepository_FindAll_EmptyFilterReturnsAll(t *testing.
 		EndDate:   time.Now().Add(24 * time.Hour),
 	}
 
-	// Empty filter (no filters applied)
-	accFilter := AccountFilter{}
-
-	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, accFilter, filter)
+	// Act - empty filter (no filters applied)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
 
 	// Assert
 	require.NoError(t, err)
