@@ -1,5 +1,20 @@
 # Midaz Changelog
 
+## [3.6.2](https://github.com/LerianStudio/midaz/releases/tag/v3.6.2)
+
+- Fixes:
+  - Align backup consumer and operation direction validation; bump lib-commons to v4.6.1.
+  - Replace per-transaction backup lock with cycle-level leader lock.
+  - Prevent publish TOCTOU race using ChannelSnapshot.
+  - Add legacy payload compatibility for missing Version field.
+  - Implement conditional cleanup for Redis transaction backups.
+
+Contributors: @mclara.tersi
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.6.1...v3.6.2)
+
+---
+
 ## [3.6.1](https://github.com/LerianStudio/midaz/releases/tag/v3.6.1)
 
 - Fixes:
