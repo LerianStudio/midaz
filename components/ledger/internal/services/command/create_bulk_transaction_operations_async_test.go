@@ -135,6 +135,7 @@ func TestCreateBulkTransactionOperationsAsync_SingleTransaction_Success(t *testi
 				Available: decimal.NewFromInt(50),
 			},
 		},
+		Version: "v2",
 	}
 
 	// Mock DB transaction for atomic inserts
@@ -250,6 +251,7 @@ func TestCreateBulkTransactionOperationsAsync_MultipleTransactions_Success(t *te
 			BalancesAfter: []*mmodel.Balance{
 				{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)},
 			},
+			Version: "v2",
 		}
 	}
 
@@ -336,6 +338,7 @@ func TestCreateBulkTransactionOperationsAsync_WithDuplicates(t *testing.T) {
 		Validate:      &mtransaction.Responses{Aliases: []string{"alias1"}},
 		Balances:      []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(100)}},
 		BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
+		Version:       "v2",
 	}
 
 	// Mock DB transaction for atomic inserts
@@ -420,6 +423,7 @@ func TestCreateBulkTransactionOperationsAsync_StatusTransition_BelowThreshold(t 
 		},
 		Balances:      []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(100)}},
 		BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
+		Version:       "v2",
 	}
 
 	// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
@@ -500,6 +504,7 @@ func TestCreateBulkTransactionOperationsAsync_BulkInsertFails_UsesFallback(t *te
 		Validate:      &mtransaction.Responses{Aliases: []string{"alias1"}},
 		Balances:      []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(100)}},
 		BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
+		Version:       "v2",
 	}
 
 	// Mock DB transaction for atomic inserts - will fail and rollback
@@ -598,6 +603,7 @@ func TestClassifyAndExtractEntities_SeparatesInsertsAndUpdates(t *testing.T) {
 				Status: transaction.Status{Code: constant.APPROVED},
 			},
 			Validate: &mtransaction.Responses{Pending: true},
+			Version:  "v2",
 		},
 		// Update: pending -> canceled
 		{
@@ -606,6 +612,7 @@ func TestClassifyAndExtractEntities_SeparatesInsertsAndUpdates(t *testing.T) {
 				Status: transaction.Status{Code: constant.CANCELED},
 			},
 			Validate: &mtransaction.Responses{Pending: true},
+			Version:  "v2",
 		},
 	}
 
@@ -632,6 +639,7 @@ func TestIsStatusTransition(t *testing.T) {
 					Status: transaction.Status{Code: constant.APPROVED},
 				},
 				Validate: &mtransaction.Responses{Pending: true},
+				Version:  "v2",
 			},
 			expected: true,
 		},
@@ -642,6 +650,7 @@ func TestIsStatusTransition(t *testing.T) {
 					Status: transaction.Status{Code: constant.CANCELED},
 				},
 				Validate: &mtransaction.Responses{Pending: true},
+				Version:  "v2",
 			},
 			expected: true,
 		},
@@ -671,6 +680,7 @@ func TestIsStatusTransition(t *testing.T) {
 					Status: transaction.Status{Code: constant.APPROVED},
 				},
 				Validate: &mtransaction.Responses{Pending: false},
+				Version:  "v2",
 			},
 			expected: false,
 		},
@@ -848,6 +858,7 @@ func TestCreateBulkTransactionOperationsAsync_BalanceUpdateFails_UsesFallback(t 
 		Validate:      &mtransaction.Responses{Aliases: []string{"alias1"}},
 		Balances:      []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(100)}},
 		BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
+		Version:       "v2",
 	}
 
 	// Mock DB transaction for atomic inserts
@@ -938,6 +949,7 @@ func TestCreateBulkTransactionOperationsAsync_StatusTransition_AboveThreshold_Us
 			},
 			Balances:      []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(100)}},
 			BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
+			Version:       "v2",
 		}
 	}
 
@@ -1109,6 +1121,7 @@ func TestClassifyAndExtractEntities_CollectsOperationsForStatusTransitions(t *te
 				},
 			},
 			Validate: &mtransaction.Responses{Pending: true},
+			Version:  "v2",
 		},
 	}
 
@@ -1169,6 +1182,7 @@ func TestClassifyAndExtractEntities_MixedBatch_CollectsAllOperations(t *testing.
 				},
 			},
 			Validate: &mtransaction.Responses{Pending: true},
+			Version:  "v2",
 		},
 	}
 

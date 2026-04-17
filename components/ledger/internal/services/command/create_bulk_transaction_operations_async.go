@@ -90,6 +90,30 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 		return result, nil
 	}
 
+	// Legacy payload compatibility: messages from v3.5.x lack the Version field.
+	// Their balance persistence relied on UpdateBalances() in the consumer, which
+	// was removed in v3.6.x. Call UpdateBalances() for each legacy payload before
+	// bulk insert to ensure balances reach PostgreSQL.
+	for i := range payloads {
+		p := &payloads[i]
+		if p.Version == "" && p.Transaction != nil && p.Validate != nil && p.Transaction.Status.Code != constant.NOTED {
+			orgID, ledgerID, err := uc.extractOrgLedgerIDs(*p)
+			if err != nil {
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Legacy payload: failed to extract IDs: %v", err))
+
+				continue
+			}
+
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(
+				"Legacy payload detected (no Version field) for transaction %s, calling UpdateBalances",
+				p.Transaction.ID))
+
+			if err := uc.UpdateBalances(ctx, orgID, ledgerID, *p.Validate, p.Balances, p.BalancesAfter); err != nil {
+				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances for legacy payload %s: %v", p.Transaction.ID, err))
+			}
+		}
+	}
+
 	// Classify payloads into inserts and updates
 	toInsert, toUpdate := uc.classifyAndExtractEntities(payloads)
 
@@ -358,6 +382,15 @@ func (uc *UseCase) bulkInsertOperationsTx(
 	operations []*operation.Operation,
 	result *BulkResult,
 ) error {
+	// Validate direction on all operations before bulk insert.
+	for _, op := range operations {
+		if op != nil {
+			if err := validateOperationDirection(op, logger, ctx); err != nil {
+				return err
+			}
+		}
+	}
+
 	result.OperationsAttempted = int64(len(operations))
 
 	insertResult, err := uc.OperationRepo.CreateBulkTx(ctx, dbTx, operations)
