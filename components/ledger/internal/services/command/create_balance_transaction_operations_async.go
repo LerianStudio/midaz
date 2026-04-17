@@ -9,7 +9,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -59,6 +61,8 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		return fmt.Errorf("transaction payload has nil Transaction field")
 	}
+
+	backupStatusForCleanup := t.Transaction.Status.Code
 
 	// Note: Balance updates are handled by BalanceSyncWorker asynchronously.
 	// Hot balance was already updated atomically by Lua script during validation.
@@ -132,7 +136,15 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: cleaning up transaction %s after successful processing", tran.ID))
 
-	go uc.RemoveTransactionFromRedisQueue(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID)
+	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
+		if backupStatusForCleanup == "" {
+			backupStatusForCleanup = tran.Status.Code
+		}
+
+		go uc.RemoveTransactionFromRedisQueueIfStatus(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID, backupStatusForCleanup)
+	} else {
+		go uc.RemoveTransactionFromRedisQueue(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID)
+	}
 
 	uc.DeleteWriteBehindTransaction(ctx, data.OrganizationID, data.LedgerID, tran.ID)
 
@@ -237,6 +249,40 @@ func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger l
 	} else {
 		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: transaction removed successfully from backup_queue:{transactions} with key %s", transactionKey))
 	}
+}
+
+// RemoveTransactionFromRedisQueueIfStatus removes a backup entry only when the
+// current queue payload still matches the expected transaction status.
+//
+// This prevents stale consumers from deleting a newer backup stage for the
+// same transaction ID (e.g. late PENDING-create worker removing a newer
+// APPROVED/CANCELED backup written by commit/cancel flow).
+func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID, transactionID, expectedStatus string) {
+	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID)
+
+	raw, err := uc.TransactionRedisRepo.ReadMessageFromQueue(ctx, transactionKey)
+	if err != nil {
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Backup queue: failed to read transaction %s before conditional cleanup: %v", transactionKey, err))
+		return
+	}
+
+	var queue mmodel.TransactionRedisQueue
+	if err := json.Unmarshal(raw, &queue); err != nil {
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Backup queue: failed to decode transaction %s before conditional cleanup: %v", transactionKey, err))
+		return
+	}
+
+	if !strings.EqualFold(queue.TransactionStatus, expectedStatus) {
+		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
+			"Backup queue: skip cleanup for transaction %s because status changed (expected=%s current=%s)",
+			transactionKey,
+			expectedStatus,
+			queue.TransactionStatus,
+		))
+		return
+	}
+
+	uc.RemoveTransactionFromRedisQueue(ctx, logger, organizationID, ledgerID, transactionID)
 }
 
 // SendTransactionToRedisQueue func that send transaction to redis queue.

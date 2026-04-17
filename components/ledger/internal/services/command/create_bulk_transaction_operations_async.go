@@ -8,7 +8,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -496,12 +498,19 @@ func (uc *UseCase) processMetadataAndEvents(
 		// Clean up backup queue with context that preserves trace but survives parent cancellation
 		orgID, ledgerID, err := uc.extractOrgLedgerIDs(payload)
 		if err == nil {
-			go func(orgID, ledgerID uuid.UUID, txID string) {
+			useConditionalCleanup := strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true"
+			expectedStatus := tx.Status.Code
+
+			go func(orgID, ledgerID uuid.UUID, txID, status string) {
 				opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
 				defer cancel()
 
-				uc.RemoveTransactionFromRedisQueue(opCtx, logger, orgID, ledgerID, txID)
-			}(orgID, ledgerID, tx.ID)
+				if useConditionalCleanup {
+					uc.RemoveTransactionFromRedisQueueIfStatus(opCtx, logger, orgID, ledgerID, txID, status)
+				} else {
+					uc.RemoveTransactionFromRedisQueue(opCtx, logger, orgID, ledgerID, txID)
+				}
+			}(orgID, ledgerID, tx.ID, expectedStatus)
 
 			go func(orgID, ledgerID uuid.UUID, txID string) {
 				opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
