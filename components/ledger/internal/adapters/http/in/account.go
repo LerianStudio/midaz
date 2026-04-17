@@ -122,6 +122,8 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 //	@Param			entity_id		query		string																false	"Filter accounts by entity ID"
 //	@Param			blocked			query		boolean																false	"Filter accounts by blocked status"				Enums(true,false)
 //	@Param			parent_account_id	query	string																false	"Filter accounts by parent account ID (UUID format)"	format(uuid)
+//	@Param			name				query	string																false	"Filter accounts by name (case-insensitive, prefix match)"	maxLength(256)
+//	@Param			alias				query	string																false	"Filter accounts by alias (case-insensitive, prefix match)"	maxLength(256)
 //	@Success		200				{object}	http.Pagination{items=[]mmodel.Account}	"Successfully retrieved accounts list"
 //	@Failure		400				{object}	mmodel.Error														"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error														"Unauthorized access"

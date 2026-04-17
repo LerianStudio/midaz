@@ -65,6 +65,7 @@ type QueryHeader struct {
 	Blocked                             *bool
 	ParentAccountID                     *string
 	LegalDocument                       *string
+	Alias                               *string
 }
 
 // Pagination entity from query parameter from get apis
@@ -142,6 +143,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		blocked                             *bool
 		parentAccountID                     *string
 		legalDocument                       *string
+		alias                               *string
 	)
 
 	for key, value := range params {
@@ -194,6 +196,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			externalID = &value
 		case key == "document":
 			document = &value
+		case key == "parent_account_id":
+			parentAccountID = &value
 		case strings.Contains(key, "account_id"):
 			accountID = &value
 		case strings.Contains(key, "ledger_id"):
@@ -230,10 +234,10 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		case key == "blocked":
 			v := strings.ToLower(value) == "true"
 			blocked = &v
-		case key == "parent_account_id":
-			parentAccountID = &value
 		case key == "legal_document":
 			legalDocument = &value
+		case key == "alias":
+			alias = &value
 		}
 	}
 
@@ -246,6 +250,10 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	}
 
 	if err := validateSearchTermLength(&doingBusinessAs, "doing_business_as"); err != nil {
+		return nil, err
+	}
+
+	if err := validateSearchTermLength(&alias, "alias"); err != nil {
 		return nil, err
 	}
 
@@ -328,6 +336,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		Blocked:                             blocked,
 		ParentAccountID:                     parentAccountID,
 		LegalDocument:                       legalDocument,
+		Alias:                               alias,
 	}
 
 	return query, nil

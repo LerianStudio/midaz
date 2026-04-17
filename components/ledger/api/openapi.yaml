@@ -84,6 +84,19 @@ paths:
         schema:
           maxLength: 256
           type: string
+      - description: Filter organizations by status
+        in: query
+        name: status
+        schema:
+          enum:
+          - ACTIVE
+          - INACTIVE
+          type: string
+      - description: Filter organizations by legal document (exact match)
+        in: query
+        name: legal_document
+        schema:
+          type: string
       responses:
         "200":
           content:
@@ -471,6 +484,14 @@ paths:
         name: name
         schema:
           maxLength: 256
+          type: string
+      - description: Filter ledgers by status
+        in: query
+        name: status
+        schema:
+          enum:
+          - ACTIVE
+          - INACTIVE
           type: string
       responses:
         "200":
@@ -1014,6 +1035,11 @@ paths:
         name: metadata
         schema:
           type: string
+      - description: Filter account types by key value
+        in: query
+        name: key_value
+        schema:
+          type: string
       - description: 'Limit of account types per page (default: 10, max: 100)'
         in: query
         name: limit
@@ -1443,6 +1469,56 @@ paths:
         name: segment_id
         schema:
           format: uuid
+          type: string
+      - description: Filter accounts by status
+        in: query
+        name: status
+        schema:
+          enum:
+          - ACTIVE
+          - INACTIVE
+          - BLOCKED
+          type: string
+      - description: Filter accounts by type (e.g., deposit, savings, external)
+        in: query
+        name: type
+        schema:
+          type: string
+      - description: Filter accounts by asset code (e.g., USD, BRL, EUR)
+        in: query
+        name: asset_code
+        schema:
+          type: string
+      - description: Filter accounts by entity ID
+        in: query
+        name: entity_id
+        schema:
+          type: string
+      - description: Filter accounts by blocked status
+        in: query
+        name: blocked
+        schema:
+          enum:
+          - true
+          - false
+          type: boolean
+      - description: Filter accounts by parent account ID (UUID format)
+        in: query
+        name: parent_account_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter accounts by name (case-insensitive, prefix match)
+        in: query
+        name: name
+        schema:
+          maxLength: 256
+          type: string
+      - description: Filter accounts by alias (case-insensitive, prefix match)
+        in: query
+        name: alias
+        schema:
+          maxLength: 256
           type: string
       responses:
         "200":
@@ -4095,6 +4171,11 @@ paths:
       - description: JSON string to filter portfolios by metadata fields
         in: query
         name: metadata
+        schema:
+          type: string
+      - description: Filter portfolios by entity ID
+        in: query
+        name: entity_id
         schema:
           type: string
       - description: Maximum number of records to return per page
@@ -7988,7 +8069,8 @@ components:
     CreateTransactionInflowInput:
       description: CreateTransactionInflowInput is the input payload to create an
         inflow transaction. Contains all necessary fields to create a financial transaction
-        without source information, only destination.
+        without source information, only destination. Pending is not supported for
+        inflows because the auto-filled external source account cannot hold funds.
       example:
         metadata:
           key: '{}'

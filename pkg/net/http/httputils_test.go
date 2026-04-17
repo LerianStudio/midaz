@@ -1139,7 +1139,177 @@ func TestValidateParameters_TypeFieldDistinctFromOperationType(t *testing.T) {
 	assert.Equal(t, "deposit", *result.Type)
 }
 
+// TestValidateParameters_ExtendedFilters tests the extended filter fields (blocked, parent_account_id,
+// legal_document, alias) added for onboarding list filters.
+func TestValidateParameters_ExtendedFilters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                    string
+		params                  map[string]string
+		expectedBlocked         *bool
+		expectedParentAccountID *string
+		expectedLegalDocument   *string
+		expectedAlias           *string
+		expectError             bool
+		errorContains           string
+	}{
+		{
+			name:                    "all extended filter fields nil by default",
+			params:                  map[string]string{},
+			expectedBlocked:         nil,
+			expectedParentAccountID: nil,
+			expectedLegalDocument:   nil,
+			expectedAlias:           nil,
+			expectError:             false,
+		},
+		{
+			name:            "blocked filter true",
+			params:          map[string]string{"blocked": "true"},
+			expectedBlocked: ptrBool(true),
+			expectError:     false,
+		},
+		{
+			name:            "blocked filter false",
+			params:          map[string]string{"blocked": "false"},
+			expectedBlocked: ptrBool(false),
+			expectError:     false,
+		},
+		{
+			name:            "blocked filter case insensitive TRUE",
+			params:          map[string]string{"blocked": "TRUE"},
+			expectedBlocked: ptrBool(true),
+			expectError:     false,
+		},
+		{
+			name:            "blocked filter case insensitive True",
+			params:          map[string]string{"blocked": "True"},
+			expectedBlocked: ptrBool(true),
+			expectError:     false,
+		},
+		{
+			name:            "blocked filter invalid value treated as false",
+			params:          map[string]string{"blocked": "invalid"},
+			expectedBlocked: ptrBool(false),
+			expectError:     false,
+		},
+		{
+			name:                    "parent_account_id with valid UUID",
+			params:                  map[string]string{"parent_account_id": "123e4567-e89b-12d3-a456-426614174000"},
+			expectedParentAccountID: ptr("123e4567-e89b-12d3-a456-426614174000"),
+			expectError:             false,
+		},
+		{
+			name:          "parent_account_id with invalid UUID",
+			params:        map[string]string{"parent_account_id": "not-a-valid-uuid"},
+			expectError:   true,
+			errorContains: "parent_account_id",
+		},
+		{
+			name:                  "legal_document filter parsed correctly",
+			params:                map[string]string{"legal_document": "12345678901"},
+			expectedLegalDocument: ptr("12345678901"),
+			expectError:           false,
+		},
+		{
+			name:          "alias filter parsed correctly",
+			params:        map[string]string{"alias": "my-account-alias"},
+			expectedAlias: ptr("my-account-alias"),
+			expectError:   false,
+		},
+		{
+			name:          "alias filter trimmed",
+			params:        map[string]string{"alias": "  trimmed-alias  "},
+			expectedAlias: ptr("trimmed-alias"),
+			expectError:   false,
+		},
+		{
+			name:          "alias filter too long",
+			params:        map[string]string{"alias": strings.Repeat("a", 257)},
+			expectError:   true,
+			errorContains: "alias",
+		},
+		{
+			name:          "alias filter exactly 256 chars valid",
+			params:        map[string]string{"alias": strings.Repeat("a", 256)},
+			expectedAlias: ptr(strings.Repeat("a", 256)),
+			expectError:   false,
+		},
+		{
+			name:        "alias filter whitespace only becomes nil",
+			params:      map[string]string{"alias": "   "},
+			expectError: false,
+		},
+		{
+			name:                    "all extended filters together",
+			params:                  map[string]string{"blocked": "true", "parent_account_id": "123e4567-e89b-12d3-a456-426614174000", "legal_document": "CPF123", "alias": "test-alias"},
+			expectedBlocked:         ptrBool(true),
+			expectedParentAccountID: ptr("123e4567-e89b-12d3-a456-426614174000"),
+			expectedLegalDocument:   ptr("CPF123"),
+			expectedAlias:           ptr("test-alias"),
+			expectError:             false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := ValidateParameters(tc.params)
+
+			if tc.expectError {
+				require.Error(t, err)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+				assert.Nil(t, result)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			// Verify Blocked field
+			if tc.expectedBlocked == nil {
+				assert.Nil(t, result.Blocked, "Blocked should be nil")
+			} else {
+				require.NotNil(t, result.Blocked, "Blocked should not be nil")
+				assert.Equal(t, *tc.expectedBlocked, *result.Blocked)
+			}
+
+			// Verify ParentAccountID field
+			if tc.expectedParentAccountID == nil {
+				assert.Nil(t, result.ParentAccountID, "ParentAccountID should be nil")
+			} else {
+				require.NotNil(t, result.ParentAccountID, "ParentAccountID should not be nil")
+				assert.Equal(t, *tc.expectedParentAccountID, *result.ParentAccountID)
+			}
+
+			// Verify LegalDocument field
+			if tc.expectedLegalDocument == nil {
+				assert.Nil(t, result.LegalDocument, "LegalDocument should be nil")
+			} else {
+				require.NotNil(t, result.LegalDocument, "LegalDocument should not be nil")
+				assert.Equal(t, *tc.expectedLegalDocument, *result.LegalDocument)
+			}
+
+			// Verify Alias field
+			if tc.expectedAlias == nil {
+				assert.Nil(t, result.Alias, "Alias should be nil")
+			} else {
+				require.NotNil(t, result.Alias, "Alias should not be nil")
+				assert.Equal(t, *tc.expectedAlias, *result.Alias)
+			}
+		})
+	}
+}
+
 // ptr is a helper function to create a pointer to a string value.
 func ptr(s string) *string {
 	return &s
+}
+
+// ptrBool is a helper function to create a pointer to a bool value.
+func ptrBool(b bool) *bool {
+	return &b
 }

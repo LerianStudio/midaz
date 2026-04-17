@@ -287,6 +287,16 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		findAll = findAll.Where(squirrel.Expr("parent_account_id = ?", *filter.ParentAccountID))
 	}
 
+	if filter.Name != nil && *filter.Name != "" {
+		sanitized := http.EscapeSearchMetacharacters(*filter.Name)
+		findAll = findAll.Where(squirrel.ILike{"name": sanitized + "%"})
+	}
+
+	if filter.Alias != nil && *filter.Alias != "" {
+		sanitized := http.EscapeSearchMetacharacters(*filter.Alias)
+		findAll = findAll.Where(squirrel.ILike{"alias": sanitized + "%"})
+	}
+
 	findAll = findAll.OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)})
