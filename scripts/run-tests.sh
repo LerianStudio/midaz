@@ -50,6 +50,42 @@ if [ -d "components/transaction" ]; then
     }
 fi
 
+# Test ledger component
+echo -e "\nTesting ledger component..."
+if [ -d "components/ledger" ]; then
+    (cd components/ledger && make test) || {
+        overall_exit_code=1
+        echo "[error] Ledger component tests failed."
+    }
+fi
+
+# Test crm component
+echo -e "\nTesting crm component..."
+if [ -d "components/crm" ]; then
+    (cd components/crm && make test) || {
+        overall_exit_code=1
+        echo "[error] CRM component tests failed."
+    }
+fi
+
+# Test authorizer component (no Makefile — part of root Go module)
+echo -e "\nTesting authorizer component..."
+if [ -d "components/authorizer" ]; then
+    go test -v ./components/authorizer/... || {
+        overall_exit_code=1
+        echo "[error] Authorizer component tests failed."
+    }
+fi
+
+# Test consumer component (no Makefile — part of root Go module)
+echo -e "\nTesting consumer component..."
+if [ -d "components/consumer" ]; then
+    go test -v ./components/consumer/... || {
+        overall_exit_code=1
+        echo "[error] Consumer component tests failed."
+    }
+fi
+
 # Calculate duration and print summary
 end_time=$(date +%s)
 duration=$((end_time - start_time))
