@@ -268,6 +268,7 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string																										true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string																										true	"Ledger ID in UUID format"
 //	@Param			metadata		query		string																										false	"JSON string to filter account types by metadata fields"
+//	@Param			key_value		query		string																										false	"Filter account types by key value"
 //	@Param			limit			query		int																											false	"Limit of account types per page (default: 10, max: 100)"
 //	@Param			page			query		int																											false	"Page number for offset pagination (default: 1)"
 //	@Param			cursor			query		string																										false	"Cursor for cursor-based pagination"

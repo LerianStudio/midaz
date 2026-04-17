@@ -57,6 +57,15 @@ type QueryHeader struct {
 	Name                                *string
 	LegalName                           *string
 	DoingBusinessAs                     *string
+	Status                              *string
+	Type                                *string
+	AssetCode                           *string
+	EntityID                            *string
+	KeyValue                            *string
+	Blocked                             *bool
+	ParentAccountID                     *string
+	LegalDocument                       *string
+	Alias                               *string
 }
 
 // Pagination entity from query parameter from get apis
@@ -126,6 +135,15 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		name                                *string
 		legalName                           *string
 		doingBusinessAs                     *string
+		status                              *string
+		filterType                          *string
+		assetCode                           *string
+		entityID                            *string
+		keyValue                            *string
+		blocked                             *bool
+		parentAccountID                     *string
+		legalDocument                       *string
+		alias                               *string
 	)
 
 	for key, value := range params {
@@ -161,6 +179,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			segmentID = value
 		case strings.Contains(strings.ToLower(key), "type"):
 			operationType = strings.ToUpper(value)
+			// Also populate Type field for account filtering (preserves original casing)
+			filterType = &value
 		case key == "direction":
 			v := strings.ToLower(value)
 			direction = &v
@@ -176,6 +196,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			externalID = &value
 		case key == "document":
 			document = &value
+		case key == "parent_account_id":
+			parentAccountID = &value
 		case strings.Contains(key, "account_id"):
 			accountID = &value
 		case strings.Contains(key, "ledger_id"):
@@ -200,6 +222,22 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			legalName = &value
 		case key == "doing_business_as":
 			doingBusinessAs = &value
+		case key == "status":
+			v := strings.ToUpper(value)
+			status = &v
+		case key == "asset_code":
+			assetCode = &value
+		case key == "entity_id":
+			entityID = &value
+		case key == "key_value":
+			keyValue = &value
+		case key == "blocked":
+			v := strings.ToLower(value) == "true"
+			blocked = &v
+		case key == "legal_document":
+			legalDocument = &value
+		case key == "alias":
+			alias = &value
 		}
 	}
 
@@ -212,6 +250,10 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	}
 
 	if err := validateSearchTermLength(&doingBusinessAs, "doing_business_as"); err != nil {
+		return nil, err
+	}
+
+	if err := validateSearchTermLength(&alias, "alias"); err != nil {
 		return nil, err
 	}
 
@@ -249,6 +291,12 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		}
 	}
 
+	if parentAccountID != nil {
+		if _, err := uuid.Parse(*parentAccountID); err != nil {
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "parent_account_id")
+		}
+	}
+
 	query := &QueryHeader{
 		Metadata:                            metadata,
 		Limit:                               limit,
@@ -280,6 +328,15 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		Name:                                name,
 		LegalName:                           legalName,
 		DoingBusinessAs:                     doingBusinessAs,
+		Status:                              status,
+		Type:                                filterType,
+		AssetCode:                           assetCode,
+		EntityID:                            entityID,
+		KeyValue:                            keyValue,
+		Blocked:                             blocked,
+		ParentAccountID:                     parentAccountID,
+		LegalDocument:                       legalDocument,
+		Alias:                               alias,
 	}
 
 	return query, nil

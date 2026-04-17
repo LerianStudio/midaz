@@ -93,6 +93,7 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 //	@Param			organization_id	path		string																true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string																true	"Ledger ID in UUID format"
 //	@Param			metadata		query		string																false	"JSON string to filter portfolios by metadata fields"
+//	@Param			entity_id		query		string																false	"Filter portfolios by entity ID"
 //	@Param			limit			query		int																	false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
 //	@Param			page			query		int																	false	"Page number for pagination"					default(1)	minimum(1)
 //	@Param			start_date		query		string																false	"Filter portfolios created on or after this date (format: YYYY-MM-DD)"

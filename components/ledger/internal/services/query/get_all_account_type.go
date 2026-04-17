@@ -32,7 +32,7 @@ func (uc *UseCase) GetAllAccountType(ctx context.Context, organizationID, ledger
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving account types")
 
-	accountTypes, cur, err := uc.AccountTypeRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
+	accountTypes, cur, err := uc.AccountTypeRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())

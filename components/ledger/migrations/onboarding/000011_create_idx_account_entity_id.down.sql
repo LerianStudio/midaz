@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_account_entity_id;

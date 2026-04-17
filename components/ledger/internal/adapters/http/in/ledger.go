@@ -7,7 +7,6 @@ package in
 import (
 	"fmt"
 	"os"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -143,6 +142,7 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 //	@Param			end_date		query		string																false	"Filter ledgers created on or before this date (format: YYYY-MM-DD)"
 //	@Param			sort_order		query		string																false	"Sort direction for results based on creation date"	Enums(asc,desc)
 //	@Param			name			query		string																false	"Filter ledgers by name (case-insensitive, prefix match)"	maxLength(256)
+//	@Param			status			query		string																false	"Filter ledgers by status"	Enums(ACTIVE, INACTIVE)
 //	@Success		200				{object}	http.Pagination{items=[]mmodel.Ledger}	"Successfully retrieved ledgers list"
 //	@Failure		400				{object}	mmodel.Error														"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error														"Unauthorized access"
@@ -172,6 +172,17 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
+	if headerParams.Status != nil {
+		validStatuses := map[string]bool{"ACTIVE": true, "INACTIVE": true}
+		if !validStatuses[*headerParams.Status] {
+			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLedger, "status")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid status value", err)
+
+			return http.WithError(c, err)
+		}
+	}
+
 	recordSafeQueryAttributes(span, headerParams)
 
 	pagination := http.Pagination{
@@ -184,7 +195,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 	if headerParams.Metadata != nil {
 		if headerParams.HasNameFilters() {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "metadata cannot be combined with name filters (name)")
+			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLedger, "metadata cannot be combined with name filters (name)")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters: metadata and name filters are mutually exclusive", err)
 
@@ -332,7 +343,7 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Ledger with ID: %s", id.String()))
 
 	if os.Getenv("ENV_NAME") == "production" {
-		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, reflect.TypeOf(mmodel.Ledger{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, constant.EntityLedger)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove ledger on command", err)
 

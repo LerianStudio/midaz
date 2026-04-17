@@ -61,7 +61,7 @@ type Repository interface {
 
 	// FindAll returns a paginated list of organizations matching the optional name filters.
 	// Both legalName and doingBusinessAs perform case-insensitive prefix matching.
-	FindAll(ctx context.Context, filter http.Pagination, legalName, doingBusinessAs *string) ([]*mmodel.Organization, error)
+	FindAll(ctx context.Context, filter http.QueryHeader) ([]*mmodel.Organization, error)
 
 	// ListByIDs returns organizations whose IDs are in the provided slice, excluding soft-deleted records.
 	// Returns an empty slice (not an error) when ids is empty.
@@ -393,7 +393,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 	return organization.ToEntity(), nil
 }
 
-func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter http.Pagination, legalName, doingBusinessAs *string) ([]*mmodel.Organization, error) {
+func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter http.QueryHeader) ([]*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_organizations")
@@ -408,26 +408,36 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 		return nil, err
 	}
 
+	pagination := filter.ToOffsetPagination()
+
 	var organizations []*mmodel.Organization
 
 	findAll := squirrel.Select(organizationColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
-		OrderBy("id " + strings.ToUpper(filter.SortOrder)).
-		Limit(libCommons.SafeIntToUint64(filter.Limit)).
-		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
+		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.StartDate, libPointers.Int(0), false)}).
+		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.EndDate, libPointers.Int(0), true)}).
+		OrderBy("id " + strings.ToUpper(pagination.SortOrder)).
+		Limit(libCommons.SafeIntToUint64(pagination.Limit)).
+		Offset(libCommons.SafeIntToUint64((pagination.Page - 1) * pagination.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
-	if legalName != nil && *legalName != "" {
-		sanitized := http.EscapeSearchMetacharacters(*legalName)
+	if filter.LegalName != nil && *filter.LegalName != "" {
+		sanitized := http.EscapeSearchMetacharacters(*filter.LegalName)
 		findAll = findAll.Where(squirrel.ILike{"legal_name": sanitized + "%"})
 	}
 
-	if doingBusinessAs != nil && *doingBusinessAs != "" {
-		sanitized := http.EscapeSearchMetacharacters(*doingBusinessAs)
+	if filter.DoingBusinessAs != nil && *filter.DoingBusinessAs != "" {
+		sanitized := http.EscapeSearchMetacharacters(*filter.DoingBusinessAs)
 		findAll = findAll.Where(squirrel.ILike{"doing_business_as": sanitized + "%"})
+	}
+
+	if !libCommons.IsNilOrEmpty(filter.Status) {
+		findAll = findAll.Where(squirrel.Expr("status = ?", *filter.Status))
+	}
+
+	if !libCommons.IsNilOrEmpty(filter.LegalDocument) {
+		findAll = findAll.Where(squirrel.Expr("legal_document = ?", *filter.LegalDocument))
 	}
 
 	query, args, err := findAll.ToSql()
