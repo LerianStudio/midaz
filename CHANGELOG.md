@@ -1,5 +1,17 @@
 # Midaz Changelog
 
+## [3.6.3](https://github.com/LerianStudio/midaz/releases/tag/v3.6.3)
+
+- Fixes:
+  - Eliminate Redis backup_queue backlog by cleaning duplicate bulk payloads and normalizing cleanup status with a shared utils helper.
+  - Split balance sync into v2 and legacy ZSET keys with a legacy drainer for rollback-safe migration.
+
+Contributors: @ClaraTersi, @bedatty, @lerian-studio
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.6.2...v3.6.3)
+
+---
+
 ## [3.6.2](https://github.com/LerianStudio/midaz/releases/tag/v3.6.2)
 
 - Fixes:
