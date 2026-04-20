@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"mime/multipart"
 	"strconv"
@@ -102,7 +103,7 @@ func (p *Pagination) SetCursor(next, prev string) {
 
 // ValidateParameters validate and return struct of default parameters
 //
-//nolint:gocyclo
+//nolint:gocyclo,gocognit
 func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	var (
 		metadata                            *bson.M
@@ -232,8 +233,9 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		case key == "key_value":
 			keyValue = &value
 		case key == "blocked":
-			v := strings.ToLower(value) == "true"
-			blocked = &v
+			if err := validateBlockedParam(&blocked, value); err != nil {
+				return nil, err
+			}
 		case key == "legal_document":
 			legalDocument = &value
 		case key == "alias":
@@ -582,6 +584,38 @@ func validateSearchTermLength(term **string, fieldName string) error {
 	}
 
 	**term = trimmed
+
+	return nil
+}
+
+// parseBoolParam parses a string value into a boolean pointer.
+// Accepts: "true", "false" (case-insensitive), "1", "0".
+// Returns (nil, error) for invalid values.
+// Per TRD: Invalid boolean values must return an error, not default to false.
+func parseBoolParam(value string) (*bool, error) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+
+	switch normalized {
+	case "true", "1":
+		result := true
+		return &result, nil
+	case "false", "0":
+		result := false
+		return &result, nil
+	default:
+		return nil, errors.New("invalid boolean value")
+	}
+}
+
+// validateBlockedParam validates and parses the blocked query parameter.
+// Returns the parsed boolean pointer and any validation error.
+func validateBlockedParam(blocked **bool, value string) error {
+	parsedBlocked, err := parseBoolParam(value)
+	if err != nil {
+		return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "blocked")
+	}
+
+	*blocked = parsedBlocked
 
 	return nil
 }

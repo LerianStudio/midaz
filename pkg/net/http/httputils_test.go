@@ -1188,10 +1188,22 @@ func TestValidateParameters_ExtendedFilters(t *testing.T) {
 			expectError:     false,
 		},
 		{
-			name:            "blocked filter invalid value treated as false",
-			params:          map[string]string{"blocked": "invalid"},
+			name:            "blocked filter numeric 1",
+			params:          map[string]string{"blocked": "1"},
+			expectedBlocked: ptrBool(true),
+			expectError:     false,
+		},
+		{
+			name:            "blocked filter numeric 0",
+			params:          map[string]string{"blocked": "0"},
 			expectedBlocked: ptrBool(false),
 			expectError:     false,
+		},
+		{
+			name:          "blocked filter invalid value returns error",
+			params:        map[string]string{"blocked": "invalid"},
+			expectError:   true,
+			errorContains: "blocked",
 		},
 		{
 			name:                    "parent_account_id with valid UUID",
@@ -1312,4 +1324,56 @@ func ptr(s string) *string {
 // ptrBool is a helper function to create a pointer to a bool value.
 func ptrBool(b bool) *bool {
 	return &b
+}
+
+// TestParseBoolParam tests the parseBoolParam helper function for boolean query parameter parsing.
+func TestParseBoolParam(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		input         string
+		expectedValue *bool
+		expectError   bool
+	}{
+		// Valid true values
+		{name: "true lowercase", input: "true", expectedValue: ptrBool(true), expectError: false},
+		{name: "TRUE uppercase", input: "TRUE", expectedValue: ptrBool(true), expectError: false},
+		{name: "True mixed case", input: "True", expectedValue: ptrBool(true), expectError: false},
+		{name: "1 numeric true", input: "1", expectedValue: ptrBool(true), expectError: false},
+
+		// Valid false values
+		{name: "false lowercase", input: "false", expectedValue: ptrBool(false), expectError: false},
+		{name: "FALSE uppercase", input: "FALSE", expectedValue: ptrBool(false), expectError: false},
+		{name: "False mixed case", input: "False", expectedValue: ptrBool(false), expectError: false},
+		{name: "0 numeric false", input: "0", expectedValue: ptrBool(false), expectError: false},
+
+		// Invalid values - must return error
+		{name: "invalid string", input: "invalid", expectedValue: nil, expectError: true},
+		{name: "yes is invalid", input: "yes", expectedValue: nil, expectError: true},
+		{name: "no is invalid", input: "no", expectedValue: nil, expectError: true},
+		{name: "2 is invalid", input: "2", expectedValue: nil, expectError: true},
+		{name: "empty string is invalid", input: "", expectedValue: nil, expectError: true},
+		{name: "whitespace is invalid", input: " ", expectedValue: nil, expectError: true},
+		{name: "tRuE weird case", input: "tRuE", expectedValue: ptrBool(true), expectError: false},
+		{name: "fAlSe weird case", input: "fAlSe", expectedValue: ptrBool(false), expectError: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := parseBoolParam(tc.input)
+
+			if tc.expectError {
+				require.Error(t, err, "expected error for input: %q", tc.input)
+				assert.Nil(t, result, "result should be nil when error is returned")
+				return
+			}
+
+			require.NoError(t, err, "unexpected error for input: %q", tc.input)
+			require.NotNil(t, result, "result should not be nil for valid input: %q", tc.input)
+			assert.Equal(t, *tc.expectedValue, *result, "unexpected value for input: %q", tc.input)
+		})
+	}
 }
