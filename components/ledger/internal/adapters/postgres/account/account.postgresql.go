@@ -9,7 +9,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -190,7 +189,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
+			err := services.ValidatePGError(pgErr, constant.EntityAccount)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute query", err)
 
@@ -218,7 +217,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create account", err)
 
@@ -439,7 +438,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&acc.Blocked,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
@@ -524,7 +523,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		&acc.Blocked,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
@@ -610,7 +609,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		&acc.Blocked,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, constant.EntityAccount)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
@@ -684,7 +683,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 	spanQuery.End()
 
-	err = pkg.ValidateBusinessError(constant.ErrAliasUnavailability, reflect.TypeOf(mmodel.Account{}).Name(), alias)
+	err = pkg.ValidateBusinessError(constant.ErrAliasUnavailability, constant.EntityAccount, alias)
 
 	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Alias is already taken", err)
 
@@ -979,7 +978,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
+			err := services.ValidatePGError(pgErr, constant.EntityAccount)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
 
@@ -1005,7 +1004,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account", err)
 
@@ -1061,7 +1060,7 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
-		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
 	}
 
 	spanExec.End()

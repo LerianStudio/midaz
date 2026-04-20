@@ -802,6 +802,37 @@ func TestEscapeSearchMetacharacters_MultiplePercents(t *testing.T) {
 	assert.Equal(t, `\%\%`, result)
 }
 
+// TestValidateSearchTermLength_StatusCaseInsensitive tests that status filter is case-insensitive.
+func TestValidateSearchTermLength_StatusCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		inputStatus    string
+		expectedStatus string
+	}{
+		{name: "lowercase active", inputStatus: "active", expectedStatus: "ACTIVE"},
+		{name: "uppercase ACTIVE", inputStatus: "ACTIVE", expectedStatus: "ACTIVE"},
+		{name: "mixed case Active", inputStatus: "Active", expectedStatus: "ACTIVE"},
+		{name: "lowercase inactive", inputStatus: "inactive", expectedStatus: "INACTIVE"},
+		{name: "uppercase INACTIVE", inputStatus: "INACTIVE", expectedStatus: "INACTIVE"},
+		{name: "mixed case InActive", inputStatus: "InActive", expectedStatus: "INACTIVE"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			params := map[string]string{"status": tc.inputStatus}
+			result, err := ValidateParameters(params)
+
+			require.NoError(t, err)
+			require.NotNil(t, result.Status)
+			assert.Equal(t, tc.expectedStatus, *result.Status, "status should be uppercased")
+		})
+	}
+}
+
 func TestValidateParameters_WithName(t *testing.T) {
 	params := map[string]string{
 		"name": "BRL Ledger",
