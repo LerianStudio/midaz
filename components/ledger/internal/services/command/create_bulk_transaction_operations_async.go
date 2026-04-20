@@ -8,7 +8,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -20,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/repository"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/vmihailenco/msgpack/v5"
@@ -86,6 +89,30 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 
 	if len(payloads) == 0 {
 		return result, nil
+	}
+
+	// Legacy payload compatibility: messages from v3.5.x lack the Version field.
+	// Their balance persistence relied on UpdateBalances() in the consumer, which
+	// was removed in v3.6.x. Call UpdateBalances() for each legacy payload before
+	// bulk insert to ensure balances reach PostgreSQL.
+	for i := range payloads {
+		p := &payloads[i]
+		if p.Version == "" && p.Transaction != nil && p.Validate != nil && p.Transaction.Status.Code != constant.NOTED {
+			orgID, ledgerID, err := uc.extractOrgLedgerIDs(*p)
+			if err != nil {
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Legacy payload: failed to extract IDs: %v", err))
+
+				continue
+			}
+
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(
+				"Legacy payload detected (no Version field) for transaction %s, calling UpdateBalances",
+				p.Transaction.ID))
+
+			if err := uc.UpdateBalances(ctx, orgID, ledgerID, *p.Validate, p.Balances, p.BalancesAfter); err != nil {
+				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances for legacy payload %s: %v", p.Transaction.ID, err))
+			}
+		}
 	}
 
 	// Classify payloads into inserts and updates
@@ -356,6 +383,15 @@ func (uc *UseCase) bulkInsertOperationsTx(
 	operations []*operation.Operation,
 	result *BulkResult,
 ) error {
+	// Validate direction on all operations before bulk insert.
+	for _, op := range operations {
+		if op != nil {
+			if err := validateOperationDirection(ctx, logger, op); err != nil {
+				return err
+			}
+		}
+	}
+
 	result.OperationsAttempted = int64(len(operations))
 
 	insertResult, err := uc.OperationRepo.CreateBulkTx(ctx, dbTx, operations)
@@ -474,6 +510,32 @@ func (uc *UseCase) processMetadataAndEvents(
 
 		tx := payload.Transaction
 
+		// Clean up backup/write-behind entries for every payload that reached this stage,
+		// including duplicates ignored by INSERT ... ON CONFLICT DO NOTHING.
+		orgID, ledgerID, err := uc.extractOrgLedgerIDs(payload)
+		if err == nil {
+			useConditionalCleanup := strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true"
+			expectedStatus := utils.ExpectedBackupStatusForCleanup(tx.Status.Code, payload.Validate)
+
+			go func(orgID, ledgerID uuid.UUID, txID, status string) {
+				opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
+				defer cancel()
+
+				if useConditionalCleanup {
+					uc.RemoveTransactionFromRedisQueueIfStatus(opCtx, logger, orgID, ledgerID, txID, status)
+				} else {
+					uc.RemoveTransactionFromRedisQueue(opCtx, logger, orgID, ledgerID, txID)
+				}
+			}(orgID, ledgerID, tx.ID, expectedStatus)
+
+			go func(orgID, ledgerID uuid.UUID, txID string) {
+				opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
+				defer cancel()
+
+				uc.DeleteWriteBehindTransaction(opCtx, orgID, ledgerID, txID)
+			}(orgID, ledgerID, tx.ID)
+		}
+
 		// Skip if this transaction was not actually inserted (duplicate)
 		// If insertedTxIDs is empty, process all (fallback or status-update scenarios)
 		if len(insertedTxIDs) > 0 {
@@ -492,24 +554,6 @@ func (uc *UseCase) processMetadataAndEvents(
 
 			uc.SendTransactionEvents(opCtx, tx)
 		}()
-
-		// Clean up backup queue with context that preserves trace but survives parent cancellation
-		orgID, ledgerID, err := uc.extractOrgLedgerIDs(payload)
-		if err == nil {
-			go func(orgID, ledgerID uuid.UUID, txID string) {
-				opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
-				defer cancel()
-
-				uc.RemoveTransactionFromRedisQueue(opCtx, logger, orgID, ledgerID, txID)
-			}(orgID, ledgerID, tx.ID)
-
-			go func(orgID, ledgerID uuid.UUID, txID string) {
-				opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
-				defer cancel()
-
-				uc.DeleteWriteBehindTransaction(opCtx, orgID, ledgerID, txID)
-			}(orgID, ledgerID, tx.ID)
-		}
 	}
 }
 

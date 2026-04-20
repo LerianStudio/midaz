@@ -959,7 +959,7 @@ Located in `.githooks/`:
 ### Balance Sync Worker (Transaction Component)
 
 Dual-trigger synchronization of balance keys from Redis to PostgreSQL. Each balance mutation
-atomically schedules a sync via ZADD into a Redis ZSET (`schedule:{transactions}:balance-sync`).
+atomically schedules a sync via ZADD into a Redis ZSET (`schedule:{transactions}:balance-sync-v2`).
 The worker collects due keys and flushes them in batches based on SIZE (batch full) or
 TIMEOUT (flush interval elapsed), whichever comes first.
 

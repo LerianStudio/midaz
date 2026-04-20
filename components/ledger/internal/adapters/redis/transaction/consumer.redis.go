@@ -98,6 +98,9 @@ type RedisRepository interface {
 	// Each claimed key gets a distributed lock (SET NX EX) to prevent concurrent processing.
 	// Returns the claimed keys with their scores for conditional removal later.
 	GetBalanceSyncKeys(ctx context.Context, limit int64) ([]SyncKey, error)
+	// GetBalanceSyncKeysLegacy claims due keys from the legacy ZSET (balance-sync, pre-v3.6.2).
+	// Used by the legacy drainer to process entries written by v3.5.x (seconds) or v3.6.0 (microseconds).
+	GetBalanceSyncKeysLegacy(ctx context.Context, limit int64) ([]SyncKey, error)
 	// ScheduleBalanceSyncBatch schedules multiple balance keys for sync using ZADD NX.
 	// Each member is a balance key with score = scheduled sync time (Unix timestamp).
 	// Uses NX mode: only adds new members, does not update scores of existing ones.
@@ -1069,6 +1072,68 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 
 	logger.Log(ctx, libLog.LevelInfo, "Claimed balance sync keys",
 		libLog.Int("count", len(out)))
+
+	return out, nil
+}
+
+// GetBalanceSyncKeysLegacy claims due keys from the legacy ZSET (balance-sync, pre-v3.6.2).
+// Reuses the same Lua claim script — the fractional-second `now` works with seconds-based
+// scores because both are in the ~1e9 range. Microsecond scores (~1e15) will never be
+// "due" and remain in the ZSET until TTL expiry or manual cleanup.
+func (rr *RedisConsumerRepository) GetBalanceSyncKeysLegacy(ctx context.Context, limit int64) ([]SyncKey, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.get_balance_sync_keys_legacy")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get redis client", libLog.Err(err))
+
+		return nil, err
+	}
+
+	script := redis.NewScript(claimBalanceSyncKeysLua)
+
+	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKeyLegacy)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace legacy schedule key", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace legacy schedule key", libLog.Err(err))
+
+		return nil, err
+	}
+
+	prefixedLockPrefix, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncLockPrefix)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace lock prefix", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace lock prefix", libLog.Err(err))
+
+		return nil, err
+	}
+
+	const claimTTLSeconds int64 = 600
+
+	res, err := script.Run(ctx, rds, []string{prefixedScheduleKey}, limit, claimTTLSeconds, prefixedLockPrefix).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to run claim_balance_sync_keys.lua (legacy)", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to run claim_balance_sync_keys.lua (legacy)", libLog.Err(err))
+
+		return nil, err
+	}
+
+	out, err := parseSyncKeysFromLuaResult(res, logger, ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to parse legacy claim script result", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to parse legacy claim script result", libLog.Err(err))
+
+		return nil, err
+	}
+
+	if len(out) > 0 {
+		logger.Log(ctx, libLog.LevelInfo, "Claimed legacy balance sync keys",
+			libLog.Int("count", len(out)))
+	}
 
 	return out, nil
 }

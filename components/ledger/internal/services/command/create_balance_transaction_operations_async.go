@@ -9,7 +9,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -60,6 +62,22 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		return fmt.Errorf("transaction payload has nil Transaction field")
 	}
 
+	backupStatusForCleanup := utils.ExpectedBackupStatusForCleanup(t.Transaction.Status.Code, t.Validate)
+
+	// Legacy payload compatibility: messages from v3.5.x lack the Version field.
+	// Their balance persistence relied on UpdateBalances() in the consumer, which
+	// was removed in v3.6.x (replaced by BalanceSyncWorker). Without this fallback,
+	// balances for in-flight v3.5.x messages would never reach PostgreSQL.
+	if t.Version == "" && t.Transaction.Status.Code != constant.NOTED {
+		logger.Log(ctx, libLog.LevelWarn, "Legacy payload detected (no Version field), calling UpdateBalances for backward compatibility")
+
+		if err := uc.UpdateBalances(ctx, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances, t.BalancesAfter); err != nil {
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances for legacy payload: %v", err))
+
+			return err
+		}
+	}
+
 	// Note: Balance updates are handled by BalanceSyncWorker asynchronously.
 	// Hot balance was already updated atomically by Lua script during validation.
 	// Cold balance persistence is scheduled via ZADD to schedule:balance-sync.
@@ -94,8 +112,8 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	logger.Log(ctx, libLog.LevelInfo, "Trying to create new operations")
 
 	for _, oper := range tran.Operations {
-		if oper.Direction == "" {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Operation %s has empty direction, may be from pre-migration message", oper.ID))
+		if err := validateOperationDirection(ctx, logger, oper); err != nil {
+			return err
 		}
 
 		_, err = uc.OperationRepo.Create(ctxProcessOperation, oper)
@@ -132,7 +150,15 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: cleaning up transaction %s after successful processing", tran.ID))
 
-	go uc.RemoveTransactionFromRedisQueue(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID)
+	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
+		if backupStatusForCleanup == "" {
+			backupStatusForCleanup = utils.ExpectedBackupStatusForCleanup(tran.Status.Code, t.Validate)
+		}
+
+		go uc.RemoveTransactionFromRedisQueueIfStatus(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID, backupStatusForCleanup)
+	} else {
+		go uc.RemoveTransactionFromRedisQueue(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID)
+	}
 
 	uc.DeleteWriteBehindTransaction(ctx, data.OrganizationID, data.LedgerID, tran.ID)
 
@@ -237,6 +263,40 @@ func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger l
 	} else {
 		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: transaction removed successfully from backup_queue:{transactions} with key %s", transactionKey))
 	}
+}
+
+// RemoveTransactionFromRedisQueueIfStatus removes a backup entry only when the
+// current queue payload still matches the expected transaction status.
+//
+// This prevents stale consumers from deleting a newer backup stage for the
+// same transaction ID (e.g. late PENDING-create worker removing a newer
+// APPROVED/CANCELED backup written by commit/cancel flow).
+func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID, transactionID, expectedStatus string) {
+	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID)
+
+	raw, err := uc.TransactionRedisRepo.ReadMessageFromQueue(ctx, transactionKey)
+	if err != nil {
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Backup queue: failed to read transaction %s before conditional cleanup: %v", transactionKey, err))
+		return
+	}
+
+	var queue mmodel.TransactionRedisQueue
+	if err := json.Unmarshal(raw, &queue); err != nil {
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Backup queue: failed to decode transaction %s before conditional cleanup: %v", transactionKey, err))
+		return
+	}
+
+	if !strings.EqualFold(queue.TransactionStatus, expectedStatus) {
+		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
+			"Backup queue: skip cleanup for transaction %s because status changed (expected=%s current=%s)",
+			transactionKey,
+			expectedStatus,
+			queue.TransactionStatus,
+		))
+		return
+	}
+
+	uc.RemoveTransactionFromRedisQueue(ctx, logger, organizationID, ledgerID, transactionID)
 }
 
 // SendTransactionToRedisQueue func that send transaction to redis queue.
@@ -365,5 +425,24 @@ func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organi
 	if err := uc.TransactionRedisRepo.AddMessageToQueue(ctx, transactionKey, updated); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to write updated transaction backup with operations", err)
 		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to write updated transaction backup with operations: %v", err))
+	}
+}
+
+// validateOperationDirection checks the direction field of an operation.
+// Empty direction is allowed with a warning (v3.5.3 messages lack this field).
+// Non-empty direction must be one of the valid values ("debit", "credit").
+func validateOperationDirection(ctx context.Context, logger libLog.Logger, oper *operation.Operation) error {
+	if oper.Direction == "" {
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(
+			"Operation %s has empty direction, may be from pre-migration message", oper.ID))
+
+		return nil
+	}
+
+	switch strings.ToLower(oper.Direction) {
+	case "debit", "credit":
+		return nil
+	default:
+		return fmt.Errorf("operation %s has invalid direction %q: must be 'debit' or 'credit'", oper.ID, oper.Direction)
 	}
 }

@@ -708,6 +708,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// BalanceSyncWorker: multi-tenant or single-tenant
 	balanceSyncWorker := initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
 
+	// Legacy drainer: drains pre-v3.6.2 ZSET entries (balance-sync key with seconds/microsecond scores).
+	// Uses relaxed timing (longer flush timeout, longer idle wait) since it only drains a finite backlog.
+	legacyDrainer := NewLegacyBalanceSyncDrainer(logger, commandUseCase, BalanceSyncConfig{
+		BatchSize:      cfg.BalanceSyncBatchSize,
+		FlushTimeoutMs: 2000,
+		PollIntervalMs: 1000,
+	})
+
 	logger.Log(context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
 		libLog.String("version", cfg.Version),
 		libLog.String("env", cfg.EnvName),
@@ -715,16 +723,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	)
 
 	return &Service{
-		UnifiedServer:         unifiedServer,
-		MultiQueueConsumer:    rmq.multiQueueConsumer,
-		MultiTenantConsumer:   rmq.multiTenantConsumer,
-		RedisQueueConsumer:    redisConsumer,
-		BalanceSyncWorker:     balanceSyncWorker,
-		EventListener:         eventListener,
-		CircuitBreakerManager: rmq.circuitBreakerManager,
-		Logger:                logger,
-		Telemetry:             telemetry,
-		metricsFactory:        rmq.metricsFactory,
+		UnifiedServer:            unifiedServer,
+		MultiQueueConsumer:       rmq.multiQueueConsumer,
+		MultiTenantConsumer:      rmq.multiTenantConsumer,
+		RedisQueueConsumer:       redisConsumer,
+		BalanceSyncWorker:        balanceSyncWorker,
+		LegacyBalanceSyncDrainer: legacyDrainer,
+		EventListener:            eventListener,
+		CircuitBreakerManager:    rmq.circuitBreakerManager,
+		Logger:                   logger,
+		Telemetry:                telemetry,
+		metricsFactory:           rmq.metricsFactory,
 	}, nil
 }
 

@@ -1,1 +1,2 @@
-ALTER TABLE operation DROP CONSTRAINT IF EXISTS chk_operation_direction;
+-- No constraint to drop — direction validation is at the application layer.
+-- Backfilled values remain in place (no data rollback needed).
