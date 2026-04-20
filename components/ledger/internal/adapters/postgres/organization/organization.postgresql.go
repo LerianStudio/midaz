@@ -424,12 +424,16 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 
 	if filter.LegalName != nil && *filter.LegalName != "" {
 		sanitized := http.EscapeSearchMetacharacters(*filter.LegalName)
-		findAll = findAll.Where(squirrel.ILike{"legal_name": sanitized + "%"})
+		findAll = findAll.Where(
+			squirrel.Expr("lower(legal_name) LIKE lower(?) || '%' ESCAPE '\\'", sanitized),
+		)
 	}
 
 	if filter.DoingBusinessAs != nil && *filter.DoingBusinessAs != "" {
 		sanitized := http.EscapeSearchMetacharacters(*filter.DoingBusinessAs)
-		findAll = findAll.Where(squirrel.ILike{"doing_business_as": sanitized + "%"})
+		findAll = findAll.Where(
+			squirrel.Expr("lower(doing_business_as) LIKE lower(?) || '%' ESCAPE '\\'", sanitized),
+		)
 	}
 
 	if !libCommons.IsNilOrEmpty(filter.Status) {

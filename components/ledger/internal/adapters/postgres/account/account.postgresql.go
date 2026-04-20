@@ -289,12 +289,16 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	if filter.Name != nil && *filter.Name != "" {
 		sanitized := http.EscapeSearchMetacharacters(*filter.Name)
-		findAll = findAll.Where(squirrel.ILike{"name": sanitized + "%"})
+		findAll = findAll.Where(
+			squirrel.Expr("lower(name) LIKE lower(?) || '%' ESCAPE '\\'", sanitized),
+		)
 	}
 
 	if filter.Alias != nil && *filter.Alias != "" {
 		sanitized := http.EscapeSearchMetacharacters(*filter.Alias)
-		findAll = findAll.Where(squirrel.ILike{"alias": sanitized + "%"})
+		findAll = findAll.Where(
+			squirrel.Expr("lower(alias) LIKE lower(?) || '%' ESCAPE '\\'", sanitized),
+		)
 	}
 
 	findAll = findAll.OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).

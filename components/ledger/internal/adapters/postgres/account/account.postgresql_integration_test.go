@@ -9,6 +9,7 @@ package account
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -1571,4 +1572,311 @@ func TestIntegration_AccountRepository_FindAll_EmptyFilterReturnsAll(t *testing.
 	// Assert
 	require.NoError(t, err)
 	assert.Len(t, accounts, 3, "empty filter should return all accounts")
+}
+
+// ============================================================================
+// FindAll Filter Tests - Name and Alias Prefix Search (B-tree Expression Index)
+// ============================================================================
+
+func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create accounts with different names
+	acmeParams := pgtestutil.DefaultAccountParams()
+	acmeParams.Name = "Acme Corporation"
+	acmeParams.Alias = "@acme1"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acmeParams)
+
+	acmeParams2 := pgtestutil.DefaultAccountParams()
+	acmeParams2.Name = "Acme Industries"
+	acmeParams2.Alias = "@acme2"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acmeParams2)
+
+	betaParams := pgtestutil.DefaultAccountParams()
+	betaParams.Name = "Beta Holdings"
+	betaParams.Alias = "@beta1"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, betaParams)
+
+	ctx := context.Background()
+	nameFilter := "Acme"
+	filter := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+		Name:      &nameFilter,
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 2, "should return accounts starting with 'Acme'")
+
+	for _, acc := range accounts {
+		assert.True(t, strings.HasPrefix(acc.Name, "Acme"), "account name should start with 'Acme'")
+	}
+}
+
+func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix_CaseInsensitive(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create account with mixed case name
+	acmeParams := pgtestutil.DefaultAccountParams()
+	acmeParams.Name = "Acme Corporation"
+	acmeParams.Alias = "@acme1"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acmeParams)
+
+	ctx := context.Background()
+	// Search with lowercase - should match case-insensitively
+	nameFilter := "acme"
+	filter := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+		Name:      &nameFilter,
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 1, "lowercase 'acme' should match 'Acme Corporation' case-insensitively")
+	assert.Equal(t, "Acme Corporation", accounts[0].Name)
+}
+
+func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create accounts with different aliases
+	acc1Params := pgtestutil.DefaultAccountParams()
+	acc1Params.Name = "Account 1"
+	acc1Params.Alias = "@tech-account-001"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc1Params)
+
+	acc2Params := pgtestutil.DefaultAccountParams()
+	acc2Params.Name = "Account 2"
+	acc2Params.Alias = "@tech-account-002"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc2Params)
+
+	acc3Params := pgtestutil.DefaultAccountParams()
+	acc3Params.Name = "Account 3"
+	acc3Params.Alias = "@finance-account-001"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc3Params)
+
+	ctx := context.Background()
+	aliasFilter := "@tech"
+	filter := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+		Alias:     &aliasFilter,
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 2, "should return accounts with alias starting with '@tech'")
+
+	for _, acc := range accounts {
+		assert.True(t, strings.HasPrefix(acc.Alias, "@tech"), "account alias should start with '@tech'")
+	}
+}
+
+func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix_NoMiddleWordMatch(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create account with "Acme" in the middle of the name
+	params := pgtestutil.DefaultAccountParams()
+	params.Name = "MyAcmeCorp"
+	params.Alias = "@myacme"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, params)
+
+	ctx := context.Background()
+	// Search for "Acme" should NOT match "MyAcmeCorp" (prefix match only)
+	nameFilter := "Acme"
+	filter := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+		Name:      &nameFilter,
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 0, "'Acme' should NOT match 'MyAcmeCorp' because we use prefix match only")
+}
+
+func TestIntegration_AccountRepository_FindAll_FiltersByName_WildcardInjection(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create accounts
+	acmeParams := pgtestutil.DefaultAccountParams()
+	acmeParams.Name = "Acme Corporation"
+	acmeParams.Alias = "@acme1"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acmeParams)
+
+	ctx := context.Background()
+
+	// Test wildcard injection attempts
+	injectionTests := []struct {
+		name     string
+		filter   string
+		expected int
+	}{
+		{"percent wildcard", "%", 0},
+		{"underscore wildcard", "Acm_", 0},
+		{"backslash escape", "Acme\\", 0},
+		{"percent in middle", "A%e", 0},
+	}
+
+	for _, tt := range injectionTests {
+		t.Run(tt.name, func(t *testing.T) {
+			nameFilter := tt.filter
+			filter := http.QueryHeader{
+				Limit:     10,
+				Page:      1,
+				SortOrder: "asc",
+				StartDate: time.Now().Add(-24 * time.Hour),
+				EndDate:   time.Now().Add(24 * time.Hour),
+				Name:      &nameFilter,
+			}
+
+			accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+
+			require.NoError(t, err)
+			assert.Len(t, accounts, tt.expected, "wildcard injection '%s' should return %d results", tt.filter, tt.expected)
+		})
+	}
+}
+
+func TestIntegration_AccountRepository_FindAll_FiltersByName_LiteralSpecialChars(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create account with literal % in name
+	params := pgtestutil.DefaultAccountParams()
+	params.Name = "100% Organic Corp"
+	params.Alias = "@organic"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, params)
+
+	ctx := context.Background()
+	// Search for "100%" should find the account (escaped properly)
+	nameFilter := "100%"
+	filter := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+		Name:      &nameFilter,
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 1, "search for '100%%' should find '100%% Organic Corp'")
+	assert.Equal(t, "100% Organic Corp", accounts[0].Name)
+}
+
+func TestIntegration_AccountRepository_FindAll_CombinesNameAndAliasFilters(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create accounts with various combinations
+	// Account 1: Matches both name AND alias filters
+	acc1Params := pgtestutil.DefaultAccountParams()
+	acc1Params.Name = "Acme Corporation"
+	acc1Params.Alias = "@acme-corp"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc1Params)
+
+	// Account 2: Matches only name filter
+	acc2Params := pgtestutil.DefaultAccountParams()
+	acc2Params.Name = "Acme Industries"
+	acc2Params.Alias = "@industries"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc2Params)
+
+	// Account 3: Matches only alias filter
+	acc3Params := pgtestutil.DefaultAccountParams()
+	acc3Params.Name = "Beta Holdings"
+	acc3Params.Alias = "@acme-beta"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc3Params)
+
+	ctx := context.Background()
+	nameFilter := "Acme"
+	aliasFilter := "@acme"
+	filter := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+		Name:      &nameFilter,
+		Alias:     &aliasFilter,
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 1, "should return only account matching BOTH name AND alias filters")
+	assert.Equal(t, "Acme Corporation", accounts[0].Name)
+	assert.Equal(t, "@acme-corp", accounts[0].Alias)
 }
