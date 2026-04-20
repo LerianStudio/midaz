@@ -106,6 +106,21 @@ func (mr *MockRedisRepositoryMockRecorder) GetBalanceSyncKeys(ctx, limit any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalanceSyncKeys", reflect.TypeOf((*MockRedisRepository)(nil).GetBalanceSyncKeys), ctx, limit)
 }
 
+// GetBalanceSyncKeysLegacy mocks base method.
+func (m *MockRedisRepository) GetBalanceSyncKeysLegacy(ctx context.Context, limit int64) ([]SyncKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBalanceSyncKeysLegacy", ctx, limit)
+	ret0, _ := ret[0].([]SyncKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBalanceSyncKeysLegacy indicates an expected call of GetBalanceSyncKeysLegacy.
+func (mr *MockRedisRepositoryMockRecorder) GetBalanceSyncKeysLegacy(ctx, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalanceSyncKeysLegacy", reflect.TypeOf((*MockRedisRepository)(nil).GetBalanceSyncKeysLegacy), ctx, limit)
+}
+
 // GetBalancesByKeys mocks base method.
 func (m *MockRedisRepository) GetBalancesByKeys(ctx context.Context, keys []string) (map[string]*mmodel.BalanceRedis, error) {
 	m.ctrl.T.Helper()

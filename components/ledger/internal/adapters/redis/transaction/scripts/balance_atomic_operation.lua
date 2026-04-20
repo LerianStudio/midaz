@@ -244,10 +244,12 @@ local function main()
     -- before flushing to PostgreSQL, so immediate eligibility does not mean
     -- immediate DB write — the worker accumulates keys efficiently.
     --
-    -- Uses microsecond precision (seconds * 1e6 + microseconds) to prevent
+    -- Uses fractional-second precision (seconds + microseconds / 1e6) to prevent
     -- the conditional ZREM from removing entries re-scheduled in the same second.
+    -- Fractional seconds keep scores in the ~1e9 range (valid Unix timestamps),
+    -- ensuring rollback compatibility with versions that interpret scores as seconds.
     local timeNow = redis.call("TIME")
-    local dueAt = tonumber(timeNow[1]) * 1000000 + tonumber(timeNow[2])
+    local dueAt = tonumber(timeNow[1]) + tonumber(timeNow[2]) / 1000000
 
     for i = 1, #ARGV, groupSize do
         local redisBalanceKey = ARGV[i]
