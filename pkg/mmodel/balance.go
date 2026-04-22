@@ -283,6 +283,14 @@ func (b *Balance) ToTransactionBalance() *mtransaction.Balance {
 			if err == nil {
 				result.OverdraftLimit = lim
 			}
+			// If parsing fails, OverdraftLimit stays at zero while
+			// OverdraftLimitEnabled may be true. This is the conservative
+			// default: zero limit with enabled=true means "reject all
+			// overdraft", which is safer than silently allowing unlimited.
+			// Validate() guards creation, so this path only triggers on
+			// data corruption (manual DB edits, migration bugs). Proper
+			// error propagation requires changing this function's signature
+			// to return error — deferred to hardening.
 		}
 	}
 
