@@ -84,6 +84,21 @@ type Balance struct {
 	// example: true
 	AllowReceiving bool `json:"allowReceiving" example:"true"`
 
+	// Direction is the accounting direction of the balance. One of
+	// "credit" or "debit". Empty string denotes legacy rows predating the
+	// overdraft feature and is treated as "credit" by the engine.
+	// example: credit
+	Direction string `json:"direction,omitempty" example:"credit"`
+
+	// OverdraftUsed is the amount of overdraft currently consumed by this
+	// balance. Always non-negative; zero when the balance is in the black.
+	// example: 0
+	OverdraftUsed decimal.Decimal `json:"overdraftUsed" example:"0"`
+
+	// Settings carries optional per-balance configuration (overdraft,
+	// balance scope). Nil for legacy balances without custom settings.
+	Settings *BalanceSettings `json:"settings,omitempty"`
+
 	// Timestamp when the balance was created (RFC3339 format)
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
@@ -166,6 +181,21 @@ type BalanceHistory struct {
 	// maxLength: 50
 	AccountType string `json:"accountType" example:"creditCard" maxLength:"50"`
 
+	// Direction is the accounting direction of the balance at the time of
+	// the snapshot. One of "credit" or "debit". Empty string denotes
+	// legacy rows predating the overdraft feature.
+	// example: credit
+	Direction string `json:"direction,omitempty" example:"credit"`
+
+	// OverdraftUsed is the amount of overdraft consumed at the time of
+	// the snapshot. Always non-negative.
+	// example: 0
+	OverdraftUsed decimal.Decimal `json:"overdraftUsed" example:"0"`
+
+	// Settings is the per-balance configuration snapshot at the time the
+	// history row was recorded. Nil for legacy balances.
+	Settings *BalanceSettings `json:"settings,omitempty"`
+
 	// Timestamp when the balance was created (RFC3339 format)
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
@@ -177,7 +207,9 @@ type BalanceHistory struct {
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 } // @name BalanceHistory
 
-// ToHistoryResponse converts a Balance to BalanceHistory (without permission flags)
+// ToHistoryResponse converts a Balance to BalanceHistory (without permission flags).
+// Settings are deep-copied so the history snapshot is fully independent of the
+// live balance — mutations on either side cannot affect the other.
 func (b *Balance) ToHistoryResponse() *BalanceHistory {
 	return &BalanceHistory{
 		ID:             b.ID,
@@ -191,14 +223,35 @@ func (b *Balance) ToHistoryResponse() *BalanceHistory {
 		OnHold:         b.OnHold,
 		Version:        b.Version,
 		AccountType:    b.AccountType,
+		Direction:      b.Direction,
+		OverdraftUsed:  b.OverdraftUsed,
+		Settings:       deepCopySettings(b.Settings),
 		CreatedAt:      b.CreatedAt,
 		UpdatedAt:      b.UpdatedAt,
 	}
 }
 
-// ToTransactionBalance converts mmodel.Balance to mtransaction.Balance
+// deepCopySettings returns an independent copy of the given BalanceSettings,
+// including the inner OverdraftLimit pointer. Returns nil when src is nil.
+func deepCopySettings(src *BalanceSettings) *BalanceSettings {
+	if src == nil {
+		return nil
+	}
+
+	cp := *src
+
+	if src.OverdraftLimit != nil {
+		v := *src.OverdraftLimit
+		cp.OverdraftLimit = &v
+	}
+
+	return &cp
+}
+
+// ToTransactionBalance converts mmodel.Balance to mtransaction.Balance,
+// flattening the optional Settings into individual fields.
 func (b *Balance) ToTransactionBalance() *mtransaction.Balance {
-	return &mtransaction.Balance{
+	result := &mtransaction.Balance{
 		ID:             b.ID,
 		OrganizationID: b.OrganizationID,
 		LedgerID:       b.LedgerID,
@@ -212,11 +265,28 @@ func (b *Balance) ToTransactionBalance() *mtransaction.Balance {
 		AccountType:    b.AccountType,
 		AllowSending:   b.AllowSending,
 		AllowReceiving: b.AllowReceiving,
+		Direction:      b.Direction,
+		OverdraftUsed:  b.OverdraftUsed,
 		CreatedAt:      b.CreatedAt,
 		UpdatedAt:      b.UpdatedAt,
 		DeletedAt:      b.DeletedAt,
 		Metadata:       b.Metadata,
 	}
+
+	if b.Settings != nil {
+		result.AllowOverdraft = b.Settings.AllowOverdraft
+		result.OverdraftLimitEnabled = b.Settings.OverdraftLimitEnabled
+		result.BalanceScope = b.Settings.BalanceScope
+
+		if b.Settings.OverdraftLimit != nil {
+			lim, err := decimal.NewFromString(*b.Settings.OverdraftLimit)
+			if err == nil {
+				result.OverdraftLimit = lim
+			}
+		}
+	}
+
+	return result
 }
 
 // CreateAdditionalBalance is a struct designed to encapsulate balance create request payload data.
@@ -238,6 +308,18 @@ type CreateAdditionalBalance struct {
 	// required: false
 	// example: true
 	AllowReceiving *bool `json:"allowReceiving" example:"true"`
+
+	// Direction is the accounting direction of the balance ("credit" or
+	// "debit"). Optional at creation; when omitted, defaults to the
+	// account's natural direction.
+	// required: false
+	// example: credit
+	Direction *string `json:"direction,omitempty" example:"credit"`
+
+	// Settings is the optional per-balance configuration (overdraft,
+	// balance scope). When omitted, platform defaults are applied.
+	// required: false
+	Settings *BalanceSettings `json:"settings,omitempty"`
 } // @name CreateAdditionalBalance
 
 // UpdateBalance is a struct designed to encapsulate balance update request payload data.
@@ -254,6 +336,12 @@ type UpdateBalance struct {
 	// required: false
 	// example: true
 	AllowReceiving *bool `json:"allowReceiving" example:"true"`
+
+	// Settings is the per-balance configuration (overdraft, balance
+	// scope). When provided, replaces the existing settings in full.
+	// Direction is intentionally absent: it is immutable after creation.
+	// required: false
+	Settings *BalanceSettings `json:"settings,omitempty"`
 } // @name UpdateBalance
 
 // CreateBalanceInput is the input model used by services to create a balance synchronously.
