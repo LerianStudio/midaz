@@ -1,0 +1,206 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package mmodel
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// TestBalanceSettings_Defaults verifies the default BalanceSettings produced by
+// NewDefaultBalanceSettings matches PRD RF-1:
+//   - BalanceScope = "transactional"
+//   - AllowOverdraft = false
+//   - OverdraftLimitEnabled = false
+//   - OverdraftLimit = nil
+func TestBalanceSettings_Defaults(t *testing.T) {
+	t.Parallel()
+
+	got := NewDefaultBalanceSettings()
+
+	require.NotNil(t, got, "NewDefaultBalanceSettings must return non-nil value")
+	assert.Equal(t, "transactional", got.BalanceScope, "default BalanceScope must be 'transactional'")
+	assert.False(t, got.AllowOverdraft, "default AllowOverdraft must be false")
+	assert.False(t, got.OverdraftLimitEnabled, "default OverdraftLimitEnabled must be false")
+	assert.Nil(t, got.OverdraftLimit, "default OverdraftLimit must be nil")
+}
+
+// TestBalanceSettings_Validate_ValidCombinations covers the 4 valid combinations
+// from PRD §4 RF-1 (balance settings contract).
+func TestBalanceSettings_Validate_ValidCombinations(t *testing.T) {
+	t.Parallel()
+
+	limit := "1000.00"
+
+	tests := []struct {
+		name     string
+		settings BalanceSettings
+	}{
+		{
+			name: "transactional, no overdraft allowed (default)",
+			settings: BalanceSettings{
+				BalanceScope:          "transactional",
+				AllowOverdraft:        false,
+				OverdraftLimitEnabled: false,
+			},
+		},
+		{
+			name: "transactional, overdraft allowed without limit (unlimited)",
+			settings: BalanceSettings{
+				BalanceScope:          "transactional",
+				AllowOverdraft:        true,
+				OverdraftLimitEnabled: false,
+			},
+		},
+		{
+			name: "transactional, overdraft allowed with limit",
+			settings: BalanceSettings{
+				BalanceScope:          "transactional",
+				AllowOverdraft:        true,
+				OverdraftLimitEnabled: true,
+				OverdraftLimit:        &limit,
+			},
+		},
+		{
+			name: "internal scope with default overdraft flags",
+			settings: BalanceSettings{
+				BalanceScope:          "internal",
+				AllowOverdraft:        false,
+				OverdraftLimitEnabled: false,
+			},
+		},
+		{
+			name: "empty scope is accepted and defaults to transactional",
+			settings: BalanceSettings{
+				BalanceScope:          "",
+				AllowOverdraft:        false,
+				OverdraftLimitEnabled: false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.settings.Validate()
+
+			require.NoError(t, err, "valid settings must not return error")
+		})
+	}
+}
+
+// TestBalanceSettings_Validate_InvalidCombinations covers every rejection path
+// described in PRD §4 RF-1 and the TRD.
+func TestBalanceSettings_Validate_InvalidCombinations(t *testing.T) {
+	t.Parallel()
+
+	zero := "0"
+	negative := "-100.00"
+	empty := ""
+	notANumber := "not-a-number"
+	valid := "500.00"
+
+	tests := []struct {
+		name            string
+		settings        BalanceSettings
+		wantErrContains string
+	}{
+		{
+			name: "overdraftLimitEnabled true without overdraftLimit",
+			settings: BalanceSettings{
+				BalanceScope:          "transactional",
+				AllowOverdraft:        true,
+				OverdraftLimitEnabled: true,
+				OverdraftLimit:        nil,
+			},
+			wantErrContains: "overdraftLimit is required",
+		},
+		{
+			name: "overdraftLimitEnabled true with empty overdraftLimit",
+			settings: BalanceSettings{
+				BalanceScope:          "transactional",
+				AllowOverdraft:        true,
+				OverdraftLimitEnabled: true,
+				OverdraftLimit:        &empty,
+			},
+			wantErrContains: "non-empty decimal string",
+		},
+		{
+			name: "overdraftLimitEnabled true with zero overdraftLimit",
+			settings: BalanceSettings{
+				BalanceScope:          "transactional",
+				AllowOverdraft:        true,
+				OverdraftLimitEnabled: true,
+				OverdraftLimit:        &zero,
+			},
+			wantErrContains: "strictly greater than zero",
+		},
+		{
+			name: "overdraftLimitEnabled true with negative overdraftLimit",
+			settings: BalanceSettings{
+				BalanceScope:          "transactional",
+				AllowOverdraft:        true,
+				OverdraftLimitEnabled: true,
+				OverdraftLimit:        &negative,
+			},
+			wantErrContains: "strictly greater than zero",
+		},
+		{
+			name: "overdraftLimitEnabled true with non-numeric overdraftLimit",
+			settings: BalanceSettings{
+				BalanceScope:          "transactional",
+				AllowOverdraft:        true,
+				OverdraftLimitEnabled: true,
+				OverdraftLimit:        &notANumber,
+			},
+			wantErrContains: "not a valid decimal",
+		},
+		{
+			name: "overdraftLimitEnabled false with overdraftLimit present (ambiguous)",
+			settings: BalanceSettings{
+				BalanceScope:          "transactional",
+				AllowOverdraft:        true,
+				OverdraftLimitEnabled: false,
+				OverdraftLimit:        &valid,
+			},
+			wantErrContains: "must be absent",
+		},
+		{
+			name: "balanceScope is not one of allowed values",
+			settings: BalanceSettings{
+				BalanceScope:          "external",
+				AllowOverdraft:        false,
+				OverdraftLimitEnabled: false,
+			},
+			wantErrContains: "invalid balanceScope",
+		},
+		{
+			name: "balanceScope has random casing / typo",
+			settings: BalanceSettings{
+				BalanceScope:          "TRANSACTIONAL",
+				AllowOverdraft:        false,
+				OverdraftLimitEnabled: false,
+			},
+			wantErrContains: "invalid balanceScope",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.settings.Validate()
+
+			require.Error(t, err, "invalid settings must return error for: %s", tt.name)
+			assert.Contains(t, err.Error(), tt.wantErrContains,
+				"error message must contain %q for case: %s", tt.wantErrContains, tt.name)
+		})
+	}
+}
