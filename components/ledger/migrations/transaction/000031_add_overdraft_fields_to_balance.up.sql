@@ -14,5 +14,6 @@
 ALTER TABLE balance
     ADD COLUMN IF NOT EXISTS direction       VARCHAR(16)   NOT NULL DEFAULT 'credit'
                                               CHECK (direction IN ('credit', 'debit')),
-    ADD COLUMN IF NOT EXISTS overdraft_used  DECIMAL        NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS overdraft_used  DECIMAL        NOT NULL DEFAULT 0
+                                              CHECK (overdraft_used >= 0),
     ADD COLUMN IF NOT EXISTS settings        JSONB;

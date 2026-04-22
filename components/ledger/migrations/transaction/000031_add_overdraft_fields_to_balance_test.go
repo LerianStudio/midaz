@@ -77,6 +77,7 @@ func TestMigration000031_UpSQL_AddsOverdraftColumns(t *testing.T) {
 		{name: "direction defaults to 'credit'", substring: "'credit'", description: "direction column must default to 'credit'"},
 		{name: "settings column is JSONB", substring: "jsonb", description: "settings column must use JSONB type"},
 		{name: "direction has CHECK constraint", substring: "check (direction in ('credit', 'debit'))", description: "direction column must have a CHECK constraint limiting values to credit/debit"},
+		{name: "overdraft_used has CHECK constraint", substring: "check (overdraft_used >= 0)", description: "overdraft_used column must have a non-negative CHECK constraint"},
 	}
 
 	for _, tc := range tests {
