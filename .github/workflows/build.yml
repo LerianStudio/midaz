@@ -66,7 +66,7 @@ jobs:
   upload-onboarding-migrations:
     needs: [build]
     if: needs.build.result == 'success'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.26.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.26.3
     with:
       s3_bucket: "lerian-migration-files"
       file_pattern: "components/ledger/migrations/onboarding/*.sql"
@@ -79,7 +79,7 @@ jobs:
   upload-transaction-migrations:
     needs: [build]
     if: needs.build.result == 'success'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.26.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.26.3
     with:
       s3_bucket: "lerian-migration-files"
       file_pattern: "components/ledger/migrations/transaction/*.sql"
@@ -95,7 +95,7 @@ jobs:
   api_dog_e2e_tests:
     needs: [update_gitops]
     if: needs.update_gitops.result == 'success'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/api-dog-e2e-tests.yml@v1.26.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/api-dog-e2e-tests.yml@v1.26.3
     with:
       runner_type: "firmino-lxc-runners"
       auto_detect_environment: true
