@@ -316,7 +316,7 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 	// across every entry point (HTTP, gRPC, DSL).
 	for _, b := range balances {
 		if b != nil && b.Settings != nil && b.Settings.BalanceScope == mmodel.BalanceScopeInternal {
-			err := pkg.ValidateBusinessError(constant.ErrDirectOperationOnInternalBalance, reflect.TypeOf(mmodel.Balance{}).Name(), b.Alias)
+			err := pkg.ValidateBusinessError(constant.ErrDirectOperationOnInternalBalance, constant.EntityBalance, b.Alias)
 			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Rejected transaction targeting internal balance alias=%s key=%s", b.Alias, b.Key))
 
 			return err

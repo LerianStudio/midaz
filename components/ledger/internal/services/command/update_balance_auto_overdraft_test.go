@@ -6,7 +6,6 @@ package command
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -79,7 +78,7 @@ func TestUpdateBalance_EnableOverdraft_AutoCreatesOverdraftBalance(t *testing.T)
 	// the use case MUST treat it as the trigger for auto-creation.
 	mockBalanceRepo.EXPECT().
 		FindByAccountIDAndKey(gomock.Any(), orgID, ledgerID, accountID, "overdraft").
-		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)).
 		Times(1)
 
 	// Auto-creation MUST happen with direction=debit, scope=internal.

@@ -41,15 +41,15 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 	// public API. This guard runs BEFORE the funds-check so the caller
 	// receives the specific 0169 code instead of a generic validation.
 	if balance != nil && balance.Settings != nil && balance.Settings.BalanceScope == mmodel.BalanceScopeInternal {
-		err = pkg.ValidateBusinessError(constant.ErrDeletionOfInternalBalance, "DeleteBalance")
+		err = pkg.ValidateBusinessError(constant.ErrDeletionOfInternalBalance, constant.EntityBalance)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Internal-scope balance cannot be deleted", err)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error deleting internal balance: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Rejected deletion of internal-scope balance", libLog.Err(err))
 
 		return err
 	}
 
 	if balance != nil && (!balance.Available.IsZero() || !balance.OnHold.IsZero()) {
-		err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "DeleteBalance")
+		err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, constant.EntityBalance)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in it.", err)
 		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error deleting balance: %v", err))
 

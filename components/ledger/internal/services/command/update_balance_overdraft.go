@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -32,15 +30,15 @@ import (
 func validateUpdateSettings(ctx context.Context, logger libLog.Logger, span trace.Span, settings *mmodel.BalanceSettings) error {
 	if err := settings.Validate(); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid balance settings payload", err)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Rejected invalid balance settings: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Rejected invalid balance settings", libLog.Err(err))
 
-		return pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, reflect.TypeOf(mmodel.Balance{}).Name())
+		return pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, constant.EntityBalance)
 	}
 
 	if settings.BalanceScope == mmodel.BalanceScopeInternal {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, reflect.TypeOf(mmodel.Balance{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, constant.EntityBalance)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reserved balance scope", err)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Rejected reserved balance scope on update: %v", settings.BalanceScope))
+		logger.Log(ctx, libLog.LevelWarn, "Rejected reserved balance scope on update", libLog.String("scope", settings.BalanceScope))
 
 		return err
 	}
@@ -68,9 +66,9 @@ func enforceOverdraftTransition(ctx context.Context, logger libLog.Logger, span 
 	}
 
 	if !next.AllowOverdraft {
-		err := pkg.ValidateBusinessError(constant.ErrOverdraftDisableWithUsage, reflect.TypeOf(mmodel.Balance{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrOverdraftDisableWithUsage, constant.EntityBalance)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cannot disable overdraft while usage is non-zero", err)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Rejected overdraft disable with usage=%s", usage.String()))
+		logger.Log(ctx, libLog.LevelWarn, "Rejected overdraft disable with active usage", libLog.String("overdraftUsed", usage.String()))
 
 		return err
 	}
@@ -80,17 +78,18 @@ func enforceOverdraftTransition(ctx context.Context, logger libLog.Logger, span 
 		if perr != nil {
 			// Should not happen — Validate() already parsed it. Treat as
 			// invalid payload to stay fail-closed.
-			wrapped := pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, reflect.TypeOf(mmodel.Balance{}).Name())
+			wrapped := pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, constant.EntityBalance)
+
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft limit is not a valid decimal", perr)
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid overdraft limit after validation: %v", perr))
+			logger.Log(ctx, libLog.LevelWarn, "Invalid overdraft limit after validation", libLog.Err(perr))
 
 			return wrapped
 		}
 
 		if limit.LessThan(usage) {
-			err := pkg.ValidateBusinessError(constant.ErrOverdraftLimitBelowUsage, reflect.TypeOf(mmodel.Balance{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrOverdraftLimitBelowUsage, constant.EntityBalance)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft limit below current usage", err)
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Rejected overdraft limit=%s below usage=%s", limit.String(), usage.String()))
+			logger.Log(ctx, libLog.LevelWarn, "Rejected overdraft limit below current usage", libLog.String("limit", limit.String()), libLog.String("overdraftUsed", usage.String()))
 
 			return err
 		}
@@ -134,7 +133,7 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		parsed, perr := uuid.Parse(current.AccountID)
 		if perr != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account id on current balance", perr)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to parse account id %q: %v", current.AccountID, perr))
+			logger.Log(ctx, libLog.LevelError, "Failed to parse account ID", libLog.String("accountID", current.AccountID), libLog.Err(perr))
 
 			return perr
 		}
@@ -153,7 +152,7 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		var notFound pkg.EntityNotFoundError
 		if !errors.As(ferr, &notFound) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check for existing overdraft balance", ferr)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error checking overdraft balance: %v", ferr))
+			logger.Log(ctx, libLog.LevelError, "Failed to check existing overdraft balance", libLog.Err(ferr))
 
 			return ferr
 		}
@@ -188,12 +187,12 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 
 	if _, cerr := uc.BalanceRepo.Create(ctx, overdraftBalance); cerr != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to auto-create overdraft balance", cerr)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error auto-creating overdraft balance: %v", cerr))
+		logger.Log(ctx, libLog.LevelError, "Failed to auto-create overdraft balance", libLog.Err(cerr))
 
 		return cerr
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Auto-created overdraft balance for account %s", current.AccountID))
+	logger.Log(ctx, libLog.LevelInfo, "Auto-created overdraft balance", libLog.String("accountID", current.AccountID))
 
 	return nil
 }
