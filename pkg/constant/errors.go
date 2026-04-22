@@ -179,6 +179,18 @@ var (
 	ErrDirectScenarioRequired         = errors.New("0164")
 	ErrRevertOnlyBidirectional        = errors.New("0165")
 	ErrAccountingEntryFieldRequired   = errors.New("0166")
+
+	// Overdraft Feature Errors
+	//
+	// ErrOverdraftLimitExceeded is returned when a transaction would drive a
+	// balance past its configured overdraft limit.
+	ErrOverdraftLimitExceeded = errors.New("0167")
+	// ErrDirectOperationOnInternalBalance is returned when a user-initiated
+	// operation targets a balance whose scope is "internal".
+	ErrDirectOperationOnInternalBalance = errors.New("0168")
+	// ErrDeletionOfInternalBalance is returned when a delete request targets
+	// a balance whose scope is "internal".
+	ErrDeletionOfInternalBalance = errors.New("0169")
 )
 
 // List of CRM errors.
