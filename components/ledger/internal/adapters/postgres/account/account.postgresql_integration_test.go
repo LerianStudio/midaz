@@ -1711,6 +1711,56 @@ func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix(t *testing.T
 	}
 }
 
+func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix_CaseInsensitive(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create accounts with mixed case aliases
+	acc1Params := pgtestutil.DefaultAccountParams()
+	acc1Params.Name = "Treasury Account"
+	acc1Params.Alias = "@Treasury-Main"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc1Params)
+
+	acc2Params := pgtestutil.DefaultAccountParams()
+	acc2Params.Name = "Treasury Backup"
+	acc2Params.Alias = "@TREASURY-BACKUP"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc2Params)
+
+	acc3Params := pgtestutil.DefaultAccountParams()
+	acc3Params.Name = "Operations Account"
+	acc3Params.Alias = "@operations"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc3Params)
+
+	ctx := context.Background()
+	// Search with lowercase - should match case-insensitively
+	aliasFilter := "@treasury"
+	filter := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+		Alias:     &aliasFilter,
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 2, "lowercase '@treasury' should match '@Treasury-Main' and '@TREASURY-BACKUP' case-insensitively")
+
+	for _, acc := range accounts {
+		require.NotNil(t, acc.Alias, "account alias should not be nil")
+		assert.True(t, strings.HasPrefix(strings.ToLower(*acc.Alias), "@treasury"), "account alias should start with '@treasury' (case-insensitive)")
+	}
+}
+
 func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix_NoMiddleWordMatch(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
@@ -1881,4 +1931,211 @@ func TestIntegration_AccountRepository_FindAll_CombinesNameAndAliasFilters(t *te
 	assert.Equal(t, "Acme Corporation", accounts[0].Name)
 	require.NotNil(t, accounts[0].Alias, "account alias should not be nil")
 	assert.Equal(t, "@acme-corp", *accounts[0].Alias)
+}
+
+func TestIntegration_AccountRepository_FindAll_FiltersByEntityID(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create accounts with different entity IDs
+	entityID1 := "customer-001"
+	acc1Params := pgtestutil.DefaultAccountParams()
+	acc1Params.Name = "Customer 001 Account 1"
+	acc1Params.Alias = "@cust001-acc1"
+	acc1Params.EntityID = &entityID1
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc1Params)
+
+	acc2Params := pgtestutil.DefaultAccountParams()
+	acc2Params.Name = "Customer 001 Account 2"
+	acc2Params.Alias = "@cust001-acc2"
+	acc2Params.EntityID = &entityID1
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc2Params)
+
+	entityID2 := "customer-002"
+	acc3Params := pgtestutil.DefaultAccountParams()
+	acc3Params.Name = "Customer 002 Account"
+	acc3Params.Alias = "@cust002-acc1"
+	acc3Params.EntityID = &entityID2
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc3Params)
+
+	// Account without entity ID
+	acc4Params := pgtestutil.DefaultAccountParams()
+	acc4Params.Name = "No Entity Account"
+	acc4Params.Alias = "@no-entity"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, acc4Params)
+
+	ctx := context.Background()
+	filter := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+		EntityID:  &entityID1,
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 2, "should return only accounts with entity_id 'customer-001'")
+
+	for _, acc := range accounts {
+		require.NotNil(t, acc.EntityID, "account entity_id should not be nil")
+		assert.Equal(t, entityID1, *acc.EntityID, "all returned accounts should have entity_id 'customer-001'")
+	}
+}
+
+func TestIntegration_AccountRepository_FindAll_FiltersByBlocked(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create blocked accounts
+	blockedParams1 := pgtestutil.DefaultAccountParams()
+	blockedParams1.Name = "Blocked Account 1"
+	blockedParams1.Alias = "@blocked1"
+	blockedParams1.Blocked = true
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, blockedParams1)
+
+	blockedParams2 := pgtestutil.DefaultAccountParams()
+	blockedParams2.Name = "Blocked Account 2"
+	blockedParams2.Alias = "@blocked2"
+	blockedParams2.Blocked = true
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, blockedParams2)
+
+	// Create non-blocked accounts
+	activeParams1 := pgtestutil.DefaultAccountParams()
+	activeParams1.Name = "Active Account 1"
+	activeParams1.Alias = "@active1"
+	activeParams1.Blocked = false
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, activeParams1)
+
+	activeParams2 := pgtestutil.DefaultAccountParams()
+	activeParams2.Name = "Active Account 2"
+	activeParams2.Alias = "@active2"
+	activeParams2.Blocked = false
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, activeParams2)
+
+	ctx := context.Background()
+
+	// Test filtering for blocked accounts
+	blockedTrue := true
+	filterBlocked := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+		Blocked:   &blockedTrue,
+	}
+
+	// Act
+	blockedAccounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filterBlocked)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, blockedAccounts, 2, "should return only blocked accounts")
+
+	for _, acc := range blockedAccounts {
+		require.NotNil(t, acc.Blocked, "account blocked field should not be nil")
+		assert.True(t, *acc.Blocked, "all returned accounts should be blocked")
+	}
+
+	// Test filtering for non-blocked accounts
+	blockedFalse := false
+	filterNotBlocked := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+		Blocked:   &blockedFalse,
+	}
+
+	// Act
+	activeAccounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filterNotBlocked)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, activeAccounts, 2, "should return only non-blocked accounts")
+
+	for _, acc := range activeAccounts {
+		require.NotNil(t, acc.Blocked, "account blocked field should not be nil")
+		assert.False(t, *acc.Blocked, "all returned accounts should not be blocked")
+	}
+}
+
+func TestIntegration_AccountRepository_FindAll_FiltersByParentAccountID(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Create parent account
+	parentParams := pgtestutil.DefaultAccountParams()
+	parentParams.Name = "Parent Account"
+	parentParams.Alias = "@parent"
+	parentAccountID := pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, parentParams)
+
+	// Create child accounts
+	child1Params := pgtestutil.DefaultAccountParams()
+	child1Params.Name = "Child Account 1"
+	child1Params.Alias = "@child1"
+	child1Params.ParentAccountID = &parentAccountID
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, child1Params)
+
+	child2Params := pgtestutil.DefaultAccountParams()
+	child2Params.Name = "Child Account 2"
+	child2Params.Alias = "@child2"
+	child2Params.ParentAccountID = &parentAccountID
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, child2Params)
+
+	// Create another parent with its own child
+	otherParentParams := pgtestutil.DefaultAccountParams()
+	otherParentParams.Name = "Other Parent"
+	otherParentParams.Alias = "@other-parent"
+	otherParentID := pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, otherParentParams)
+
+	otherChildParams := pgtestutil.DefaultAccountParams()
+	otherChildParams.Name = "Other Child"
+	otherChildParams.Alias = "@other-child"
+	otherChildParams.ParentAccountID = &otherParentID
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, otherChildParams)
+
+	ctx := context.Background()
+	parentIDStr := parentAccountID.String()
+	filter := http.QueryHeader{
+		Limit:           10,
+		Page:            1,
+		SortOrder:       "asc",
+		StartDate:       time.Now().Add(-24 * time.Hour),
+		EndDate:         time.Now().Add(24 * time.Hour),
+		ParentAccountID: &parentIDStr,
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 2, "should return only accounts with the specified parent_account_id")
+
+	for _, acc := range accounts {
+		require.NotNil(t, acc.ParentAccountID, "account parent_account_id should not be nil")
+		assert.Equal(t, parentAccountID.String(), *acc.ParentAccountID, "all returned accounts should have the correct parent_account_id")
+	}
 }
