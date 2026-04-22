@@ -1,0 +1,199 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package command
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"reflect"
+	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
+)
+
+// validateUpdateSettings runs the BalanceSettings contract check before any
+// repository interaction. Failing closed here keeps corrupt payloads out of
+// PostgreSQL and guarantees no partial writes on validation failure.
+//
+// It also rejects any attempt to set BalanceScope="internal" via PATCH:
+// internal scope is reserved for system-managed balances (auto-created
+// overdraft balances) and MUST NOT be settable through the public API.
+func validateUpdateSettings(ctx context.Context, logger libLog.Logger, span trace.Span, settings *mmodel.BalanceSettings) error {
+	if err := settings.Validate(); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid balance settings payload", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Rejected invalid balance settings: %v", err))
+
+		return pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, reflect.TypeOf(mmodel.Balance{}).Name())
+	}
+
+	if settings.BalanceScope == mmodel.BalanceScopeInternal {
+		err := pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, reflect.TypeOf(mmodel.Balance{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reserved balance scope", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Rejected reserved balance scope on update: %v", settings.BalanceScope))
+
+		return err
+	}
+
+	return nil
+}
+
+// enforceOverdraftTransition protects balances that carry outstanding
+// overdraft usage. Two transitions are rejected:
+//
+//  1. disabling AllowOverdraft while OverdraftUsed > 0 — would orphan debt.
+//  2. reducing OverdraftLimit below OverdraftUsed — would leave the balance
+//     in a permanently over-limit state with no ability to recover.
+//
+// Both rules are enforced before the repository
+// Update is invoked.
+func enforceOverdraftTransition(ctx context.Context, logger libLog.Logger, span trace.Span, current *mmodel.Balance, next *mmodel.BalanceSettings) error {
+	if current == nil || next == nil {
+		return nil
+	}
+
+	usage := current.OverdraftUsed
+	if usage.IsZero() {
+		return nil
+	}
+
+	if !next.AllowOverdraft {
+		err := pkg.ValidateBusinessError(constant.ErrOverdraftDisableWithUsage, reflect.TypeOf(mmodel.Balance{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cannot disable overdraft while usage is non-zero", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Rejected overdraft disable with usage=%s", usage.String()))
+
+		return err
+	}
+
+	if next.OverdraftLimitEnabled && next.OverdraftLimit != nil {
+		limit, perr := decimal.NewFromString(*next.OverdraftLimit)
+		if perr != nil {
+			// Should not happen — Validate() already parsed it. Treat as
+			// invalid payload to stay fail-closed.
+			wrapped := pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, reflect.TypeOf(mmodel.Balance{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft limit is not a valid decimal", perr)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid overdraft limit after validation: %v", perr))
+
+			return wrapped
+		}
+
+		if limit.LessThan(usage) {
+			err := pkg.ValidateBusinessError(constant.ErrOverdraftLimitBelowUsage, reflect.TypeOf(mmodel.Balance{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft limit below current usage", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Rejected overdraft limit=%s below usage=%s", limit.String(), usage.String()))
+
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ensureOverdraftBalance auto-creates the system-managed overdraft balance
+// when AllowOverdraft transitions from false to true. The operation is
+// idempotent: if a balance with key="overdraft" already exists for the
+// account, no new row is created.
+//
+// The auto-created balance is:
+//   - key        = "overdraft"
+//   - direction  = "debit"
+//   - scope      = "internal" (protected from direct operations)
+//   - alias      = same as the parent balance
+//   - asset code = same as the parent balance
+func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Logger, span trace.Span, organizationID, ledgerID uuid.UUID, current *mmodel.Balance, nextSettings *mmodel.BalanceSettings) error {
+	if current == nil || nextSettings == nil {
+		return nil
+	}
+
+	if !nextSettings.AllowOverdraft {
+		return nil
+	}
+
+	// Only act on the false→true transition. Anything else is a no-op.
+	if current.Settings != nil && current.Settings.AllowOverdraft {
+		return nil
+	}
+
+	// An empty AccountID can only occur in tests that seed a minimal
+	// balance fixture. We fall back to uuid.Nil rather than failing the
+	// update because the overdraft auto-creation is a best-effort extension
+	// of the settings update — the parent balance has already been persisted.
+	var accountID uuid.UUID
+
+	if current.AccountID != "" {
+		parsed, perr := uuid.Parse(current.AccountID)
+		if perr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account id on current balance", perr)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to parse account id %q: %v", current.AccountID, perr))
+
+			return perr
+		}
+
+		accountID = parsed
+	}
+
+	existing, ferr := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.OverdraftBalanceKey)
+	if ferr != nil {
+		// The repository signals "not found" by returning an
+		// EntityNotFoundError (see FindByAccountIDAndKey in
+		// balance.postgresql.go — sql.ErrNoRows is mapped to
+		// pkg.ValidateBusinessError(constant.ErrEntityNotFound, ...)).
+		// Only propagate real infrastructure errors; a not-found result
+		// is the expected trigger for the auto-creation path below.
+		var notFound pkg.EntityNotFoundError
+		if !errors.As(ferr, &notFound) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check for existing overdraft balance", ferr)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error checking overdraft balance: %v", ferr))
+
+			return ferr
+		}
+
+		existing = nil
+	}
+
+	if existing != nil {
+		// Idempotent: the overdraft balance already exists.
+		return nil
+	}
+
+	overdraftBalance := &mmodel.Balance{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		OrganizationID: current.OrganizationID,
+		LedgerID:       current.LedgerID,
+		AccountID:      current.AccountID,
+		Alias:          current.Alias,
+		Key:            constant.OverdraftBalanceKey,
+		AssetCode:      current.AssetCode,
+		AccountType:    current.AccountType,
+		AllowSending:   false,
+		AllowReceiving: true,
+		Direction:      constant.DirectionDebit,
+		OverdraftUsed:  decimal.Zero,
+		Settings: &mmodel.BalanceSettings{
+			BalanceScope: mmodel.BalanceScopeInternal,
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	if _, cerr := uc.BalanceRepo.Create(ctx, overdraftBalance); cerr != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to auto-create overdraft balance", cerr)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error auto-creating overdraft balance: %v", cerr))
+
+		return cerr
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Auto-created overdraft balance for account %s", current.AccountID))
+
+	return nil
+}

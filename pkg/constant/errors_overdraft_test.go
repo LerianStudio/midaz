@@ -13,7 +13,7 @@ import (
 
 // TestOverdraftErrorCodes_Registered verifies that the three overdraft
 // error codes are registered in the sentinel error table with the exact
-// numeric codes mandated by the TRD.
+// numeric codes for the overdraft feature.
 func TestOverdraftErrorCodes_Registered(t *testing.T) {
 	t.Parallel()
 

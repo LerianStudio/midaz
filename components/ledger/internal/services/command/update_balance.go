@@ -112,6 +112,17 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 // Update balance in the repository and returns the updated balance.
 // Overlays Redis cached values for Available, OnHold, and Version to ensure freshest data.
+//
+// When update.Settings is non-nil, the use case:
+//  1. Validates the Settings payload (HARD GATE — fails closed, no partial writes).
+//  2. Loads the current balance to enforce overdraft transition invariants:
+//     - disable-with-debt is rejected
+//     - reducing limit below current usage is rejected
+//  3. Auto-creates the system-managed "overdraft" balance on a false→true
+//     transition (idempotent — existing overdraft balances are reused).
+//
+// When update.Settings is nil, legacy behaviour is preserved: no Find call,
+// no settings validation, no auto-creation.
 func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, update mmodel.UpdateBalance) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -119,6 +130,40 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	defer span.End()
 
 	logger.Log(ctx, libLog.LevelInfo, "Trying to update balance")
+
+	var current *mmodel.Balance
+
+	if update.Settings != nil {
+		if err := validateUpdateSettings(ctx, logger, span, update.Settings); err != nil {
+			return nil, err
+		}
+
+		existing, err := uc.BalanceRepo.Find(ctx, organizationID, ledgerID, balanceID)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to fetch current balance for settings update", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error fetching current balance: %v", err))
+
+			return nil, err
+		}
+
+		if err := enforceOverdraftTransition(ctx, logger, span, existing, update.Settings); err != nil {
+			return nil, err
+		}
+
+		current = existing
+	}
+
+	// Auto-create the system-managed overdraft balance BEFORE persisting
+	// the settings update. If auto-creation fails (e.g., Create returns a
+	// database error), the parent balance's settings MUST NOT have been
+	// mutated — this keeps the pair (parent.AllowOverdraft, overdraft
+	// balance) consistent on failure. Guarded so the path only runs when
+	// the caller actually provided new settings.
+	if update.Settings != nil {
+		if err := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, current, update.Settings); err != nil {
+			return nil, err
+		}
+	}
 
 	balance, err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
 	if err != nil {
