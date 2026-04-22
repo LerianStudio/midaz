@@ -12,7 +12,7 @@ import (
 )
 
 // TestBalanceSettings_Defaults verifies the default BalanceSettings produced by
-// NewDefaultBalanceSettings matches PRD RF-1:
+// NewDefaultBalanceSettings returns safe defaults:
 //   - BalanceScope = "transactional"
 //   - AllowOverdraft = false
 //   - OverdraftLimitEnabled = false
@@ -30,7 +30,7 @@ func TestBalanceSettings_Defaults(t *testing.T) {
 }
 
 // TestBalanceSettings_Validate_ValidCombinations covers the 4 valid combinations
-// from PRD §4 RF-1 (balance settings contract).
+// from the balance settings contract.
 func TestBalanceSettings_Validate_ValidCombinations(t *testing.T) {
 	t.Parallel()
 
@@ -96,7 +96,7 @@ func TestBalanceSettings_Validate_ValidCombinations(t *testing.T) {
 }
 
 // TestBalanceSettings_Validate_InvalidCombinations covers every rejection path
-// described in PRD §4 RF-1 and the TRD.
+// described in the balance settings contract.
 func TestBalanceSettings_Validate_InvalidCombinations(t *testing.T) {
 	t.Parallel()
 

@@ -467,6 +467,36 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Deletion Of Internal Balance Error",
 			Message:    "Internal-scope balances cannot be deleted. They are managed by the system and must remain for accounting consistency.",
 		},
+		constant.ErrReservedBalanceKey: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservedBalanceKey.Error(),
+			Title:      "Reserved Balance Key Error",
+			Message:    fmt.Sprintf("The balance key %v is reserved for system use and cannot be created through the public API. Please choose a different key and try again.", args...),
+		},
+		constant.ErrInvalidBalanceDirection: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidBalanceDirection.Error(),
+			Title:      "Invalid Balance Direction Error",
+			Message:    fmt.Sprintf("The balance direction %v is not supported. Allowed values are \"credit\" and \"debit\".", args...),
+		},
+		constant.ErrInvalidBalanceSettings: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidBalanceSettings.Error(),
+			Title:      "Invalid Balance Settings Error",
+			Message:    "The balance settings payload is invalid. Please review overdraft, limit, and scope fields and try again.",
+		},
+		constant.ErrOverdraftDisableWithUsage: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrOverdraftDisableWithUsage.Error(),
+			Title:      "Overdraft Disable With Usage Error",
+			Message:    "Overdraft cannot be disabled while the balance still carries outstanding overdraft usage. Repay the outstanding amount before disabling overdraft.",
+		},
+		constant.ErrOverdraftLimitBelowUsage: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrOverdraftLimitBelowUsage.Error(),
+			Title:      "Overdraft Limit Below Usage Error",
+			Message:    "The new overdraft limit is below the amount currently used. Raise the limit above the current usage or repay the outstanding amount before reducing the limit.",
+		},
 		constant.ErrAccountIneligibility: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountIneligibility.Error(),

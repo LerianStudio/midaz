@@ -56,7 +56,7 @@ type BalanceSettings struct {
 }
 
 // NewDefaultBalanceSettings returns a BalanceSettings initialized with the
-// defaults mandated by PRD RF-1:
+// safe defaults for the overdraft feature:
 //   - BalanceScope  = "transactional"
 //   - AllowOverdraft = false
 //   - OverdraftLimitEnabled = false
@@ -73,7 +73,7 @@ func NewDefaultBalanceSettings() *BalanceSettings {
 	}
 }
 
-// Validate enforces the balance settings contract from PRD §4 RF-1.
+// Validate enforces the balance settings contract.
 //
 // Rules:
 //   - BalanceScope MUST be "transactional", "internal", or empty (=>
