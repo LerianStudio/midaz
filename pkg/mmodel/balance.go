@@ -473,6 +473,24 @@ type BalanceRedis struct {
 
 	// Whether the account can receive funds (1=true, 0=false)
 	AllowReceiving int `json:"allowReceiving"`
+
+	// Accounting direction of the balance ("credit" or "debit")
+	Direction string `json:"direction"`
+
+	// Amount of overdraft currently consumed (decimal string for Lua)
+	OverdraftUsed string `json:"overdraftUsed"`
+
+	// Whether overdraft is allowed (1=true, 0=false for Lua)
+	AllowOverdraft int `json:"allowOverdraft"`
+
+	// Whether the overdraft limit is enabled (1=true, 0=false for Lua)
+	OverdraftLimitEnabled int `json:"overdraftLimitEnabled"`
+
+	// Maximum overdraft amount (decimal string for Lua)
+	OverdraftLimit string `json:"overdraftLimit"`
+
+	// Balance scope ("transactional" or "internal")
+	BalanceScope string `json:"balanceScope"`
 }
 
 // UnmarshalJSON is a custom unmarshal function for BalanceRedis
@@ -480,8 +498,9 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	type Alias BalanceRedis
 
 	aux := struct {
-		Available any `json:"available"`
-		OnHold    any `json:"onHold"`
+		Available     any `json:"available"`
+		OnHold        any `json:"onHold"`
+		OverdraftUsed any `json:"overdraftUsed"`
 		*Alias
 	}{
 		Alias: (*Alias)(b),
@@ -553,12 +572,33 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 		b.OnHold = decimal.NewFromFloat(f)
 	}
 
+	b.OverdraftUsed = parseDecimalString(aux.OverdraftUsed, "0")
+
+	if b.OverdraftLimit == "" {
+		b.OverdraftLimit = "0"
+	}
+
 	// Set default value for Key if not provided (backwards compatibility)
 	if b.Key == "" {
 		b.Key = constant.DefaultBalanceKey
 	}
 
 	return nil
+}
+
+// parseDecimalString normalizes a value that may arrive as string, float64,
+// or json.Number into a plain decimal string. Returns defaultVal when v is nil.
+func parseDecimalString(v any, defaultVal string) string {
+	switch t := v.(type) {
+	case string:
+		return t
+	case float64:
+		return decimal.NewFromFloat(t).String()
+	case json.Number:
+		return t.String()
+	default:
+		return defaultVal
+	}
 }
 
 // BalanceErrorResponse represents an error response for balance operations.
