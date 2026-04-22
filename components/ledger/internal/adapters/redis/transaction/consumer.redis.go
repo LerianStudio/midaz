@@ -119,6 +119,20 @@ type RedisRepository interface {
 	// preventing removal of entries re-scheduled by newer mutations.
 	// Returns the number of keys actually removed from the schedule.
 	RemoveBalanceSyncKeysBatch(ctx context.Context, keys []SyncKey) (int64, error)
+	// UpdateBalanceCacheSettings performs an in-place, settings-only update of a
+	// cached balance entry. It GETs the current JSON blob, mutates ONLY the
+	// overdraft/scope settings fields, and SETs it back with the Lua script's
+	// canonical 1-hour TTL.
+	//
+	// Transactional fields (Available, OnHold, Version, OverdraftUsed) are
+	// deliberately NOT touched: the Redis copy is the authoritative live state
+	// that the atomic Lua script mutates on every transaction, and may be ahead
+	// of PostgreSQL while sync is pending. Overwriting them — or deleting the
+	// key outright — would lose in-flight mutations.
+	//
+	// A cache miss (key absent) is a no-op: the next transaction will load the
+	// freshly-updated settings directly from PostgreSQL on its first SETNX.
+	UpdateBalanceCacheSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, settings *mmodel.BalanceSettings) error
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -1422,6 +1436,131 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 	}
 
 	return balance, nil
+}
+
+// balanceCacheSettingsTTL matches the TTL the balance atomic Lua script applies
+// to each cached balance key (`local ttl = 3600 -- 1 hour` in
+// scripts/balance_atomic_operation.lua). Keeping the two in lock-step ensures
+// a settings-only rewrite does not silently extend or shrink the lifetime of
+// an entry relative to the transactional refreshes driven by Lua.
+const balanceCacheSettingsTTL = 3600 * time.Second
+
+// UpdateBalanceCacheSettings rewrites the settings fields of a cached balance
+// JSON blob in-place, preserving the live transactional state (Available,
+// OnHold, Version, OverdraftUsed) that the Lua atomic script may have mutated
+// but not yet flushed to PostgreSQL.
+//
+// Flow:
+//  1. GET the current JSON by the tenant-prefixed internal key.
+//  2. On cache miss (redis.Nil), return nil — the next transaction's SETNX
+//     will load the just-persisted settings from PostgreSQL.
+//  3. Unmarshal, overwrite ONLY the settings-derived fields, remarshal.
+//  4. SET back with the Lua script's canonical TTL (1 hour).
+//
+// Errors are surfaced to the caller so the command layer can decide whether to
+// log (best-effort) or escalate; this method does not swallow them internally.
+func (rr *RedisConsumerRepository) UpdateBalanceCacheSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, settings *mmodel.BalanceSettings) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.update_balance_cache_settings")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.organization_id", organizationID.String()),
+		attribute.String("app.ledger_id", ledgerID.String()),
+	)
+
+	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, cacheKey)
+
+	prefixedKey, err := tenantKeyFromContextOrError(ctx, internalKey)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace balance cache key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace balance cache key", libLog.Err(err))
+
+		return err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
+
+		return err
+	}
+
+	// Read the current JSON. A missing key means the Lua script has not yet
+	// primed the cache for this balance; the next transaction will load the
+	// fresh settings directly from PostgreSQL, so there is nothing to rewrite.
+	val, err := rds.Get(ctx, prefixedKey).Result()
+	if errors.Is(err, redis.Nil) {
+		logger.Log(ctx, libLog.LevelDebug, "Balance cache miss on settings update (no-op)")
+
+		return nil
+	}
+
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get balance cache for settings update", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get balance cache for settings update", libLog.Err(err))
+
+		return err
+	}
+
+	var cached mmodel.BalanceRedis
+	if err := json.Unmarshal([]byte(val), &cached); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to unmarshal cached balance for settings update", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to unmarshal cached balance for settings update", libLog.Err(err))
+
+		return err
+	}
+
+	// Only settings fields are mutated. Available, OnHold, Version,
+	// OverdraftUsed, and identity fields (ID, Alias, Key, AssetCode, etc.)
+	// remain untouched so any in-flight transactional state is preserved.
+	if settings != nil {
+		cached.AllowOverdraft = boolToInt(settings.AllowOverdraft)
+		cached.OverdraftLimitEnabled = boolToInt(settings.OverdraftLimitEnabled)
+
+		// OverdraftLimit pointer-to-string: overwrite when provided, otherwise
+		// reset to the Lua-compatible "0" placeholder to mirror the behaviour
+		// of buildBalanceAtomicOperationPlan for disabled/unset limits.
+		if settings.OverdraftLimit != nil {
+			cached.OverdraftLimit = *settings.OverdraftLimit
+		} else {
+			cached.OverdraftLimit = "0"
+		}
+
+		if settings.BalanceScope != "" {
+			cached.BalanceScope = settings.BalanceScope
+		} else {
+			cached.BalanceScope = mmodel.BalanceScopeTransactional
+		}
+	} else {
+		// A nil settings payload means: reset to defaults. Matches the Lua
+		// plan-builder's zero-state for balances without Settings.
+		cached.AllowOverdraft = 0
+		cached.OverdraftLimitEnabled = 0
+		cached.OverdraftLimit = "0"
+		cached.BalanceScope = mmodel.BalanceScopeTransactional
+	}
+
+	data, err := json.Marshal(&cached)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to marshal updated cached balance", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to marshal updated cached balance", libLog.Err(err))
+
+		return err
+	}
+
+	if err := rds.Set(ctx, prefixedKey, string(data), balanceCacheSettingsTTL).Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to write settings-only balance cache update", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to write settings-only balance cache update", libLog.Err(err))
+
+		return err
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Balance cache settings updated in place")
+
+	return nil
 }
 
 // GetBalancesByKeys retrieves multiple balance values using MGET.
