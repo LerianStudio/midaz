@@ -191,6 +191,21 @@ var (
 	// ErrDeletionOfInternalBalance is returned when a delete request targets
 	// a balance whose scope is "internal".
 	ErrDeletionOfInternalBalance = errors.New("0169")
+	// ErrReservedBalanceKey is returned when a public create-balance request
+	// uses a system-managed key (e.g. "overdraft").
+	ErrReservedBalanceKey = errors.New("0170")
+	// ErrInvalidBalanceDirection is returned when the supplied balance
+	// direction is not one of the supported enum members.
+	ErrInvalidBalanceDirection = errors.New("0171")
+	// ErrInvalidBalanceSettings is returned when a balance settings payload
+	// fails validation (e.g. limit enabled without a value, invalid scope).
+	ErrInvalidBalanceSettings = errors.New("0172")
+	// ErrOverdraftDisableWithUsage is returned when a caller attempts to
+	// disable overdraft on a balance that still carries outstanding debt.
+	ErrOverdraftDisableWithUsage = errors.New("0173")
+	// ErrOverdraftLimitBelowUsage is returned when a caller attempts to
+	// reduce the overdraft limit below the currently used amount.
+	ErrOverdraftLimitBelowUsage = errors.New("0174")
 )
 
 // List of CRM errors.
