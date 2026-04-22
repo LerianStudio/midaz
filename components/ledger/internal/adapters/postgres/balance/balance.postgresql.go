@@ -7,6 +7,7 @@ package balance
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -29,6 +30,7 @@ import (
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/shopspring/decimal"
 )
 
 var balanceColumnList = []string{
@@ -870,10 +872,19 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 
 // BalancesUpdate updates the balances in the database.
 //
-// Note: this method intentionally persists only available, on_hold, and version.
-// overdraft_used is not synced here yet — it will be added once the cache script
-// is extended to track overdraft_used per balance. Until then, overdraft_used
-// remains whatever was last written by Create or a dedicated overdraft update path.
+// Scope: this method is the synchronous transaction-commit path and intentionally
+// persists only available, on_hold, and version. It operates exclusively on the
+// default balance touched by the commit — not on any overdraft-related state.
+//
+// Why overdraft_used is NOT written here: the overdraft balance state (Direction,
+// OverdraftUsed, Settings) is managed entirely through the cache-aside pipeline
+// — the atomic Lua script mutates Redis, the balance-sync worker drains the
+// schedule set, and `UpdateMany` persists the full overdraft snapshot to
+// PostgreSQL. Writing overdraft_used from this synchronous path would race the
+// worker and risk overwriting an atomically computed value with a stale one.
+//
+// Net effect: this method keeps the hot commit path narrow (no overdraft
+// coupling), while `UpdateMany` (sync worker path) owns overdraft_used durability.
 func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -1328,8 +1339,15 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 	return nil
 }
 
-// Update updates the allow_sending and allow_receiving fields of a Balance in the database.
-// Returns the updated balance to avoid a second query and potential replication lag issues.
+// Update updates the allow_sending, allow_receiving, and settings fields of a
+// Balance in the database. Returns the updated balance to avoid a second query
+// and potential replication lag issues.
+//
+// The settings JSONB column is written when update.Settings != nil. Marshaling
+// uses the same path as FromEntity (json.Marshal of *mmodel.BalanceSettings).
+// The use-case layer is responsible for validating the settings payload and
+// enforcing overdraft transition invariants before calling Update — the
+// repository trusts the inbound value.
 func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -1360,6 +1378,23 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	if balance.AllowReceiving != nil {
 		updates = append(updates, "allow_receiving = $"+strconv.Itoa(len(args)+1))
 		args = append(args, balance.AllowReceiving)
+	}
+
+	if balance.Settings != nil {
+		// Marshal to JSON bytes and cast to jsonb so PostgreSQL stores
+		// the payload as structured JSONB rather than a quoted string.
+		// json.Marshal of *BalanceSettings cannot fail (all fields are
+		// JSON-safe primitives), matching the Create/FromEntity path.
+		settingsJSON, marshalErr := json.Marshal(balance.Settings)
+		if marshalErr != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to marshal balance settings", marshalErr)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to marshal balance settings: %v", marshalErr))
+
+			return nil, marshalErr
+		}
+
+		updates = append(updates, "settings = $"+strconv.Itoa(len(args)+1)+"::jsonb")
+		args = append(args, settingsJSON)
 	}
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
@@ -1428,10 +1463,10 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 // is a PostgreSQL-specific extension that Squirrel's Update builder does not support.
 // Wrapping it in squirrel.Expr would add complexity without benefit.
 //
-// Note: this method intentionally persists only available, on_hold, and version.
-// overdraft_used is not synced here yet — it will be added once the cache script
-// is extended to track overdraft_used per balance. Until then, overdraft_used
-// remains whatever was last written by Create or a dedicated overdraft update path.
+// Persisted columns: available, on_hold, version, overdraft_used. The cache
+// script (balance_atomic_operation.lua) now tracks overdraft_used alongside
+// available/on_hold, so this writer includes it in the batch update to keep
+// PostgreSQL in sync with the authoritative cache state.
 func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
 	if len(balances) == 0 {
 		return 0, nil
@@ -1482,20 +1517,30 @@ func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizati
 	}
 
 	// Build a single UPDATE ... FROM (VALUES ...) statement.
-	// Each balance contributes 4 parameters: (id, available, on_hold, version).
+	// Each balance contributes 5 parameters: (id, available, on_hold, version, overdraft_used).
 	// Shared parameters (updated_at, organization_id, ledger_id) are appended at the end.
-	// Note: batch size is capped at construction time (maxBatchSize = 16000) to stay
-	// within PostgreSQL's 65535 bind-parameter limit.
+	// Note: batch size is capped at construction time (maxBatchSize = 13000) to stay
+	// within PostgreSQL's 65535 bind-parameter limit: (65535 - 3) / 5 = 13106.
 	now := time.Now()
 	valuesClauses := make([]string, len(deduped))
-	args := make([]any, 0, len(deduped)*4+3)
+	args := make([]any, 0, len(deduped)*5+3)
 	paramIdx := 1
 
 	for i, balance := range deduped {
-		valuesClauses[i] = fmt.Sprintf("($%d::uuid, $%d::numeric, $%d::numeric, $%d::bigint)",
-			paramIdx, paramIdx+1, paramIdx+2, paramIdx+3)
-		args = append(args, ids[i], balance.Available, balance.OnHold, balance.Version)
-		paramIdx += 4
+		valuesClauses[i] = fmt.Sprintf("($%d::uuid, $%d::numeric, $%d::numeric, $%d::bigint, $%d::numeric)",
+			paramIdx, paramIdx+1, paramIdx+2, paramIdx+3, paramIdx+4)
+
+		// OverdraftUsed is stored on BalanceRedis as a decimal string; parse
+		// into decimal.Decimal so PostgreSQL receives a numeric-compatible
+		// value. An unparseable value is treated as zero (conservative) so
+		// a single malformed cache entry does not abort the whole batch.
+		overdraftUsed, parseErr := decimal.NewFromString(balance.OverdraftUsed)
+		if parseErr != nil {
+			overdraftUsed = decimal.Zero
+		}
+
+		args = append(args, ids[i], balance.Available, balance.OnHold, balance.Version, overdraftUsed)
+		paramIdx += 5
 	}
 
 	// Shared parameters: updated_at, organization_id, ledger_id
@@ -1510,8 +1555,9 @@ func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizati
 		SET available = v.available,
 		    on_hold = v.on_hold,
 		    version = v.version,
+		    overdraft_used = v.overdraft_used,
 		    updated_at = $%d
-		FROM (VALUES %s) AS v(id, available, on_hold, version)
+		FROM (VALUES %s) AS v(id, available, on_hold, version, overdraft_used)
 		WHERE b.id = v.id
 		  AND b.organization_id = $%d
 		  AND b.ledger_id = $%d
