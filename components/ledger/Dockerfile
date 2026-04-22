@@ -26,3 +26,4 @@ USER nonroot:nonroot
 
 ENTRYPOINT ["/app"]
 
+
