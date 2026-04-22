@@ -84,6 +84,13 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 		return nil, err
 	}
 
+	// Default balances (created alongside an account or asset) always use
+	// the "credit" direction. The migration defines direction as NOT NULL
+	// with a CHECK constraint (credit|debit), so we must set an explicit
+	// value rather than relying on the DB default — the INSERT column list
+	// includes "direction" and would otherwise send an empty string and
+	// fail the CHECK. Setting it here also ensures the Go model stays
+	// consistent with the persisted row returned by RETURNING.
 	newBalance := &mmodel.Balance{
 		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Alias:          input.Alias,
@@ -95,6 +102,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 		AccountType:    input.AccountType,
 		AllowSending:   input.AllowSending,
 		AllowReceiving: input.AllowReceiving,
+		Direction:      constant.DirectionCredit,
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 	}

@@ -497,6 +497,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Overdraft Limit Below Usage Error",
 			Message:    "The new overdraft limit is below the amount currently used. Raise the limit above the current usage or repay the outstanding amount before reducing the limit.",
 		},
+		constant.ErrStaleBalanceVersion: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrStaleBalanceVersion.Error(),
+			Title:      "Stale Balance Version Error",
+			Message:    "The balance was modified by another transaction between read and write. Please retry the operation after reading the latest balance state.",
+		},
 		constant.ErrAccountIneligibility: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountIneligibility.Error(),

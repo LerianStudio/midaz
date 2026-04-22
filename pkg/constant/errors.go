@@ -206,6 +206,13 @@ var (
 	// ErrOverdraftLimitBelowUsage is returned when a caller attempts to
 	// reduce the overdraft limit below the currently used amount.
 	ErrOverdraftLimitBelowUsage = errors.New("0174")
+	// ErrStaleBalanceVersion is returned when the Redis atomic balance
+	// script detects that the balance version read by the caller no longer
+	// matches the version currently in the cache. This indicates another
+	// transaction mutated the balance between read and write, making the
+	// caller's pre-computed overdraft split/repayment amounts potentially
+	// incorrect. Callers should retry after re-reading the balance.
+	ErrStaleBalanceVersion = errors.New("0175")
 )
 
 // List of CRM errors.
