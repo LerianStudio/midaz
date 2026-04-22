@@ -95,13 +95,8 @@ type SendInflow struct {
 
 // CreateTransactionInflowInput is a struct designed to encapsulate payload data for inflow transactions.
 //
-// Note: this struct intentionally omits the Pending field. Inflow transactions
-// auto-fill @external as the source, and external accounts cannot hold funds
-// (error 0098 - ErrOnHoldExternalAccount). Pending inflows are therefore
-// rejected by design.
-//
 // swagger:model CreateTransactionInflowInput
-// @Description CreateTransactionInflowInput is the input payload to create an inflow transaction. Contains all necessary fields to create a financial transaction without source information, only destination. Pending is not supported for inflows because the auto-filled external source account cannot hold funds.
+// @Description CreateTransactionInflowInput is the input payload to create an inflow transaction. Contains all necessary fields to create a financial transaction without source information, only destination.
 type CreateTransactionInflowInput struct {
 	// Chart of accounts group name for accounting purposes
 	// example: FUNDING

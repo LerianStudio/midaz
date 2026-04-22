@@ -374,7 +374,7 @@ func TestIntegration_AccountRepository_FindAll_ReturnsPaginatedAccounts(t *testi
 	}
 
 	ctx := context.Background()
-	filter := http.Pagination{
+	filter := http.QueryHeader{
 		Limit:     3,
 		Page:      1,
 		SortOrder: "asc",
@@ -412,7 +412,7 @@ func TestIntegration_AccountRepository_FindAll_PaginatesWithoutDuplicates(t *tes
 	}
 
 	ctx := context.Background()
-	baseFilter := http.Pagination{
+	baseFilter := http.QueryHeader{
 		Limit:     2,
 		SortOrder: "asc",
 		StartDate: time.Now().Add(-24 * time.Hour),
@@ -466,7 +466,7 @@ func TestIntegration_AccountRepository_FindAll_ExcludesSoftDeleted(t *testing.T)
 	pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "Deleted", "@deleted", "USD", &deletedAt)
 
 	ctx := context.Background()
-	filter := http.Pagination{
+	filter := http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "asc",
@@ -502,7 +502,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByPortfolio(t *testing.T) 
 	pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "No Portfolio", "@noportfolio", "USD", nil)
 
 	ctx := context.Background()
-	filter := http.Pagination{
+	filter := http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "asc",
@@ -543,7 +543,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersBySegment(t *testing.T) {
 	require.NoError(t, err, "failed to assign segment_id to test accounts")
 
 	ctx := context.Background()
-	filter := http.Pagination{
+	filter := http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "asc",
@@ -1706,7 +1706,8 @@ func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix(t *testing.T
 	assert.Len(t, accounts, 2, "should return accounts with alias starting with '@tech'")
 
 	for _, acc := range accounts {
-		assert.True(t, strings.HasPrefix(acc.Alias, "@tech"), "account alias should start with '@tech'")
+		require.NotNil(t, acc.Alias, "account alias should not be nil")
+		assert.True(t, strings.HasPrefix(*acc.Alias, "@tech"), "account alias should start with '@tech'")
 	}
 }
 
@@ -1878,5 +1879,6 @@ func TestIntegration_AccountRepository_FindAll_CombinesNameAndAliasFilters(t *te
 	require.NoError(t, err)
 	assert.Len(t, accounts, 1, "should return only account matching BOTH name AND alias filters")
 	assert.Equal(t, "Acme Corporation", accounts[0].Name)
-	assert.Equal(t, "@acme-corp", accounts[0].Alias)
+	require.NotNil(t, accounts[0].Alias, "account alias should not be nil")
+	assert.Equal(t, "@acme-corp", *accounts[0].Alias)
 }

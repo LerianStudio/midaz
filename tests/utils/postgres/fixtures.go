@@ -810,6 +810,7 @@ type AccountParams struct {
 	AssetCode   string
 	Type        string
 	Status      string
+	Blocked     bool
 	PortfolioID *uuid.UUID
 	SegmentID   *uuid.UUID
 	DeletedAt   *time.Time
@@ -823,6 +824,7 @@ func DefaultAccountParams() AccountParams {
 		AssetCode: "USD",
 		Type:      "deposit",
 		Status:    "ACTIVE",
+		Blocked:   false,
 	}
 }
 
@@ -845,7 +847,7 @@ func CreateTestAccountWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uuid.
 	_, err := db.Exec(`
 		INSERT INTO account (id, name, asset_code, organization_id, ledger_id, portfolio_id, segment_id, status, alias, type, blocked, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-	`, id, params.Name, params.AssetCode, orgID, ledgerID, portfolioIDVal, segmentIDVal, params.Status, params.Alias, params.Type, false, now, now, params.DeletedAt)
+	`, id, params.Name, params.AssetCode, orgID, ledgerID, portfolioIDVal, segmentIDVal, params.Status, params.Alias, params.Type, params.Blocked, now, now, params.DeletedAt)
 	require.NoError(t, err, "failed to insert test account with params")
 
 	return id

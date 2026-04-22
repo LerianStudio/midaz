@@ -180,8 +180,9 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			segmentID = value
 		case strings.Contains(strings.ToLower(key), "type"):
 			operationType = strings.ToUpper(value)
-			// Also populate Type field for account filtering (preserves original casing)
-			filterType = &value
+			// Also populate Type field for account filtering (lowercase to match DB normalization)
+			lowercaseType := strings.ToLower(value)
+			filterType = &lowercaseType
 		case key == "direction":
 			v := strings.ToLower(value)
 			direction = &v
