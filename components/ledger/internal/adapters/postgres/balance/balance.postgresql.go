@@ -1070,26 +1070,7 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
-	query := `SELECT 
-			   id,
-			   organization_id,
-			   ledger_id,
-			   account_id,
-			   alias,
-			   key,
-			   asset_code,
-			   available,
-			   on_hold,
-			   version,
-			   account_type,
-			   allow_sending,
-			   allow_receiving,
-			   direction,
-			   overdraft_used,
-			   settings,
-			   created_at,
-			   updated_at,
-			   deleted_at
+	query := `SELECT ` + strings.Join(balanceColumnList, ", ") + `
 			FROM balance 
 			WHERE organization_id = $1 
 			   AND ledger_id = $2 
@@ -1107,7 +1088,6 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 		&balance.LedgerID,
 		&balance.AccountID,
 		&balance.Alias,
-		&balance.Key,
 		&balance.AssetCode,
 		&balance.Available,
 		&balance.OnHold,
@@ -1115,12 +1095,13 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 		&balance.AccountType,
 		&balance.AllowSending,
 		&balance.AllowReceiving,
-		&balance.Direction,
-		&balance.OverdraftUsed,
-		&balance.Settings,
 		&balance.CreatedAt,
 		&balance.UpdatedAt,
 		&balance.DeletedAt,
+		&balance.Key,
+		&balance.Direction,
+		&balance.OverdraftUsed,
+		&balance.Settings,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
@@ -1389,7 +1370,7 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL` +
-		` RETURNING id, organization_id, ledger_id, account_id, alias, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at, deleted_at, key, direction, overdraft_used, settings`
+		` RETURNING ` + strings.Join(balanceColumnList, ", ")
 
 	record := &BalancePostgreSQLModel{}
 
