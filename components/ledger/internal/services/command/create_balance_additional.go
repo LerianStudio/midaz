@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -34,9 +33,9 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	// repository call so a rejected request never touches persistence.
 	if strings.EqualFold(cbi.Key, constant.OverdraftBalanceKey) {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reserved balance key", nil)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Rejected reserved balance key: %v", cbi.Key))
+		logger.Log(ctx, libLog.LevelWarn, "Rejected reserved balance key", libLog.String("key", cbi.Key))
 
-		return nil, pkg.ValidateBusinessError(constant.ErrReservedBalanceKey, reflect.TypeOf(mmodel.Balance{}).Name(), cbi.Key)
+		return nil, pkg.ValidateBusinessError(constant.ErrReservedBalanceKey, constant.EntityBalance, cbi.Key)
 	}
 
 	// Direction validation runs before any repository call so invalid
@@ -48,9 +47,9 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 			// valid
 		default:
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid balance direction", nil)
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Rejected invalid direction: %v", *cbi.Direction))
+			logger.Log(ctx, libLog.LevelWarn, "Rejected invalid balance direction", libLog.String("direction", *cbi.Direction))
 
-			return nil, pkg.ValidateBusinessError(constant.ErrInvalidBalanceDirection, reflect.TypeOf(mmodel.Balance{}).Name(), *cbi.Direction)
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidBalanceDirection, constant.EntityBalance, *cbi.Direction)
 		}
 	}
 
@@ -59,9 +58,9 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	if cbi.Settings != nil {
 		if err := cbi.Settings.Validate(); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid balance settings", err)
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Rejected invalid balance settings: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Rejected invalid balance settings", libLog.Err(err))
 
-			return nil, pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, reflect.TypeOf(mmodel.Balance{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, constant.EntityBalance)
 		}
 	}
 
@@ -71,9 +70,9 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	// those are permanently undeletable and bypass normal controls.
 	if cbi.Settings != nil && cbi.Settings.BalanceScope == mmodel.BalanceScopeInternal {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reserved balance scope", nil)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Rejected reserved balance scope: %v", cbi.Settings.BalanceScope))
+		logger.Log(ctx, libLog.LevelWarn, "Rejected reserved balance scope", libLog.String("scope", cbi.Settings.BalanceScope))
 
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, reflect.TypeOf(mmodel.Balance{}).Name())
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, constant.EntityBalance)
 	}
 
 	existingBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, strings.ToLower(cbi.Key))
@@ -93,7 +92,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Additional balance already exists: %v", cbi.Key))
 
-		return nil, pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), cbi.Key)
+		return nil, pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, constant.EntityBalance, cbi.Key)
 	}
 
 	defaultBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.DefaultBalanceKey)
@@ -108,7 +107,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	if defaultBalance.AccountType == constant.ExternalAccountType {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Additional balance not allowed for external account type", nil)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrAdditionalBalanceNotAllowed, reflect.TypeOf(mmodel.Balance{}).Name(), defaultBalance.Alias)
+		return nil, pkg.ValidateBusinessError(constant.ErrAdditionalBalanceNotAllowed, constant.EntityBalance, defaultBalance.Alias)
 	}
 
 	// Direction defaults to "credit" when the caller omits it. Validation

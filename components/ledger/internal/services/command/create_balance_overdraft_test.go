@@ -6,7 +6,6 @@ package command
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
@@ -65,7 +64,7 @@ func TestCreateAdditionalBalance_WithDirection(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		FindByAccountIDAndKey(gomock.Any(), orgID, ledgerID, accountID, "savings").
-		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)).
 		Times(1)
 
 	mockBalanceRepo.EXPECT().
@@ -119,7 +118,7 @@ func TestCreateAdditionalBalance_DefaultDirection(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		FindByAccountIDAndKey(gomock.Any(), orgID, ledgerID, accountID, "reserve").
-		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)).
 		Times(1)
 
 	mockBalanceRepo.EXPECT().
@@ -236,4 +235,36 @@ func TestCreateAdditionalBalance_ReservedKey(t *testing.T) {
 			assert.Nil(t, result, "no balance should be returned when key is reserved")
 		})
 	}
+}
+
+// TestCreateAdditionalBalance_RejectsInternalScope verifies that clients
+// cannot create balances with balanceScope="internal" through the public API.
+func TestCreateAdditionalBalance_RejectsInternalScope(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+	cbi := &mmodel.CreateAdditionalBalance{
+		Key: "savings",
+		Settings: &mmodel.BalanceSettings{
+			BalanceScope: mmodel.BalanceScopeInternal,
+		},
+	}
+
+	uc := &UseCase{BalanceRepo: mockBalanceRepo}
+
+	result, err := uc.CreateAdditionalBalance(ctx, orgID, ledgerID, accountID, cbi)
+
+	require.Error(t, err, "internal scope MUST be rejected on client creation")
+	assert.Nil(t, result, "no balance should be returned when scope is internal")
+	assert.Contains(t, err.Error(), constant.ErrInvalidBalanceSettings.Error(),
+		"error must reference the invalid-settings code")
 }
