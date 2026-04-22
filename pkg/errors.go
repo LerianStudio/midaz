@@ -449,6 +449,24 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Insufficient Funds Error",
 			Message:    "The transaction could not be completed due to insufficient funds in the account. Please add sufficient funds to your account and try again.",
 		},
+		constant.ErrOverdraftLimitExceeded: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrOverdraftLimitExceeded.Error(),
+			Title:      "Overdraft Limit Exceeded Error",
+			Message:    "The transaction could not be completed because it would exceed the configured overdraft limit for the balance. Please reduce the amount or increase the overdraft limit and try again.",
+		},
+		constant.ErrDirectOperationOnInternalBalance: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrDirectOperationOnInternalBalance.Error(),
+			Title:      "Direct Operation On Internal Balance Error",
+			Message:    "Direct operations on internal-scope balances are not permitted. Internal balances are managed exclusively by the system. Please target a transactional balance and try again.",
+		},
+		constant.ErrDeletionOfInternalBalance: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrDeletionOfInternalBalance.Error(),
+			Title:      "Deletion Of Internal Balance Error",
+			Message:    "Internal-scope balances cannot be deleted. They are managed by the system and must remain for accounting consistency.",
+		},
 		constant.ErrAccountIneligibility: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountIneligibility.Error(),
