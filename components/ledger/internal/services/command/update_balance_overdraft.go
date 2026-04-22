@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -109,6 +110,22 @@ func enforceOverdraftTransition(ctx context.Context, logger libLog.Logger, span 
 //   - scope      = "internal" (protected from direct operations)
 //   - alias      = same as the parent balance
 //   - asset code = same as the parent balance
+//
+// Concurrency model:
+//
+// Two concurrent PATCH requests flipping AllowOverdraft from false→true on
+// the same account would each observe "no overdraft balance" in the initial
+// Find lookup and race to Create. Application-level locking cannot close
+// this window cleanly across replicas, so the invariant is enforced at the
+// storage layer: a partial UNIQUE index on
+// (organization_id, ledger_id, account_id, asset_code, key) rejects the
+// second insert with SQLSTATE 23505.
+//
+// When that happens we treat the race as benign — the peer request already
+// created the balance we were about to create — and re-fetch it so the
+// caller sees the same state it would have in the single-request case.
+// Any other Create failure (connectivity, constraint violations we did not
+// trigger, etc.) is propagated unchanged.
 func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Logger, span trace.Span, organizationID, ledgerID uuid.UUID, current *mmodel.Balance, nextSettings *mmodel.BalanceSettings) error {
 	if current == nil || nextSettings == nil {
 		return nil
@@ -186,6 +203,24 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 	}
 
 	if _, cerr := uc.BalanceRepo.Create(ctx, overdraftBalance); cerr != nil {
+		// Benign race: a concurrent request won the Create. The partial
+		// UNIQUE index idx_unique_balance_account_key surfaces this as a
+		// PostgreSQL unique_violation (SQLSTATE 23505). Treat it as
+		// idempotent success — the peer request materialized the same row
+		// we were about to create. Verify with a follow-up Find so we
+		// never silently swallow a 23505 triggered by an unrelated index.
+		if isUniqueViolation(cerr) {
+			existing, reloadErr := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.OverdraftBalanceKey)
+			if reloadErr == nil && existing != nil {
+				logger.Log(ctx, libLog.LevelInfo, "Overdraft balance created concurrently by peer request, treating as idempotent success", libLog.String("accountID", current.AccountID))
+
+				return nil
+			}
+			// Fall through and surface the original Create error if the
+			// reload failed or still returned nil — that means the 23505
+			// did not come from our target tuple.
+		}
+
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to auto-create overdraft balance", cerr)
 		logger.Log(ctx, libLog.LevelError, "Failed to auto-create overdraft balance", libLog.Err(cerr))
 
@@ -195,4 +230,14 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 	logger.Log(ctx, libLog.LevelInfo, "Auto-created overdraft balance", libLog.String("accountID", current.AccountID))
 
 	return nil
+}
+
+// isUniqueViolation reports whether err is a PostgreSQL unique_violation
+// (SQLSTATE 23505). Used by ensureOverdraftBalance to distinguish a benign
+// concurrent-insert race from real Create failures. Matches the pattern
+// already used in create_balance_transaction_operations_async.go.
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+
+	return errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode
 }
