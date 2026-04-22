@@ -193,5 +193,32 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 		}
 	}
 
+	// When the caller updates overdraft/scope Settings, rewrite ONLY those
+	// fields in the cached JSON blob in place. Deleting the key would discard
+	// live transactional state (Available, OnHold, Version, OverdraftUsed)
+	// that the Lua atomic script may have mutated but not yet flushed to
+	// PostgreSQL. An in-place settings rewrite preserves that state while
+	// making the new overdraft configuration visible to the next transaction.
+	//
+	// The repo method composes its own BalanceInternalKey from (org, ledger,
+	// alias#key) and applies the tenant prefix internally, mirroring the Get
+	// above. A cache miss inside the repo is a no-op — the next transaction
+	// will load the freshly-persisted settings via the Lua SETNX path.
+	//
+	// Non-settings updates (e.g. AllowSending, AllowReceiving) do not trigger
+	// this rewrite: those fields are not part of the settings contract this
+	// method guards, and leaving the cache alone avoids a useless round-trip.
+	//
+	// This is best-effort: the PostgreSQL write is already durable, so a
+	// Redis-side failure here is logged and swallowed. A subsequent cache
+	// miss or the sync worker will reconcile.
+	if update.Settings != nil {
+		cacheKey := balance.Alias + "#" + balance.Key
+		if uerr := uc.TransactionRedisRepo.UpdateBalanceCacheSettings(ctx, organizationID, ledgerID, cacheKey, update.Settings); uerr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update balance cache settings on redis", uerr)
+			logger.Log(ctx, libLog.LevelWarn, "Failed to update balance cache settings on Redis", libLog.Err(uerr))
+		}
+	}
+
 	return balance, nil
 }

@@ -84,6 +84,12 @@ func TestUpdateBalance_WithSettings(t *testing.T) {
 		Return(&expected, nil).Times(1)
 
 	mockRedisRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
+	// Cache settings are rewritten in-place after a settings update to make
+	// the new overdraft configuration visible without discarding live
+	// transactional state (Available, OnHold, Version, OverdraftUsed).
+	mockRedisRepo.EXPECT().
+		UpdateBalanceCacheSettings(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).AnyTimes()
 
 	uc := UseCase{
 		BalanceRepo:          mockBalanceRepo,

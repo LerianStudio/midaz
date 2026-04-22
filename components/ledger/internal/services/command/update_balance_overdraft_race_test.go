@@ -116,6 +116,11 @@ func TestEnsureOverdraftBalance_ConcurrentCreate_ReturnsBenignSuccess(t *testing
 		Times(1)
 
 	mockRedisRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
+	// Cache settings are rewritten in-place after a settings update (live
+	// transactional state is preserved — no Del).
+	mockRedisRepo.EXPECT().
+		UpdateBalanceCacheSettings(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).AnyTimes()
 
 	uc := UseCase{
 		BalanceRepo:          mockBalanceRepo,
