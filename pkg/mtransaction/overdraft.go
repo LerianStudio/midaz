@@ -88,3 +88,56 @@ func DetectOverdraftSplit(amount Amount, balance Balance) (splitNeeded bool, def
 
 	return true, amount.Value.Sub(balance.Available)
 }
+
+// CalculateRefundSplit partitions a credit amount targeted at a
+// direction=credit balance whose OverdraftUsed is greater than zero. The
+// returned pair satisfies:
+//
+//	creditOnOverdraft = min(creditAmount, overdraftUsed)
+//	creditOnDefault   = creditAmount - creditOnOverdraft
+//
+// Invariants (enforced by tests):
+//   - creditOnOverdraft + creditOnDefault == creditAmount
+//   - neither half is negative
+//   - creditOnOverdraft never exceeds overdraftUsed
+//
+// Decimal precision is preserved because all arithmetic is performed on
+// shopspring/decimal values with no intermediate float conversion.
+func CalculateRefundSplit(creditAmount, overdraftUsed decimal.Decimal) (creditOnOverdraft, creditOnDefault decimal.Decimal) {
+	creditOnOverdraft = decimal.Min(creditAmount, overdraftUsed)
+	creditOnDefault = creditAmount.Sub(creditOnOverdraft)
+
+	return creditOnOverdraft, creditOnDefault
+}
+
+// DetectRefundSplit reports whether an incoming credit on a direction=credit
+// balance should trigger an overdraft repayment split. A split is signalled
+// only when all of the following hold:
+//   - the balance direction is exactly "credit" (legacy empty direction is
+//     intentionally excluded: Direction is an explicit opt-in signal);
+//   - the operation is a CREDIT;
+//   - the balance has outstanding overdraft usage (OverdraftUsed > 0).
+//
+// When a split is signalled, repayAmount is capped at the outstanding
+// overdraft (min(creditAmount, overdraftUsed)) and cleared is true when the
+// repayment fully extinguishes the overdraft (overdraftUsed - repay == 0).
+// For every non-signalling case the repay amount is zero and cleared is
+// false.
+func DetectRefundSplit(amount Amount, balance Balance) (splitNeeded bool, repayAmount decimal.Decimal, cleared bool) {
+	if balance.Direction != pkgConstant.DirectionCredit {
+		return false, decimal.Zero, false
+	}
+
+	if amount.Operation != constant.CREDIT {
+		return false, decimal.Zero, false
+	}
+
+	if !balance.OverdraftUsed.GreaterThan(decimal.Zero) {
+		return false, decimal.Zero, false
+	}
+
+	repayAmount = decimal.Min(amount.Value, balance.OverdraftUsed)
+	cleared = balance.OverdraftUsed.Sub(repayAmount).IsZero()
+
+	return true, repayAmount, cleared
+}
