@@ -165,8 +165,30 @@ func ConcatAlias(i int, alias string) string {
 	return strconv.Itoa(i) + "#" + alias
 }
 
-// OperateBalances Function to sum or sub two balances and Normalize the scale
+// OperateBalances Function to sum or sub two balances and Normalize the scale.
+//
+// For balances with Direction == "debit" (liability-like balances) the
+// arithmetic for DEBIT and CREDIT operations is INVERTED relative to a
+// "credit" (asset-like) balance: a DEBIT increases Available and a CREDIT
+// decreases it. The inversion applies uniformly across transaction states
+// (CREATED, APPROVED, PENDING, CANCELED) because direction=debit balances
+// do not participate in the Available↔OnHold flow used by credit-direction
+// balances; they mutate Available directly. Legacy balances with an empty
+// Direction are treated as "credit" to preserve backward compatibility.
 func OperateBalances(amount Amount, balance Balance) (Balance, error) {
+	if balance.Direction == pkgConstant.DirectionDebit {
+		available, onHold, matched := applyDebitDirectionBalance(amount, balance)
+		if !matched {
+			return balance, nil
+		}
+
+		return Balance{
+			Available: available,
+			OnHold:    onHold,
+			Version:   balance.Version + 1,
+		}, nil
+	}
+
 	available, onHold, matched := applyBalanceChange(amount, balance)
 	if !matched {
 		return balance, nil
@@ -177,6 +199,23 @@ func OperateBalances(amount Amount, balance Balance) (Balance, error) {
 		OnHold:    onHold,
 		Version:   balance.Version + 1,
 	}, nil
+}
+
+// applyDebitDirectionBalance computes the new Available and OnHold values for
+// a direction=debit balance. DEBIT increases Available, CREDIT decreases it;
+// OnHold is preserved across DEBIT/CREDIT operations because the Available↔
+// OnHold flow used by credit-direction balances does not apply here. ON_HOLD
+// and RELEASE delegate to the credit-direction machinery because the hold
+// semantics are identical regardless of accounting direction.
+func applyDebitDirectionBalance(amount Amount, balance Balance) (available, onHold decimal.Decimal, matched bool) {
+	switch amount.Operation {
+	case constant.DEBIT:
+		return balance.Available.Add(amount.Value), balance.OnHold, true
+	case constant.CREDIT:
+		return balance.Available.Sub(amount.Value), balance.OnHold, true
+	default:
+		return applyBalanceChange(amount, balance)
+	}
 }
 
 // applyBalanceChange computes the new Available and OnHold values for a given
