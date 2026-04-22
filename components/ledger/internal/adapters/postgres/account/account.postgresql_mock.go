@@ -103,7 +103,7 @@ func (mr *MockRepositoryMockRecorder) FindAlias(ctx, organizationID, ledgerID, p
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.Pagination) ([]*mmodel.Account, error) {
+func (m *MockRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader) ([]*mmodel.Account, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAll", ctx, organizationID, ledgerID, portfolioID, segmentID, filter)
 	ret0, _ := ret[0].([]*mmodel.Account)

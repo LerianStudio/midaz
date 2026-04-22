@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"mime/multipart"
 	"strconv"
@@ -57,6 +58,15 @@ type QueryHeader struct {
 	Name                                *string
 	LegalName                           *string
 	DoingBusinessAs                     *string
+	Status                              *string
+	Type                                *string
+	AssetCode                           *string
+	EntityID                            *string
+	KeyValue                            *string
+	Blocked                             *bool
+	ParentAccountID                     *string
+	LegalDocument                       *string
+	Alias                               *string
 }
 
 // Pagination entity from query parameter from get apis
@@ -93,7 +103,7 @@ func (p *Pagination) SetCursor(next, prev string) {
 
 // ValidateParameters validate and return struct of default parameters
 //
-//nolint:gocyclo
+//nolint:gocyclo,gocognit
 func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	var (
 		metadata                            *bson.M
@@ -126,6 +136,15 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		name                                *string
 		legalName                           *string
 		doingBusinessAs                     *string
+		status                              *string
+		filterType                          *string
+		assetCode                           *string
+		entityID                            *string
+		keyValue                            *string
+		blocked                             *bool
+		parentAccountID                     *string
+		legalDocument                       *string
+		alias                               *string
 	)
 
 	for key, value := range params {
@@ -161,6 +180,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			segmentID = value
 		case strings.Contains(strings.ToLower(key), "type"):
 			operationType = strings.ToUpper(value)
+			// Also populate Type field for account filtering (preserves original casing)
+			filterType = &value
 		case key == "direction":
 			v := strings.ToLower(value)
 			direction = &v
@@ -176,6 +197,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			externalID = &value
 		case key == "document":
 			document = &value
+		case key == "parent_account_id":
+			parentAccountID = &value
 		case strings.Contains(key, "account_id"):
 			accountID = &value
 		case strings.Contains(key, "ledger_id"):
@@ -200,6 +223,23 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			legalName = &value
 		case key == "doing_business_as":
 			doingBusinessAs = &value
+		case key == "status":
+			v := strings.ToUpper(value)
+			status = &v
+		case key == "asset_code":
+			assetCode = &value
+		case key == "entity_id":
+			entityID = &value
+		case key == "key_value":
+			keyValue = &value
+		case key == "blocked":
+			if err := validateBlockedParam(&blocked, value); err != nil {
+				return nil, err
+			}
+		case key == "legal_document":
+			legalDocument = &value
+		case key == "alias":
+			alias = &value
 		}
 	}
 
@@ -212,6 +252,10 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	}
 
 	if err := validateSearchTermLength(&doingBusinessAs, "doing_business_as"); err != nil {
+		return nil, err
+	}
+
+	if err := validateSearchTermLength(&alias, "alias"); err != nil {
 		return nil, err
 	}
 
@@ -249,6 +293,12 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		}
 	}
 
+	if parentAccountID != nil {
+		if _, err := uuid.Parse(*parentAccountID); err != nil {
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "parent_account_id")
+		}
+	}
+
 	query := &QueryHeader{
 		Metadata:                            metadata,
 		Limit:                               limit,
@@ -280,6 +330,15 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		Name:                                name,
 		LegalName:                           legalName,
 		DoingBusinessAs:                     doingBusinessAs,
+		Status:                              status,
+		Type:                                filterType,
+		AssetCode:                           assetCode,
+		EntityID:                            entityID,
+		KeyValue:                            keyValue,
+		Blocked:                             blocked,
+		ParentAccountID:                     parentAccountID,
+		LegalDocument:                       legalDocument,
+		Alias:                               alias,
 	}
 
 	return query, nil
@@ -525,6 +584,38 @@ func validateSearchTermLength(term **string, fieldName string) error {
 	}
 
 	**term = trimmed
+
+	return nil
+}
+
+// parseBoolParam parses a string value into a boolean pointer.
+// Accepts: "true", "false" (case-insensitive), "1", "0".
+// Returns (nil, error) for invalid values.
+// Per TRD: Invalid boolean values must return an error, not default to false.
+func parseBoolParam(value string) (*bool, error) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+
+	switch normalized {
+	case "true", "1":
+		result := true
+		return &result, nil
+	case "false", "0":
+		result := false
+		return &result, nil
+	default:
+		return nil, errors.New("invalid boolean value")
+	}
+}
+
+// validateBlockedParam validates and parses the blocked query parameter.
+// Returns the parsed boolean pointer and any validation error.
+func validateBlockedParam(blocked **bool, value string) error {
+	parsedBlocked, err := parseBoolParam(value)
+	if err != nil {
+		return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "blocked")
+	}
+
+	*blocked = parsedBlocked
 
 	return nil
 }

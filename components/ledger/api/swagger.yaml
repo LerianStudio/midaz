@@ -12,7 +12,7 @@ info:
   license:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
-  version: v3.6.0
+  version: v3.7.0
 host: localhost:3002
 basePath: /
 paths:
@@ -80,6 +80,17 @@ paths:
         description: Filter organizations by doing business as name (case-insensitive,
           prefix match)
         name: doing_business_as
+        in: query
+      - enum:
+        - ACTIVE
+        - INACTIVE
+        type: string
+        description: Filter organizations by status
+        name: status
+        in: query
+      - type: string
+        description: Filter organizations by legal document (exact match)
+        name: legal_document
         in: query
       responses:
         '200':
@@ -398,6 +409,13 @@ paths:
         type: string
         description: Filter ledgers by name (case-insensitive, prefix match)
         name: name
+        in: query
+      - enum:
+        - ACTIVE
+        - INACTIVE
+        type: string
+        description: Filter ledgers by status
+        name: status
         in: query
       responses:
         '200':
@@ -841,6 +859,10 @@ paths:
         description: JSON string to filter account types by metadata fields
         name: metadata
         in: query
+      - type: string
+        description: Filter account types by key value
+        name: key_value
+        in: query
       - type: integer
         description: 'Limit of account types per page (default: 10, max: 100)'
         name: limit
@@ -1197,6 +1219,48 @@ paths:
         description: Filter accounts by segment ID (UUID format). If both portfolio_id
           and segment_id are provided, both filters are applied (AND semantics).
         name: segment_id
+        in: query
+      - enum:
+        - ACTIVE
+        - INACTIVE
+        - BLOCKED
+        type: string
+        description: Filter accounts by status
+        name: status
+        in: query
+      - type: string
+        description: Filter accounts by type (e.g., deposit, savings, external)
+        name: type
+        in: query
+      - type: string
+        description: Filter accounts by asset code (e.g., USD, BRL, EUR)
+        name: asset_code
+        in: query
+      - type: string
+        description: Filter accounts by entity ID
+        name: entity_id
+        in: query
+      - enum:
+        - true
+        - false
+        type: boolean
+        description: Filter accounts by blocked status
+        name: blocked
+        in: query
+      - type: string
+        format: uuid
+        description: Filter accounts by parent account ID (UUID format)
+        name: parent_account_id
+        in: query
+      - maxLength: 256
+        type: string
+        description: Filter accounts by name (case-insensitive, prefix match)
+        name: name
+        in: query
+      - maxLength: 256
+        type: string
+        description: Filter accounts by alias (case-insensitive, prefix match)
+        name: alias
         in: query
       responses:
         '200':
@@ -1871,6 +1935,10 @@ paths:
         format: uuid
         description: Filter by operation route ID
         name: route_id
+        in: query
+      - type: string
+        description: Filter by operation route code
+        name: route_code
         in: query
       responses:
         '200':
@@ -3395,6 +3463,10 @@ paths:
         description: JSON string to filter portfolios by metadata fields
         name: metadata
         in: query
+      - type: string
+        description: Filter portfolios by entity ID
+        name: entity_id
+        in: query
       - maximum: 100
         minimum: 1
         type: integer
@@ -4569,7 +4641,7 @@ paths:
         in: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+          $ref: '#/definitions/CreateTransactionInput'
       responses:
         '201':
           description: Created
@@ -4690,7 +4762,7 @@ paths:
         in: body
         required: true
         schema:
-          $ref: '#/definitions/CreateTransactionInflowSwaggerModel'
+          $ref: '#/definitions/CreateTransactionInflowInput'
       responses:
         '201':
           description: Created
@@ -4751,7 +4823,7 @@ paths:
         in: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+          $ref: '#/definitions/CreateTransactionInput'
       responses:
         '201':
           description: Created
@@ -4888,7 +4960,7 @@ paths:
         in: body
         required: true
         schema:
-          $ref: '#/definitions/CreateTransactionOutflowSwaggerModel'
+          $ref: '#/definitions/CreateTransactionOutflowInput'
       responses:
         '201':
           description: Created
@@ -5728,19 +5800,25 @@ definitions:
         allOf:
         - $ref: '#/definitions/AccountingEntry'
   AccountingEntry:
-    description: AccountingEntry object containing debit and credit rubrics for a
-      specific action.
+    description: 'AccountingEntry object containing debit and credit rubrics for a
+      specific action.  Field requirements depend on the parent operationType and
+      scenario: - source + direct or commit: debit is REQUIRED, credit is optional.
+      - source + hold or cancel: both debit AND credit are REQUIRED. - destination
+      + direct or commit: credit is REQUIRED, debit is optional. - destination + hold
+      or cancel: NOT ALLOWED (rejected at creation). - destination + revert: NOT ALLOWED
+      (rejected at creation). - source + revert: NOT ALLOWED (rejected at creation).
+      - bidirectional (all scenarios including revert): both debit AND credit are
+      REQUIRED.  An entry with neither debit nor credit is always rejected.'
     type: object
-    required:
-    - credit
-    - debit
     properties:
       credit:
-        description: The credit rubric for this entry.
+        description: The credit rubric for this entry. Required based on operationType/scenario
+          matrix (see type description).
         allOf:
         - $ref: '#/definitions/AccountingRubric'
       debit:
-        description: The debit rubric for this entry.
+        description: The debit rubric for this entry. Required based on operationType/scenario
+          matrix (see type description).
         allOf:
         - $ref: '#/definitions/AccountingRubric'
   AccountingRubric:
@@ -5838,18 +5916,17 @@ definitions:
         example: '10001'
   Amount:
     description: Amount is the struct designed to represent the amount of an operation.
-      Contains the value and scale (decimal places) of an operation amount.
     type: object
+    required:
+    - asset
+    - value
     properties:
+      asset:
+        type: string
+        example: BRL
       value:
-        description: 'The amount value in the smallest unit of the asset (e.g., cents)
-
-          example: 1500
-
-          minimum: 0'
         type: number
-        minimum: 0
-        example: 1500
+        example: 1000
   Asset:
     description: Asset represents a financial instrument within a ledger, such as
       a currency, cryptocurrency, commodity, or other asset type.
@@ -6581,7 +6658,14 @@ definitions:
         allOf:
         - $ref: '#/definitions/AccountingEntries'
       code:
-        description: External reference of the operation route.
+        description: 'Deprecated: external reference code kept for backward compatibility.
+          Use the rubric codes inside accountingEntries instead.
+
+          example: EXT-001
+
+          maxLength: 100
+
+          deprecated: true'
         type: string
         maxLength: 100
         example: EXT-001
@@ -6730,10 +6814,14 @@ definitions:
         description: Status of the segment (active, inactive, pending)
         allOf:
         - $ref: '#/definitions/Status'
-  CreateTransactionInflowSwaggerModel:
-    description: Schema for creating inflow transaction with the complete SendInflow
-      operation structure defined inline
+  CreateTransactionInflowInput:
+    description: CreateTransactionInflowInput is the input payload to create an inflow
+      transaction. Contains all necessary fields to create a financial transaction
+      without source information, only destination. Pending is not supported for inflows
+      because the auto-filled external source account cannot hold funds.
     type: object
+    required:
+    - send
     properties:
       chartOfAccountsGroupName:
         description: 'Chart of accounts group name for accounting purposes
@@ -6742,6 +6830,8 @@ definitions:
 
           maxLength: 256'
         type: string
+        maxLength: 256
+        example: FUNDING
       code:
         description: 'Transaction code for reference
 
@@ -6749,15 +6839,20 @@ definitions:
 
           maxLength: 100'
         type: string
+        maxLength: 100
+        example: TR12345
       description:
         description: 'Human-readable description of the transaction
 
-          example: New Inflow Transaction
+          example: New Transaction
 
           maxLength: 256'
         type: string
+        maxLength: 256
+        example: New Transaction
       metadata:
-        description: 'Additional custom attributes
+        description: 'Additional custom key-value attributes. Values must be flat
+          (string, number, boolean) — no nested objects.
 
           example: {"reference": "TRANSACTION-001", "source": "api"}'
         type: object
@@ -6768,9 +6863,7 @@ definitions:
 
           example: 00000000-0000-0000-0000-000000000000
 
-          maxLength: 250
-
-          deprecated: true'
+          maxLength: 250'
         type: string
         maxLength: 250
         example: 00000000-0000-0000-0000-000000000000
@@ -6785,98 +6878,113 @@ definitions:
         format: uuid
         example: 00000000-0000-0000-0000-000000000000
       send:
-        description: 'Send operation details including distribution only
+        description: 'Send operation details including distribution only (no source)
 
           required: true'
-        type: object
-        properties:
-          asset:
-            description: 'Asset code for the transaction
-
-              example: USD
-
-              required: true'
-            type: string
-          distribute:
-            description: 'Destination accounts and amounts for the transaction
-
-              required: true'
-            type: object
-            properties:
-              to:
-                description: 'List of destination operations
-
-                  required: true'
-                type: array
-                items:
-                  type: object
-                  properties:
-                    accountAlias:
-                      description: 'Account identifier or alias
-
-                        example: @myAccount
-
-                        required: true'
-                      type: string
-                    amount:
-                      description: 'Amount details for the operation
-
-                        required: true'
-                      type: object
-                      properties:
-                        asset:
-                          description: 'Asset code
-
-                            example: USD
-
-                            required: true'
-                          type: string
-                        value:
-                          description: 'Amount value in smallest unit
-
-                            example: "100.00"
-
-                            required: true'
-                          type: string
-                    chartOfAccounts:
-                      description: 'Chart of accounts code
-
-                        example: FUNDING_CREDIT'
-                      type: string
-                    description:
-                      description: 'Operation description
-
-                        example: Credit Operation'
-                      type: string
-                    metadata:
-                      description: 'Additional metadata
-
-                        example: {"operation": "funding", "type": "account"}'
-                      type: object
-                      additionalProperties: {}
-          value:
-            description: 'Transaction amount value in the smallest unit of the asset
-
-              example: "100.00"
-
-              required: true'
-            type: string
+        allOf:
+        - $ref: '#/definitions/SendInflow'
       transactionDate:
         description: 'TransactionDate Period from transaction creation date until
           now
 
           Example "2021-01-01T00:00:00Z"
 
-          swagger: type string
-
-          required: false'
+          format: date-time'
         type: string
         format: date-time
         example: '2021-01-01T00:00:00Z'
-  CreateTransactionOutflowSwaggerModel:
-    description: Schema for creating outflow transaction with the complete SendOutflow
-      operation structure defined inline
+  CreateTransactionInput:
+    description: CreateTransactionInput is the input payload to create a transaction.
+      Contains all necessary fields to create a financial transaction, including source
+      and destination information.
     type: object
+    required:
+    - send
+    properties:
+      chartOfAccountsGroupName:
+        description: 'Chart of accounts group name for accounting purposes
+
+          example: FUNDING
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: FUNDING
+      code:
+        description: 'Transaction code for reference
+
+          example: TR12345
+
+          maxLength: 100'
+        type: string
+        maxLength: 100
+        example: TR12345
+      description:
+        description: 'Human-readable description of the transaction
+
+          example: New Transaction
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: New Transaction
+      metadata:
+        description: 'Additional custom key-value attributes. Values must be flat
+          (string, number, boolean) — no nested objects.
+
+          example: {"reference": "TRANSACTION-001", "source": "api"}'
+        type: object
+        additionalProperties: {}
+      pending:
+        description: 'Whether the transaction should be created in pending state
+
+          example: true'
+        type: boolean
+        default: false
+        example: true
+      route:
+        description: 'Deprecated: legacy route identifier, use routeId instead. Contains
+          the transaction route UUID as a free-form string for backwards compatibility.
+
+          example: "00000000-0000-0000-0000-000000000000"
+
+          maxLength: 250'
+        type: string
+        maxLength: 250
+        example: 00000000-0000-0000-0000-000000000000
+      routeId:
+        description: 'UUID of the transaction route. Used instead of route for proper
+          UUID validation and referential integrity.
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          format: uuid'
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      send:
+        description: 'Send operation details including source and distribution
+
+          required: true'
+        allOf:
+        - $ref: '#/definitions/Send'
+      transactionDate:
+        description: 'TransactionDate Period from transaction creation date until
+          now
+
+          Example "2021-01-01T00:00:00Z"
+
+          format: date-time'
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+  CreateTransactionOutflowInput:
+    description: CreateTransactionOutflowInput is the input payload to create an outflow
+      transaction. Contains all necessary fields to create a financial transaction
+      with source information only, without destination.
+    type: object
+    required:
+    - send
     properties:
       chartOfAccountsGroupName:
         description: 'Chart of accounts group name for accounting purposes
@@ -6885,6 +6993,8 @@ definitions:
 
           maxLength: 256'
         type: string
+        maxLength: 256
+        example: WITHDRAWAL
       code:
         description: 'Transaction code for reference
 
@@ -6892,6 +7002,8 @@ definitions:
 
           maxLength: 100'
         type: string
+        maxLength: 100
+        example: TR12345
       description:
         description: 'Human-readable description of the transaction
 
@@ -6899,8 +7011,11 @@ definitions:
 
           maxLength: 256'
         type: string
+        maxLength: 256
+        example: New Outflow Transaction
       metadata:
-        description: 'Additional custom attributes
+        description: 'Additional custom key-value attributes. Values must be flat
+          (string, number, boolean) — no nested objects.
 
           example: {"reference": "TRANSACTION-001", "source": "api"}'
         type: object
@@ -6908,9 +7023,7 @@ definitions:
       pending:
         description: 'Whether the transaction should be created in pending state
 
-          example: true
-
-          swagger: type boolean'
+          example: true'
         type: boolean
         default: false
         example: true
@@ -6920,9 +7033,7 @@ definitions:
 
           example: 00000000-0000-0000-0000-000000000000
 
-          maxLength: 250
-
-          deprecated: true'
+          maxLength: 250'
         type: string
         maxLength: 250
         example: 00000000-0000-0000-0000-000000000000
@@ -6937,91 +7048,18 @@ definitions:
         format: uuid
         example: 00000000-0000-0000-0000-000000000000
       send:
-        description: 'Send operation details including source only
+        description: 'Send operation details including source only (no distribution)
 
           required: true'
-        type: object
-        properties:
-          asset:
-            description: 'Asset code for the transaction
-
-              example: USD
-
-              required: true'
-            type: string
-          source:
-            description: 'Source accounts and amounts for the transaction
-
-              required: true'
-            type: object
-            properties:
-              from:
-                description: 'List of source operations
-
-                  required: true'
-                type: array
-                items:
-                  type: object
-                  properties:
-                    accountAlias:
-                      description: 'Account identifier or alias
-
-                        example: @myAccount
-
-                        required: true'
-                      type: string
-                    amount:
-                      description: 'Amount details for the operation
-
-                        required: true'
-                      type: object
-                      properties:
-                        asset:
-                          description: 'Asset code
-
-                            example: USD
-
-                            required: true'
-                          type: string
-                        value:
-                          description: 'Amount value in smallest unit
-
-                            example: "100.00"
-
-                            required: true'
-                          type: string
-                    chartOfAccounts:
-                      description: 'Chart of accounts code
-
-                        example: WITHDRAWAL_DEBIT'
-                      type: string
-                    description:
-                      description: 'Operation description
-
-                        example: Debit Operation'
-                      type: string
-                    metadata:
-                      description: 'Additional metadata
-
-                        example: {"operation": "withdrawal", "type": "account"}'
-                      type: object
-                      additionalProperties: {}
-          value:
-            description: 'Transaction amount value in the smallest unit of the asset
-
-              example: "100.00"
-
-              required: true'
-            type: string
+        allOf:
+        - $ref: '#/definitions/SendOutflow'
       transactionDate:
         description: 'TransactionDate Period from transaction creation date until
           now
 
           Example "2021-01-01T00:00:00Z"
 
-          swagger: type string
-
-          required: false'
+          format: date-time'
         type: string
         format: date-time
         example: '2021-01-01T00:00:00Z'
@@ -7054,6 +7092,19 @@ definitions:
         type: string
         maxLength: 255
         example: Charge Settlement
+  Distribute:
+    description: Distribute is the struct designed to represent the distribution fields
+      of an operation.
+    type: object
+    required:
+    - to
+    properties:
+      remaining:
+        type: string
+      to:
+        type: array
+        items:
+          $ref: '#/definitions/FromTo'
   Error:
     description: Standardized error response format used across all API endpoints
       for error situations. Provides structured information about errors including
@@ -7105,6 +7156,53 @@ definitions:
         type: string
         maxLength: 100
         example: Bad Request
+  FromTo:
+    description: FromTo is the struct designed to represent the from/to fields of
+      an operation.
+    type: object
+    properties:
+      accountAlias:
+        type: string
+        example: '@person1'
+      amount:
+        $ref: '#/definitions/Amount'
+      balanceKey:
+        type: string
+        example: asset-freeze
+      chartOfAccounts:
+        type: string
+        example: '1000'
+      description:
+        type: string
+        example: description
+      isFrom:
+        type: boolean
+        example: true
+      metadata:
+        type: object
+        additionalProperties: {}
+      rate:
+        $ref: '#/definitions/Rate'
+      remaining:
+        type: string
+        example: remaining
+      route:
+        description: 'Deprecated: passive field kept for backward compatibility. Accepted
+          from client and persisted, but not used in any validation or business logic.
+          Use routeId instead.'
+        type: string
+        maxLength: 250
+        example: 00000000-0000-0000-0000-000000000000
+      routeId:
+        description: 'UUID of the operation route. Primary field used for route validation
+          and accounting rules.
+
+          format: uuid'
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      share:
+        $ref: '#/definitions/Share'
   IndexStats:
     description: Usage statistics collected by MongoDB for an index
     type: object
@@ -7471,7 +7569,12 @@ definitions:
         allOf:
         - $ref: '#/definitions/AccountingEntries'
       code:
-        description: External reference of the operation route.
+        description: 'Deprecated: external reference code kept for backward compatibility.
+          Use the rubric codes inside accountingEntries instead.
+
+          example: EXT-001
+
+          deprecated: true'
         type: string
         example: EXT-001
       createdAt:
@@ -7672,6 +7775,27 @@ definitions:
         type: string
         format: date-time
         example: '2021-01-01T00:00:00Z'
+  Rate:
+    description: Rate is the struct designed to represent the rate fields of an operation.
+    type: object
+    required:
+    - externalId
+    - from
+    - to
+    - value
+    properties:
+      externalId:
+        type: string
+        example: 00000000-0000-0000-0000-000000000000
+      from:
+        type: string
+        example: BRL
+      to:
+        type: string
+        example: USDe
+      value:
+        type: number
+        example: 1000
   Segment:
     description: Segment represents a logical division within a ledger such as a business
       area, product line, or customer category.
@@ -7720,6 +7844,85 @@ definitions:
         type: string
         format: date-time
         example: '2021-01-01T00:00:00Z'
+  Send:
+    description: Send is the struct designed to represent the sending fields of an
+      operation.
+    type: object
+    required:
+    - asset
+    - distribute
+    - source
+    - value
+    properties:
+      asset:
+        type: string
+        example: BRL
+      distribute:
+        $ref: '#/definitions/Distribute'
+      source:
+        $ref: '#/definitions/Source'
+      value:
+        type: number
+        example: 1000
+  SendInflow:
+    description: SendInflow is the struct designed to represent the sending fields
+      of an inflow operation without source information.
+    type: object
+    required:
+    - asset
+    - distribute
+    - value
+    properties:
+      asset:
+        type: string
+        example: BRL
+      distribute:
+        $ref: '#/definitions/Distribute'
+      value:
+        type: number
+        example: 1000
+  SendOutflow:
+    description: SendOutflow is the struct designed to represent the sending fields
+      of an outflow operation without distribution information.
+    type: object
+    required:
+    - asset
+    - source
+    - value
+    properties:
+      asset:
+        type: string
+        example: BRL
+      source:
+        $ref: '#/definitions/Source'
+      value:
+        type: number
+        example: 1000
+  Share:
+    description: Share is the struct designed to represent the sharing fields of an
+      operation.
+    type: object
+    required:
+    - percentage
+    properties:
+      percentage:
+        type: integer
+      percentageOfPercentage:
+        type: integer
+  Source:
+    description: Source is the struct designed to represent the source fields of an
+      operation.
+    type: object
+    required:
+    - from
+    properties:
+      from:
+        type: array
+        items:
+          $ref: '#/definitions/FromTo'
+      remaining:
+        type: string
+        example: remaining
   Status:
     description: Status is the struct designed to represent the status of a transaction.
       Contains code and optional description for transaction states.
@@ -8150,7 +8353,14 @@ definitions:
         allOf:
         - $ref: '#/definitions/AccountingEntries'
       code:
-        description: External reference of the operation route.
+        description: 'Deprecated: external reference code kept for backward compatibility.
+          Use the rubric codes inside accountingEntries instead.
+
+          example: EXT-001
+
+          maxLength: 100
+
+          deprecated: true'
         type: string
         maxLength: 100
         example: EXT-001
@@ -8321,215 +8531,6 @@ definitions:
         type: string
         maxLength: 255
         example: Charge Settlement
-  github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
-    description: Schema for creating transaction with the complete Send operation
-      structure defined inline
-    type: object
-    properties:
-      chartOfAccountsGroupName:
-        description: 'Chart of accounts group name for accounting purposes
-
-          example: FUNDING
-
-          maxLength: 256'
-        type: string
-      code:
-        description: 'Transaction code for reference
-
-          example: TR12345
-
-          maxLength: 100'
-        type: string
-      description:
-        description: 'Human-readable description of the transaction
-
-          example: New Transaction
-
-          maxLength: 256'
-        type: string
-      metadata:
-        description: 'Additional custom attributes
-
-          example: {"reference": "TRANSACTION-001", "source": "api"}'
-        type: object
-        additionalProperties: {}
-      pending:
-        description: 'Whether the transaction should be created in pending state
-
-          example: true
-
-          swagger: type boolean'
-        type: boolean
-        default: false
-        example: true
-      route:
-        description: 'Deprecated: legacy route identifier, use routeId instead. Contains
-          the transaction route UUID as a free-form string for backwards compatibility.
-
-          example: 00000000-0000-0000-0000-000000000000
-
-          maxLength: 250
-
-          deprecated: true'
-        type: string
-        maxLength: 250
-        example: 00000000-0000-0000-0000-000000000000
-      routeId:
-        description: 'UUID of the transaction route. Used instead of route for proper
-          UUID validation and referential integrity.
-
-          example: 00000000-0000-0000-0000-000000000000
-
-          format: uuid'
-        type: string
-        format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-      send:
-        description: 'Send operation details including source and distribution
-
-          required: true'
-        type: object
-        properties:
-          asset:
-            description: 'Asset code for the transaction
-
-              example: USD
-
-              required: true'
-            type: string
-          distribute:
-            description: 'Destination accounts and amounts for the transaction
-
-              required: true'
-            type: object
-            properties:
-              to:
-                description: 'List of destination operations
-
-                  required: true'
-                type: array
-                items:
-                  type: object
-                  properties:
-                    accountAlias:
-                      description: 'Account identifier or alias
-
-                        example: @myAccount
-
-                        required: true'
-                      type: string
-                    amount:
-                      description: 'Amount details for the operation
-
-                        required: true'
-                      type: object
-                      properties:
-                        asset:
-                          description: 'Asset code
-
-                            example: USD
-
-                            required: true'
-                          type: string
-                        value:
-                          description: 'Amount value in smallest unit
-
-                            example: "100.00"
-
-                            required: true'
-                          type: string
-                    chartOfAccounts:
-                      description: 'Chart of accounts code
-
-                        example: FUNDING_CREDIT'
-                      type: string
-                    description:
-                      description: 'Operation description
-
-                        example: Credit Operation'
-                      type: string
-                    metadata:
-                      description: 'Additional metadata
-
-                        example: {"operation": "funding", "type": "account"}'
-                      type: object
-                      additionalProperties: {}
-          source:
-            description: 'Source accounts and amounts for the transaction
-
-              required: true'
-            type: object
-            properties:
-              from:
-                description: 'List of source operations
-
-                  required: true'
-                type: array
-                items:
-                  type: object
-                  properties:
-                    accountAlias:
-                      description: 'Account identifier or alias
-
-                        example: @external/USD
-
-                        required: true'
-                      type: string
-                    amount:
-                      description: 'Amount details for the operation
-
-                        required: true'
-                      type: object
-                      properties:
-                        asset:
-                          description: 'Asset code
-
-                            example: USD
-
-                            required: true'
-                          type: string
-                        value:
-                          description: 'Amount value in smallest unit
-
-                            example: "100.00"
-
-                            required: true'
-                          type: string
-                    chartOfAccounts:
-                      description: 'Chart of accounts code
-
-                        example: FUNDING_DEBIT'
-                      type: string
-                    description:
-                      description: 'Operation description
-
-                        example: Debit Operation'
-                      type: string
-                    metadata:
-                      description: 'Additional metadata
-
-                        example: {"operation": "funding", "type": "external"}'
-                      type: object
-                      additionalProperties: {}
-          value:
-            description: 'Transaction amount value in the smallest unit of the asset
-
-              example: "100.00"
-
-              required: true'
-            type: string
-      transactionDate:
-        description: 'TransactionDate Period from transaction creation date until
-          now
-
-          Example "2021-01-01T00:00:00Z"
-
-          swagger: type string
-
-          required: false'
-        type: string
-        format: date-time
-        example: '2021-01-01T00:00:00Z'
   http.Pagination:
     type: object
     properties:

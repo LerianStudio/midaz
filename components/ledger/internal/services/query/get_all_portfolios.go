@@ -31,7 +31,7 @@ func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving portfolios")
 
-	portfolios, err := uc.PortfolioRepo.FindAll(ctx, organizationID, ledgerID, filter.ToOffsetPagination())
+	portfolios, err := uc.PortfolioRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting portfolios on repo: %v", err))
 
