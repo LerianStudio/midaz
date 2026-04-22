@@ -154,34 +154,6 @@ func TestBalanceRedis_UnmarshalJSON_OverdraftUsedFromFloat(t *testing.T) {
 	}
 }
 
-// TestBalanceRedis_UnmarshalJSON_OverdraftUsedFromNumber verifies that
-// the json.Number branch of parseDecimalString preserves the exact
-// textual representation supplied by the caller — the precision-safe
-// path for high-magnitude or high-precision decimals.
-func TestBalanceRedis_UnmarshalJSON_OverdraftUsedFromNumber(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		input    json.Number
-		expected string
-	}{
-		{name: "high precision decimal", input: json.Number("123.456789012345"), expected: "123.456789012345"},
-		{name: "large integer", input: json.Number("9999999999999999"), expected: "9999999999999999"},
-		{name: "small fractional", input: json.Number("0.000001"), expected: "0.000001"},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := parseDecimalString(tt.input, "0")
-			assert.Equal(t, tt.expected, got)
-		})
-	}
-}
-
 // TestBalanceRedis_UnmarshalJSON_MissingOverdraftFields verifies legacy
 // payloads (written before the overdraft feature) still decode cleanly,
 // with sensible defaults applied to the overdraft fields.

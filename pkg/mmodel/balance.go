@@ -11,6 +11,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -572,7 +573,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 		b.OnHold = decimal.NewFromFloat(f)
 	}
 
-	b.OverdraftUsed = parseDecimalString(aux.OverdraftUsed, "0")
+	b.OverdraftUsed = utils.ParseDecimalString(aux.OverdraftUsed, "0")
 
 	if b.OverdraftLimit == "" {
 		b.OverdraftLimit = "0"
@@ -584,21 +585,6 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
-}
-
-// parseDecimalString normalizes a value that may arrive as string, float64,
-// or json.Number into a plain decimal string. Returns defaultVal when v is nil.
-func parseDecimalString(v any, defaultVal string) string {
-	switch t := v.(type) {
-	case string:
-		return t
-	case float64:
-		return decimal.NewFromFloat(t).String()
-	case json.Number:
-		return t.String()
-	default:
-		return defaultVal
-	}
 }
 
 // BalanceErrorResponse represents an error response for balance operations.
