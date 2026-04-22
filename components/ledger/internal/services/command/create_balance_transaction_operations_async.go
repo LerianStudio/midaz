@@ -20,6 +20,7 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
@@ -307,6 +308,20 @@ func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(ctx context.Context, 
 func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput mtransaction.Transaction, validate *mtransaction.Responses, transactionStatus, action string, transactionDate time.Time, balances []*mmodel.Balance) error {
 	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+
+	// Scope protection: a transaction that targets any internal-scope
+	// balance (e.g. auto-created overdraft reserves) MUST be rejected
+	// BEFORE the transaction is published to the Redis queue. This keeps
+	// system-managed balances out of the user-initiated mutation path
+	// across every entry point (HTTP, gRPC, DSL).
+	for _, b := range balances {
+		if b != nil && b.Settings != nil && b.Settings.BalanceScope == mmodel.BalanceScopeInternal {
+			err := pkg.ValidateBusinessError(constant.ErrDirectOperationOnInternalBalance, reflect.TypeOf(mmodel.Balance{}).Name(), b.Alias)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Rejected transaction targeting internal balance alias=%s key=%s", b.Alias, b.Key))
+
+			return err
+		}
+	}
 
 	utils.SanitizeAccountAliases(&transactionInput)
 

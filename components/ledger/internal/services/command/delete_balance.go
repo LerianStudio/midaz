@@ -12,6 +12,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 
 	// DeleteBalance delete balance in the repository.
@@ -31,6 +32,18 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance on repo by id", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balance: %v", err))
+
+		return err
+	}
+
+	// Scope protection: internal-scope balances are managed exclusively by
+	// the system (e.g. overdraft reserves) and cannot be deleted via the
+	// public API. This guard runs BEFORE the funds-check so the caller
+	// receives the specific 0169 code instead of a generic validation.
+	if balance != nil && balance.Settings != nil && balance.Settings.BalanceScope == mmodel.BalanceScopeInternal {
+		err = pkg.ValidateBusinessError(constant.ErrDeletionOfInternalBalance, "DeleteBalance")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Internal-scope balance cannot be deleted", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error deleting internal balance: %v", err))
 
 		return err
 	}
