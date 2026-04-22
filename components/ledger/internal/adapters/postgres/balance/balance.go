@@ -6,6 +6,7 @@ package balance
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -29,6 +30,9 @@ type BalancePostgreSQLModel struct {
 	AccountType    string
 	AllowSending   bool
 	AllowReceiving bool
+	Direction      string          `db:"direction"`
+	OverdraftUsed  decimal.Decimal `db:"overdraft_used"`
+	Settings       []byte          `db:"settings"`
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	DeletedAt      sql.NullTime
@@ -49,8 +53,18 @@ func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 		AccountType:    balance.AccountType,
 		AllowSending:   balance.AllowSending,
 		AllowReceiving: balance.AllowReceiving,
+		Direction:      balance.Direction,
+		OverdraftUsed:  balance.OverdraftUsed,
 		CreatedAt:      balance.CreatedAt,
 		UpdatedAt:      balance.UpdatedAt,
+	}
+
+	if balance.Settings != nil {
+		// json.Marshal cannot fail for BalanceSettings: it contains only
+		// JSON-safe primitives (string, bool, *string). We intentionally
+		// discard the error and leave b.Settings as nil on the (impossible)
+		// failure path, matching the existing behavior for a nil Settings.
+		b.Settings, _ = json.Marshal(balance.Settings)
 	}
 
 	if libCommons.IsNilOrEmpty(&balance.Key) {
@@ -86,8 +100,17 @@ func (b *BalancePostgreSQLModel) ToEntity() *mmodel.Balance {
 		AccountType:    b.AccountType,
 		AllowSending:   b.AllowSending,
 		AllowReceiving: b.AllowReceiving,
+		Direction:      b.Direction,
+		OverdraftUsed:  b.OverdraftUsed,
 		CreatedAt:      b.CreatedAt,
 		UpdatedAt:      b.UpdatedAt,
+	}
+
+	if len(b.Settings) > 0 {
+		var settings mmodel.BalanceSettings
+		if err := json.Unmarshal(b.Settings, &settings); err == nil {
+			balance.Settings = &settings
+		}
 	}
 
 	return balance
