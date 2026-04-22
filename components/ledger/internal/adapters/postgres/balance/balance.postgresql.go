@@ -48,6 +48,9 @@ var balanceColumnList = []string{
 	"updated_at",
 	"deleted_at",
 	"key",
+	"direction",
+	"overdraft_used",
+	"settings",
 }
 
 // Repository provides an interface for operations related to balance template entities.
@@ -156,6 +159,9 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 			record.UpdatedAt,
 			record.DeletedAt,
 			record.Key,
+			record.Direction,
+			record.OverdraftUsed,
+			record.Settings,
 		).
 		Suffix("RETURNING " + strings.Join(balanceColumnList, ", ")).
 		PlaceholderFormat(squirrel.Dollar)
@@ -191,6 +197,9 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 		&created.UpdatedAt,
 		&created.DeletedAt,
 		&created.Key,
+		&created.Direction,
+		&created.OverdraftUsed,
+		&created.Settings,
 	); err != nil {
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute insert query", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to execute insert query", libLog.Err(err))
@@ -268,6 +277,9 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 			&balance.UpdatedAt,
 			&balance.DeletedAt,
 			&balance.Key,
+			&balance.Direction,
+			&balance.OverdraftUsed,
+			&balance.Settings,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -363,6 +375,9 @@ func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 			&balance.UpdatedAt,
 			&balance.DeletedAt,
 			&balance.Key,
+			&balance.Direction,
+			&balance.OverdraftUsed,
+			&balance.Settings,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
@@ -473,6 +488,9 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 			&balance.UpdatedAt,
 			&balance.DeletedAt,
 			&balance.Key,
+			&balance.Direction,
+			&balance.OverdraftUsed,
+			&balance.Settings,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -603,6 +621,9 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 			&balance.UpdatedAt,
 			&balance.DeletedAt,
 			&balance.Key,
+			&balance.Direction,
+			&balance.OverdraftUsed,
+			&balance.Settings,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -711,6 +732,9 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 			&balance.UpdatedAt,
 			&balance.DeletedAt,
 			&balance.Key,
+			&balance.Direction,
+			&balance.OverdraftUsed,
+			&balance.Settings,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -821,6 +845,9 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 			&balance.UpdatedAt,
 			&balance.DeletedAt,
 			&balance.Key,
+			&balance.Direction,
+			&balance.OverdraftUsed,
+			&balance.Settings,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to scan row", libLog.Err(err))
@@ -842,6 +869,11 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 }
 
 // BalancesUpdate updates the balances in the database.
+//
+// Note: this method intentionally persists only available, on_hold, and version.
+// overdraft_used is not synced here yet — it will be added once the cache script
+// is extended to track overdraft_used per balance. Until then, overdraft_used
+// remains whatever was last written by Create or a dedicated overdraft update path.
 func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -994,6 +1026,9 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&balance.UpdatedAt,
 		&balance.DeletedAt,
 		&balance.Key,
+		&balance.Direction,
+		&balance.OverdraftUsed,
+		&balance.Settings,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
@@ -1049,6 +1084,9 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 			   account_type,
 			   allow_sending,
 			   allow_receiving,
+			   direction,
+			   overdraft_used,
+			   settings,
 			   created_at,
 			   updated_at,
 			   deleted_at
@@ -1077,6 +1115,9 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 		&balance.AccountType,
 		&balance.AllowSending,
 		&balance.AllowReceiving,
+		&balance.Direction,
+		&balance.OverdraftUsed,
+		&balance.Settings,
 		&balance.CreatedAt,
 		&balance.UpdatedAt,
 		&balance.DeletedAt,
@@ -1348,7 +1389,7 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL` +
-		` RETURNING id, organization_id, ledger_id, account_id, alias, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at, deleted_at, key`
+		` RETURNING id, organization_id, ledger_id, account_id, alias, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at, deleted_at, key, direction, overdraft_used, settings`
 
 	record := &BalancePostgreSQLModel{}
 
@@ -1370,6 +1411,9 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 		&record.UpdatedAt,
 		&record.DeletedAt,
 		&record.Key,
+		&record.Direction,
+		&record.OverdraftUsed,
+		&record.Settings,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
@@ -1402,6 +1446,11 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 // Note: this method uses raw SQL instead of Squirrel because UPDATE ... FROM (VALUES ...)
 // is a PostgreSQL-specific extension that Squirrel's Update builder does not support.
 // Wrapping it in squirrel.Expr would add complexity without benefit.
+//
+// Note: this method intentionally persists only available, on_hold, and version.
+// overdraft_used is not synced here yet — it will be added once the cache script
+// is extended to track overdraft_used per balance. Until then, overdraft_used
+// remains whatever was last written by Create or a dedicated overdraft update path.
 func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
 	if len(balances) == 0 {
 		return 0, nil
@@ -1651,6 +1700,9 @@ func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organ
 			&balance.UpdatedAt,
 			&balance.DeletedAt,
 			&balance.Key,
+			&balance.Direction,
+			&balance.OverdraftUsed,
+			&balance.Settings,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
