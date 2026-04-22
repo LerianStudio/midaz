@@ -25,6 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -535,6 +536,17 @@ func (r *balanceAtomicResponse) UnmarshalJSON(data []byte) error {
 
 // balanceRedisToBalance converts a BalanceRedis (Lua/cache format) to a Balance (domain model),
 // enriching it with fields from the mapBalances lookup that are not stored in Redis.
+//
+// Overdraft fields (Direction, OverdraftUsed, Settings) are propagated from the
+// BalanceRedis payload so downstream consumers (sync worker, history writer)
+// observe the post-Lua state computed atomically in the cache. OverdraftUsed is
+// parsed from its decimal-string cache representation; on parse failure we fall
+// back to zero (matching the safe default the Lua script uses on missing
+// fields) rather than corrupting the domain value.
+//
+// A non-nil BalanceSettings is materialized when any of the overdraft settings
+// fields is non-default, preserving backwards compatibility with legacy
+// balances that have no Settings payload.
 func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel.Balance) *mmodel.Balance {
 	mapBalance, ok := mapBalances[b.Alias]
 	if !ok {
@@ -544,6 +556,37 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 	balanceKey := mapBalance.Key
 	if balanceKey == "" {
 		balanceKey = constant.DefaultBalanceKey
+	}
+
+	// OverdraftUsed is stored as a decimal string in the Lua/Redis layer.
+	// An unparseable value is treated as zero to match the Lua fallback
+	// rather than corrupting the domain model with an arbitrary number.
+	overdraftUsed, err := decimal.NewFromString(b.OverdraftUsed)
+	if err != nil {
+		overdraftUsed = decimal.Zero
+	}
+
+	// Synthesize Settings only when at least one field diverges from the
+	// defaults. This preserves nil Settings for legacy balances that never
+	// had custom configuration, avoiding spurious non-nil snapshots in the
+	// history pipeline.
+	var settings *mmodel.BalanceSettings
+	if b.AllowOverdraft != 0 || b.OverdraftLimitEnabled != 0 ||
+		(b.BalanceScope != "" && b.BalanceScope != mmodel.BalanceScopeTransactional) ||
+		(b.OverdraftLimit != "" && b.OverdraftLimit != "0") {
+		settings = &mmodel.BalanceSettings{
+			BalanceScope:          b.BalanceScope,
+			AllowOverdraft:        b.AllowOverdraft == 1,
+			OverdraftLimitEnabled: b.OverdraftLimitEnabled == 1,
+		}
+		// Only expose OverdraftLimit when the limit is actively enforced.
+		// Settings.Validate() requires OverdraftLimit to be nil whenever
+		// OverdraftLimitEnabled is false, and the cache carries "0" as a
+		// placeholder for legacy/unused entries.
+		if b.OverdraftLimitEnabled == 1 && b.OverdraftLimit != "" {
+			limit := b.OverdraftLimit
+			settings.OverdraftLimit = &limit
+		}
 	}
 
 	return &mmodel.Balance{
@@ -560,6 +603,9 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 		AssetCode:      mapBalance.AssetCode,
 		OrganizationID: mapBalance.OrganizationID,
 		LedgerID:       mapBalance.LedgerID,
+		Direction:      b.Direction,
+		OverdraftUsed:  overdraftUsed,
+		Settings:       settings,
 		CreatedAt:      mapBalance.CreatedAt,
 		UpdatedAt:      mapBalance.UpdatedAt,
 	}
@@ -567,8 +613,10 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 
 // luaArgsPerOperation is the number of ARGV entries appended per balance
 // operation. It must match the stride used in the Lua script's parsing loop
-// (balance_atomic_operation.lua: `for i = 2, #ARGV, groupSize do`).
-const luaArgsPerOperation = 17
+// (balance_atomic_operation.lua: `for i = 1, #ARGV, groupSize do`).
+//
+// Layout: 17 base fields + 6 overdraft fields = 23 total.
+const luaArgsPerOperation = 23
 
 func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.Context, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*balanceAtomicOperationPlan, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -601,9 +649,35 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 			return nil, err
 		}
 
-		// Each group of luaArgsPerOperation (17) values maps to one iteration
-		// of the Lua script's `for i = 2, #ARGV, groupSize` loop.
-		// See: scripts/balance_atomic_operation.lua lines 256-300.
+		// Flatten optional per-balance settings into primitive ARGV values.
+		// When Settings is nil (legacy balances), defaults are used:
+		// overdraft disabled, limit disabled, zero limit, transactional scope.
+		allowOverdraft := 0
+		overdraftLimitEnabled := 0
+		overdraftLimit := "0"
+		balanceScope := mmodel.BalanceScopeTransactional
+
+		if blcs.Balance.Settings != nil {
+			if blcs.Balance.Settings.AllowOverdraft {
+				allowOverdraft = 1
+			}
+
+			if blcs.Balance.Settings.OverdraftLimitEnabled {
+				overdraftLimitEnabled = 1
+			}
+
+			if blcs.Balance.Settings.OverdraftLimit != nil {
+				overdraftLimit = *blcs.Balance.Settings.OverdraftLimit
+			}
+
+			if blcs.Balance.Settings.BalanceScope != "" {
+				balanceScope = blcs.Balance.Settings.BalanceScope
+			}
+		}
+
+		// Each group of luaArgsPerOperation (23) values maps to one iteration
+		// of the Lua script's `for i = 1, #ARGV, groupSize` loop.
+		// See: scripts/balance_atomic_operation.lua.
 		plan.args = append(plan.args,
 			prefixedInternalKey,        // ARGV[i+0]  → redisBalanceKey
 			isPending,                  // ARGV[i+1]  → isPending
@@ -622,6 +696,12 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 			boolToInt(blcs.Balance.AllowSending),        // ARGV[i+14] → balance.AllowSending    (cache-only)
 			boolToInt(blcs.Balance.AllowReceiving),      // ARGV[i+15] → balance.AllowReceiving  (cache-only)
 			blcs.Balance.Key,                            // ARGV[i+16] → balance.Key             (cache-only)
+			blcs.Balance.Direction,                      // ARGV[i+17] → balance.Direction
+			blcs.Balance.OverdraftUsed.String(),         // ARGV[i+18] → balance.OverdraftUsed
+			allowOverdraft,                              // ARGV[i+19] → balance.AllowOverdraft (0/1)
+			overdraftLimitEnabled,                       // ARGV[i+20] → balance.OverdraftLimitEnabled (0/1)
+			overdraftLimit,                              // ARGV[i+21] → balance.OverdraftLimit
+			balanceScope,                                // ARGV[i+22] → balance.BalanceScope
 		)
 
 		plan.mapBalances[blcs.Alias] = blcs.Balance
@@ -652,8 +732,28 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 // Lua error codes emitted by balance_atomic_operation.lua:
 //   - "0018" → ErrInsufficientFunds (negative available on non-external, or positive on external CREDIT)
 //   - "0098" → ErrOnHoldExternalAccount (external account used in pending source)
-//   - "0061" → ErrTransactionBackupCacheRetrievalFailed (balance key vanished mid-script)
+//   - "0139" → ErrTransactionBackupCacheRetrievalFailed (balance key vanished mid-script)
+//   - "0167" → ErrOverdraftLimitExceeded (transaction would push usage past the configured limit)
+//   - "0175" → ErrStaleBalanceVersion (balance changed between Go read and Lua execution)
+//
+// Ordering note: more specific codes ("0167", "0175") are matched before the
+// generic "0018" insufficient-funds branch so that a single error string like
+// "0167" is not misclassified by loose substring matching.
 func mapBalanceAtomicScriptError(span trace.Span, err error) error {
+	if strings.Contains(err.Error(), constant.ErrOverdraftLimitExceeded.Error()) {
+		mappedErr := pkg.ValidateBusinessError(constant.ErrOverdraftLimitExceeded, "validateBalance")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft limit exceeded", mappedErr)
+
+		return mappedErr
+	}
+
+	if strings.Contains(err.Error(), constant.ErrStaleBalanceVersion.Error()) {
+		mappedErr := pkg.ValidateBusinessError(constant.ErrStaleBalanceVersion, "validateBalance")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Stale balance version detected", mappedErr)
+
+		return mappedErr
+	}
+
 	if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed run lua script on redis", mappedErr)
