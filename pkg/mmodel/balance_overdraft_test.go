@@ -105,7 +105,7 @@ func TestCreateAdditionalBalance_HasOverdraftFields(t *testing.T) {
 }
 
 // TestUpdateBalance_HasSettingsField verifies the update payload exposes
-// Settings (optional). Direction is immutable after creation per PRD §4, so
+// Settings (optional). Direction is immutable after creation, so
 // UpdateBalance must NOT expose Direction.
 func TestUpdateBalance_HasSettingsField(t *testing.T) {
 	t.Parallel()
