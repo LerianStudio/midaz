@@ -34,6 +34,7 @@ import (
 func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
 	balances []*mmodel.Balance,
+	balancesAfter []*mmodel.Balance,
 	fromTo []mtransaction.FromTo,
 	transactionInput mtransaction.Transaction,
 	tran transaction.Transaction,
@@ -59,6 +60,26 @@ func (handler *TransactionHandler) BuildOperations(
 		span.SetAttributes(attribute.Bool("app.route_validation_enabled", true))
 	}
 
+	// Index Lua's authoritative post-mutation balances by `alias#key` so we
+	// can resolve the "balance after" side of each Operation record directly
+	// instead of recomputing it via OperateBalances. This is what keeps
+	// operation records in sync with the balance table when the Lua
+	// overdraft branch floors a credit balance at zero — without this,
+	// `available_balance_after` carries the naive `before - amount` arithmetic
+	// (e.g. `50 - 100 = -50`) while the DB balance itself shows 0. The map
+	// is nil-tolerant: legacy callers (replay path in bootstrap/redis.consumer.go)
+	// that cannot supply `balancesAfter` fall back to OperateBalances
+	// gracefully.
+	afterByAliasKey := make(map[string]*mmodel.Balance, len(balancesAfter))
+
+	for _, b := range balancesAfter {
+		if b == nil {
+			continue
+		}
+
+		afterByAliasKey[b.Alias+"#"+b.Key] = b
+	}
+
 	// Track aliases that already had double-entry operations built, so we skip
 	// the second Lua before-balance for the same source account.
 	processedDoubleEntry := make(map[string]bool)
@@ -77,6 +98,16 @@ func (handler *TransactionHandler) BuildOperations(
 					logger.Log(ctx, libLog.LevelWarn, "Failed to validate balance", libLog.Err(err))
 
 					return nil, nil, err
+				}
+
+				// Prefer the Lua-authoritative after-state when available —
+				// it correctly reflects the overdraft floor-at-zero and any
+				// OverdraftUsed repayment decrement that the naive
+				// OperateBalances path above cannot model.
+				if after, ok := afterByAliasKey[blc.Alias+"#"+blc.Key]; ok && after != nil {
+					bat.Available = after.Available
+					bat.OnHold = after.OnHold
+					bat.Version = after.Version
 				}
 
 				if ops, handled, err := handler.tryBuildDoubleEntryOps(
@@ -775,7 +806,48 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
+	// Scope protection on the CREATE path: SendTransactionToRedisQueue above
+	// runs with nil balances (the queue seed precedes GetBalances), so its
+	// built-in scope guard is a no-op for user-created transactions. Re-check
+	// here now that balances are loaded. Rejecting a direct operation on an
+	// internal-scope balance BEFORE enrichment runs keeps the companion
+	// balance isolated from client-initiated mutations.
+	if err := rejectInternalScopeBalances(ctx, balances); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rejected transaction targeting internal-scope balance", err)
+		logger.Log(ctx, libLog.LevelWarn, "Rejected transaction targeting internal-scope balance", libLog.Err(err))
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+
+		return http.WithError(c, err)
+	}
+
 	balanceOps := buildBalanceOperations(ctx, params.OrganizationID, params.LedgerID, validate, balances)
+
+	// Overdraft enrichment: when a source debit exceeds available funds on a
+	// credit-direction balance with AllowOverdraft=true, append a debit op on
+	// the companion #overdraft balance for the deficit. See
+	// transaction_overdraft_enrichment.go for the full rationale. Disabled
+	// balances and out-of-scope operations fall through as a no-op so legacy
+	// transaction flows remain untouched.
+	//
+	// `companionFromTos` are returned so the caller can splice them into the
+	// `fromTo` slice built below; without this, BuildOperations' match loop
+	// never emits an Operation record for the companion balance and the
+	// audit trail is missing the overdraft leg (DB balances still converge
+	// correctly, but `response.operations` and Postgres `operation` rows do
+	// not include the companion).
+	balanceOps, companionFromTos, err := enrichOverdraftOperations(ctx, params.OrganizationID, params.LedgerID, balanceOps,
+		validate, handler.Query.GetBalances)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to enrich overdraft operations", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to enrich overdraft operations", libLog.Err(err))
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+
+		return http.WithError(c, err)
+	}
 
 	routeCache, err := handler.Query.ValidateAccountingRules(ctx, params.OrganizationID, params.LedgerID, balanceOps, validate, action)
 	if err != nil {
@@ -816,6 +888,15 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		fromTo = append(fromTo, to...)
 	}
 
+	// Splice the enrichment-produced companion FromTo entries into the slice
+	// BEFORE BuildOperations runs. Each companion carries an AccountAlias in
+	// concat form ("<i>#@alias#overdraft") that matches the Lua-returned
+	// `balance.Alias`, so the `balances × fromTo` loop in BuildOperations
+	// now emits one Operation record per companion balance mutation. This
+	// is the audit-trail half of the enrichment contract; the balance-state
+	// half is handled by the enrichment engine up above.
+	fromTo = append(fromTo, companionFromTos...)
+
 	amount := transactionInput.Send.Value
 
 	tran := &transaction.Transaction{
@@ -838,7 +919,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		},
 	}
 
-	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action)
+	operations, _, err := handler.BuildOperations(ctx, balancesBefore, balancesAfter, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build operations", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to build operations", libLog.Err(err))
@@ -851,8 +932,15 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
-	tran.Source = getAliasWithoutKey(validate.Sources)
-	tran.Destination = getAliasWithoutKey(validate.Destinations)
+	// The companion overdraft balances participate in the transaction at the
+	// ledger layer but are NOT user-facing sources or destinations — they are
+	// system-managed liability ledgers. Filter them out of the alias-key
+	// lists before stripping `#key` so `tran.Source` / `tran.Destination`
+	// reflect only the client-submitted accounts (and do not produce duplicates
+	// like `[@alice, @alice]` when the companion's bare alias collapses to
+	// the same value after the strip).
+	tran.Source = getAliasWithoutKey(filterCompanionAliases(validate.Sources))
+	tran.Destination = getAliasWithoutKey(filterCompanionAliases(validate.Destinations))
 	tran.Operations = operations
 
 	handler.Command.UpdateTransactionBackupOperations(ctx, params.OrganizationID, params.LedgerID, transactionID.String(), operations, action)

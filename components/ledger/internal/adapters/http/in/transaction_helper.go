@@ -82,6 +82,36 @@ func getAliasWithoutKey(array []string) []string {
 	return result
 }
 
+// filterCompanionAliases removes alias-key entries that target the system-
+// managed overdraft companion balance (key == "overdraft"). These companions
+// are added to `validate.Sources` / `validate.Destinations` by the enrichment
+// engine so ValidateBalancesRules sees consistent counts, but they MUST NOT
+// appear in the user-facing `tran.Source` / `tran.Destination` lists —
+// otherwise the response would show duplicate aliases (the bare alias is
+// identical to the default balance's bare alias) and leak the existence of
+// a system-managed ledger into the client API contract.
+func filterCompanionAliases(aliases []string) []string {
+	if len(aliases) == 0 {
+		return aliases
+	}
+
+	out := make([]string, 0, len(aliases))
+
+	for _, a := range aliases {
+		// Alias format produced by AliasKey/CalculateTotal is
+		// "<alias>#<balanceKey>"; a missing "#" means the entry is already
+		// bare (defensive path) — pass it through unchanged.
+		idx := strings.LastIndex(a, "#")
+		if idx >= 0 && a[idx+1:] == constant.OverdraftBalanceKey {
+			continue
+		}
+
+		out = append(out, a)
+	}
+
+	return out
+}
+
 // balanceRef holds a pre-computed balance reference for O(1) lookup by aliasKey.
 type balanceRef struct {
 	balance     *mmodel.Balance
