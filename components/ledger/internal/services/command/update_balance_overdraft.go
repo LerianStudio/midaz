@@ -182,6 +182,14 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		return nil
 	}
 
+	// The companion balance participates as BOTH a source (DEBIT grows the
+	// liability when the credit balance overdraws) and a destination (CREDIT
+	// shrinks the liability when the overdraft is repaid). Both flags are
+	// therefore true. Direct user access is blocked by the scope guard at
+	// SendTransactionToRedisQueue (BalanceScope=internal → 0168), so leaving
+	// AllowSending=true does NOT expose the companion to client-initiated
+	// transactions — only the system enrichment engine can route operations
+	// onto it.
 	overdraftBalance := &mmodel.Balance{
 		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		OrganizationID: current.OrganizationID,
@@ -191,7 +199,7 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		Key:            constant.OverdraftBalanceKey,
 		AssetCode:      current.AssetCode,
 		AccountType:    current.AccountType,
-		AllowSending:   false,
+		AllowSending:   true,
 		AllowReceiving: true,
 		Direction:      constant.DirectionDebit,
 		OverdraftUsed:  decimal.Zero,
