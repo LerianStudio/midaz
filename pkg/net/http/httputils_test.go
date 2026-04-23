@@ -1067,6 +1067,15 @@ func TestValidateParameters_NewFilterFields(t *testing.T) {
 			expectedKey:    nil,
 		},
 		{
+			name:           "asset_code filter is case-insensitive (lowercased input becomes uppercase)",
+			params:         map[string]string{"asset_code": "usd"},
+			expectedStatus: nil,
+			expectedType:   nil,
+			expectedAsset:  ptr("USD"),
+			expectedEntity: nil,
+			expectedKey:    nil,
+		},
+		{
 			name:           "entity_id filter parsed correctly",
 			params:         map[string]string{"entity_id": "123e4567-e89b-12d3-a456-426614174000"},
 			expectedStatus: nil,

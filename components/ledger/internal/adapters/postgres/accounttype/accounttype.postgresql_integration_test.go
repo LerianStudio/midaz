@@ -377,7 +377,7 @@ func TestIntegration_AccountTypeRepository_FindAll_ReturnsAccountTypes(t *testin
 	ctx := context.Background()
 
 	// Act
-	accountTypes, _, err := repo.FindAll(ctx, orgID, ledgerID, defaultPagination())
+	accountTypes, _, err := repo.FindAll(ctx, orgID, ledgerID, defaultQueryHeader())
 
 	// Assert
 	require.NoError(t, err, "FindAll should not return error")
@@ -395,7 +395,7 @@ func TestIntegration_AccountTypeRepository_FindAll_EmptyForNonExistentLedger(t *
 	ctx := context.Background()
 
 	// Act
-	accountTypes, _, err := repo.FindAll(ctx, orgID, nonExistentLedgerID, defaultPagination())
+	accountTypes, _, err := repo.FindAll(ctx, orgID, nonExistentLedgerID, defaultQueryHeader())
 
 	// Assert
 	require.NoError(t, err, "should not error for empty result")
@@ -424,7 +424,7 @@ func TestIntegration_AccountTypeRepository_FindAll_Pagination(t *testing.T) {
 	ctx := context.Background()
 
 	// Test 1: Limit is respected
-	limitFilter := http.Pagination{
+	limitFilter := http.QueryHeader{
 		Limit:     2,
 		SortOrder: "DESC",
 		StartDate: time.Now().AddDate(-1, 0, 0),
@@ -437,7 +437,7 @@ func TestIntegration_AccountTypeRepository_FindAll_Pagination(t *testing.T) {
 	assert.NotEmpty(t, cur.Next, "should have next cursor when more items exist")
 
 	// Test 2: Can retrieve all items with higher limit
-	allFilter := http.Pagination{
+	allFilter := http.QueryHeader{
 		Limit:     10,
 		SortOrder: "DESC",
 		StartDate: time.Now().AddDate(-1, 0, 0),
@@ -468,7 +468,7 @@ func TestIntegration_AccountTypeRepository_FindAll_FiltersByDateRange(t *testing
 	ctx := context.Background()
 
 	// Act 1: Query with past-only window (should return 0 items)
-	pastFilter := http.Pagination{
+	pastFilter := http.QueryHeader{
 		Limit:     10,
 		SortOrder: "DESC",
 		StartDate: time.Now().AddDate(0, 0, -10),
@@ -479,7 +479,7 @@ func TestIntegration_AccountTypeRepository_FindAll_FiltersByDateRange(t *testing
 	assert.Empty(t, accountTypesPast, "past-only window should return 0 items")
 
 	// Act 2: Query with today's window (should return 1 item)
-	todayFilter := http.Pagination{
+	todayFilter := http.QueryHeader{
 		Limit:     10,
 		SortOrder: "DESC",
 		StartDate: time.Now().AddDate(0, 0, -1),
@@ -701,8 +701,8 @@ func TestIntegration_AccountTypeRepository_Delete_AllowsReusingSameKeyValue(t *t
 // Helpers
 // ============================================================================
 
-func defaultPagination() http.Pagination {
-	return http.Pagination{
+func defaultQueryHeader() http.QueryHeader {
+	return http.QueryHeader{
 		Limit:     10,
 		SortOrder: "DESC",
 		StartDate: time.Now().AddDate(-1, 0, 0), // 1 year ago

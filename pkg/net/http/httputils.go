@@ -36,6 +36,7 @@ type QueryHeader struct {
 	StartDate                           time.Time
 	EndDate                             time.Time
 	UseMetadata                         bool
+	EntityIDs                           []uuid.UUID
 	PortfolioID                         string
 	SegmentID                           string
 	OperationType                       string
@@ -228,7 +229,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			v := strings.ToUpper(value)
 			status = &v
 		case key == "asset_code":
-			assetCode = &value
+			v := strings.ToUpper(value)
+			assetCode = &v
 		case key == "entity_id":
 			entityID = &value
 		case key == "key_value":

@@ -55,7 +55,9 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	portfolios, err := uc.PortfolioRepo.ListByIDs(ctx, organizationID, ledgerID, uuids)
+	filter.EntityIDs = uuids
+
+	portfolios, err := uc.PortfolioRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())

@@ -5076,6 +5076,12 @@
             "in": "query"
           },
           {
+            "type": "string",
+            "description": "Filter portfolios by status",
+            "name": "status",
+            "in": "query"
+          },
+          {
             "maximum": 100,
             "minimum": 1,
             "type": "integer",

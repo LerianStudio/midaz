@@ -177,7 +177,7 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 //	@Param			sort_order			query		string																	false	"Sort direction for results based on creation date"	Enums(asc,desc)
 //	@Param			legal_name			query		string																	false	"Filter organizations by legal name (case-insensitive, prefix match)"	maxLength(256)
 //	@Param			doing_business_as	query		string																	false	"Filter organizations by doing business as name (case-insensitive, prefix match)"	maxLength(256)
-//	@Param			status				query		string																	false	"Filter organizations by status"	Enums(ACTIVE, INACTIVE)
+//	@Param			status				query		string																	false	"Filter organizations by status"
 //	@Param			legal_document		query		string																	false	"Filter organizations by legal document (exact match)"
 //	@Success		200					{object}	http.Pagination{items=[]mmodel.Organization}	"Successfully retrieved organizations list"
 //	@Failure		400					{object}	mmodel.Error															"Invalid query parameters"
@@ -200,17 +200,6 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
-	}
-
-	if headerParams.Status != nil {
-		validStatuses := map[string]bool{"ACTIVE": true, "INACTIVE": true}
-		if !validStatuses[*headerParams.Status] {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityOrganization, "status")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid status value", err)
-
-			return http.WithError(c, err)
-		}
 	}
 
 	recordSafeQueryAttributes(span, headerParams)

@@ -435,6 +435,11 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
 
+	// Filter by entity IDs when provided (metadata composition)
+	if len(filter.EntityIDs) > 0 {
+		findAll = findAll.Where(squirrel.Expr("id = ANY(?)", pq.Array(filter.EntityIDs)))
+	}
+
 	if !libCommons.IsNilOrEmpty(filter.KeyValue) {
 		findAll = findAll.Where(squirrel.Expr("key_value = ?", strings.ToLower(*filter.KeyValue)))
 	}

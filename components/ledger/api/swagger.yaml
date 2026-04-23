@@ -81,10 +81,7 @@ paths:
           prefix match)
         name: doing_business_as
         in: query
-      - enum:
-        - ACTIVE
-        - INACTIVE
-        type: string
+      - type: string
         description: Filter organizations by status
         name: status
         in: query
@@ -410,10 +407,7 @@ paths:
         description: Filter ledgers by name (case-insensitive, prefix match)
         name: name
         in: query
-      - enum:
-        - ACTIVE
-        - INACTIVE
-        type: string
+      - type: string
         description: Filter ledgers by status
         name: status
         in: query
@@ -1220,11 +1214,7 @@ paths:
           and segment_id are provided, both filters are applied (AND semantics).
         name: segment_id
         in: query
-      - enum:
-        - ACTIVE
-        - INACTIVE
-        - BLOCKED
-        type: string
+      - type: string
         description: Filter accounts by status
         name: status
         in: query
@@ -3466,6 +3456,10 @@ paths:
       - type: string
         description: Filter portfolios by entity ID
         name: entity_id
+        in: query
+      - type: string
+        description: Filter portfolios by status
+        name: status
         in: query
       - maximum: 100
         minimum: 1

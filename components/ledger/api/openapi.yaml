@@ -88,9 +88,6 @@ paths:
         in: query
         name: status
         schema:
-          enum:
-          - ACTIVE
-          - INACTIVE
           type: string
       - description: Filter organizations by legal document (exact match)
         in: query
@@ -489,9 +486,6 @@ paths:
         in: query
         name: status
         schema:
-          enum:
-          - ACTIVE
-          - INACTIVE
           type: string
       responses:
         "200":
@@ -1474,10 +1468,6 @@ paths:
         in: query
         name: status
         schema:
-          enum:
-          - ACTIVE
-          - INACTIVE
-          - BLOCKED
           type: string
       - description: Filter accounts by type (e.g., deposit, savings, external)
         in: query
@@ -4176,6 +4166,11 @@ paths:
       - description: Filter portfolios by entity ID
         in: query
         name: entity_id
+        schema:
+          type: string
+      - description: Filter portfolios by status
+        in: query
+        name: status
         schema:
           type: string
       - description: Maximum number of records to return per page

@@ -545,9 +545,9 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// OrganizationRepo.ListByIDs returns the organizations
+				// OrganizationRepo.FindAll returns the organizations
 				orgRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Organization{
 						{
 							ID:            org1ID,
@@ -620,9 +620,9 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// OrganizationRepo.ListByIDs returns not found error
+				// OrganizationRepo.FindAll returns not found error
 				orgRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any()).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())).
 					Times(1)
 			},

@@ -295,6 +295,11 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 		Offset(libCommons.SafeIntToUint64((pagination.Page - 1) * pagination.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
+	// Filter by entity IDs when provided (metadata composition)
+	if len(filter.EntityIDs) > 0 {
+		findAll = findAll.Where(squirrel.Expr("id = ANY(?)", pq.Array(filter.EntityIDs)))
+	}
+
 	if filter.Name != nil && *filter.Name != "" {
 		sanitized := http.EscapeSearchMetacharacters(*filter.Name)
 		findAll = findAll.Where(

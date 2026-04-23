@@ -279,8 +279,17 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 		Offset(libCommons.SafeIntToUint64((pagination.Page - 1) * pagination.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
+	// Filter by entity IDs when provided (metadata composition)
+	if len(filter.EntityIDs) > 0 {
+		findAll = findAll.Where(squirrel.Expr("id = ANY(?)", pq.Array(filter.EntityIDs)))
+	}
+
 	if !libCommons.IsNilOrEmpty(filter.EntityID) {
 		findAll = findAll.Where(squirrel.Expr("entity_id = ?", *filter.EntityID))
+	}
+
+	if !libCommons.IsNilOrEmpty(filter.Status) {
+		findAll = findAll.Where(squirrel.Expr("status = ?", *filter.Status))
 	}
 
 	query, args, err := findAll.ToSql()

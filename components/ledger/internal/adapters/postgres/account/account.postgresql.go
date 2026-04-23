@@ -261,6 +261,11 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		findAll = findAll.Where(squirrel.Expr("segment_id = ?", *segmentID))
 	}
 
+	// Filter by entity IDs when provided (metadata composition)
+	if len(filter.EntityIDs) > 0 {
+		findAll = findAll.Where(squirrel.Expr("id = ANY(?)", pq.Array(filter.EntityIDs)))
+	}
+
 	// Apply account-specific filters (status, type, asset_code, entity_id, blocked, parent_account_id)
 	if !libCommons.IsNilOrEmpty(filter.Status) {
 		findAll = findAll.Where(squirrel.Expr("status = ?", *filter.Status))

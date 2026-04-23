@@ -610,9 +610,9 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// LedgerRepo.ListByIDs returns the ledgers
+				// LedgerRepo.FindAll returns the ledgers
 				ledgerRepo.EXPECT().
-					ListByIDs(gomock.Any(), orgID, gomock.Any()).
+					FindAll(gomock.Any(), orgID, gomock.Any()).
 					Return([]*mmodel.Ledger{
 						{
 							ID:             ledger1ID,
@@ -685,9 +685,9 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// LedgerRepo.ListByIDs returns not found error
+				// LedgerRepo.FindAll returns not found error
 				ledgerRepo.EXPECT().
-					ListByIDs(gomock.Any(), orgID, gomock.Any()).
+					FindAll(gomock.Any(), orgID, gomock.Any()).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())).
 					Times(1)
 			},

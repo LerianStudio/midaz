@@ -59,8 +59,9 @@ type Repository interface {
 	// Returns ErrEntityNotFound when no matching record exists.
 	Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error)
 
-	// FindAll returns a paginated list of organizations matching the optional name filters.
+	// FindAll returns a paginated list of organizations matching the optional filters.
 	// Both legalName and doingBusinessAs perform case-insensitive prefix matching.
+	// When filter.EntityIDs is non-empty, results are restricted to those IDs (for metadata composition).
 	FindAll(ctx context.Context, filter http.QueryHeader) ([]*mmodel.Organization, error)
 
 	// ListByIDs returns organizations whose IDs are in the provided slice, excluding soft-deleted records.
@@ -421,6 +422,11 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 		Limit(libCommons.SafeIntToUint64(pagination.Limit)).
 		Offset(libCommons.SafeIntToUint64((pagination.Page - 1) * pagination.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
+
+	// Filter by entity IDs when provided (metadata composition)
+	if len(filter.EntityIDs) > 0 {
+		findAll = findAll.Where(squirrel.Expr("id = ANY(?)", pq.Array(filter.EntityIDs)))
+	}
 
 	if filter.LegalName != nil && *filter.LegalName != "" {
 		sanitized := http.EscapeSearchMetacharacters(*filter.LegalName)

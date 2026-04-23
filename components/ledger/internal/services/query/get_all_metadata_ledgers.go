@@ -55,7 +55,9 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	ledgers, err := uc.LedgerRepo.ListByIDs(ctx, organizationID, uuids)
+	filter.EntityIDs = uuids
+
+	ledgers, err := uc.LedgerRepo.FindAll(ctx, organizationID, filter)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())

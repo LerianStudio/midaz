@@ -125,10 +125,6 @@ const docTemplate = `
             "in": "query"
           },
           {
-            "enum": [
-              "ACTIVE",
-              "INACTIVE"
-            ],
             "type": "string",
             "description": "Filter organizations by status",
             "name": "status",
@@ -608,10 +604,6 @@ const docTemplate = `
             "in": "query"
           },
           {
-            "enum": [
-              "ACTIVE",
-              "INACTIVE"
-            ],
             "type": "string",
             "description": "Filter ledgers by status",
             "name": "status",
@@ -1784,11 +1776,6 @@ const docTemplate = `
             "in": "query"
           },
           {
-            "enum": [
-              "ACTIVE",
-              "INACTIVE",
-              "BLOCKED"
-            ],
             "type": "string",
             "description": "Filter accounts by status",
             "name": "status",
@@ -5097,6 +5084,12 @@ const docTemplate = `
             "type": "string",
             "description": "Filter portfolios by entity ID",
             "name": "entity_id",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter portfolios by status",
+            "name": "status",
             "in": "query"
           },
           {
