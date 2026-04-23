@@ -189,6 +189,17 @@ local function cloneBalance(tbl)
     return copy
 end
 
+-- min_decimal returns the smaller of two decimal strings. Implemented via
+-- sub_decimal so the caller does not need a numeric coercion step — this
+-- keeps the precision behavior identical to add_decimal/sub_decimal for
+-- values that overflow Lua's double representation.
+local function min_decimal(a, b)
+    if startsWithMinus(sub_decimal(a, b)) then
+        return a
+    end
+    return b
+end
+
 local function updateTransactionHash(transactionBackupQueue, transactionKey, balances, balancesAfter)
     local transaction
 
@@ -441,6 +452,39 @@ local function main()
         -- pre-mutation snapshot is cloned into `returnBalances`, so the
         -- "before" snapshot faithfully reflects the state the caller read.
         local newOverdraftUsed = balance.OverdraftUsed
+
+        -- Overdraft repayment: a credit that arrives on a direction=credit
+        -- balance with outstanding OverdraftUsed repays the overdraft first
+        -- before growing Available. This mirrors the debit path in reverse:
+        -- the deficit is paid down, and only the remainder increases the
+        -- account holder's spendable balance.
+        --
+        -- The companion balance's Available is decremented in lock-step by a
+        -- sibling CREDIT op queued by the Go enrichment layer
+        -- (transaction_overdraft_enrichment.go:buildCompanionCreditOp). The
+        -- stale-version check below keeps Go's repayAmount in sync with
+        -- Lua's authoritative decrement — if they disagree (e.g. a
+        -- concurrent transaction already reduced OverdraftUsed), the whole
+        -- batch rolls back with 0175 so the caller re-reads state and
+        -- retries with a consistent split.
+        if operation == "CREDIT" and not isDebitDirection and
+            balance.AccountType ~= "external" and
+            isPositive(balance.OverdraftUsed) then
+            if balance.Version ~= incomingVersion then
+                rollback(rollbackBalances, ttl)
+                return redis.error_reply("0175")
+            end
+
+            local repay = min_decimal(amount, balance.OverdraftUsed)
+
+            newOverdraftUsed = sub_decimal(balance.OverdraftUsed, repay)
+            -- `result` was already computed as balance.Available + amount
+            -- by the direction-aware block above. Subtract the repayment
+            -- portion to expose just the remainder that flows into
+            -- Available; the repayment itself leaves Available untouched
+            -- because it goes toward paying down OverdraftUsed.
+            result = sub_decimal(result, repay)
+        end
 
         if startsWithMinus(result) and balance.AccountType ~= "external" then
             -- Direction-aware overdraft: credit-direction balances with
