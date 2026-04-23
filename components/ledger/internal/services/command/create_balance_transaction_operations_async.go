@@ -148,6 +148,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	}
 
 	go uc.SendTransactionEvents(ctx, tran)
+	go uc.SendOverdraftEvents(ctx, tran)
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: cleaning up transaction %s after successful processing", tran.ID))
 
