@@ -316,3 +316,111 @@ func TestUpdateBalanceCacheSettings_NilSettingsResetsToDefaults(t *testing.T) {
 		"OverdraftUsed is not a settings field and must survive a nil-settings reset")
 	assert.Equal(t, int64(1), written.Version)
 }
+
+// TestUpdateBalanceCacheSettings_WritesLuaCompatibleCasing pins the invariant
+// that the cache JSON produced by the Go-side settings rewrite uses CamelCase
+// field names (AllowOverdraft, OverdraftLimit, …) to match what the Lua
+// atomic script emits via cjson.encode and reads via balance.<Field>.
+//
+// Lua table access is case-sensitive: a camelCase field name (allowOverdraft)
+// would yield `balance.AllowOverdraft == nil` on the next cjson.decode, and
+// arithmetic helpers that touch the balance would explode with
+// "attempt to compare nil with number" in scripts/balance_atomic_operation.lua.
+// The regression reproduced end-to-end as a 500 on the first overdraft-enabled
+// debit after a settings PATCH.
+//
+// This test also covers the cleanup of legacy camelCase keys left behind by
+// pre-fix writers: writing a second time must produce exactly one casing for
+// each field so Lua never sees a stale duplicate.
+func TestUpdateBalanceCacheSettings_WritesLuaCompatibleCasing(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	// Seed the cache with a legacy document that has the camelCase spellings
+	// emitted by the pre-fix code path, mixed with CamelCase transactional
+	// state the Lua script would have written. The rewrite must converge
+	// both to a single, Lua-native CamelCase key per field.
+	legacy := map[string]any{
+		"ID":                    "balance-id",
+		"Alias":                 "@alice",
+		"Key":                   "default",
+		"AccountID":             "account-id",
+		"AssetCode":             "USD",
+		"Available":             "100",
+		"OnHold":                "0",
+		"Version":               3,
+		"AccountType":           "deposit",
+		"AllowSending":          1,
+		"AllowReceiving":        1,
+		"Direction":             "credit",
+		"OverdraftUsed":         "0",
+		// Legacy camelCase keys from a pre-fix Go writer that must be dropped.
+		"allowOverdraft":        0,
+		"overdraftLimitEnabled": 0,
+		"overdraftLimit":        "0",
+		"balanceScope":          "transactional",
+	}
+	legacyJSON, err := json.Marshal(legacy)
+	require.NoError(t, err)
+
+	expectedKey := "balance:{transactions}:" +
+		organizationID.String() + ":" + ledgerID.String() + ":@alice#default"
+
+	stub := &settingsUpdateStubClient{
+		getResponses: map[string]struct {
+			val string
+			err error
+		}{
+			expectedKey: {val: string(legacyJSON)},
+		},
+	}
+
+	rr := &RedisConsumerRepository{conn: &staticRedisProvider{client: stub}}
+
+	limit := "500.00"
+	err = rr.UpdateBalanceCacheSettings(context.Background(), organizationID, ledgerID, "@alice#default",
+		&mmodel.BalanceSettings{
+			BalanceScope:          mmodel.BalanceScopeTransactional,
+			AllowOverdraft:        true,
+			OverdraftLimitEnabled: true,
+			OverdraftLimit:        &limit,
+		})
+	require.NoError(t, err)
+
+	require.Len(t, stub.setCalls, 1)
+	raw, ok := stub.setCalls[0].Value.(string)
+	require.True(t, ok)
+
+	// Decode into a generic map so we can assert exact JSON keys — the
+	// CamelCase-vs-camelCase distinction is invisible through BalanceRedis
+	// because Go's json.Unmarshal matches struct fields case-insensitively.
+	var written map[string]any
+	require.NoError(t, json.Unmarshal([]byte(raw), &written))
+
+	// Lua-native CamelCase keys MUST be present with the new values.
+	assert.EqualValues(t, 1, written["AllowOverdraft"],
+		"AllowOverdraft must use CamelCase so the Lua script can read it")
+	assert.EqualValues(t, 1, written["OverdraftLimitEnabled"],
+		"OverdraftLimitEnabled must use CamelCase so the Lua script can read it")
+	assert.Equal(t, "500.00", written["OverdraftLimit"],
+		"OverdraftLimit must use CamelCase so the Lua script can read it")
+	assert.Equal(t, mmodel.BalanceScopeTransactional, written["BalanceScope"],
+		"BalanceScope must use CamelCase so the Lua script can read it")
+
+	// Legacy camelCase keys MUST be purged so Lua never sees a stale duplicate
+	// alongside the fresh CamelCase write.
+	for _, legacyKey := range []string{"allowOverdraft", "overdraftLimitEnabled", "overdraftLimit", "balanceScope"} {
+		_, present := written[legacyKey]
+		assert.False(t, present, "legacy camelCase key %q must be removed from the cache document", legacyKey)
+	}
+
+	// Identity + transactional state MUST be preserved under their existing
+	// CamelCase spellings. These fields pass through the rewrite untouched.
+	assert.Equal(t, "balance-id", written["ID"])
+	assert.Equal(t, "credit", written["Direction"])
+	assert.Equal(t, "100", written["Available"])
+	assert.Equal(t, "0", written["OverdraftUsed"])
+	assert.EqualValues(t, 3, written["Version"])
+}

@@ -1438,6 +1438,20 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 	return balance, nil
 }
 
+// luaBalanceSettingKey deletes every legacy alias for a cached balance settings
+// field so the subsequent authoritative write carries exactly one key per
+// field. The first argument is the Lua-native CamelCase key that the atomic
+// script reads; the variadic arguments enumerate camelCase / legacy spellings
+// that must be dropped from the map to avoid duplicate keys in the JSON
+// document (Go encoders emit both which Lua then sees twice).
+func luaBalanceSettingKey(m map[string]any, primary string, aliases ...string) {
+	delete(m, primary)
+
+	for _, alias := range aliases {
+		delete(m, alias)
+	}
+}
+
 // balanceCacheSettingsTTL matches the TTL the balance atomic Lua script applies
 // to each cached balance key (`local ttl = 3600 -- 1 hour` in
 // scripts/balance_atomic_operation.lua). Keeping the two in lock-step ensures
@@ -1505,7 +1519,21 @@ func (rr *RedisConsumerRepository) UpdateBalanceCacheSettings(ctx context.Contex
 		return err
 	}
 
-	var cached mmodel.BalanceRedis
+	// The cache payload is primed by the Lua atomic script
+	// (scripts/balance_atomic_operation.lua), which uses cjson.encode() on a
+	// table with CamelCase keys (ID, Available, Direction, AllowOverdraft, …).
+	// Lua table access is case-sensitive, so if we re-marshal through
+	// mmodel.BalanceRedis — whose struct tags are camelCase — the subsequent
+	// cjson.decode in the script would see `balance.Available == nil`,
+	// `balance.Direction == nil`, and blow up in arithmetic helpers with
+	// "attempt to compare nil with number".
+	//
+	// To avoid that incompatibility we work on an untyped map: Go's case-
+	// insensitive unmarshal handles legacy cache entries in either casing,
+	// and we write back using the Lua-native CamelCase keys. Any stale
+	// camelCase duplicates from a buggy earlier writer are removed so the
+	// cache carries a single authoritative key per field.
+	var cached map[string]any
 	if err := json.Unmarshal([]byte(val), &cached); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to unmarshal cached balance for settings update", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to unmarshal cached balance for settings update", libLog.Err(err))
@@ -1516,34 +1544,44 @@ func (rr *RedisConsumerRepository) UpdateBalanceCacheSettings(ctx context.Contex
 	// Only settings fields are mutated. Available, OnHold, Version,
 	// OverdraftUsed, and identity fields (ID, Alias, Key, AssetCode, etc.)
 	// remain untouched so any in-flight transactional state is preserved.
+	//
+	// For each managed field we drop every camelCase variant produced by
+	// earlier (pre-fix) writers before setting the Lua-native CamelCase
+	// key. Keeping both casings in the same document would let Lua read
+	// a stale value while Go reads the fresh one.
+	luaBalanceSettingKey(cached, "AllowOverdraft", "allowOverdraft", "allowoverdraft")
+	luaBalanceSettingKey(cached, "OverdraftLimitEnabled", "overdraftLimitEnabled", "overdraftlimitenabled")
+	luaBalanceSettingKey(cached, "OverdraftLimit", "overdraftLimit", "overdraftlimit")
+	luaBalanceSettingKey(cached, "BalanceScope", "balanceScope", "balancescope")
+
 	if settings != nil {
-		cached.AllowOverdraft = boolToInt(settings.AllowOverdraft)
-		cached.OverdraftLimitEnabled = boolToInt(settings.OverdraftLimitEnabled)
+		cached["AllowOverdraft"] = boolToInt(settings.AllowOverdraft)
+		cached["OverdraftLimitEnabled"] = boolToInt(settings.OverdraftLimitEnabled)
 
 		// OverdraftLimit pointer-to-string: overwrite when provided, otherwise
 		// reset to the Lua-compatible "0" placeholder to mirror the behaviour
 		// of buildBalanceAtomicOperationPlan for disabled/unset limits.
 		if settings.OverdraftLimit != nil {
-			cached.OverdraftLimit = *settings.OverdraftLimit
+			cached["OverdraftLimit"] = *settings.OverdraftLimit
 		} else {
-			cached.OverdraftLimit = "0"
+			cached["OverdraftLimit"] = "0"
 		}
 
 		if settings.BalanceScope != "" {
-			cached.BalanceScope = settings.BalanceScope
+			cached["BalanceScope"] = settings.BalanceScope
 		} else {
-			cached.BalanceScope = mmodel.BalanceScopeTransactional
+			cached["BalanceScope"] = mmodel.BalanceScopeTransactional
 		}
 	} else {
 		// A nil settings payload means: reset to defaults. Matches the Lua
 		// plan-builder's zero-state for balances without Settings.
-		cached.AllowOverdraft = 0
-		cached.OverdraftLimitEnabled = 0
-		cached.OverdraftLimit = "0"
-		cached.BalanceScope = mmodel.BalanceScopeTransactional
+		cached["AllowOverdraft"] = 0
+		cached["OverdraftLimitEnabled"] = 0
+		cached["OverdraftLimit"] = "0"
+		cached["BalanceScope"] = mmodel.BalanceScopeTransactional
 	}
 
-	data, err := json.Marshal(&cached)
+	data, err := json.Marshal(cached)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to marshal updated cached balance", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to marshal updated cached balance", libLog.Err(err))
