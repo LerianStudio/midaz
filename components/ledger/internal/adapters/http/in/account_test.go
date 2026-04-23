@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 	"time"
 
@@ -413,7 +412,7 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 				// AccountRepo.FindAll returns not found error
 				accountRepo.EXPECT().
 					FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrNoAccountsFound, cn.EntityAccount)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -545,7 +544,7 @@ func TestAccountHandler_GetAccountByID(t *testing.T) {
 			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, accountID uuid.UUID) {
 				accountRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, cn.EntityAccount)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -684,7 +683,7 @@ func TestAccountHandler_GetAccountExternalByCode(t *testing.T) {
 			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				accountRepo.EXPECT().
 					FindAlias(gomock.Any(), orgID, ledgerID, gomock.Nil(), "@external/UNKNOWN").
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountAliasNotFound, cn.EntityAccount)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -820,7 +819,7 @@ func TestAccountHandler_GetAccountByAlias(t *testing.T) {
 			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				accountRepo.EXPECT().
 					FindAlias(gomock.Any(), orgID, ledgerID, gomock.Nil(), "@unknown").
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountAliasNotFound, cn.EntityAccount)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -998,7 +997,7 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 				// First find returns not found
 				accountRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, cn.EntityAccount)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -1041,7 +1040,7 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 				// Retrieval fails
 				accountRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, cn.EntityAccount)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -1182,7 +1181,7 @@ func TestAccountHandler_DeleteAccountByID(t *testing.T) {
 			setupMocks: func(accountRepo *account.MockRepository, balancePort *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID) {
 				accountRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, cn.EntityAccount)).
 					Times(1)
 			},
 			expectedStatus: 404,

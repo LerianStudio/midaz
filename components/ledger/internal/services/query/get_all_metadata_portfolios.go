@@ -37,7 +37,7 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 		return nil, err
 	}
 
-	if metadata == nil {
+	if len(metadata) == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No metadata found", err)
