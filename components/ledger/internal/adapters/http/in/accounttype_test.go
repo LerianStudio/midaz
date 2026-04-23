@@ -623,9 +623,9 @@ func TestHandler_GetAllAccountTypes(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// AccountTypeRepo.ListByIDs returns the account types
+				// AccountTypeRepo.FindAll returns the account types
 				accountTypeRepo.EXPECT().
-					ListByIDs(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
 					Return([]*mmodel.AccountType{
 						{
 							ID:             accountType1ID,
@@ -645,7 +645,7 @@ func TestHandler_GetAllAccountTypes(t *testing.T) {
 							CreatedAt:      time.Now(),
 							UpdatedAt:      time.Now(),
 						},
-					}, nil).
+					}, libHTTP.CursorPagination{}, nil).
 					Times(1)
 			},
 			expectedStatus: 200,

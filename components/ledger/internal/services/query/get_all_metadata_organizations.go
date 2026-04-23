@@ -37,7 +37,7 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter http.
 		return nil, err
 	}
 
-	if metadata == nil {
+	if len(metadata) == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No metadata found", err)
@@ -55,7 +55,9 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter http.
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	organizations, err := uc.OrganizationRepo.ListByIDs(ctx, uuids)
+	filter.EntityIDs = uuids
+
+	organizations, err := uc.OrganizationRepo.FindAll(ctx, filter)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())

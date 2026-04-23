@@ -56,7 +56,9 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	accountTypes, err := uc.AccountTypeRepo.ListByIDs(ctx, organizationID, ledgerID, uuids)
+	filter.EntityIDs = uuids
+
+	accountTypes, _, err := uc.AccountTypeRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())

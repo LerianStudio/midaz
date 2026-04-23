@@ -37,7 +37,7 @@ func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, led
 		return nil, err
 	}
 
-	if metadata == nil {
+	if len(metadata) == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrNoAssetsFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No metadata found", err)

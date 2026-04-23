@@ -5,7 +5,7 @@ import "github.com/swaggo/swag"
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "v3.6.0",
+	Version:          "v3.7.0",
 	Host:             "localhost:3002",
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},
@@ -36,7 +36,7 @@ const docTemplate = `
       "name": "Apache 2.0",
       "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v3.6.0"
+    "version": "v3.7.0"
   },
   "host": "localhost:3002",
   "basePath": "/",
@@ -122,6 +122,18 @@ const docTemplate = `
             "type": "string",
             "description": "Filter organizations by doing business as name (case-insensitive, prefix match)",
             "name": "doing_business_as",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter organizations by status",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter organizations by legal document (exact match)",
+            "name": "legal_document",
             "in": "query"
           }
         ],
@@ -589,6 +601,12 @@ const docTemplate = `
             "type": "string",
             "description": "Filter ledgers by name (case-insensitive, prefix match)",
             "name": "name",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter ledgers by status",
+            "name": "status",
             "in": "query"
           }
         ],
@@ -1229,6 +1247,12 @@ const docTemplate = `
             "in": "query"
           },
           {
+            "type": "string",
+            "description": "Filter account types by key value",
+            "name": "key_value",
+            "in": "query"
+          },
+          {
             "type": "integer",
             "description": "Limit of account types per page (default: 10, max: 100)",
             "name": "limit",
@@ -1749,6 +1773,61 @@ const docTemplate = `
             "format": "uuid",
             "description": "Filter accounts by segment ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics).",
             "name": "segment_id",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter accounts by status",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter accounts by type (e.g., deposit, savings, external)",
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter accounts by asset code (e.g., USD, BRL, EUR)",
+            "name": "asset_code",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter accounts by entity ID",
+            "name": "entity_id",
+            "in": "query"
+          },
+          {
+            "enum": [
+              true,
+              false
+            ],
+            "type": "boolean",
+            "description": "Filter accounts by blocked status",
+            "name": "blocked",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Filter accounts by parent account ID (UUID format)",
+            "name": "parent_account_id",
+            "in": "query"
+          },
+          {
+            "maxLength": 256,
+            "type": "string",
+            "description": "Filter accounts by name (case-insensitive, prefix match)",
+            "name": "name",
+            "in": "query"
+          },
+          {
+            "maxLength": 256,
+            "type": "string",
+            "description": "Filter accounts by alias (case-insensitive, prefix match)",
+            "name": "alias",
             "in": "query"
           }
         ],
@@ -4999,6 +5078,18 @@ const docTemplate = `
             "type": "string",
             "description": "JSON string to filter portfolios by metadata fields",
             "name": "metadata",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter portfolios by entity ID",
+            "name": "entity_id",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter portfolios by status",
+            "name": "status",
             "in": "query"
           },
           {

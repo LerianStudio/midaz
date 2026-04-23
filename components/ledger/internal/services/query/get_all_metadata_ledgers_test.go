@@ -49,7 +49,7 @@ func TestGetAllMetadataLedgers(t *testing.T) {
 						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
 					}, nil)
 				mockLedgerRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Ledger{
 						{ID: validUUID.String(), Name: "Test Ledger", Status: mmodel.Status{Code: "active"}},
 					}, nil)
@@ -70,10 +70,81 @@ func TestGetAllMetadataLedgers(t *testing.T) {
 						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
 					}, nil)
 				mockLedgerRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("database error"))
 			},
 			expectErr:      true,
+			expectedResult: nil,
+		},
+		{
+			name:           "Success - Metadata filter combined with status filter",
+			organizationID: uuid.New(),
+			filter: http.QueryHeader{
+				UseMetadata: true,
+				Status:      func() *string { s := "ACTIVE"; return &s }(),
+			},
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: validUUID.String(), Data: map[string]any{"region": "LATAM"}},
+					}, nil)
+				// entityIDs AND status filter are both passed to FindAll
+				mockLedgerRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mmodel.Ledger{
+						{ID: validUUID.String(), Name: "LATAM Ledger", Status: mmodel.Status{Code: "ACTIVE"}},
+					}, nil)
+			},
+			expectErr:      false,
+			expectedResult: nil,
+		},
+		{
+			name:           "Success - Metadata filter combined with name filter",
+			organizationID: uuid.New(),
+			filter: http.QueryHeader{
+				UseMetadata: true,
+				Name:        func() *string { s := "Main"; return &s }(),
+			},
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: validUUID.String(), Data: map[string]any{"purpose": "operations"}},
+					}, nil)
+				mockLedgerRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mmodel.Ledger{
+						{ID: validUUID.String(), Name: "Main Ledger", Status: mmodel.Status{Code: "ACTIVE"}},
+					}, nil)
+			},
+			expectErr:      false,
+			expectedResult: nil,
+		},
+		{
+			name:           "Success - Metadata filter combined with multiple filters (status + name)",
+			organizationID: uuid.New(),
+			filter: http.QueryHeader{
+				UseMetadata: true,
+				Status:      func() *string { s := "ACTIVE"; return &s }(),
+				Name:        func() *string { s := "Production"; return &s }(),
+			},
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: validUUID.String(), Data: map[string]any{"env": "prod"}},
+					}, nil)
+				mockLedgerRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mmodel.Ledger{
+						{ID: validUUID.String(), Name: "Production Ledger", Status: mmodel.Status{Code: "ACTIVE"}},
+					}, nil)
+			},
+			expectErr:      false,
 			expectedResult: nil,
 		},
 	}
