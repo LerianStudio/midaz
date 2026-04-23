@@ -108,6 +108,24 @@ func (handler *TransactionHandler) BuildOperations(
 					bat.Available = after.Available
 					bat.OnHold = after.OnHold
 					bat.Version = after.Version
+
+					// Clip the Operation record's amount to the ACTUAL
+					// movement on this balance. Without overdraft the
+					// movement equals the requested amount; with
+					// overdraft, Lua redirects part of it onto the
+					// companion balance (a separate Operation record with
+					// its own amount), so the primary op's "amount"
+					// field should reflect only what really moved on
+					// this balance. This preserves double-entry across
+					// the enriched record set:
+					//   sum(primary.amount, companion.amount) == requested amount
+					// Pre-fix, the primary recorded the full requested
+					// amount AND the companion recorded the redirected
+					// portion, so sum(debits) > sum(credits) and the
+					// audit trail broke. See regression: operation row
+					// for overdraft debit split showing amount=100 while
+					// the default balance only moved 50.
+					amt.Value = effectiveOperationAmount(amt, blc.Available, after.Available, blc.OnHold, after.OnHold)
 				}
 
 				if ops, handled, err := handler.tryBuildDoubleEntryOps(
@@ -249,6 +267,63 @@ func findRouteInActionCache(actionCache mmodel.ActionRouteCache, routeID string)
 	}
 
 	return mmodel.OperationRouteCache{}, false
+}
+
+// effectiveOperationAmount returns the amount that should be recorded on a
+// standard Operation record when the Lua-authoritative after-state differs
+// from the naive "before − requested amount" arithmetic. The only case
+// where this happens today is the overdraft engine redirecting part of a
+// debit/credit onto the companion balance:
+//
+//   - Debit split: source.default goes from 50 → 0 for a requested debit of
+//     100 (the remaining 50 is debited onto the companion's Available via a
+//     separate, enrichment-produced Operation record). The primary
+//     Operation record's `amount` should be 50, not 100, so that
+//     `sum(debits) == sum(credits)` across the enriched record set.
+//   - Credit repayment: destination.default goes from 0 → 30 for a
+//     requested credit of 80 because the first 50 repaid outstanding
+//     overdraft (recorded as a CREDIT on the companion). The primary
+//     Operation record's `amount` should be 30.
+//
+// For every non-overdraft operation the |Available delta| + |OnHold delta|
+// equals the requested amount, so the clip is a no-op — the function is
+// safe to call on every operation. Direction-aware arithmetic does not
+// need special handling here: what matters is the absolute movement on the
+// balance, which is always non-negative.
+//
+// Returns the smaller of the requested amount and the observed movement,
+// so a balance that somehow moves MORE than the requested amount (a bug
+// that should not exist) never retroactively inflates the Operation
+// amount — we keep the request as the upper bound and surface the anomaly
+// via the balance vs. operation divergence in downstream reconciliation.
+func effectiveOperationAmount(
+	amt mtransaction.Amount,
+	beforeAvailable, afterAvailable, beforeOnHold, afterOnHold decimal.Decimal,
+) decimal.Decimal {
+	availableDelta := beforeAvailable.Sub(afterAvailable).Abs()
+	onHoldDelta := beforeOnHold.Sub(afterOnHold).Abs()
+
+	// Available and OnHold deltas are additive for the PENDING/COMMIT/CANCEL
+	// transaction-type flow (a PENDING entry moves amount from Available
+	// into OnHold; both deltas individually equal the amount, so adding
+	// them would double-count). Use the max instead — it matches the
+	// requested amount on every non-overdraft path and only shrinks in
+	// the overdraft redirect case (where OnHold is untouched and only
+	// Available shrinks by the non-redirected portion).
+	movement := availableDelta
+	if onHoldDelta.GreaterThan(movement) {
+		movement = onHoldDelta
+	}
+
+	// Upper-bound at the requested amount. A movement greater than the
+	// requested amount would indicate a ledger bug (e.g. Lua applied more
+	// than it was asked to); we do not want the Operation record to
+	// silently inflate in that case.
+	if movement.GreaterThan(amt.Value) {
+		return amt.Value
+	}
+
+	return movement
 }
 
 // zeroAnnotationBalances zeroes out the Available, OnHold, and Version fields of the
