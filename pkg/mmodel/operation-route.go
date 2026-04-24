@@ -57,10 +57,11 @@ type AccountingEntries struct {
 	Cancel *AccountingEntry `json:"cancel,omitempty" msgpack:"cancel"`
 	// The accounting entry for the revert action.
 	Revert *AccountingEntry `json:"revert,omitempty" msgpack:"revert"`
-	// The accounting entry for the overdraft action. Requires BOTH debit and credit rubrics when present.
+	// The accounting entry for the overdraft lifecycle. Debit rubric classifies
+	// overdraft usage (deficit grows); credit rubric classifies overdraft
+	// repayment (deficit shrinks). Both rubrics are REQUIRED when this entry
+	// is present.
 	Overdraft *AccountingEntry `json:"overdraft,omitempty" msgpack:"overdraft"`
-	// The accounting entry for the refund action. Requires BOTH debit and credit rubrics when present.
-	Refund *AccountingEntry `json:"refund,omitempty" msgpack:"refund"`
 } // @name AccountingEntries
 
 // Actions returns the action names for which this AccountingEntries has non-nil entries.
@@ -93,10 +94,6 @@ func (ae *AccountingEntries) Actions() []string {
 
 	if ae.Overdraft != nil {
 		actions = append(actions, constant.ActionOverdraft)
-	}
-
-	if ae.Refund != nil {
-		actions = append(actions, constant.ActionRefund)
 	}
 
 	return actions

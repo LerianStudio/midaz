@@ -194,28 +194,24 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 		}
 
 		// Companion operations (BalanceKey = "overdraft") are emitted by
-		// the enrichment engine and represent the OVERDRAFT/REFUND leg of
-		// the transaction. They share the primary's RouteID but must
-		// resolve their rubric through the `overdraft` or `refund`
-		// AccountingEntry — not the top-level transaction action. This
-		// mirrors the hold/commit/cancel pattern where a single routeID
-		// drives multiple action-specific rubric lookups.
+		// the enrichment engine and represent the overdraft leg of the
+		// transaction. They share the primary's RouteID but must resolve
+		// their rubric through the `overdraft` AccountingEntry — not the
+		// top-level transaction action. This mirrors the hold/commit/cancel
+		// pattern where a single routeID drives multiple action-specific
+		// rubric lookups.
 		//
-		// Selection rule:
-		//   - DEBIT on overdraft balance → ActionOverdraft rubric
-		//   - CREDIT on overdraft balance → ActionRefund rubric
-		// (The enrichment engine only emits DEBIT on overdraft (deficit)
-		// and CREDIT on overdraft (refund repayment), so the direction
-		// unambiguously selects the action.)
+		// Both DEBIT (overdraft usage — deficit grows) and CREDIT
+		// (repayment — deficit shrinks) on the overdraft balance resolve
+		// to ActionOverdraft. The direction-based rubric selection
+		// (Debit vs Credit) happens inside resolveAccountingRubric via
+		// op.Direction. The enrichment engine sets Direction="credit" on
+		// repayment companions so the resolver picks Overdraft.Credit
+		// without special-casing here.
 		resolvedAction := action
 
 		if op.BalanceKey == constant.OverdraftBalanceKey {
-			switch strings.ToLower(op.Direction) {
-			case constant.DirectionDebit:
-				resolvedAction = constant.ActionOverdraft
-			case constant.DirectionCredit:
-				resolvedAction = constant.ActionRefund
-			}
+			resolvedAction = constant.ActionOverdraft
 		}
 
 		actionCache, ok := cache.Actions[resolvedAction]
@@ -266,8 +262,6 @@ func resolveAccountingRubric(entries *mmodel.AccountingEntries, action, directio
 		entry = entries.Revert
 	case constant.ActionOverdraft:
 		entry = entries.Overdraft
-	case constant.ActionRefund:
-		entry = entries.Refund
 	}
 
 	if entry == nil {

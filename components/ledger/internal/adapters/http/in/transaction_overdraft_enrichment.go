@@ -494,6 +494,11 @@ func collectOverdraftRefundSplits(balanceOps []mmodel.BalanceOperation) []overdr
 // overdraft is repaid first, then the remainder (if any) lands on the
 // default balance via the primary op.
 //
+// Direction is set to "credit" (the operation semantics — this is a
+// repayment), NOT the balance direction ("debit"). This ensures that
+// downstream rubric resolution (resolveAccountingRubric) picks
+// Overdraft.Credit without special-casing in the resolver.
+//
 // Alias shape: same positional-prefix convention as the debit path (see
 // buildCompanionDebitOp) — uses the destination op's index so that
 // `BuildOperations` can match the companion balance against the companion
@@ -502,7 +507,7 @@ func buildCompanionCreditOp(organizationID, ledgerID uuid.UUID, r overdraftRefun
 	companionAmount := r.destination.Amount
 	companionAmount.Value = r.repayAmount
 	companionAmount.Operation = libConstants.CREDIT
-	companionAmount.Direction = constant.DirectionDebit
+	companionAmount.Direction = constant.DirectionCredit
 
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID,
 		companion.Alias+"#"+companion.Key)

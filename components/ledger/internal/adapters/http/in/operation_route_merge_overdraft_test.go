@@ -12,15 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestMergeAccountingEntries_OverdraftRefundPreservation verifies that the RFC 7396
-// merge function preserves existing Overdraft and Refund entries when a PATCH body
-// updates an unrelated field (e.g., Direct). Without explicit handling of these
-// fields, existing Overdraft/Refund entries are silently dropped, causing data loss.
-//
-// Defect: mergeAccountingEntries historically handled only 5 fields (Direct, Hold,
-// Commit, Cancel, Revert). The AccountingEntries struct has 7 fields (adding
-// Overdraft and Refund). This test protects against regression.
-func TestMergeAccountingEntries_OverdraftRefundPreservation(t *testing.T) {
+// TestMergeAccountingEntries_OverdraftPreservation verifies that the RFC 7396
+// merge function preserves existing Overdraft entries when a PATCH body
+// updates an unrelated field (e.g., Direct). Without explicit handling of
+// the Overdraft field, existing entries are silently dropped, causing data loss.
+func TestMergeAccountingEntries_OverdraftPreservation(t *testing.T) {
 	t.Parallel()
 
 	directEntry := &mmodel.AccountingEntry{
@@ -35,17 +31,9 @@ func TestMergeAccountingEntries_OverdraftRefundPreservation(t *testing.T) {
 		Debit:  &mmodel.AccountingRubric{Code: "1006", Description: "Overdraft Debit"},
 		Credit: &mmodel.AccountingRubric{Code: "2006", Description: "Overdraft Credit"},
 	}
-	refundEntry := &mmodel.AccountingEntry{
-		Debit:  &mmodel.AccountingRubric{Code: "1007", Description: "Refund Debit"},
-		Credit: &mmodel.AccountingRubric{Code: "2007", Description: "Refund Credit"},
-	}
 	newOverdraftEntry := &mmodel.AccountingEntry{
 		Debit:  &mmodel.AccountingRubric{Code: "NEW6D", Description: "New Overdraft Debit"},
 		Credit: &mmodel.AccountingRubric{Code: "NEW6C", Description: "New Overdraft Credit"},
-	}
-	newRefundEntry := &mmodel.AccountingEntry{
-		Debit:  &mmodel.AccountingRubric{Code: "NEW7D", Description: "New Refund Debit"},
-		Credit: &mmodel.AccountingRubric{Code: "NEW7C", Description: "New Refund Credit"},
 	}
 
 	tests := []struct {
@@ -56,11 +44,10 @@ func TestMergeAccountingEntries_OverdraftRefundPreservation(t *testing.T) {
 		expected   *mmodel.AccountingEntries
 	}{
 		{
-			name: "rfc7396: updating only direct preserves existing overdraft and refund",
+			name: "rfc7396: updating only direct preserves existing overdraft",
 			existing: &mmodel.AccountingEntries{
 				Direct:    directEntry,
 				Overdraft: overdraftEntry,
-				Refund:    refundEntry,
 			},
 			incoming: &mmodel.AccountingEntries{
 				Direct: newDirectEntry,
@@ -69,56 +56,42 @@ func TestMergeAccountingEntries_OverdraftRefundPreservation(t *testing.T) {
 			expected: &mmodel.AccountingEntries{
 				Direct:    newDirectEntry,
 				Overdraft: overdraftEntry,
-				Refund:    refundEntry,
 			},
 		},
 		{
-			name: "rfc7396: incoming overdraft and refund are applied to merged result",
+			name: "rfc7396: incoming overdraft is applied to merged result",
 			existing: &mmodel.AccountingEntries{
 				Direct: directEntry,
 			},
 			incoming: &mmodel.AccountingEntries{
 				Overdraft: newOverdraftEntry,
-				Refund:    newRefundEntry,
 			},
-			rawUpdates: `{"overdraft": {"debit": {"code": "NEW6D", "description": "New Overdraft Debit"}, "credit": {"code": "NEW6C", "description": "New Overdraft Credit"}}, "refund": {"debit": {"code": "NEW7D", "description": "New Refund Debit"}, "credit": {"code": "NEW7C", "description": "New Refund Credit"}}}`,
+			rawUpdates: `{"overdraft": {"debit": {"code": "NEW6D", "description": "New Overdraft Debit"}, "credit": {"code": "NEW6C", "description": "New Overdraft Credit"}}}`,
 			expected: &mmodel.AccountingEntries{
 				Direct:    directEntry,
 				Overdraft: newOverdraftEntry,
-				Refund:    newRefundEntry,
 			},
 		},
 		{
-			name: "rfc7396: explicit null removes overdraft and refund entries",
+			name: "rfc7396: explicit null removes overdraft entry",
 			existing: &mmodel.AccountingEntries{
 				Direct:    directEntry,
 				Overdraft: overdraftEntry,
-				Refund:    refundEntry,
 			},
 			incoming:   &mmodel.AccountingEntries{},
-			rawUpdates: `{"overdraft": null, "refund": null}`,
+			rawUpdates: `{"overdraft": null}`,
 			expected: &mmodel.AccountingEntries{
 				Direct:    directEntry,
 				Overdraft: nil,
-				Refund:    nil,
 			},
 		},
 		{
-			name: "rfc7396: nil-check returns nil only when all 7 fields are nil",
+			name: "rfc7396: nil-check returns nil only when all 6 fields are nil",
 			existing: &mmodel.AccountingEntries{
 				Overdraft: overdraftEntry,
 			},
 			incoming:   &mmodel.AccountingEntries{},
 			rawUpdates: `{"overdraft": null}`,
-			expected:   nil,
-		},
-		{
-			name: "rfc7396: refund-only existing removed returns nil",
-			existing: &mmodel.AccountingEntries{
-				Refund: refundEntry,
-			},
-			incoming:   &mmodel.AccountingEntries{},
-			rawUpdates: `{"refund": null}`,
 			expected:   nil,
 		},
 	}
@@ -142,18 +115,14 @@ func TestMergeAccountingEntries_OverdraftRefundPreservation(t *testing.T) {
 			assert.Equal(t, tt.expected.Cancel, result.Cancel, "Cancel mismatch")
 			assert.Equal(t, tt.expected.Revert, result.Revert, "Revert mismatch")
 			assert.Equal(t, tt.expected.Overdraft, result.Overdraft, "Overdraft mismatch")
-			assert.Equal(t, tt.expected.Refund, result.Refund, "Refund mismatch")
 		})
 	}
 }
 
-// TestMergeAccountingEntriesSimple_OverdraftRefundPreservation verifies that the
+// TestMergeAccountingEntriesSimple_OverdraftPreservation verifies that the
 // simple merge fallback (used when raw JSON is unavailable) preserves existing
-// Overdraft and Refund entries and applies incoming ones.
-//
-// Defect: mergeAccountingEntriesSimple historically handled only 5 fields,
-// silently dropping existing Overdraft/Refund entries during partial updates.
-func TestMergeAccountingEntriesSimple_OverdraftRefundPreservation(t *testing.T) {
+// Overdraft entries and applies incoming ones.
+func TestMergeAccountingEntriesSimple_OverdraftPreservation(t *testing.T) {
 	t.Parallel()
 
 	directEntry := &mmodel.AccountingEntry{
@@ -168,17 +137,9 @@ func TestMergeAccountingEntriesSimple_OverdraftRefundPreservation(t *testing.T) 
 		Debit:  &mmodel.AccountingRubric{Code: "1006", Description: "Overdraft Debit"},
 		Credit: &mmodel.AccountingRubric{Code: "2006", Description: "Overdraft Credit"},
 	}
-	refundEntry := &mmodel.AccountingEntry{
-		Debit:  &mmodel.AccountingRubric{Code: "1007", Description: "Refund Debit"},
-		Credit: &mmodel.AccountingRubric{Code: "2007", Description: "Refund Credit"},
-	}
 	newOverdraftEntry := &mmodel.AccountingEntry{
 		Debit:  &mmodel.AccountingRubric{Code: "NEW6D", Description: "New Overdraft Debit"},
 		Credit: &mmodel.AccountingRubric{Code: "NEW6C", Description: "New Overdraft Credit"},
-	}
-	newRefundEntry := &mmodel.AccountingEntry{
-		Debit:  &mmodel.AccountingRubric{Code: "NEW7D", Description: "New Refund Debit"},
-		Credit: &mmodel.AccountingRubric{Code: "NEW7C", Description: "New Refund Credit"},
 	}
 
 	tests := []struct {
@@ -188,11 +149,10 @@ func TestMergeAccountingEntriesSimple_OverdraftRefundPreservation(t *testing.T) 
 		expected *mmodel.AccountingEntries
 	}{
 		{
-			name: "simple: updating only direct preserves existing overdraft and refund",
+			name: "simple: updating only direct preserves existing overdraft",
 			existing: &mmodel.AccountingEntries{
 				Direct:    directEntry,
 				Overdraft: overdraftEntry,
-				Refund:    refundEntry,
 			},
 			incoming: &mmodel.AccountingEntries{
 				Direct: newDirectEntry,
@@ -200,7 +160,6 @@ func TestMergeAccountingEntriesSimple_OverdraftRefundPreservation(t *testing.T) 
 			expected: &mmodel.AccountingEntries{
 				Direct:    newDirectEntry,
 				Overdraft: overdraftEntry,
-				Refund:    refundEntry,
 			},
 		},
 		{
@@ -218,30 +177,14 @@ func TestMergeAccountingEntriesSimple_OverdraftRefundPreservation(t *testing.T) 
 			},
 		},
 		{
-			name: "simple: incoming refund overrides existing",
-			existing: &mmodel.AccountingEntries{
-				Direct: directEntry,
-				Refund: refundEntry,
-			},
-			incoming: &mmodel.AccountingEntries{
-				Refund: newRefundEntry,
-			},
-			expected: &mmodel.AccountingEntries{
-				Direct: directEntry,
-				Refund: newRefundEntry,
-			},
-		},
-		{
-			name:     "simple: incoming adds overdraft and refund to existing",
+			name:     "simple: incoming adds overdraft to existing",
 			existing: &mmodel.AccountingEntries{Direct: directEntry},
 			incoming: &mmodel.AccountingEntries{
 				Overdraft: newOverdraftEntry,
-				Refund:    newRefundEntry,
 			},
 			expected: &mmodel.AccountingEntries{
 				Direct:    directEntry,
 				Overdraft: newOverdraftEntry,
-				Refund:    newRefundEntry,
 			},
 		},
 	}
@@ -260,7 +203,6 @@ func TestMergeAccountingEntriesSimple_OverdraftRefundPreservation(t *testing.T) 
 			assert.Equal(t, tt.expected.Cancel, result.Cancel, "Cancel mismatch")
 			assert.Equal(t, tt.expected.Revert, result.Revert, "Revert mismatch")
 			assert.Equal(t, tt.expected.Overdraft, result.Overdraft, "Overdraft mismatch")
-			assert.Equal(t, tt.expected.Refund, result.Refund, "Refund mismatch")
 		})
 	}
 }
