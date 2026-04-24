@@ -88,6 +88,7 @@ func (uc *UseCase) SendOverdraftEvents(ctx context.Context, tran *transaction.Tr
 	if !isOverdraftEventEnabled() {
 		logger.Log(ctx, libLog.LevelInfo, "Overdraft events not enabled",
 			libLog.String("RABBITMQ_OVERDRAFT_EVENTS_ENABLED", os.Getenv("RABBITMQ_OVERDRAFT_EVENTS_ENABLED")))
+
 		return
 	}
 
