@@ -28,6 +28,7 @@ import (
 	tmredis "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/redis"
 	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
 	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
+	crmhttp "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/crm/http"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
@@ -201,6 +202,12 @@ type Config struct {
 	BalanceSyncBatchSize      int `env:"BALANCE_SYNC_BATCH_SIZE"`
 	BalanceSyncFlushTimeoutMs int `env:"BALANCE_SYNC_FLUSH_TIMEOUT_MS"`
 	BalanceSyncPollIntervalMs int `env:"BALANCE_SYNC_POLL_INTERVAL_MS"`
+
+	// --- CRM client (Phase 1: base URL only; Phase 4 adds M2M credentials) ---
+	// CRMBaseURL is the absolute URL of the CRM service's /internal/v1 routes. The
+	// account-registration saga (Phase 4) dials this URL to orchestrate holder-alias
+	// creation against an account. Default matches components/crm/docker-compose.yml.
+	CRMBaseURL string `env:"CRM_BASE_URL" envDefault:"http://midaz-crm:4003"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -322,6 +329,30 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			return nil, fmt.Errorf("TenantServiceName must not be empty when multi-tenant is enabled")
 		}
 	}
+
+	// === CRM client (Phase 1 skeleton) ===
+	// The CRM client is a forward-looking dependency of the account-registration saga
+	// (Phase 4). Wiring it here ensures that CRM_BASE_URL is validated at startup and
+	// that the circuit-breaker manager is allocated, even though no handler consumes
+	// the client yet. Every method on crmClient returns ErrCRMInternalRouteNotImplemented
+	// until CRM-side routes land in Phase 3 and the orchestrator in Phase 4.
+	crmCBManager, err := libCircuitBreaker.NewManager(logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize CRM circuit breaker manager: %w", err)
+	}
+
+	crmClient, err := crmhttp.NewClient(cfg.CRMBaseURL, crmCBManager, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize CRM client: %w", err)
+	}
+
+	// crmClient is consumed by Phase 4 (public saga orchestrator). For now, the blank
+	// identifier documents that the dependency has been constructed but not yet plumbed
+	// into the use-case layer.
+	_ = crmClient
+
+	logger.Log(context.Background(), libLog.LevelInfo, "CRM client initialized",
+		libLog.String("base_url", cfg.CRMBaseURL))
 
 	// Build internal options struct used by init functions
 	internalOpts := &Options{
