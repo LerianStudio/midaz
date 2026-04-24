@@ -38,6 +38,7 @@ func NewUnifiedServer(
 	serverAddress string,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
+	readyzHandler *ReadyzHandler,
 	routeRegistrars ...RouteRegistrar,
 ) *UnifiedServer {
 	app := fiber.New(fiber.Config{
@@ -53,11 +54,19 @@ func NewUnifiedServer(
 	app.Use(tlMid.WithTelemetry(telemetry))
 	app.Use(cors.New())
 	app.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(logger)))
+
 	// Health check for the unified server
 	app.Get("/health", libHTTP.Ping)
 
 	// Version endpoint
 	app.Get("/version", libHTTP.Version)
+
+	// Readyz endpoint - mounted BEFORE auth middleware (before route registrars)
+	// This endpoint is public and does not require authentication.
+	if readyzHandler != nil {
+		app.Get("/readyz", readyzHandler.HandleReadyz)
+		app.Get("/readyz/tenant/:id", readyzHandler.HandleReadyzTenant)
+	}
 
 	// Swagger documentation (unified onboarding + transaction)
 	app.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(

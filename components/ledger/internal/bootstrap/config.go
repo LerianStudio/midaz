@@ -50,6 +50,7 @@ type Config struct {
 	EnvName         string `env:"ENV_NAME"`
 	LogLevel        string `env:"LOG_LEVEL"`
 	Version         string `env:"VERSION"`
+	DeploymentMode  string `env:"DEPLOYMENT_MODE"`
 
 	// Server configuration - unified port for all APIs
 	ServerAddress string `env:"SERVER_ADDRESS" envDefault:":3002"`
@@ -684,12 +685,20 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
 
+	// === Readyz handler ===
+
+	readyzHandler, err := buildReadyzHandler(cfg, logger, redisConnection, onbPG, txnPG, onbMgo, txnMgo, rmq)
+	if err != nil {
+		return nil, fmt.Errorf("TLS enforcement failed: %w", err)
+	}
+
 	// === Unified server ===
 
 	unifiedServer := NewUnifiedServer(
 		cfg.ServerAddress,
 		logger,
 		telemetry,
+		readyzHandler,
 		onboardingRouteRegistrar,
 		transactionRouteRegistrar,
 		ledgerRouteRegistrar,

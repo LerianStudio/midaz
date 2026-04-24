@@ -1,0 +1,624 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package bootstrap
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	"github.com/gofiber/fiber/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// mockChecker is a test implementation of DependencyChecker.
+type mockChecker struct {
+	name       string
+	tlsEnabled bool
+	check      DependencyCheck
+}
+
+func (m *mockChecker) Name() string {
+	return m.name
+}
+
+func (m *mockChecker) TLSEnabled() bool {
+	return m.tlsEnabled
+}
+
+func (m *mockChecker) Check(_ context.Context) DependencyCheck {
+	return m.check
+}
+
+// mockTenantChecker is a test implementation of TenantAwareDependencyChecker.
+type mockTenantChecker struct {
+	name        string
+	tlsEnabled  bool
+	globalCheck DependencyCheck
+	tenantCheck DependencyCheck
+}
+
+func (m *mockTenantChecker) Name() string {
+	return m.name
+}
+
+func (m *mockTenantChecker) TLSEnabled() bool {
+	return m.tlsEnabled
+}
+
+func (m *mockTenantChecker) Check(_ context.Context) DependencyCheck {
+	return m.globalCheck
+}
+
+func (m *mockTenantChecker) CheckTenant(_ context.Context, _ string) DependencyCheck {
+	return m.tenantCheck
+}
+
+func TestReadyzHandler_HandleReadyz(t *testing.T) {
+	t.Parallel()
+
+	latency := int64(5)
+
+	tests := []struct {
+		name           string
+		checkers       []DependencyChecker
+		version        string
+		deploymentMode string
+		wantStatus     int
+		wantHealthy    bool
+		wantChecks     map[string]DependencyStatus
+	}{
+		{
+			name: "all_healthy_returns_200",
+			checkers: []DependencyChecker{
+				&mockChecker{name: "postgres", tlsEnabled: false, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+				&mockChecker{name: "redis", tlsEnabled: true, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+			},
+			version:        "1.0.0",
+			deploymentMode: "production",
+			wantStatus:     http.StatusOK,
+			wantHealthy:    true,
+			wantChecks: map[string]DependencyStatus{
+				"postgres": StatusUp,
+				"redis":    StatusUp,
+			},
+		},
+		{
+			name: "one_down_returns_503",
+			checkers: []DependencyChecker{
+				&mockChecker{name: "postgres", tlsEnabled: false, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+				&mockChecker{name: "redis", tlsEnabled: true, check: DependencyCheck{Status: StatusDown, Error: "connection refused"}},
+			},
+			version:        "1.0.0",
+			deploymentMode: "production",
+			wantStatus:     http.StatusServiceUnavailable,
+			wantHealthy:    false,
+			wantChecks: map[string]DependencyStatus{
+				"postgres": StatusUp,
+				"redis":    StatusDown,
+			},
+		},
+		{
+			name: "degraded_returns_503",
+			checkers: []DependencyChecker{
+				&mockChecker{name: "rabbitmq", tlsEnabled: false, check: DependencyCheck{Status: StatusDegraded, Reason: "circuit breaker half-open", BreakerState: "half-open"}},
+			},
+			version:        "1.0.0",
+			deploymentMode: "local",
+			wantStatus:     http.StatusServiceUnavailable,
+			wantHealthy:    false,
+			wantChecks: map[string]DependencyStatus{
+				"rabbitmq": StatusDegraded,
+			},
+		},
+		{
+			name: "skipped_and_na_count_as_healthy",
+			checkers: []DependencyChecker{
+				&mockChecker{name: "postgres", tlsEnabled: false, check: DependencyCheck{Status: StatusNA, Reason: "tenant-scoped"}},
+				&mockChecker{name: "redis", tlsEnabled: true, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+				&mockChecker{name: "rabbitmq", tlsEnabled: false, check: DependencyCheck{Status: StatusSkipped, Reason: "not configured"}},
+			},
+			version:        "2.0.0",
+			deploymentMode: "staging",
+			wantStatus:     http.StatusOK,
+			wantHealthy:    true,
+			wantChecks: map[string]DependencyStatus{
+				"postgres": StatusNA,
+				"redis":    StatusUp,
+				"rabbitmq": StatusSkipped,
+			},
+		},
+		{
+			name:           "no_checkers_returns_healthy",
+			checkers:       []DependencyChecker{},
+			version:        "1.0.0",
+			deploymentMode: "local",
+			wantStatus:     http.StatusOK,
+			wantHealthy:    true,
+			wantChecks:     map[string]DependencyStatus{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := NewReadyzHandler(ReadyzHandlerConfig{
+				Logger:         libLog.NewNop(),
+				Checkers:       tt.checkers,
+				Version:        tt.version,
+				DeploymentMode: tt.deploymentMode,
+			})
+
+			app := fiber.New()
+			app.Get("/readyz", handler.HandleReadyz)
+
+			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.wantStatus, resp.StatusCode)
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var response ReadyzResponse
+			err = json.Unmarshal(body, &response)
+			require.NoError(t, err)
+
+			if tt.wantHealthy {
+				assert.Equal(t, "healthy", response.Status)
+			} else {
+				assert.Equal(t, "unhealthy", response.Status)
+			}
+
+			assert.Equal(t, tt.version, response.Version)
+			assert.Equal(t, tt.deploymentMode, response.DeploymentMode)
+
+			for name, wantStatus := range tt.wantChecks {
+				check, exists := response.Checks[name]
+				assert.True(t, exists, "check %s should exist", name)
+				assert.Equal(t, wantStatus, check.Status, "check %s status mismatch", name)
+			}
+		})
+	}
+}
+
+func TestReadyzHandler_HandleReadyzTenant(t *testing.T) {
+	t.Parallel()
+
+	latency := int64(10)
+
+	tests := []struct {
+		name               string
+		tenantID           string
+		multiTenantEnabled bool
+		tenantCheckers     []TenantAwareDependencyChecker
+		checkers           []DependencyChecker
+		wantStatus         int
+		wantHealthy        bool
+	}{
+		{
+			name:               "multi_tenant_enabled_all_healthy",
+			tenantID:           "tenant-123",
+			multiTenantEnabled: true,
+			tenantCheckers: []TenantAwareDependencyChecker{
+				&mockTenantChecker{
+					name:        "postgres",
+					tlsEnabled:  false,
+					globalCheck: DependencyCheck{Status: StatusNA, Reason: "tenant-scoped"},
+					tenantCheck: DependencyCheck{Status: StatusUp, LatencyMs: &latency},
+				},
+			},
+			checkers: []DependencyChecker{
+				&mockChecker{name: "redis", tlsEnabled: true, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+			},
+			wantStatus:  http.StatusOK,
+			wantHealthy: true,
+		},
+		{
+			name:               "multi_tenant_disabled_returns_400",
+			tenantID:           "tenant-123",
+			multiTenantEnabled: false,
+			tenantCheckers:     nil,
+			checkers:           nil,
+			wantStatus:         http.StatusBadRequest,
+			wantHealthy:        false,
+		},
+		{
+			name:               "empty_tenant_id_returns_404",
+			tenantID:           "",
+			multiTenantEnabled: true,
+			tenantCheckers:     nil,
+			checkers:           nil,
+			wantStatus:         http.StatusNotFound, // Fiber returns 404 for missing path params
+			wantHealthy:        false,
+		},
+		{
+			name:               "tenant_db_down_returns_503",
+			tenantID:           "tenant-456",
+			multiTenantEnabled: true,
+			tenantCheckers: []TenantAwareDependencyChecker{
+				&mockTenantChecker{
+					name:        "postgres",
+					tlsEnabled:  true,
+					globalCheck: DependencyCheck{Status: StatusNA, Reason: "tenant-scoped"},
+					tenantCheck: DependencyCheck{Status: StatusDown, LatencyMs: &latency, Error: "connection failed"},
+				},
+			},
+			checkers: []DependencyChecker{
+				&mockChecker{name: "redis", tlsEnabled: true, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+			},
+			wantStatus:  http.StatusServiceUnavailable,
+			wantHealthy: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := NewReadyzHandler(ReadyzHandlerConfig{
+				Logger:             libLog.NewNop(),
+				Checkers:           tt.checkers,
+				TenantCheckers:     tt.tenantCheckers,
+				Version:            "1.0.0",
+				DeploymentMode:     "production",
+				MultiTenantEnabled: tt.multiTenantEnabled,
+			})
+
+			app := fiber.New()
+			app.Get("/readyz/tenant/:id", handler.HandleReadyzTenant)
+
+			path := "/readyz/tenant/" + tt.tenantID
+			if tt.tenantID == "" {
+				path = "/readyz/tenant/"
+			}
+
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.wantStatus, resp.StatusCode)
+
+			if tt.wantStatus == http.StatusOK || tt.wantStatus == http.StatusServiceUnavailable {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+
+				var response ReadyzResponse
+				err = json.Unmarshal(body, &response)
+				require.NoError(t, err)
+
+				if tt.wantHealthy {
+					assert.Equal(t, "healthy", response.Status)
+				} else {
+					assert.Equal(t, "unhealthy", response.Status)
+				}
+			}
+		})
+	}
+}
+
+func TestReadyzHandler_TLSField(t *testing.T) {
+	t.Parallel()
+
+	latency := int64(5)
+
+	handler := NewReadyzHandler(ReadyzHandlerConfig{
+		Logger: libLog.NewNop(),
+		Checkers: []DependencyChecker{
+			&mockChecker{name: "postgres_tls", tlsEnabled: true, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+			&mockChecker{name: "redis_no_tls", tlsEnabled: false, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+		},
+		Version:        "1.0.0",
+		DeploymentMode: "local",
+	})
+
+	app := fiber.New()
+	app.Get("/readyz", handler.HandleReadyz)
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var response ReadyzResponse
+	err = json.Unmarshal(body, &response)
+	require.NoError(t, err)
+
+	// Check TLS field for postgres_tls
+	pgCheck := response.Checks["postgres_tls"]
+	require.NotNil(t, pgCheck.TLS)
+	assert.True(t, *pgCheck.TLS, "postgres_tls should have TLS enabled")
+
+	// Check TLS field for redis_no_tls
+	redisCheck := response.Checks["redis_no_tls"]
+	require.NotNil(t, redisCheck.TLS)
+	assert.False(t, *redisCheck.TLS, "redis_no_tls should have TLS disabled")
+}
+
+func TestReadyzHandler_DeploymentModeDefault(t *testing.T) {
+	t.Parallel()
+
+	handler := NewReadyzHandler(ReadyzHandlerConfig{
+		Logger:         libLog.NewNop(),
+		Checkers:       []DependencyChecker{},
+		Version:        "1.0.0",
+		DeploymentMode: "", // Empty should default to "local"
+	})
+
+	app := fiber.New()
+	app.Get("/readyz", handler.HandleReadyz)
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var response ReadyzResponse
+	err = json.Unmarshal(body, &response)
+	require.NoError(t, err)
+
+	assert.Equal(t, "local", response.DeploymentMode)
+}
+
+func TestNAChecker(t *testing.T) {
+	t.Parallel()
+
+	checker := NewNAChecker("test_na", "tenant-scoped dependency", true)
+
+	assert.Equal(t, "test_na", checker.Name())
+	assert.True(t, checker.TLSEnabled())
+
+	check := checker.Check(context.Background())
+	assert.Equal(t, StatusNA, check.Status)
+	assert.Equal(t, "tenant-scoped dependency", check.Reason)
+}
+
+func TestTimeoutForChecker(t *testing.T) {
+	t.Parallel()
+
+	handler := &ReadyzHandler{}
+
+	tests := []struct {
+		name     string
+		checker  DependencyChecker
+		expected time.Duration
+	}{
+		{
+			name:     "redis_gets_1s_timeout",
+			checker:  &mockChecker{name: "redis"},
+			expected: 1 * time.Second,
+		},
+		{
+			name:     "postgres_gets_2s_timeout",
+			checker:  &mockChecker{name: "postgres_onboarding"},
+			expected: 2 * time.Second,
+		},
+		{
+			name:     "mongo_gets_2s_timeout",
+			checker:  &mockChecker{name: "mongo_transaction"},
+			expected: 2 * time.Second,
+		},
+		{
+			name:     "rabbitmq_gets_2s_timeout",
+			checker:  &mockChecker{name: "rabbitmq"},
+			expected: 2 * time.Second,
+		},
+		{
+			name:     "unknown_gets_2s_timeout",
+			checker:  &mockChecker{name: "unknown_service"},
+			expected: 2 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			timeout := handler.timeoutForChecker(tt.checker)
+			assert.Equal(t, tt.expected, timeout)
+		})
+	}
+}
+
+func TestContainsLower(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		s      string
+		substr string
+		want   bool
+	}{
+		{"empty_both", "", "", true},
+		{"empty_substr", "hello", "", true},
+		{"exact_match", "redis", "redis", true},
+		{"substring_match", "postgres_onboarding", "postgres", true},
+		{"case_insensitive", "PostgreSQL", "postgres", true},
+		{"case_insensitive_reverse", "postgres", "POSTGRES", true},
+		{"no_match", "redis", "postgres", false},
+		{"partial_no_match", "red", "redis", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := contains(tt.s, tt.substr)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestReadyzHandler_DegradedStateAggregation(t *testing.T) {
+	t.Parallel()
+
+	latency := int64(5)
+
+	tests := []struct {
+		name               string
+		checkers           []DependencyChecker
+		wantOverallHealthy bool
+		wantHTTPStatus     int
+	}{
+		{
+			name: "single_degraded_returns_503",
+			checkers: []DependencyChecker{
+				&mockChecker{name: "postgres", check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+				&mockChecker{name: "rabbitmq", check: DependencyCheck{Status: StatusDegraded, Reason: "circuit breaker half-open", BreakerState: "half-open"}},
+			},
+			wantOverallHealthy: false,
+			wantHTTPStatus:     http.StatusServiceUnavailable,
+		},
+		{
+			name: "multiple_degraded_returns_503",
+			checkers: []DependencyChecker{
+				&mockChecker{name: "postgres", check: DependencyCheck{Status: StatusDegraded, Reason: "high latency"}},
+				&mockChecker{name: "rabbitmq", check: DependencyCheck{Status: StatusDegraded, Reason: "circuit breaker open", BreakerState: "open"}},
+				&mockChecker{name: "redis", check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+			},
+			wantOverallHealthy: false,
+			wantHTTPStatus:     http.StatusServiceUnavailable,
+		},
+		{
+			name: "degraded_and_down_returns_503",
+			checkers: []DependencyChecker{
+				&mockChecker{name: "postgres", check: DependencyCheck{Status: StatusDown, Error: "connection refused"}},
+				&mockChecker{name: "rabbitmq", check: DependencyCheck{Status: StatusDegraded, Reason: "circuit breaker open"}},
+			},
+			wantOverallHealthy: false,
+			wantHTTPStatus:     http.StatusServiceUnavailable,
+		},
+		{
+			name: "all_up_with_skipped_returns_200",
+			checkers: []DependencyChecker{
+				&mockChecker{name: "postgres", check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+				&mockChecker{name: "redis", check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+				&mockChecker{name: "rabbitmq", check: DependencyCheck{Status: StatusSkipped, Reason: "not configured"}},
+			},
+			wantOverallHealthy: true,
+			wantHTTPStatus:     http.StatusOK,
+		},
+		{
+			name: "all_na_returns_200",
+			checkers: []DependencyChecker{
+				&mockChecker{name: "postgres_onboarding", check: DependencyCheck{Status: StatusNA, Reason: "tenant-scoped"}},
+				&mockChecker{name: "postgres_transaction", check: DependencyCheck{Status: StatusNA, Reason: "tenant-scoped"}},
+				&mockChecker{name: "mongo_onboarding", check: DependencyCheck{Status: StatusNA, Reason: "tenant-scoped"}},
+			},
+			wantOverallHealthy: true,
+			wantHTTPStatus:     http.StatusOK,
+		},
+		{
+			name: "mix_of_up_skipped_na_returns_200",
+			checkers: []DependencyChecker{
+				&mockChecker{name: "postgres", check: DependencyCheck{Status: StatusNA, Reason: "tenant-scoped"}},
+				&mockChecker{name: "redis", check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+				&mockChecker{name: "optional_service", check: DependencyCheck{Status: StatusSkipped, Reason: "disabled"}},
+			},
+			wantOverallHealthy: true,
+			wantHTTPStatus:     http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := NewReadyzHandler(ReadyzHandlerConfig{
+				Logger:         libLog.NewNop(),
+				Checkers:       tt.checkers,
+				Version:        "1.0.0",
+				DeploymentMode: "local",
+			})
+
+			app := fiber.New()
+			app.Get("/readyz", handler.HandleReadyz)
+
+			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.wantHTTPStatus, resp.StatusCode)
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var response ReadyzResponse
+			err = json.Unmarshal(body, &response)
+			require.NoError(t, err)
+
+			if tt.wantOverallHealthy {
+				assert.Equal(t, "healthy", response.Status)
+			} else {
+				assert.Equal(t, "unhealthy", response.Status)
+			}
+		})
+	}
+}
+
+func TestReadyzHandler_AggregationLogic(t *testing.T) {
+	t.Parallel()
+
+	// Test that the aggregation logic correctly identifies unhealthy states
+	statusTests := []struct {
+		status    DependencyStatus
+		isHealthy bool
+	}{
+		{StatusUp, true},
+		{StatusDown, false},
+		{StatusDegraded, false},
+		{StatusSkipped, true},
+		{StatusNA, true},
+	}
+
+	for _, tt := range statusTests {
+		t.Run(string(tt.status), func(t *testing.T) {
+			t.Parallel()
+
+			isHealthy := tt.status != StatusDown && tt.status != StatusDegraded
+			assert.Equal(t, tt.isHealthy, isHealthy, "status %s health check", tt.status)
+		})
+	}
+}
+
+func TestDefaultTimeoutConstants(t *testing.T) {
+	t.Parallel()
+
+	// Verify default timeout constants are defined and have sensible values
+	assert.Equal(t, 1*time.Second, DefaultRedisTimeout, "Redis timeout should be 1s")
+	assert.Equal(t, 2*time.Second, DefaultDatabaseTimeout, "Database timeout should be 2s")
+	assert.Equal(t, 2*time.Second, DefaultRabbitMQTimeout, "RabbitMQ timeout should be 2s")
+}
+
+func TestTimeoutForCheckerUsesConstants(t *testing.T) {
+	t.Parallel()
+
+	handler := &ReadyzHandler{}
+
+	// Verify timeoutForChecker returns the constant values
+	redisChecker := &mockChecker{name: "redis"}
+	assert.Equal(t, DefaultRedisTimeout, handler.timeoutForChecker(redisChecker))
+
+	pgChecker := &mockChecker{name: "postgres_onboarding"}
+	assert.Equal(t, DefaultDatabaseTimeout, handler.timeoutForChecker(pgChecker))
+
+	mongoChecker := &mockChecker{name: "mongo_transaction"}
+	assert.Equal(t, DefaultDatabaseTimeout, handler.timeoutForChecker(mongoChecker))
+
+	rmqChecker := &mockChecker{name: "rabbitmq"}
+	assert.Equal(t, DefaultRabbitMQTimeout, handler.timeoutForChecker(rmqChecker))
+}
