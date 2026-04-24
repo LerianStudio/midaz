@@ -25,6 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -775,6 +776,23 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
+	// Account-level eligibility gate (defense-in-depth alongside the
+	// balance-flag check inside ValidateBalancesRules): reject the
+	// transaction if any involved account is in PENDING_CRM_LINK,
+	// FAILED_CRM_LINK, or blocked=true. Part of the Ledger-owned CRM saga
+	// (see docs/plans/plan-mode-crm-ledger-abstraction-layer-*.md).
+	if accountIDs := collectAccountIDsFromBalances(balances); len(accountIDs) > 0 {
+		if err := handler.Query.VerifyAccountsTransactable(ctx, params.OrganizationID, params.LedgerID, accountIDs); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account ineligible for transaction", err)
+			logger.Log(ctx, libLog.LevelWarn, "Account ineligible for transaction", libLog.Err(err))
+
+			handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+			handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+
+			return http.WithError(c, err)
+		}
+	}
+
 	balanceOps := buildBalanceOperations(ctx, params.OrganizationID, params.LedgerID, validate, balances)
 
 	routeCache, err := handler.Query.ValidateAccountingRules(ctx, params.OrganizationID, params.LedgerID, balanceOps, validate, action)
@@ -900,4 +918,38 @@ func (handler *TransactionHandler) deleteIdempotencyKey(ctx context.Context, int
 	if internalKey != nil {
 		_ = handler.Command.TransactionRedisRepo.Del(ctx, *internalKey)
 	}
+}
+
+// collectAccountIDsFromBalances returns the unique account UUIDs referenced by
+// the given balances, skipping empty or malformed AccountID values. Used to
+// build the input for the account-level transaction-eligibility gate without
+// making extra DB trips.
+func collectAccountIDsFromBalances(balances []*mmodel.Balance) []uuid.UUID {
+	if len(balances) == 0 {
+		return nil
+	}
+
+	seen := make(map[uuid.UUID]struct{}, len(balances))
+	ids := make([]uuid.UUID, 0, len(balances))
+
+	for _, b := range balances {
+		if b == nil || b.AccountID == "" {
+			continue
+		}
+
+		parsed, err := uuid.Parse(b.AccountID)
+		if err != nil {
+			continue
+		}
+
+		if _, ok := seen[parsed]; ok {
+			continue
+		}
+
+		seen[parsed] = struct{}{}
+
+		ids = append(ids, parsed)
+	}
+
+	return ids
 }
