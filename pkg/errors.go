@@ -1350,6 +1350,42 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Accounting Entry Field Required",
 			Message:    fmt.Sprintf("A required field is missing in the accounting entry. %v", args...),
 		},
+		constant.ErrAccountRegistrationNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountRegistrationNotFound.Error(),
+			Title:      "Account Registration Not Found",
+			Message:    "The specified account registration does not exist. Please verify the registration ID and try again.",
+		},
+		constant.ErrAccountRegistrationIdempotencyConflict: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountRegistrationIdempotencyConflict.Error(),
+			Title:      "Account Registration Idempotency Conflict",
+			Message:    "The provided idempotency key was previously used with a different request body. Use a new idempotency key or submit the original request body.",
+		},
+		constant.ErrCRMTransient: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrCRMTransient.Error(),
+			Title:      "CRM Temporarily Unavailable",
+			Message:    "The CRM service is temporarily unavailable. The request will be retried automatically. Please try again later if the problem persists.",
+		},
+		constant.ErrAliasHolderConflict: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrAliasHolderConflict.Error(),
+			Title:      "Alias Holder Conflict",
+			Message:    "An alias for this account already exists under a different holder. Aliases cannot be reassigned between holders.",
+		},
+		constant.ErrCRMInternalRouteNotImplemented: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrCRMInternalRouteNotImplemented.Error(),
+			Title:      "CRM Internal Route Not Implemented",
+			Message:    "The CRM internal route required to complete this operation is not yet implemented. Operation deferred.",
+		},
+		constant.ErrInvalidAccountActivationState: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidAccountActivationState.Error(),
+			Title:      "Invalid Account Activation State",
+			Message:    "The account cannot be activated from its current state. Activation is only permitted for accounts in PENDING_CRM_LINK state.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

@@ -179,6 +179,23 @@ var (
 	ErrDirectScenarioRequired         = errors.New("0164")
 	ErrRevertOnlyBidirectional        = errors.New("0165")
 	ErrAccountingEntryFieldRequired   = errors.New("0166")
+
+	// Account Registration / CRM orchestration saga errors (Phase 1+).
+	// These support the Ledger-owned saga that coordinates Ledger account creation
+	// with CRM holder-alias creation. See docs/plans/plan-mode-crm-ledger-abstraction-layer-*.md.
+	//
+	// Note: codes 0162-0166 are taken by the accounting-rules block above, so the saga
+	// sentinels start at 0167. The plan draft proposed 0162-0168; we bump forward to
+	// avoid collision with the already-shipped accounting sentinels.
+	//
+	// ErrHolderNotFound is deliberately omitted here: the CRM-0006 sentinel in the CRM
+	// error block already represents that condition and is reused by the saga layer.
+	ErrAccountRegistrationNotFound            = errors.New("0167")
+	ErrAccountRegistrationIdempotencyConflict = errors.New("0168")
+	ErrCRMTransient                           = errors.New("0169")
+	ErrAliasHolderConflict                    = errors.New("0170")
+	ErrCRMInternalRouteNotImplemented         = errors.New("0171")
+	ErrInvalidAccountActivationState          = errors.New("0172")
 )
 
 // List of CRM errors.
