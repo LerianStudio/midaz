@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 )
 
@@ -44,7 +45,7 @@ type AccountingEntry struct {
 
 // AccountingEntries groups accounting entries by transaction action type.
 //
-// @Description AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert).
+// @Description AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert, overdraft, refund).
 type AccountingEntries struct {
 	// The accounting entry for the direct action.
 	Direct *AccountingEntry `json:"direct,omitempty" msgpack:"direct"`
@@ -56,6 +57,10 @@ type AccountingEntries struct {
 	Cancel *AccountingEntry `json:"cancel,omitempty" msgpack:"cancel"`
 	// The accounting entry for the revert action.
 	Revert *AccountingEntry `json:"revert,omitempty" msgpack:"revert"`
+	// The accounting entry for the overdraft action. Requires BOTH debit and credit rubrics when present.
+	Overdraft *AccountingEntry `json:"overdraft,omitempty" msgpack:"overdraft"`
+	// The accounting entry for the refund action. Requires BOTH debit and credit rubrics when present.
+	Refund *AccountingEntry `json:"refund,omitempty" msgpack:"refund"`
 } // @name AccountingEntries
 
 // Actions returns the action names for which this AccountingEntries has non-nil entries.
@@ -67,23 +72,31 @@ func (ae *AccountingEntries) Actions() []string {
 	var actions []string
 
 	if ae.Direct != nil {
-		actions = append(actions, "direct")
+		actions = append(actions, constant.ActionDirect)
 	}
 
 	if ae.Hold != nil {
-		actions = append(actions, "hold")
+		actions = append(actions, constant.ActionHold)
 	}
 
 	if ae.Commit != nil {
-		actions = append(actions, "commit")
+		actions = append(actions, constant.ActionCommit)
 	}
 
 	if ae.Cancel != nil {
-		actions = append(actions, "cancel")
+		actions = append(actions, constant.ActionCancel)
 	}
 
 	if ae.Revert != nil {
-		actions = append(actions, "revert")
+		actions = append(actions, constant.ActionRevert)
+	}
+
+	if ae.Overdraft != nil {
+		actions = append(actions, constant.ActionOverdraft)
+	}
+
+	if ae.Refund != nil {
+		actions = append(actions, constant.ActionRefund)
 	}
 
 	return actions
