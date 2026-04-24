@@ -182,12 +182,19 @@ func enrichOverdraftOperations(
 		companionOp := buildCompanionDebitOp(organizationID, ledgerID, s, companion)
 		balanceOps = append(balanceOps, companionOp)
 
+		// Inherit the primary source op's RouteID (if any) so the companion
+		// carries an accounting route through validation. Mirrors the
+		// hold/commit/cancel pattern: same routeId, different action
+		// determines the rubric. Pulled from validate.OperationRoutesFrom
+		// (keyed by the concat alias of the primary op).
+		primaryRouteID := lookupRouteID(validate, s.source.Alias, true /* isFrom */)
+
 		if validate != nil {
-			registerCompanionInValidate(validate, s.source, companionOp)
+			registerCompanionInValidate(validate, s.source, companionOp, primaryRouteID)
 		}
 
 		companionFromTos = append(companionFromTos,
-			buildCompanionFromTo(s.source, companionOp, true /* isFrom */))
+			buildCompanionFromTo(s.source, companionOp, true /* isFrom */, primaryRouteID))
 	}
 
 	for _, r := range refunds {
@@ -203,15 +210,42 @@ func enrichOverdraftOperations(
 		companionOp := buildCompanionCreditOp(organizationID, ledgerID, r, companion)
 		balanceOps = append(balanceOps, companionOp)
 
+		// Mirror of the debit path: the refund companion inherits the
+		// destination primary's RouteID from validate.OperationRoutesTo.
+		primaryRouteID := lookupRouteID(validate, r.destination.Alias, false /* isFrom */)
+
 		if validate != nil {
-			registerCompanionInValidateTo(validate, r.destination, companionOp)
+			registerCompanionInValidateTo(validate, r.destination, companionOp, primaryRouteID)
 		}
 
 		companionFromTos = append(companionFromTos,
-			buildCompanionFromTo(r.destination, companionOp, false /* isFrom */))
+			buildCompanionFromTo(r.destination, companionOp, false /* isFrom */, primaryRouteID))
 	}
 
 	return balanceOps, companionFromTos, nil
+}
+
+// lookupRouteID returns the primary op's routeID from validate's operation
+// route maps, or "" when not present (route validation disabled or legacy
+// transaction shape without routeId). The `primaryAlias` is the concat-form
+// key used both as the Alias on the BalanceOperation and as the key in
+// validate.From / validate.OperationRoutesFrom.
+//
+// Returning an empty string when the primary has no routeID is the correct
+// fallback: downstream helpers (buildCompanionFromTo,
+// registerCompanionInValidate) treat "" as "no route" and leave the
+// FromTo.RouteID pointer nil so transactions without route validation keep
+// working unchanged.
+func lookupRouteID(validate *mtransaction.Responses, primaryAlias string, isFrom bool) string {
+	if validate == nil {
+		return ""
+	}
+
+	if isFrom {
+		return validate.OperationRoutesFrom[primaryAlias]
+	}
+
+	return validate.OperationRoutesTo[primaryAlias]
 }
 
 // registerCompanionInValidate mirrors the companion op into `validate.From`
@@ -225,7 +259,15 @@ func enrichOverdraftOperations(
 //   - `validate.Sources` / `validate.Aliases` use the bare alias-key form
 //     ("@alice#overdraft") — matching how `CalculateTotal` populates them
 //     for user-submitted entries via `AliasKey(SplitAlias(...), BalanceKey)`.
-func registerCompanionInValidate(validate *mtransaction.Responses, _ mmodel.BalanceOperation, companionOp mmodel.BalanceOperation) {
+//
+// `primaryRouteID` carries the routeID from the primary op's FromTo entry
+// (as resolved by ValidateSendSourceAndDistribute). When non-empty we mirror
+// it into `validate.OperationRoutesFrom` keyed by the companion's concat
+// alias so the route-validation step (validateAccountRules) finds a matching
+// route instead of rejecting with 0117 (Accounting Route Not Found). Passing
+// an empty string keeps the map entry absent, preserving the legacy no-route
+// behaviour for transactions where route validation is disabled.
+func registerCompanionInValidate(validate *mtransaction.Responses, _ mmodel.BalanceOperation, companionOp mmodel.BalanceOperation, primaryRouteID string) {
 	if validate.From == nil {
 		validate.From = make(map[string]mtransaction.Amount, 1)
 	}
@@ -235,6 +277,19 @@ func registerCompanionInValidate(validate *mtransaction.Responses, _ mmodel.Bala
 	// only one companion entry is needed — the amount is identical.
 	if _, exists := validate.From[companionOp.Alias]; !exists {
 		validate.From[companionOp.Alias] = companionOp.Amount
+	}
+
+	if primaryRouteID != "" {
+		if validate.OperationRoutesFrom == nil {
+			validate.OperationRoutesFrom = make(map[string]string, 1)
+		}
+
+		// First-wins mirrors the From-map convention above: double-entry
+		// splits emitted on the same companion alias carry the same
+		// routeID, so overwriting would be a no-op anyway.
+		if _, exists := validate.OperationRoutesFrom[companionOp.Alias]; !exists {
+			validate.OperationRoutesFrom[companionOp.Alias] = primaryRouteID
+		}
 	}
 
 	bareAlias := stripIndexPrefix(companionOp.Alias)
@@ -482,7 +537,15 @@ func buildCompanionCreditOp(organizationID, ledgerID uuid.UUID, r overdraftRefun
 //     is what the Operation record will display as the companion's amount.
 //     The value is independent of the primary op's amount; they are two
 //     distinct balance mutations with two distinct amounts.
-func buildCompanionFromTo(primary mmodel.BalanceOperation, companionOp mmodel.BalanceOperation, isFrom bool) mtransaction.FromTo {
+//
+// `primaryRouteID` carries the routeID from the primary op's FromTo entry.
+// When non-empty it is propagated onto both FromTo.Route and FromTo.RouteID
+// so downstream consumers — BuildOperations (which copies ft.RouteID to
+// op.RouteID) and resolveRouteCodesFromCache (which looks the routeID up in
+// the transaction route cache) — see the companion as a routed operation.
+// Mirrors the hold/commit/cancel pattern where companion operations reuse
+// the direct op's routeId and the action determines the rubric.
+func buildCompanionFromTo(primary mmodel.BalanceOperation, companionOp mmodel.BalanceOperation, isFrom bool, primaryRouteID string) mtransaction.FromTo {
 	amount := mtransaction.Amount{
 		Asset:                  companionOp.Amount.Asset,
 		Value:                  companionOp.Amount.Value,
@@ -512,7 +575,7 @@ func buildCompanionFromTo(primary mmodel.BalanceOperation, companionOp mmodel.Ba
 		_ = primary.Balance // intentionally unused — placeholder for T-008
 	}
 
-	return mtransaction.FromTo{
+	ft := mtransaction.FromTo{
 		AccountAlias:    companionOp.Alias,
 		BalanceKey:      constant.OverdraftBalanceKey,
 		Amount:          &amount,
@@ -520,19 +583,49 @@ func buildCompanionFromTo(primary mmodel.BalanceOperation, companionOp mmodel.Ba
 		Metadata:        metadata,
 		IsFrom:          isFrom,
 	}
+
+	// Only propagate routeID when the primary carries one. A nil RouteID on
+	// the companion preserves the legacy no-route behaviour (route validation
+	// disabled or transaction without routeId) — setting a non-nil empty
+	// pointer here would incorrectly signal "routed with empty id" and trip
+	// the 0117 guard in validateAccountRules.
+	if primaryRouteID != "" {
+		routeID := primaryRouteID
+		ft.Route = routeID
+		ft.RouteID = &routeID
+	}
+
+	return ft
 }
 
 // registerCompanionInValidateTo mirrors the refund companion op into
 // validate.To so ValidateBalancesRules sees matching counts. Follows the
 // same key-shape convention as registerCompanionInValidate: concat-form for
 // the `To` map key, bare alias-key for the `Destinations` / `Aliases` slices.
-func registerCompanionInValidateTo(validate *mtransaction.Responses, _ mmodel.BalanceOperation, companionOp mmodel.BalanceOperation) {
+//
+// `primaryRouteID` propagation: when non-empty we mirror it into
+// `validate.OperationRoutesTo` under the companion's concat alias — this is
+// what lets validateAccountRules look up a non-empty routeID for the
+// companion and resolve it against the destination / bidirectional route
+// caches. See registerCompanionInValidate for the same mechanism on the
+// source side.
+func registerCompanionInValidateTo(validate *mtransaction.Responses, _ mmodel.BalanceOperation, companionOp mmodel.BalanceOperation, primaryRouteID string) {
 	if validate.To == nil {
 		validate.To = make(map[string]mtransaction.Amount, 1)
 	}
 
 	if _, exists := validate.To[companionOp.Alias]; !exists {
 		validate.To[companionOp.Alias] = companionOp.Amount
+	}
+
+	if primaryRouteID != "" {
+		if validate.OperationRoutesTo == nil {
+			validate.OperationRoutesTo = make(map[string]string, 1)
+		}
+
+		if _, exists := validate.OperationRoutesTo[companionOp.Alias]; !exists {
+			validate.OperationRoutesTo[companionOp.Alias] = primaryRouteID
+		}
 	}
 
 	bareAlias := stripIndexPrefix(companionOp.Alias)

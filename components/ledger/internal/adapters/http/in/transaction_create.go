@@ -188,20 +188,49 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 		return
 	}
 
-	actionCache, ok := cache.Actions[action]
-	if !ok {
-		return
-	}
-
 	for _, op := range operations {
 		if op.RouteID == nil || *op.RouteID == "" {
+			continue
+		}
+
+		// Companion operations (BalanceKey = "overdraft") are emitted by
+		// the enrichment engine and represent the OVERDRAFT/REFUND leg of
+		// the transaction. They share the primary's RouteID but must
+		// resolve their rubric through the `overdraft` or `refund`
+		// AccountingEntry — not the top-level transaction action. This
+		// mirrors the hold/commit/cancel pattern where a single routeID
+		// drives multiple action-specific rubric lookups.
+		//
+		// Selection rule:
+		//   - DEBIT on overdraft balance → ActionOverdraft rubric
+		//   - CREDIT on overdraft balance → ActionRefund rubric
+		// (The enrichment engine only emits DEBIT on overdraft (deficit)
+		// and CREDIT on overdraft (refund repayment), so the direction
+		// unambiguously selects the action.)
+		resolvedAction := action
+
+		if op.BalanceKey == constant.OverdraftBalanceKey {
+			switch strings.ToLower(op.Direction) {
+			case constant.DirectionDebit:
+				resolvedAction = constant.ActionOverdraft
+			case constant.DirectionCredit:
+				resolvedAction = constant.ActionRefund
+			}
+		}
+
+		actionCache, ok := cache.Actions[resolvedAction]
+		if !ok {
+			// No entries for this action — e.g. route defines only Direct
+			// and the companion wants Overdraft. Leave RouteCode nil; the
+			// primary op still resolves correctly, and the companion
+			// simply carries no accounting rubric.
 			continue
 		}
 
 		routeID := *op.RouteID
 
 		if rc, ok := findRouteInActionCache(actionCache, routeID); ok {
-			if rubric := resolveAccountingRubric(rc.AccountingEntries, action, op.Direction); rubric != nil && rubric.Code != "" {
+			if rubric := resolveAccountingRubric(rc.AccountingEntries, resolvedAction, op.Direction); rubric != nil && rubric.Code != "" {
 				code := rubric.Code
 				op.RouteCode = &code
 
@@ -235,6 +264,10 @@ func resolveAccountingRubric(entries *mmodel.AccountingEntries, action, directio
 		entry = entries.Cancel
 	case constant.ActionRevert:
 		entry = entries.Revert
+	case constant.ActionOverdraft:
+		entry = entries.Overdraft
+	case constant.ActionRefund:
+		entry = entries.Refund
 	}
 
 	if entry == nil {

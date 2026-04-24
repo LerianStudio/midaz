@@ -11,6 +11,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/shopspring/decimal"
@@ -189,16 +190,20 @@ func buildCacheWithEntries(action, routeID, routeType, description, debitCode, c
 	}
 
 	switch action {
-	case "direct":
+	case constant.ActionDirect:
 		rc.AccountingEntries.Direct = entry
-	case "hold":
+	case constant.ActionHold:
 		rc.AccountingEntries.Hold = entry
-	case "commit":
+	case constant.ActionCommit:
 		rc.AccountingEntries.Commit = entry
-	case "cancel":
+	case constant.ActionCancel:
 		rc.AccountingEntries.Cancel = entry
-	case "revert":
+	case constant.ActionRevert:
 		rc.AccountingEntries.Revert = entry
+	case constant.ActionOverdraft:
+		rc.AccountingEntries.Overdraft = entry
+	case constant.ActionRefund:
+		rc.AccountingEntries.Refund = entry
 	}
 
 	actionCache := mmodel.ActionRouteCache{
@@ -427,6 +432,176 @@ func TestResolveRouteCodesFromCache_CommitAction(t *testing.T) {
 	assert.Equal(t, "COMMIT-DEBIT", *ops[0].RouteCode)
 }
 
+// TestResolveRouteCodesFromCache_OverdraftAction verifies resolution for the
+// overdraft accounting-entry action. Overdraft is a supplementary scenario
+// that must resolve its Debit/Credit rubrics through the same cache lookup
+// path as the legacy actions (direct/hold/commit/cancel/revert).
+func TestResolveRouteCodesFromCache_OverdraftAction(t *testing.T) {
+	routeID := "route-uuid-1"
+	cache := buildCacheWithEntries(constant.ActionOverdraft, routeID, "bidirectional", "Overdraft route", "OVERDRAFT-DEBIT", "OVERDRAFT-CREDIT")
+
+	ops := []*operation.Operation{
+		{ID: "op-1", RouteID: &routeID, Direction: "debit"},
+	}
+
+	resolveRouteCodesFromCache(ops, cache, constant.ActionOverdraft)
+
+	require.NotNil(t, ops[0].RouteCode, "RouteCode should be populated for overdraft action")
+	assert.Equal(t, "OVERDRAFT-DEBIT", *ops[0].RouteCode)
+	require.NotNil(t, ops[0].RouteDescription, "RouteDescription should be populated for overdraft action")
+	assert.Equal(t, "Debit desc", *ops[0].RouteDescription)
+}
+
+// TestResolveRouteCodesFromCache_RefundAction verifies resolution for the
+// refund accounting-entry action. Refund is a supplementary scenario that
+// must resolve its Debit/Credit rubrics through the same cache lookup path
+// as the legacy actions (direct/hold/commit/cancel/revert).
+func TestResolveRouteCodesFromCache_RefundAction(t *testing.T) {
+	routeID := "route-uuid-1"
+	cache := buildCacheWithEntries(constant.ActionRefund, routeID, "bidirectional", "Refund route", "REFUND-DEBIT", "REFUND-CREDIT")
+
+	ops := []*operation.Operation{
+		{ID: "op-1", RouteID: &routeID, Direction: "credit"},
+	}
+
+	resolveRouteCodesFromCache(ops, cache, constant.ActionRefund)
+
+	require.NotNil(t, ops[0].RouteCode, "RouteCode should be populated for refund action")
+	assert.Equal(t, "REFUND-CREDIT", *ops[0].RouteCode)
+	require.NotNil(t, ops[0].RouteDescription, "RouteDescription should be populated for refund action")
+	assert.Equal(t, "Credit desc", *ops[0].RouteDescription)
+}
+
+// TestResolveRouteCodesFromCache_CompanionUsesOverdraftAction pins the
+// behaviour required for overdraft/refund enrichment: when operations
+// include companion entries on the `#overdraft` balance, those entries
+// MUST resolve their RouteCode/RouteDescription through the OVERDRAFT (or
+// REFUND) accounting action even though the transaction-wide action is
+// still `direct` (or `hold`/`commit`). The same RouteID is reused; only
+// the action differs — exactly mirroring how hold/commit reuse the direct
+// routeId but resolve different rubrics.
+//
+// Failure mode guarded against: without the second pass, the companion
+// op stays with RouteCode=nil because the `direct` rubric is the Direct
+// AccountingEntry, not the Overdraft one.
+func TestResolveRouteCodesFromCache_CompanionUsesOverdraftAction(t *testing.T) {
+	routeID := "route-uuid-1"
+
+	// Build a cache that contains entries for BOTH "direct" and "overdraft"
+	// actions, as the real ToCache() emits whenever a route has both Direct
+	// and Overdraft AccountingEntries.
+	rc := mmodel.OperationRouteCache{
+		Description: "Bidirectional route",
+		AccountingEntries: &mmodel.AccountingEntries{
+			Direct: &mmodel.AccountingEntry{
+				Debit:  &mmodel.AccountingRubric{Code: "DIRECT-DEBIT", Description: "Direct debit desc"},
+				Credit: &mmodel.AccountingRubric{Code: "DIRECT-CREDIT", Description: "Direct credit desc"},
+			},
+			Overdraft: &mmodel.AccountingEntry{
+				Debit:  &mmodel.AccountingRubric{Code: "OVERDRAFT-DEBIT", Description: "Overdraft debit desc"},
+				Credit: &mmodel.AccountingRubric{Code: "OVERDRAFT-CREDIT", Description: "Overdraft credit desc"},
+			},
+		},
+	}
+
+	directAction := mmodel.ActionRouteCache{
+		Source:        map[string]mmodel.OperationRouteCache{},
+		Destination:   map[string]mmodel.OperationRouteCache{},
+		Bidirectional: map[string]mmodel.OperationRouteCache{routeID: rc},
+	}
+	overdraftAction := mmodel.ActionRouteCache{
+		Source:        map[string]mmodel.OperationRouteCache{},
+		Destination:   map[string]mmodel.OperationRouteCache{},
+		Bidirectional: map[string]mmodel.OperationRouteCache{routeID: rc},
+	}
+
+	cache := &mmodel.TransactionRouteCache{
+		Actions: map[string]mmodel.ActionRouteCache{
+			constant.ActionDirect:    directAction,
+			constant.ActionOverdraft: overdraftAction,
+		},
+	}
+
+	primary := &operation.Operation{
+		ID:         "primary-op",
+		RouteID:    &routeID,
+		Direction:  "debit",
+		BalanceKey: constant.DefaultBalanceKey,
+	}
+	companion := &operation.Operation{
+		ID:         "companion-op",
+		RouteID:    &routeID,
+		Direction:  "debit",
+		BalanceKey: constant.OverdraftBalanceKey,
+	}
+
+	ops := []*operation.Operation{primary, companion}
+
+	resolveRouteCodesFromCache(ops, cache, constant.ActionDirect)
+
+	// Primary resolves to DIRECT rubric.
+	require.NotNil(t, primary.RouteCode, "primary op must resolve via direct action")
+	assert.Equal(t, "DIRECT-DEBIT", *primary.RouteCode,
+		"primary (BalanceKey=default) must resolve from Direct AccountingEntry")
+
+	// Companion resolves to OVERDRAFT rubric despite the top-level action
+	// being `direct`, because it lives on the overdraft balance and
+	// represents the overdraft leg of the enrichment.
+	require.NotNil(t, companion.RouteCode, "companion op must resolve via overdraft action")
+	assert.Equal(t, "OVERDRAFT-DEBIT", *companion.RouteCode,
+		"companion (BalanceKey=overdraft) must resolve from Overdraft AccountingEntry, not Direct")
+}
+
+// TestResolveRouteCodesFromCache_CompanionUsesRefundAction mirrors the
+// overdraft test for the credit/repayment side: companion CREDIT ops on the
+// overdraft balance must resolve their rubric via the REFUND action.
+func TestResolveRouteCodesFromCache_CompanionUsesRefundAction(t *testing.T) {
+	routeID := "route-uuid-1"
+
+	rc := mmodel.OperationRouteCache{
+		Description: "Bidirectional route",
+		AccountingEntries: &mmodel.AccountingEntries{
+			Direct: &mmodel.AccountingEntry{
+				Debit:  &mmodel.AccountingRubric{Code: "DIRECT-DEBIT", Description: "Direct debit desc"},
+				Credit: &mmodel.AccountingRubric{Code: "DIRECT-CREDIT", Description: "Direct credit desc"},
+			},
+			Refund: &mmodel.AccountingEntry{
+				Debit:  &mmodel.AccountingRubric{Code: "REFUND-DEBIT", Description: "Refund debit desc"},
+				Credit: &mmodel.AccountingRubric{Code: "REFUND-CREDIT", Description: "Refund credit desc"},
+			},
+		},
+	}
+
+	cache := &mmodel.TransactionRouteCache{
+		Actions: map[string]mmodel.ActionRouteCache{
+			constant.ActionDirect: {
+				Source:        map[string]mmodel.OperationRouteCache{},
+				Destination:   map[string]mmodel.OperationRouteCache{},
+				Bidirectional: map[string]mmodel.OperationRouteCache{routeID: rc},
+			},
+			constant.ActionRefund: {
+				Source:        map[string]mmodel.OperationRouteCache{},
+				Destination:   map[string]mmodel.OperationRouteCache{},
+				Bidirectional: map[string]mmodel.OperationRouteCache{routeID: rc},
+			},
+		},
+	}
+
+	companion := &operation.Operation{
+		ID:         "companion-op",
+		RouteID:    &routeID,
+		Direction:  "credit",
+		BalanceKey: constant.OverdraftBalanceKey,
+	}
+	ops := []*operation.Operation{companion}
+
+	resolveRouteCodesFromCache(ops, cache, constant.ActionDirect)
+
+	require.NotNil(t, companion.RouteCode, "companion credit must resolve via refund action")
+	assert.Equal(t, "REFUND-CREDIT", *companion.RouteCode,
+		"companion CREDIT on overdraft balance must resolve from Refund AccountingEntry, not Direct")
+}
+
 // TestStatusToAction verifies the mapping from transaction status to accounting action.
 func TestStatusToAction(t *testing.T) {
 	assert.Equal(t, "direct", mtransaction.StatusToAction("CREATED"))
@@ -460,6 +635,14 @@ func TestResolveAccountingRubric(t *testing.T) {
 			Debit:  &mmodel.AccountingRubric{Code: "D-REVERT", Description: "Revert debit"},
 			Credit: &mmodel.AccountingRubric{Code: "C-REVERT", Description: "Revert credit"},
 		},
+		Overdraft: &mmodel.AccountingEntry{
+			Debit:  &mmodel.AccountingRubric{Code: "D-OVERDRAFT", Description: "Overdraft debit"},
+			Credit: &mmodel.AccountingRubric{Code: "C-OVERDRAFT", Description: "Overdraft credit"},
+		},
+		Refund: &mmodel.AccountingEntry{
+			Debit:  &mmodel.AccountingRubric{Code: "D-REFUND", Description: "Refund debit"},
+			Credit: &mmodel.AccountingRubric{Code: "C-REFUND", Description: "Refund credit"},
+		},
 	}
 
 	tests := []struct {
@@ -479,6 +662,10 @@ func TestResolveAccountingRubric(t *testing.T) {
 		{"cancel credit", "cancel", "credit", "C-CANCEL", false},
 		{"revert debit", "revert", "debit", "D-REVERT", false},
 		{"revert credit", "revert", "credit", "C-REVERT", false},
+		{"overdraft debit", "overdraft", "debit", "D-OVERDRAFT", false},
+		{"overdraft credit", "overdraft", "credit", "C-OVERDRAFT", false},
+		{"refund debit", "refund", "debit", "D-REFUND", false},
+		{"refund credit", "refund", "credit", "C-REFUND", false},
 		{"unknown action", "unknown", "debit", "", true},
 		{"unknown direction", "direct", "unknown", "", true},
 		{"nil entries", "direct", "debit", "", true},

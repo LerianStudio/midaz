@@ -521,3 +521,185 @@ func TestRejectInternalScopeBalances_AllowsTransactionalBalances(t *testing.T) {
 	err := rejectInternalScopeBalances(context.Background(), transactional)
 	require.NoError(t, err, "transactional balances and nil entries must pass through")
 }
+
+// TestEnrichOverdraftOperations_DebitCompanionInheritsRouteID locks in the
+// route-propagation contract for the debit-split (overdraft) enrichment path:
+// when the primary source op carries a RouteID (either directly on its
+// FromTo entry or via validate.OperationRoutesFrom), the companion FromTo
+// entry MUST inherit the same RouteID. This mirrors the hold/commit/cancel
+// pattern where companion operations reuse the direct op's routeId — the
+// action determines which AccountingEntry rubric is resolved, not a
+// different RouteID.
+//
+// Failure mode this test prevents: with route validation enabled,
+// ValidateAccountingRules iterates companion ops in validate.From and looks
+// up validate.OperationRoutesFrom[companionAlias]. Without propagation this
+// returns "" and the validator rejects the transaction with 0117
+// (Accounting Route Not Found).
+func TestEnrichOverdraftOperations_DebitCompanionInheritsRouteID(t *testing.T) {
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	source := overdraftEnabledBalance(t, "@alice", decimal.NewFromInt(50), "100")
+	companion := companionOverdraftBalance("@alice")
+
+	primary := mmodel.BalanceOperation{
+		Balance: source,
+		Alias:   "0#@alice#default",
+		Amount: mtransaction.Amount{
+			Asset:     "BRL",
+			Value:     decimal.NewFromInt(100),
+			Operation: libConstants.DEBIT,
+			Direction: constant.DirectionCredit,
+		},
+		InternalKey: utils.BalanceInternalKey(orgID, ledgerID, "@alice#default"),
+	}
+
+	routeID := uuid.NewString()
+
+	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
+		return []*mmodel.Balance{companion}, nil
+	}
+
+	// validate mirrors what ValidateSendSourceAndDistribute would produce
+	// when the user supplies routeId on from[0].routeId — the concat key
+	// "0#@alice#default" maps to the routeID string.
+	validate := &mtransaction.Responses{
+		From: map[string]mtransaction.Amount{
+			"0#@alice#default": primary.Amount,
+		},
+		Sources: []string{"@alice#default"},
+		Aliases: []string{"@alice#default"},
+		OperationRoutesFrom: map[string]string{
+			"0#@alice#default": routeID,
+		},
+	}
+
+	_, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+		[]mmodel.BalanceOperation{primary}, validate, loader)
+	require.NoError(t, err)
+	require.Len(t, companionFromTos, 1, "one companion FromTo per debit split")
+
+	ft := companionFromTos[0]
+	require.NotNil(t, ft.RouteID, "companion FromTo must inherit the primary's RouteID so ValidateAccountingRules can resolve it")
+	assert.Equal(t, routeID, *ft.RouteID,
+		"companion routeID must EQUAL the primary's routeID — same route, action determines rubric (hold/commit/cancel pattern)")
+
+	// Mirror check: validate.OperationRoutesFrom must now carry an entry for
+	// the companion alias so validateAccountRules sees a non-empty routeID
+	// when it iterates companion operations.
+	gotFrom, ok := validate.OperationRoutesFrom["0#@alice#overdraft"]
+	require.True(t, ok, "companion alias must be registered in validate.OperationRoutesFrom so route validation finds it")
+	assert.Equal(t, routeID, gotFrom,
+		"OperationRoutesFrom entry for the companion must point at the primary's routeID")
+}
+
+// TestEnrichOverdraftOperations_RefundCompanionInheritsRouteID mirrors the
+// debit test for the credit-repayment (refund) path: when the primary
+// destination op carries a RouteID, the refund companion FromTo entry MUST
+// inherit the same RouteID and it MUST appear in validate.OperationRoutesTo.
+func TestEnrichOverdraftOperations_RefundCompanionInheritsRouteID(t *testing.T) {
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	destination := &mmodel.Balance{
+		ID:             uuid.New().String(),
+		AccountID:      uuid.New().String(),
+		Alias:          "@alice",
+		Key:            constant.DefaultBalanceKey,
+		AssetCode:      "BRL",
+		Direction:      constant.DirectionCredit,
+		OverdraftUsed:  decimal.NewFromInt(50),
+		AllowSending:   true,
+		AllowReceiving: true,
+	}
+	companion := companionOverdraftBalance("@alice")
+
+	primary := mmodel.BalanceOperation{
+		Balance: destination,
+		Alias:   "0#@alice#default",
+		Amount: mtransaction.Amount{
+			Asset:     "BRL",
+			Value:     decimal.NewFromInt(80),
+			Operation: libConstants.CREDIT,
+			Direction: constant.DirectionCredit,
+		},
+		InternalKey: utils.BalanceInternalKey(orgID, ledgerID, "@alice#default"),
+	}
+
+	routeID := uuid.NewString()
+
+	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
+		return []*mmodel.Balance{companion}, nil
+	}
+
+	validate := &mtransaction.Responses{
+		To: map[string]mtransaction.Amount{
+			"0#@alice#default": primary.Amount,
+		},
+		Destinations: []string{"@alice#default"},
+		Aliases:      []string{"@alice#default"},
+		OperationRoutesTo: map[string]string{
+			"0#@alice#default": routeID,
+		},
+	}
+
+	_, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+		[]mmodel.BalanceOperation{primary}, validate, loader)
+	require.NoError(t, err)
+	require.Len(t, companionFromTos, 1, "one companion FromTo per refund split")
+
+	ft := companionFromTos[0]
+	require.NotNil(t, ft.RouteID, "refund companion FromTo must inherit the primary's RouteID")
+	assert.Equal(t, routeID, *ft.RouteID)
+
+	gotTo, ok := validate.OperationRoutesTo["0#@alice#overdraft"]
+	require.True(t, ok, "refund companion alias must be registered in validate.OperationRoutesTo")
+	assert.Equal(t, routeID, gotTo,
+		"OperationRoutesTo entry for the refund companion must point at the primary's routeID")
+}
+
+// TestEnrichOverdraftOperations_CompanionRouteIDNilWhenPrimaryHasNone is the
+// backward-compat guard: when route validation is disabled or the primary
+// op has no routeId (legacy transaction shape), the companion FromTo must
+// also carry a nil RouteID so downstream flows that do not use route
+// validation keep working unchanged.
+func TestEnrichOverdraftOperations_CompanionRouteIDNilWhenPrimaryHasNone(t *testing.T) {
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	source := overdraftEnabledBalance(t, "@alice", decimal.NewFromInt(50), "100")
+	companion := companionOverdraftBalance("@alice")
+
+	primary := mmodel.BalanceOperation{
+		Balance: source,
+		Alias:   "0#@alice#default",
+		Amount: mtransaction.Amount{
+			Value:     decimal.NewFromInt(100),
+			Operation: libConstants.DEBIT,
+			Direction: constant.DirectionCredit,
+		},
+	}
+
+	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
+		return []*mmodel.Balance{companion}, nil
+	}
+
+	// No OperationRoutesFrom entry — simulates route validation disabled or
+	// legacy transaction shape without routeId.
+	validate := &mtransaction.Responses{
+		From: map[string]mtransaction.Amount{
+			"0#@alice#default": primary.Amount,
+		},
+		Sources: []string{"@alice#default"},
+		Aliases: []string{"@alice#default"},
+	}
+
+	_, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+		[]mmodel.BalanceOperation{primary}, validate, loader)
+	require.NoError(t, err)
+	require.Len(t, companionFromTos, 1)
+
+	assert.Nil(t, companionFromTos[0].RouteID,
+		"companion RouteID must be nil when the primary has no routeId so legacy flows stay unchanged")
+}
