@@ -19,6 +19,7 @@ docs/ring*/
 
 # Build and binary files
 *__debug_bin*
+bin/
 dist/
 coverage.out
 scripts/coverage_ignore.txt
