@@ -22,9 +22,30 @@ import (
 	"github.com/google/uuid"
 )
 
+// accountCreateOptions groups internal-only knobs for account creation.
+// Public callers always use CreateAccount (PendingCRMLink=false). The pending
+// variant is reserved for the CRM/Ledger orchestration saga (see
+// docs/plans/plan-mode-crm-ledger-abstraction-layer-*.md) and is not wired
+// into any public HTTP route.
+type accountCreateOptions struct {
+	// PendingCRMLink, when true, forces the new account into PENDING_CRM_LINK
+	// state with blocked=true and a default balance that disallows both
+	// sending and receiving. Activation is handled by ActivateAccount once
+	// the CRM alias is confirmed.
+	PendingCRMLink bool
+}
+
 // CreateAccount creates an account and metadata, then synchronously creates the default balance.
 // The balance is created via the BalancePort interface.
 func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
+	return uc.createAccountWithOptions(ctx, organizationID, ledgerID, cai, token, accountCreateOptions{PendingCRMLink: false})
+}
+
+// createAccountWithOptions is the unexported entry point that carries the
+// orchestration-internal accountCreateOptions. CreateAccount delegates here
+// with PendingCRMLink=false so the default path is byte-identical to the
+// previous behavior.
+func (uc *UseCase) createAccountWithOptions(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string, opts accountCreateOptions) (*mmodel.Account, error) {
 	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_account")
@@ -44,7 +65,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		cai.Name = cai.AssetCode + " " + cai.Type + " account"
 	}
 
-	status := uc.determineStatus(cai)
+	status := uc.determineStatus(cai, opts)
 
 	isAsset, _ := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, "", cai.AssetCode)
 	if !isAsset {
@@ -103,7 +124,15 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
+	// Pending-CRM-link mode forces blocked=true regardless of caller input.
+	// Defense-in-depth: transaction eligibility also checks Status.Code, but
+	// setting Blocked=true here means every downstream check agrees.
 	blocked := cai.Blocked != nil && *cai.Blocked
+	if opts.PendingCRMLink {
+		blocked = true
+	}
+
+	now := time.Now().UTC()
 
 	account := &mmodel.Account{
 		ID:              ID,
@@ -119,8 +148,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		LedgerID:        ledgerID.String(),
 		EntityID:        cai.EntityID,
 		Status:          status,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 
 	acc, err := uc.AccountRepo.Create(ctx, account)
@@ -132,6 +161,11 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
+	// Pending-CRM-link accounts start with sending/receiving disabled; the
+	// balance-level flags re-open in ActivateAccount once the CRM alias is
+	// confirmed.
+	allowSendingReceiving := !opts.PendingCRMLink
+
 	balanceInput := mmodel.CreateBalanceInput{
 		RequestID:      requestID,
 		OrganizationID: organizationID,
@@ -141,8 +175,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		Key:            constant.DefaultBalanceKey,
 		AssetCode:      cai.AssetCode,
 		AccountType:    cai.Type,
-		AllowSending:   true,
-		AllowReceiving: true,
+		AllowSending:   allowSendingReceiving,
+		AllowReceiving: allowSendingReceiving,
 	}
 
 	_, err = uc.CreateBalanceSync(ctx, balanceInput)
@@ -203,12 +237,22 @@ func (uc *UseCase) resolveAccountAlias(ctx context.Context, organizationID, ledg
 	return &generatedID, nil
 }
 
-// determineStatus determines the status of the account.
-func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status {
+// determineStatus determines the status of the account. When opts.PendingCRMLink
+// is true, the status is forced to PENDING_CRM_LINK regardless of caller input
+// (the saga never honors client-supplied status). Otherwise it defaults to
+// ACTIVE when unset, preserving the existing behavior for all public callers.
+func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput, opts accountCreateOptions) mmodel.Status {
+	if opts.PendingCRMLink {
+		return mmodel.Status{
+			Code:        constant.AccountStatusPendingCRMLink,
+			Description: cai.Status.Description,
+		}
+	}
+
 	var status mmodel.Status
 	if cai.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cai.Status.Code) {
 		status = mmodel.Status{
-			Code: "ACTIVE",
+			Code: constant.AccountStatusActive,
 		}
 	} else {
 		status = cai.Status

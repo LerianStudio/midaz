@@ -1057,6 +1057,234 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 	}
 }
 
+// TestCreateAccountWithOptionsPendingCRMLink validates the internal saga-mode
+// (PendingCRMLink=true) entry point: account must land in PENDING_CRM_LINK
+// with blocked=true and a default balance that disallows both send and
+// receive. This path is not exposed on any public HTTP route.
+func TestCreateAccountWithOptionsPendingCRMLink(t *testing.T) {
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAssetRepo := asset.NewMockRepository(ctrl)
+	mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
+	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AssetRepo:              mockAssetRepo,
+		PortfolioRepo:          mockPortfolioRepo,
+		AccountRepo:            mockAccountRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
+		AccountTypeRepo:        mockAccountTypeRepo,
+		BalanceRepo:            mockBalanceRepo,
+		LedgerRepo:             mockLedgerRepo,
+	}
+
+	mockLedgerRepo.EXPECT().
+		GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil).AnyTimes()
+
+	mockAssetRepo.EXPECT().
+		FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).AnyTimes()
+
+	mockAccountRepo.EXPECT().
+		FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(false, nil).AnyTimes()
+
+	// Capture the persisted account to assert its derived fields.
+	var capturedAccount *mmodel.Account
+	mockAccountRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+			out := *in
+			out.ID = uuid.New().String()
+			capturedAccount = &out
+			return &out, nil
+		}).Times(1)
+
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).AnyTimes()
+
+	mockBalanceRepo.EXPECT().
+		ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(false, nil).AnyTimes()
+
+	// Capture the balance to assert its AllowSending / AllowReceiving flags.
+	var capturedBalance *mmodel.Balance
+	mockBalanceRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, in *mmodel.Balance) (*mmodel.Balance, error) {
+			out := *in
+			capturedBalance = &out
+			return &out, nil
+		}).Times(1)
+
+	input := &mmodel.CreateAccountInput{
+		Name:      "Pending CRM Account",
+		Type:      "deposit",
+		AssetCode: "USD",
+	}
+
+	acc, err := uc.createAccountWithOptions(ctx, organizationID, ledgerID, input, "Bearer test-token", accountCreateOptions{PendingCRMLink: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if acc == nil {
+		t.Fatalf("expected account, got nil")
+	}
+
+	if got := acc.Status.Code; got != constant.AccountStatusPendingCRMLink {
+		t.Errorf("account.Status.Code: got %q, want %q", got, constant.AccountStatusPendingCRMLink)
+	}
+
+	if acc.Blocked == nil || !*acc.Blocked {
+		t.Errorf("account.Blocked: got %v, want true", acc.Blocked)
+	}
+
+	if capturedAccount == nil {
+		t.Fatal("account.Create was not invoked")
+	}
+	if capturedAccount.Status.Code != constant.AccountStatusPendingCRMLink {
+		t.Errorf("persisted account.Status.Code: got %q, want %q", capturedAccount.Status.Code, constant.AccountStatusPendingCRMLink)
+	}
+	if capturedAccount.Blocked == nil || !*capturedAccount.Blocked {
+		t.Errorf("persisted account.Blocked: got %v, want true", capturedAccount.Blocked)
+	}
+
+	if capturedBalance == nil {
+		t.Fatal("balance.Create was not invoked")
+	}
+	if capturedBalance.AllowSending {
+		t.Error("default balance.AllowSending: got true, want false for pending-CRM-link account")
+	}
+	if capturedBalance.AllowReceiving {
+		t.Error("default balance.AllowReceiving: got true, want false for pending-CRM-link account")
+	}
+}
+
+// TestCreateAccountDefaultPathRegressionGuard ensures the public CreateAccount
+// entry point (PendingCRMLink=false, the only externally exposed path) still
+// produces ACTIVE + blocked=false + AllowSending=true + AllowReceiving=true by
+// default — i.e., no regression from the Phase 2 refactor.
+func TestCreateAccountDefaultPathRegressionGuard(t *testing.T) {
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAssetRepo := asset.NewMockRepository(ctrl)
+	mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
+	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AssetRepo:              mockAssetRepo,
+		PortfolioRepo:          mockPortfolioRepo,
+		AccountRepo:            mockAccountRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
+		AccountTypeRepo:        mockAccountTypeRepo,
+		BalanceRepo:            mockBalanceRepo,
+		LedgerRepo:             mockLedgerRepo,
+	}
+
+	mockLedgerRepo.EXPECT().
+		GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil).AnyTimes()
+
+	mockAssetRepo.EXPECT().
+		FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).AnyTimes()
+
+	mockAccountRepo.EXPECT().
+		FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(false, nil).AnyTimes()
+
+	var capturedAccount *mmodel.Account
+	mockAccountRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+			out := *in
+			out.ID = uuid.New().String()
+			capturedAccount = &out
+			return &out, nil
+		}).Times(1)
+
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).AnyTimes()
+
+	mockBalanceRepo.EXPECT().
+		ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(false, nil).AnyTimes()
+
+	var capturedBalance *mmodel.Balance
+	mockBalanceRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, in *mmodel.Balance) (*mmodel.Balance, error) {
+			out := *in
+			capturedBalance = &out
+			return &out, nil
+		}).Times(1)
+
+	input := &mmodel.CreateAccountInput{
+		Name:      "Default Path Account",
+		Type:      "deposit",
+		AssetCode: "USD",
+	}
+
+	acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, input, "Bearer test-token")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if acc == nil {
+		t.Fatalf("expected account, got nil")
+	}
+
+	if got := acc.Status.Code; got != constant.AccountStatusActive {
+		t.Errorf("account.Status.Code: got %q, want %q (regression: default path must land ACTIVE)", got, constant.AccountStatusActive)
+	}
+
+	if acc.Blocked == nil {
+		t.Fatalf("account.Blocked: got nil, want non-nil pointer to false")
+	}
+	if *acc.Blocked {
+		t.Errorf("account.Blocked: got true, want false (regression: default path must not block)")
+	}
+
+	if capturedAccount == nil {
+		t.Fatal("account.Create was not invoked")
+	}
+	if capturedAccount.Status.Code != constant.AccountStatusActive {
+		t.Errorf("persisted account.Status.Code: got %q, want %q", capturedAccount.Status.Code, constant.AccountStatusActive)
+	}
+
+	if capturedBalance == nil {
+		t.Fatal("balance.Create was not invoked")
+	}
+	if !capturedBalance.AllowSending {
+		t.Error("default balance.AllowSending: got false, want true (regression: default path must allow sending)")
+	}
+	if !capturedBalance.AllowReceiving {
+		t.Error("default balance.AllowReceiving: got false, want true (regression: default path must allow receiving)")
+	}
+}
+
 // TestCreateAccountBlockedFlag ensures the blocked flag is persisted when provided
 func TestCreateAccountBlockedFlag(t *testing.T) {
 	ctx := context.Background()
