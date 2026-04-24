@@ -1278,3 +1278,134 @@ func TestIntegration_AccountRepository_Count_IsolatesByOrgLedger(t *testing.T) {
 	assert.Equal(t, int64(3), count1, "org1 should have 3 accounts")
 	assert.Equal(t, int64(1), count2, "org2 should have 1 account")
 }
+
+// ============================================================================
+// ActivatePendingAccount Tests
+// ============================================================================
+
+// seedPendingCRMLinkAccount inserts an account with status=PENDING_CRM_LINK
+// and blocked=true directly, bypassing the higher-level CreateAccount flow
+// that sits in the command package. Returns the account ID.
+func seedPendingCRMLinkAccount(t *testing.T, container *pgtestutil.ContainerResult, orgID, ledgerID uuid.UUID, alias string) uuid.UUID {
+	t.Helper()
+
+	id := uuid.Must(libCommons.GenerateUUIDv7())
+	now := time.Now().Truncate(time.Microsecond)
+
+	_, err := container.DB.Exec(`
+		INSERT INTO account (id, name, asset_code, organization_id, ledger_id, portfolio_id, status, alias, type, blocked, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+	`, id, "Pending CRM Account", "USD", orgID, ledgerID, nil, constant.AccountStatusPendingCRMLink, alias, "deposit", true, now, now, nil)
+	require.NoError(t, err, "failed to seed PENDING_CRM_LINK account")
+
+	return id
+}
+
+func TestIntegration_AccountRepository_ActivatePendingAccount_FlipsToActive(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	accountID := seedPendingCRMLinkAccount(t, container, orgID, ledgerID, "@activate-success")
+
+	ctx := context.Background()
+
+	// Act
+	err := repo.ActivatePendingAccount(ctx, orgID, ledgerID, accountID)
+
+	// Assert
+	require.NoError(t, err, "ActivatePendingAccount should succeed for PENDING_CRM_LINK + blocked=true")
+
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	require.NoError(t, err)
+	assert.Equal(t, constant.AccountStatusActive, found.Status.Code, "status should be ACTIVE after activation")
+	require.NotNil(t, found.Blocked)
+	assert.False(t, *found.Blocked, "blocked should be false after activation")
+}
+
+func TestIntegration_AccountRepository_ActivatePendingAccount_RejectsActiveAccount(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	// Default CreateTestAccount helper seeds ACTIVE + blocked=false.
+	accountID := pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "Already Active", "@activate-active", "USD", nil)
+
+	ctx := context.Background()
+
+	// Act
+	err := repo.ActivatePendingAccount(ctx, orgID, ledgerID, accountID)
+
+	// Assert
+	require.Error(t, err, "ActivatePendingAccount must reject an ACTIVE account")
+	assert.Contains(t, err.Error(), constant.ErrInvalidAccountActivationState.Error(), "expected ErrInvalidAccountActivationState sentinel")
+
+	// Row must be unchanged.
+	found, findErr := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	require.NoError(t, findErr)
+	assert.Equal(t, constant.AccountStatusActive, found.Status.Code)
+	require.NotNil(t, found.Blocked)
+	assert.False(t, *found.Blocked)
+}
+
+func TestIntegration_AccountRepository_ActivatePendingAccount_RejectsFailedCRMLink(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Seed a FAILED_CRM_LINK + blocked=true row directly.
+	failedID := uuid.Must(libCommons.GenerateUUIDv7())
+	now := time.Now().Truncate(time.Microsecond)
+	_, err := container.DB.Exec(`
+		INSERT INTO account (id, name, asset_code, organization_id, ledger_id, portfolio_id, status, alias, type, blocked, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+	`, failedID, "Failed CRM Link", "USD", orgID, ledgerID, nil, constant.AccountStatusFailedCRMLink, "@activate-failed", "deposit", true, now, now, nil)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Act
+	err = repo.ActivatePendingAccount(ctx, orgID, ledgerID, failedID)
+
+	// Assert
+	require.Error(t, err, "ActivatePendingAccount must reject FAILED_CRM_LINK")
+	assert.Contains(t, err.Error(), constant.ErrInvalidAccountActivationState.Error())
+
+	// Row must be unchanged.
+	found, findErr := repo.Find(ctx, orgID, ledgerID, nil, failedID)
+	require.NoError(t, findErr)
+	assert.Equal(t, constant.AccountStatusFailedCRMLink, found.Status.Code)
+	require.NotNil(t, found.Blocked)
+	assert.True(t, *found.Blocked, "FAILED_CRM_LINK account should remain blocked after rejected activation")
+}
+
+func TestIntegration_AccountRepository_ActivatePendingAccount_RejectsMissingAccount(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	ctx := context.Background()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	// Act
+	err := repo.ActivatePendingAccount(ctx, orgID, ledgerID, nonExistentID)
+
+	// Assert
+	require.Error(t, err, "ActivatePendingAccount must reject a non-existent account")
+	assert.Contains(t, err.Error(), constant.ErrInvalidAccountActivationState.Error())
+}
+

@@ -68,6 +68,14 @@ type Repository interface {
 	ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error)
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
+	// ActivatePendingAccount atomically transitions an account from
+	// (status=PENDING_CRM_LINK, blocked=true) to (status=ACTIVE, blocked=false).
+	// Uses SELECT ... FOR UPDATE inside a DB transaction to guarantee no
+	// concurrent state mutation races the activation. Returns
+	// constant.ErrInvalidAccountActivationState if the current state does not
+	// match the PENDING_CRM_LINK + blocked=true precondition (including the
+	// case where the account does not exist).
+	ActivatePendingAccount(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
 
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
@@ -1026,6 +1034,151 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	}
 
 	spanExec.End()
+
+	return nil
+}
+
+// ActivatePendingAccount atomically flips a PENDING_CRM_LINK + blocked=true
+// account into ACTIVE + blocked=false. The SELECT ... FOR UPDATE + UPDATE run
+// inside the same DB transaction so the state transition is serialized against
+// any concurrent reads/writes. Returns constant.ErrInvalidAccountActivationState
+// when the precondition does not hold (wrong status, not blocked, or the row
+// does not exist / is soft-deleted).
+func (r *AccountPostgreSQLRepository) ActivatePendingAccount(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.activate_pending_account")
+	defer span.End()
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
+
+		return err
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to begin transaction", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to begin transaction", libLog.Err(err))
+
+		return fmt.Errorf("failed to begin activation transaction: %w", err)
+	}
+
+	// Rollback is a no-op once Commit has succeeded; safe to always defer.
+	committed := false
+
+	defer func() {
+		if !committed {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				logger.Log(ctx, libLog.LevelWarn, "Rollback failed during account activation", libLog.Err(rbErr))
+			}
+		}
+	}()
+
+	selectQuery, selectArgs, err := squirrel.
+		Select("status", "blocked").
+		From(r.tableName).
+		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Expr("deleted_at IS NULL")).
+		Suffix("FOR UPDATE").
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build select for update query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build select for update query", libLog.Err(err))
+
+		return err
+	}
+
+	var currentStatus string
+
+	var currentBlocked bool
+
+	if err := tx.QueryRowContext(ctx, selectQuery, selectArgs...).Scan(&currentStatus, &currentBlocked); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			bizErr := pkg.ValidateBusinessError(constant.ErrInvalidAccountActivationState, constant.EntityAccount)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account not found for activation", bizErr)
+			logger.Log(ctx, libLog.LevelWarn, "Account not found for activation", libLog.String("account_id", id.String()))
+
+			return bizErr
+		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to lock account row", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to lock account row", libLog.Err(err))
+
+		return fmt.Errorf("failed to lock account row: %w", err)
+	}
+
+	if currentStatus != constant.AccountStatusPendingCRMLink || !currentBlocked {
+		bizErr := pkg.ValidateBusinessError(constant.ErrInvalidAccountActivationState, constant.EntityAccount)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account not in PENDING_CRM_LINK state", bizErr)
+		logger.Log(ctx, libLog.LevelWarn, "Account not in PENDING_CRM_LINK state",
+			libLog.String("account_id", id.String()),
+			libLog.String("current_status", currentStatus))
+
+		return bizErr
+	}
+
+	updateQuery, updateArgs, err := squirrel.
+		Update(r.tableName).
+		Set("status", constant.AccountStatusActive).
+		Set("blocked", false).
+		Set("updated_at", squirrel.Expr("NOW()")).
+		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Expr("deleted_at IS NULL")).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build activation update query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build activation update query", libLog.Err(err))
+
+		return err
+	}
+
+	result, err := tx.ExecContext(ctx, updateQuery, updateArgs...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to execute activation update", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to execute activation update", libLog.Err(err))
+
+		return fmt.Errorf("failed to execute activation update: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get rows affected", libLog.Err(err))
+
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	// SELECT FOR UPDATE already matched the row, so a zero here indicates a
+	// concurrent soft-delete between the lock and the update. Treat as an
+	// invalid activation state.
+	if rowsAffected == 0 {
+		bizErr := pkg.ValidateBusinessError(constant.ErrInvalidAccountActivationState, constant.EntityAccount)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Activation update affected zero rows", bizErr)
+		logger.Log(ctx, libLog.LevelWarn, "Activation update affected zero rows", libLog.String("account_id", id.String()))
+
+		return bizErr
+	}
+
+	if err := tx.Commit(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to commit activation transaction", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to commit activation transaction", libLog.Err(err))
+
+		return fmt.Errorf("failed to commit activation transaction: %w", err)
+	}
+
+	committed = true
 
 	return nil
 }

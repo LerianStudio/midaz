@@ -43,6 +43,35 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 	return m.recorder
 }
 
+// ActivatePendingAccount mocks base method.
+func (m *MockRepository) ActivatePendingAccount(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ActivatePendingAccount", ctx, organizationID, ledgerID, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ActivatePendingAccount indicates an expected call of ActivatePendingAccount.
+func (mr *MockRepositoryMockRecorder) ActivatePendingAccount(ctx, organizationID, ledgerID, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActivatePendingAccount", reflect.TypeOf((*MockRepository)(nil).ActivatePendingAccount), ctx, organizationID, ledgerID, id)
+}
+
+// Count mocks base method.
+func (m *MockRepository) Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Count", ctx, organizationID, ledgerID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Count indicates an expected call of Count.
+func (mr *MockRepositoryMockRecorder) Count(ctx, organizationID, ledgerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Count", reflect.TypeOf((*MockRepository)(nil).Count), ctx, organizationID, ledgerID)
+}
+
 // Create mocks base method.
 func (m *MockRepository) Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error) {
 	m.ctrl.T.Helper()
@@ -220,19 +249,4 @@ func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID uu
 func (mr *MockRepositoryMockRecorder) Update(ctx, organizationID, ledgerID, portfolioID, id, acc any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, organizationID, ledgerID, portfolioID, id, acc)
-}
-
-// Count mocks base method.
-func (m *MockRepository) Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Count", ctx, organizationID, ledgerID)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Count indicates an expected call of Count.
-func (mr *MockRepositoryMockRecorder) Count(ctx, organizationID, ledgerID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Count", reflect.TypeOf((*MockRepository)(nil).Count), ctx, organizationID, ledgerID)
 }
