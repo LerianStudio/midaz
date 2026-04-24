@@ -580,7 +580,6 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 		{constant.ActionCancel, entries.Cancel, constant.ErrMissingFieldsInRequest},
 		{constant.ActionRevert, entries.Revert, constant.ErrMissingFieldsInRequest},
 		{constant.ActionOverdraft, entries.Overdraft, constant.ErrAccountingEntryFieldRequired},
-		{constant.ActionRefund, entries.Refund, constant.ErrAccountingEntryFieldRequired},
 	}
 
 	for _, action := range actions {
@@ -666,7 +665,6 @@ var validAccountingEntryKeys = map[string]struct{}{
 	constant.ActionCancel:    {},
 	constant.ActionRevert:    {},
 	constant.ActionOverdraft: {},
-	constant.ActionRefund:    {},
 }
 
 // findUnknownAccountingEntryKeys parses the raw JSON for accountingEntries and returns
@@ -706,18 +704,18 @@ type fieldRequirement struct {
 //	source:      direct[D], hold[D][C], commit[D], cancel[D][C]
 //	destination: direct[C], commit[C]
 //	bidirectional: all scenarios require [D][C]
-//	overdraft / refund: both debit and credit are required regardless of direction.
+//	overdraft: both debit and credit are required regardless of direction.
 //
 // Note: Blocked scenarios (source/revert, destination/hold, etc.) are validated
 // separately by validateDirectionScenarioMatrix. This function assumes the
 // scenario is allowed for the direction.
 func getFieldRequirements(operationType, scenario string) fieldRequirement {
-	// Overdraft and Refund always require both rubrics, regardless of direction.
+	// Overdraft always requires both rubrics, regardless of direction.
 	// Keeping this rule explicit (rather than relying on the default fallthrough)
 	// documents the requirement next to the scenario list above and makes it
 	// harder to accidentally loosen via future edits to the source/destination
 	// switches.
-	if scenario == constant.ActionOverdraft || scenario == constant.ActionRefund {
+	if scenario == constant.ActionOverdraft {
 		return fieldRequirement{debitRequired: true, creditRequired: true}
 	}
 
@@ -965,13 +963,13 @@ func (handler *OperationRouteHandler) validateDirectMandatory(
 	defer span.End()
 
 	hasDirect := entries.Direct != nil
-	// Overdraft and Refund are supplementary accounting scenarios that still
-	// require direct as a base. Without this, a payload setting only
-	// overdraft (or only refund) would bypass the direct-mandatory check and
-	// yield an incomplete accounting description.
+	// Overdraft is a supplementary accounting scenario that still requires
+	// direct as a base. Without this, a payload setting only overdraft
+	// would bypass the direct-mandatory check and yield an incomplete
+	// accounting description.
 	hasOtherScenarios := entries.Hold != nil || entries.Commit != nil ||
 		entries.Cancel != nil || entries.Revert != nil ||
-		entries.Overdraft != nil || entries.Refund != nil
+		entries.Overdraft != nil
 
 	// If any other scenario exists, direct must also exist
 	if hasOtherScenarios && !hasDirect {
@@ -1020,7 +1018,6 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 		{constant.ActionCancel, entries.Cancel},
 		{constant.ActionRevert, entries.Revert},
 		{constant.ActionOverdraft, entries.Overdraft},
-		{constant.ActionRefund, entries.Refund},
 	}
 
 	for _, action := range actions {
@@ -1124,7 +1121,7 @@ func mergeAccountingEntries(existing, incoming *mmodel.AccountingEntries, rawUpd
 		return existingEntry
 	}
 
-	var incomingDirect, incomingHold, incomingCommit, incomingCancel, incomingRevert, incomingOverdraft, incomingRefund *mmodel.AccountingEntry
+	var incomingDirect, incomingHold, incomingCommit, incomingCancel, incomingRevert, incomingOverdraft *mmodel.AccountingEntry
 	if incoming != nil {
 		incomingDirect = incoming.Direct
 		incomingHold = incoming.Hold
@@ -1132,7 +1129,6 @@ func mergeAccountingEntries(existing, incoming *mmodel.AccountingEntries, rawUpd
 		incomingCancel = incoming.Cancel
 		incomingRevert = incoming.Revert
 		incomingOverdraft = incoming.Overdraft
-		incomingRefund = incoming.Refund
 	}
 
 	merged.Direct = applyMerge(constant.ActionDirect, existing.Direct, incomingDirect)
@@ -1141,12 +1137,11 @@ func mergeAccountingEntries(existing, incoming *mmodel.AccountingEntries, rawUpd
 	merged.Cancel = applyMerge(constant.ActionCancel, existing.Cancel, incomingCancel)
 	merged.Revert = applyMerge(constant.ActionRevert, existing.Revert, incomingRevert)
 	merged.Overdraft = applyMerge(constant.ActionOverdraft, existing.Overdraft, incomingOverdraft)
-	merged.Refund = applyMerge(constant.ActionRefund, existing.Refund, incomingRefund)
 
 	// Check if all entries are nil - return nil instead of empty struct
 	if merged.Direct == nil && merged.Hold == nil && merged.Commit == nil &&
 		merged.Cancel == nil && merged.Revert == nil &&
-		merged.Overdraft == nil && merged.Refund == nil {
+		merged.Overdraft == nil {
 		return nil
 	}
 
@@ -1196,12 +1191,6 @@ func mergeAccountingEntriesSimple(existing, incoming *mmodel.AccountingEntries) 
 		merged.Overdraft = incoming.Overdraft
 	} else if existing != nil {
 		merged.Overdraft = existing.Overdraft
-	}
-
-	if incoming.Refund != nil {
-		merged.Refund = incoming.Refund
-	} else if existing != nil {
-		merged.Refund = existing.Refund
 	}
 
 	return merged

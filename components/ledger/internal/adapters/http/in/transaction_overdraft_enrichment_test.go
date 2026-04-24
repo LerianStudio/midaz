@@ -443,8 +443,8 @@ func TestEnrichOverdraftOperations_DestinationRefundSplit(t *testing.T) {
 	companionOp := enriched[1]
 	assert.Equal(t, libConstants.CREDIT, companionOp.Amount.Operation,
 		"companion op must be a CREDIT so direction=debit semantics shrink the liability")
-	assert.Equal(t, constant.DirectionDebit, companionOp.Amount.Direction,
-		"companion direction must be explicit for the state machine")
+	assert.Equal(t, constant.DirectionCredit, companionOp.Amount.Direction,
+		"companion direction must be credit (repayment semantics) for rubric resolution")
 	assert.True(t, companionOp.Amount.Value.Equal(decimal.NewFromInt(50)),
 		"companion repay amount must equal min(80, 50) = 50, got %s", companionOp.Amount.Value)
 

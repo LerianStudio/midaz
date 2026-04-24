@@ -873,6 +873,73 @@ func TestValidateDirectionRouteMatch(t *testing.T) {
 		err := validateDirectionRouteMatch(operation, routeCache)
 		assert.NoError(t, err)
 	})
+
+	t.Run("overdraft companion CREDIT on destination route skips direction validation", func(t *testing.T) {
+		// Companion CREDIT on the overdraft balance has direction=debit (inherited
+		// from the balance). Destination routes expect credit. Without the exemption
+		// this would fail with 0152. The OverdraftBalanceKey gate ensures only
+		// system-generated companion ops are exempt, not user-specified operations.
+		op := mmodel.BalanceOperation{
+			Alias: "test-alias",
+			Amount: mtransaction.Amount{
+				Direction: "debit",
+			},
+			Balance: &mmodel.Balance{
+				Key:         constant.OverdraftBalanceKey,
+				AccountType: "asset",
+			},
+		}
+
+		routeCache := mmodel.OperationRouteCache{
+			OperationType: "destination",
+		}
+
+		err := validateDirectionRouteMatch(op, routeCache)
+		assert.NoError(t, err, "overdraft companion ops must be exempt from direction validation")
+	})
+
+	t.Run("overdraft companion DEBIT on source route also passes", func(t *testing.T) {
+		op := mmodel.BalanceOperation{
+			Alias: "test-alias",
+			Amount: mtransaction.Amount{
+				Direction: "debit",
+			},
+			Balance: &mmodel.Balance{
+				Key:         constant.OverdraftBalanceKey,
+				AccountType: "asset",
+			},
+		}
+
+		routeCache := mmodel.OperationRouteCache{
+			OperationType: "source",
+		}
+
+		err := validateDirectionRouteMatch(op, routeCache)
+		assert.NoError(t, err)
+	})
+
+	t.Run("user-specified debit on destination route still fails 0152", func(t *testing.T) {
+		// Non-overdraft balance with debit direction on a destination route must
+		// still be rejected — the exemption only applies to OverdraftBalanceKey.
+		op := mmodel.BalanceOperation{
+			Alias: "test-alias",
+			Amount: mtransaction.Amount{
+				Direction: "debit",
+			},
+			Balance: &mmodel.Balance{
+				Key:         "default",
+				AccountType: "asset",
+			},
+		}
+
+		routeCache := mmodel.OperationRouteCache{
+			OperationType: "destination",
+		}
+
+		err := validateDirectionRouteMatch(op, routeCache)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "0152")
+	})
 }
 
 func TestValidateCounterparts(t *testing.T) {

@@ -2,24 +2,20 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-// T-008: Accounting Entries Extension — Overdraft & Refund validation.
+// T-008 + T-014: Accounting Entries Extension — Overdraft validation.
 //
-// These tests capture the expected HTTP-handler validation behavior for
-// the new "overdraft" and "refund" accounting entries:
+// After T-014, the "refund" accounting entry was collapsed into "overdraft".
+// These tests capture the expected HTTP-handler validation behavior for the
+// "overdraft" accounting entry:
 //
-//  1. Both fields, when present, MUST include BOTH debit AND credit
-//     rubrics (same requirement as the bidirectional field pattern —
-//     source/hold, source/cancel, or any bidirectional scenario).
+//  1. The field, when present, MUST include BOTH debit AND credit rubrics.
 //  2. Missing debit or credit yields ErrAccountingEntryFieldRequired (0166).
-//  3. Absence of the fields continues to pass validation (backward compat).
+//  3. Absence of the field continues to pass validation (backward compat).
 //  4. Structural validation (empty code/description) still applies.
-//  5. The allowed-keys gate accepts "overdraft" and "refund" without
-//     triggering "Unexpected Fields" (error 0053).
-//
-// These tests MUST FAIL until T-008 GREEN introduces:
-//   - AccountingEntries.Overdraft and AccountingEntries.Refund fields
-//   - Handler validation for the new scenarios (debit+credit required)
-//   - "overdraft" and "refund" entries in validAccountingEntryKeys
+//  5. The allowed-keys gate accepts "overdraft" without triggering
+//     "Unexpected Fields" (error 0053).
+//  6. After T-014, the "refund" key is no longer recognized and produces
+//     an "Unexpected Fields" error (0053).
 package in
 
 import (
@@ -125,101 +121,10 @@ func TestValidateEntryFieldRequirements_Overdraft_RequiresDebitAndCredit(t *test
 	}
 }
 
-// TestValidateEntryFieldRequirements_Refund_RequiresDebitAndCredit verifies
-// that refund entries require BOTH debit and credit rubrics.
-func TestValidateEntryFieldRequirements_Refund_RequiresDebitAndCredit(t *testing.T) {
-	t.Parallel()
-
-	handler := &OperationRouteHandler{}
-
-	tests := []struct {
-		name          string
-		operationType string
-		entries       *mmodel.AccountingEntries
-		expectError   bool
-		errorCode     string
-		errorField    string
-	}{
-		{
-			name:          "refund with both debit and credit — valid",
-			operationType: constant.OperationRouteTypeBidirectional,
-			entries: &mmodel.AccountingEntries{
-				Direct: &mmodel.AccountingEntry{
-					Debit:  &mmodel.AccountingRubric{Code: "1001", Description: "Debit"},
-					Credit: &mmodel.AccountingRubric{Code: "2001", Description: "Credit"},
-				},
-				Refund: &mmodel.AccountingEntry{
-					Debit:  &mmodel.AccountingRubric{Code: "1007", Description: "Refund Debit"},
-					Credit: &mmodel.AccountingRubric{Code: "2007", Description: "Refund Credit"},
-				},
-			},
-			expectError: false,
-		},
-		{
-			name:          "refund missing debit — invalid",
-			operationType: constant.OperationRouteTypeBidirectional,
-			entries: &mmodel.AccountingEntries{
-				Direct: &mmodel.AccountingEntry{
-					Debit:  &mmodel.AccountingRubric{Code: "1001", Description: "Debit"},
-					Credit: &mmodel.AccountingRubric{Code: "2001", Description: "Credit"},
-				},
-				Refund: &mmodel.AccountingEntry{
-					Credit: &mmodel.AccountingRubric{Code: "2007", Description: "Refund Credit"},
-				},
-			},
-			expectError: true,
-			errorCode:   constant.ErrAccountingEntryFieldRequired.Error(),
-			errorField:  "debit",
-		},
-		{
-			name:          "refund missing credit — invalid",
-			operationType: constant.OperationRouteTypeBidirectional,
-			entries: &mmodel.AccountingEntries{
-				Direct: &mmodel.AccountingEntry{
-					Debit:  &mmodel.AccountingRubric{Code: "1001", Description: "Debit"},
-					Credit: &mmodel.AccountingRubric{Code: "2001", Description: "Credit"},
-				},
-				Refund: &mmodel.AccountingEntry{
-					Debit: &mmodel.AccountingRubric{Code: "1007", Description: "Refund Debit"},
-				},
-			},
-			expectError: true,
-			errorCode:   constant.ErrAccountingEntryFieldRequired.Error(),
-			errorField:  "credit",
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-
-			err := handler.validateEntryFieldRequirements(ctx, tt.operationType, tt.entries, "OperationRoute")
-
-			if tt.expectError {
-				require.Error(t, err, "expected validation error")
-
-				var upErr pkg.UnprocessableOperationError
-				require.ErrorAs(t, err, &upErr, "expected UnprocessableOperationError")
-				assert.Equal(t, tt.errorCode, upErr.Code, "error code mismatch")
-
-				if tt.errorField != "" {
-					assert.Contains(t, upErr.Message, tt.errorField,
-						"error message should reference the missing field")
-				}
-			} else {
-				require.NoError(t, err, "expected no validation error")
-			}
-		})
-	}
-}
-
-// TestValidateAccountingEntries_OverdraftRefund_StructuralValidation
+// TestValidateAccountingEntries_Overdraft_StructuralValidation
 // verifies that the existing structure validator (debit/credit present,
-// non-empty code/description) also runs on the new fields.
-func TestValidateAccountingEntries_OverdraftRefund_StructuralValidation(t *testing.T) {
+// non-empty code/description) also runs on the overdraft field.
+func TestValidateAccountingEntries_Overdraft_StructuralValidation(t *testing.T) {
 	t.Parallel()
 
 	handler := &OperationRouteHandler{}
@@ -240,14 +145,6 @@ func TestValidateAccountingEntries_OverdraftRefund_StructuralValidation(t *testi
 			errorField:  "accountingEntries.overdraft",
 		},
 		{
-			name: "refund with neither debit nor credit — invalid structure",
-			entries: &mmodel.AccountingEntries{
-				Refund: &mmodel.AccountingEntry{},
-			},
-			expectError: true,
-			errorField:  "accountingEntries.refund",
-		},
-		{
 			name: "overdraft with empty debit code — invalid structure",
 			entries: &mmodel.AccountingEntries{
 				Overdraft: &mmodel.AccountingEntry{
@@ -259,26 +156,11 @@ func TestValidateAccountingEntries_OverdraftRefund_StructuralValidation(t *testi
 			errorField:  "accountingEntries.overdraft.debit.code",
 		},
 		{
-			name: "refund with empty credit description — invalid structure",
-			entries: &mmodel.AccountingEntries{
-				Refund: &mmodel.AccountingEntry{
-					Debit:  &mmodel.AccountingRubric{Code: "1007", Description: "Refund Debit"},
-					Credit: &mmodel.AccountingRubric{Code: "2007", Description: ""},
-				},
-			},
-			expectError: true,
-			errorField:  "accountingEntries.refund.credit.description",
-		},
-		{
-			name: "overdraft and refund fully populated — valid structure",
+			name: "overdraft fully populated — valid structure",
 			entries: &mmodel.AccountingEntries{
 				Overdraft: &mmodel.AccountingEntry{
 					Debit:  &mmodel.AccountingRubric{Code: "1006", Description: "Overdraft Debit"},
 					Credit: &mmodel.AccountingRubric{Code: "2006", Description: "Overdraft Credit"},
-				},
-				Refund: &mmodel.AccountingEntry{
-					Debit:  &mmodel.AccountingRubric{Code: "1007", Description: "Refund Debit"},
-					Credit: &mmodel.AccountingRubric{Code: "2007", Description: "Refund Credit"},
 				},
 			},
 			expectError: false,
@@ -307,16 +189,15 @@ func TestValidateAccountingEntries_OverdraftRefund_StructuralValidation(t *testi
 	}
 }
 
-// TestValidateAccountingEntries_BackwardCompatible_NoOverdraftRefund
-// ensures operation routes without the new fields continue to validate
-// as before — no hidden required fields, no new errors.
-func TestValidateAccountingEntries_BackwardCompatible_NoOverdraftRefund(t *testing.T) {
+// TestValidateAccountingEntries_BackwardCompatible_NoOverdraft
+// ensures operation routes without the overdraft field continue to
+// validate as before — no hidden required fields, no new errors.
+func TestValidateAccountingEntries_BackwardCompatible_NoOverdraft(t *testing.T) {
 	t.Parallel()
 
 	handler := &OperationRouteHandler{}
 	ctx := context.Background()
 
-	// A minimal legacy payload (T-007 and earlier): only Direct is set.
 	entries := &mmodel.AccountingEntries{
 		Direct: &mmodel.AccountingEntry{
 			Debit:  &mmodel.AccountingRubric{Code: "1001", Description: "Cash"},
@@ -324,11 +205,9 @@ func TestValidateAccountingEntries_BackwardCompatible_NoOverdraftRefund(t *testi
 		},
 	}
 
-	// Structure validation passes.
 	require.NoError(t, handler.validateAccountingEntries(ctx, entries),
 		"legacy entries must still pass structural validation")
 
-	// Full matrix validation passes on every operation type.
 	for _, opType := range []string{
 		constant.OperationRouteTypeSource,
 		constant.OperationRouteTypeDestination,
@@ -340,16 +219,14 @@ func TestValidateAccountingEntries_BackwardCompatible_NoOverdraftRefund(t *testi
 
 			err := handler.validateAccountingRulesMatrix(ctx, opType, entries)
 			require.NoError(t, err,
-				"legacy entries without overdraft/refund must still pass matrix validation for %s", opType)
+				"legacy entries without overdraft must still pass matrix validation for %s", opType)
 		})
 	}
 }
 
-// TestFindUnknownAccountingEntryKeys_AllowsOverdraftAndRefund verifies
-// that the allowed-keys gate recognizes "overdraft" and "refund" as
-// valid top-level keys — without this, the handler would reject any
-// payload containing these new fields as "Unexpected Fields".
-func TestFindUnknownAccountingEntryKeys_AllowsOverdraftAndRefund(t *testing.T) {
+// TestFindUnknownAccountingEntryKeys_AllowsOverdraft verifies that the
+// allowed-keys gate recognizes "overdraft" as a valid top-level key.
+func TestFindUnknownAccountingEntryKeys_AllowsOverdraft(t *testing.T) {
 	t.Parallel()
 
 	raw := json.RawMessage(`{
@@ -357,7 +234,22 @@ func TestFindUnknownAccountingEntryKeys_AllowsOverdraftAndRefund(t *testing.T) {
 		"overdraft":{
 			"debit":{"code":"1006","description":"Overdraft Debit"},
 			"credit":{"code":"2006","description":"Overdraft Credit"}
-		},
+		}
+	}`)
+
+	unknowns := findUnknownAccountingEntryKeys(raw)
+
+	assert.Nil(t, unknowns,
+		`"overdraft" must be a valid top-level key; got unknowns = %v`, unknowns)
+}
+
+// TestFindUnknownAccountingEntryKeys_RejectsRefund verifies that after T-014,
+// the "refund" key is no longer recognized and is flagged as unknown.
+func TestFindUnknownAccountingEntryKeys_RejectsRefund(t *testing.T) {
+	t.Parallel()
+
+	raw := json.RawMessage(`{
+		"direct":{"debit":{"code":"1001","description":"Cash"}},
 		"refund":{
 			"debit":{"code":"1007","description":"Refund Debit"},
 			"credit":{"code":"2007","description":"Refund Credit"}
@@ -366,6 +258,7 @@ func TestFindUnknownAccountingEntryKeys_AllowsOverdraftAndRefund(t *testing.T) {
 
 	unknowns := findUnknownAccountingEntryKeys(raw)
 
-	assert.Nil(t, unknowns,
-		`"overdraft" and "refund" must be valid top-level keys; got unknowns = %v`, unknowns)
+	require.NotNil(t, unknowns, `"refund" must be flagged as unknown after T-014`)
+	_, hasRefund := unknowns["refund"]
+	assert.True(t, hasRefund, `unknowns map must contain "refund"`)
 }

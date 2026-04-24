@@ -802,20 +802,7 @@ func TestOperationRouteHandler_validateDirectMandatory(t *testing.T) {
 			errorCode:   "0164",
 		},
 		{
-			// Refund is a supplementary accounting scenario: it still needs
-			// the direct rubrics as its accounting base.
-			name: "refund without direct - invalid",
-			entries: &mmodel.AccountingEntries{
-				Refund: &mmodel.AccountingEntry{
-					Debit:  &mmodel.AccountingRubric{Code: "1007", Description: "Refund Debit"},
-					Credit: &mmodel.AccountingRubric{Code: "2007", Description: "Refund Credit"},
-				},
-			},
-			expectError: true,
-			errorCode:   "0164",
-		},
-		{
-			name: "direct with overdraft and refund - valid",
+			name: "direct with overdraft - valid",
 			entries: &mmodel.AccountingEntries{
 				Direct: &mmodel.AccountingEntry{
 					Debit:  &mmodel.AccountingRubric{Code: "1001", Description: "Debit"},
@@ -824,10 +811,6 @@ func TestOperationRouteHandler_validateDirectMandatory(t *testing.T) {
 				Overdraft: &mmodel.AccountingEntry{
 					Debit:  &mmodel.AccountingRubric{Code: "1006", Description: "Overdraft Debit"},
 					Credit: &mmodel.AccountingRubric{Code: "2006", Description: "Overdraft Credit"},
-				},
-				Refund: &mmodel.AccountingEntry{
-					Debit:  &mmodel.AccountingRubric{Code: "1007", Description: "Refund Debit"},
-					Credit: &mmodel.AccountingRubric{Code: "2007", Description: "Refund Credit"},
 				},
 			},
 			expectError: false,
