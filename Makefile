@@ -101,7 +101,6 @@ help:
 	@echo "  make format                      - Format code in all components"
 	@echo "  make tidy                        - Clean dependencies in root directory"
 	@echo "  make check-logs                  - Verify error logging in usecases"
-	@echo "  make check-tests                 - Verify test coverage for components"
 	@echo "  make sec                         - Run security checks (gosec + govulncheck)"
 	@echo "  make sec SARIF=1                 - Run security checks with SARIF output"
 	@echo ""
@@ -293,12 +292,6 @@ check-logs:
 	$(call print_title,Verifying error logging in usecases)
 	@sh ./scripts/check-logs.sh
 	@echo "[ok] Error logging verification completed"
-
-.PHONY: check-tests
-check-tests:
-	$(call print_title,Verifying test coverage for components)
-	@sh ./scripts/check-tests.sh
-	@echo "[ok] Test coverage verification completed"
 
 # SARIF output for GitHub Security tab integration (optional)
 # Usage: make sec SARIF=1

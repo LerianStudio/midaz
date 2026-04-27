@@ -511,7 +511,7 @@ make lint                 # Lint all components + tests/ + pkg/ (golangci-lint v
 make format               # Format code in all components
 make tidy                 # go mod tidy
 make check-logs           # Verify error logging in usecases
-make check-tests          # Verify test coverage for components
+make coverage-unit        # Canonical unit test coverage gate (uses .ignorecoverunit)
 make check-hooks          # Verify git hooks installation
 make check-envs           # Check hooks + secret env files not exposed
 make sec                  # Run gosec + govulncheck

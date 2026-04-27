@@ -22,7 +22,7 @@ echo "${CYAN}----------------------------------------------${NC}"
 echo "${CYAN}Checking for proper error logging in usecases...${NC}"
 
 # Define directories to check
-COMPONENTS=("./components/onboarding" "./components/transaction")
+COMPONENTS=("./components/ledger" "./components/crm")
 
 # Define patterns to search for
 MISSING_LOG_PATTERN="return err"
