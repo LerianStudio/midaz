@@ -18,6 +18,7 @@ import (
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
@@ -50,6 +51,7 @@ type Config struct {
 	EnvName         string `env:"ENV_NAME"`
 	LogLevel        string `env:"LOG_LEVEL"`
 	Version         string `env:"VERSION"`
+	DeploymentMode  string `env:"DEPLOYMENT_MODE"`
 
 	// Server configuration - unified port for all APIs
 	ServerAddress string `env:"SERVER_ADDRESS" envDefault:":3002"`
@@ -684,12 +686,28 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
 
+	// === Readyz handler ===
+
+	// Get metricsFactory from telemetry (nil-safe: checked inside handler)
+	var metricsFactory *metrics.MetricsFactory
+	if telemetry != nil {
+		metricsFactory = telemetry.MetricsFactory
+	}
+
+	readyzHandler, err := buildReadyzHandler(cfg, logger, redisConnection, onbPG, txnPG, onbMgo, txnMgo, rmq, metricsFactory)
+	if err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to build readiness handler: %w", err)
+	}
+
 	// === Unified server ===
 
 	unifiedServer := NewUnifiedServer(
 		cfg.ServerAddress,
 		logger,
 		telemetry,
+		readyzHandler,
 		onboardingRouteRegistrar,
 		transactionRouteRegistrar,
 		ledgerRouteRegistrar,
