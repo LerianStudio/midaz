@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -231,133 +230,6 @@ func (h *ReadyzHandler) checkLifecycleState() (string, bool) {
 	return "", true
 }
 
-// runChecksConcurrently runs all checkers in parallel using goroutines.
-// Returns a map of checker name to DependencyCheck result.
-func (h *ReadyzHandler) runChecksConcurrently(ctx context.Context, checkers []DependencyChecker) map[string]DependencyCheck {
-	checks := make(map[string]DependencyCheck)
-
-	if len(checkers) == 0 {
-		return checks
-	}
-
-	type checkResult struct {
-		name  string
-		check DependencyCheck
-	}
-
-	results := make(chan checkResult, len(checkers))
-
-	var wg sync.WaitGroup
-
-	for _, checker := range checkers {
-		wg.Add(1)
-
-		go func(c DependencyChecker) {
-			defer wg.Done()
-
-			checkCtx, cancel := context.WithTimeout(ctx, h.timeoutForChecker(c))
-			defer cancel()
-
-			start := time.Now()
-			check := c.Check(checkCtx)
-			durationMs := time.Since(start).Milliseconds()
-
-			// Set TLS field
-			if c.TLSEnabled() {
-				tlsEnabled := true
-				check.TLS = &tlsEnabled
-			} else {
-				tlsDisabled := false
-				check.TLS = &tlsDisabled
-			}
-
-			// Record metrics
-			h.recordCheckMetrics(ctx, c.Name(), check.Status, durationMs)
-
-			// Log full error and sanitize for non-local modes
-			h.logAndSanitizeCheck(ctx, c.Name(), &check)
-
-			results <- checkResult{name: c.Name(), check: check}
-		}(checker)
-	}
-
-	// Close results channel when all goroutines complete
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	// Collect results
-	for result := range results {
-		checks[result.name] = result.check
-	}
-
-	return checks
-}
-
-// runTenantChecksConcurrently runs tenant-aware checkers in parallel for a specific tenant.
-func (h *ReadyzHandler) runTenantChecksConcurrently(ctx context.Context, tenantID string, checkers []TenantAwareDependencyChecker) map[string]DependencyCheck {
-	checks := make(map[string]DependencyCheck)
-
-	if len(checkers) == 0 {
-		return checks
-	}
-
-	type checkResult struct {
-		name  string
-		check DependencyCheck
-	}
-
-	results := make(chan checkResult, len(checkers))
-
-	var wg sync.WaitGroup
-
-	for _, checker := range checkers {
-		wg.Add(1)
-
-		go func(c TenantAwareDependencyChecker) {
-			defer wg.Done()
-
-			checkCtx, cancel := context.WithTimeout(ctx, h.timeoutForChecker(c))
-			defer cancel()
-
-			start := time.Now()
-			check := c.CheckTenant(checkCtx, tenantID)
-			durationMs := time.Since(start).Milliseconds()
-
-			// Set TLS field
-			if c.TLSEnabled() {
-				tlsEnabled := true
-				check.TLS = &tlsEnabled
-			} else {
-				tlsDisabled := false
-				check.TLS = &tlsDisabled
-			}
-
-			// Record metrics
-			h.recordCheckMetrics(ctx, c.Name(), check.Status, durationMs)
-
-			// Log full error and sanitize for non-local modes
-			h.logAndSanitizeCheck(ctx, c.Name(), &check)
-
-			results <- checkResult{name: c.Name(), check: check}
-		}(checker)
-	}
-
-	// Close results channel when all goroutines complete
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	// Collect results
-	for result := range results {
-		checks[result.name] = result.check
-	}
-
-	return checks
-}
-
 // HandleReadyz handles the /readyz endpoint for global health checks.
 // In multi-tenant mode, database checkers return "n/a" since connections are tenant-scoped.
 // Redis always returns actual status (shared infrastructure).
@@ -373,17 +245,38 @@ func (h *ReadyzHandler) HandleReadyz(c *fiber.Ctx) error {
 		})
 	}
 
-	// Run all checkers concurrently
-	checks := h.runChecksConcurrently(c.Context(), h.checkers)
-
-	// Determine overall health status
+	checks := make(map[string]DependencyCheck)
 	allHealthy := true
 
-	for _, check := range checks {
+	// Run all checkers sequentially
+	for _, checker := range h.checkers {
+		checkCtx, cancel := context.WithTimeout(c.Context(), h.timeoutForChecker(checker))
+
+		start := time.Now()
+		check := checker.Check(checkCtx)
+		durationMs := time.Since(start).Milliseconds()
+
+		cancel()
+
+		// Set TLS field
+		if checker.TLSEnabled() {
+			tlsEnabled := true
+			check.TLS = &tlsEnabled
+		} else {
+			tlsDisabled := false
+			check.TLS = &tlsDisabled
+		}
+
+		// Record metrics
+		h.recordCheckMetrics(c.Context(), checker.Name(), check.Status, durationMs)
+
+		// Log full error and sanitize for non-local modes
+		h.logAndSanitizeCheck(c.Context(), checker.Name(), &check)
+
+		checks[checker.Name()] = check
+
 		if check.Status == StatusDown || check.Status == StatusDegraded {
 			allHealthy = false
-
-			break
 		}
 	}
 
@@ -438,33 +331,75 @@ func (h *ReadyzHandler) HandleReadyzTenant(c *fiber.Ctx) error {
 	// Set tenant ID in context for downstream managers
 	ctx := tmcore.ContextWithTenantID(c.Context(), tenantID)
 
-	// Run tenant-aware checkers concurrently
-	tenantChecks := h.runTenantChecksConcurrently(ctx, tenantID, h.tenantCheckers)
-
-	// Get non-tenant-aware checkers (like Redis which is shared)
-	nonTenantCheckers := h.getNonTenantAwareCheckers()
-
-	// Run non-tenant-aware checkers concurrently
-	sharedChecks := h.runChecksConcurrently(ctx, nonTenantCheckers)
-
-	// Merge results
 	checks := make(map[string]DependencyCheck)
-	for name, check := range tenantChecks {
-		checks[name] = check
-	}
-
-	for name, check := range sharedChecks {
-		checks[name] = check
-	}
-
-	// Determine overall health status
 	allHealthy := true
 
-	for _, check := range checks {
+	// Run tenant-aware checkers sequentially
+	for _, checker := range h.tenantCheckers {
+		checkCtx, cancel := context.WithTimeout(ctx, h.timeoutForChecker(checker))
+
+		start := time.Now()
+		check := checker.CheckTenant(checkCtx, tenantID)
+		durationMs := time.Since(start).Milliseconds()
+
+		cancel()
+
+		// Set TLS field
+		if checker.TLSEnabled() {
+			tlsEnabled := true
+			check.TLS = &tlsEnabled
+		} else {
+			tlsDisabled := false
+			check.TLS = &tlsDisabled
+		}
+
+		// Record metrics
+		h.recordCheckMetrics(ctx, checker.Name(), check.Status, durationMs)
+
+		// Log full error and sanitize for non-local modes
+		h.logAndSanitizeCheck(ctx, checker.Name(), &check)
+
+		checks[checker.Name()] = check
+
 		if check.Status == StatusDown || check.Status == StatusDegraded {
 			allHealthy = false
+		}
+	}
 
-			break
+	// Run non-tenant-aware checkers (like Redis which is shared)
+	for _, checker := range h.checkers {
+		// Skip if we already have a tenant-aware version
+		if h.hasTenantChecker(checker.Name()) {
+			continue
+		}
+
+		checkCtx, cancel := context.WithTimeout(ctx, h.timeoutForChecker(checker))
+
+		start := time.Now()
+		check := checker.Check(checkCtx)
+		durationMs := time.Since(start).Milliseconds()
+
+		cancel()
+
+		// Set TLS field
+		if checker.TLSEnabled() {
+			tlsEnabled := true
+			check.TLS = &tlsEnabled
+		} else {
+			tlsDisabled := false
+			check.TLS = &tlsDisabled
+		}
+
+		// Record metrics
+		h.recordCheckMetrics(ctx, checker.Name(), check.Status, durationMs)
+
+		// Log full error and sanitize for non-local modes
+		h.logAndSanitizeCheck(ctx, checker.Name(), &check)
+
+		checks[checker.Name()] = check
+
+		if check.Status == StatusDown || check.Status == StatusDegraded {
+			allHealthy = false
 		}
 	}
 
@@ -487,20 +422,6 @@ func (h *ReadyzHandler) HandleReadyzTenant(c *fiber.Ctx) error {
 	}
 
 	return c.Status(httpStatus).JSON(response)
-}
-
-// getNonTenantAwareCheckers returns checkers that don't have a tenant-aware version.
-// These are shared infrastructure components like Redis.
-func (h *ReadyzHandler) getNonTenantAwareCheckers() []DependencyChecker {
-	var result []DependencyChecker
-
-	for _, checker := range h.checkers {
-		if !h.hasTenantChecker(checker.Name()) {
-			result = append(result, checker)
-		}
-	}
-
-	return result
 }
 
 // hasTenantChecker returns true if a tenant-aware checker with the given name exists.

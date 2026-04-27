@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -84,6 +85,33 @@ func NewUnifiedServer(
 	// End tracing spans middleware (must be last)
 	app.Use(tlMid.EndTracingSpans)
 
+	// Register OnListen hook to mark server ready AFTER socket is bound.
+	// This avoids the race condition where readyz returns 200 before Fiber is listening.
+	if readyzHandler != nil {
+		app.Hooks().OnListen(func(ld fiber.ListenData) error {
+			readyzHandler.SetServerReady()
+			logger.Log(context.Background(), libLog.LevelInfo,
+				fmt.Sprintf("Server listening on %s:%s, readyz now returning healthy", ld.Host, ld.Port))
+
+			return nil
+		})
+
+		// Register OnShutdown hook to enable graceful drain.
+		// When SIGTERM is received, this hook:
+		// 1. Calls StartDrain() so readyz returns 503
+		// 2. Waits DefaultDrainDelay (12s) for load balancers to stop routing traffic
+		// 3. Returns, allowing Fiber to proceed with connection draining
+		app.Hooks().OnShutdown(func() error {
+			readyzHandler.StartDrain()
+			logger.Log(context.Background(), libLog.LevelInfo,
+				fmt.Sprintf("Graceful drain started, waiting %v for load balancers to update", DefaultDrainDelay))
+			time.Sleep(DefaultDrainDelay)
+			logger.Log(context.Background(), libLog.LevelInfo, "Drain delay complete, proceeding with shutdown")
+
+			return nil
+		})
+	}
+
 	return &UnifiedServer{
 		app:           app,
 		serverAddress: serverAddress,
@@ -98,20 +126,12 @@ func NewUnifiedServer(
 func (s *UnifiedServer) Run(l *libCommons.Launcher) error {
 	s.logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Starting Unified HTTP Server on %s", s.serverAddress))
 
-	// Create server manager with graceful shutdown
-	serverManager := libCommonsServer.NewServerManager(nil, s.telemetry, s.logger).
-		WithHTTPServer(s.app, s.serverAddress)
-
-	// Mark server ready for readyz probe after Fiber starts listening.
-	// The WithHTTPServer call registers the server but doesn't start it yet.
-	// We mark ready right before StartWithGracefulShutdown which blocks until shutdown.
-	if s.readyzHandler != nil {
-		s.readyzHandler.SetServerReady()
-	}
-
-	// This blocks until SIGTERM/SIGINT is received.
-	// The server manager handles graceful shutdown internally.
-	serverManager.StartWithGracefulShutdown()
+	// Create server manager with graceful shutdown.
+	// The OnListen hook (registered in NewUnifiedServer) will call SetServerReady()
+	// after the socket is bound, ensuring readyz only returns 200 when truly ready.
+	libCommonsServer.NewServerManager(nil, s.telemetry, s.logger).
+		WithHTTPServer(s.app, s.serverAddress).
+		StartWithGracefulShutdown()
 
 	return nil
 }
