@@ -5,6 +5,7 @@
 package mmodel
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -202,5 +203,55 @@ func TestBalanceSettings_Validate_InvalidCombinations(t *testing.T) {
 			assert.Contains(t, err.Error(), tt.wantErrContains,
 				"error message must contain %q for case: %s", tt.wantErrContains, tt.name)
 		})
+	}
+}
+
+// TestDeepCopySettings_ReflectionGuard uses reflection to detect new pointer
+// fields added to BalanceSettings in the future. If a developer adds a new
+// *string or *SomeStruct field to BalanceSettings but forgets to deep-copy it
+// in deepCopySettings, this test fails — forcing the copy to be updated.
+func TestDeepCopySettings_ReflectionGuard(t *testing.T) {
+	t.Parallel()
+
+	// Seed every pointer field with a non-nil value so the reflection
+	// check can distinguish shallow copy (same address) from deep copy
+	// (different address, same value).
+	limit := "500.00"
+	src := &BalanceSettings{
+		BalanceScope:          "transactional",
+		AllowOverdraft:        true,
+		OverdraftLimitEnabled: true,
+		OverdraftLimit:        &limit,
+	}
+
+	cp := deepCopySettings(src)
+	require.NotNil(t, cp)
+
+	srcVal := reflect.ValueOf(src).Elem()
+	cpVal := reflect.ValueOf(cp).Elem()
+
+	for i := 0; i < srcVal.NumField(); i++ {
+		field := srcVal.Type().Field(i)
+		srcField := srcVal.Field(i)
+		cpField := cpVal.Field(i)
+
+		if srcField.Kind() != reflect.Ptr {
+			continue
+		}
+
+		if srcField.IsNil() {
+			t.Errorf("reflection guard: field %q is nil on the seed object — "+
+				"add a non-nil seed value so the deep-copy check can verify "+
+				"that deepCopySettings copies it", field.Name)
+			continue
+		}
+
+		require.False(t, cpField.IsNil(),
+			"field %q was non-nil on source but nil on copy — deepCopySettings must copy it", field.Name)
+		assert.NotEqual(t, srcField.Pointer(), cpField.Pointer(),
+			"field %q has the same pointer address on source and copy — "+
+				"deepCopySettings must allocate a new value, not share the pointer", field.Name)
+		assert.Equal(t, srcField.Elem().Interface(), cpField.Elem().Interface(),
+			"field %q has different values on source and copy — deep copy must preserve the value", field.Name)
 	}
 }

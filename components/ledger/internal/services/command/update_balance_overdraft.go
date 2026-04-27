@@ -127,6 +127,16 @@ func enforceOverdraftTransition(ctx context.Context, logger libLog.Logger, span 
 // Any other Create failure (connectivity, constraint violations we did not
 // trigger, etc.) is propagated unchanged.
 func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Logger, span trace.Span, organizationID, ledgerID uuid.UUID, current *mmodel.Balance, nextSettings *mmodel.BalanceSettings) error {
+	// Concurrency model: auto-creation is idempotent. Two concurrent
+	// PATCH-enable requests on the same account will both attempt to
+	// create the overdraft companion balance. The partial unique index
+	// idx_unique_balance_account_key (migration 000032) on
+	// (organization_id, ledger_id, account_id, asset_code, key)
+	// WHERE deleted_at IS NULL guarantees only one row survives.
+	// isUniqueViolation (line ~247) catches the duplicate-key error
+	// and treats it as a no-op — the second caller proceeds with the
+	// companion that the first caller created.
+
 	if current == nil || nextSettings == nil {
 		return nil
 	}

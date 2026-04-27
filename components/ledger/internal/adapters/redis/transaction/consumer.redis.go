@@ -1444,6 +1444,13 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 // script reads; the variadic arguments enumerate camelCase / legacy spellings
 // that must be dropped from the map to avoid duplicate keys in the JSON
 // document (Go encoders emit both which Lua then sees twice).
+//
+// This helper is the SINGLE SOURCE OF TRUTH for the CamelCase ↔ camelCase
+// mapping between Go writers and the Lua atomic script. If additional Go
+// writers to the balance cache appear (e.g. tenant migration, admin tooling),
+// they MUST use this helper (or its equivalent mapping) to ensure the cached
+// JSON is Lua-compatible. See the CACHE JSON CASING CONTRACT on BalanceRedis
+// in pkg/mmodel/balance.go for the full rationale.
 func luaBalanceSettingKey(m map[string]any, primary string, aliases ...string) {
 	delete(m, primary)
 
