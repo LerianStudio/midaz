@@ -38,30 +38,6 @@ func (m *mockChecker) Check(_ context.Context) DependencyCheck {
 	return m.check
 }
 
-// mockTenantChecker is a test implementation of TenantAwareDependencyChecker.
-type mockTenantChecker struct {
-	name        string
-	tlsEnabled  bool
-	globalCheck DependencyCheck
-	tenantCheck DependencyCheck
-}
-
-func (m *mockTenantChecker) Name() string {
-	return m.name
-}
-
-func (m *mockTenantChecker) TLSEnabled() bool {
-	return m.tlsEnabled
-}
-
-func (m *mockTenantChecker) Check(_ context.Context) DependencyCheck {
-	return m.globalCheck
-}
-
-func (m *mockTenantChecker) CheckTenant(_ context.Context, _ string) DependencyCheck {
-	return m.tenantCheck
-}
-
 // newReadyHandler creates a ReadyzHandler and marks it as ready for testing.
 // This is needed because HandleReadyz now checks lifecycle state before running checks.
 func newReadyHandler(cfg ReadyzHandlerConfig) *ReadyzHandler {
@@ -201,121 +177,6 @@ func TestReadyzHandler_HandleReadyz(t *testing.T) {
 	}
 }
 
-func TestReadyzHandler_HandleReadyzTenant(t *testing.T) {
-	t.Parallel()
-
-	latency := int64(10)
-
-	tests := []struct {
-		name               string
-		tenantID           string
-		multiTenantEnabled bool
-		tenantCheckers     []TenantAwareDependencyChecker
-		checkers           []DependencyChecker
-		wantStatus         int
-		wantHealthy        bool
-	}{
-		{
-			name:               "multi_tenant_enabled_all_healthy",
-			tenantID:           "tenant-123",
-			multiTenantEnabled: true,
-			tenantCheckers: []TenantAwareDependencyChecker{
-				&mockTenantChecker{
-					name:        "postgres",
-					tlsEnabled:  false,
-					globalCheck: DependencyCheck{Status: StatusNA, Reason: "tenant-scoped"},
-					tenantCheck: DependencyCheck{Status: StatusUp, LatencyMs: &latency},
-				},
-			},
-			checkers: []DependencyChecker{
-				&mockChecker{name: "redis", tlsEnabled: true, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
-			},
-			wantStatus:  http.StatusOK,
-			wantHealthy: true,
-		},
-		{
-			name:               "multi_tenant_disabled_returns_400",
-			tenantID:           "tenant-123",
-			multiTenantEnabled: false,
-			tenantCheckers:     nil,
-			checkers:           nil,
-			wantStatus:         http.StatusBadRequest,
-			wantHealthy:        false,
-		},
-		{
-			name:               "empty_tenant_id_returns_404",
-			tenantID:           "",
-			multiTenantEnabled: true,
-			tenantCheckers:     nil,
-			checkers:           nil,
-			wantStatus:         http.StatusNotFound, // Fiber returns 404 for missing path params
-			wantHealthy:        false,
-		},
-		{
-			name:               "tenant_db_down_returns_503",
-			tenantID:           "tenant-456",
-			multiTenantEnabled: true,
-			tenantCheckers: []TenantAwareDependencyChecker{
-				&mockTenantChecker{
-					name:        "postgres",
-					tlsEnabled:  true,
-					globalCheck: DependencyCheck{Status: StatusNA, Reason: "tenant-scoped"},
-					tenantCheck: DependencyCheck{Status: StatusDown, LatencyMs: &latency, Error: "connection failed"},
-				},
-			},
-			checkers: []DependencyChecker{
-				&mockChecker{name: "redis", tlsEnabled: true, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
-			},
-			wantStatus:  http.StatusServiceUnavailable,
-			wantHealthy: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			handler := newReadyHandler(ReadyzHandlerConfig{
-				Logger:             libLog.NewNop(),
-				Checkers:           tt.checkers,
-				TenantCheckers:     tt.tenantCheckers,
-				Version:            "1.0.0",
-				DeploymentMode:     "production",
-				MultiTenantEnabled: tt.multiTenantEnabled,
-			})
-
-			app := fiber.New()
-			app.Get("/readyz/tenant/:id", handler.HandleReadyzTenant)
-
-			path := "/readyz/tenant/" + tt.tenantID
-			if tt.tenantID == "" {
-				path = "/readyz/tenant/"
-			}
-
-			req := httptest.NewRequest(http.MethodGet, path, nil)
-			resp, err := app.Test(req, -1)
-			require.NoError(t, err)
-
-			assert.Equal(t, tt.wantStatus, resp.StatusCode)
-
-			if tt.wantStatus == http.StatusOK || tt.wantStatus == http.StatusServiceUnavailable {
-				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-
-				var response ReadyzResponse
-				err = json.Unmarshal(body, &response)
-				require.NoError(t, err)
-
-				if tt.wantHealthy {
-					assert.Equal(t, "healthy", response.Status)
-				} else {
-					assert.Equal(t, "unhealthy", response.Status)
-				}
-			}
-		})
-	}
-}
-
 func TestReadyzHandler_TLSField(t *testing.T) {
 	t.Parallel()
 
@@ -381,19 +242,6 @@ func TestReadyzHandler_DeploymentModeDefault(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "local", response.DeploymentMode)
-}
-
-func TestNAChecker(t *testing.T) {
-	t.Parallel()
-
-	checker := NewNAChecker("test_na", "tenant-scoped dependency", true)
-
-	assert.Equal(t, "test_na", checker.Name())
-	assert.True(t, checker.TLSEnabled())
-
-	check := checker.Check(context.Background())
-	assert.Equal(t, StatusNA, check.Status)
-	assert.Equal(t, "tenant-scoped dependency", check.Reason)
 }
 
 func TestTimeoutForChecker(t *testing.T) {
@@ -770,82 +618,6 @@ func TestReadyzHandler_ErrorSanitization_InResponse(t *testing.T) {
 	}
 }
 
-func TestReadyzHandler_ErrorSanitization_TenantEndpoint(t *testing.T) {
-	t.Parallel()
-
-	internalError := "ping failed: server at db.example.invalid:27017 is not reachable"
-	latency := int64(100)
-
-	tests := []struct {
-		name              string
-		deploymentMode    string
-		wantErrorContains string
-		wantErrorExcludes string
-	}{
-		{
-			name:              "local_mode_exposes_full_error",
-			deploymentMode:    DeploymentModeLocal,
-			wantErrorContains: "db.example.invalid:27017",
-			wantErrorExcludes: "",
-		},
-		{
-			name:              "saas_mode_sanitizes_error",
-			deploymentMode:    DeploymentModeSaaS,
-			wantErrorContains: "mongo_onboarding check failed",
-			wantErrorExcludes: "db.example.invalid",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			handler := newReadyHandler(ReadyzHandlerConfig{
-				Logger: libLog.NewNop(),
-				TenantCheckers: []TenantAwareDependencyChecker{
-					&mockTenantChecker{
-						name: "mongo_onboarding",
-						tenantCheck: DependencyCheck{
-							Status:    StatusDown,
-							LatencyMs: &latency,
-							Error:     internalError,
-						},
-					},
-				},
-				Version:            "1.0.0",
-				DeploymentMode:     tt.deploymentMode,
-				MultiTenantEnabled: true,
-			})
-
-			app := fiber.New()
-			app.Get("/readyz/tenant/:id", handler.HandleReadyzTenant)
-
-			req := httptest.NewRequest(http.MethodGet, "/readyz/tenant/tenant-123", nil)
-			resp, err := app.Test(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			body, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-
-			var response ReadyzResponse
-			err = json.Unmarshal(body, &response)
-			require.NoError(t, err)
-
-			check, exists := response.Checks["mongo_onboarding"]
-			require.True(t, exists, "mongo_onboarding check should exist")
-
-			assert.Contains(t, check.Error, tt.wantErrorContains,
-				"error should contain expected string")
-
-			if tt.wantErrorExcludes != "" {
-				assert.NotContains(t, check.Error, tt.wantErrorExcludes,
-					"error should not contain internal details")
-			}
-		})
-	}
-}
-
 // TestReadyzHandler_LifecycleState tests the self-probe and graceful drain functionality.
 func TestReadyzHandler_LifecycleState(t *testing.T) {
 	t.Parallel()
@@ -946,38 +718,5 @@ func TestReadyzHandler_LifecycleState(t *testing.T) {
 		assert.Equal(t, "unhealthy", response.Status)
 		assert.Contains(t, response.Reason, "draining")
 		assert.Empty(t, response.Checks, "no checks should run when draining")
-	})
-
-	t.Run("tenant_endpoint_also_checks_lifecycle", func(t *testing.T) {
-		t.Parallel()
-
-		handler := NewReadyzHandler(ReadyzHandlerConfig{
-			Logger:             libLog.NewNop(),
-			Checkers:           []DependencyChecker{},
-			TenantCheckers:     []TenantAwareDependencyChecker{},
-			Version:            "1.0.0",
-			DeploymentMode:     "local",
-			MultiTenantEnabled: true,
-		})
-
-		// Don't set ready - should return 503
-
-		app := fiber.New()
-		app.Get("/readyz/tenant/:id", handler.HandleReadyzTenant)
-
-		req := httptest.NewRequest(http.MethodGet, "/readyz/tenant/test-tenant", nil)
-		resp, err := app.Test(req)
-		require.NoError(t, err)
-
-		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
-
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-
-		var response ReadyzResponse
-		err = json.Unmarshal(body, &response)
-		require.NoError(t, err)
-
-		assert.Contains(t, response.Reason, "server not ready")
 	})
 }

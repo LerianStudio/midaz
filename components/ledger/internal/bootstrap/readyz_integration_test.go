@@ -295,12 +295,11 @@ func TestReadyz_Integration_MixedHealthStatus(t *testing.T) {
 	mongoClient := mongoContainer.CreateConnection(t, mongo.URI, mongo.DBName)
 	redisClient := redisContainer.CreateConnection(t, redis.Addr)
 
-	// Mix of healthy, skipped, and n/a checkers
+	// Mix of healthy and skipped checkers
 	checkers := []DependencyChecker{
 		NewSQLDBChecker("postgres_onboarding", nil, false), // skipped (nil)
 		NewMongoChecker("mongo_onboarding", mongoClient, mongo.URI),
 		NewRedisChecker("redis", redisClient, redis.Addr, false),
-		NewNAChecker("postgres_transaction", "tenant-scoped", false), // n/a
 	}
 
 	handler := newReadyHandler(ReadyzHandlerConfig{
@@ -317,7 +316,7 @@ func TestReadyz_Integration_MixedHealthStatus(t *testing.T) {
 	resp, err := app.Test(req, 10000)
 	require.NoError(t, err)
 
-	// Should be healthy since skipped and n/a don't count as unhealthy
+	// Should be healthy since skipped does not count as unhealthy
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
@@ -331,7 +330,6 @@ func TestReadyz_Integration_MixedHealthStatus(t *testing.T) {
 	assert.Equal(t, StatusSkipped, response.Checks["postgres_onboarding"].Status)
 	assert.Equal(t, StatusUp, response.Checks["mongo_onboarding"].Status)
 	assert.Equal(t, StatusUp, response.Checks["redis"].Status)
-	assert.Equal(t, StatusNA, response.Checks["postgres_transaction"].Status)
 }
 
 func TestReadyz_Integration_ClosedConnection(t *testing.T) {

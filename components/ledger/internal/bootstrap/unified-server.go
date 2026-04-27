@@ -67,7 +67,6 @@ func NewUnifiedServer(
 	// This endpoint is public and does not require authentication.
 	if readyzHandler != nil {
 		app.Get("/readyz", readyzHandler.HandleReadyz)
-		app.Get("/readyz/tenant/:id", readyzHandler.HandleReadyzTenant)
 	}
 
 	// Swagger documentation (unified onboarding + transaction)

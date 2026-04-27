@@ -17,8 +17,6 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
 	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
 	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
-	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
-	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -72,83 +70,6 @@ func (c *PostgresChecker) Check(ctx context.Context) DependencyCheck {
 			Status:    StatusDown,
 			LatencyMs: &latencyMs,
 			Error:     fmt.Sprintf("failed to get database connection: %v", err),
-		}
-	}
-
-	var result int
-
-	err = db.QueryRowContext(ctx, "SELECT 1").Scan(&result)
-	latencyMs := time.Since(start).Milliseconds()
-
-	if err != nil {
-		return DependencyCheck{
-			Status:    StatusDown,
-			LatencyMs: &latencyMs,
-			Error:     fmt.Sprintf("SELECT 1 failed: %v", err),
-		}
-	}
-
-	return DependencyCheck{
-		Status:    StatusUp,
-		LatencyMs: &latencyMs,
-	}
-}
-
-// TenantPostgresChecker probes tenant-specific PostgreSQL connections.
-type TenantPostgresChecker struct {
-	name       string
-	manager    *tmpostgres.Manager
-	tlsEnabled bool
-}
-
-// NewTenantPostgresChecker creates a new tenant-aware PostgreSQL health checker.
-func NewTenantPostgresChecker(name string, manager *tmpostgres.Manager, dsn string) *TenantPostgresChecker {
-	tlsEnabled := detectPostgresTLS(dsn)
-
-	return &TenantPostgresChecker{
-		name:       name,
-		manager:    manager,
-		tlsEnabled: tlsEnabled,
-	}
-}
-
-// Name returns the checker identifier.
-func (c *TenantPostgresChecker) Name() string {
-	return c.name
-}
-
-// TLSEnabled returns whether TLS is enabled for this connection.
-func (c *TenantPostgresChecker) TLSEnabled() bool {
-	return c.tlsEnabled
-}
-
-// Check returns n/a for global checks since this is tenant-scoped.
-func (c *TenantPostgresChecker) Check(_ context.Context) DependencyCheck {
-	return DependencyCheck{
-		Status: StatusNA,
-		Reason: "tenant-scoped; use /readyz/tenant/:id",
-	}
-}
-
-// CheckTenant probes the PostgreSQL connection for a specific tenant.
-func (c *TenantPostgresChecker) CheckTenant(ctx context.Context, tenantID string) DependencyCheck {
-	if c.manager == nil {
-		return DependencyCheck{
-			Status: StatusSkipped,
-			Reason: "PostgreSQL manager not configured",
-		}
-	}
-
-	start := time.Now()
-
-	db, err := c.manager.GetDB(ctx, tenantID)
-	if err != nil {
-		latencyMs := time.Since(start).Milliseconds()
-
-		return DependencyCheck{
-			Status:    StatusDown,
-			LatencyMs: &latencyMs,
-			Error:     fmt.Sprintf("failed to get tenant connection: %v", err),
 		}
 	}
 
@@ -232,100 +153,6 @@ func (c *MongoChecker) Check(ctx context.Context) DependencyCheck {
 	start := time.Now()
 
 	err := c.client.Ping(ctx)
-	latencyMs := time.Since(start).Milliseconds()
-
-	if err != nil {
-		return DependencyCheck{
-			Status:    StatusDown,
-			LatencyMs: &latencyMs,
-			Error:     fmt.Sprintf("ping failed: %v", err),
-		}
-	}
-
-	return DependencyCheck{
-		Status:    StatusUp,
-		LatencyMs: &latencyMs,
-	}
-}
-
-// TenantMongoChecker probes tenant-specific MongoDB connections.
-type TenantMongoChecker struct {
-	name       string
-	manager    *tmmongo.Manager
-	tlsEnabled bool
-}
-
-// NewTenantMongoChecker creates a new tenant-aware MongoDB health checker.
-func NewTenantMongoChecker(name string, manager *tmmongo.Manager, uri string) *TenantMongoChecker {
-	tlsEnabled, _ := detectMongoTLS(uri)
-
-	return &TenantMongoChecker{
-		name:       name,
-		manager:    manager,
-		tlsEnabled: tlsEnabled,
-	}
-}
-
-// NewTenantMongoCheckerWithLogger creates a new tenant-aware MongoDB health checker that logs TLS detection errors.
-// If logger is nil, errors are silently ignored (same behavior as NewTenantMongoChecker).
-func NewTenantMongoCheckerWithLogger(name string, manager *tmmongo.Manager, uri string, logger libLog.Logger) *TenantMongoChecker {
-	tlsEnabled, err := detectMongoTLS(uri)
-	if err != nil && logger != nil {
-		logger.Log(context.Background(), libLog.LevelDebug,
-			"Failed to detect MongoDB TLS configuration for tenant checker",
-			libLog.String("checker", name),
-			libLog.Err(err))
-	}
-
-	return &TenantMongoChecker{
-		name:       name,
-		manager:    manager,
-		tlsEnabled: tlsEnabled,
-	}
-}
-
-// Name returns the checker identifier.
-func (c *TenantMongoChecker) Name() string {
-	return c.name
-}
-
-// TLSEnabled returns whether TLS is enabled for this connection.
-func (c *TenantMongoChecker) TLSEnabled() bool {
-	return c.tlsEnabled
-}
-
-// Check returns n/a for global checks since this is tenant-scoped.
-func (c *TenantMongoChecker) Check(_ context.Context) DependencyCheck {
-	return DependencyCheck{
-		Status: StatusNA,
-		Reason: "tenant-scoped; use /readyz/tenant/:id",
-	}
-}
-
-// CheckTenant probes the MongoDB connection for a specific tenant.
-func (c *TenantMongoChecker) CheckTenant(ctx context.Context, tenantID string) DependencyCheck {
-	if c.manager == nil {
-		return DependencyCheck{
-			Status: StatusSkipped,
-			Reason: "MongoDB manager not configured",
-		}
-	}
-
-	start := time.Now()
-
-	db, err := c.manager.GetDatabaseForTenant(ctx, tenantID)
-	if err != nil {
-		latencyMs := time.Since(start).Milliseconds()
-
-		return DependencyCheck{
-			Status:    StatusDown,
-			LatencyMs: &latencyMs,
-			Error:     fmt.Sprintf("failed to get tenant database: %v", err),
-		}
-	}
-
-	// Run ping command on the database
-	err = db.Client().Ping(ctx, nil)
 	latencyMs := time.Since(start).Milliseconds()
 
 	if err != nil {
@@ -567,43 +394,7 @@ func mapCircuitBreakerState(state libCircuitBreaker.State) string {
 	}
 }
 
-// NAChecker is a placeholder checker that always returns n/a status.
-// Used in multi-tenant mode for dependencies that are tenant-scoped.
-type NAChecker struct {
-	name       string
-	reason     string
-	tlsEnabled bool
-}
-
-// NewNAChecker creates a checker that always returns n/a status.
-func NewNAChecker(name, reason string, tlsEnabled bool) *NAChecker {
-	return &NAChecker{
-		name:       name,
-		reason:     reason,
-		tlsEnabled: tlsEnabled,
-	}
-}
-
-// Name returns the checker identifier.
-func (c *NAChecker) Name() string {
-	return c.name
-}
-
-// TLSEnabled returns whether TLS is enabled for this dependency.
-func (c *NAChecker) TLSEnabled() bool {
-	return c.tlsEnabled
-}
-
-// Check always returns n/a status.
-func (c *NAChecker) Check(_ context.Context) DependencyCheck {
-	return DependencyCheck{
-		Status: StatusNA,
-		Reason: c.reason,
-	}
-}
-
 // SQLDBChecker probes a raw *sql.DB connection.
-// This is useful for tenant-scoped connections where we get a raw *sql.DB.
 type SQLDBChecker struct {
 	name       string
 	db         *sql.DB

@@ -15,9 +15,6 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
-	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
-	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/attribute"
@@ -40,7 +37,7 @@ const (
 	// StatusSkipped indicates the dependency is optional and was not probed (e.g., disabled by config).
 	StatusSkipped DependencyStatus = "skipped"
 
-	// StatusNA indicates the dependency is not applicable in the current mode (e.g., tenant-scoped in MT mode).
+	// StatusNA indicates the dependency is not applicable in the current context.
 	StatusNA DependencyStatus = "n/a"
 )
 
@@ -91,28 +88,12 @@ type DependencyChecker interface {
 	TLSEnabled() bool
 }
 
-// TenantAwareDependencyChecker extends DependencyChecker for tenant-scoped probes.
-// In multi-tenant mode, these checkers can resolve tenant-specific connections.
-type TenantAwareDependencyChecker interface {
-	DependencyChecker
-
-	// CheckTenant probes the dependency for a specific tenant.
-	// Returns StatusNA if the dependency doesn't support tenant-scoped checks.
-	CheckTenant(ctx context.Context, tenantID string) DependencyCheck
-}
-
-// ReadyzHandler handles /readyz and /readyz/tenant/:id requests.
+// ReadyzHandler handles /readyz requests.
 type ReadyzHandler struct {
-	logger             libLog.Logger
-	checkers           []DependencyChecker
-	tenantCheckers     []TenantAwareDependencyChecker
-	version            string
-	deploymentMode     string
-	multiTenantEnabled bool
-	onbPGManager       *tmpostgres.Manager
-	txnPGManager       *tmpostgres.Manager
-	onbMongoManager    *tmmongo.Manager
-	txnMongoManager    *tmmongo.Manager
+	logger         libLog.Logger
+	checkers       []DependencyChecker
+	version        string
+	deploymentMode string
 
 	// Lifecycle state
 	serverReady atomic.Bool // true after HTTP server is listening
@@ -124,33 +105,21 @@ type ReadyzHandler struct {
 
 // ReadyzHandlerConfig holds configuration for creating a ReadyzHandler.
 type ReadyzHandlerConfig struct {
-	Logger             libLog.Logger
-	Checkers           []DependencyChecker
-	TenantCheckers     []TenantAwareDependencyChecker
-	Version            string
-	DeploymentMode     string
-	MultiTenantEnabled bool
-	OnbPGManager       *tmpostgres.Manager
-	TxnPGManager       *tmpostgres.Manager
-	OnbMongoManager    *tmmongo.Manager
-	TxnMongoManager    *tmmongo.Manager
-	MetricsFactory     *metrics.MetricsFactory
+	Logger         libLog.Logger
+	Checkers       []DependencyChecker
+	Version        string
+	DeploymentMode string
+	MetricsFactory *metrics.MetricsFactory
 }
 
 // NewReadyzHandler creates a new ReadyzHandler with the given configuration.
 func NewReadyzHandler(cfg ReadyzHandlerConfig) *ReadyzHandler {
 	return &ReadyzHandler{
-		logger:             cfg.Logger,
-		checkers:           cfg.Checkers,
-		tenantCheckers:     cfg.TenantCheckers,
-		version:            cfg.Version,
-		deploymentMode:     ResolveDeploymentMode(cfg.DeploymentMode),
-		multiTenantEnabled: cfg.MultiTenantEnabled,
-		onbPGManager:       cfg.OnbPGManager,
-		txnPGManager:       cfg.TxnPGManager,
-		onbMongoManager:    cfg.OnbMongoManager,
-		txnMongoManager:    cfg.TxnMongoManager,
-		metricsFactory:     cfg.MetricsFactory,
+		logger:         cfg.Logger,
+		checkers:       cfg.Checkers,
+		version:        cfg.Version,
+		deploymentMode: ResolveDeploymentMode(cfg.DeploymentMode),
+		metricsFactory: cfg.MetricsFactory,
 	}
 }
 
@@ -231,8 +200,7 @@ func (h *ReadyzHandler) checkLifecycleState() (string, bool) {
 }
 
 // HandleReadyz handles the /readyz endpoint for global health checks.
-// In multi-tenant mode, database checkers return "n/a" since connections are tenant-scoped.
-// Redis always returns actual status (shared infrastructure).
+// All configured dependency checkers are probed and their status is returned.
 func (h *ReadyzHandler) HandleReadyz(c *fiber.Ctx) error {
 	// Check lifecycle state first (self-probe and graceful drain)
 	if reason, ok := h.checkLifecycleState(); !ok {
@@ -299,140 +267,6 @@ func (h *ReadyzHandler) HandleReadyz(c *fiber.Ctx) error {
 	}
 
 	return c.Status(httpStatus).JSON(response)
-}
-
-// HandleReadyzTenant handles the /readyz/tenant/:id endpoint for tenant-specific health checks.
-// This endpoint resolves tenant-specific connections and probes them directly.
-func (h *ReadyzHandler) HandleReadyzTenant(c *fiber.Ctx) error {
-	tenantID := c.Params("id")
-	if tenantID == "" {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"error": "tenant ID is required",
-		})
-	}
-
-	if !h.multiTenantEnabled {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"error": "tenant-scoped readyz is only available in multi-tenant mode",
-		})
-	}
-
-	// Check lifecycle state first (self-probe and graceful drain)
-	if reason, ok := h.checkLifecycleState(); !ok {
-		return c.Status(http.StatusServiceUnavailable).JSON(ReadyzResponse{
-			Status:         "unhealthy",
-			Checks:         map[string]DependencyCheck{},
-			Version:        h.version,
-			DeploymentMode: h.deploymentMode,
-			Reason:         reason,
-		})
-	}
-
-	// Set tenant ID in context for downstream managers
-	ctx := tmcore.ContextWithTenantID(c.Context(), tenantID)
-
-	checks := make(map[string]DependencyCheck)
-	allHealthy := true
-
-	// Run tenant-aware checkers sequentially
-	for _, checker := range h.tenantCheckers {
-		checkCtx, cancel := context.WithTimeout(ctx, h.timeoutForChecker(checker))
-
-		start := time.Now()
-		check := checker.CheckTenant(checkCtx, tenantID)
-		durationMs := time.Since(start).Milliseconds()
-
-		cancel()
-
-		// Set TLS field
-		if checker.TLSEnabled() {
-			tlsEnabled := true
-			check.TLS = &tlsEnabled
-		} else {
-			tlsDisabled := false
-			check.TLS = &tlsDisabled
-		}
-
-		// Record metrics
-		h.recordCheckMetrics(ctx, checker.Name(), check.Status, durationMs)
-
-		// Log full error and sanitize for non-local modes
-		h.logAndSanitizeCheck(ctx, checker.Name(), &check)
-
-		checks[checker.Name()] = check
-
-		if check.Status == StatusDown || check.Status == StatusDegraded {
-			allHealthy = false
-		}
-	}
-
-	// Run non-tenant-aware checkers (like Redis which is shared)
-	for _, checker := range h.checkers {
-		// Skip if we already have a tenant-aware version
-		if h.hasTenantChecker(checker.Name()) {
-			continue
-		}
-
-		checkCtx, cancel := context.WithTimeout(ctx, h.timeoutForChecker(checker))
-
-		start := time.Now()
-		check := checker.Check(checkCtx)
-		durationMs := time.Since(start).Milliseconds()
-
-		cancel()
-
-		// Set TLS field
-		if checker.TLSEnabled() {
-			tlsEnabled := true
-			check.TLS = &tlsEnabled
-		} else {
-			tlsDisabled := false
-			check.TLS = &tlsDisabled
-		}
-
-		// Record metrics
-		h.recordCheckMetrics(ctx, checker.Name(), check.Status, durationMs)
-
-		// Log full error and sanitize for non-local modes
-		h.logAndSanitizeCheck(ctx, checker.Name(), &check)
-
-		checks[checker.Name()] = check
-
-		if check.Status == StatusDown || check.Status == StatusDegraded {
-			allHealthy = false
-		}
-	}
-
-	status := "healthy"
-	httpStatus := http.StatusOK
-
-	if !allHealthy {
-		status = "unhealthy"
-		httpStatus = http.StatusServiceUnavailable
-	}
-
-	// Record request metrics
-	h.recordRequestMetrics(ctx, "/readyz/tenant", allHealthy)
-
-	response := ReadyzResponse{
-		Status:         status,
-		Checks:         checks,
-		Version:        h.version,
-		DeploymentMode: h.deploymentMode,
-	}
-
-	return c.Status(httpStatus).JSON(response)
-}
-
-// hasTenantChecker returns true if a tenant-aware checker with the given name exists.
-func (h *ReadyzHandler) hasTenantChecker(name string) bool {
-	for _, tc := range h.tenantCheckers {
-		if tc.Name() == name {
-			return true
-		}
-	}
-
-	return false
 }
 
 // timeoutForChecker returns the appropriate timeout for a checker based on its name.
@@ -519,9 +353,8 @@ func (h *ReadyzHandler) logAndSanitizeCheck(ctx context.Context, checkerName str
 	check.Error = h.sanitizeError(checkerName, check.Error)
 }
 
-// buildReadyzHandler creates the ReadyzHandler with appropriate checkers based on mode.
-// In multi-tenant mode, database checkers return "n/a" globally; use /readyz/tenant/:id for tenant-specific checks.
-// Redis is shared infrastructure and always returns actual status.
+// buildReadyzHandler creates the ReadyzHandler with appropriate checkers.
+// All checkers return actual status for single-tenant mode.
 func buildReadyzHandler(
 	cfg *Config,
 	logger libLog.Logger,
@@ -559,82 +392,35 @@ func buildReadyzHandler(
 
 	var checkers []DependencyChecker
 
-	var tenantCheckers []TenantAwareDependencyChecker
-
-	if cfg.MultiTenantEnabled {
-		// Multi-tenant mode: database checkers return n/a globally
-		// Tenant-specific checks are done via /readyz/tenant/:id
-
-		// PostgreSQL - n/a globally, tenant-aware checkers for /readyz/tenant/:id
-		onbPGTLSEnabled := detectPostgresTLS(onbPGDSN)
-		txnPGTLSEnabled := detectPostgresTLS(txnPGDSN)
-
+	// PostgreSQL checkers
+	if onbPG.connection != nil {
 		checkers = append(checkers,
-			NewNAChecker("postgres_onboarding", "tenant-scoped; use /readyz/tenant/:id", onbPGTLSEnabled),
-			NewNAChecker("postgres_transaction", "tenant-scoped; use /readyz/tenant/:id", txnPGTLSEnabled),
-		)
-
-		if onbPG.pgManager != nil {
-			tenantCheckers = append(tenantCheckers,
-				NewTenantPostgresChecker("postgres_onboarding", onbPG.pgManager, onbPGDSN))
-		}
-
-		if txnPG.pgManager != nil {
-			tenantCheckers = append(tenantCheckers,
-				NewTenantPostgresChecker("postgres_transaction", txnPG.pgManager, txnPGDSN))
-		}
-
-		// MongoDB - n/a globally, tenant-aware checkers for /readyz/tenant/:id
-		onbMongoTLSEnabled, _ := detectMongoTLS(onbMongoURI)
-		txnMongoTLSEnabled, _ := detectMongoTLS(txnMongoURI)
-
-		checkers = append(checkers,
-			NewNAChecker("mongo_onboarding", "tenant-scoped; use /readyz/tenant/:id", onbMongoTLSEnabled),
-			NewNAChecker("mongo_transaction", "tenant-scoped; use /readyz/tenant/:id", txnMongoTLSEnabled),
-		)
-
-		if onbMgo.mongoManager != nil {
-			tenantCheckers = append(tenantCheckers,
-				NewTenantMongoChecker("mongo_onboarding", onbMgo.mongoManager, onbMongoURI))
-		}
-
-		if txnMgo.mongoManager != nil {
-			tenantCheckers = append(tenantCheckers,
-				NewTenantMongoChecker("mongo_transaction", txnMgo.mongoManager, txnMongoURI))
-		}
-	} else {
-		// Single-tenant mode: all checkers return actual status
-
-		// PostgreSQL checkers
-		if onbPG.connection != nil {
-			checkers = append(checkers,
-				NewPostgresChecker("postgres_onboarding", onbPG.connection, onbPGDSN))
-		}
-
-		if txnPG.connection != nil {
-			checkers = append(checkers,
-				NewPostgresChecker("postgres_transaction", txnPG.connection, txnPGDSN))
-		}
-
-		// MongoDB checkers
-		if onbMgo.connection != nil {
-			checkers = append(checkers,
-				NewMongoChecker("mongo_onboarding", onbMgo.connection, onbMongoURI))
-		}
-
-		if txnMgo.connection != nil {
-			checkers = append(checkers,
-				NewMongoChecker("mongo_transaction", txnMgo.connection, txnMongoURI))
-		}
+			NewPostgresChecker("postgres_onboarding", onbPG.connection, onbPGDSN))
 	}
 
-	// Redis - always returns actual status (shared infrastructure)
+	if txnPG.connection != nil {
+		checkers = append(checkers,
+			NewPostgresChecker("postgres_transaction", txnPG.connection, txnPGDSN))
+	}
+
+	// MongoDB checkers
+	if onbMgo.connection != nil {
+		checkers = append(checkers,
+			NewMongoChecker("mongo_onboarding", onbMgo.connection, onbMongoURI))
+	}
+
+	if txnMgo.connection != nil {
+		checkers = append(checkers,
+			NewMongoChecker("mongo_transaction", txnMgo.connection, txnMongoURI))
+	}
+
+	// Redis checker
 	if redisConnection != nil {
 		checkers = append(checkers,
 			NewRedisChecker("redis", redisConnection, cfg.RedisHost, cfg.RedisTLS))
 	}
 
-	// RabbitMQ - check via health URL if configured
+	// RabbitMQ checker
 	var cbManager libCircuitBreaker.Manager
 
 	if rmq != nil && rmq.circuitBreakerManager != nil {
@@ -645,8 +431,6 @@ func buildReadyzHandler(
 		NewRabbitMQChecker("rabbitmq", cfg.RabbitMQHealthCheckURL, rmqURI, cbManager))
 
 	// Build TLS validation results from already-created checkers.
-	// Each checker detected TLS during construction, so we reuse those results
-	// instead of calling detect*TLS() functions again.
 	tlsResults := make([]TLSValidationResult, 0, len(checkers))
 	for _, checker := range checkers {
 		tlsResults = append(tlsResults, TLSValidationResult{
@@ -656,12 +440,11 @@ func buildReadyzHandler(
 	}
 
 	// ValidateSaaSTLS returns error ONLY for DEPLOYMENT_MODE=saas with insecure deps.
-	// The error is returned to the caller to fail startup.
 	if err := ValidateSaaSTLS(cfg.DeploymentMode, tlsResults); err != nil {
 		return nil, err
 	}
 
-	// For BYOC mode, log a warning for insecure dependencies (recommended but not enforced)
+	// For BYOC mode, log a warning for insecure dependencies
 	if IsTLSRecommended(cfg.DeploymentMode) {
 		for _, result := range tlsResults {
 			if !result.TLSEnabled {
@@ -674,16 +457,10 @@ func buildReadyzHandler(
 	}
 
 	return NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:             logger,
-		Checkers:           checkers,
-		TenantCheckers:     tenantCheckers,
-		Version:            cfg.Version,
-		DeploymentMode:     cfg.DeploymentMode,
-		MultiTenantEnabled: cfg.MultiTenantEnabled,
-		OnbPGManager:       onbPG.pgManager,
-		TxnPGManager:       txnPG.pgManager,
-		OnbMongoManager:    onbMgo.mongoManager,
-		TxnMongoManager:    txnMgo.mongoManager,
-		MetricsFactory:     metricsFactory,
+		Logger:         logger,
+		Checkers:       checkers,
+		Version:        cfg.Version,
+		DeploymentMode: cfg.DeploymentMode,
+		MetricsFactory: metricsFactory,
 	}), nil
 }
