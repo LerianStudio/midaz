@@ -104,7 +104,14 @@ func (handler *TransactionHandler) BuildOperations(
 				// it correctly reflects the overdraft floor-at-zero and any
 				// OverdraftUsed repayment decrement that the naive
 				// OperateBalances path above cannot model.
-				if after, ok := afterByAliasKey[blc.Alias+"#"+blc.Key]; ok && after != nil {
+				//
+				// Hoist `after` into the outer scope so the snapshot builder
+				// can use it below (after is nil when the legacy replay path
+				// cannot supply `balancesAfter`).
+				var after *mmodel.Balance
+
+				if a, ok := afterByAliasKey[blc.Alias+"#"+blc.Key]; ok && a != nil {
+					after = a
 					bat.Available = after.Available
 					bat.OnHold = after.OnHold
 					bat.Version = after.Version
@@ -135,6 +142,30 @@ func (handler *TransactionHandler) BuildOperations(
 					return nil, nil, err
 				} else if handled {
 					if len(ops) > 0 {
+						// Always-populated snapshot contract: every op carries
+						// snapshot + typed Balance.OverdraftUsed / BalanceAfter
+						// .OverdraftUsed regardless of overdraft participation.
+						// PENDING/CANCELED legs do not mutate OverdraftUsed,
+						// so before==after; annotation legs carry "0"/"0"
+						// + decimal.Zero (no balance movement to snapshot, but
+						// the wire shape stays uniform).
+						for _, pendingOp := range ops {
+							if isAnnotation {
+								pendingOp.Snapshot = buildOperationSnapshot(nil, nil)
+								pendingOp.Balance.OverdraftUsed = decimal.Zero
+								pendingOp.BalanceAfter.OverdraftUsed = decimal.Zero
+							} else {
+								pendingOp.Snapshot = buildOperationSnapshot(blc, blc)
+								if blc != nil {
+									pendingOp.Balance.OverdraftUsed = blc.OverdraftUsed
+									pendingOp.BalanceAfter.OverdraftUsed = blc.OverdraftUsed
+								} else {
+									pendingOp.Balance.OverdraftUsed = decimal.Zero
+									pendingOp.BalanceAfter.OverdraftUsed = decimal.Zero
+								}
+							}
+						}
+
 						operations = append(operations, ops...)
 
 						if err := metricFactory.RecordTransactionProcessed(
@@ -156,6 +187,31 @@ func (handler *TransactionHandler) BuildOperations(
 					return nil, nil, err
 				}
 
+				// Always-populated snapshot contract: every op carries snapshot
+				// + typed Balance.OverdraftUsed / BalanceAfter.OverdraftUsed
+				// regardless of overdraft participation. Annotation ops carry
+				// "0"/"0" + decimal.Zero (no balance movement, but the wire
+				// shape stays uniform).
+				if isAnnotation {
+					op.Snapshot = buildOperationSnapshot(nil, nil)
+					op.Balance.OverdraftUsed = decimal.Zero
+					op.BalanceAfter.OverdraftUsed = decimal.Zero
+				} else {
+					op.Snapshot = buildOperationSnapshot(blc, after)
+
+					if blc != nil {
+						op.Balance.OverdraftUsed = blc.OverdraftUsed
+					} else {
+						op.Balance.OverdraftUsed = decimal.Zero
+					}
+
+					if after != nil {
+						op.BalanceAfter.OverdraftUsed = after.OverdraftUsed
+					} else {
+						op.BalanceAfter.OverdraftUsed = decimal.Zero
+					}
+				}
+
 				operations = append(operations, op)
 
 				if err := metricFactory.RecordTransactionProcessed(
@@ -167,6 +223,32 @@ func (handler *TransactionHandler) BuildOperations(
 				}
 			}
 		}
+	}
+
+	// Companion snapshot propagation: overdraft companions are built from their
+	// own blc/after values (which have OverdraftUsed=0 since the companion balance
+	// doesn't track overdraft usage). The primary (default key) operation carries
+	// the DEFAULT balance's overdraft lifecycle; propagate it to companions so
+	// both rows in the pair tell the same story. Under the always-populated
+	// contract every primary already carries a snapshot value; companions get a
+	// value-copy of the primary's data.
+	snapshotAdapters := make([]*operationForSnapshot, len(operations))
+	for idx, op := range operations {
+		snapshotAdapters[idx] = &operationForSnapshot{
+			accountAlias:              op.AccountAlias,
+			balanceKey:                op.BalanceKey,
+			snapshot:                  op.Snapshot,
+			balanceOverdraftUsed:      op.Balance.OverdraftUsed,
+			balanceAfterOverdraftUsed: op.BalanceAfter.OverdraftUsed,
+		}
+	}
+
+	propagateSnapshotToCompanions(snapshotAdapters)
+
+	for idx, a := range snapshotAdapters {
+		operations[idx].Snapshot = a.snapshot
+		operations[idx].Balance.OverdraftUsed = a.balanceOverdraftUsed
+		operations[idx].BalanceAfter.OverdraftUsed = a.balanceAfterOverdraftUsed
 	}
 
 	resolveRouteCodesFromCache(operations, transactionRouteCache, action)
@@ -351,6 +433,79 @@ func effectiveOperationAmount(
 	}
 
 	return movement
+}
+
+// buildOperationSnapshot returns a snapshot for the operation. Always
+// populated — non-overdraft operations carry "0" / "0", matching the
+// always-populated wire-shape contract.
+//
+// `before` and `after` are the pre- and post-mutation balance values for
+// the balance the operation acts on. Either may be nil (defensive against
+// builder paths that don't have one or the other in scope) — nil decays
+// to "0" for the corresponding field.
+//
+// For PENDING / CANCELED paths, call with before == after (the hold/cancel
+// does not mutate OverdraftUsed, but capturing the pre-state keeps shape
+// consistent with the standard path).
+func buildOperationSnapshot(before, after *mmodel.Balance) mmodel.OperationSnapshot {
+	snap := mmodel.OperationSnapshot{
+		OverdraftUsedBefore: "0",
+		OverdraftUsedAfter:  "0",
+	}
+
+	if before != nil {
+		snap.OverdraftUsedBefore = before.OverdraftUsed.String()
+	}
+
+	if after != nil {
+		snap.OverdraftUsedAfter = after.OverdraftUsed.String()
+	}
+
+	return snap
+}
+
+// operationForSnapshot is a lightweight adapter used by propagateSnapshotToCompanions
+// to decouple the propagation logic from the concrete operation.Operation type,
+// making the function independently testable.
+type operationForSnapshot struct {
+	accountAlias              string
+	balanceKey                string
+	snapshot                  mmodel.OperationSnapshot
+	balanceOverdraftUsed      decimal.Decimal
+	balanceAfterOverdraftUsed decimal.Decimal
+}
+
+// propagateSnapshotToCompanions copies the primary (default-key) operation's
+// snapshot and typed OverdraftUsed fields to each companion (overdraft-key)
+// operation that shares the same account alias. This ensures both rows in the
+// operation pair tell the same lifecycle story.
+//
+// Under the always-populated contract every primary already carries a snapshot
+// value; companions get a value-copy of the primary's data.
+func propagateSnapshotToCompanions(ops []*operationForSnapshot) {
+	// Index primaries by bare account alias.
+	primaryByAlias := make(map[string]*operationForSnapshot, len(ops))
+
+	for _, op := range ops {
+		if op.balanceKey != constant.OverdraftBalanceKey {
+			primaryByAlias[op.accountAlias] = op
+		}
+	}
+
+	for _, op := range ops {
+		if op.balanceKey != constant.OverdraftBalanceKey {
+			continue
+		}
+
+		primary, ok := primaryByAlias[op.accountAlias]
+		if !ok {
+			continue
+		}
+
+		op.snapshot = primary.snapshot
+		op.balanceOverdraftUsed = primary.balanceOverdraftUsed
+		op.balanceAfterOverdraftUsed = primary.balanceAfterOverdraftUsed
+	}
 }
 
 // zeroAnnotationBalances zeroes out the Available, OnHold, and Version fields of the
