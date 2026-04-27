@@ -20,6 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // accountCreateOptions groups internal-only knobs for account creation.
@@ -45,6 +46,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 // orchestration-internal accountCreateOptions. CreateAccount delegates here
 // with PendingCRMLink=false so the default path is byte-identical to the
 // previous behavior.
+//
+//nolint:unparam // token kept for API symmetry with public CreateAccount and saga caller; reserved for future authorization propagation.
 func (uc *UseCase) createAccountWithOptions(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string, opts accountCreateOptions) (*mmodel.Account, error) {
 	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -91,21 +94,8 @@ func (uc *UseCase) createAccountWithOptions(ctx context.Context, organizationID,
 		cai.EntityID = &portfolio.EntityID
 	}
 
-	if !libCommons.IsNilOrEmpty(cai.ParentAccountID) {
-		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(*cai.ParentAccountID))
-		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find parent account", err)
-
-			return nil, err
-		}
-
-		if acc.AssetCode != cai.AssetCode {
-			err := pkg.ValidateBusinessError(constant.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate parent account", err)
-
-			return nil, err
-		}
+	if err := uc.validateParentAccount(ctx, span, organizationID, ledgerID, portfolioUUID, cai); err != nil {
+		return nil, err
 	}
 
 	accountID, err := libCommons.GenerateUUIDv7()
@@ -210,6 +200,32 @@ func (uc *UseCase) createAccountWithOptions(ctx context.Context, organizationID,
 	logger.Log(ctx, libLog.LevelInfo, "Account created synchronously with default balance")
 
 	return acc, nil
+}
+
+// validateParentAccount resolves the parent account (when specified) and
+// verifies its asset code matches the new account's asset code. Span error
+// attribution is preserved from the original inline block.
+func (uc *UseCase) validateParentAccount(ctx context.Context, span trace.Span, organizationID, ledgerID, portfolioUUID uuid.UUID, cai *mmodel.CreateAccountInput) error {
+	if libCommons.IsNilOrEmpty(cai.ParentAccountID) {
+		return nil
+	}
+
+	acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(*cai.ParentAccountID))
+	if err != nil {
+		bizErr := pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find parent account", bizErr)
+
+		return bizErr
+	}
+
+	if acc.AssetCode != cai.AssetCode {
+		bizErr := pkg.ValidateBusinessError(constant.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate parent account", bizErr)
+
+		return bizErr
+	}
+
+	return nil
 }
 
 // isAuthorizationError checks if the error is an authorization-related error.

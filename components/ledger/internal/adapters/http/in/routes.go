@@ -99,7 +99,7 @@ func CreateRouteRegistrar(auth *middleware.AuthClient, mdi *MetadataIndexHandler
 // RegisterOnboardingRoutesToApp registers onboarding routes to an existing Fiber app.
 // This is used by the unified ledger server to consolidate all routes in a single port.
 // The app should already have middleware configured (telemetry, cors, logging).
-func RegisterOnboardingRoutesToApp(f fiber.Router, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler, routeOptions *http.ProtectedRouteOptions) {
+func RegisterOnboardingRoutesToApp(f fiber.Router, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler, arh *AccountRegistrationHandler, routeOptions *http.ProtectedRouteOptions) {
 	// Organizations
 	f.Post("/v1/organizations", protectedMidaz(auth, "organizations", "post", routeOptions, http.WithBody(new(mmodel.CreateOrganizationInput), oh.CreateOrganization))...)
 	f.Patch("/v1/organizations/:id", protectedMidaz(auth, "organizations", "patch", routeOptions, http.ParseUUIDPathParameters("organization"), http.WithBody(new(mmodel.UpdateOrganizationInput), oh.UpdateOrganization))...)
@@ -151,6 +151,16 @@ func RegisterOnboardingRoutesToApp(f fiber.Router, auth *middleware.AuthClient, 
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code", protectedMidaz(auth, "accounts", "get", routeOptions, http.ParseUUIDPathParameters("account"), ah.GetAccountExternalByCode)...)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", protectedMidaz(auth, "accounts", "delete", routeOptions, http.ParseUUIDPathParameters("account"), ah.DeleteAccountByID)...)
 	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count", protectedMidaz(auth, "accounts", "head", routeOptions, http.ParseUUIDPathParameters("account"), ah.CountAccounts)...)
+
+	// Account Registrations (Ledger-owned CRM/Ledger orchestration saga).
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/account-registrations",
+		protectedMidaz(auth, "account-registrations", "post", routeOptions,
+			http.ParseUUIDPathParameters("account-registration"),
+			http.WithBody(new(mmodel.CreateAccountRegistrationInput), arh.CreateAccountRegistration))...)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-registrations/:id",
+		protectedMidaz(auth, "account-registrations", "get", routeOptions,
+			http.ParseUUIDPathParameters("account-registration"),
+			arh.GetAccountRegistration)...)
 
 	// Account Types
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types", protectedRouting(auth, "account-types", "post", routeOptions, http.ParseUUIDPathParameters("account_type"), http.WithBody(new(mmodel.CreateAccountTypeInput), ath.CreateAccountType))...)

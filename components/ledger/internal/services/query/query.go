@@ -8,6 +8,7 @@ import (
 	onbMongo "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
 	txMongo "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/accountregistration"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
@@ -93,4 +94,10 @@ type UseCase struct {
 
 	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.
 	RabbitMQRepo rabbitmq.ProducerRepository
+
+	// --- CRM/Ledger abstraction saga (Phase 4) ---
+
+	// AccountRegistrationRepo reads the durable saga state persisted by the
+	// command-side orchestrator. Used by GET /account-registrations/:id.
+	AccountRegistrationRepo accountregistration.Repository
 }

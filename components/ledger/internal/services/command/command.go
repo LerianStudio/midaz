@@ -5,9 +5,11 @@
 package command
 
 import (
+	crmhttp "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/crm/http"
 	onbMongo "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
 	txMongo "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/accountregistration"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
@@ -91,4 +93,16 @@ type UseCase struct {
 
 	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.
 	RabbitMQRepo rabbitmq.ProducerRepository
+
+	// --- CRM/Ledger abstraction saga (Phase 4) ---
+
+	// AccountRegistrationRepo persists the durable saga state for the account-
+	// registration orchestrator. See components/ledger/internal/services/command/
+	// create_account_registration.go.
+	AccountRegistrationRepo accountregistration.Repository
+
+	// CRMClient is the downstream HTTP client the saga uses to coordinate with the
+	// CRM service. A nil value disables the saga — bootstrap is expected to always
+	// wire a real client.
+	CRMClient crmhttp.CRMAccountRelationshipPort
 }
