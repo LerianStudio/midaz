@@ -46,7 +46,7 @@ jobs:
       !cancelled() &&
       needs.build.result == 'success' &&
       needs.build.outputs.has_builds == 'true'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gitops-update.yml@v1.26.3
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gitops-update.yml@v1.27.5
     with:
       runner_type: "firmino-lxc-runners"
       gitops_repository: "LerianStudio/midaz-firmino-gitops"
