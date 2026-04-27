@@ -314,7 +314,7 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
-				Route:           op.Route,
+				Route:           op.Route, //nolint:staticcheck // SA1019: backcompat — field still accepted and persisted until clients migrate to routeId
 				RouteID:         op.RouteID,
 			})
 		case constant.DEBIT:
@@ -325,7 +325,7 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
-				Route:           op.Route,
+				Route:           op.Route, //nolint:staticcheck // SA1019: backcompat — field still accepted and persisted until clients migrate to routeId
 				RouteID:         op.RouteID,
 			})
 		}

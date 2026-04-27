@@ -388,7 +388,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 		args = append(args, record.Description)
 	}
 
-	if operationRoute.Code != "" {
+	if operationRoute.Code != "" { //nolint:staticcheck // SA1019: backcompat — field still accepted and persisted until clients migrate to rubric codes inside accountingEntries
 		updates = append(updates, "code = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.Code)
 	}

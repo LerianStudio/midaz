@@ -31,7 +31,7 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 	operationRoute := &mmodel.OperationRoute{
 		Title:                input.Title,
 		Description:          input.Description,
-		Code:                 input.Code,
+		Code:                 input.Code, //nolint:staticcheck // SA1019: backcompat — field still accepted and persisted until clients migrate to rubric codes inside accountingEntries
 		Account:              input.Account,
 		AccountingEntries:    input.AccountingEntries,
 		AccountingEntriesRaw: input.AccountingEntriesRaw,

@@ -34,7 +34,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 		LedgerID:          ledgerID,
 		Title:             payload.Title,
 		Description:       payload.Description,
-		Code:              payload.Code,
+		Code:              payload.Code, //nolint:staticcheck // SA1019: backcompat — field still accepted and persisted until clients migrate to rubric codes inside accountingEntries
 		OperationType:     payload.OperationType,
 		Account:           payload.Account,
 		AccountingEntries: payload.AccountingEntries,

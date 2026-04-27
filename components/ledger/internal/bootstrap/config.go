@@ -204,10 +204,17 @@ type Config struct {
 	BalanceSyncPollIntervalMs int `env:"BALANCE_SYNC_POLL_INTERVAL_MS"`
 
 	// --- CRM client (Phase 1: base URL only; Phase 4 adds M2M credentials) ---
-	// CRMBaseURL is the absolute URL of the CRM service's /internal/v1 routes. The
-	// account-registration saga (Phase 4) dials this URL to orchestrate holder-alias
-	// creation against an account. Default matches components/crm/docker-compose.yml.
+	// CRMBaseURL is the absolute URL of the CRM service. The account-registration
+	// saga (Phase 4) dials this URL to orchestrate holder-alias creation against an
+	// account. Default matches components/crm/docker-compose.yml.
 	CRMBaseURL string `env:"CRM_BASE_URL" envDefault:"http://midaz-crm:4003"`
+
+	// CRMServiceJWTIssuer identifies the Casdoor/OAuth2 issuer expected on the
+	// service-scoped Bearer token the saga forwards to CRM. Empty is permitted in
+	// single-tenant mode (CRM accepts any caller the Ledger already authenticated);
+	// mandatory under MULTI_TENANT_ENABLED=true because CRM must verify the tenant
+	// claim inside the token.
+	CRMServiceJWTIssuer string `env:"CRM_SERVICE_JWT_ISSUER"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -330,12 +337,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		}
 	}
 
-	// === CRM client (Phase 1 skeleton) ===
-	// The CRM client is a forward-looking dependency of the account-registration saga
-	// (Phase 4). Wiring it here ensures that CRM_BASE_URL is validated at startup and
-	// that the circuit-breaker manager is allocated, even though no handler consumes
-	// the client yet. Every method on crmClient returns ErrCRMInternalRouteNotImplemented
-	// until CRM-side routes land in Phase 3 and the orchestrator in Phase 4.
+	// CRM service-JWT issuer is mandatory under multi-tenant mode: CRM must be able
+	// to verify the tenant claim on the forwarded Bearer token. Ordered after the
+	// other multi-tenant checks so the URL/APPLICATION_NAME errors surface first.
+	if cfg.MultiTenantEnabled && strings.TrimSpace(cfg.CRMServiceJWTIssuer) == "" {
+		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true requires CRM_SERVICE_JWT_ISSUER to be set; " +
+			"the CRM side must be able to verify the tenant claim on the service JWT")
+	}
+
+	// === CRM client ===
+	// The CRM client is consumed by the account-registration saga (Phase 4). It is
+	// wired here so CRM_BASE_URL is validated at startup and the CRM-specific circuit
+	// breaker is allocated alongside the other infrastructure breakers.
 	crmCBManager, err := libCircuitBreaker.NewManager(logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize CRM circuit breaker manager: %w", err)
@@ -345,11 +358,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize CRM client: %w", err)
 	}
-
-	// crmClient is consumed by Phase 4 (public saga orchestrator). For now, the blank
-	// identifier documents that the dependency has been constructed but not yet plumbed
-	// into the use-case layer.
-	_ = crmClient
 
 	logger.Log(context.Background(), libLog.LevelInfo, "CRM client initialized",
 		libLog.String("base_url", cfg.CRMBaseURL))
@@ -632,6 +640,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMetadataRepo: txnMgo.metadataRepo,
 		RabbitMQRepo:            rmq.producerRepo,
 		TransactionRedisRepo:    txnRedisRepo,
+		// CRM/Ledger saga (Phase 4)
+		AccountRegistrationRepo: onbPG.accountRegistrationRepo,
+		CRMClient:               crmClient,
 	}
 
 	queryUseCase := &query.UseCase{
@@ -655,6 +666,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMetadataRepo: txnMgo.metadataRepo,
 		RabbitMQRepo:            rmq.producerRepo,
 		TransactionRedisRepo:    txnRedisRepo,
+		// CRM/Ledger saga (Phase 4)
+		AccountRegistrationRepo: onbPG.accountRegistrationRepo,
 	}
 
 	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
@@ -673,6 +686,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	organizationHandler := &httpin.OrganizationHandler{Command: commandUseCase, Query: queryUseCase}
 	segmentHandler := &httpin.SegmentHandler{Command: commandUseCase, Query: queryUseCase}
 	accountTypeHandler := &httpin.AccountTypeHandler{Command: commandUseCase, Query: queryUseCase}
+	accountRegistrationHandler := &httpin.AccountRegistrationHandler{Command: commandUseCase, Query: queryUseCase}
 
 	// Transaction handlers
 	transactionHandler := &httpin.TransactionHandler{Command: commandUseCase, Query: queryUseCase}
@@ -704,7 +718,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// === Route registrars ===
 
 	onboardingRouteRegistrar := func(router fiber.Router) {
-		httpin.RegisterOnboardingRoutesToApp(router, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler, routeSetup.onboardingRouteOptions)
+		httpin.RegisterOnboardingRoutesToApp(router, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler, accountRegistrationHandler, routeSetup.onboardingRouteOptions)
 	}
 
 	transactionRouteRegistrar := func(router fiber.Router) {

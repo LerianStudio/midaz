@@ -505,7 +505,7 @@ func (r *AccountRegistrationPostgreSQLRepository) findByIdempotencyKey(ctx conte
 
 // scanOne executes a single-row SELECT and decodes it into a domain entity.
 func (r *AccountRegistrationPostgreSQLRepository) scanOne(ctx context.Context, db dbresolver.DB, query string, args []any) (*mmodel.AccountRegistration, error) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only tracer is needed in this helper
 
 	_, spanQuery := tracer.Start(ctx, "postgres.account_registration.query")
 	defer spanQuery.End()

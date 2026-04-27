@@ -10,6 +10,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	redisBalance "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -75,63 +76,7 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		return nil, err
 	}
 
-	aggregatedBalances := make([]*redisBalance.AggregatedBalance, 0, len(keys))
-	// orphanedKeys collects ZSET entries whose Redis value is missing (TTL expired)
-	// or unparseable. They must be removed from the schedule to prevent poison records.
-	orphanedKeys := make([]redisTransaction.SyncKey, 0)
-
-	// Track all Redis keys that map to each composite key so dedup losers
-	// are also removed from the ZSET schedule (not just the winner).
-	compositeToRedisKeys := make(map[string][]string)
-
-	for _, key := range plainKeys {
-		balance := balanceMap[key]
-		if balance == nil {
-			// Value expired in Redis (TTL) between ZADD and MGET — mark as orphaned for cleanup.
-			logger.Log(ctx, libLog.LevelDebug, "Balance key has no data (expired), marking as orphaned",
-				libLog.String("key", key))
-
-			orphanedKeys = append(orphanedKeys, redisTransaction.SyncKey{Key: key, Score: scoreMap[key]})
-
-			continue
-		}
-
-		compositeKey, parseErr := redisBalance.BalanceCompositeKeyFromRedisKey(key)
-		if parseErr != nil {
-			// Key format is unrecognizable — treat as orphaned to prevent poison record.
-			logger.Log(ctx, libLog.LevelWarn, "Failed to parse composite key, marking as orphaned",
-				libLog.String("key", key), libLog.Err(parseErr))
-
-			orphanedKeys = append(orphanedKeys, redisTransaction.SyncKey{Key: key, Score: scoreMap[key]})
-
-			continue
-		}
-
-		// AssetCode is not encoded in the Redis key pattern — enrich from the balance value.
-		compositeKey.AssetCode = balance.AssetCode
-
-		// Fall back to BalanceRedis.Key if parsed partition key is empty/default and balance has specific key.
-		// This handles malformed Redis keys like "@account#" (trailing # with no partition value).
-		parsedIsGeneric := compositeKey.PartitionKey == "" || compositeKey.PartitionKey == constant.DefaultBalanceKey
-		balanceHasSpecificKey := balance.Key != "" && balance.Key != constant.DefaultBalanceKey
-
-		if parsedIsGeneric && balanceHasSpecificKey {
-			compositeKey.PartitionKey = balance.Key
-		}
-
-		keyStr := compositeKey.String()
-		compositeToRedisKeys[keyStr] = append(compositeToRedisKeys[keyStr], key)
-
-		// Collect the balance with its composite key for the aggregation step.
-		// Multiple Redis keys may map to the same composite key (same balance
-		// mutated multiple times between syncs). The aggregator will deduplicate
-		// by keeping only the highest version.
-		aggregatedBalances = append(aggregatedBalances, &redisBalance.AggregatedBalance{
-			RedisKey: key,
-			Balance:  balance,
-			Key:      compositeKey,
-		})
-	}
+	aggregatedBalances, orphanedKeys, compositeToRedisKeys := classifyBalanceKeys(ctx, logger, plainKeys, balanceMap, scoreMap)
 
 	aggregator := redisBalance.NewInMemorySyncAggregator()
 	deduplicated := aggregator.Aggregate(ctx, aggregatedBalances)
@@ -147,17 +92,7 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 			if cleanupErr != nil {
 				logger.Log(ctx, libLog.LevelWarn, "Failed to remove orphaned keys from schedule", libLog.Err(cleanupErr))
 
-				counter, counterErr := metricFactory.Counter(utils.BalanceSyncCleanupFailures)
-				if counterErr != nil {
-					logger.Log(ctx, libLog.LevelWarn, "Failed to create cleanup failure counter", libLog.Err(counterErr))
-				} else {
-					if metricErr := counter.WithLabels(map[string]string{
-						"organization_id": organizationID.String(),
-						"ledger_id":       ledgerID.String(),
-					}).AddOne(ctx); metricErr != nil {
-						logger.Log(ctx, libLog.LevelWarn, "Failed to emit cleanup failure counter", libLog.Err(metricErr))
-					}
-				}
+				emitCleanupFailureMetric(ctx, logger, metricFactory, organizationID, ledgerID)
 			}
 
 			result.KeysRemoved = removed
@@ -215,17 +150,7 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	if err != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Failed to remove synced keys from schedule", libLog.Err(err))
 
-		counter, counterErr := metricFactory.Counter(utils.BalanceSyncCleanupFailures)
-		if counterErr != nil {
-			logger.Log(ctx, libLog.LevelWarn, "Failed to create cleanup failure counter", libLog.Err(counterErr))
-		} else {
-			if metricErr := counter.WithLabels(map[string]string{
-				"organization_id": organizationID.String(),
-				"ledger_id":       ledgerID.String(),
-			}).AddOne(ctx); metricErr != nil {
-				logger.Log(ctx, libLog.LevelWarn, "Failed to emit cleanup failure counter", libLog.Err(metricErr))
-			}
-		}
+		emitCleanupFailureMetric(ctx, logger, metricFactory, organizationID, ledgerID)
 	}
 
 	result.KeysRemoved = removed
@@ -238,4 +163,90 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	)
 
 	return result, nil
+}
+
+// classifyBalanceKeys walks the fetched balances and splits them into
+// aggregation candidates and orphaned keys, building the composite→redis-keys
+// map used later for full dedup cleanup. Extracted from SyncBalancesBatch to
+// keep it under the cognitive complexity threshold; behavior is preserved
+// exactly.
+func classifyBalanceKeys(ctx context.Context, logger libLog.Logger, plainKeys []string, balanceMap map[string]*mmodel.BalanceRedis, scoreMap map[string]float64) ([]*redisBalance.AggregatedBalance, []redisTransaction.SyncKey, map[string][]string) {
+	aggregatedBalances := make([]*redisBalance.AggregatedBalance, 0, len(plainKeys))
+	// orphanedKeys collects ZSET entries whose Redis value is missing (TTL expired)
+	// or unparseable. They must be removed from the schedule to prevent poison records.
+	orphanedKeys := make([]redisTransaction.SyncKey, 0)
+
+	// Track all Redis keys that map to each composite key so dedup losers
+	// are also removed from the ZSET schedule (not just the winner).
+	compositeToRedisKeys := make(map[string][]string)
+
+	for _, key := range plainKeys {
+		balance := balanceMap[key]
+		if balance == nil {
+			// Value expired in Redis (TTL) between ZADD and MGET — mark as orphaned for cleanup.
+			logger.Log(ctx, libLog.LevelDebug, "Balance key has no data (expired), marking as orphaned",
+				libLog.String("key", key))
+
+			orphanedKeys = append(orphanedKeys, redisTransaction.SyncKey{Key: key, Score: scoreMap[key]})
+
+			continue
+		}
+
+		compositeKey, parseErr := redisBalance.BalanceCompositeKeyFromRedisKey(key)
+		if parseErr != nil {
+			// Key format is unrecognizable — treat as orphaned to prevent poison record.
+			logger.Log(ctx, libLog.LevelWarn, "Failed to parse composite key, marking as orphaned",
+				libLog.String("key", key), libLog.Err(parseErr))
+
+			orphanedKeys = append(orphanedKeys, redisTransaction.SyncKey{Key: key, Score: scoreMap[key]})
+
+			continue
+		}
+
+		// AssetCode is not encoded in the Redis key pattern — enrich from the balance value.
+		compositeKey.AssetCode = balance.AssetCode
+
+		// Fall back to BalanceRedis.Key if parsed partition key is empty/default and balance has specific key.
+		// This handles malformed Redis keys like "@account#" (trailing # with no partition value).
+		parsedIsGeneric := compositeKey.PartitionKey == "" || compositeKey.PartitionKey == constant.DefaultBalanceKey
+		balanceHasSpecificKey := balance.Key != "" && balance.Key != constant.DefaultBalanceKey
+
+		if parsedIsGeneric && balanceHasSpecificKey {
+			compositeKey.PartitionKey = balance.Key
+		}
+
+		keyStr := compositeKey.String()
+		compositeToRedisKeys[keyStr] = append(compositeToRedisKeys[keyStr], key)
+
+		// Collect the balance with its composite key for the aggregation step.
+		// Multiple Redis keys may map to the same composite key (same balance
+		// mutated multiple times between syncs). The aggregator will deduplicate
+		// by keeping only the highest version.
+		aggregatedBalances = append(aggregatedBalances, &redisBalance.AggregatedBalance{
+			RedisKey: key,
+			Balance:  balance,
+			Key:      compositeKey,
+		})
+	}
+
+	return aggregatedBalances, orphanedKeys, compositeToRedisKeys
+}
+
+// emitCleanupFailureMetric emits the balance-sync cleanup failure counter with
+// organization and ledger labels. Extracted to deduplicate the identical block
+// used in two cleanup paths inside SyncBalancesBatch; behavior is preserved
+// exactly.
+func emitCleanupFailureMetric(ctx context.Context, logger libLog.Logger, metricFactory *metrics.MetricsFactory, organizationID, ledgerID uuid.UUID) {
+	counter, counterErr := metricFactory.Counter(utils.BalanceSyncCleanupFailures)
+	if counterErr != nil {
+		logger.Log(ctx, libLog.LevelWarn, "Failed to create cleanup failure counter", libLog.Err(counterErr))
+		return
+	}
+
+	if metricErr := counter.WithLabels(map[string]string{
+		"organization_id": organizationID.String(),
+		"ledger_id":       ledgerID.String(),
+	}).AddOne(ctx); metricErr != nil {
+		logger.Log(ctx, libLog.LevelWarn, "Failed to emit cleanup failure counter", libLog.Err(metricErr))
+	}
 }

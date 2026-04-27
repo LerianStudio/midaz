@@ -27,6 +27,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
@@ -318,7 +319,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // SA1019: backcompat — field still accepted and persisted until clients migrate to routeId
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -370,7 +371,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // SA1019: backcompat — field still accepted and persisted until clients migrate to routeId
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -453,7 +454,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // SA1019: backcompat — field still accepted and persisted until clients migrate to routeId
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -505,7 +506,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // SA1019: backcompat — field still accepted and persisted until clients migrate to routeId
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -628,7 +629,7 @@ func (handler *TransactionHandler) buildStandardOp(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // SA1019: backcompat — field still accepted and persisted until clients migrate to routeId
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -660,18 +661,8 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
-	transactionID, err := libCommons.GenerateUUIDv7()
+	transactionID, transactionDate, err := handler.prepareTransactionIdentityAndDate(ctx, span, transactionInput, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
-
-		return http.WithError(c, err)
-	}
-
-	transactionDate, err := mtransaction.CheckTransactionDate(ctx, transactionInput, transactionStatus)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction date validation failed", err)
-
 		return http.WithError(c, err)
 	}
 
@@ -697,30 +688,12 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		fromTo = append(fromTo, to...)
 	}
 
-	// Idempotency: extract key/TTL from HTTP headers, hash the request body,
-	// then check or claim the idempotency slot in Redis.
-	idempotencyKey, idempotencyTTL := http.GetIdempotencyKeyAndTTL(c)
-
-	ts, err := libCommons.StructToJSONString(transactionInput)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to serialize transaction for idempotency hash", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to serialize transaction for idempotency hash", libLog.Err(err))
-
-		return http.WithError(c, err)
-	}
-
-	idempotencyHash := libCommons.HashSHA256(ts)
-
-	c.Set(libConstants.IdempotencyReplayed, "false")
-
-	idempotencyResult, err := handler.Command.CreateOrCheckTransactionIdempotency(ctx, params.OrganizationID, params.LedgerID, idempotencyKey, idempotencyHash, idempotencyTTL)
+	idempotencyResult, idempotencyKey, idempotencyHash, idempotencyTTL, replay, err := handler.claimTransactionIdempotency(ctx, span, c, params, transactionInput)
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	if idempotencyResult.Replay != nil {
-		c.Set(libConstants.IdempotencyReplayed, "true")
-
+	if replay {
 		return http.Created(c, *idempotencyResult.Replay)
 	}
 
@@ -736,33 +709,11 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
-	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, params.OrganizationID, params.LedgerID)
+	ledgerSettings, action, err := handler.resolveLedgerSettingsAndSeedBackup(ctx, span, params, transactionID, transactionInput, validate, transactionStatus, transactionDate, isRevert)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
-
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 
 		return http.WithError(c, err)
-	}
-
-	if ledgerSettings.Accounting.ValidateRoutes {
-		mtransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
-	}
-
-	action := mtransaction.StatusToAction(transactionStatus)
-	if isRevert {
-		action = constant.ActionRevert
-	}
-
-	err = handler.Command.SendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to send transaction to backup cache", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to send transaction to backup cache", libLog.Err(err))
-
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-
-		return http.WithError(c, pkg.ValidateBusinessError(err, constant.EntityTransaction))
 	}
 
 	balances, err := handler.Query.GetBalances(ctx, params.OrganizationID, params.LedgerID, validate.Aliases)
@@ -776,21 +727,11 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
-	// Account-level eligibility gate (defense-in-depth alongside the
-	// balance-flag check inside ValidateBalancesRules): reject the
-	// transaction if any involved account is in PENDING_CRM_LINK,
-	// FAILED_CRM_LINK, or blocked=true. Part of the Ledger-owned CRM saga
-	// (see docs/plans/plan-mode-crm-ledger-abstraction-layer-*.md).
-	if accountIDs := collectAccountIDsFromBalances(balances); len(accountIDs) > 0 {
-		if err := handler.Query.VerifyAccountsTransactable(ctx, params.OrganizationID, params.LedgerID, accountIDs); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account ineligible for transaction", err)
-			logger.Log(ctx, libLog.LevelWarn, "Account ineligible for transaction", libLog.Err(err))
+	if err := handler.verifyAccountsTransactableFromBalances(ctx, span, params.OrganizationID, params.LedgerID, balances); err != nil {
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
 
-			handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-			handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
-
-			return http.WithError(c, err)
-		}
+		return http.WithError(c, err)
 	}
 
 	balanceOps := buildBalanceOperations(ctx, params.OrganizationID, params.LedgerID, validate, balances)
@@ -847,7 +788,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		ChartOfAccountsGroupName: transactionInput.ChartOfAccountsGroupName,
 		CreatedAt:                transactionDate,
 		UpdatedAt:                time.Now(),
-		Route:                    transactionInput.Route,
+		Route:                    transactionInput.Route, //nolint:staticcheck // SA1019: backcompat — field still accepted and persisted until clients migrate to routeId
 		RouteID:                  transactionInput.RouteID,
 		Metadata:                 transactionInput.Metadata,
 		Status: transaction.Status{
@@ -952,4 +893,125 @@ func collectAccountIDsFromBalances(balances []*mmodel.Balance) []uuid.UUID {
 	}
 
 	return ids
+}
+
+// resolveLedgerSettingsAndSeedBackup fetches ledger settings, applies route
+// validation propagation when enabled, resolves the action (commit/cancel/
+// revert), and seeds the Redis backup queue entry. Extracted from
+// executeCreateTransaction to keep it under the cyclomatic threshold; behavior
+// is preserved exactly.
+func (handler *TransactionHandler) resolveLedgerSettingsAndSeedBackup(ctx context.Context, span trace.Span, params *transactionPathParams, transactionID uuid.UUID, transactionInput mtransaction.Transaction, validate *mtransaction.Responses, transactionStatus string, transactionDate time.Time, isRevert bool) (mmodel.LedgerSettings, string, error) {
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only logger is needed in this helper
+
+	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, params.OrganizationID, params.LedgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
+
+		return ledgerSettings, "", err
+	}
+
+	if ledgerSettings.Accounting.ValidateRoutes {
+		mtransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
+	}
+
+	action := mtransaction.StatusToAction(transactionStatus)
+	if isRevert {
+		action = constant.ActionRevert
+	}
+
+	if err := handler.Command.SendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, nil); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to send transaction to backup cache", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to send transaction to backup cache", libLog.Err(err))
+
+		return ledgerSettings, action, pkg.ValidateBusinessError(err, constant.EntityTransaction)
+	}
+
+	return ledgerSettings, action, nil
+}
+
+// verifyAccountsTransactableFromBalances runs the account-level eligibility
+// gate that rejects transactions touching PENDING_CRM_LINK, FAILED_CRM_LINK,
+// or blocked=true accounts. Defense-in-depth alongside the balance-flag check
+// inside ValidateBalancesRules. Extracted from executeCreateTransaction to
+// keep it under the cyclomatic threshold; behavior is preserved exactly.
+func (handler *TransactionHandler) verifyAccountsTransactableFromBalances(ctx context.Context, span trace.Span, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only logger is needed in this helper
+
+	accountIDs := collectAccountIDsFromBalances(balances)
+	if len(accountIDs) == 0 {
+		return nil
+	}
+
+	if err := handler.Query.VerifyAccountsTransactable(ctx, organizationID, ledgerID, accountIDs); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account ineligible for transaction", err)
+		logger.Log(ctx, libLog.LevelWarn, "Account ineligible for transaction", libLog.Err(err))
+
+		return err
+	}
+
+	return nil
+}
+
+// prepareTransactionIdentityAndDate generates the transaction UUID and validates
+// the transaction date against business rules. Extracted from
+// executeCreateTransaction to keep it under the cyclomatic threshold; behavior
+// is preserved exactly.
+func (handler *TransactionHandler) prepareTransactionIdentityAndDate(ctx context.Context, span trace.Span, transactionInput mtransaction.Transaction, transactionStatus string) (uuid.UUID, time.Time, error) {
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only logger is needed in this helper
+
+	transactionID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
+
+		return uuid.Nil, time.Time{}, err
+	}
+
+	transactionDate, err := mtransaction.CheckTransactionDate(ctx, transactionInput, transactionStatus)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction date validation failed", err)
+
+		return uuid.Nil, time.Time{}, err
+	}
+
+	return transactionID, transactionDate, nil
+}
+
+// claimTransactionIdempotency serializes the request body, hashes it, and
+// claims the Redis idempotency slot. When replay is true, the caller must
+// return the stored response without executing the transaction pipeline.
+// Extracted from executeCreateTransaction to keep it under the cyclomatic
+// threshold; behavior is preserved exactly.
+func (handler *TransactionHandler) claimTransactionIdempotency(ctx context.Context, span trace.Span, c *fiber.Ctx, params *transactionPathParams, transactionInput mtransaction.Transaction) (*command.TransactionIdempotencyResult, string, string, time.Duration, bool, error) {
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only logger is needed in this helper
+
+	// Idempotency: extract key/TTL from HTTP headers, hash the request body,
+	// then check or claim the idempotency slot in Redis.
+	idempotencyKey, idempotencyTTL := http.GetIdempotencyKeyAndTTL(c)
+
+	ts, err := libCommons.StructToJSONString(transactionInput)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to serialize transaction for idempotency hash", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to serialize transaction for idempotency hash", libLog.Err(err))
+
+		return nil, "", "", 0, false, err
+	}
+
+	idempotencyHash := libCommons.HashSHA256(ts)
+
+	c.Set(libConstants.IdempotencyReplayed, "false")
+
+	idempotencyResult, err := handler.Command.CreateOrCheckTransactionIdempotency(ctx, params.OrganizationID, params.LedgerID, idempotencyKey, idempotencyHash, idempotencyTTL)
+	if err != nil {
+		return nil, "", "", 0, false, err
+	}
+
+	if idempotencyResult.Replay != nil {
+		c.Set(libConstants.IdempotencyReplayed, "true")
+
+		return idempotencyResult, idempotencyKey, idempotencyHash, idempotencyTTL, true, nil
+	}
+
+	return idempotencyResult, idempotencyKey, idempotencyHash, idempotencyTTL, false, nil
 }

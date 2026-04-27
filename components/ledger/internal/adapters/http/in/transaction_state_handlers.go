@@ -19,11 +19,13 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // CommitTransaction method that commit transaction created before
@@ -372,35 +374,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	organizationID := uuid.MustParse(tran.OrganizationID)
 	ledgerID := uuid.MustParse(tran.LedgerID)
 
-	lockPendingTransactionKey := utils.PendingTransactionLockKey(organizationID, ledgerID, tran.ID)
-
-	ttl := time.Duration(300)
-
-	success, err := handler.Command.TransactionRedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set on redis", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to set on redis: %v", err))
-
-		return http.WithError(c, err)
-	}
-
-	if !success {
-		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction is locked", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed, Transaction: %s is locked, Error: %s", tran.ID, err.Error()))
-
-		return http.WithError(c, err)
-	}
-
-	deleteLockOnError := func() {
-		if delErr := handler.Command.TransactionRedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete pending transaction lock", delErr)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete pending transaction lock key: %v", delErr))
-		}
+	deleteLockOnError, lockErr := handler.acquireCommitCancelLock(ctx, span, logger, organizationID, ledgerID, tran.ID)
+	if lockErr != nil {
+		return http.WithError(c, lockErr)
 	}
 
 	transactionInput := tran.Body
@@ -442,23 +418,11 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
+	ledgerSettings, action, err := handler.resolveCommitCancelSettings(ctx, span, organizationID, ledgerID, validate, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
-
 		deleteLockOnError()
 
 		return http.WithError(c, err)
-	}
-
-	if ledgerSettings.Accounting.ValidateRoutes {
-		mtransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
-	}
-
-	action := constant.ActionCommit
-	if transactionStatus == constant.CANCELED {
-		action = constant.ActionCancel
 	}
 
 	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate.Aliases)
@@ -592,4 +556,71 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	}
 
 	return http.Created(c, tran)
+}
+
+// resolveCommitCancelSettings fetches the ledger settings, applies route
+// validation propagation when enabled, and derives the action constant from
+// the incoming transactionStatus. Extracted from commitOrCancelTransaction to
+// keep it under the cyclomatic threshold; behavior is preserved exactly.
+func (handler *TransactionHandler) resolveCommitCancelSettings(ctx context.Context, span trace.Span, organizationID, ledgerID uuid.UUID, validate *mtransaction.Responses, transactionStatus string) (mmodel.LedgerSettings, string, error) {
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only logger is needed in this helper
+
+	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
+
+		return ledgerSettings, "", err
+	}
+
+	if ledgerSettings.Accounting.ValidateRoutes {
+		mtransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
+	}
+
+	action := constant.ActionCommit
+	if transactionStatus == constant.CANCELED {
+		action = constant.ActionCancel
+	}
+
+	return ledgerSettings, action, nil
+}
+
+// acquireCommitCancelLock acquires the distributed pending-transaction lock used
+// by commit/cancel flows. Returns a release closure that callers must invoke on
+// subsequent error paths, or an error when the lock cannot be acquired. Extracted
+// from commitOrCancelTransaction to keep it under the cyclomatic threshold;
+// behavior is preserved exactly.
+func (handler *TransactionHandler) acquireCommitCancelLock(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, transactionID string) (func(), error) {
+	lockPendingTransactionKey := utils.PendingTransactionLockKey(organizationID, ledgerID, transactionID)
+
+	ttl := time.Duration(300)
+
+	success, err := handler.Command.TransactionRedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to set on redis", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to set on redis: %v", err))
+
+		return nil, err
+	}
+
+	if !success {
+		bizErr := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction is locked", bizErr)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed, Transaction: %s is locked, Error: %s", transactionID, bizErr.Error()))
+
+		return nil, bizErr
+	}
+
+	release := func() {
+		if delErr := handler.Command.TransactionRedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete pending transaction lock", delErr)
+
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete pending transaction lock key: %v", delErr))
+		}
+	}
+
+	return release, nil
 }

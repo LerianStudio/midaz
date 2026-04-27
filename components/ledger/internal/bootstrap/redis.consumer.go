@@ -349,56 +349,12 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 		return
 	}
 
-	balances := make([]*mmodel.Balance, 0, len(m.Balances))
-	for _, balance := range m.Balances {
-		balanceKey := balance.Key
-		if balanceKey == "" {
-			balanceKey = constant.DefaultBalanceKey
-		}
-
-		balances = append(balances, &mmodel.Balance{
-			Alias:          balance.Alias,
-			ID:             balance.ID,
-			AccountID:      balance.AccountID,
-			Key:            balanceKey,
-			Available:      balance.Available,
-			OnHold:         balance.OnHold,
-			Version:        balance.Version,
-			AccountType:    balance.AccountType,
-			AllowSending:   balance.AllowSending == 1,
-			AllowReceiving: balance.AllowReceiving == 1,
-			AssetCode:      balance.AssetCode,
-			OrganizationID: m.OrganizationID.String(),
-			LedgerID:       m.LedgerID.String(),
-		})
-	}
+	balances := convertRedisBalancesToModels(m.Balances, m.OrganizationID.String(), m.LedgerID.String())
 
 	// Parse AFTER balances from backup queue (nil for legacy entries written by old pods)
 	var balancesAfter []*mmodel.Balance
 	if len(m.BalancesAfter) > 0 {
-		balancesAfter = make([]*mmodel.Balance, 0, len(m.BalancesAfter))
-		for _, balance := range m.BalancesAfter {
-			balanceKey := balance.Key
-			if balanceKey == "" {
-				balanceKey = constant.DefaultBalanceKey
-			}
-
-			balancesAfter = append(balancesAfter, &mmodel.Balance{
-				Alias:          balance.Alias,
-				ID:             balance.ID,
-				AccountID:      balance.AccountID,
-				Key:            balanceKey,
-				Available:      balance.Available,
-				OnHold:         balance.OnHold,
-				Version:        balance.Version,
-				AccountType:    balance.AccountType,
-				AllowSending:   balance.AllowSending == 1,
-				AllowReceiving: balance.AllowReceiving == 1,
-				AssetCode:      balance.AssetCode,
-				OrganizationID: m.OrganizationID.String(),
-				LedgerID:       m.LedgerID.String(),
-			})
-		}
+		balancesAfter = convertRedisBalancesToModels(m.BalancesAfter, m.OrganizationID.String(), m.LedgerID.String())
 
 		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Using %d AFTER balances from backup for direct persistence", len(balancesAfter)))
 	}
@@ -418,7 +374,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 		ChartOfAccountsGroupName: m.TransactionInput.ChartOfAccountsGroupName,
 		CreatedAt:                m.TransactionDate,
 		UpdatedAt:                time.Now(),
-		Route:                    m.TransactionInput.Route,
+		Route:                    m.TransactionInput.Route, //nolint:staticcheck // SA1019: backcompat — field still accepted and persisted until clients migrate to routeId
 		RouteID:                  m.TransactionInput.RouteID,
 		Metadata:                 m.TransactionInput.Metadata,
 		Status: postgreTransaction.Status{
@@ -454,33 +410,8 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 		}
 
 		var routeCache *mmodel.TransactionRouteCache
-
 		if ledgerSettings.Accounting.ValidateRoutes {
-			// Prefer the new TransactionRouteID (UUID) over the deprecated TransactionRoute string.
-			var trID uuid.UUID
-
-			var parseErr error
-
-			if !libCommons.IsNilOrEmpty(m.Validate.TransactionRouteID) {
-				trID, parseErr = uuid.Parse(*m.Validate.TransactionRouteID)
-				if parseErr != nil {
-					logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to parse TransactionRouteID %s: %v", *m.Validate.TransactionRouteID, parseErr))
-				}
-			} else if m.Validate.TransactionRoute != "" {
-				trID, parseErr = uuid.Parse(m.Validate.TransactionRoute)
-				if parseErr != nil {
-					logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to parse TransactionRoute UUID %s: %v", m.Validate.TransactionRoute, parseErr))
-				}
-			}
-
-			if parseErr == nil && trID != uuid.Nil {
-				cache, cacheErr := r.TransactionHandler.Query.GetOrCreateTransactionRouteCache(msgCtxWithSpan, m.OrganizationID, m.LedgerID, trID)
-				if cacheErr != nil {
-					logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to get route cache for org=%s ledger=%s route=%s: %v", m.OrganizationID, m.LedgerID, trID, cacheErr))
-				} else {
-					routeCache = &cache
-				}
-			}
+			routeCache = r.resolveTransactionRouteCache(ctx, msgCtxWithSpan, logger, m)
 		}
 
 		// Prefer persisted action from backup payload (e.g. revert), then
@@ -532,4 +463,72 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction message processed: %s", key))
+}
+
+// resolveTransactionRouteCache resolves the transaction-route cache entry when
+// ValidateRoutes is enabled. It prefers the new TransactionRouteID over the
+// deprecated TransactionRoute string and tolerates parse/lookup failures by
+// returning nil. Extracted from processMessage to keep it under the cognitive
+// complexity threshold; behavior is preserved exactly.
+func (r *RedisQueueConsumer) resolveTransactionRouteCache(ctx, msgCtxWithSpan context.Context, logger libLog.Logger, m mmodel.TransactionRedisQueue) *mmodel.TransactionRouteCache {
+	// Prefer the new TransactionRouteID (UUID) over the deprecated TransactionRoute string.
+	var trID uuid.UUID
+
+	var parseErr error
+
+	if !libCommons.IsNilOrEmpty(m.Validate.TransactionRouteID) {
+		trID, parseErr = uuid.Parse(*m.Validate.TransactionRouteID)
+		if parseErr != nil {
+			logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to parse TransactionRouteID %s: %v", *m.Validate.TransactionRouteID, parseErr))
+		}
+	} else if m.Validate.TransactionRoute != "" {
+		trID, parseErr = uuid.Parse(m.Validate.TransactionRoute)
+		if parseErr != nil {
+			logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to parse TransactionRoute UUID %s: %v", m.Validate.TransactionRoute, parseErr))
+		}
+	}
+
+	if parseErr != nil || trID == uuid.Nil {
+		return nil
+	}
+
+	cache, cacheErr := r.TransactionHandler.Query.GetOrCreateTransactionRouteCache(msgCtxWithSpan, m.OrganizationID, m.LedgerID, trID)
+	if cacheErr != nil {
+		logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to get route cache for org=%s ledger=%s route=%s: %v", m.OrganizationID, m.LedgerID, trID, cacheErr))
+		return nil
+	}
+
+	return &cache
+}
+
+// convertRedisBalancesToModels inflates the compact Redis queue balance records
+// back into mmodel.Balance pointers used downstream. Extracted from
+// processMessage to keep it under the cognitive complexity threshold; behavior
+// is preserved exactly.
+func convertRedisBalancesToModels(items []mmodel.BalanceRedis, organizationID, ledgerID string) []*mmodel.Balance {
+	out := make([]*mmodel.Balance, 0, len(items))
+	for _, balance := range items {
+		balanceKey := balance.Key
+		if balanceKey == "" {
+			balanceKey = constant.DefaultBalanceKey
+		}
+
+		out = append(out, &mmodel.Balance{
+			Alias:          balance.Alias,
+			ID:             balance.ID,
+			AccountID:      balance.AccountID,
+			Key:            balanceKey,
+			Available:      balance.Available,
+			OnHold:         balance.OnHold,
+			Version:        balance.Version,
+			AccountType:    balance.AccountType,
+			AllowSending:   balance.AllowSending == 1,
+			AllowReceiving: balance.AllowReceiving == 1,
+			AssetCode:      balance.AssetCode,
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+		})
+	}
+
+	return out
 }

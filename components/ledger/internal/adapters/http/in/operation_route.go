@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -232,53 +233,8 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 		return http.WithError(c, err)
 	}
 
-	// Extract the raw JSON for accountingEntries from the request body to preserve
-	// explicit null values for RFC 7396 JSON Merge Patch semantics. This allows the
-	// repository to distinguish "field absent" (keep existing) from "field: null" (remove).
-	if payload.AccountingEntries != nil {
-		var rawBody map[string]json.RawMessage
-
-		if err := json.Unmarshal(c.Body(), &rawBody); err == nil {
-			if raw, ok := rawBody["accountingEntries"]; ok {
-				if unknowns := findUnknownAccountingEntryKeys(raw); len(unknowns) > 0 {
-					return http.WithError(c, pkg.ValidateBadRequestFieldsError(
-						pkg.FieldValidations{}, pkg.FieldValidations{}, "",
-						map[string]any{"accountingEntries": unknowns},
-					))
-				}
-
-				payload.AccountingEntriesRaw = raw
-			}
-		}
-	}
-
-	// Validate accounting rules matrix for PATCH operations
-	// We need to fetch the existing route to get operation type and merge entries
-	// Validation runs when accountingEntries is present (even if removing entries via explicit null)
-	if payload.AccountingEntries != nil || len(payload.AccountingEntriesRaw) > 0 {
-		existingRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve existing Operation Route for validation", err)
-			return http.WithError(c, err)
-		}
-
-		// Handle explicit top-level null for accountingEntries (RFC 7396: clear all)
-		var mergedEntries *mmodel.AccountingEntries
-
-		rawTrimmed := strings.TrimSpace(string(payload.AccountingEntriesRaw))
-		if rawTrimmed == "null" {
-			// Explicit null at top level - clear all entries
-			mergedEntries = nil
-		} else {
-			// Merge incoming entries with existing to get final state
-			// Pass raw JSON to properly handle explicit null removals (RFC 7396)
-			mergedEntries = mergeAccountingEntries(existingRoute.AccountingEntries, payload.AccountingEntries, payload.AccountingEntriesRaw)
-		}
-
-		// Validate the merged entries against the direction×scenario matrix
-		if err := handler.validateAccountingRulesMatrix(ctx, existingRoute.OperationType, mergedEntries); err != nil {
-			return http.WithError(c, err)
-		}
+	if err := handler.preparePatchAccountingEntries(ctx, span, c, organizationID, ledgerID, id, payload); err != nil {
+		return http.WithError(c, err)
 	}
 
 	recordSafePayloadAttributes(span, payload)
@@ -308,6 +264,63 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 	}
 
 	return http.OK(c, operationRoute)
+}
+
+// preparePatchAccountingEntries handles the RFC 7396 raw-body extraction and
+// matrix validation that UpdateOperationRoute needs when accountingEntries is
+// present on the incoming PATCH. Extracted to keep UpdateOperationRoute under
+// the cyclomatic complexity threshold. Behavior is preserved exactly.
+func (handler *OperationRouteHandler) preparePatchAccountingEntries(ctx context.Context, span trace.Span, c *fiber.Ctx, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateOperationRouteInput) error {
+	// Extract the raw JSON for accountingEntries from the request body to preserve
+	// explicit null values for RFC 7396 JSON Merge Patch semantics. This allows the
+	// repository to distinguish "field absent" (keep existing) from "field: null" (remove).
+	if payload.AccountingEntries != nil {
+		var rawBody map[string]json.RawMessage
+
+		if err := json.Unmarshal(c.Body(), &rawBody); err == nil {
+			if raw, ok := rawBody["accountingEntries"]; ok {
+				if unknowns := findUnknownAccountingEntryKeys(raw); len(unknowns) > 0 {
+					return pkg.ValidateBadRequestFieldsError(
+						pkg.FieldValidations{}, pkg.FieldValidations{}, "",
+						map[string]any{"accountingEntries": unknowns},
+					)
+				}
+
+				payload.AccountingEntriesRaw = raw
+			}
+		}
+	}
+
+	// Validate accounting rules matrix for PATCH operations
+	// We need to fetch the existing route to get operation type and merge entries
+	// Validation runs when accountingEntries is present (even if removing entries via explicit null)
+	if payload.AccountingEntries != nil || len(payload.AccountingEntriesRaw) > 0 {
+		existingRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve existing Operation Route for validation", err)
+			return err
+		}
+
+		// Handle explicit top-level null for accountingEntries (RFC 7396: clear all)
+		var mergedEntries *mmodel.AccountingEntries
+
+		rawTrimmed := strings.TrimSpace(string(payload.AccountingEntriesRaw))
+		if rawTrimmed == "null" {
+			// Explicit null at top level - clear all entries
+			mergedEntries = nil
+		} else {
+			// Merge incoming entries with existing to get final state
+			// Pass raw JSON to properly handle explicit null removals (RFC 7396)
+			mergedEntries = mergeAccountingEntries(existingRoute.AccountingEntries, payload.AccountingEntries, payload.AccountingEntriesRaw)
+		}
+
+		// Validate the merged entries against the direction×scenario matrix
+		if err := handler.validateAccountingRulesMatrix(ctx, existingRoute.OperationType, mergedEntries); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // DeleteOperationRouteByID is a method that deletes Operation Route information.

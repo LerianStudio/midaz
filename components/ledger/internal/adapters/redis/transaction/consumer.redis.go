@@ -710,7 +710,7 @@ func normalizeBalanceAtomicResult(result any) ([]byte, error) {
 }
 
 func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, mapBalances map[string]*mmodel.Balance, phase string) []*mmodel.Balance {
-	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only logger is needed in this helper
 
 	collected := make([]*mmodel.Balance, 0, len(balances))
 	for _, balanceRedis := range balances {

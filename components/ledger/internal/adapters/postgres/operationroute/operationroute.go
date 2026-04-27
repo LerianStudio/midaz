@@ -102,10 +102,10 @@ func (m *OperationRoutePostgreSQLModel) FromEntity(e *mmodel.OperationRoute) {
 	m.Title = e.Title
 	m.Description = e.Description
 
-	if strings.TrimSpace(e.Code) == "" {
+	if strings.TrimSpace(e.Code) == "" { //nolint:staticcheck // SA1019: backcompat — field still accepted and persisted until clients migrate to rubric codes inside accountingEntries
 		m.Code = sql.NullString{}
 	} else {
-		m.Code = sql.NullString{String: e.Code, Valid: true}
+		m.Code = sql.NullString{String: e.Code, Valid: true} //nolint:staticcheck // SA1019: backcompat — field still accepted and persisted until clients migrate to rubric codes inside accountingEntries
 	}
 
 	m.OperationType = strings.ToLower(e.OperationType)
