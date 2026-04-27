@@ -503,6 +503,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Stale Balance Version Error",
 			Message:    "The balance was modified by another transaction between read and write. Please retry the operation after reading the latest balance state.",
 		},
+		constant.ErrUpdateOfInternalBalance: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrUpdateOfInternalBalance.Error(),
+			Title:      "Update Of Internal Balance Error",
+			Message:    "Internal balances are system-managed and cannot be updated through the public API. They are maintained by the system for accounting consistency.",
+		},
 		constant.ErrAccountIneligibility: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountIneligibility.Error(),

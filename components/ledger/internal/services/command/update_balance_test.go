@@ -53,6 +53,12 @@ func TestUpdateBalance(t *testing.T) {
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
+	// Find is always called (scope guard requires the current balance).
+	mockBalanceRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, balanceID).
+		Return(expectedBalance, nil).
+		Times(1)
+
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
 		Return(expectedBalance, nil).
@@ -106,6 +112,17 @@ func TestUpdateBalance_RepoError(t *testing.T) {
 	}
 
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+	// Find is always called (scope guard requires the current balance).
+	normalBalance := &mmodel.Balance{
+		ID:    balanceID.String(),
+		Alias: "@test",
+		Key:   "default",
+	}
+	mockBalanceRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, balanceID).
+		Return(normalBalance, nil).
+		Times(1)
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
@@ -167,6 +184,12 @@ func TestUpdateBalance_RedisOverlay(t *testing.T) {
 
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	// Find is always called (scope guard requires the current balance).
+	mockBalanceRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, balanceID).
+		Return(repoBalance, nil).
+		Times(1)
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).

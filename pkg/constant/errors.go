@@ -213,6 +213,11 @@ var (
 	// caller's pre-computed overdraft split/repayment amounts potentially
 	// incorrect. Callers should retry after re-reading the balance.
 	ErrStaleBalanceVersion = errors.New("0175")
+	// ErrUpdateOfInternalBalance is returned when a PATCH request targets
+	// a balance whose scope is "internal". Internal balances are
+	// system-managed (e.g. overdraft companions) and cannot be modified
+	// through the public API.
+	ErrUpdateOfInternalBalance = errors.New("0176")
 )
 
 // List of CRM errors.

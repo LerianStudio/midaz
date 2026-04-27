@@ -113,6 +113,242 @@ func TestTransactionCreate_RejectsInternalBalance(t *testing.T) {
 		"error code MUST be 0168 (ErrDirectOperationOnInternalBalance)")
 }
 
+// TestBalanceUpdate_RejectsInternalBalance_WithSettings verifies that a PATCH
+// request carrying a Settings payload against an internal-scope balance is
+// rejected with ErrUpdateOfInternalBalance (0176) BEFORE any Settings
+// validation, overdraft transition enforcement, or repo Update runs.
+func TestBalanceUpdate_RejectsInternalBalance_WithSettings(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	internalBalance := &mmodel.Balance{
+		ID:             balanceID.String(),
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		AccountID:      uuid.New().String(),
+		Alias:          "@indebted",
+		Key:            "overdraft",
+		Available:      decimal.Zero,
+		OnHold:         decimal.Zero,
+		Direction:      constant.DirectionDebit,
+		Settings: &mmodel.BalanceSettings{
+			BalanceScope: mmodel.BalanceScopeInternal,
+		},
+	}
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	mockBalanceRepo.EXPECT().
+		Find(gomock.Any(), orgID, ledgerID, balanceID).
+		Return(internalBalance, nil).
+		Times(1)
+
+	// Update MUST NOT be invoked for internal-scope balances.
+	mockBalanceRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+
+	uc := UseCase{
+		BalanceRepo:          mockBalanceRepo,
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	allowOverdraft := true
+	update := mmodel.UpdateBalance{
+		Settings: &mmodel.BalanceSettings{
+			AllowOverdraft: allowOverdraft,
+		},
+	}
+
+	result, err := uc.Update(context.TODO(), orgID, ledgerID, balanceID, update)
+
+	require.Nil(t, result)
+	require.Error(t, err, "updating an internal-scope balance MUST be rejected")
+
+	var vErr pkg.UnprocessableOperationError
+	require.True(t, errors.As(err, &vErr),
+		"scope protection MUST surface an UnprocessableOperationError")
+	assert.Equal(t, constant.ErrUpdateOfInternalBalance.Error(), vErr.Code,
+		"error code MUST be 0176 (ErrUpdateOfInternalBalance)")
+}
+
+// TestBalanceUpdate_RejectsInternalBalance_WithoutSettings verifies that the
+// scope guard fires even when the PATCH payload carries ONLY AllowSending
+// (no Settings block). This closes the bypass where the prior implementation
+// only loaded the balance when update.Settings was non-nil.
+func TestBalanceUpdate_RejectsInternalBalance_WithoutSettings(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	internalBalance := &mmodel.Balance{
+		ID:             balanceID.String(),
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		AccountID:      uuid.New().String(),
+		Alias:          "@indebted",
+		Key:            "overdraft",
+		Available:      decimal.Zero,
+		OnHold:         decimal.Zero,
+		Direction:      constant.DirectionDebit,
+		Settings: &mmodel.BalanceSettings{
+			BalanceScope: mmodel.BalanceScopeInternal,
+		},
+	}
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	mockBalanceRepo.EXPECT().
+		Find(gomock.Any(), orgID, ledgerID, balanceID).
+		Return(internalBalance, nil).
+		Times(1)
+
+	// Update MUST NOT be invoked.
+	mockBalanceRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+
+	uc := UseCase{
+		BalanceRepo:          mockBalanceRepo,
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	allowSending := false
+	update := mmodel.UpdateBalance{
+		AllowSending: &allowSending,
+		// Settings is intentionally nil — this is the bypass scenario.
+	}
+
+	result, err := uc.Update(context.TODO(), orgID, ledgerID, balanceID, update)
+
+	require.Nil(t, result)
+	require.Error(t, err, "updating an internal-scope balance MUST be rejected even without Settings")
+
+	var vErr pkg.UnprocessableOperationError
+	require.True(t, errors.As(err, &vErr),
+		"scope protection MUST surface an UnprocessableOperationError")
+	assert.Equal(t, constant.ErrUpdateOfInternalBalance.Error(), vErr.Code,
+		"error code MUST be 0176 (ErrUpdateOfInternalBalance)")
+}
+
+// TestBalanceUpdate_AllowsNormalBalance verifies that the scope guard does
+// NOT block updates on normal (non-internal) balances.
+func TestBalanceUpdate_AllowsNormalBalance(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	normalBalance := &mmodel.Balance{
+		ID:             balanceID.String(),
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Alias:          "@normal",
+		Key:            "default",
+		Available:      decimal.NewFromInt(100),
+		OnHold:         decimal.Zero,
+		AllowSending:   true,
+		AllowReceiving: true,
+	}
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	mockBalanceRepo.EXPECT().
+		Find(gomock.Any(), orgID, ledgerID, balanceID).
+		Return(normalBalance, nil).
+		Times(1)
+
+	mockBalanceRepo.EXPECT().
+		Update(gomock.Any(), orgID, ledgerID, balanceID, gomock.Any()).
+		Return(normalBalance, nil).
+		Times(1)
+
+	mockRedisRepo.EXPECT().
+		Get(gomock.Any(), gomock.Any()).
+		Return("", nil).
+		Times(1)
+
+	uc := UseCase{
+		BalanceRepo:          mockBalanceRepo,
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	allowSending := false
+	update := mmodel.UpdateBalance{
+		AllowSending: &allowSending,
+	}
+
+	result, err := uc.Update(context.TODO(), orgID, ledgerID, balanceID, update)
+
+	require.NoError(t, err, "updating a normal balance MUST succeed")
+	require.NotNil(t, result)
+}
+
+// TestBalanceUpdate_FindError_Returns404NotScopeError verifies that when
+// Find fails (e.g. balance not found), the error is surfaced as-is —
+// NOT as a 0176 scope error. This proves guard ordering: Find before guard.
+func TestBalanceUpdate_FindError_Returns404NotScopeError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+	mockBalanceRepo.EXPECT().
+		Find(gomock.Any(), orgID, ledgerID, balanceID).
+		Return(nil, errors.New("errDatabaseItemNotFound")).
+		Times(1)
+
+	// Update MUST NOT be invoked when Find fails.
+	mockBalanceRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+
+	uc := UseCase{
+		BalanceRepo: mockBalanceRepo,
+	}
+
+	allowSending := false
+	update := mmodel.UpdateBalance{
+		AllowSending: &allowSending,
+	}
+
+	result, err := uc.Update(context.TODO(), orgID, ledgerID, balanceID, update)
+
+	require.Nil(t, result)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "errDatabaseItemNotFound",
+		"Find error MUST surface directly, not as a scope-protection error")
+
+	// Must NOT be a scope error.
+	var vErr pkg.UnprocessableOperationError
+	assert.False(t, errors.As(err, &vErr),
+		"Find failure MUST NOT be wrapped as an UnprocessableOperationError")
+}
+
 // TestBalanceDelete_RejectsInternalBalance verifies that attempting to delete
 // a balance whose scope is "internal" is rejected with
 // ErrDeletionOfInternalBalance (0169) BEFORE the repository Delete is called.

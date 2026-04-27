@@ -952,6 +952,15 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 				AllowReceiving: testutils.Ptr(true),
 			},
 			setupMocks: func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, balanceID uuid.UUID) {
+				// Find is always called (scope guard requires the current balance).
+				balanceRepo.EXPECT().
+					Find(gomock.Any(), orgID, ledgerID, balanceID).
+					Return(&mmodel.Balance{
+						ID:    balanceID.String(),
+						Alias: "@user1",
+						Key:   "default",
+					}, nil).
+					Times(1)
 				// Command.Update returns the updated balance directly (using RETURNING clause)
 				balanceRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, balanceID, mmodel.UpdateBalance{
@@ -1000,10 +1009,15 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 				AllowSending: testutils.Ptr(true),
 			},
 			setupMocks: func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, balanceID uuid.UUID) {
+				// Find is always called first (scope guard). 404 now comes from Find.
 				balanceRepo.EXPECT().
-					Update(gomock.Any(), orgID, ledgerID, balanceID, gomock.Any()).
+					Find(gomock.Any(), orgID, ledgerID, balanceID).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
 					Times(1)
+				// Update must NOT be called when Find fails.
+				balanceRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
@@ -1021,6 +1035,15 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 				AllowReceiving: testutils.Ptr(false),
 			},
 			setupMocks: func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, balanceID uuid.UUID) {
+				// Find is always called first (scope guard).
+				balanceRepo.EXPECT().
+					Find(gomock.Any(), orgID, ledgerID, balanceID).
+					Return(&mmodel.Balance{
+						ID:    balanceID.String(),
+						Alias: "@user1",
+						Key:   "default",
+					}, nil).
+					Times(1)
 				balanceRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, balanceID, gomock.Any()).
 					Return(nil, pkg.InternalServerError{
