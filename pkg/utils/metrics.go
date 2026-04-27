@@ -129,4 +129,33 @@ var (
 		Unit:        "1",
 		Description: "Total fallback activations when bulk processing fails.",
 	}
+
+	// Account-registration saga metrics (Phase 4). These form a simple started /
+	// completed / failed funnel. The failed counter carries a "reason" label so
+	// dashboards can distinguish HOLDER_NOT_FOUND (caller error) from
+	// CRM_TRANSIENT (system error) without a second metric.
+
+	// AccountRegistrationStartedTotal counts saga attempts that passed initial
+	// validation and claimed an idempotency slot.
+	AccountRegistrationStartedTotal = metrics.Metric{
+		Name:        "account_registration_started_total",
+		Unit:        "1",
+		Description: "Total account-registration saga attempts that passed initial validation.",
+	}
+
+	// AccountRegistrationCompletedTotal counts saga attempts that reached the
+	// COMPLETED terminal state.
+	AccountRegistrationCompletedTotal = metrics.Metric{
+		Name:        "account_registration_completed_total",
+		Unit:        "1",
+		Description: "Total account-registration saga attempts that completed successfully.",
+	}
+
+	// AccountRegistrationFailedTotal counts saga attempts that reached a terminal
+	// or retryable failure state. Use the "reason" label to classify.
+	AccountRegistrationFailedTotal = metrics.Metric{
+		Name:        "account_registration_failed_total",
+		Unit:        "1",
+		Description: "Total account-registration saga attempts that failed.",
+	}
 )

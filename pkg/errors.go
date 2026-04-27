@@ -175,6 +175,12 @@ func (e ServiceUnavailableError) Error() string {
 	return e.Message
 }
 
+// Unwrap implements the errors.Is/errors.As chain, exposing the sentinel captured in
+// Err so callers can drive control flow with errors.Is(err, constant.ErrX).
+func (e ServiceUnavailableError) Unwrap() error {
+	return e.Err
+}
+
 // InternalServerError indicates midaz has an unexpected failure during an operation.
 type InternalServerError struct {
 	EntityType string `json:"entityType,omitempty"`
@@ -826,6 +832,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrIdempotencyKey.Error(),
 			Title:      "Duplicate Idempotency Key",
 			Message:    fmt.Sprintf("The idempotency key %v is already in use. Please provide a unique key and try again.", args...),
+			Err:        err,
 		},
 		constant.ErrAccountAliasNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -1084,12 +1091,14 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrHolderNotFound.Error(),
 			Title:      "Holder ID Not Found",
 			Message:    "The provided holder ID does not exist in our records. Please verify the holder ID and try again.",
+			Err:        err,
 		},
 		constant.ErrAliasNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrAliasNotFound.Error(),
 			Title:      "Alias ID Not Found",
 			Message:    "The provided alias ID does not exist in our records. Please verify the alias ID and try again.",
+			Err:        err,
 		},
 		constant.ErrDocumentAssociationError: EntityConflictError{
 			EntityType: entityType,
@@ -1361,24 +1370,42 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrAccountRegistrationIdempotencyConflict.Error(),
 			Title:      "Account Registration Idempotency Conflict",
 			Message:    "The provided idempotency key was previously used with a different request body. Use a new idempotency key or submit the original request body.",
+			Err:        err,
 		},
 		constant.ErrCRMTransient: ServiceUnavailableError{
 			EntityType: entityType,
 			Code:       constant.ErrCRMTransient.Error(),
 			Title:      "CRM Temporarily Unavailable",
 			Message:    "The CRM service is temporarily unavailable. The request will be retried automatically. Please try again later if the problem persists.",
+			Err:        err,
 		},
 		constant.ErrAliasHolderConflict: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrAliasHolderConflict.Error(),
 			Title:      "Alias Holder Conflict",
 			Message:    "An alias for this account already exists under a different holder. Aliases cannot be reassigned between holders.",
+			Err:        err,
 		},
-		constant.ErrCRMInternalRouteNotImplemented: InternalServerError{
+		constant.ErrCRMConflict: EntityConflictError{
 			EntityType: entityType,
-			Code:       constant.ErrCRMInternalRouteNotImplemented.Error(),
-			Title:      "CRM Internal Route Not Implemented",
-			Message:    "The CRM internal route required to complete this operation is not yet implemented. Operation deferred.",
+			Code:       constant.ErrCRMConflict.Error(),
+			Title:      "CRM Conflict",
+			Message:    "The CRM service reported a conflict for this operation. Verify the request or use a new idempotency key.",
+			Err:        err,
+		},
+		constant.ErrCRMBadRequest: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCRMBadRequest.Error(),
+			Title:      "CRM Rejected Request",
+			Message:    "The CRM service rejected the request. Verify the holder or alias payload and retry.",
+			Err:        err,
+		},
+		constant.ErrIdempotencyKeyRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrIdempotencyKeyRequired.Error(),
+			Title:      "Idempotency Key Required",
+			Message:    "The Idempotency-Key header is required for this endpoint. Provide a unique value per attempt.",
+			Err:        err,
 		},
 		constant.ErrInvalidAccountActivationState: UnprocessableOperationError{
 			EntityType: entityType,

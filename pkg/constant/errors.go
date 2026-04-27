@@ -194,8 +194,15 @@ var (
 	ErrAccountRegistrationIdempotencyConflict = errors.New("0168")
 	ErrCRMTransient                           = errors.New("0169")
 	ErrAliasHolderConflict                    = errors.New("0170")
-	ErrCRMInternalRouteNotImplemented         = errors.New("0171")
 	ErrInvalidAccountActivationState          = errors.New("0172")
+
+	// Phase 4 saga/HTTP-layer sentinels. 0171 is retired (was
+	// ErrCRMInternalRouteNotImplemented, used only by the Phase 1 stub). 0173-0174
+	// cover the HTTP→error mapping the real CRM client emits; 0175 guards the
+	// Idempotency-Key header on the public saga endpoint.
+	ErrCRMConflict            = errors.New("0173")
+	ErrCRMBadRequest          = errors.New("0174")
+	ErrIdempotencyKeyRequired = errors.New("0175")
 )
 
 // List of CRM errors.
