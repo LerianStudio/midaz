@@ -970,3 +970,33 @@ func TestTransactionRevert_RoutePreservation(t *testing.T) {
 		})
 	}
 }
+
+// TestOperationColumnListPrefixed_IncludesSnapshot is a compile-time-safe guard
+// that prevents column-list drift between the canonical operation.operationColumnList
+// (which includes "snapshot") and the prefixed copy used by FindWithOperations /
+// FindOrListAllWithOperations.
+func TestOperationColumnListPrefixed_IncludesSnapshot(t *testing.T) {
+	t.Parallel()
+
+	found := false
+
+	for _, col := range operationColumnListPrefixed {
+		if col == "o.snapshot" {
+			found = true
+
+			break
+		}
+	}
+
+	require.True(t, found,
+		"operationColumnListPrefixed must include 'o.snapshot'; "+
+			"without it, FindWithOperations and FindOrListAllWithOperations "+
+			"return operations with nil Snapshot, causing ToEntity to default "+
+			"all overdraft fields to zero regardless of stored values")
+
+	// Also verify total count matches operation.operationColumnList (31 columns).
+	// This catches additions to the canonical list that aren't mirrored here.
+	assert.Len(t, operationColumnListPrefixed, operation.ExportedOperationColumnListLen(),
+		"operationColumnListPrefixed column count must match operation.operationColumnList; "+
+			"a column was added to the canonical list but not to the prefixed copy")
+}
