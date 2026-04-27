@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
 )
 
@@ -23,6 +24,25 @@ type MongoChecker struct {
 // NewMongoChecker creates a new MongoDB health checker.
 func NewMongoChecker(name string, client *libMongo.Client, uri string) *MongoChecker {
 	tlsEnabled, _ := detectMongoTLS(uri)
+
+	return &MongoChecker{
+		name:       name,
+		client:     client,
+		uri:        uri,
+		tlsEnabled: tlsEnabled,
+	}
+}
+
+// NewMongoCheckerWithLogger creates a new MongoDB health checker that logs TLS detection errors.
+// If logger is nil, errors are silently ignored (same behavior as NewMongoChecker).
+func NewMongoCheckerWithLogger(name string, client *libMongo.Client, uri string, logger libLog.Logger) *MongoChecker {
+	tlsEnabled, err := detectMongoTLS(uri)
+	if err != nil && logger != nil {
+		logger.Log(context.Background(), libLog.LevelDebug,
+			"Failed to detect MongoDB TLS configuration",
+			libLog.String("checker", name),
+			libLog.Err(err))
+	}
 
 	return &MongoChecker{
 		name:       name,

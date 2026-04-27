@@ -696,6 +696,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	readyzHandler, err := buildReadyzHandler(cfg, logger, redisConnection, onbPG, txnPG, onbMgo, txnMgo, rmq, metricsFactory)
 	if err != nil {
+		doCleanup()
+
 		return nil, fmt.Errorf("TLS enforcement failed: %w", err)
 	}
 

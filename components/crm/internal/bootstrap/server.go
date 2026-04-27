@@ -6,7 +6,6 @@ package bootstrap
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -57,7 +56,8 @@ func (s *Server) Run(l *libCommons.Launcher) error {
 			s.readyzHandler.StartDrain()
 			// Wait for drain delay to allow load balancers to stop sending traffic
 			s.logger.Log(context.Background(), libCommonsLog.LevelInfo,
-				fmt.Sprintf("Waiting %v for graceful drain before shutdown", DefaultDrainDelay))
+				"Waiting for graceful drain before shutdown",
+				libCommonsLog.String("drain_delay", DefaultDrainDelay.String()))
 			time.Sleep(DefaultDrainDelay)
 		}
 

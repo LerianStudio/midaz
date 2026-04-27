@@ -19,19 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// readyzMockLogger is a no-op logger for readyz testing.
-type readyzMockLogger struct{}
-
-func (m *readyzMockLogger) Log(_ context.Context, _ libLog.Level, _ string, _ ...libLog.Field) {}
-func (m *readyzMockLogger) With(_ ...libLog.Field) libLog.Logger                               { return m }
-func (m *readyzMockLogger) WithGroup(_ string) libLog.Logger                                   { return m }
-func (m *readyzMockLogger) Enabled(_ libLog.Level) bool                                        { return true }
-func (m *readyzMockLogger) Sync(_ context.Context) error                                       { return nil }
-
-func newReadyzMockLogger() libLog.Logger {
-	return &readyzMockLogger{}
-}
-
 // mockChecker implements DependencyChecker for testing.
 type mockChecker struct {
 	name       string
@@ -105,7 +92,7 @@ func TestReadyzHandler_HandleReadyz_AllHealthy(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "local",
 		Checkers: []DependencyChecker{
@@ -141,7 +128,7 @@ func TestReadyzHandler_HandleReadyz_OneDown(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "local",
 		Checkers: []DependencyChecker{
@@ -174,7 +161,7 @@ func TestReadyzHandler_HandleReadyz_OneDegraded(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "local",
 		Checkers: []DependencyChecker{
@@ -207,7 +194,7 @@ func TestReadyzHandler_HandleReadyz_SkippedCountsAsHealthy(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "local",
 		Checkers: []DependencyChecker{
@@ -241,7 +228,7 @@ func TestReadyzHandler_HandleReadyz_NACountsAsHealthy(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "local",
 		Checkers: []DependencyChecker{
@@ -274,7 +261,7 @@ func TestReadyzHandler_HandleReadyz_NoCheckers(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "local",
 		Checkers:       []DependencyChecker{},
@@ -305,7 +292,7 @@ func TestReadyzHandler_LifecycleState_ServerNotReady(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "local",
 		Checkers: []DependencyChecker{
@@ -338,7 +325,7 @@ func TestReadyzHandler_LifecycleState_Draining(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "local",
 		Checkers: []DependencyChecker{
@@ -372,7 +359,7 @@ func TestReadyzHandler_ErrorSanitization_LocalMode(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "local",
 		Checkers: []DependencyChecker{
@@ -403,7 +390,7 @@ func TestReadyzHandler_ErrorSanitization_SaaSMode(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "saas",
 		Checkers: []DependencyChecker{
@@ -435,7 +422,7 @@ func TestReadyzHandler_ErrorSanitization_BYOCMode(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "byoc",
 		Checkers: []DependencyChecker{
@@ -467,7 +454,7 @@ func TestReadyzHandler_TLSFieldSet(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "local",
 		Checkers: []DependencyChecker{
@@ -503,7 +490,7 @@ func TestReadyzHandler_SetServerReady(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "local",
 	})
@@ -519,7 +506,7 @@ func TestReadyzHandler_StartDrain(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "local",
 	})
@@ -535,7 +522,7 @@ func TestReadyzHandler_MultipleCheckers(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "local",
 		Checkers: []DependencyChecker{
@@ -571,7 +558,7 @@ func TestReadyzHandler_MixedStatusWithDownFails(t *testing.T) {
 	t.Parallel()
 
 	handler := NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         newReadyzMockLogger(),
+		Logger:         libLog.NewNop(),
 		Version:        "1.0.0",
 		DeploymentMode: "local",
 		Checkers: []DependencyChecker{

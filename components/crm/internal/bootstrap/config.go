@@ -308,6 +308,10 @@ func buildReadyzHandler(
 	mongoURI, err := resolveMongoURI(cfg, mongoPort, mongoParameters)
 	if err != nil {
 		// If we can't resolve the URI, use empty string (TLS detection will return false)
+		logger.Log(context.Background(), libLog.LevelWarn,
+			"Failed to resolve MongoDB URI for TLS detection, falling back to empty string",
+			libLog.Err(err))
+
 		mongoURI = ""
 	}
 

@@ -90,7 +90,9 @@ func NewUnifiedServer(
 		app.Hooks().OnListen(func(ld fiber.ListenData) error {
 			readyzHandler.SetServerReady()
 			logger.Log(context.Background(), libLog.LevelInfo,
-				fmt.Sprintf("Server listening on %s:%s, readyz now returning healthy", ld.Host, ld.Port))
+				"Server listening, readyz now returning healthy",
+				libLog.String("host", ld.Host),
+				libLog.String("port", ld.Port))
 
 			return nil
 		})
@@ -103,7 +105,8 @@ func NewUnifiedServer(
 		app.Hooks().OnShutdown(func() error {
 			readyzHandler.StartDrain()
 			logger.Log(context.Background(), libLog.LevelInfo,
-				fmt.Sprintf("Graceful drain started, waiting %v for load balancers to update", DefaultDrainDelay))
+				"Graceful drain started, waiting for load balancers to update",
+				libLog.String("drain_delay", DefaultDrainDelay.String()))
 			time.Sleep(DefaultDrainDelay)
 			logger.Log(context.Background(), libLog.LevelInfo, "Drain delay complete, proceeding with shutdown")
 

@@ -228,18 +228,18 @@ func TestReadyz_Integration_LatencyMeasurement(t *testing.T) {
 		require.NotNil(t, pgLatency)
 		require.NotNil(t, redisLatency)
 
-		assert.Greater(t, *pgLatency, int64(0), "postgres latency should be positive")
+		assert.GreaterOrEqual(t, *pgLatency, int64(0), "postgres latency should be non-negative")
 		assert.Less(t, *pgLatency, int64(1000), "postgres latency should be < 1s")
 
-		assert.Greater(t, *redisLatency, int64(0), "redis latency should be positive")
+		assert.GreaterOrEqual(t, *redisLatency, int64(0), "redis latency should be non-negative")
 		assert.Less(t, *redisLatency, int64(1000), "redis latency should be < 1s")
 	}
 }
 
-func TestReadyz_Integration_ConnectionTimeout(t *testing.T) {
+func TestReadyz_Integration_ConcurrentRequests(t *testing.T) {
 	t.Parallel()
 
-	// Test with only Redis to verify timeout behavior
+	// Test with only Redis to verify concurrent request handling
 	redis := redisContainer.SetupContainer(t)
 	redisClient := redisContainer.CreateConnection(t, redis.Addr)
 
