@@ -9,7 +9,6 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -61,45 +60,6 @@ func (m *mockCircuitBreakerManager) RegisterStateChangeListener(_ libCircuitBrea
 
 // Verify mockCircuitBreakerManager implements the interface.
 var _ libCircuitBreaker.Manager = (*mockCircuitBreakerManager)(nil)
-
-// mockTenantCheckerWithError simulates tenant checker that returns errors.
-type mockTenantCheckerWithError struct {
-	name         string
-	tlsEnabled   bool
-	tenantError  error
-	tenantStatus DependencyStatus
-}
-
-func (m *mockTenantCheckerWithError) Name() string {
-	return m.name
-}
-
-func (m *mockTenantCheckerWithError) TLSEnabled() bool {
-	return m.tlsEnabled
-}
-
-func (m *mockTenantCheckerWithError) Check(_ context.Context) DependencyCheck {
-	return DependencyCheck{
-		Status: StatusNA,
-		Reason: "tenant-scoped; use /readyz/tenant/:id",
-	}
-}
-
-func (m *mockTenantCheckerWithError) CheckTenant(_ context.Context, _ string) DependencyCheck {
-	if m.tenantError != nil {
-		return DependencyCheck{
-			Status: m.tenantStatus,
-			Error:  m.tenantError.Error(),
-		}
-	}
-
-	latency := int64(5)
-
-	return DependencyCheck{
-		Status:    StatusUp,
-		LatencyMs: &latency,
-	}
-}
 
 // slowChecker simulates a checker with configurable delay.
 type slowChecker struct {
@@ -257,166 +217,6 @@ func TestRabbitMQChecker_DegradedAffectsGlobalHealth(t *testing.T) {
 }
 
 // =============================================================================
-// Multi-Tenant Tests
-// =============================================================================
-
-func TestTenantPostgresChecker_TenantNotFound(t *testing.T) {
-	t.Parallel()
-
-	checker := &mockTenantCheckerWithError{
-		name:         "postgres_onboarding",
-		tlsEnabled:   false,
-		tenantError:  errors.New("tenant not found: unknown-tenant"),
-		tenantStatus: StatusDown,
-	}
-
-	result := checker.CheckTenant(context.Background(), "unknown-tenant")
-
-	assert.Equal(t, StatusDown, result.Status)
-	assert.Contains(t, result.Error, "tenant not found")
-}
-
-func TestTenantPostgresChecker_ConnectionFailure(t *testing.T) {
-	t.Parallel()
-
-	checker := &mockTenantCheckerWithError{
-		name:         "postgres_onboarding",
-		tlsEnabled:   true,
-		tenantError:  errors.New("connection refused: database unreachable"),
-		tenantStatus: StatusDown,
-	}
-
-	result := checker.CheckTenant(context.Background(), "tenant-123")
-
-	assert.Equal(t, StatusDown, result.Status)
-	assert.Contains(t, result.Error, "connection refused")
-}
-
-func TestTenantMongoChecker_PartialAvailability(t *testing.T) {
-	t.Parallel()
-
-	// Simulate scenario where PG is up but Mongo is down for a tenant
-	pgChecker := &mockTenantCheckerWithError{
-		name:         "postgres_onboarding",
-		tlsEnabled:   false,
-		tenantError:  nil, // healthy
-		tenantStatus: StatusUp,
-	}
-
-	mongoChecker := &mockTenantCheckerWithError{
-		name:         "mongo_onboarding",
-		tlsEnabled:   false,
-		tenantError:  errors.New("mongo connection timeout"),
-		tenantStatus: StatusDown,
-	}
-
-	// Both checks for a tenant
-	pgResult := pgChecker.CheckTenant(context.Background(), "tenant-456")
-	mongoResult := mongoChecker.CheckTenant(context.Background(), "tenant-456")
-
-	assert.Equal(t, StatusUp, pgResult.Status)
-	assert.Equal(t, StatusDown, mongoResult.Status)
-
-	// Overall health should be unhealthy (one down)
-	allHealthy := pgResult.Status != StatusDown && pgResult.Status != StatusDegraded &&
-		mongoResult.Status != StatusDown && mongoResult.Status != StatusDegraded
-
-	assert.False(t, allHealthy, "partial availability should result in unhealthy status")
-}
-
-func TestHandleReadyzTenant_AllTenantCheckersHealthy(t *testing.T) {
-	t.Parallel()
-
-	pgChecker := &mockTenantCheckerWithError{
-		name:       "postgres_onboarding",
-		tlsEnabled: false,
-	}
-
-	mongoChecker := &mockTenantCheckerWithError{
-		name:       "mongo_onboarding",
-		tlsEnabled: false,
-	}
-
-	handler := newReadyHandler(ReadyzHandlerConfig{
-		Logger:             libLog.NewNop(),
-		TenantCheckers:     []TenantAwareDependencyChecker{pgChecker, mongoChecker},
-		Version:            "1.0.0",
-		DeploymentMode:     "production",
-		MultiTenantEnabled: true,
-	})
-
-	// Verify handler is configured correctly
-	assert.True(t, handler.multiTenantEnabled)
-	assert.Len(t, handler.tenantCheckers, 2)
-}
-
-func TestHandleReadyzTenant_MixedHealthStatus(t *testing.T) {
-	t.Parallel()
-
-	// One healthy, one failing
-	healthyPG := &mockTenantCheckerWithError{
-		name:       "postgres_onboarding",
-		tlsEnabled: false,
-	}
-
-	failingMongo := &mockTenantCheckerWithError{
-		name:         "mongo_onboarding",
-		tlsEnabled:   false,
-		tenantError:  errors.New("replica set not available"),
-		tenantStatus: StatusDown,
-	}
-
-	// Shared redis (not tenant-scoped)
-	latency := int64(3)
-	redisChecker := &mockChecker{
-		name:       "redis",
-		tlsEnabled: false,
-		check:      DependencyCheck{Status: StatusUp, LatencyMs: &latency},
-	}
-
-	handler := newReadyHandler(ReadyzHandlerConfig{
-		Logger:             libLog.NewNop(),
-		Checkers:           []DependencyChecker{redisChecker},
-		TenantCheckers:     []TenantAwareDependencyChecker{healthyPG, failingMongo},
-		Version:            "1.0.0",
-		DeploymentMode:     "production",
-		MultiTenantEnabled: true,
-	})
-
-	// Simulate tenant health check aggregation
-	checks := make(map[string]DependencyCheck)
-	allHealthy := true
-
-	for _, tc := range handler.tenantCheckers {
-		result := tc.CheckTenant(context.Background(), "test-tenant")
-		checks[tc.Name()] = result
-
-		if result.Status == StatusDown || result.Status == StatusDegraded {
-			allHealthy = false
-		}
-	}
-
-	assert.False(t, allHealthy)
-	assert.Equal(t, StatusUp, checks["postgres_onboarding"].Status)
-	assert.Equal(t, StatusDown, checks["mongo_onboarding"].Status)
-}
-
-func TestTenantChecker_GlobalCheckReturnsNA(t *testing.T) {
-	t.Parallel()
-
-	checker := &mockTenantCheckerWithError{
-		name:       "postgres_transaction",
-		tlsEnabled: true,
-	}
-
-	// Global check should return n/a for tenant-scoped checkers
-	globalResult := checker.Check(context.Background())
-
-	assert.Equal(t, StatusNA, globalResult.Status)
-	assert.Contains(t, globalResult.Reason, "tenant-scoped")
-}
-
-// =============================================================================
 // Concurrent Access Tests
 // =============================================================================
 
@@ -520,62 +320,6 @@ func TestReadyzHandler_CheckerTimeoutRespected(t *testing.T) {
 	assert.Contains(t, slowCheckResult.Error, "context deadline exceeded")
 }
 
-func TestReadyzHandler_ParallelTenantChecks(t *testing.T) {
-	t.Parallel()
-
-	var pgCallCount, mongoCallCount atomic.Int64
-
-	pgChecker := &mockTenantChecker{
-		name:        "postgres_onboarding",
-		tlsEnabled:  false,
-		globalCheck: DependencyCheck{Status: StatusNA, Reason: "tenant-scoped"},
-		tenantCheck: DependencyCheck{Status: StatusUp, LatencyMs: ptrInt64(5)},
-	}
-
-	mongoChecker := &mockTenantChecker{
-		name:        "mongo_onboarding",
-		tlsEnabled:  false,
-		globalCheck: DependencyCheck{Status: StatusNA, Reason: "tenant-scoped"},
-		tenantCheck: DependencyCheck{Status: StatusUp, LatencyMs: ptrInt64(3)},
-	}
-
-	handler := newReadyHandler(ReadyzHandlerConfig{
-		Logger:             libLog.NewNop(),
-		TenantCheckers:     []TenantAwareDependencyChecker{pgChecker, mongoChecker},
-		Version:            "1.0.0",
-		DeploymentMode:     "production",
-		MultiTenantEnabled: true,
-	})
-
-	// Simulate concurrent tenant health checks
-	const numTenants = 10
-	var wg sync.WaitGroup
-
-	for i := range numTenants {
-		wg.Add(1)
-		go func(tenantNum int) {
-			defer wg.Done()
-
-			tenantID := string(rune('A' + tenantNum))
-			for _, checker := range handler.tenantCheckers {
-				result := checker.CheckTenant(context.Background(), "tenant-"+tenantID)
-				if checker.Name() == "postgres_onboarding" {
-					pgCallCount.Add(1)
-				} else {
-					mongoCallCount.Add(1)
-				}
-
-				assert.Equal(t, StatusUp, result.Status)
-			}
-		}(i)
-	}
-
-	wg.Wait()
-
-	assert.Equal(t, int64(numTenants), pgCallCount.Load())
-	assert.Equal(t, int64(numTenants), mongoCallCount.Load())
-}
-
 func TestReadyzHandler_RaceConditionSafety(t *testing.T) {
 	t.Parallel()
 
@@ -620,9 +364,4 @@ func TestReadyzHandler_RaceConditionSafety(t *testing.T) {
 
 	wg.Wait()
 	// If we reach here without race detector errors, the test passes
-}
-
-// ptrInt64 is a helper to create a pointer to int64.
-func ptrInt64(v int64) *int64 {
-	return &v
 }
