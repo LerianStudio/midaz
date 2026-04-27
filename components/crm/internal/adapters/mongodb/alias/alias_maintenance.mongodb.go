@@ -6,6 +6,7 @@ package alias
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -23,6 +24,109 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
 )
+
+// CloseByID marks an alias closed by setting both banking_details.closing_date
+// and deleted_at to closingAt in a single UpdateOne.
+//
+// Semantics versus Delete(soft=true):
+//
+//   - Delete is a logical removal; consumers that respect the soft-delete
+//     convention will no longer see the alias.
+//   - Close records a BUSINESS event (the underlying banking relationship
+//     ended). The closing_date carries downstream signalling used by banking
+//     integrations. Close implies soft-delete but soft-delete does NOT imply
+//     close — that is why we keep them as distinct operations.
+//
+// Naturally idempotent: if closing_date is already set, the caller receives
+// the existing alias unchanged (status==200 "already closed"). See
+// close-alias.go in the services layer for the full state machine.
+func (am *MongoDBRepository) CloseByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, closingAt time.Time) (*mmodel.Alias, error) {
+	logger, tracer, reqID, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.close_alias")
+	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqID),
+		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.holder_id", holderID.String()),
+		attribute.String("app.request.alias_id", id.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	db, err := am.getDatabase(ctx)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
+		return nil, err
+	}
+
+	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
+
+	// Load the current state. Fetching before updating lets us short-circuit
+	// on the "already closed" branch without mutating anything and also
+	// guarantees the caller receives the full entity in all response paths.
+	existingFilter := bson.D{
+		{Key: "_id", Value: id},
+		{Key: "holder_id", Value: holderID},
+	}
+
+	var existing MongoDBModel
+	if err := coll.FindOne(ctx, existingFilter).Decode(&existing); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+		}
+
+		libOpenTelemetry.HandleSpanError(span, "Failed to load alias for close", err)
+
+		return nil, err
+	}
+
+	// If the alias is soft-deleted but NOT closed, still allow close semantics
+	// to record the banking event. A soft-delete without close loses the
+	// banking signal; close remedies that.
+	if existing.BankingDetails != nil && existing.BankingDetails.ClosingDate != nil {
+		logger.Log(ctx, libLog.LevelInfo, "Alias already closed; returning existing record",
+			libLog.String("alias_id", id.String()))
+
+		return existing.ToEntity(am.DataSecurity)
+	}
+
+	update := bson.D{
+		{Key: "$set", Value: bson.D{
+			{Key: "banking_details.closing_date", Value: closingAt},
+			{Key: "deleted_at", Value: closingAt},
+			{Key: "updated_at", Value: closingAt},
+		}},
+	}
+
+	result, err := coll.UpdateOne(ctx, existingFilter, update)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(span, "Failed to close alias", err)
+		return nil, err
+	}
+
+	if result.MatchedCount == 0 {
+		return nil, pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+	}
+
+	// Re-read to return the persisted state.
+	var updated MongoDBModel
+	if err := coll.FindOne(ctx, existingFilter).Decode(&updated); err != nil {
+		libOpenTelemetry.HandleSpanError(span, "Failed to reload alias after close", err)
+		return nil, err
+	}
+
+	entity, err := updated.ToEntity(am.DataSecurity)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(span, "Failed to convert alias to entity after close", err)
+		return nil, err
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, "Closed alias", libLog.String("alias_id", id.String()))
+
+	return entity, nil
+}
 
 // DeleteRelatedParty removes a related party from an alias by ID (hard delete)
 func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizationID string, holderID, aliasID, relatedPartyID uuid.UUID) error {

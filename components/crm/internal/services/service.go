@@ -7,9 +7,11 @@ package services
 import (
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/idempotency"
 )
 
 type UseCase struct {
-	HolderRepo holder.Repository
-	AliasRepo  alias.Repository
+	HolderRepo      holder.Repository
+	AliasRepo       alias.Repository
+	IdempotencyRepo idempotency.Repository
 }

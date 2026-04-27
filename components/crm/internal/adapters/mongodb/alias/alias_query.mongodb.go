@@ -6,14 +6,19 @@ package alias
 
 import (
 	"context"
+	"errors"
+	"reflect"
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -184,6 +189,65 @@ func (am *MongoDBRepository) buildAliasFilter(query http.QueryHeader, holderID u
 	}
 
 	return filter, nil
+}
+
+// FindByLedgerAndAccount locates the single non-deleted alias for the given
+// (ledger_id, account_id) pair. Returns ErrAliasNotFound when no record
+// matches. The uniqueness of the pair is guaranteed by a Mongo unique index
+// (see alias_maintenance.mongodb.go), so the projection is a single document.
+//
+// This is the query used by the CRM orchestration layer to:
+//   - detect holder-mismatch at create time (§3.5)
+//   - expose GET /v1/aliases/by-account to the Ledger saga (§3.3)
+func (am *MongoDBRepository) FindByLedgerAndAccount(ctx context.Context, organizationID, ledgerID, accountID string) (*mmodel.Alias, error) {
+	_, tracer, reqID, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.find_alias_by_ledger_and_account")
+	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqID),
+		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.ledger_id", ledgerID),
+		attribute.String("app.request.account_id", accountID),
+	}
+
+	span.SetAttributes(attributes...)
+
+	db, err := am.getDatabase(ctx)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
+		return nil, err
+	}
+
+	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
+
+	filter := bson.D{
+		{Key: "ledger_id", Value: ledgerID},
+		{Key: "account_id", Value: accountID},
+		{Key: "deleted_at", Value: nil},
+	}
+
+	var record MongoDBModel
+
+	err = coll.FindOne(ctx, filter).Decode(&record)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+		}
+
+		libOpenTelemetry.HandleSpanError(span, "Failed to find alias by ledger and account", err)
+
+		return nil, err
+	}
+
+	result, err := record.ToEntity(am.DataSecurity)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, holderID uuid.UUID) (int64, error) {

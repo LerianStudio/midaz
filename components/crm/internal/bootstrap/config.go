@@ -20,6 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/idempotency"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 )
@@ -155,9 +156,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize alias repository: %w", err)
 	}
 
+	idempotencyMongoDBRepository := idempotency.NewMongoDBRepository(mongoConnection)
+
 	useCases := &services.UseCase{
-		HolderRepo: holderMongoDBRepository,
-		AliasRepo:  aliasMongoDBRepository,
+		HolderRepo:      holderMongoDBRepository,
+		AliasRepo:       aliasMongoDBRepository,
+		IdempotencyRepo: idempotencyMongoDBRepository,
 	}
 
 	holderHandler := &in.HolderHandler{

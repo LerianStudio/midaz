@@ -37,7 +37,9 @@ import (
 type Repository interface {
 	Create(ctx context.Context, organizationID string, input *mmodel.Alias) (*mmodel.Alias, error)
 	Find(ctx context.Context, organizationID string, holderID, id uuid.UUID, includeDeleted bool) (*mmodel.Alias, error)
+	FindByLedgerAndAccount(ctx context.Context, organizationID, ledgerID, accountID string) (*mmodel.Alias, error)
 	Update(ctx context.Context, organizationID string, holderID, id uuid.UUID, input *mmodel.Alias, fieldsToRemove []string) (*mmodel.Alias, error)
+	CloseByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, closingAt time.Time) (*mmodel.Alias, error)
 	FindAll(ctx context.Context, organizationID string, holderID uuid.UUID, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.Alias, error)
 	Delete(ctx context.Context, organizationID string, holderID, id uuid.UUID, hardDelete bool) error
 	DeleteRelatedParty(ctx context.Context, organizationID string, holderID, aliasID, relatedPartyID uuid.UUID) error
@@ -113,6 +115,35 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 		libOpenTelemetry.HandleSpanError(span, "Failed to create indexes", err)
 
 		return nil, err
+	}
+
+	// Semantic pre-check: if an alias already exists for (ledger_id,
+	// account_id), surface the specific reason. This covers two cases that
+	// the raw unique-index violation cannot distinguish:
+	//
+	//   1. Same (ledger_id, account_id) under a DIFFERENT holder →
+	//      ErrAliasHolderConflict (0170). Aliases cannot be reassigned
+	//      between holders; the caller must delete the old one first.
+	//
+	//   2. Same (ledger_id, account_id) under the SAME holder → return the
+	//      existing alias so create-alias becomes naturally idempotent at
+	//      the domain level (independent of any Idempotency-Key header).
+	//
+	// A race between this probe and the InsertOne below still produces a
+	// duplicate-key error, which is caught by the existing handler downstream.
+	if alias.LedgerID != nil && alias.AccountID != nil {
+		existing, probeErr := am.FindByLedgerAndAccount(ctx, organizationID, *alias.LedgerID, *alias.AccountID)
+		if probeErr == nil && existing != nil {
+			if existing.HolderID != nil && alias.HolderID != nil && *existing.HolderID != *alias.HolderID {
+				return nil, pkg.ValidateBusinessError(cn.ErrAliasHolderConflict, reflect.TypeOf(mmodel.Alias{}).Name())
+			}
+
+			return existing, nil
+		}
+		// A not-found result from the probe is expected (and the intended
+		// happy path). Other errors are swallowed here and will resurface
+		// from the actual insert below — this keeps the probe from turning
+		// a transient Mongo blip into a false conflict.
 	}
 
 	ctx, spanCount := tracer.Start(ctx, "mongodb.create_alias.count_existing")

@@ -6,13 +6,16 @@ package in
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
@@ -59,14 +62,16 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 	}
 
 	organizationID := c.Get("X-Organization-Id")
+	idempotencyKey := strings.Clone(c.Get(libConstants.IdempotencyKey))
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID),
 		attribute.String("app.request.holder_id", holderID.String()),
+		attribute.Bool("app.request.has_idempotency_key", idempotencyKey != ""),
 	)
 
-	out, err := handler.Service.CreateAlias(ctx, organizationID, holderID, payload)
+	out, err := handler.Service.CreateAlias(ctx, organizationID, holderID, payload, idempotencyKey)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to create alias", err)
 
@@ -207,6 +212,117 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 		libOpenTelemetry.HandleSpanError(span, "Failed to update alias", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update alias %s from holder %s, Error: %s", id.String(), holderID.String(), err.Error()))
+
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, alias)
+}
+
+// CloseAlias records an explicit banking close on an alias.
+//
+//	@Summary		Close an Alias
+//	@Description	Closes an alias by setting the banking closing_date (and deleted_at) to the current time. Naturally idempotent: closing an already-closed alias returns the same record with HTTP 200.
+//	@Tags			Aliases
+//	@Produce		json
+//	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Param			X-Organization-Id	header		string	true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			Idempotency-Key		header		string	false	"Idempotency key for safe retries. Reusing the same key returns the cached response; reusing with a different target yields 409."
+//	@Param			holder_id			path		string	true	"The unique identifier of the Holder."
+//	@Param			id					path		string	true	"The unique identifier of the Alias account."
+//	@Success		200					{object}	mmodel.Alias
+//	@Failure		400					{object}	pkg.HTTPError
+//	@Failure		404					{object}	pkg.HTTPError
+//	@Failure		409					{object}	pkg.HTTPError
+//	@Failure		500					{object}	pkg.HTTPError
+//	@Router			/v1/holders/{holder_id}/aliases/{id}/close [post]
+func (handler *AliasHandler) CloseAlias(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.close_alias")
+	defer span.End()
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	holderID, err := http.GetUUIDFromLocals(c, "holder_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	organizationID := c.Get("X-Organization-Id")
+	idempotencyKey := strings.Clone(c.Get(libConstants.IdempotencyKey))
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.holder_id", holderID.String()),
+		attribute.String("app.request.alias_id", id.String()),
+		attribute.Bool("app.request.has_idempotency_key", idempotencyKey != ""),
+	)
+
+	closed, err := handler.Service.CloseAlias(ctx, organizationID, holderID, id, idempotencyKey)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(span, "Failed to close alias", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to close alias with ID %s: %v", id.String(), err))
+
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, closed)
+}
+
+// GetAliasByAccount retrieves the single alias linked to a (ledger_id,
+// account_id) pair.
+//
+//	@Summary		Retrieve Alias by Ledger and Account
+//	@Description	Returns the alias (if any) associated with the given ledger/account pair. Primary consumer is the Ledger-side account-registration saga used to detect replay and conflict conditions.
+//	@Tags			Aliases
+//	@Produce		json
+//	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Param			X-Organization-Id	header		string	true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			ledger_id			query		string	true	"The unique identifier of the Ledger."
+//	@Param			account_id			query		string	true	"The unique identifier of the Account."
+//	@Success		200					{object}	mmodel.Alias
+//	@Failure		400					{object}	pkg.HTTPError
+//	@Failure		404					{object}	pkg.HTTPError
+//	@Failure		500					{object}	pkg.HTTPError
+//	@Router			/v1/aliases/by-account [get]
+func (handler *AliasHandler) GetAliasByAccount(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_alias_by_account")
+	defer span.End()
+
+	organizationID := c.Get("X-Organization-Id")
+	ledgerID := strings.Clone(c.Query("ledger_id"))
+	accountID := strings.Clone(c.Query("account_id"))
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.ledger_id", ledgerID),
+		attribute.String("app.request.account_id", accountID),
+	)
+
+	if ledgerID == "" || accountID == "" {
+		err := pkg.ValidateBusinessError(cn.ErrInvalidQueryParameter, "Alias", "ledger_id, account_id")
+		logger.Log(ctx, libLog.LevelWarn, "Missing required query parameters for by-account lookup", libLog.Err(err))
+
+		return http.WithError(c, err)
+	}
+
+	alias, err := handler.Service.GetAliasByAccount(ctx, organizationID, ledgerID, accountID)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(span, "Failed to get alias by account", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get alias by ledger=%s account=%s: %v", ledgerID, accountID, err))
 
 		return http.WithError(c, err)
 	}
