@@ -7,6 +7,7 @@ package balance
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -108,7 +109,14 @@ func (b *BalancePostgreSQLModel) ToEntity() *mmodel.Balance {
 
 	if len(b.Settings) > 0 {
 		var settings mmodel.BalanceSettings
-		if err := json.Unmarshal(b.Settings, &settings); err == nil {
+		if err := json.Unmarshal(b.Settings, &settings); err != nil {
+			// Log corruption but don't fail reads — Settings stays nil
+			// which makes the balance behave like a legacy row (no
+			// overdraft, scope=transactional). The span/logger context is
+			// not available at this layer, so we use the standard log
+			// package as a last-resort signal.
+			log.Printf("WARN: failed to unmarshal balance settings for balance %s: %v", b.ID, err)
+		} else {
 			balance.Settings = &settings
 		}
 	}

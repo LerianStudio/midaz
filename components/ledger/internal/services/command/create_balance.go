@@ -91,6 +91,8 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 	// includes "direction" and would otherwise send an empty string and
 	// fail the CHECK. Setting it here also ensures the Go model stays
 	// consistent with the persisted row returned by RETURNING.
+	now := time.Now()
+
 	newBalance := &mmodel.Balance{
 		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Alias:          input.Alias,
@@ -103,8 +105,8 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 		AllowSending:   input.AllowSending,
 		AllowReceiving: input.AllowReceiving,
 		Direction:      constant.DirectionCredit,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
 	created, err := uc.BalanceRepo.Create(ctx, newBalance)

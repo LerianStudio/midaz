@@ -69,7 +69,7 @@ func enforceOverdraftTransition(ctx context.Context, logger libLog.Logger, span 
 	if !next.AllowOverdraft {
 		err := pkg.ValidateBusinessError(constant.ErrOverdraftDisableWithUsage, constant.EntityBalance)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cannot disable overdraft while usage is non-zero", err)
-		logger.Log(ctx, libLog.LevelWarn, "Rejected overdraft disable with active usage", libLog.String("overdraftUsed", usage.String()))
+		logger.Log(ctx, libLog.LevelWarn, "Rejected overdraft disable with active usage")
 
 		return err
 	}
@@ -90,7 +90,7 @@ func enforceOverdraftTransition(ctx context.Context, logger libLog.Logger, span 
 		if limit.LessThan(usage) {
 			err := pkg.ValidateBusinessError(constant.ErrOverdraftLimitBelowUsage, constant.EntityBalance)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft limit below current usage", err)
-			logger.Log(ctx, libLog.LevelWarn, "Rejected overdraft limit below current usage", libLog.String("limit", limit.String()), libLog.String("overdraftUsed", usage.String()))
+			logger.Log(ctx, libLog.LevelWarn, "Rejected overdraft limit below current usage")
 
 			return err
 		}
@@ -136,7 +136,6 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 	// isUniqueViolation (line ~247) catches the duplicate-key error
 	// and treats it as a no-op — the second caller proceeds with the
 	// companion that the first caller created.
-
 	if current == nil || nextSettings == nil {
 		return nil
 	}
@@ -200,8 +199,18 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 	// AllowSending=true does NOT expose the companion to client-initiated
 	// transactions — only the system enrichment engine can route operations
 	// onto it.
+	balanceUUID, uuidErr := libCommons.GenerateUUIDv7()
+	if uuidErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate UUID for overdraft balance", uuidErr)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate UUID for overdraft balance", libLog.Err(uuidErr))
+
+		return uuidErr
+	}
+
+	now := time.Now()
+
 	overdraftBalance := &mmodel.Balance{
-		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		ID:             balanceUUID.String(),
 		OrganizationID: current.OrganizationID,
 		LedgerID:       current.LedgerID,
 		AccountID:      current.AccountID,
@@ -216,8 +225,8 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		Settings: &mmodel.BalanceSettings{
 			BalanceScope: mmodel.BalanceScopeInternal,
 		},
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 
 	if _, cerr := uc.BalanceRepo.Create(ctx, overdraftBalance); cerr != nil {

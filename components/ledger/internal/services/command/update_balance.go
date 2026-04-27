@@ -84,8 +84,8 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 			calculateBalances, err := mtransaction.OperateBalances(fromTo[balance.Alias], *txBal)
 			if err != nil {
 				libOpentelemetry.HandleSpanError(spanUpdateBalances, "Failed to update balances on database", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to update balances on database", libLog.Err(err))
-			spanBalance.End()
+				logger.Log(ctx, libLog.LevelError, "Failed to update balances on database", libLog.Err(err))
+				spanBalance.End()
 
 				return err
 			}
