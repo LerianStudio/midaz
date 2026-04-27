@@ -19,7 +19,13 @@ import (
 
 const ApplicationName = "plugin-crm"
 
-func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, hh *HolderHandler, ah *AliasHandler) *fiber.App {
+// ReadyzHandler is the interface for the readyz endpoint handler.
+// This interface is defined here to avoid circular imports with the bootstrap package.
+type ReadyzHandler interface {
+	HandleReadyz(c *fiber.Ctx) error
+}
+
+func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, readyzHandler ReadyzHandler, hh *HolderHandler, ah *AliasHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -39,6 +45,12 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	f.Get("/health", libHTTP.Ping)
 	f.Get("/version", libHTTP.Version)
 	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)
+
+	// Readyz endpoint: registered BEFORE auth/tenant middleware for K8s readiness probes.
+	// K8s probes do not authenticate, so this endpoint MUST NOT require auth.
+	if readyzHandler != nil {
+		f.Get("/readyz", readyzHandler.HandleReadyz)
+	}
 
 	// Tenant middleware: registered only when multi-tenant mode is enabled.
 	// When tenantMw is nil (single-tenant mode), this block is skipped entirely.
