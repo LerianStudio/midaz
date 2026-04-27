@@ -67,9 +67,7 @@ func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID
 				continue
 			}
 
-			balance[i].Available = cachedBalance.Available
-			balance[i].OnHold = cachedBalance.OnHold
-			balance[i].Version = cachedBalance.Version
+			applyBalanceCacheOverlay(balance[i], &cachedBalance)
 		}
 	}
 
