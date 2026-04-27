@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"reflect"
 	"strconv"
 	"strings"
@@ -1522,25 +1523,33 @@ func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizati
 	// Note: batch size is capped at construction time (maxBatchSize = 13000) to stay
 	// within PostgreSQL's 65535 bind-parameter limit: (65535 - 3) / 5 = 13106.
 	now := time.Now()
-	valuesClauses := make([]string, len(deduped))
+	valuesClauses := make([]string, 0, len(deduped))
 	args := make([]any, 0, len(deduped)*5+3)
 	paramIdx := 1
 
 	for i, balance := range deduped {
-		valuesClauses[i] = fmt.Sprintf("($%d::uuid, $%d::numeric, $%d::numeric, $%d::bigint, $%d::numeric)",
-			paramIdx, paramIdx+1, paramIdx+2, paramIdx+3, paramIdx+4)
-
 		// OverdraftUsed is stored on BalanceRedis as a decimal string; parse
 		// into decimal.Decimal so PostgreSQL receives a numeric-compatible
-		// value. An unparseable value is treated as zero (conservative) so
-		// a single malformed cache entry does not abort the whole batch.
+		// value. A malformed value causes the row to be SKIPPED — not
+		// coerced to zero — so the last good value in PostgreSQL is
+		// preserved until the next sync delivers a valid string. Coercing
+		// to zero would silently erase outstanding overdraft debt.
 		overdraftUsed, parseErr := decimal.NewFromString(balance.OverdraftUsed)
 		if parseErr != nil {
-			overdraftUsed = decimal.Zero
+			log.Printf("WARN: skipping balance sync for id=%s: malformed OverdraftUsed %q: %v", ids[i], balance.OverdraftUsed, parseErr)
+
+			continue
 		}
+
+		valuesClauses = append(valuesClauses, fmt.Sprintf("($%d::uuid, $%d::numeric, $%d::numeric, $%d::bigint, $%d::numeric)",
+			paramIdx, paramIdx+1, paramIdx+2, paramIdx+3, paramIdx+4))
 
 		args = append(args, ids[i], balance.Available, balance.OnHold, balance.Version, overdraftUsed)
 		paramIdx += 5
+	}
+
+	if len(valuesClauses) == 0 {
+		return 0, nil
 	}
 
 	// Shared parameters: updated_at, organization_id, ledger_id
