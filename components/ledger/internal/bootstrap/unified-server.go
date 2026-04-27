@@ -30,6 +30,7 @@ type UnifiedServer struct {
 	serverAddress string
 	logger        libLog.Logger
 	telemetry     *libOpentelemetry.Telemetry
+	readyzHandler *ReadyzHandler
 }
 
 // NewUnifiedServer creates a server that exposes all APIs on a single port.
@@ -88,6 +89,7 @@ func NewUnifiedServer(
 		serverAddress: serverAddress,
 		logger:        logger,
 		telemetry:     telemetry,
+		readyzHandler: readyzHandler,
 	}
 }
 
@@ -96,9 +98,20 @@ func NewUnifiedServer(
 func (s *UnifiedServer) Run(l *libCommons.Launcher) error {
 	s.logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Starting Unified HTTP Server on %s", s.serverAddress))
 
-	libCommonsServer.NewServerManager(nil, s.telemetry, s.logger).
-		WithHTTPServer(s.app, s.serverAddress).
-		StartWithGracefulShutdown()
+	// Create server manager with graceful shutdown
+	serverManager := libCommonsServer.NewServerManager(nil, s.telemetry, s.logger).
+		WithHTTPServer(s.app, s.serverAddress)
+
+	// Mark server ready for readyz probe after Fiber starts listening.
+	// The WithHTTPServer call registers the server but doesn't start it yet.
+	// We mark ready right before StartWithGracefulShutdown which blocks until shutdown.
+	if s.readyzHandler != nil {
+		s.readyzHandler.SetServerReady()
+	}
+
+	// This blocks until SIGTERM/SIGINT is received.
+	// The server manager handles graceful shutdown internally.
+	serverManager.StartWithGracefulShutdown()
 
 	return nil
 }

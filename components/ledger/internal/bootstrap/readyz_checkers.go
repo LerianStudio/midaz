@@ -429,10 +429,8 @@ func NewRabbitMQChecker(name, healthCheckURL, uri string, cbManager libCircuitBr
 		healthCheckURL: healthCheckURL,
 		uri:            uri,
 		tlsEnabled:     tlsEnabled,
-		httpClient: &http.Client{
-			Timeout: 2 * time.Second,
-		},
-		cbManager: cbManager,
+		httpClient:     &http.Client{},
+		cbManager:      cbManager,
 	}
 }
 

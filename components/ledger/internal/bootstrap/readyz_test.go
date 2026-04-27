@@ -62,6 +62,15 @@ func (m *mockTenantChecker) CheckTenant(_ context.Context, _ string) DependencyC
 	return m.tenantCheck
 }
 
+// newReadyHandler creates a ReadyzHandler and marks it as ready for testing.
+// This is needed because HandleReadyz now checks lifecycle state before running checks.
+func newReadyHandler(cfg ReadyzHandlerConfig) *ReadyzHandler {
+	handler := NewReadyzHandler(cfg)
+	handler.SetServerReady()
+
+	return handler
+}
+
 func TestReadyzHandler_HandleReadyz(t *testing.T) {
 	t.Parallel()
 
@@ -151,7 +160,7 @@ func TestReadyzHandler_HandleReadyz(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			handler := NewReadyzHandler(ReadyzHandlerConfig{
+			handler := newReadyHandler(ReadyzHandlerConfig{
 				Logger:         libLog.NewNop(),
 				Checkers:       tt.checkers,
 				Version:        tt.version,
@@ -266,7 +275,7 @@ func TestReadyzHandler_HandleReadyzTenant(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			handler := NewReadyzHandler(ReadyzHandlerConfig{
+			handler := newReadyHandler(ReadyzHandlerConfig{
 				Logger:             libLog.NewNop(),
 				Checkers:           tt.checkers,
 				TenantCheckers:     tt.tenantCheckers,
@@ -312,7 +321,7 @@ func TestReadyzHandler_TLSField(t *testing.T) {
 
 	latency := int64(5)
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger: libLog.NewNop(),
 		Checkers: []DependencyChecker{
 			&mockChecker{name: "postgres_tls", tlsEnabled: true, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
@@ -350,7 +359,7 @@ func TestReadyzHandler_TLSField(t *testing.T) {
 func TestReadyzHandler_DeploymentModeDefault(t *testing.T) {
 	t.Parallel()
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       []DependencyChecker{},
 		Version:        "1.0.0",
@@ -538,7 +547,7 @@ func TestReadyzHandler_DegradedStateAggregation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			handler := NewReadyzHandler(ReadyzHandlerConfig{
+			handler := newReadyHandler(ReadyzHandlerConfig{
 				Logger:         libLog.NewNop(),
 				Checkers:       tt.checkers,
 				Version:        "1.0.0",
@@ -716,7 +725,7 @@ func TestReadyzHandler_ErrorSanitization_InResponse(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			handler := NewReadyzHandler(ReadyzHandlerConfig{
+			handler := newReadyHandler(ReadyzHandlerConfig{
 				Logger: libLog.NewNop(),
 				Checkers: []DependencyChecker{
 					&mockChecker{
@@ -791,7 +800,7 @@ func TestReadyzHandler_ErrorSanitization_TenantEndpoint(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			handler := NewReadyzHandler(ReadyzHandlerConfig{
+			handler := newReadyHandler(ReadyzHandlerConfig{
 				Logger: libLog.NewNop(),
 				TenantCheckers: []TenantAwareDependencyChecker{
 					&mockTenantChecker{
@@ -835,4 +844,140 @@ func TestReadyzHandler_ErrorSanitization_TenantEndpoint(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestReadyzHandler_LifecycleState tests the self-probe and graceful drain functionality.
+func TestReadyzHandler_LifecycleState(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns_503_when_server_not_ready", func(t *testing.T) {
+		t.Parallel()
+
+		// Create handler WITHOUT calling SetServerReady()
+		handler := NewReadyzHandler(ReadyzHandlerConfig{
+			Logger:         libLog.NewNop(),
+			Checkers:       []DependencyChecker{},
+			Version:        "1.0.0",
+			DeploymentMode: "local",
+		})
+
+		app := fiber.New()
+		app.Get("/readyz", handler.HandleReadyz)
+
+		req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+
+		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		var response ReadyzResponse
+		err = json.Unmarshal(body, &response)
+		require.NoError(t, err)
+
+		assert.Equal(t, "unhealthy", response.Status)
+		assert.Contains(t, response.Reason, "server not ready")
+		assert.Empty(t, response.Checks, "no checks should run when server not ready")
+	})
+
+	t.Run("returns_200_after_server_ready", func(t *testing.T) {
+		t.Parallel()
+
+		handler := NewReadyzHandler(ReadyzHandlerConfig{
+			Logger:         libLog.NewNop(),
+			Checkers:       []DependencyChecker{},
+			Version:        "1.0.0",
+			DeploymentMode: "local",
+		})
+
+		// Initially not ready
+		assert.False(t, handler.IsServerReady())
+
+		// Mark as ready
+		handler.SetServerReady()
+		assert.True(t, handler.IsServerReady())
+
+		app := fiber.New()
+		app.Get("/readyz", handler.HandleReadyz)
+
+		req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("returns_503_when_draining", func(t *testing.T) {
+		t.Parallel()
+
+		handler := NewReadyzHandler(ReadyzHandlerConfig{
+			Logger:         libLog.NewNop(),
+			Checkers:       []DependencyChecker{},
+			Version:        "1.0.0",
+			DeploymentMode: "local",
+		})
+
+		// Mark as ready first
+		handler.SetServerReady()
+		assert.False(t, handler.IsDraining())
+
+		// Start draining
+		handler.StartDrain()
+		assert.True(t, handler.IsDraining())
+
+		app := fiber.New()
+		app.Get("/readyz", handler.HandleReadyz)
+
+		req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+
+		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		var response ReadyzResponse
+		err = json.Unmarshal(body, &response)
+		require.NoError(t, err)
+
+		assert.Equal(t, "unhealthy", response.Status)
+		assert.Contains(t, response.Reason, "draining")
+		assert.Empty(t, response.Checks, "no checks should run when draining")
+	})
+
+	t.Run("tenant_endpoint_also_checks_lifecycle", func(t *testing.T) {
+		t.Parallel()
+
+		handler := NewReadyzHandler(ReadyzHandlerConfig{
+			Logger:             libLog.NewNop(),
+			Checkers:           []DependencyChecker{},
+			TenantCheckers:     []TenantAwareDependencyChecker{},
+			Version:            "1.0.0",
+			DeploymentMode:     "local",
+			MultiTenantEnabled: true,
+		})
+
+		// Don't set ready - should return 503
+
+		app := fiber.New()
+		app.Get("/readyz/tenant/:id", handler.HandleReadyzTenant)
+
+		req := httptest.NewRequest(http.MethodGet, "/readyz/tenant/test-tenant", nil)
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+
+		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		var response ReadyzResponse
+		err = json.Unmarshal(body, &response)
+		require.NoError(t, err)
+
+		assert.Contains(t, response.Reason, "server not ready")
+	})
 }

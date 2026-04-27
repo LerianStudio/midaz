@@ -24,6 +24,15 @@ import (
 	redisContainer "github.com/LerianStudio/midaz/v3/tests/utils/redis"
 )
 
+// newReadyHandler creates a ReadyzHandler and marks it as ready for testing.
+// This is needed because HandleReadyz now checks lifecycle state before running checks.
+func newReadyHandler(cfg ReadyzHandlerConfig) *ReadyzHandler {
+	handler := NewReadyzHandler(cfg)
+	handler.SetServerReady()
+
+	return handler
+}
+
 func TestReadyz_Integration_AllDependenciesHealthy(t *testing.T) {
 	t.Parallel()
 
@@ -44,7 +53,7 @@ func TestReadyz_Integration_AllDependenciesHealthy(t *testing.T) {
 		NewRedisChecker("redis", redisClient, redis.Addr, false),
 	}
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       checkers,
 		Version:        "1.0.0-test",
@@ -99,7 +108,7 @@ func TestReadyz_Integration_PostgresDown(t *testing.T) {
 		NewRedisChecker("redis", redisClient, redis.Addr, false),
 	}
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       checkers,
 		Version:        "1.0.0-test",
@@ -148,7 +157,7 @@ func TestReadyz_Integration_TLSDetection(t *testing.T) {
 		NewRedisChecker("redis", redisClient, redis.Addr, false),
 	}
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       checkers,
 		Version:        "1.0.0-test",
@@ -189,7 +198,7 @@ func TestReadyz_Integration_LatencyMeasurement(t *testing.T) {
 		NewRedisChecker("redis", redisClient, redis.Addr, false),
 	}
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       checkers,
 		Version:        "1.0.0",
@@ -239,7 +248,7 @@ func TestReadyz_Integration_ConnectionTimeout(t *testing.T) {
 		NewRedisChecker("redis", redisClient, redis.Addr, false),
 	}
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       checkers,
 		Version:        "1.0.0",
@@ -294,7 +303,7 @@ func TestReadyz_Integration_MixedHealthStatus(t *testing.T) {
 		NewNAChecker("postgres_transaction", "tenant-scoped", false), // n/a
 	}
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       checkers,
 		Version:        "1.0.0",
@@ -343,7 +352,7 @@ func TestReadyz_Integration_ClosedConnection(t *testing.T) {
 		NewRedisChecker("redis", nil, redis.Addr, false), // nil client = skipped
 	}
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       checkers,
 		Version:        "1.0.0",

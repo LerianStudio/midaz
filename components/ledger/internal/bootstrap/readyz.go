@@ -8,15 +8,20 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // DependencyStatus represents the health status of a dependency.
@@ -49,6 +54,10 @@ const (
 
 	// DefaultRabbitMQTimeout is the default timeout for RabbitMQ health checks.
 	DefaultRabbitMQTimeout = 2 * time.Second
+
+	// DefaultDrainDelay is the time to wait after starting drain before fully shutting down.
+	// This gives load balancers time to stop sending traffic to the pod.
+	DefaultDrainDelay = 12 * time.Second
 )
 
 // DependencyCheck represents the health check result for a single dependency.
@@ -67,6 +76,7 @@ type ReadyzResponse struct {
 	Checks         map[string]DependencyCheck `json:"checks"`
 	Version        string                     `json:"version"`
 	DeploymentMode string                     `json:"deployment_mode"`
+	Reason         string                     `json:"reason,omitempty"`
 }
 
 // DependencyChecker is the interface for probing a dependency's health.
@@ -104,6 +114,13 @@ type ReadyzHandler struct {
 	txnPGManager       *tmpostgres.Manager
 	onbMongoManager    *tmmongo.Manager
 	txnMongoManager    *tmmongo.Manager
+
+	// Lifecycle state
+	serverReady atomic.Bool // true after HTTP server is listening
+	draining    atomic.Bool // true after SIGTERM received (graceful drain)
+
+	// OTel metrics (nil when telemetry disabled)
+	metricsFactory *metrics.MetricsFactory
 }
 
 // ReadyzHandlerConfig holds configuration for creating a ReadyzHandler.
@@ -118,6 +135,7 @@ type ReadyzHandlerConfig struct {
 	TxnPGManager       *tmpostgres.Manager
 	OnbMongoManager    *tmmongo.Manager
 	TxnMongoManager    *tmmongo.Manager
+	MetricsFactory     *metrics.MetricsFactory
 }
 
 // NewReadyzHandler creates a new ReadyzHandler with the given configuration.
@@ -133,39 +151,239 @@ func NewReadyzHandler(cfg ReadyzHandlerConfig) *ReadyzHandler {
 		txnPGManager:       cfg.TxnPGManager,
 		onbMongoManager:    cfg.OnbMongoManager,
 		txnMongoManager:    cfg.TxnMongoManager,
+		metricsFactory:     cfg.MetricsFactory,
 	}
+}
+
+// recordCheckMetrics records OTel metrics for a health check result.
+func (h *ReadyzHandler) recordCheckMetrics(ctx context.Context, checkerName string, status DependencyStatus, durationMs int64) {
+	if h.metricsFactory == nil {
+		return
+	}
+
+	attrs := []attribute.KeyValue{
+		attribute.String("checker", checkerName),
+		attribute.String("status", string(status)),
+	}
+
+	// Record check duration histogram
+	if histogram, err := h.metricsFactory.Histogram(utils.ReadyzCheckDuration); err == nil {
+		_ = histogram.WithAttributes(attrs...).Record(ctx, durationMs)
+	}
+
+	// Record check status counter
+	if counter, err := h.metricsFactory.Counter(utils.ReadyzCheckStatus); err == nil {
+		_ = counter.WithAttributes(attrs...).Add(ctx, 1)
+	}
+}
+
+// recordRequestMetrics records OTel metrics for a readyz request.
+func (h *ReadyzHandler) recordRequestMetrics(ctx context.Context, endpoint string, healthy bool) {
+	if h.metricsFactory == nil {
+		return
+	}
+
+	attrs := []attribute.KeyValue{
+		attribute.String("endpoint", endpoint),
+		attribute.Bool("healthy", healthy),
+	}
+
+	if counter, err := h.metricsFactory.Counter(utils.ReadyzRequestsTotal); err == nil {
+		_ = counter.WithAttributes(attrs...).Add(ctx, 1)
+	}
+}
+
+// SetServerReady marks the server as ready to accept traffic.
+// Call this after the HTTP server has started listening.
+func (h *ReadyzHandler) SetServerReady() {
+	h.serverReady.Store(true)
+	h.logger.Log(context.Background(), libLog.LevelInfo, "Readyz: server marked as ready")
+}
+
+// StartDrain initiates graceful drain mode.
+// After calling this, readyz will return 503 to signal load balancers to stop sending traffic.
+func (h *ReadyzHandler) StartDrain() {
+	h.draining.Store(true)
+	h.logger.Log(context.Background(), libLog.LevelInfo, "Readyz: graceful drain started")
+}
+
+// IsDraining returns true if the handler is in drain mode.
+func (h *ReadyzHandler) IsDraining() bool {
+	return h.draining.Load()
+}
+
+// IsServerReady returns true if the server is ready to accept traffic.
+func (h *ReadyzHandler) IsServerReady() bool {
+	return h.serverReady.Load()
+}
+
+// checkLifecycleState checks the server lifecycle state (self-probe and graceful drain).
+// Returns (reason, ok) where ok is false if the server should return 503.
+func (h *ReadyzHandler) checkLifecycleState() (string, bool) {
+	if !h.serverReady.Load() {
+		return "server not ready (startup in progress)", false
+	}
+
+	if h.draining.Load() {
+		return "server draining (shutdown in progress)", false
+	}
+
+	return "", true
+}
+
+// runChecksConcurrently runs all checkers in parallel using goroutines.
+// Returns a map of checker name to DependencyCheck result.
+func (h *ReadyzHandler) runChecksConcurrently(ctx context.Context, checkers []DependencyChecker) map[string]DependencyCheck {
+	checks := make(map[string]DependencyCheck)
+
+	if len(checkers) == 0 {
+		return checks
+	}
+
+	type checkResult struct {
+		name  string
+		check DependencyCheck
+	}
+
+	results := make(chan checkResult, len(checkers))
+
+	var wg sync.WaitGroup
+
+	for _, checker := range checkers {
+		wg.Add(1)
+
+		go func(c DependencyChecker) {
+			defer wg.Done()
+
+			checkCtx, cancel := context.WithTimeout(ctx, h.timeoutForChecker(c))
+			defer cancel()
+
+			start := time.Now()
+			check := c.Check(checkCtx)
+			durationMs := time.Since(start).Milliseconds()
+
+			// Set TLS field
+			if c.TLSEnabled() {
+				tlsEnabled := true
+				check.TLS = &tlsEnabled
+			} else {
+				tlsDisabled := false
+				check.TLS = &tlsDisabled
+			}
+
+			// Record metrics
+			h.recordCheckMetrics(ctx, c.Name(), check.Status, durationMs)
+
+			// Log full error and sanitize for non-local modes
+			h.logAndSanitizeCheck(ctx, c.Name(), &check)
+
+			results <- checkResult{name: c.Name(), check: check}
+		}(checker)
+	}
+
+	// Close results channel when all goroutines complete
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collect results
+	for result := range results {
+		checks[result.name] = result.check
+	}
+
+	return checks
+}
+
+// runTenantChecksConcurrently runs tenant-aware checkers in parallel for a specific tenant.
+func (h *ReadyzHandler) runTenantChecksConcurrently(ctx context.Context, tenantID string, checkers []TenantAwareDependencyChecker) map[string]DependencyCheck {
+	checks := make(map[string]DependencyCheck)
+
+	if len(checkers) == 0 {
+		return checks
+	}
+
+	type checkResult struct {
+		name  string
+		check DependencyCheck
+	}
+
+	results := make(chan checkResult, len(checkers))
+
+	var wg sync.WaitGroup
+
+	for _, checker := range checkers {
+		wg.Add(1)
+
+		go func(c TenantAwareDependencyChecker) {
+			defer wg.Done()
+
+			checkCtx, cancel := context.WithTimeout(ctx, h.timeoutForChecker(c))
+			defer cancel()
+
+			start := time.Now()
+			check := c.CheckTenant(checkCtx, tenantID)
+			durationMs := time.Since(start).Milliseconds()
+
+			// Set TLS field
+			if c.TLSEnabled() {
+				tlsEnabled := true
+				check.TLS = &tlsEnabled
+			} else {
+				tlsDisabled := false
+				check.TLS = &tlsDisabled
+			}
+
+			// Record metrics
+			h.recordCheckMetrics(ctx, c.Name(), check.Status, durationMs)
+
+			// Log full error and sanitize for non-local modes
+			h.logAndSanitizeCheck(ctx, c.Name(), &check)
+
+			results <- checkResult{name: c.Name(), check: check}
+		}(checker)
+	}
+
+	// Close results channel when all goroutines complete
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collect results
+	for result := range results {
+		checks[result.name] = result.check
+	}
+
+	return checks
 }
 
 // HandleReadyz handles the /readyz endpoint for global health checks.
 // In multi-tenant mode, database checkers return "n/a" since connections are tenant-scoped.
 // Redis always returns actual status (shared infrastructure).
 func (h *ReadyzHandler) HandleReadyz(c *fiber.Ctx) error {
-	checks := make(map[string]DependencyCheck)
+	// Check lifecycle state first (self-probe and graceful drain)
+	if reason, ok := h.checkLifecycleState(); !ok {
+		return c.Status(http.StatusServiceUnavailable).JSON(ReadyzResponse{
+			Status:         "unhealthy",
+			Checks:         map[string]DependencyCheck{},
+			Version:        h.version,
+			DeploymentMode: h.deploymentMode,
+			Reason:         reason,
+		})
+	}
+
+	// Run all checkers concurrently
+	checks := h.runChecksConcurrently(c.Context(), h.checkers)
+
+	// Determine overall health status
 	allHealthy := true
 
-	for _, checker := range h.checkers {
-		ctx, cancel := context.WithTimeout(c.Context(), h.timeoutForChecker(checker))
-
-		check := checker.Check(ctx)
-
-		cancel()
-
-		// Set TLS field if enabled
-		if checker.TLSEnabled() {
-			tlsEnabled := true
-			check.TLS = &tlsEnabled
-		} else {
-			tlsDisabled := false
-			check.TLS = &tlsDisabled
-		}
-
-		// Log full error and sanitize for non-local modes
-		h.logAndSanitizeCheck(c.Context(), checker.Name(), &check)
-
-		checks[checker.Name()] = check
-
+	for _, check := range checks {
 		if check.Status == StatusDown || check.Status == StatusDegraded {
 			allHealthy = false
+
+			break
 		}
 	}
 
@@ -176,6 +394,9 @@ func (h *ReadyzHandler) HandleReadyz(c *fiber.Ctx) error {
 		status = "unhealthy"
 		httpStatus = http.StatusServiceUnavailable
 	}
+
+	// Record request metrics
+	h.recordRequestMetrics(c.Context(), "/readyz", allHealthy)
 
 	response := ReadyzResponse{
 		Status:         status,
@@ -203,68 +424,47 @@ func (h *ReadyzHandler) HandleReadyzTenant(c *fiber.Ctx) error {
 		})
 	}
 
+	// Check lifecycle state first (self-probe and graceful drain)
+	if reason, ok := h.checkLifecycleState(); !ok {
+		return c.Status(http.StatusServiceUnavailable).JSON(ReadyzResponse{
+			Status:         "unhealthy",
+			Checks:         map[string]DependencyCheck{},
+			Version:        h.version,
+			DeploymentMode: h.deploymentMode,
+			Reason:         reason,
+		})
+	}
+
 	// Set tenant ID in context for downstream managers
 	ctx := tmcore.ContextWithTenantID(c.Context(), tenantID)
 
+	// Run tenant-aware checkers concurrently
+	tenantChecks := h.runTenantChecksConcurrently(ctx, tenantID, h.tenantCheckers)
+
+	// Get non-tenant-aware checkers (like Redis which is shared)
+	nonTenantCheckers := h.getNonTenantAwareCheckers()
+
+	// Run non-tenant-aware checkers concurrently
+	sharedChecks := h.runChecksConcurrently(ctx, nonTenantCheckers)
+
+	// Merge results
 	checks := make(map[string]DependencyCheck)
-	allHealthy := true
-
-	// Run tenant-aware checkers
-	for _, checker := range h.tenantCheckers {
-		checkCtx, cancel := context.WithTimeout(ctx, h.timeoutForChecker(checker))
-
-		check := checker.CheckTenant(checkCtx, tenantID)
-
-		cancel()
-
-		// Set TLS field if enabled
-		if checker.TLSEnabled() {
-			tlsEnabled := true
-			check.TLS = &tlsEnabled
-		} else {
-			tlsDisabled := false
-			check.TLS = &tlsDisabled
-		}
-
-		// Log full error and sanitize for non-local modes
-		h.logAndSanitizeCheck(ctx, checker.Name(), &check)
-
-		checks[checker.Name()] = check
-
-		if check.Status == StatusDown || check.Status == StatusDegraded {
-			allHealthy = false
-		}
+	for name, check := range tenantChecks {
+		checks[name] = check
 	}
 
-	// Run non-tenant-aware checkers (like Redis which is shared)
-	for _, checker := range h.checkers {
-		// Skip if we already have a tenant-aware version
-		if h.hasTenantChecker(checker.Name()) {
-			continue
-		}
+	for name, check := range sharedChecks {
+		checks[name] = check
+	}
 
-		checkCtx, cancel := context.WithTimeout(ctx, h.timeoutForChecker(checker))
+	// Determine overall health status
+	allHealthy := true
 
-		check := checker.Check(checkCtx)
-
-		cancel()
-
-		// Set TLS field if enabled
-		if checker.TLSEnabled() {
-			tlsEnabled := true
-			check.TLS = &tlsEnabled
-		} else {
-			tlsDisabled := false
-			check.TLS = &tlsDisabled
-		}
-
-		// Log full error and sanitize for non-local modes
-		h.logAndSanitizeCheck(ctx, checker.Name(), &check)
-
-		checks[checker.Name()] = check
-
+	for _, check := range checks {
 		if check.Status == StatusDown || check.Status == StatusDegraded {
 			allHealthy = false
+
+			break
 		}
 	}
 
@@ -276,6 +476,9 @@ func (h *ReadyzHandler) HandleReadyzTenant(c *fiber.Ctx) error {
 		httpStatus = http.StatusServiceUnavailable
 	}
 
+	// Record request metrics
+	h.recordRequestMetrics(ctx, "/readyz/tenant", allHealthy)
+
 	response := ReadyzResponse{
 		Status:         status,
 		Checks:         checks,
@@ -284,6 +487,20 @@ func (h *ReadyzHandler) HandleReadyzTenant(c *fiber.Ctx) error {
 	}
 
 	return c.Status(httpStatus).JSON(response)
+}
+
+// getNonTenantAwareCheckers returns checkers that don't have a tenant-aware version.
+// These are shared infrastructure components like Redis.
+func (h *ReadyzHandler) getNonTenantAwareCheckers() []DependencyChecker {
+	var result []DependencyChecker
+
+	for _, checker := range h.checkers {
+		if !h.hasTenantChecker(checker.Name()) {
+			result = append(result, checker)
+		}
+	}
+
+	return result
 }
 
 // hasTenantChecker returns true if a tenant-aware checker with the given name exists.
@@ -393,6 +610,7 @@ func buildReadyzHandler(
 	onbMgo *onboardingMongoComponents,
 	txnMgo *transactionMongoComponents,
 	rmq *rabbitMQComponents,
+	metricsFactory *metrics.MetricsFactory,
 ) (*ReadyzHandler, error) {
 	// Build DSN strings for TLS detection
 	onbPGDSN := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
@@ -545,5 +763,6 @@ func buildReadyzHandler(
 		TxnPGManager:       txnPG.pgManager,
 		OnbMongoManager:    onbMgo.mongoManager,
 		TxnMongoManager:    txnMgo.mongoManager,
+		MetricsFactory:     metricsFactory,
 	}), nil
 }

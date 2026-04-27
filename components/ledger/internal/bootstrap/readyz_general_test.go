@@ -231,7 +231,7 @@ func TestRabbitMQChecker_DegradedAffectsGlobalHealth(t *testing.T) {
 		check:      DependencyCheck{Status: StatusUp, LatencyMs: &latency},
 	}
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       []DependencyChecker{healthyChecker, degradedChecker},
 		Version:        "1.0.0",
@@ -337,7 +337,7 @@ func TestHandleReadyzTenant_AllTenantCheckersHealthy(t *testing.T) {
 		tlsEnabled: false,
 	}
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:             libLog.NewNop(),
 		TenantCheckers:     []TenantAwareDependencyChecker{pgChecker, mongoChecker},
 		Version:            "1.0.0",
@@ -374,7 +374,7 @@ func TestHandleReadyzTenant_MixedHealthStatus(t *testing.T) {
 		check:      DependencyCheck{Status: StatusUp, LatencyMs: &latency},
 	}
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:             libLog.NewNop(),
 		Checkers:           []DependencyChecker{redisChecker},
 		TenantCheckers:     []TenantAwareDependencyChecker{healthyPG, failingMongo},
@@ -430,7 +430,7 @@ func TestReadyzHandler_ConcurrentRequests(t *testing.T) {
 		check:      DependencyCheck{Status: StatusUp, LatencyMs: &latency},
 	}
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       []DependencyChecker{checker},
 		Version:        "1.0.0",
@@ -487,7 +487,7 @@ func TestReadyzHandler_CheckerTimeoutRespected(t *testing.T) {
 		delay: 5 * time.Second, // Much longer than the 1s timeout for redis
 	}
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       []DependencyChecker{slowCheck},
 		Version:        "1.0.0",
@@ -539,7 +539,7 @@ func TestReadyzHandler_ParallelTenantChecks(t *testing.T) {
 		tenantCheck: DependencyCheck{Status: StatusUp, LatencyMs: ptrInt64(3)},
 	}
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:             libLog.NewNop(),
 		TenantCheckers:     []TenantAwareDependencyChecker{pgChecker, mongoChecker},
 		Version:            "1.0.0",
@@ -588,7 +588,7 @@ func TestReadyzHandler_RaceConditionSafety(t *testing.T) {
 		check:      DependencyCheck{Status: StatusUp, LatencyMs: &latency},
 	}
 
-	handler := NewReadyzHandler(ReadyzHandlerConfig{
+	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       []DependencyChecker{checker},
 		Version:        "1.0.0",
