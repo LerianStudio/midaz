@@ -198,7 +198,8 @@ func TestBalance_ToTransactionBalance_IncludesOverdraftFields(t *testing.T) {
 				Settings:       tt.settings,
 			}
 
-			got := b.ToTransactionBalance()
+			got, err := b.ToTransactionBalance()
+			require.NoError(t, err)
 			require.NotNil(t, got)
 
 			assert.Equal(t, tt.wantDirection, got.Direction,

@@ -72,11 +72,20 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		for _, balance := range balances {
 			_, spanBalance := tracer.Start(ctx, "command.update_balances_new.balance")
 
-			calculateBalances, err := mtransaction.OperateBalances(fromTo[balance.Alias], *balance.ToTransactionBalance())
+			txBal, tErr := balance.ToTransactionBalance()
+			if tErr != nil {
+				libOpentelemetry.HandleSpanError(spanUpdateBalances, "Corrupted balance for fallback path", tErr)
+				logger.Log(ctx, libLog.LevelError, "Corrupted balance OverdraftLimit in fallback path", libLog.Err(tErr))
+				spanBalance.End()
+
+				return tErr
+			}
+
+			calculateBalances, err := mtransaction.OperateBalances(fromTo[balance.Alias], *txBal)
 			if err != nil {
 				libOpentelemetry.HandleSpanError(spanUpdateBalances, "Failed to update balances on database", err)
-				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances on database: %v", err.Error()))
-				spanBalance.End()
+			logger.Log(ctx, libLog.LevelError, "Failed to update balances on database", libLog.Err(err))
+			spanBalance.End()
 
 				return err
 			}
@@ -99,7 +108,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, newBalances); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdateBalances, "Failed to update balances on database", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances on database: %v", err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to update balances on database", libLog.Err(err))
 
 		return err
 	}
@@ -127,7 +136,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	ctx, span := tracer.Start(ctx, "exec.update_balance")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, "Trying to update balance")
+	logger.Log(ctx, libLog.LevelInfo, "Updating balance")
 
 	// Always load the current balance so the scope guard can fire
 	// regardless of which fields the payload contains (Settings,
@@ -181,7 +190,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	balance, err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update balance on repo", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error update balance: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to update balance", libLog.Err(err))
 
 		return nil, err
 	}
@@ -192,13 +201,13 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	value, rerr := uc.TransactionRedisRepo.Get(ctx, internalKey)
 	if rerr != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance cache value on redis", rerr)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get balance cache value on redis: %v", rerr))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to get balance cache value on Redis", libLog.Err(rerr))
 	}
 
 	if value != "" {
 		cached := mmodel.BalanceRedis{}
 		if uerr := json.Unmarshal([]byte(value), &cached); uerr != nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error unmarshalling balance cache value: %v", uerr))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to unmarshal balance cache value", libLog.Err(uerr))
 		} else {
 			balance.Available = cached.Available
 			balance.OnHold = cached.OnHold

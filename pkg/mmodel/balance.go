@@ -251,7 +251,15 @@ func deepCopySettings(src *BalanceSettings) *BalanceSettings {
 
 // ToTransactionBalance converts mmodel.Balance to mtransaction.Balance,
 // flattening the optional Settings into individual fields.
-func (b *Balance) ToTransactionBalance() *mtransaction.Balance {
+//
+// Returns an error when Settings.OverdraftLimit is non-nil but cannot be
+// parsed as a decimal. Callers must surface this error rather than continue
+// with a silently-zeroed limit, because a corrupted limit combined with
+// OverdraftLimitEnabled=true would otherwise admit an unbounded overdraft
+// authorization at the validation/Lua boundary. Validate() prevents creation
+// of invalid limits, so this only triggers on data corruption (manual DB
+// edits, migration bugs) — fail closed.
+func (b *Balance) ToTransactionBalance() (*mtransaction.Balance, error) {
 	result := &mtransaction.Balance{
 		ID:             b.ID,
 		OrganizationID: b.OrganizationID,
@@ -281,21 +289,15 @@ func (b *Balance) ToTransactionBalance() *mtransaction.Balance {
 
 		if b.Settings.OverdraftLimit != nil {
 			lim, err := decimal.NewFromString(*b.Settings.OverdraftLimit)
-			if err == nil {
-				result.OverdraftLimit = lim
+			if err != nil {
+				return nil, fmt.Errorf("invalid OverdraftLimit %q on balance %s: %w", *b.Settings.OverdraftLimit, b.ID, err)
 			}
-			// If parsing fails, OverdraftLimit stays at zero while
-			// OverdraftLimitEnabled may be true. This is the conservative
-			// default: zero limit with enabled=true means "reject all
-			// overdraft", which is safer than silently allowing unlimited.
-			// Validate() guards creation, so this path only triggers on
-			// data corruption (manual DB edits, migration bugs). Proper
-			// error propagation requires changing this function's signature
-			// to return error — deferred to hardening.
+
+			result.OverdraftLimit = lim
 		}
 	}
 
-	return result
+	return result, nil
 }
 
 // CreateAdditionalBalance is a struct designed to encapsulate balance create request payload data.
@@ -437,6 +439,22 @@ type Balances struct {
 // BalanceRedis is an internal struct for Redis cache representation of balance data.
 //
 // This is an internal model not exposed via API.
+//
+// CACHE JSON CASING CONTRACT: the Redis balance entry is a JSON string whose
+// keys are CamelCase (e.g. "Available", "Direction", "AllowOverdraft") because
+// the original writer is the Lua atomic script (cjson.encode on a table with
+// CamelCase keys) and Lua table access is case-sensitive. Every Go writer to
+// the same key MUST emit CamelCase. If a Go writer uses the default BalanceRedis
+// struct tags (which are camelCase: "available", "direction", etc.), the next
+// Lua cjson.decode will see balance.Available == nil and arithmetic helpers
+// will fail with "attempt to compare nil with number".
+//
+// The canonical Go writer that respects this contract is
+// UpdateBalanceCacheSettings in adapters/redis/transaction/consumer.redis.go,
+// which operates on map[string]any with explicit CamelCase keys and uses the
+// luaBalanceSettingKey helper to purge legacy camelCase aliases. Any new Go
+// writer to the balance cache MUST follow the same pattern — do NOT marshal
+// BalanceRedis directly; use map[string]any with CamelCase keys.
 type BalanceRedis struct {
 	// Unique identifier for the balance (UUID format)
 	ID string `json:"id"`

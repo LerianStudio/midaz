@@ -375,8 +375,8 @@ func collectOverdraftDebitSplits(balanceOps []mmodel.BalanceOperation) []overdra
 			continue
 		}
 
-		txBalance := op.Balance.ToTransactionBalance()
-		if txBalance == nil {
+		txBalance, tErr := op.Balance.ToTransactionBalance()
+		if tErr != nil || txBalance == nil {
 			continue
 		}
 
@@ -467,8 +467,8 @@ func collectOverdraftRefundSplits(balanceOps []mmodel.BalanceOperation) []overdr
 			continue
 		}
 
-		txBalance := op.Balance.ToTransactionBalance()
-		if txBalance == nil {
+		txBalance, tErr := op.Balance.ToTransactionBalance()
+		if tErr != nil || txBalance == nil {
 			continue
 		}
 

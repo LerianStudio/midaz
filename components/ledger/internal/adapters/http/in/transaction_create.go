@@ -91,7 +91,16 @@ func (handler *TransactionHandler) BuildOperations(
 
 				preBalances = append(preBalances, blc)
 
-				amt, bat, err := mtransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ToTransactionBalance())
+				txBal, tErr := blc.ToTransactionBalance()
+				if tErr != nil {
+					libOpentelemetry.HandleSpanError(span, "Corrupted balance for validation", tErr)
+
+					logger.Log(ctx, libLog.LevelWarn, "Corrupted balance OverdraftLimit", libLog.Err(tErr))
+
+					return nil, nil, tErr
+				}
+
+				amt, bat, err := mtransaction.ValidateFromToOperation(fromTo[i], *validate, txBal)
 				if err != nil {
 					libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 
