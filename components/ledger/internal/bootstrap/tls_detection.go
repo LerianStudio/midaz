@@ -166,7 +166,7 @@ func ResolveDeploymentMode(mode string) string {
 func ValidateSaaSTLS(deploymentMode string, dependencies []TLSValidationResult) error {
 	lowerMode := strings.ToLower(deploymentMode)
 
-	// Only enforce TLS in SaaS mode - this is the Monetarie incident prevention
+	// Only enforce TLS in SaaS mode
 	if lowerMode != DeploymentModeSaaS {
 		return nil
 	}

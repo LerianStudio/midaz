@@ -159,6 +159,9 @@ func (h *ReadyzHandler) HandleReadyz(c *fiber.Ctx) error {
 			check.TLS = &tlsDisabled
 		}
 
+		// Log full error and sanitize for non-local modes
+		h.logAndSanitizeCheck(c.Context(), checker.Name(), &check)
+
 		checks[checker.Name()] = check
 
 		if check.Status == StatusDown || check.Status == StatusDegraded {
@@ -223,6 +226,9 @@ func (h *ReadyzHandler) HandleReadyzTenant(c *fiber.Ctx) error {
 			check.TLS = &tlsDisabled
 		}
 
+		// Log full error and sanitize for non-local modes
+		h.logAndSanitizeCheck(ctx, checker.Name(), &check)
+
 		checks[checker.Name()] = check
 
 		if check.Status == StatusDown || check.Status == StatusDegraded {
@@ -251,6 +257,9 @@ func (h *ReadyzHandler) HandleReadyzTenant(c *fiber.Ctx) error {
 			tlsDisabled := false
 			check.TLS = &tlsDisabled
 		}
+
+		// Log full error and sanitize for non-local modes
+		h.logAndSanitizeCheck(ctx, checker.Name(), &check)
 
 		checks[checker.Name()] = check
 
@@ -342,6 +351,34 @@ func containsLower(s, substr string) bool {
 	}
 
 	return false
+}
+
+// sanitizeError returns a sanitized error message for non-local deployment modes.
+// In local mode, the full error is returned for debugging.
+// In saas/byoc modes, the error is sanitized to prevent leaking internal details.
+func (h *ReadyzHandler) sanitizeError(checkerName, originalError string) string {
+	if h.deploymentMode == DeploymentModeLocal {
+		return originalError
+	}
+
+	return fmt.Sprintf("%s check failed", checkerName)
+}
+
+// logAndSanitizeCheck logs the full error server-side and sanitizes it in the response.
+// This ensures operators can debug issues while preventing information disclosure to clients.
+func (h *ReadyzHandler) logAndSanitizeCheck(ctx context.Context, checkerName string, check *DependencyCheck) {
+	if check.Error == "" {
+		return
+	}
+
+	// Always log the full error server-side for debugging
+	h.logger.Log(ctx, libLog.LevelWarn, "Health check failed",
+		libLog.String("checker", checkerName),
+		libLog.String("status", string(check.Status)),
+		libLog.String("error", check.Error))
+
+	// Sanitize the error in the response for non-local modes
+	check.Error = h.sanitizeError(checkerName, check.Error)
 }
 
 // buildReadyzHandler creates the ReadyzHandler with appropriate checkers based on mode.
@@ -468,21 +505,15 @@ func buildReadyzHandler(
 	checkers = append(checkers,
 		NewRabbitMQChecker("rabbitmq", cfg.RabbitMQHealthCheckURL, rmqURI, cbManager))
 
-	// Validate TLS for all dependencies in non-local/development environments
-	onbPGTLS := detectPostgresTLS(onbPGDSN)
-	txnPGTLS := detectPostgresTLS(txnPGDSN)
-	onbMongoTLS, _ := detectMongoTLS(onbMongoURI)
-	txnMongoTLS, _ := detectMongoTLS(txnMongoURI)
-	redisTLS := detectRedisTLS(cfg.RedisHost, cfg.RedisTLS)
-	rmqTLS, _ := detectAMQPTLS(rmqURI)
-
-	tlsResults := []TLSValidationResult{
-		{Name: "postgres_onboarding", TLSEnabled: onbPGTLS},
-		{Name: "postgres_transaction", TLSEnabled: txnPGTLS},
-		{Name: "mongo_onboarding", TLSEnabled: onbMongoTLS},
-		{Name: "mongo_transaction", TLSEnabled: txnMongoTLS},
-		{Name: "redis", TLSEnabled: redisTLS},
-		{Name: "rabbitmq", TLSEnabled: rmqTLS},
+	// Build TLS validation results from already-created checkers.
+	// Each checker detected TLS during construction, so we reuse those results
+	// instead of calling detect*TLS() functions again.
+	tlsResults := make([]TLSValidationResult, 0, len(checkers))
+	for _, checker := range checkers {
+		tlsResults = append(tlsResults, TLSValidationResult{
+			Name:       checker.Name(),
+			TLSEnabled: checker.TLSEnabled(),
+		})
 	}
 
 	// ValidateSaaSTLS returns error ONLY for DEPLOYMENT_MODE=saas with insecure deps.

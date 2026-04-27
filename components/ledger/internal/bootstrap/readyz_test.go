@@ -622,3 +622,217 @@ func TestTimeoutForCheckerUsesConstants(t *testing.T) {
 	rmqChecker := &mockChecker{name: "rabbitmq"}
 	assert.Equal(t, DefaultRabbitMQTimeout, handler.timeoutForChecker(rmqChecker))
 }
+
+func TestSanitizeError(t *testing.T) {
+	t.Parallel()
+
+	originalError := "failed to get database connection: dial tcp 203.0.113.50:5432: connection refused"
+
+	tests := []struct {
+		name           string
+		deploymentMode string
+		checkerName    string
+		wantError      string
+	}{
+		{
+			name:           "local_mode_returns_full_error",
+			deploymentMode: DeploymentModeLocal,
+			checkerName:    "postgres_onboarding",
+			wantError:      originalError,
+		},
+		{
+			name:           "saas_mode_returns_sanitized_error",
+			deploymentMode: DeploymentModeSaaS,
+			checkerName:    "postgres_onboarding",
+			wantError:      "postgres_onboarding check failed",
+		},
+		{
+			name:           "byoc_mode_returns_sanitized_error",
+			deploymentMode: DeploymentModeBYOC,
+			checkerName:    "postgres_onboarding",
+			wantError:      "postgres_onboarding check failed",
+		},
+		{
+			name:           "saas_mode_sanitizes_redis_error",
+			deploymentMode: DeploymentModeSaaS,
+			checkerName:    "redis",
+			wantError:      "redis check failed",
+		},
+		{
+			name:           "saas_mode_sanitizes_rabbitmq_error",
+			deploymentMode: DeploymentModeSaaS,
+			checkerName:    "rabbitmq",
+			wantError:      "rabbitmq check failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := &ReadyzHandler{
+				deploymentMode: tt.deploymentMode,
+			}
+
+			result := handler.sanitizeError(tt.checkerName, originalError)
+			assert.Equal(t, tt.wantError, result)
+		})
+	}
+}
+
+func TestReadyzHandler_ErrorSanitization_InResponse(t *testing.T) {
+	t.Parallel()
+
+	internalError := "SELECT 1 failed: dial tcp 999.999.9.999:9999: connect: connection refused"
+	latency := int64(50)
+
+	tests := []struct {
+		name              string
+		deploymentMode    string
+		wantErrorContains string
+		wantErrorExcludes string
+	}{
+		{
+			name:              "local_mode_exposes_full_error_in_response",
+			deploymentMode:    DeploymentModeLocal,
+			wantErrorContains: "999.999.9.999:999",
+			wantErrorExcludes: "",
+		},
+		{
+			name:              "saas_mode_sanitizes_error_in_response",
+			deploymentMode:    DeploymentModeSaaS,
+			wantErrorContains: "postgres_onboarding check failed",
+			wantErrorExcludes: "999.999.9.999",
+		},
+		{
+			name:              "byoc_mode_sanitizes_error_in_response",
+			deploymentMode:    DeploymentModeBYOC,
+			wantErrorContains: "postgres_onboarding check failed",
+			wantErrorExcludes: "999.999.9.999",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := NewReadyzHandler(ReadyzHandlerConfig{
+				Logger: libLog.NewNop(),
+				Checkers: []DependencyChecker{
+					&mockChecker{
+						name: "postgres_onboarding",
+						check: DependencyCheck{
+							Status:    StatusDown,
+							LatencyMs: &latency,
+							Error:     internalError,
+						},
+					},
+				},
+				Version:        "1.0.0",
+				DeploymentMode: tt.deploymentMode,
+			})
+
+			app := fiber.New()
+			app.Get("/readyz", handler.HandleReadyz)
+
+			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var response ReadyzResponse
+			err = json.Unmarshal(body, &response)
+			require.NoError(t, err)
+
+			check, exists := response.Checks["postgres_onboarding"]
+			require.True(t, exists, "postgres_onboarding check should exist")
+
+			assert.Contains(t, check.Error, tt.wantErrorContains,
+				"error should contain expected string")
+
+			if tt.wantErrorExcludes != "" {
+				assert.NotContains(t, check.Error, tt.wantErrorExcludes,
+					"error should not contain internal details")
+			}
+		})
+	}
+}
+
+func TestReadyzHandler_ErrorSanitization_TenantEndpoint(t *testing.T) {
+	t.Parallel()
+
+	internalError := "ping failed: server at db.example.invalid:27017 is not reachable"
+	latency := int64(100)
+
+	tests := []struct {
+		name              string
+		deploymentMode    string
+		wantErrorContains string
+		wantErrorExcludes string
+	}{
+		{
+			name:              "local_mode_exposes_full_error",
+			deploymentMode:    DeploymentModeLocal,
+			wantErrorContains: "db.example.invalid:27017",
+			wantErrorExcludes: "",
+		},
+		{
+			name:              "saas_mode_sanitizes_error",
+			deploymentMode:    DeploymentModeSaaS,
+			wantErrorContains: "mongo_onboarding check failed",
+			wantErrorExcludes: "db.example.invalid",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := NewReadyzHandler(ReadyzHandlerConfig{
+				Logger: libLog.NewNop(),
+				TenantCheckers: []TenantAwareDependencyChecker{
+					&mockTenantChecker{
+						name: "mongo_onboarding",
+						tenantCheck: DependencyCheck{
+							Status:    StatusDown,
+							LatencyMs: &latency,
+							Error:     internalError,
+						},
+					},
+				},
+				Version:            "1.0.0",
+				DeploymentMode:     tt.deploymentMode,
+				MultiTenantEnabled: true,
+			})
+
+			app := fiber.New()
+			app.Get("/readyz/tenant/:id", handler.HandleReadyzTenant)
+
+			req := httptest.NewRequest(http.MethodGet, "/readyz/tenant/tenant-123", nil)
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var response ReadyzResponse
+			err = json.Unmarshal(body, &response)
+			require.NoError(t, err)
+
+			check, exists := response.Checks["mongo_onboarding"]
+			require.True(t, exists, "mongo_onboarding check should exist")
+
+			assert.Contains(t, check.Error, tt.wantErrorContains,
+				"error should contain expected string")
+
+			if tt.wantErrorExcludes != "" {
+				assert.NotContains(t, check.Error, tt.wantErrorExcludes,
+					"error should not contain internal details")
+			}
+		})
+	}
+}
