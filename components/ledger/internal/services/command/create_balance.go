@@ -21,7 +21,6 @@ import (
 	// If key != "default", it validates that the default balance exists and that the account type allows additional balances.
 
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	"github.com/google/uuid"
 )
 
 func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
@@ -93,8 +92,16 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 	// consistent with the persisted row returned by RETURNING.
 	now := time.Now()
 
+	balanceUUID, uuidErr := libCommons.GenerateUUIDv7()
+	if uuidErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate UUID for balance", uuidErr)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate UUID for balance", libLog.Err(uuidErr))
+
+		return nil, uuidErr
+	}
+
 	newBalance := &mmodel.Balance{
-		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		ID:             balanceUUID.String(),
 		Alias:          input.Alias,
 		Key:            normalizedKey,
 		OrganizationID: input.OrganizationID.String(),

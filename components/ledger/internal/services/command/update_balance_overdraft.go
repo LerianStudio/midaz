@@ -237,8 +237,8 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		// we were about to create. Verify with a follow-up Find so we
 		// never silently swallow a 23505 triggered by an unrelated index.
 		if isUniqueViolation(cerr) {
-			existing, reloadErr := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.OverdraftBalanceKey)
-			if reloadErr == nil && existing != nil {
+			reloaded, reloadErr := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.OverdraftBalanceKey)
+			if reloadErr == nil && reloaded != nil {
 				logger.Log(ctx, libLog.LevelInfo, "Overdraft balance created concurrently by peer request, treating as idempotent success", libLog.String("accountID", current.AccountID))
 
 				return nil

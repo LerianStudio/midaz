@@ -18,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -212,6 +213,10 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 			balance.Available = cached.Available
 			balance.OnHold = cached.OnHold
 			balance.Version = cached.Version
+
+			if ou, perr := decimal.NewFromString(cached.OverdraftUsed); perr == nil {
+				balance.OverdraftUsed = ou
+			}
 		}
 	}
 
