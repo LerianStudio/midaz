@@ -19,19 +19,19 @@ import (
 // swagger:model Balance
 // @Description Balance is the struct designed to represent the account balance.
 type Balance struct {
-	ID             string                   `json:"id" example:"00000000-0000-0000-0000-000000000000"`
-	OrganizationID string                   `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
-	LedgerID       string                   `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
-	AccountID      string                   `json:"accountId" example:"00000000-0000-0000-0000-000000000000"`
-	Alias          string                   `json:"alias" example:"@person1"`
-	Key            string                   `json:"key" example:"asset-freeze"`
-	AssetCode      string                   `json:"assetCode" example:"BRL"`
-	Available      decimal.Decimal          `json:"available" example:"1500"`
-	OnHold         decimal.Decimal          `json:"onHold" example:"500"`
-	Version        int64                    `json:"version" example:"1"`
-	AccountType    string                   `json:"accountType" example:"creditCard"`
-	AllowSending   bool                     `json:"allowSending" example:"true"`
-	AllowReceiving bool                     `json:"allowReceiving" example:"true"`
+	ID             string          `json:"id" example:"00000000-0000-0000-0000-000000000000"`
+	OrganizationID string          `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
+	LedgerID       string          `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
+	AccountID      string          `json:"accountId" example:"00000000-0000-0000-0000-000000000000"`
+	Alias          string          `json:"alias" example:"@person1"`
+	Key            string          `json:"key" example:"asset-freeze"`
+	AssetCode      string          `json:"assetCode" example:"BRL"`
+	Available      decimal.Decimal `json:"available" example:"1500"`
+	OnHold         decimal.Decimal `json:"onHold" example:"500"`
+	Version        int64           `json:"version" example:"1"`
+	AccountType    string          `json:"accountType" example:"creditCard"`
+	AllowSending   bool            `json:"allowSending" example:"true"`
+	AllowReceiving bool            `json:"allowReceiving" example:"true"`
 	// Direction is the accounting direction of the balance ("credit" or
 	// "debit"). Empty string denotes a legacy balance that predates the
 	// overdraft feature and is treated as "credit" by the engine.
@@ -46,14 +46,21 @@ type Balance struct {
 	OverdraftLimitEnabled bool `json:"overdraftLimitEnabled"`
 	// OverdraftLimit is the maximum overdraft amount as a decimal.
 	// Only meaningful when OverdraftLimitEnabled is true.
+	//
+	// Type asymmetry note: this field is decimal.Decimal for runtime
+	// arithmetic (comparison, subtraction in ValidateOverdraftLimit). The
+	// corresponding BalanceSettings.OverdraftLimit is *string to preserve
+	// JSON precision across marshal/unmarshal cycles. ToTransactionBalance()
+	// in pkg/mmodel/balance.go bridges the two: it parses the *string into
+	// a decimal.Decimal, returning an error on malformed values.
 	OverdraftLimit decimal.Decimal `json:"overdraftLimit"`
 	// BalanceScope is the balance scope ("transactional" or "internal").
 	// Empty string is treated as "transactional" for backward compatibility.
-	BalanceScope   string    `json:"balanceScope"`
-	CreatedAt      time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z"`
-	UpdatedAt      time.Time                `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
-	DeletedAt      *time.Time               `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
-	Metadata       map[string]any           `json:"metadata,omitempty"`
+	BalanceScope string         `json:"balanceScope"`
+	CreatedAt    time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z"`
+	UpdatedAt    time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
+	DeletedAt    *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
+	Metadata     map[string]any `json:"metadata,omitempty"`
 } // @name Balance
 
 type Responses struct {

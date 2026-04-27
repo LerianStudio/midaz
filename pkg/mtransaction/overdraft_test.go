@@ -23,11 +23,11 @@ func TestCalculateOverdraftSplit(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                    string
-		available               decimal.Decimal
-		debitAmount             decimal.Decimal
-		wantDebitOnDefault      decimal.Decimal
-		wantDebitOnOverdraft    decimal.Decimal
+		name                 string
+		available            decimal.Decimal
+		debitAmount          decimal.Decimal
+		wantDebitOnDefault   decimal.Decimal
+		wantDebitOnOverdraft decimal.Decimal
 	}{
 		{
 			name:                 "debit within available produces no deficit",

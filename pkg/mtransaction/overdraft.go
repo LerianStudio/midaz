@@ -55,6 +55,15 @@ func ValidateOverdraftLimit(currentOverdraftUsed, deficit, overdraftLimit decima
 	return nil
 }
 
+// NOTE: Empty-direction balances (Direction="") return (false, decimal.Zero)
+// because the first check requires DirectionCredit. This is intentional:
+// legacy balances that predate the overdraft feature never have
+// AllowOverdraft=true (the Settings block is nil or default), so the
+// !AllowOverdraft early return below would catch them even if the
+// direction check were relaxed. The direction check is a defense-in-depth
+// guard against data corruption where AllowOverdraft was manually set on
+// a legacy balance without also setting Direction.
+
 // DetectOverdraftSplit reports whether a given (amount, balance) pair needs
 // to be split into two operations: one that consumes available funds on the
 // default balance and one that routes the remaining deficit to the overdraft
