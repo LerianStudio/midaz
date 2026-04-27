@@ -317,18 +317,24 @@ func buildReadyzHandler(
 
 	var checkers []DependencyChecker
 
+	// tlsRelevantCheckers holds only real dependency checkers for TLS validation.
+	// NAChecker is excluded since it represents a non-configured dependency.
+	var tlsRelevantCheckers []DependencyChecker
+
 	// MongoDB checker - returns actual status in single-tenant mode
 	if mongoConnection != nil {
-		checkers = append(checkers, NewMongoChecker("mongo", mongoConnection, mongoURI))
+		mongoChecker := NewMongoChecker("mongo", mongoConnection, mongoURI)
+		checkers = append(checkers, mongoChecker)
+		tlsRelevantCheckers = append(tlsRelevantCheckers, mongoChecker)
 	} else {
-		// If no connection, add a skipped checker
+		// If no connection, add a skipped checker (excluded from TLS validation)
 		tlsEnabled, _ := detectMongoTLS(mongoURI)
 		checkers = append(checkers, NewNAChecker("mongo", "MongoDB client not configured", tlsEnabled))
 	}
 
-	// Build TLS validation results from already-created checkers
-	tlsResults := make([]TLSValidationResult, 0, len(checkers))
-	for _, checker := range checkers {
+	// Build TLS validation results from real dependency checkers only
+	tlsResults := make([]TLSValidationResult, 0, len(tlsRelevantCheckers))
+	for _, checker := range tlsRelevantCheckers {
 		tlsResults = append(tlsResults, TLSValidationResult{
 			Name:       checker.Name(),
 			TLSEnabled: checker.TLSEnabled(),

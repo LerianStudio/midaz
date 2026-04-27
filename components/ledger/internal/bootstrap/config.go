@@ -698,7 +698,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if err != nil {
 		doCleanup()
 
-		return nil, fmt.Errorf("TLS enforcement failed: %w", err)
+		return nil, fmt.Errorf("failed to build readiness handler: %w", err)
 	}
 
 	// === Unified server ===
