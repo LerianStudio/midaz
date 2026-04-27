@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -30,6 +31,7 @@ type UnifiedServer struct {
 	serverAddress string
 	logger        libLog.Logger
 	telemetry     *libOpentelemetry.Telemetry
+	readyzHandler *ReadyzHandler
 }
 
 // NewUnifiedServer creates a server that exposes all APIs on a single port.
@@ -38,6 +40,7 @@ func NewUnifiedServer(
 	serverAddress string,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
+	readyzHandler *ReadyzHandler,
 	routeRegistrars ...RouteRegistrar,
 ) *UnifiedServer {
 	app := fiber.New(fiber.Config{
@@ -53,11 +56,19 @@ func NewUnifiedServer(
 	app.Use(tlMid.WithTelemetry(telemetry))
 	app.Use(cors.New())
 	app.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(logger)))
+
 	// Health check for the unified server
 	app.Get("/health", libHTTP.Ping)
 
 	// Version endpoint
 	app.Get("/version", libHTTP.Version)
+
+	// Readyz endpoint - mounted BEFORE auth middleware (before route registrars)
+	// This endpoint is public and does not require authentication.
+	if readyzHandler != nil {
+		app.Get("/readyz", readyzHandler.HandleReadyz)
+		app.Get("/readyz/tenant/:id", readyzHandler.HandleReadyzTenant)
+	}
 
 	// Swagger documentation (unified onboarding + transaction)
 	app.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
@@ -74,11 +85,39 @@ func NewUnifiedServer(
 	// End tracing spans middleware (must be last)
 	app.Use(tlMid.EndTracingSpans)
 
+	// Register OnListen hook to mark server ready AFTER socket is bound.
+	// This avoids the race condition where readyz returns 200 before Fiber is listening.
+	if readyzHandler != nil {
+		app.Hooks().OnListen(func(ld fiber.ListenData) error {
+			readyzHandler.SetServerReady()
+			logger.Log(context.Background(), libLog.LevelInfo,
+				fmt.Sprintf("Server listening on %s:%s, readyz now returning healthy", ld.Host, ld.Port))
+
+			return nil
+		})
+
+		// Register OnShutdown hook to enable graceful drain.
+		// When SIGTERM is received, this hook:
+		// 1. Calls StartDrain() so readyz returns 503
+		// 2. Waits DefaultDrainDelay (12s) for load balancers to stop routing traffic
+		// 3. Returns, allowing Fiber to proceed with connection draining
+		app.Hooks().OnShutdown(func() error {
+			readyzHandler.StartDrain()
+			logger.Log(context.Background(), libLog.LevelInfo,
+				fmt.Sprintf("Graceful drain started, waiting %v for load balancers to update", DefaultDrainDelay))
+			time.Sleep(DefaultDrainDelay)
+			logger.Log(context.Background(), libLog.LevelInfo, "Drain delay complete, proceeding with shutdown")
+
+			return nil
+		})
+	}
+
 	return &UnifiedServer{
 		app:           app,
 		serverAddress: serverAddress,
 		logger:        logger,
 		telemetry:     telemetry,
+		readyzHandler: readyzHandler,
 	}
 }
 
@@ -87,6 +126,9 @@ func NewUnifiedServer(
 func (s *UnifiedServer) Run(l *libCommons.Launcher) error {
 	s.logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Starting Unified HTTP Server on %s", s.serverAddress))
 
+	// Create server manager with graceful shutdown.
+	// The OnListen hook (registered in NewUnifiedServer) will call SetServerReady()
+	// after the socket is bound, ensuring readyz only returns 200 when truly ready.
 	libCommonsServer.NewServerManager(nil, s.telemetry, s.logger).
 		WithHTTPServer(s.app, s.serverAddress).
 		StartWithGracefulShutdown()
