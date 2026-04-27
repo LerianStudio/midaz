@@ -99,6 +99,11 @@ var operationColumnList = []string{
 	"route_id",
 	"route_code",
 	"route_description",
+	// snapshot is a JSONB column (NOT NULL DEFAULT '{}') carrying system-generated
+	// per-operation context (overdraft before/after, future audit fields).
+	// Appended at the end to minimize scan-site churn — every site extends by
+	// one trailing field.
+	"snapshot",
 }
 
 // operationColumns is derived from operationColumnList for use with squirrel.Select.
@@ -118,6 +123,9 @@ var operationPointInTimeColumns = []string{
 	"on_hold_balance_after",
 	"balance_version_after",
 	"created_at",
+	// snapshot propagates through point-in-time queries so historical balance
+	// reconstruction surfaces the same overdraft context as live reads.
+	"snapshot",
 }
 
 // NewOperationPostgreSQLRepository returns a new instance of OperationPostgreSQLRepository using the given Postgres connection.
@@ -213,6 +221,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 			record.RouteID,
 			record.RouteCode,
 			record.RouteDescription,
+			record.Snapshot,
 		).
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -356,7 +365,7 @@ func (r *OperationPostgreSQLRepository) createBulkInternal(
 	}
 
 	// Chunk into bulks of ~1,000 rows to stay within PostgreSQL's parameter limit
-	// Operation has 30 columns, so 1000 rows = 30,000 parameters (under 65,535 limit)
+	// Operation has 31 columns, so 1000 rows = 31,000 parameters (under 65,535 limit)
 	const chunkSize = 1000
 
 	for i := 0; i < len(operations); i += chunkSize {
@@ -450,6 +459,7 @@ func (r *OperationPostgreSQLRepository) insertOperationChunk(ctx context.Context
 			record.RouteID,
 			record.RouteCode,
 			record.RouteDescription,
+			record.Snapshot,
 		)
 	}
 
@@ -609,6 +619,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.RouteID,
 			&operation.RouteCode,
 			&operation.RouteDescription,
+			&operation.Snapshot,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -731,6 +742,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&operation.RouteID,
 			&operation.RouteCode,
 			&operation.RouteDescription,
+			&operation.Snapshot,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -826,6 +838,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.RouteID,
 		&operation.RouteCode,
 		&operation.RouteDescription,
+		&operation.Snapshot,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
@@ -920,6 +933,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		&operation.RouteID,
 		&operation.RouteCode,
 		&operation.RouteDescription,
+		&operation.Snapshot,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
@@ -1204,6 +1218,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 			&operation.RouteID,
 			&operation.RouteCode,
 			&operation.RouteDescription,
+			&operation.Snapshot,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -1300,6 +1315,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx con
 		&operation.OnHoldBalanceAfter,
 		&operation.VersionBalanceAfter,
 		&operation.CreatedAt,
+		&operation.Snapshot,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No operation found before timestamp", err)
@@ -1410,6 +1426,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 			&operation.OnHoldBalanceAfter,
 			&operation.VersionBalanceAfter,
 			&operation.CreatedAt,
+			&operation.Snapshot,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
