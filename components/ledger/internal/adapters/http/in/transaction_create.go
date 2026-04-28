@@ -154,23 +154,26 @@ func (handler *TransactionHandler) BuildOperations(
 						// Always-populated snapshot contract: every op carries
 						// snapshot + typed Balance.OverdraftUsed / BalanceAfter
 						// .OverdraftUsed regardless of overdraft participation.
-						// PENDING/CANCELED legs do not mutate OverdraftUsed,
-						// so before==after; annotation legs carry "0"/"0"
-						// + decimal.Zero (no balance movement to snapshot, but
-						// the wire shape stays uniform).
+						// Double-entry rows share the Lua-authoritative final
+						// overdraft lifecycle so pending/cancel overdraft rows do
+						// not show stale 0->0 snapshots.
 						for _, pendingOp := range ops {
 							if isAnnotation {
 								pendingOp.Snapshot = buildOperationSnapshot(nil, nil)
 								pendingOp.Balance.OverdraftUsed = decimal.Zero
 								pendingOp.BalanceAfter.OverdraftUsed = decimal.Zero
 							} else {
-								pendingOp.Snapshot = buildOperationSnapshot(blc, blc)
+								pendingOp.Snapshot = buildOperationSnapshot(blc, after)
 								if blc != nil {
 									pendingOp.Balance.OverdraftUsed = blc.OverdraftUsed
 									pendingOp.BalanceAfter.OverdraftUsed = blc.OverdraftUsed
 								} else {
 									pendingOp.Balance.OverdraftUsed = decimal.Zero
 									pendingOp.BalanceAfter.OverdraftUsed = decimal.Zero
+								}
+
+								if after != nil {
+									pendingOp.BalanceAfter.OverdraftUsed = after.OverdraftUsed
 								}
 							}
 						}
@@ -551,7 +554,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	blc *mmodel.Balance,
 	ft mtransaction.FromTo,
 	amt mtransaction.Amount,
-	_ mtransaction.Balance,
+	bat mtransaction.Balance,
 	tran transaction.Transaction,
 	transactionInput mtransaction.Transaction,
 	transactionDate time.Time,
@@ -569,11 +572,25 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		description = transactionInput.Description
 	}
 
-	// Op1: DEBIT (debit) - Available-- only
-	// Balance before: original balance
-	// Balance after: Available decreased, OnHold unchanged
+	// Op1: DEBIT (debit) - Available-- only. Prefer Lua's authoritative
+	// final Available when present; the overdraft branch floors at zero, while
+	// naive local arithmetic would record negative audit balances.
 	debitAvailable := blc.Available.Sub(amt.Value)
+	debitAmount := amt.Value
 	debitVersion := blc.Version + 1
+	onholdOnHold := blc.OnHold.Add(amt.Value)
+	onholdVersion := debitVersion + 1
+
+	if bat.Version > 0 {
+		debitAvailable = bat.Available
+		onholdOnHold = bat.OnHold
+		onholdVersion = bat.Version
+
+		debitAmount = blc.Available.Sub(debitAvailable).Abs()
+		if debitAmount.GreaterThan(amt.Value) {
+			debitAmount = amt.Value
+		}
+	}
 
 	debitBalance := operation.Balance{
 		Available: &blc.Available,
@@ -603,7 +620,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		Type:            constant.DEBIT,
 		AssetCode:       transactionInput.Send.Asset,
 		ChartOfAccounts: ft.ChartOfAccounts,
-		Amount:          operation.Amount{Value: &amt.Value},
+		Amount:          operation.Amount{Value: &debitAmount},
 		Balance:         debitBalance,
 		BalanceAfter:    debitBalanceAfter,
 		BalanceID:       blc.ID,
@@ -624,8 +641,6 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	// Op2: ONHOLD (credit) - OnHold++ only
 	// Balance before: op1's balance after (chaining)
 	// Balance after: OnHold increased, Available unchanged from op1
-	onholdOnHold := blc.OnHold.Add(amt.Value)
-	onholdVersion := debitVersion + 1
 
 	onholdBalance := operation.Balance{
 		Available: &debitAvailable,

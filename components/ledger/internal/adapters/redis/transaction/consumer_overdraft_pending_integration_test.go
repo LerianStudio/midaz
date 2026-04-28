@@ -80,6 +80,25 @@ func findBalanceByKey(t *testing.T, balances []*mmodel.Balance, key string) *mmo
 	return nil
 }
 
+func findLatestBalanceByKey(t *testing.T, balances []*mmodel.Balance, key string) *mmodel.Balance {
+	t.Helper()
+
+	var latest *mmodel.Balance
+	for _, balance := range balances {
+		if balance == nil || balance.Key != key {
+			continue
+		}
+
+		if latest == nil || balance.Version > latest.Version {
+			latest = balance
+		}
+	}
+
+	require.NotNil(t, latest, "expected balance key %q in result", key)
+
+	return latest
+}
+
 func TestIntegration_Overdraft_PendingLegacyHoldMutatesCompanion(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -149,7 +168,7 @@ func TestIntegration_Overdraft_PendingLegacyCancelRestoresCompanion(t *testing.T
 		uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{pendingDefault, pendingCompanion})
 	require.NoError(t, err)
 
-	defaultAfterPending := findBalanceByKey(t, pendingResult.After, constant.DefaultBalanceKey)
+	defaultAfterPending := findLatestBalanceByKey(t, pendingResult.After, constant.DefaultBalanceKey)
 	companionAfterPending := findBalanceByKey(t, pendingResult.After, constant.OverdraftBalanceKey)
 
 	cancelDefault := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.DefaultBalanceKey, constant.DirectionCredit,
@@ -164,7 +183,66 @@ func TestIntegration_Overdraft_PendingLegacyCancelRestoresCompanion(t *testing.T
 	require.NoError(t, err)
 	require.Len(t, cancelResult.After, 2)
 
-	defaultAfterCancel := findBalanceByKey(t, cancelResult.After, constant.DefaultBalanceKey)
+	defaultAfterCancel := findLatestBalanceByKey(t, cancelResult.After, constant.DefaultBalanceKey)
+	companionAfterCancel := findBalanceByKey(t, cancelResult.After, constant.OverdraftBalanceKey)
+
+	assert.True(t, defaultAfterCancel.Available.Equal(decimal.NewFromInt(50)))
+	assert.True(t, defaultAfterCancel.OnHold.IsZero())
+	assert.True(t, defaultAfterCancel.OverdraftUsed.IsZero())
+	assert.True(t, companionAfterCancel.Available.IsZero())
+}
+
+func TestIntegration_Overdraft_PendingRouteValidationCancelAllowsSameBatchVersionChain(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	alias := "@t17-route-cancel"
+
+	settings := &mmodel.BalanceSettings{
+		BalanceScope:          mmodel.BalanceScopeTransactional,
+		AllowOverdraft:        true,
+		OverdraftLimitEnabled: true,
+		OverdraftLimit:        ptrString("100"),
+	}
+
+	pendingDebit := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.DefaultBalanceKey, constant.DirectionCredit,
+		decimal.NewFromInt(50), decimal.Zero, decimal.Zero, 1, settings,
+		constant.DEBIT, constant.PENDING, decimal.NewFromInt(100), decimal.Zero, true)
+	pendingOnHold := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.DefaultBalanceKey, constant.DirectionCredit,
+		decimal.NewFromInt(50), decimal.Zero, decimal.Zero, 1, settings,
+		constant.ONHOLD, constant.PENDING, decimal.NewFromInt(100), decimal.Zero, true)
+	pendingCompanion := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.OverdraftBalanceKey, constant.DirectionDebit,
+		decimal.Zero, decimal.Zero, decimal.Zero, 1, nil,
+		constant.DEBIT, constant.PENDING, decimal.NewFromInt(50), decimal.Zero, true)
+
+	pendingResult, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{pendingDebit, pendingOnHold, pendingCompanion})
+	require.NoError(t, err)
+
+	defaultAfterPending := findLatestBalanceByKey(t, pendingResult.After, constant.DefaultBalanceKey)
+	companionAfterPending := findBalanceByKey(t, pendingResult.After, constant.OverdraftBalanceKey)
+
+	cancelRelease := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.DefaultBalanceKey, constant.DirectionCredit,
+		defaultAfterPending.Available, defaultAfterPending.OnHold, defaultAfterPending.OverdraftUsed, defaultAfterPending.Version, settings,
+		constant.RELEASE, constant.CANCELED, decimal.NewFromInt(100), decimal.Zero, true)
+	cancelCredit := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.DefaultBalanceKey, constant.DirectionCredit,
+		defaultAfterPending.Available, defaultAfterPending.OnHold, defaultAfterPending.OverdraftUsed, defaultAfterPending.Version, settings,
+		constant.CREDIT, constant.CANCELED, decimal.NewFromInt(100), decimal.NewFromInt(50), true)
+	cancelCompanion := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.OverdraftBalanceKey, constant.DirectionDebit,
+		companionAfterPending.Available, companionAfterPending.OnHold, companionAfterPending.OverdraftUsed, companionAfterPending.Version, nil,
+		constant.CREDIT, constant.CANCELED, decimal.NewFromInt(50), decimal.Zero, true)
+
+	cancelResult, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{cancelRelease, cancelCredit, cancelCompanion})
+	require.NoError(t, err, "same-batch RELEASE must not make the following overdraft CREDIT look stale")
+	require.Len(t, cancelResult.After, 3)
+
+	defaultAfterCancel := findLatestBalanceByKey(t, cancelResult.After, constant.DefaultBalanceKey)
 	companionAfterCancel := findBalanceByKey(t, cancelResult.After, constant.OverdraftBalanceKey)
 
 	assert.True(t, defaultAfterCancel.Available.Equal(decimal.NewFromInt(50)))

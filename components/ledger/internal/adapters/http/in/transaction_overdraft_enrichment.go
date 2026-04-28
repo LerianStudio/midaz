@@ -758,6 +758,7 @@ func stripIndexPrefix(alias string) string {
 
 func accountAliasFromOperationAlias(alias string) string {
 	bare := stripIndexPrefix(alias)
+
 	idx := strings.LastIndex(bare, "#")
 	if idx < 0 {
 		return bare
@@ -791,6 +792,7 @@ func pendingOverdraftUsageByAlias(ops []*operation.Operation) map[string]decimal
 		}
 
 		before, beforeErr := decimal.NewFromString(op.Snapshot.OverdraftUsedBefore)
+
 		after, afterErr := decimal.NewFromString(op.Snapshot.OverdraftUsedAfter)
 		if beforeErr != nil || afterErr != nil {
 			continue
@@ -834,6 +836,7 @@ func annotateCanceledOverdraftAmounts(balanceOps []mmodel.BalanceOperation, tran
 		}
 
 		alias := accountAliasFromOperationAlias(balanceOps[i].Alias)
+
 		usage, ok := usageByAlias[alias]
 		if !ok || !usage.GreaterThan(decimal.Zero) {
 			continue

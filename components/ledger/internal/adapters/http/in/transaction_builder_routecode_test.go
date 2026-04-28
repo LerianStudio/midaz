@@ -125,6 +125,91 @@ func TestBuildDoubleEntryPendingOps_ReturnsTwoOperations(t *testing.T) {
 	assert.Equal(t, "txn-1", ops[1].TransactionID)
 }
 
+func TestBuildOperations_DoubleEntryPendingOverdraftUsesLuaAfterState(t *testing.T) {
+	handler := &TransactionHandler{}
+	ctx := context.Background()
+	now := time.Now()
+
+	before := &mmodel.Balance{
+		ID:             "balance-default",
+		OrganizationID: "org-1",
+		LedgerID:       "ledger-1",
+		AccountID:      "account-1",
+		Alias:          "0#@sender#default",
+		Key:            constant.DefaultBalanceKey,
+		Available:      decimal.NewFromInt(50),
+		OnHold:         decimal.Zero,
+		Version:        1,
+		Direction:      constant.DirectionCredit,
+		OverdraftUsed:  decimal.Zero,
+	}
+	after := &mmodel.Balance{
+		ID:             before.ID,
+		OrganizationID: before.OrganizationID,
+		LedgerID:       before.LedgerID,
+		AccountID:      before.AccountID,
+		Alias:          before.Alias,
+		Key:            before.Key,
+		Available:      decimal.Zero,
+		OnHold:         decimal.NewFromInt(100),
+		Version:        3,
+		Direction:      before.Direction,
+		OverdraftUsed:  decimal.NewFromInt(50),
+	}
+
+	amount := mtransaction.Amount{
+		Asset:                  "BRL",
+		Value:                  decimal.NewFromInt(100),
+		Operation:              constant.ONHOLD,
+		TransactionType:        constant.PENDING,
+		RouteValidationEnabled: true,
+	}
+	fromTo := []mtransaction.FromTo{{
+		AccountAlias: before.Alias,
+		BalanceKey:   constant.DefaultBalanceKey,
+		Amount:       &amount,
+		IsFrom:       true,
+	}}
+	validate := &mtransaction.Responses{
+		From: map[string]mtransaction.Amount{
+			before.Alias: amount,
+		},
+		Sources: []string{"@sender#default"},
+		Aliases: []string{"@sender#default"},
+	}
+	tran := transaction.Transaction{
+		ID:             "txn-1",
+		OrganizationID: before.OrganizationID,
+		LedgerID:       before.LedgerID,
+	}
+	input := mtransaction.Transaction{
+		Pending:     true,
+		Description: "pending overdraft",
+		Send:        mtransaction.Send{Asset: "BRL"},
+	}
+
+	ops, _, err := handler.BuildOperations(ctx, []*mmodel.Balance{before}, []*mmodel.Balance{after}, fromTo,
+		input, tran, validate, now, false, true, nil, constant.ActionHold)
+	require.NoError(t, err)
+	require.Len(t, ops, 2)
+
+	debit := ops[0]
+	require.Equal(t, constant.DEBIT, debit.Type)
+	assert.True(t, debit.Amount.Value.Equal(decimal.NewFromInt(50)),
+		"DEBIT amount must be clipped to the Lua-authoritative available movement")
+	assert.True(t, debit.BalanceAfter.Available.Equal(decimal.Zero),
+		"DEBIT after available must be floored at zero, not locally recomputed as -50")
+	assert.True(t, debit.BalanceAfter.OverdraftUsed.Equal(decimal.NewFromInt(50)))
+	assert.Equal(t, "0", debit.Snapshot.OverdraftUsedBefore)
+	assert.Equal(t, "50", debit.Snapshot.OverdraftUsedAfter)
+
+	onHold := ops[1]
+	require.Equal(t, constant.ONHOLD, onHold.Type)
+	assert.True(t, onHold.BalanceAfter.Available.Equal(decimal.Zero))
+	assert.True(t, onHold.BalanceAfter.OnHold.Equal(decimal.NewFromInt(100)))
+	assert.True(t, onHold.BalanceAfter.OverdraftUsed.Equal(decimal.NewFromInt(50)))
+}
+
 // TestBuildDoubleEntryCanceledOps_ReturnsTwoOperations verifies that buildDoubleEntryCanceledOps
 // returns exactly 2 operations.
 func TestBuildDoubleEntryCanceledOps_ReturnsTwoOperations(t *testing.T) {

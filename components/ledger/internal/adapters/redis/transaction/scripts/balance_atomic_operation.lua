@@ -486,7 +486,9 @@ local function main()
         if operation == "CREDIT" and not isDebitDirection and
             balance.AccountType ~= "external" and
             isPositive(balance.OverdraftUsed) then
-            if balance.Version ~= incomingVersion then
+            local sameBatchCancelCredit = operation == "CREDIT" and transactionStatus == "CANCELED" and
+                routeValidationEnabled == 1 and tonumber(balance.Version) == (tonumber(incomingVersion) + 1)
+            if balance.Version ~= incomingVersion and not sameBatchCancelCredit then
                 rollback(rollbackBalances, ttl)
                 return redis.error_reply("0175")
             end
