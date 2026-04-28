@@ -35,12 +35,13 @@ func TestOverdraftErrorCodes_Registered(t *testing.T) {
 			expected:    "0168",
 			description: "direct operation attempted on an internal-scope balance",
 		},
-		{
-			name:        "ErrDeletionOfInternalBalance is code 0169",
-			sentinel:    ErrDeletionOfInternalBalance,
-			expected:    "0169",
-			description: "attempt to delete an internal-scope balance",
-		},
+		{name: "ErrDeletionOfInternalBalance is code 0169", sentinel: ErrDeletionOfInternalBalance, expected: "0169", description: "attempt to delete an internal-scope balance"},
+		{name: "ErrReservedBalanceKey is code 0170", sentinel: ErrReservedBalanceKey, expected: "0170", description: "attempt to create a reserved balance key"},
+		{name: "ErrInvalidBalanceDirection is code 0171", sentinel: ErrInvalidBalanceDirection, expected: "0171", description: "unsupported balance direction"},
+		{name: "ErrInvalidBalanceSettings is code 0172", sentinel: ErrInvalidBalanceSettings, expected: "0172", description: "invalid overdraft settings"},
+		{name: "ErrOverdraftLimitBelowUsage is code 0173", sentinel: ErrOverdraftLimitBelowUsage, expected: "0173", description: "new overdraft limit below current usage"},
+		{name: "ErrStaleBalanceVersion is code 0174", sentinel: ErrStaleBalanceVersion, expected: "0174", description: "balance version changed between read and write"},
+		{name: "ErrUpdateOfInternalBalance is code 0175", sentinel: ErrUpdateOfInternalBalance, expected: "0175", description: "attempt to update an internal-scope balance"},
 	}
 
 	for _, tt := range tests {

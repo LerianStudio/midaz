@@ -485,12 +485,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Balance Settings Error",
 			Message:    "The balance settings payload is invalid. Please review overdraft, limit, and scope fields and try again.",
 		},
-		constant.ErrOverdraftDisableWithUsage: UnprocessableOperationError{
-			EntityType: entityType,
-			Code:       constant.ErrOverdraftDisableWithUsage.Error(),
-			Title:      "Overdraft Disable With Usage Error",
-			Message:    "Overdraft cannot be disabled while the balance still carries outstanding overdraft usage. Repay the outstanding amount before disabling overdraft.",
-		},
 		constant.ErrOverdraftLimitBelowUsage: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrOverdraftLimitBelowUsage.Error(),

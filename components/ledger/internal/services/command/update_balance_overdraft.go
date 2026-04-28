@@ -48,14 +48,14 @@ func validateUpdateSettings(ctx context.Context, logger libLog.Logger, span trac
 }
 
 // enforceOverdraftTransition protects balances that carry outstanding
-// overdraft usage. Two transitions are rejected:
+// overdraft usage from being reconfigured into an impossible limit state.
+// Disabling AllowOverdraft is allowed even when OverdraftUsed > 0: the flag
+// controls future debit-side overdraft usage, while incoming credits must still
+// be able to repay the existing debt.
 //
-//  1. disabling AllowOverdraft while OverdraftUsed > 0 — would orphan debt.
-//  2. reducing OverdraftLimit below OverdraftUsed — would leave the balance
-//     in a permanently over-limit state with no ability to recover.
-//
-// Both rules are enforced before the repository
-// Update is invoked.
+// The only rejected transition is reducing OverdraftLimit below OverdraftUsed,
+// which would leave the balance permanently over-limit. This rule is enforced
+// before the repository Update is invoked.
 func enforceOverdraftTransition(ctx context.Context, logger libLog.Logger, span trace.Span, current *mmodel.Balance, next *mmodel.BalanceSettings) error {
 	if current == nil || next == nil {
 		return nil
@@ -64,14 +64,6 @@ func enforceOverdraftTransition(ctx context.Context, logger libLog.Logger, span 
 	usage := current.OverdraftUsed
 	if usage.IsZero() {
 		return nil
-	}
-
-	if !next.AllowOverdraft {
-		err := pkg.ValidateBusinessError(constant.ErrOverdraftDisableWithUsage, constant.EntityBalance)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cannot disable overdraft while usage is non-zero", err)
-		logger.Log(ctx, libLog.LevelWarn, "Rejected overdraft disable with active usage")
-
-		return err
 	}
 
 	if next.OverdraftLimitEnabled && next.OverdraftLimit != nil {

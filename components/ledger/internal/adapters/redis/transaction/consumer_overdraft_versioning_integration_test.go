@@ -88,15 +88,15 @@ func TestIntegration_Overdraft_DebitDirection_CreditOperation(t *testing.T) {
 		result.After[0].Available)
 }
 
-// TestIntegration_Overdraft_StaleVersion_Returns0175 exercises IS-8: when the
+// TestIntegration_Overdraft_StaleVersion_Returns0174 exercises IS-8: when the
 // cache holds a newer Version than the caller supplied, the Lua overdraft
-// branch refuses to apply the split and returns error code 0175.
+// branch refuses to apply the split and returns error code 0174.
 //
 // The setup pre-seeds the balance key with Version=6, then submits an
 // operation carrying Version=5 in ARGV. The script's `SET NX` fails, the
 // cached entry is loaded (Version=6), the deficit triggers the overdraft
 // branch, and the stale-version guard fires.
-func TestIntegration_Overdraft_StaleVersion_Returns0175(t *testing.T) {
+func TestIntegration_Overdraft_StaleVersion_Returns0174(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -170,7 +170,7 @@ func TestIntegration_Overdraft_StaleVersion_Returns0175(t *testing.T) {
 
 	require.Error(t, err, "stale version must be rejected")
 	assert.True(t, strings.Contains(err.Error(), constant.ErrStaleBalanceVersion.Error()),
-		"error should contain 0175, got: %v", err)
+		"error should contain %s, got: %v", constant.ErrStaleBalanceVersion.Error(), err)
 }
 
 // TestIntegration_Overdraft_VersionIncrementAndSyncScheduling exercises IS-10:

@@ -122,12 +122,11 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 //
 // The method always loads the current balance first to enforce scope
 // protection: internal-scope balances (e.g. overdraft companions) are
-// rejected with 0176 regardless of which fields the payload carries.
+// rejected with 0175 regardless of which fields the payload carries.
 //
 // When update.Settings is non-nil, the use case additionally:
 //  1. Validates the Settings payload (HARD GATE — fails closed, no partial writes).
 //  2. Enforces overdraft transition invariants:
-//     - disable-with-debt is rejected
 //     - reducing limit below current usage is rejected
 //  3. Auto-creates the system-managed "overdraft" balance on a false→true
 //     transition (idempotent — existing overdraft balances are reused).

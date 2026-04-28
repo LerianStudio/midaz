@@ -749,9 +749,9 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 //   - "0098" → ErrOnHoldExternalAccount (external account used in pending source)
 //   - "0139" → ErrTransactionBackupCacheRetrievalFailed (balance key vanished mid-script)
 //   - "0167" → ErrOverdraftLimitExceeded (transaction would push usage past the configured limit)
-//   - "0175" → ErrStaleBalanceVersion (balance changed between Go read and Lua execution)
+//   - "0174" → ErrStaleBalanceVersion (balance changed between Go read and Lua execution)
 //
-// Ordering note: more specific codes ("0167", "0175") are matched before the
+// Ordering note: more specific codes ("0167", "0174") are matched before the
 // generic "0018" insufficient-funds branch so that a single error string like
 // "0167" is not misclassified by loose substring matching.
 func mapBalanceAtomicScriptError(span trace.Span, err error) error {

@@ -270,7 +270,7 @@ Manages holders, aliases, related parties. Uses MongoDB for persistence. Support
 
 ### 5.1 Error Codes (pkg/constant/errors.go)
 
-176 numeric codes (0001–0176) for ledger errors. 29 CRM errors prefixed with `CRM-`.
+175 numeric codes (0001–0175) for ledger errors. 29 CRM errors prefixed with `CRM-`.
 
 #### Ledger Error Codes (selected key codes)
 - `0007` ErrEntityNotFound — entity not found
@@ -293,17 +293,16 @@ Manages holders, aliases, related parties. Uses MongoDB for persistence. Support
 - `0160` ErrTenantNotFound — tenant does not exist
 - `0161` ErrTenantServiceUnavailable — tenant resolution failed
 
-#### Overdraft Feature Error Codes (0167–0176)
+#### Overdraft Feature Error Codes (0167–0175)
 - `0167` ErrOverdraftLimitExceeded — transaction exceeds overdraft limit
 - `0168` ErrDirectOperationOnInternalBalance — user operation targets internal-scope balance
 - `0169` ErrDeletionOfInternalBalance — delete targets internal-scope balance
 - `0170` ErrReservedBalanceKey — client used system-managed balance key (e.g. "overdraft")
 - `0171` ErrInvalidBalanceDirection — unsupported direction enum value
 - `0172` ErrInvalidBalanceSettings — settings payload fails validation
-- `0173` ErrOverdraftDisableWithUsage — cannot disable overdraft while debt outstanding
-- `0174` ErrOverdraftLimitBelowUsage — cannot reduce limit below current usage
-- `0175` ErrStaleBalanceVersion — balance modified between read and write (retry needed)
-- `0176` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
+- `0173` ErrOverdraftLimitBelowUsage — cannot reduce limit below current usage
+- `0174` ErrStaleBalanceVersion — balance modified between read and write (retry needed)
+- `0175` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
 
 #### CRM Error Codes (all 29)
 - `CRM-0001` ErrInvalidMetadataNestingCRM — nested metadata not allowed

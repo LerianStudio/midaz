@@ -65,8 +65,8 @@ func TestUpdateBalance_WithSettings(t *testing.T) {
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	// The use case MUST read the current balance BEFORE applying the
-	// update so it can enforce transition invariants (usage vs. limit,
-	// disable-with-debt). Exactly one Find call is expected.
+	// update so it can enforce transition invariants (usage vs. limit).
+	// Exactly one Find call is expected.
 	mockBalanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, balanceID).
 		Return(&existing, nil).Times(1)
 
@@ -187,9 +187,10 @@ func TestUpdateBalance_SettingsValidation(t *testing.T) {
 	}
 }
 
-// TestUpdateBalance_CannotDisableOverdraftWithUsage verifies that overdraft
-// cannot be disabled while the balance is still carrying debt.
-func TestUpdateBalance_CannotDisableOverdraftWithUsage(t *testing.T) {
+// TestUpdateBalance_CanDisableOverdraftWithUsage verifies that disabling
+// overdraft is allowed while the balance is still carrying debt. The setting
+// only blocks future overdraft usage; repayment credits must still be accepted.
+func TestUpdateBalance_CanDisableOverdraftWithUsage(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -229,10 +230,23 @@ func TestUpdateBalance_CannotDisableOverdraftWithUsage(t *testing.T) {
 		Return(current, nil).
 		Times(1)
 
-	// Must NOT persist a disable that would leave debt orphaned.
+	expected := *current
+	expected.Settings = update.Settings
+
 	mockBalanceRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Times(0)
+		Update(gomock.Any(), orgID, ledgerID, balanceID, update).
+		Return(&expected, nil).
+		Times(1)
+
+	mockRedisRepo.EXPECT().
+		Get(gomock.Any(), gomock.Any()).
+		Return("", nil).
+		Times(1)
+
+	mockRedisRepo.EXPECT().
+		UpdateBalanceCacheSettings(gomock.Any(), orgID, ledgerID, "@indebted#default", update.Settings).
+		Return(nil).
+		Times(1)
 
 	uc := UseCase{
 		BalanceRepo:          mockBalanceRepo,
@@ -241,8 +255,11 @@ func TestUpdateBalance_CannotDisableOverdraftWithUsage(t *testing.T) {
 
 	result, err := uc.Update(context.TODO(), orgID, ledgerID, balanceID, update)
 
-	require.Error(t, err, "disabling overdraft with outstanding usage MUST fail")
-	assert.Nil(t, result)
+	require.NoError(t, err, "disabling overdraft with outstanding usage must be allowed")
+	require.NotNil(t, result)
+	require.NotNil(t, result.Settings)
+	assert.False(t, result.Settings.AllowOverdraft)
+	assert.Equal(t, decimal.NewFromInt(250), result.OverdraftUsed)
 }
 
 // TestUpdateBalance_CannotReduceLimitBelowUsage verifies that the limit

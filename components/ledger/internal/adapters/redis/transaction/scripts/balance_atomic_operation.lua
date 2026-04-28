@@ -481,7 +481,7 @@ local function main()
         -- stale-version check below keeps Go's repayAmount in sync with
         -- Lua's authoritative decrement — if they disagree (e.g. a
         -- concurrent transaction already reduced OverdraftUsed), the whole
-        -- batch rolls back with 0175 so the caller re-reads state and
+        -- batch rolls back with 0174 so the caller re-reads state and
         -- retries with a consistent split.
         if operation == "CREDIT" and not isDebitDirection and
             balance.AccountType ~= "external" and
@@ -490,7 +490,7 @@ local function main()
                 routeValidationEnabled == 1 and tonumber(balance.Version) == (tonumber(incomingVersion) + 1)
             if balance.Version ~= incomingVersion and not sameBatchCancelCredit then
                 rollback(rollbackBalances, ttl)
-                return redis.error_reply("0175")
+                return redis.error_reply("0174")
             end
 
             local repay = min_decimal(amount, balance.OverdraftUsed)
@@ -515,7 +515,7 @@ local function main()
             not isDebitDirection and balance.AccountType ~= "external" and isPositive(overdraftAmount) then
             if balance.Version ~= incomingVersion then
                 rollback(rollbackBalances, ttl)
-                return redis.error_reply("0175")
+                return redis.error_reply("0174")
             end
 
             local repay = min_decimal(min_decimal(overdraftAmount, amount), balance.OverdraftUsed)
@@ -542,7 +542,7 @@ local function main()
                 -- retry is added in Phase 2).
                 if balance.Version ~= incomingVersion then
                     rollback(rollbackBalances, ttl)
-                    return redis.error_reply("0175")
+                    return redis.error_reply("0174")
                 end
 
                 -- Compute the candidate OverdraftUsed locally; the limit

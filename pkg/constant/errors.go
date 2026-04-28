@@ -200,24 +200,21 @@ var (
 	// ErrInvalidBalanceSettings is returned when a balance settings payload
 	// fails validation (e.g. limit enabled without a value, invalid scope).
 	ErrInvalidBalanceSettings = errors.New("0172")
-	// ErrOverdraftDisableWithUsage is returned when a caller attempts to
-	// disable overdraft on a balance that still carries outstanding debt.
-	ErrOverdraftDisableWithUsage = errors.New("0173")
 	// ErrOverdraftLimitBelowUsage is returned when a caller attempts to
 	// reduce the overdraft limit below the currently used amount.
-	ErrOverdraftLimitBelowUsage = errors.New("0174")
+	ErrOverdraftLimitBelowUsage = errors.New("0173")
 	// ErrStaleBalanceVersion is returned when the Redis atomic balance
 	// script detects that the balance version read by the caller no longer
 	// matches the version currently in the cache. This indicates another
 	// transaction mutated the balance between read and write, making the
 	// caller's pre-computed overdraft split/repayment amounts potentially
 	// incorrect. Callers should retry after re-reading the balance.
-	ErrStaleBalanceVersion = errors.New("0175")
+	ErrStaleBalanceVersion = errors.New("0174")
 	// ErrUpdateOfInternalBalance is returned when a PATCH request targets
 	// a balance whose scope is "internal". Internal balances are
 	// system-managed (e.g. overdraft companions) and cannot be modified
 	// through the public API.
-	ErrUpdateOfInternalBalance = errors.New("0176")
+	ErrUpdateOfInternalBalance = errors.New("0175")
 )
 
 // List of CRM errors.

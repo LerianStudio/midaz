@@ -102,10 +102,7 @@ func TestMapError_ExistingCodes_StillWork(t *testing.T) {
 func TestMapError_StaleBalance(t *testing.T) {
 	t.Parallel()
 
-	// The stale-balance Lua error is expected to use code "0175" which does
-	// not exist yet — this test will fail until both the constant and the
-	// mapper branch are added.
-	const staleBalanceCode = "0175"
+	staleBalanceCode := constant.ErrStaleBalanceVersion.Error()
 
 	tracer := noop.NewTracerProvider().Tracer("test")
 	_, span := tracer.Start(t.Context(), "test")

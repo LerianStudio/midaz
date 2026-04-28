@@ -115,7 +115,7 @@ func TestTransactionCreate_RejectsInternalBalance(t *testing.T) {
 
 // TestBalanceUpdate_RejectsInternalBalance_WithSettings verifies that a PATCH
 // request carrying a Settings payload against an internal-scope balance is
-// rejected with ErrUpdateOfInternalBalance (0176) BEFORE any Settings
+// rejected with ErrUpdateOfInternalBalance (0175) BEFORE any Settings
 // validation, overdraft transition enforcement, or repo Update runs.
 func TestBalanceUpdate_RejectsInternalBalance_WithSettings(t *testing.T) {
 	t.Parallel()
@@ -176,7 +176,7 @@ func TestBalanceUpdate_RejectsInternalBalance_WithSettings(t *testing.T) {
 	require.True(t, errors.As(err, &vErr),
 		"scope protection MUST surface an UnprocessableOperationError")
 	assert.Equal(t, constant.ErrUpdateOfInternalBalance.Error(), vErr.Code,
-		"error code MUST be 0176 (ErrUpdateOfInternalBalance)")
+		"error code MUST be 0175 (ErrUpdateOfInternalBalance)")
 }
 
 // TestBalanceUpdate_RejectsInternalBalance_WithoutSettings verifies that the
@@ -241,7 +241,7 @@ func TestBalanceUpdate_RejectsInternalBalance_WithoutSettings(t *testing.T) {
 	require.True(t, errors.As(err, &vErr),
 		"scope protection MUST surface an UnprocessableOperationError")
 	assert.Equal(t, constant.ErrUpdateOfInternalBalance.Error(), vErr.Code,
-		"error code MUST be 0176 (ErrUpdateOfInternalBalance)")
+		"error code MUST be 0175 (ErrUpdateOfInternalBalance)")
 }
 
 // TestBalanceUpdate_AllowsNormalBalance verifies that the scope guard does
@@ -304,7 +304,7 @@ func TestBalanceUpdate_AllowsNormalBalance(t *testing.T) {
 
 // TestBalanceUpdate_FindError_Returns404NotScopeError verifies that when
 // Find fails (e.g. balance not found), the error is surfaced as-is —
-// NOT as a 0176 scope error. This proves guard ordering: Find before guard.
+// NOT as a 0175 scope error. This proves guard ordering: Find before guard.
 func TestBalanceUpdate_FindError_Returns404NotScopeError(t *testing.T) {
 	t.Parallel()
 

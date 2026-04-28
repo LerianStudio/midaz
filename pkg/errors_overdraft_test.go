@@ -38,12 +38,10 @@ func TestValidateBusinessError_OverdraftErrors(t *testing.T) {
 			wantCode:   "0168",
 			entityType: "Balance",
 		},
-		{
-			name:       "ErrDeletionOfInternalBalance maps to UnprocessableOperationError (0169)",
-			sentinel:   constant.ErrDeletionOfInternalBalance,
-			wantCode:   "0169",
-			entityType: "Balance",
-		},
+		{name: "ErrDeletionOfInternalBalance maps to UnprocessableOperationError (0169)", sentinel: constant.ErrDeletionOfInternalBalance, wantCode: "0169", entityType: "Balance"},
+		{name: "ErrOverdraftLimitBelowUsage maps to UnprocessableOperationError (0173)", sentinel: constant.ErrOverdraftLimitBelowUsage, wantCode: "0173", entityType: "Balance"},
+		{name: "ErrStaleBalanceVersion maps to UnprocessableOperationError (0174)", sentinel: constant.ErrStaleBalanceVersion, wantCode: "0174", entityType: "Balance"},
+		{name: "ErrUpdateOfInternalBalance maps to UnprocessableOperationError (0175)", sentinel: constant.ErrUpdateOfInternalBalance, wantCode: "0175", entityType: "Balance"},
 	}
 
 	for _, tt := range tests {
