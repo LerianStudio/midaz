@@ -65,8 +65,8 @@ jq --arg version "$VERSION" '
         "url": "https://discord.gg/DnhqKwkGv3"
     },
     "license": {
-        "name": "Apache 2.0",
-        "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        "name": "Elastic License 2.0",
+        "url": "https://www.elastic.co/licensing/elastic-license"
     },
     "version": $version
 } |
@@ -131,9 +131,19 @@ if command -v yq &> /dev/null; then
     yq -p json -o yaml "$OUTPUT_FILE" > "$OUTPUT_DIR/swagger.yaml"
     echo "YAML written to $OUTPUT_DIR/swagger.yaml"
 elif command -v python3 &> /dev/null; then
-    python3 -c "import json, yaml, sys; yaml.dump(json.load(open('$OUTPUT_FILE')), open('$OUTPUT_DIR/swagger.yaml', 'w'), default_flow_style=False, allow_unicode=True, sort_keys=False)" 2>/dev/null && echo "YAML written to $OUTPUT_DIR/swagger.yaml (via python)" || echo "Python yaml module not available, skipping YAML"
+    if python3 -c "import json, yaml, sys; yaml.dump(json.load(open('$OUTPUT_FILE')), open('$OUTPUT_DIR/swagger.yaml', 'w'), default_flow_style=False, allow_unicode=True, sort_keys=False)" 2>/dev/null; then
+        echo "YAML written to $OUTPUT_DIR/swagger.yaml (via python)"
+    elif command -v ruby &> /dev/null; then
+        ruby -rjson -ryaml -e 'File.write(ARGV[1], JSON.parse(File.read(ARGV[0])).to_yaml(line_width: -1))' "$OUTPUT_FILE" "$OUTPUT_DIR/swagger.yaml"
+        echo "YAML written to $OUTPUT_DIR/swagger.yaml (via ruby)"
+    else
+        echo "Python yaml module not available, skipping YAML"
+    fi
+elif command -v ruby &> /dev/null; then
+    ruby -rjson -ryaml -e 'File.write(ARGV[1], JSON.parse(File.read(ARGV[0])).to_yaml(line_width: -1))' "$OUTPUT_FILE" "$OUTPUT_DIR/swagger.yaml"
+    echo "YAML written to $OUTPUT_DIR/swagger.yaml (via ruby)"
 else
-    echo "Neither yq nor python3 found, skipping YAML generation"
+    echo "Neither yq, python3, nor ruby found, skipping YAML generation"
 fi
 
 # Clean up intermediate swag-generated files
