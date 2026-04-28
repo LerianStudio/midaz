@@ -8268,7 +8268,7 @@ const docTemplate = `
       }
     },
     "AccountingEntries": {
-      "description": "AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert).",
+      "description": "AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert, overdraft, refund).",
       "type": "object",
       "properties": {
         "cancel": {
@@ -8297,6 +8297,14 @@ const docTemplate = `
         },
         "hold": {
           "description": "The accounting entry for the hold action.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AccountingEntry"
+            }
+          ]
+        },
+        "overdraft": {
+          "description": "The accounting entry for the overdraft lifecycle. Debit rubric classifies\noverdraft usage (deficit grows); credit rubric classifies overdraft\nrepayment (deficit shrinks). Both rubrics are REQUIRED when this entry\nis present.",
           "allOf": [
             {
               "$ref": "#/definitions/AccountingEntry"
@@ -8596,6 +8604,12 @@ const docTemplate = `
           "minimum": 0,
           "example": 500
         },
+        "overdraftUsed": {
+          "description": "OverdraftUsed is populated from OperationSnapshot.OverdraftUsedBefore when this Balance\nrepresents the state BEFORE the operation, or from OperationSnapshot.OverdraftUsedAfter\nwhen it represents the state AFTER. Parsed from the snapshot's string-encoded decimal.\nAlways present under the always-populated wire-shape contract — non-overdraft\noperations carry decimal.Zero. Parse errors on malformed historical rows also\nfall back to decimal.Zero (read-only audit context, never a correctness gate).\nexample: 130\nminimum: 0",
+          "type": "number",
+          "minimum": 0,
+          "example": 130
+        },
         "version": {
           "description": "Balance version after the operation\nexample: 2\nminimum: 0",
           "type": "integer",
@@ -8645,6 +8659,11 @@ const docTemplate = `
           "format": "date-time",
           "example": "2021-01-01T00:00:00Z"
         },
+        "direction": {
+          "description": "Direction is the accounting direction of the balance at the time of\nthe snapshot. One of \"credit\" or \"debit\". Empty string denotes\nlegacy rows predating the overdraft feature.\nexample: credit",
+          "type": "string",
+          "example": "credit"
+        },
         "id": {
           "description": "Unique identifier for the balance (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
           "type": "string",
@@ -8674,6 +8693,19 @@ const docTemplate = `
           "type": "string",
           "format": "uuid",
           "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "overdraftUsed": {
+          "description": "OverdraftUsed is the amount of overdraft consumed at the time of\nthe snapshot. Always non-negative.\nexample: 0",
+          "type": "number",
+          "example": 0
+        },
+        "settings": {
+          "description": "Settings is the per-balance configuration snapshot at the time the\nhistory row was recorded. Nil for legacy balances.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/mmodel.BalanceSettings"
+            }
+          ]
         },
         "updatedAt": {
           "description": "Timestamp when the balance was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
@@ -8811,11 +8843,24 @@ const docTemplate = `
           "type": "boolean",
           "example": true
         },
+        "direction": {
+          "description": "Direction is the accounting direction of the balance (\"credit\" or\n\"debit\"). Optional at creation; when omitted, defaults to the\naccount's natural direction.\nrequired: false\nexample: credit",
+          "type": "string",
+          "example": "credit"
+        },
         "key": {
           "description": "Unique key for the balance\nrequired: true\nmaxLength: 100\nexample: asset-freeze",
           "type": "string",
           "maxLength": 100,
           "example": "asset-freeze"
+        },
+        "settings": {
+          "description": "Settings is the optional per-balance configuration (overdraft,\nbalance scope). When omitted, platform defaults are applied.\nrequired: false",
+          "allOf": [
+            {
+              "$ref": "#/definitions/mmodel.BalanceSettings"
+            }
+          ]
         }
       }
     },
@@ -9150,7 +9195,7 @@ const docTemplate = `
       }
     },
     "CreateTransactionInflowInput": {
-      "description": "CreateTransactionInflowInput is the input payload to create an inflow transaction. Contains all necessary fields to create a financial transaction without source information, only destination.",
+      "description": "CreateTransactionInflowInput is the input payload to create an inflow transaction. Contains all necessary fields to create a financial transaction without source information, only destination. Pending is not supported for inflows because the auto-filled external source account cannot hold funds.",
       "type": "object",
       "required": [
         "send"
@@ -10499,6 +10544,14 @@ const docTemplate = `
           "description": "Whether the account should be allowed to send funds from this balance\nrequired: false\nexample: true",
           "type": "boolean",
           "example": true
+        },
+        "settings": {
+          "description": "Settings is the per-balance configuration (overdraft, balance\nscope). When provided, replaces the existing settings in full.\nDirection is intentionally absent: it is immutable after creation.\nrequired: false",
+          "allOf": [
+            {
+              "$ref": "#/definitions/mmodel.BalanceSettings"
+            }
+          ]
         }
       }
     },
@@ -10825,6 +10878,11 @@ const docTemplate = `
           "format": "date-time",
           "example": "2021-01-01T00:00:00Z"
         },
+        "direction": {
+          "description": "Direction is the accounting direction of the balance. One of\n\"credit\" or \"debit\". Empty string denotes legacy rows predating the\noverdraft feature and is treated as \"credit\" by the engine.\nexample: credit",
+          "type": "string",
+          "example": "credit"
+        },
         "id": {
           "description": "Unique identifier for the balance (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
           "type": "string",
@@ -10860,6 +10918,19 @@ const docTemplate = `
           "format": "uuid",
           "example": "00000000-0000-0000-0000-000000000000"
         },
+        "overdraftUsed": {
+          "description": "OverdraftUsed is the amount of overdraft currently consumed by this\nbalance. Always non-negative; zero when the balance is in the black.\nexample: 0",
+          "type": "number",
+          "example": 0
+        },
+        "settings": {
+          "description": "Settings carries optional per-balance configuration (overdraft,\nbalance scope). Nil for legacy balances without custom settings.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/mmodel.BalanceSettings"
+            }
+          ]
+        },
         "updatedAt": {
           "description": "Timestamp when the balance was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
           "type": "string",
@@ -10871,6 +10942,32 @@ const docTemplate = `
           "type": "integer",
           "minimum": 1,
           "example": 1
+        }
+      }
+    },
+    "mmodel.BalanceSettings": {
+      "description": "Optional per-balance configuration controlling overdraft behavior and balance scope.",
+      "type": "object",
+      "properties": {
+        "allowOverdraft": {
+          "description": "AllowOverdraft enables overdraft behavior for the balance. When false,\ntransactions that would drive Available below zero are rejected.\nexample: false",
+          "type": "boolean",
+          "example": false
+        },
+        "balanceScope": {
+          "description": "BalanceScope identifies how the balance participates in transactions.\nAllowed values: \"transactional\" (default), \"internal\". Empty string is\ntreated as \"transactional\" for backwards compatibility.\nexample: transactional",
+          "type": "string",
+          "example": "transactional"
+        },
+        "overdraftLimit": {
+          "description": "OverdraftLimit is the maximum overdraft amount the balance may carry,\nexpressed as a decimal string (to preserve precision). Ignored when\nOverdraftLimitEnabled is false.\nexample: 1000.00",
+          "type": "string",
+          "example": "1000.00"
+        },
+        "overdraftLimitEnabled": {
+          "description": "OverdraftLimitEnabled gates the OverdraftLimit field. When true, a\nnon-empty, strictly positive OverdraftLimit MUST be supplied. When\nfalse, OverdraftLimit MUST be absent (overdraft is unlimited if\nAllowOverdraft is true).\nexample: false",
+          "type": "boolean",
+          "example": false
         }
       }
     },

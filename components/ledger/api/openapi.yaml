@@ -6894,7 +6894,7 @@ components:
       type: object
     AccountingEntries:
       description: AccountingEntries object containing optional accounting entries
-        for each action type (direct, hold, commit, cancel, revert).
+        for each action type (direct, hold, commit, cancel, revert, overdraft, refund).
       properties:
         cancel:
           allOf:
@@ -6915,6 +6915,15 @@ components:
           allOf:
           - $ref: '#/components/schemas/AccountingEntry'
           description: The accounting entry for the hold action.
+          type: object
+        overdraft:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntry'
+          description: |-
+            The accounting entry for the overdraft lifecycle. Debit rubric classifies
+            overdraft usage (deficit grows); credit rubric classifies overdraft
+            repayment (deficit shrinks). Both rubrics are REQUIRED when this entry
+            is present.
           type: object
         revert:
           allOf:
@@ -7261,6 +7270,19 @@ components:
           example: 500.0
           minimum: 0
           type: number
+        overdraftUsed:
+          description: |-
+            OverdraftUsed is populated from OperationSnapshot.OverdraftUsedBefore when this Balance
+            represents the state BEFORE the operation, or from OperationSnapshot.OverdraftUsedAfter
+            when it represents the state AFTER. Parsed from the snapshot's string-encoded decimal.
+            Always present under the always-populated wire-shape contract — non-overdraft
+            operations carry decimal.Zero. Parse errors on malformed historical rows also
+            fall back to decimal.Zero (read-only audit context, never a correctness gate).
+            example: 130
+            minimum: 0
+          example: 130.0
+          minimum: 0
+          type: number
         version:
           description: |-
             Balance version after the operation
@@ -7275,6 +7297,7 @@ components:
         include permission flags (allowSending/allowReceiving) as these are not tracked
         historically.
       example:
+        settings: '{}'
         assetCode: USD
         onHold: 500.0
         accountType: creditCard
@@ -7284,9 +7307,11 @@ components:
         organizationId: 00000000-0000-0000-0000-000000000000
         accountId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
+        overdraftUsed: 0.0
         alias: '@person1'
         id: 00000000-0000-0000-0000-000000000000
         key: asset-freeze
+        direction: credit
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         accountId:
@@ -7339,6 +7364,14 @@ components:
           example: 2021-01-01T00:00:00Z
           format: date-time
           type: string
+        direction:
+          description: |-
+            Direction is the accounting direction of the balance at the time of
+            the snapshot. One of "credit" or "debit". Empty string denotes
+            legacy rows predating the overdraft feature.
+            example: credit
+          example: credit
+          type: string
         id:
           description: |-
             Unique identifier for the balance (UUID format)
@@ -7379,6 +7412,20 @@ components:
           example: 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        overdraftUsed:
+          description: |-
+            OverdraftUsed is the amount of overdraft consumed at the time of
+            the snapshot. Always non-negative.
+            example: 0
+          example: 0.0
+          type: number
+        settings:
+          allOf:
+          - $ref: '#/components/schemas/mmodel.BalanceSettings'
+          description: |-
+            Settings is the per-balance configuration snapshot at the time the
+            history row was recorded. Nil for legacy balances.
+          type: object
         updatedAt:
           description: |-
             Timestamp when the balance was last updated (RFC3339 format)
@@ -7547,9 +7594,11 @@ components:
       description: Request payload for creating a new balance with specified permissions
         and custom key.
       example:
+        settings: '{}'
         allowReceiving: true
         allowSending: true
         key: asset-freeze
+        direction: credit
       properties:
         allowReceiving:
           description: |-
@@ -7565,6 +7614,15 @@ components:
             example: true
           example: true
           type: boolean
+        direction:
+          description: |-
+            Direction is the accounting direction of the balance ("credit" or
+            "debit"). Optional at creation; when omitted, defaults to the
+            account's natural direction.
+            required: false
+            example: credit
+          example: credit
+          type: string
         key:
           description: |-
             Unique key for the balance
@@ -7574,6 +7632,14 @@ components:
           example: asset-freeze
           maxLength: 100
           type: string
+        settings:
+          allOf:
+          - $ref: '#/components/schemas/mmodel.BalanceSettings'
+          description: |-
+            Settings is the optional per-balance configuration (overdraft,
+            balance scope). When omitted, platform defaults are applied.
+            required: false
+          type: object
       required:
       - key
       type: object
@@ -7988,7 +8054,8 @@ components:
     CreateTransactionInflowInput:
       description: CreateTransactionInflowInput is the input payload to create an
         inflow transaction. Contains all necessary fields to create a financial transaction
-        without source information, only destination.
+        without source information, only destination. Pending is not supported for
+        inflows because the auto-filled external source account cannot hold funds.
       example:
         metadata:
           key: '{}'
@@ -9639,6 +9706,7 @@ components:
         All fields are optional - only specified fields will be updated. Omitted fields
         will remain unchanged.
       example:
+        settings: '{}'
         allowReceiving: true
         allowSending: true
       properties:
@@ -9656,6 +9724,15 @@ components:
             example: true
           example: true
           type: boolean
+        settings:
+          allOf:
+          - $ref: '#/components/schemas/mmodel.BalanceSettings'
+          description: |-
+            Settings is the per-balance configuration (overdraft, balance
+            scope). When provided, replaces the existing settings in full.
+            Direction is intentionally absent: it is immutable after creation.
+            required: false
+          type: object
       type: object
     UpdateLedgerInput:
       description: Request payload for updating an existing ledger. All fields are
@@ -9988,6 +10065,7 @@ components:
         for balance operations. Balances represent the amount of a specific asset
         held in an account, including available and on-hold amounts.
       example:
+        settings: '{}'
         metadata:
           key: '{}'
         assetCode: USD
@@ -10002,9 +10080,11 @@ components:
         accountId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
+        overdraftUsed: 0.0
         alias: '@person1'
         id: 00000000-0000-0000-0000-000000000000
         key: asset-freeze
+        direction: credit
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         accountId:
@@ -10077,6 +10157,14 @@ components:
           example: 2021-01-01T00:00:00Z
           format: date-time
           type: string
+        direction:
+          description: |-
+            Direction is the accounting direction of the balance. One of
+            "credit" or "debit". Empty string denotes legacy rows predating the
+            overdraft feature and is treated as "credit" by the engine.
+            example: credit
+          example: credit
+          type: string
         id:
           description: |-
             Unique identifier for the balance (UUID format)
@@ -10124,6 +10212,20 @@ components:
           example: 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        overdraftUsed:
+          description: |-
+            OverdraftUsed is the amount of overdraft currently consumed by this
+            balance. Always non-negative; zero when the balance is in the black.
+            example: 0
+          example: 0.0
+          type: number
+        settings:
+          allOf:
+          - $ref: '#/components/schemas/mmodel.BalanceSettings'
+          description: |-
+            Settings carries optional per-balance configuration (overdraft,
+            balance scope). Nil for legacy balances without custom settings.
+          type: object
         updatedAt:
           description: |-
             Timestamp when the balance was last updated (RFC3339 format)
@@ -10140,6 +10242,43 @@ components:
           example: 1
           minimum: 1
           type: integer
+      type: object
+    mmodel.BalanceSettings:
+      description: Optional per-balance configuration controlling overdraft behavior
+        and balance scope.
+      properties:
+        allowOverdraft:
+          description: |-
+            AllowOverdraft enables overdraft behavior for the balance. When false,
+            transactions that would drive Available below zero are rejected.
+            example: false
+          example: false
+          type: boolean
+        balanceScope:
+          description: |-
+            BalanceScope identifies how the balance participates in transactions.
+            Allowed values: "transactional" (default), "internal". Empty string is
+            treated as "transactional" for backwards compatibility.
+            example: transactional
+          example: transactional
+          type: string
+        overdraftLimit:
+          description: |-
+            OverdraftLimit is the maximum overdraft amount the balance may carry,
+            expressed as a decimal string (to preserve precision). Ignored when
+            OverdraftLimitEnabled is false.
+            example: 1000.00
+          example: "1000.00"
+          type: string
+        overdraftLimitEnabled:
+          description: |-
+            OverdraftLimitEnabled gates the OverdraftLimit field. When true, a
+            non-empty, strictly positive OverdraftLimit MUST be supplied. When
+            false, OverdraftLimit MUST be absent (overdraft is unlimited if
+            AllowOverdraft is true).
+            example: false
+          example: false
+          type: boolean
       type: object
     mmodel.LedgerSettings:
       example:
@@ -10332,7 +10471,8 @@ components:
           page: 6
           items: '{}'
         items:
-        - metadata:
+        - settings: '{}'
+          metadata:
             key: '{}'
           assetCode: USD
           onHold: 500.0
@@ -10346,11 +10486,14 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
+          overdraftUsed: 0.0
           alias: '@person1'
           id: 00000000-0000-0000-0000-000000000000
           key: asset-freeze
+          direction: credit
           updatedAt: 2021-01-01T00:00:00Z
-        - metadata:
+        - settings: '{}'
+          metadata:
             key: '{}'
           assetCode: USD
           onHold: 500.0
@@ -10364,9 +10507,11 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
+          overdraftUsed: 0.0
           alias: '@person1'
           id: 00000000-0000-0000-0000-000000000000
           key: asset-freeze
+          direction: credit
           updatedAt: 2021-01-01T00:00:00Z
       properties:
         http.Pagination:
