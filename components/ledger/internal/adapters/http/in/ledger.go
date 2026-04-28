@@ -106,7 +106,7 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -256,7 +256,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_ledger")
 	defer span.End()
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -324,7 +324,7 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -429,7 +429,7 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -487,7 +487,7 @@ func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}

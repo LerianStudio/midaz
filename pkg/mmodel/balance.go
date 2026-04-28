@@ -321,8 +321,7 @@ type CreateAdditionalBalance struct {
 	AllowReceiving *bool `json:"allowReceiving" example:"true"`
 
 	// Direction is the accounting direction of the balance ("credit" or
-	// "debit"). Optional at creation; when omitted, defaults to the
-	// account's natural direction.
+	// "debit"). Optional at creation; when omitted, defaults to "credit".
 	// required: false
 	// example: credit
 	Direction *string `json:"direction,omitempty" example:"credit"`
