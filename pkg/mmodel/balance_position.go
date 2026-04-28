@@ -14,7 +14,7 @@ import (
 // time. It is response-only — never persisted, never cached. Always
 // present on Balance and BalanceHistory JSON responses.
 //
-// AvailableOverdraftLimit has three documented cases:
+// OverdraftLimitAvailable has three documented cases:
 //
 //   - "0"          when overdraft is disabled (Settings nil OR
 //     Settings.AllowOverdraft = false). The customer has no
@@ -41,10 +41,10 @@ type Position struct {
 	// example: 100
 	OnHold decimal.Decimal `json:"onHold" example:"100"`
 
-	// AvailableOverdraftLimit is the remaining overdraft headroom.
+	// OverdraftLimitAvailable is the remaining overdraft headroom.
 	// Omitted from JSON when overdraft is unlimited (nil pointer).
 	// example: 500
-	AvailableOverdraftLimit *decimal.Decimal `json:"availableOverdraftLimit,omitempty" example:"500"`
+	OverdraftLimitAvailable *decimal.Decimal `json:"overdraftLimitAvailable,omitempty" example:"500"`
 } // @name Position
 
 // ComputePosition derives a Position from the current Balance state.
@@ -84,7 +84,7 @@ func computePosition(available, onHold, overdraftUsed decimal.Decimal, settings 
 	// from "unlimited overdraft" (the latter omits the field entirely).
 	if settings == nil || !settings.AllowOverdraft {
 		zero := decimal.Zero
-		pos.AvailableOverdraftLimit = &zero
+		pos.OverdraftLimitAvailable = &zero
 
 		return pos
 	}
@@ -106,7 +106,7 @@ func computePosition(available, onHold, overdraftUsed decimal.Decimal, settings 
 	}
 
 	headroom := limit.Sub(overdraftUsed)
-	pos.AvailableOverdraftLimit = &headroom
+	pos.OverdraftLimitAvailable = &headroom
 
 	return pos
 }

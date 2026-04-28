@@ -100,10 +100,10 @@ func TestComputePosition_OnHold_MirroredVerbatim(t *testing.T) {
 }
 
 // ============================================================================
-// ComputePosition — AvailableOverdraftLimit (all four cases)
+// ComputePosition — OverdraftLimitAvailable (all four cases)
 // ============================================================================
 
-func TestComputePosition_AvailableOverdraftLimit_Cases(t *testing.T) {
+func TestComputePosition_OverdraftLimitAvailable_Cases(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -212,10 +212,10 @@ func TestComputePosition_AvailableOverdraftLimit_Cases(t *testing.T) {
 			pos := b.ComputePosition()
 
 			if tt.wantHeadroomNil {
-				assert.Nil(t, pos.AvailableOverdraftLimit, "headroom should be nil for unlimited overdraft")
+				assert.Nil(t, pos.OverdraftLimitAvailable, "headroom should be nil for unlimited overdraft")
 			} else {
-				require.NotNil(t, pos.AvailableOverdraftLimit, "headroom should be present")
-				decimalEqual(t, tt.wantHeadroom, *pos.AvailableOverdraftLimit, "headroom value")
+				require.NotNil(t, pos.OverdraftLimitAvailable, "headroom should be present")
+				decimalEqual(t, tt.wantHeadroom, *pos.OverdraftLimitAvailable, "headroom value")
 			}
 		})
 	}
@@ -253,10 +253,10 @@ func TestBalance_MarshalJSON_IncludesPositionBlock(t *testing.T) {
 
 	assert.Equal(t, "1000", pos["available"], "position.available should equal Available - OverdraftUsed (1000 - 0)")
 	assert.Equal(t, "100", pos["onHold"], "position.onHold should mirror OnHold")
-	assert.Equal(t, "500", pos["availableOverdraftLimit"], "position.availableOverdraftLimit should equal limit - used (500 - 0)")
+	assert.Equal(t, "500", pos["overdraftLimitAvailable"], "position.overdraftLimitAvailable should equal limit - used (500 - 0)")
 }
 
-func TestBalance_MarshalJSON_OmitsAvailableOverdraftLimit_WhenUnlimited(t *testing.T) {
+func TestBalance_MarshalJSON_OmitsOverdraftLimitAvailable_WhenUnlimited(t *testing.T) {
 	t.Parallel()
 
 	b := Balance{
@@ -274,8 +274,8 @@ func TestBalance_MarshalJSON_OmitsAvailableOverdraftLimit_WhenUnlimited(t *testi
 	require.NoError(t, err)
 
 	// Assert the key is literally absent from the JSON (omitempty on nil pointer).
-	assert.NotContains(t, string(raw), `"availableOverdraftLimit"`,
-		"availableOverdraftLimit must be omitted when overdraft is unlimited")
+	assert.NotContains(t, string(raw), `"overdraftLimitAvailable"`,
+		"overdraftLimitAvailable must be omitted when overdraft is unlimited")
 
 	// Position block is still present with available + onHold.
 	assert.Contains(t, string(raw), `"position"`)
@@ -305,7 +305,7 @@ func TestBalance_MarshalJSON_NegativeAvailable_OnOverdraftedAccount(t *testing.T
 
 	pos := decoded["position"].(map[string]any)
 	assert.Equal(t, "-75", pos["available"], "position.available is negative when fully overdrafted")
-	assert.Equal(t, "25", pos["availableOverdraftLimit"], "position.availableOverdraftLimit = 100 - 75 = 25")
+	assert.Equal(t, "25", pos["overdraftLimitAvailable"], "position.overdraftLimitAvailable = 100 - 75 = 25")
 }
 
 func TestBalance_MarshalJSON_NoInfiniteRecursion(t *testing.T) {
@@ -410,7 +410,7 @@ func TestBalanceHistory_MarshalJSON_IncludesPositionBlock(t *testing.T) {
 
 	assert.Equal(t, "1900", pos["available"], "position.available = 2000 - 100")
 	assert.Equal(t, "500", pos["onHold"])
-	assert.Equal(t, "200", pos["availableOverdraftLimit"], "headroom = 300 - 100")
+	assert.Equal(t, "200", pos["overdraftLimitAvailable"], "headroom = 300 - 100")
 }
 
 func TestBalanceHistory_ComputePosition_LegacySettingsNil(t *testing.T) {
@@ -425,8 +425,8 @@ func TestBalanceHistory_ComputePosition_LegacySettingsNil(t *testing.T) {
 
 	pos := bh.ComputePosition()
 
-	require.NotNil(t, pos.AvailableOverdraftLimit)
-	decimalEqual(t, decimal.Zero, *pos.AvailableOverdraftLimit, "legacy → zero headroom")
+	require.NotNil(t, pos.OverdraftLimitAvailable)
+	decimalEqual(t, decimal.Zero, *pos.OverdraftLimitAvailable, "legacy → zero headroom")
 }
 
 // ============================================================================
@@ -467,7 +467,7 @@ func TestBalanceRedis_MarshalJSON_NoPositionBlock(t *testing.T) {
 	// The cache envelope must NOT carry a position block.
 	assert.NotContains(t, string(raw), `"position"`,
 		"BalanceRedis JSON envelope must not include a position block")
-	assert.NotContains(t, string(raw), `"availableOverdraftLimit"`)
+	assert.NotContains(t, string(raw), `"overdraftLimitAvailable"`)
 }
 
 // ============================================================================
@@ -547,6 +547,6 @@ func TestBalance_MarshalJSON_PositionBlockShape(t *testing.T) {
 	// Substring check (order is what Go's encoder produces by struct field
 	// order in the alias type).
 	assert.True(t,
-		strings.Contains(string(raw), `"position":{"available":"980","onHold":"50","availableOverdraftLimit":"80"}`),
+		strings.Contains(string(raw), `"position":{"available":"980","onHold":"50","overdraftLimitAvailable":"80"}`),
 		"position block shape: %s", string(raw))
 }

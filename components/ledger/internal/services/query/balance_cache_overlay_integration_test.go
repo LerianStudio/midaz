@@ -458,7 +458,7 @@ func TestGetBalanceByID_PositionField_NegativeOnOverdrafted(t *testing.T) {
 		Position struct {
 			Available               string  `json:"available"`
 			OnHold                  string  `json:"onHold"`
-			AvailableOverdraftLimit *string `json:"availableOverdraftLimit"`
+			OverdraftLimitAvailable *string `json:"overdraftLimitAvailable"`
 		} `json:"position"`
 	}
 	require.NoError(t, json.Unmarshal(wire, &envelope))
@@ -466,9 +466,9 @@ func TestGetBalanceByID_PositionField_NegativeOnOverdrafted(t *testing.T) {
 	assert.Equal(t, "-100", envelope.Position.Available,
 		"position.available must be Available − OverdraftUsed = 0 − 100 = -100")
 	assert.Equal(t, "0", envelope.Position.OnHold)
-	require.NotNil(t, envelope.Position.AvailableOverdraftLimit)
-	assert.Equal(t, "400", *envelope.Position.AvailableOverdraftLimit,
-		"position.availableOverdraftLimit must be limit − used = 500 − 100 = 400")
+	require.NotNil(t, envelope.Position.OverdraftLimitAvailable)
+	assert.Equal(t, "400", *envelope.Position.OverdraftLimitAvailable,
+		"position.overdraftLimitAvailable must be limit − used = 500 − 100 = 400")
 }
 
 // TestGetAllBalances_CachePresentButSettingsDefault_PreservesPGSettings is the
