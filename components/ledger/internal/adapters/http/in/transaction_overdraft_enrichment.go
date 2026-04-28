@@ -771,7 +771,15 @@ func pendingOverdraftUsageByAlias(ops []*operation.Operation) map[string]decimal
 	usage := make(map[string]decimal.Decimal)
 
 	for _, op := range ops {
-		if op == nil || op.BalanceKey != constant.OverdraftBalanceKey || op.Type != libConstants.DEBIT || op.Amount.Value == nil {
+		if op == nil || op.BalanceKey != constant.OverdraftBalanceKey || op.Amount.Value == nil {
+			continue
+		}
+
+		if op.Type != constant.OVERDRAFT && op.Type != libConstants.DEBIT {
+			continue
+		}
+
+		if op.Direction != "" && op.Direction != constant.DirectionDebit {
 			continue
 		}
 

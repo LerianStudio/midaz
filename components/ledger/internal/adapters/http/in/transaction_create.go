@@ -921,11 +921,16 @@ func (handler *TransactionHandler) buildStandardOp(
 		return nil, err
 	}
 
+	opType := amt.Operation
+	if blc.Key == constant.OverdraftBalanceKey {
+		opType = constant.OVERDRAFT
+	}
+
 	return &operation.Operation{
 		ID:              operationID.String(),
 		TransactionID:   tran.ID,
 		Description:     description,
-		Type:            amt.Operation,
+		Type:            opType,
 		AssetCode:       transactionInput.Send.Asset,
 		ChartOfAccounts: ft.ChartOfAccounts,
 		Amount:          amount,

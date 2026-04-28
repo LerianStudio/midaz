@@ -37,24 +37,31 @@ func newTestTransaction(ops []*operation.Operation) *transaction.Transaction {
 			Code:        desc,
 			Description: &desc,
 		},
-		Amount:    &amount,
-		AssetCode: "BRL",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		Amount:     &amount,
+		AssetCode:  "BRL",
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
 		Operations: ops,
 	}
 }
 
 // newOverdraftOp creates an operation on the overdraft companion balance.
-func newOverdraftOp(accountID, opType string, amount decimal.Decimal, afterAvailable decimal.Decimal) *operation.Operation {
+func newOverdraftOp(accountID, direction string, amount decimal.Decimal, afterAvailable decimal.Decimal) *operation.Operation {
+	switch direction {
+	case "DEBIT":
+		direction = constant.DirectionDebit
+	case "CREDIT":
+		direction = constant.DirectionCredit
+	}
+
 	return &operation.Operation{
 		ID:            uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		TransactionID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
-		Type:          opType,
+		Type:          constant.OVERDRAFT,
 		AssetCode:     "BRL",
 		AccountID:     accountID,
 		BalanceKey:    constant.OverdraftBalanceKey,
-		Direction:     "debit",
+		Direction:     direction,
 		Amount:        operation.Amount{Value: &amount},
 		BalanceAfter:  operation.Balance{Available: &afterAvailable},
 	}

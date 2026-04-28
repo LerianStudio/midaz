@@ -206,9 +206,10 @@ func buildOverdraftEvents(tran *transaction.Transaction) []overdraftEventItem {
 // overdraft operation and returns the absolute movement amount together with
 // the balance-after-available value.
 //
-// For a direction=debit companion balance:
-//   - DEBIT increases Available (overdraft drawn)
-//   - CREDIT decreases Available (overdraft repaid or cleared)
+// For a direction=debit companion balance, public operation type is always
+// "overdraft". The Direction field carries the semantic movement:
+//   - direction=debit increases Available (overdraft drawn)
+//   - direction=credit decreases Available (overdraft repaid or cleared)
 //
 // The "cleared" action is emitted instead of "repaid" when the companion
 // balance reaches zero after the credit.
@@ -227,11 +228,11 @@ func classifyOverdraftOperation(op *operation.Operation) (action string, amount 
 
 	after := overdraftBalanceAfter(op)
 
-	switch strings.ToUpper(op.Type) {
-	case "DEBIT":
+	switch op.Direction {
+	case constant.DirectionDebit:
 		return OverdraftActionDrawn, amt, after
 
-	case "CREDIT":
+	case constant.DirectionCredit:
 		if after.IsZero() {
 			return OverdraftActionCleared, amt, after
 		}

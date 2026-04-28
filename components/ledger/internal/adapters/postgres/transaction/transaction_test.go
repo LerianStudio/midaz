@@ -11,6 +11,7 @@ import (
 
 	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
+	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -770,6 +771,90 @@ func TestTransactionRevert_NilAmount(t *testing.T) {
 	assert.Empty(t, result.Send.Asset, "should return empty transaction when Amount is nil")
 	assert.Empty(t, result.Send.Source.From, "should return empty froms when Amount is nil")
 	assert.Empty(t, result.Send.Distribute.To, "should return empty tos when Amount is nil")
+}
+
+func TestTransactionRevert_PreservesBalanceKey(t *testing.T) {
+	t.Parallel()
+
+	amount := decimal.NewFromInt(40)
+	txn := Transaction{
+		Description: "additional balance transfer",
+		AssetCode:   "BRL",
+		Amount:      &amount,
+		Operations: []*operation.Operation{
+			{
+				Type:         constant.CREDIT,
+				AccountAlias: "@receiver",
+				BalanceKey:   "voucher",
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount},
+			},
+			{
+				Type:         constant.DEBIT,
+				AccountAlias: "@sender",
+				BalanceKey:   "reserve",
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount},
+			},
+		},
+	}
+
+	reverted := txn.TransactionRevert()
+
+	require.Len(t, reverted.Send.Source.From, 1)
+	assert.Equal(t, "voucher", reverted.Send.Source.From[0].BalanceKey)
+	require.Len(t, reverted.Send.Distribute.To, 1)
+	assert.Equal(t, "reserve", reverted.Send.Distribute.To[0].BalanceKey)
+}
+
+func TestTransactionRevert_FoldsOverdraftCompanionIntoDefaultLeg(t *testing.T) {
+	t.Parallel()
+
+	amount100 := decimal.NewFromInt(100)
+	amount50 := decimal.NewFromInt(50)
+	txn := Transaction{
+		Description: "overdraft transfer",
+		AssetCode:   "BRL",
+		Amount:      &amount100,
+		Operations: []*operation.Operation{
+			{
+				Type:         constant.DEBIT,
+				AccountAlias: "@source",
+				BalanceKey:   pkgConstant.DefaultBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount50},
+			},
+			{
+				Type:         pkgConstant.OVERDRAFT,
+				Direction:    pkgConstant.DirectionDebit,
+				AccountAlias: "@source",
+				BalanceKey:   pkgConstant.OverdraftBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount50},
+			},
+			{
+				Type:         constant.CREDIT,
+				AccountAlias: "@destination",
+				BalanceKey:   pkgConstant.DefaultBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount100},
+			},
+		},
+	}
+
+	reverted := txn.TransactionRevert()
+
+	require.Len(t, reverted.Send.Source.From, 1)
+	assert.Equal(t, "@destination", reverted.Send.Source.From[0].AccountAlias)
+	assert.Equal(t, pkgConstant.DefaultBalanceKey, reverted.Send.Source.From[0].BalanceKey)
+	assert.True(t, reverted.Send.Source.From[0].Amount.Value.Equal(amount100))
+
+	require.Len(t, reverted.Send.Distribute.To, 1,
+		"internal overdraft companion must not be targeted directly by public revert transaction")
+	assert.Equal(t, "@source", reverted.Send.Distribute.To[0].AccountAlias)
+	assert.Equal(t, pkgConstant.DefaultBalanceKey, reverted.Send.Distribute.To[0].BalanceKey)
+	assert.True(t, reverted.Send.Distribute.To[0].Amount.Value.Equal(amount100),
+		"default reverse credit must include the default movement plus overdraft companion amount")
 }
 
 func TestTransactionRevert_DirectionNotSet(t *testing.T) {

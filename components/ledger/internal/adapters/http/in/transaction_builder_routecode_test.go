@@ -73,6 +73,45 @@ func TestBuildStandardOp_ReturnsOperation(t *testing.T) {
 	assert.Equal(t, "balance-1", op.BalanceID)
 }
 
+func TestBuildStandardOp_OverdraftCompanionUsesOverdraftType(t *testing.T) {
+	handler := &TransactionHandler{}
+	now := time.Now()
+
+	blc := &mmodel.Balance{
+		ID:             "balance-overdraft",
+		OrganizationID: "org-1",
+		LedgerID:       "ledger-1",
+		AccountID:      "account-1",
+		Alias:          "@sender",
+		Key:            constant.OverdraftBalanceKey,
+		Available:      decimal.Zero,
+		OnHold:         decimal.Zero,
+		Version:        1,
+	}
+	amt := mtransaction.Amount{
+		Asset:     "BRL",
+		Value:     decimal.NewFromInt(50),
+		Operation: constant.DEBIT,
+		Direction: constant.DirectionDebit,
+	}
+
+	op, err := handler.buildStandardOp(
+		blc,
+		mtransaction.FromTo{AccountAlias: "@sender", BalanceKey: constant.OverdraftBalanceKey},
+		amt,
+		mtransaction.Balance{Available: decimal.NewFromInt(50), OnHold: decimal.Zero, Version: 2},
+		transaction.Transaction{ID: "txn-1"},
+		mtransaction.Transaction{Description: "overdraft companion", Send: mtransaction.Send{Asset: "BRL"}},
+		now,
+		false,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, constant.OVERDRAFT, op.Type)
+	assert.Equal(t, constant.DirectionDebit, op.Direction,
+		"direction still carries draw/repayment semantics for overdraft rows")
+}
+
 // TestBuildDoubleEntryPendingOps_ReturnsTwoOperations verifies that buildDoubleEntryPendingOps
 // returns exactly 2 operations.
 func TestBuildDoubleEntryPendingOps_ReturnsTwoOperations(t *testing.T) {
@@ -617,7 +656,7 @@ func TestResolveRouteCodesFromCache_CompanionUsesOverdraftAction(t *testing.T) {
 	companion := &operation.Operation{
 		ID:         "companion-op",
 		RouteID:    &routeID,
-		Type:       "DEBIT",
+		Type:       constant.OVERDRAFT,
 		Direction:  "debit",
 		BalanceKey: constant.OverdraftBalanceKey,
 	}
@@ -640,10 +679,9 @@ func TestResolveRouteCodesFromCache_CompanionUsesOverdraftAction(t *testing.T) {
 }
 
 // TestResolveRouteCodesFromCache_CompanionCreditUsesOverdraftAction verifies
-// that companion CREDIT ops on the overdraft balance resolve their rubric via
-// Overdraft.Credit (not Overdraft.Debit). The companion's Direction field is
-// "debit" (inherited from the overdraft balance's direction), so the resolver
-// must use op.Type ("CREDIT") to pick the rubric, not op.Direction ("debit").
+// that repayment companions on the overdraft balance resolve their rubric via
+// Overdraft.Credit (not Overdraft.Debit). Public type is always "overdraft";
+// the Direction field carries debit/draw vs credit/repayment semantics.
 func TestResolveRouteCodesFromCache_CompanionCreditUsesOverdraftAction(t *testing.T) {
 	routeID := "route-uuid-1"
 
@@ -683,7 +721,7 @@ func TestResolveRouteCodesFromCache_CompanionCreditUsesOverdraftAction(t *testin
 	companion := &operation.Operation{
 		ID:         "companion-op",
 		RouteID:    &routeID,
-		Type:       "CREDIT",
+		Type:       constant.OVERDRAFT,
 		Direction:  "credit",
 		BalanceKey: constant.OverdraftBalanceKey,
 	}
