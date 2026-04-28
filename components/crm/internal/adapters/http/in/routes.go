@@ -68,9 +68,9 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	// Aliases
 	f.Get("/v1/aliases", auth.Authorize(ApplicationName, "aliases", "get"), ah.GetAllAliases)
 	f.Post("/v1/holders/:holder_id/aliases", auth.Authorize(ApplicationName, "aliases", "post"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.CreateAliasInput), ah.CreateAlias))
-	f.Get("/v1/holders/:holder_id/aliases/:id", auth.Authorize(ApplicationName, "aliases", "get"), http.ParseUUIDPathParameters("aliases"), ah.GetAliasByID)
-	f.Patch("/v1/holders/:holder_id/aliases/:id", auth.Authorize(ApplicationName, "aliases", "patch"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.UpdateAliasInput), ah.UpdateAlias))
-	f.Delete("/v1/holders/:holder_id/aliases/:id", auth.Authorize(ApplicationName, "aliases", "delete"), http.ParseUUIDPathParameters("aliases"), ah.DeleteAliasByID)
+	f.Get("/v1/holders/:holder_id/aliases/:alias_id", auth.Authorize(ApplicationName, "aliases", "get"), http.ParseUUIDPathParameters("aliases"), ah.GetAliasByID)
+	f.Patch("/v1/holders/:holder_id/aliases/:alias_id", auth.Authorize(ApplicationName, "aliases", "patch"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.UpdateAliasInput), ah.UpdateAlias))
+	f.Delete("/v1/holders/:holder_id/aliases/:alias_id", auth.Authorize(ApplicationName, "aliases", "delete"), http.ParseUUIDPathParameters("aliases"), ah.DeleteAliasByID)
 	f.Delete("/v1/holders/:holder_id/aliases/:alias_id/related-parties/:related_party_id", auth.Authorize(ApplicationName, "aliases", "delete"), http.ParseUUIDPathParameters("related-parties"), ah.DeleteRelatedParty)
 
 	f.Use(tlMid.EndTracingSpans)

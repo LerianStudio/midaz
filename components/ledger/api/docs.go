@@ -5,7 +5,7 @@ import "github.com/swaggo/swag"
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "v3.6.0",
+	Version:          "v3.7.0",
 	Host:             "localhost:3002",
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},
@@ -33,10 +33,10 @@ const docTemplate = `
       "url": "https://discord.gg/DnhqKwkGv3"
     },
     "license": {
-      "name": "Apache 2.0",
-      "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+      "name": "Elastic License 2.0",
+      "url": "https://www.elastic.co/licensing/elastic-license"
     },
-    "version": "v3.6.0"
+    "version": "v3.7.0"
   },
   "host": "localhost:3002",
   "basePath": "/",
@@ -296,7 +296,7 @@ const docTemplate = `
         }
       }
     },
-    "/v1/organizations/{id}": {
+    "/v1/organizations/{organization_id}": {
       "get": {
         "description": "Returns detailed information about an organization identified by its UUID",
         "produces": [
@@ -323,7 +323,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Organization ID in UUID format",
-            "name": "id",
+            "name": "organization_id",
             "in": "path",
             "required": true
           }
@@ -384,7 +384,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Organization ID in UUID format",
-            "name": "id",
+            "name": "organization_id",
             "in": "path",
             "required": true
           }
@@ -454,7 +454,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Organization ID in UUID format",
-            "name": "id",
+            "name": "organization_id",
             "in": "path",
             "required": true
           },
@@ -789,7 +789,7 @@ const docTemplate = `
         }
       }
     },
-    "/v1/organizations/{organization_id}/ledgers/{id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}": {
       "get": {
         "description": "Returns detailed information about a ledger identified by its UUID within the specified organization",
         "produces": [
@@ -823,7 +823,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Ledger ID in UUID format",
-            "name": "id",
+            "name": "ledger_id",
             "in": "path",
             "required": true
           }
@@ -891,7 +891,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Ledger ID in UUID format",
-            "name": "id",
+            "name": "ledger_id",
             "in": "path",
             "required": true
           }
@@ -968,7 +968,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Ledger ID in UUID format",
-            "name": "id",
+            "name": "ledger_id",
             "in": "path",
             "required": true
           },
@@ -1009,168 +1009,6 @@ const docTemplate = `
           },
           "404": {
             "description": "Ledger or organization not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{id}/settings": {
-      "get": {
-        "description": "Returns the current configuration settings for a specific ledger. If no settings have been persisted, returns the default settings object.",
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Ledgers"
-        ],
-        "summary": "Get ledger settings",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token with format: Bearer {token}",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID for tracing",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID in UUID format",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID in UUID format",
-            "name": "id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successfully retrieved ledger settings",
-            "schema": {
-              "$ref": "#/definitions/mmodel.LedgerSettings"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Ledger not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      },
-      "patch": {
-        "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).",
-        "consumes": [
-          "application/json"
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Ledgers"
-        ],
-        "summary": "Update ledger settings",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token with format: Bearer {token}",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID for tracing",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID in UUID format",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID in UUID format",
-            "name": "id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "description": "Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)",
-            "name": "settings",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "type": "object"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successfully updated ledger settings",
-            "schema": {
-              "$ref": "#/definitions/mmodel.LedgerSettings"
-            }
-          },
-          "400": {
-            "description": "Invalid request body, unknown field (0147), or invalid field type (0148)",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Ledger not found",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1409,7 +1247,7 @@ const docTemplate = `
         }
       }
     },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id}": {
       "get": {
         "description": "Returns detailed information about an account type identified by its UUID within the specified ledger",
         "produces": [
@@ -1450,7 +1288,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Account Type ID in UUID format",
-            "name": "id",
+            "name": "account_type_id",
             "in": "path",
             "required": true
           }
@@ -1528,7 +1366,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Account Type ID in UUID format",
-            "name": "id",
+            "name": "account_type_id",
             "in": "path",
             "required": true
           }
@@ -1600,7 +1438,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Account Type ID in UUID format",
-            "name": "id",
+            "name": "account_type_id",
             "in": "path",
             "required": true
           },
@@ -2319,6 +2157,266 @@ const docTemplate = `
         }
       }
     },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}": {
+      "get": {
+        "description": "Returns detailed information about an account identified by its UUID within the specified ledger",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Retrieve a specific account",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token with format: Bearer {token}",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID for tracing",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID in UUID format",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID in UUID format",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Account ID in UUID format",
+            "name": "account_id",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved account",
+            "schema": {
+              "$ref": "#/definitions/Account"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Account, ledger, or organization not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "delete": {
+        "description": "Permanently removes an account from the specified ledger. This operation cannot be undone.",
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Delete an account",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token with format: Bearer {token}",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID for tracing",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID in UUID format",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID in UUID format",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Account ID in UUID format",
+            "name": "account_id",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Account successfully deleted"
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Account, ledger, or organization not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "409": {
+            "description": "Conflict: Account cannot be deleted due to existing dependencies",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "patch": {
+        "description": "Updates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Update an account",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token with format: Bearer {token}",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID for tracing",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID in UUID format",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID in UUID format",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Account ID in UUID format",
+            "name": "account_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Account properties to update including name, status, portfolio, segment, and optional metadata",
+            "name": "account",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateAccountInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully updated account",
+            "schema": {
+              "$ref": "#/definitions/Account"
+            }
+          },
+          "400": {
+            "description": "Invalid input, validation errors",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Account, ledger, organization, portfolio, or segment not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "409": {
+            "description": "Conflict: Account with the same name already exists",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances": {
       "get": {
         "description": "Get all balances by account id",
@@ -2886,266 +2984,6 @@ const docTemplate = `
           },
           "404": {
             "description": "Operation not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
-      "get": {
-        "description": "Returns detailed information about an account identified by its UUID within the specified ledger",
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Accounts"
-        ],
-        "summary": "Retrieve a specific account",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token with format: Bearer {token}",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID for tracing",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID in UUID format",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID in UUID format",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Account ID in UUID format",
-            "name": "id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successfully retrieved account",
-            "schema": {
-              "$ref": "#/definitions/Account"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Account, ledger, or organization not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      },
-      "delete": {
-        "description": "Permanently removes an account from the specified ledger. This operation cannot be undone.",
-        "tags": [
-          "Accounts"
-        ],
-        "summary": "Delete an account",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token with format: Bearer {token}",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID for tracing",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID in UUID format",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID in UUID format",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Account ID in UUID format",
-            "name": "id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Account successfully deleted"
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Account, ledger, or organization not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "409": {
-            "description": "Conflict: Account cannot be deleted due to existing dependencies",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      },
-      "patch": {
-        "description": "Updates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger",
-        "consumes": [
-          "application/json"
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "Accounts"
-        ],
-        "summary": "Update an account",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Authorization Bearer Token with format: Bearer {token}",
-            "name": "Authorization",
-            "in": "header",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Request ID for tracing",
-            "name": "X-Request-Id",
-            "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID in UUID format",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID in UUID format",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Account ID in UUID format",
-            "name": "id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "description": "Account properties to update including name, status, portfolio, segment, and optional metadata",
-            "name": "account",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/UpdateAccountInput"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successfully updated account",
-            "schema": {
-              "$ref": "#/definitions/Account"
-            }
-          },
-          "400": {
-            "description": "Invalid input, validation errors",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "401": {
-            "description": "Unauthorized access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "403": {
-            "description": "Forbidden access",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "404": {
-            "description": "Account, ledger, organization, portfolio, or segment not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
-          "409": {
-            "description": "Conflict: Account with the same name already exists",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -3777,7 +3615,7 @@ const docTemplate = `
         }
       }
     },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}": {
       "get": {
         "description": "Returns detailed information about an asset identified by its UUID within the specified ledger",
         "produces": [
@@ -3818,7 +3656,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Asset ID in UUID format",
-            "name": "id",
+            "name": "asset_id",
             "in": "path",
             "required": true
           }
@@ -3893,7 +3731,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Asset ID in UUID format",
-            "name": "id",
+            "name": "asset_id",
             "in": "path",
             "required": true
           }
@@ -3977,7 +3815,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Asset ID in UUID format",
-            "name": "id",
+            "name": "asset_id",
             "in": "path",
             "required": true
           },
@@ -4722,7 +4560,7 @@ const docTemplate = `
         }
       }
     },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}": {
       "get": {
         "description": "Returns detailed information about an operation route identified by its UUID within the specified ledger",
         "produces": [
@@ -4763,7 +4601,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Operation Route ID in UUID format",
-            "name": "id",
+            "name": "operation_route_id",
             "in": "path",
             "required": true
           }
@@ -4782,9 +4620,7 @@ const docTemplate = `
             }
           }
         }
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}": {
+      },
       "delete": {
         "description": "Deletes an existing operation route identified by its UUID within the specified ledger",
         "produces": [
@@ -5264,7 +5100,7 @@ const docTemplate = `
         }
       }
     },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}": {
       "get": {
         "description": "Returns detailed information about a portfolio identified by its UUID within the specified ledger",
         "produces": [
@@ -5305,7 +5141,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Portfolio ID in UUID format",
-            "name": "id",
+            "name": "portfolio_id",
             "in": "path",
             "required": true
           }
@@ -5380,7 +5216,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Portfolio ID in UUID format",
-            "name": "id",
+            "name": "portfolio_id",
             "in": "path",
             "required": true
           }
@@ -5464,7 +5300,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Portfolio ID in UUID format",
-            "name": "id",
+            "name": "portfolio_id",
             "in": "path",
             "required": true
           },
@@ -5825,7 +5661,7 @@ const docTemplate = `
         }
       }
     },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}": {
       "get": {
         "description": "Returns detailed information about a segment identified by its UUID within the specified ledger",
         "produces": [
@@ -5866,7 +5702,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Segment ID in UUID format",
-            "name": "id",
+            "name": "segment_id",
             "in": "path",
             "required": true
           }
@@ -5941,7 +5777,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Segment ID in UUID format",
-            "name": "id",
+            "name": "segment_id",
             "in": "path",
             "required": true
           }
@@ -6025,7 +5861,7 @@ const docTemplate = `
           {
             "type": "string",
             "description": "Segment ID in UUID format",
-            "name": "id",
+            "name": "segment_id",
             "in": "path",
             "required": true
           },
@@ -6072,6 +5908,168 @@ const docTemplate = `
           },
           "409": {
             "description": "Conflict: Segment with the same name already exists",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings": {
+      "get": {
+        "description": "Returns the current configuration settings for a specific ledger. If no settings have been persisted, returns the default settings object.",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Ledgers"
+        ],
+        "summary": "Get ledger settings",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token with format: Bearer {token}",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID for tracing",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID in UUID format",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID in UUID format",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved ledger settings",
+            "schema": {
+              "$ref": "#/definitions/mmodel.LedgerSettings"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Ledger not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "patch": {
+        "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Ledgers"
+        ],
+        "summary": "Update ledger settings",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token with format: Bearer {token}",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID for tracing",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID in UUID format",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID in UUID format",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)",
+            "name": "settings",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully updated ledger settings",
+            "schema": {
+              "$ref": "#/definitions/mmodel.LedgerSettings"
+            }
+          },
+          "400": {
+            "description": "Invalid request body, unknown field (0147), or invalid field type (0148)",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Ledger not found",
             "schema": {
               "$ref": "#/definitions/Error"
             }

@@ -102,7 +102,7 @@ func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_alias_by_id")
 	defer span.End()
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "alias_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -162,7 +162,7 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_alias")
 	defer span.End()
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "alias_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -237,7 +237,7 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.remove_alias_by_id")
 	defer span.End()
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "alias_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}

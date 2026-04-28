@@ -480,10 +480,10 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 			handler := &AliasHandler{Service: uc}
 
 			app := fiber.New()
-			app.Get("/v1/holders/:holder_id/aliases/:id",
+			app.Get("/v1/holders/:holder_id/aliases/:alias_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
-					c.Locals("id", aliasID)
+					c.Locals("alias_id", aliasID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
 					return c.Next()
 				},
@@ -738,10 +738,10 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			handler := &AliasHandler{Service: uc}
 
 			app := fiber.New()
-			app.Patch("/v1/holders/:holder_id/aliases/:id",
+			app.Patch("/v1/holders/:holder_id/aliases/:alias_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
-					c.Locals("id", aliasID)
+					c.Locals("alias_id", aliasID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
 					return c.Next()
 				},
@@ -859,10 +859,10 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 			handler := &AliasHandler{Service: uc}
 
 			app := fiber.New()
-			app.Delete("/v1/holders/:holder_id/aliases/:id",
+			app.Delete("/v1/holders/:holder_id/aliases/:alias_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
-					c.Locals("id", aliasID)
+					c.Locals("alias_id", aliasID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
 					return c.Next()
 				},

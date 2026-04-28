@@ -132,10 +132,10 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 //	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
 //	@Param			organization_id	path		string					true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
-//	@Param			id				path		string					true	"Operation Route ID in UUID format"
+//	@Param			operation_route_id				path		string					true	"Operation Route ID in UUID format"
 //	@Success		200				{object}	mmodel.OperationRoute	"Successfully retrieved operation route"
 //	@Failure		401				{object}	mmodel.Error			"Unauthorized access"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{id} [get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id} [get]
 func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

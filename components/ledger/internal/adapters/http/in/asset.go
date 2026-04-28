@@ -199,13 +199,13 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			id				path		string			true	"Asset ID in UUID format"
+//	@Param			asset_id				path		string			true	"Asset ID in UUID format"
 //	@Success		200				{object}	mmodel.Asset	"Successfully retrieved asset"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Asset, ledger, or organization not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id} [get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id} [get]
 func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -256,7 +256,7 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
 //	@Param			organization_id	path		string					true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
-//	@Param			id				path		string					true	"Asset ID in UUID format"
+//	@Param			asset_id				path		string					true	"Asset ID in UUID format"
 //	@Param			asset			body		mmodel.UpdateAssetInput	true	"Asset properties to update including name, status, and optional metadata"
 //	@Success		200				{object}	mmodel.Asset			"Successfully updated asset"
 //	@Failure		400				{object}	mmodel.Error			"Invalid input, validation errors"
@@ -265,7 +265,7 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 //	@Failure		404				{object}	mmodel.Error			"Asset, ledger, or organization not found"
 //	@Failure		409				{object}	mmodel.Error			"Conflict: Asset with the same name already exists"
 //	@Failure		500				{object}	mmodel.Error			"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id} [patch]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id} [patch]
 func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -327,14 +327,14 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			id				path		string			true	"Asset ID in UUID format"
+//	@Param			asset_id				path		string			true	"Asset ID in UUID format"
 //	@Success		204				"Asset successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Asset, ledger, or organization not found"
 //	@Failure		409				{object}	mmodel.Error	"Conflict: Asset cannot be deleted due to existing dependencies"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id} [delete]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id} [delete]
 func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
