@@ -99,6 +99,10 @@ type Amount struct {
 	TransactionType        string `json:"transactionType,omitempty" swaggerignore:"true"`
 	Direction              string `json:"direction,omitempty" swaggerignore:"true"`
 	RouteValidationEnabled bool   `json:"routeValidationEnabled,omitempty" swaggerignore:"true"`
+	// OverdraftAmount carries the exact overdraft delta for state-transition
+	// reversals. It is zero for normal transactions, where Lua derives the
+	// split from live balance state.
+	OverdraftAmount decimal.Decimal `json:"overdraftAmount,omitempty" swaggerignore:"true"`
 } // @name Amount
 
 // Share structure for marshaling/unmarshalling JSON.

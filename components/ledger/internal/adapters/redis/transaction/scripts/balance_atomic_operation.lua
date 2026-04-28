@@ -241,7 +241,7 @@ end
 local function main()
     local ttl = 3600 -- 1 hour
 
-    local groupSize = 23
+    local groupSize = 24
     local returnBalances = {}
     local returnBalancesAfter = {}
     local rollbackBalances = {}
@@ -322,6 +322,11 @@ local function main()
             BalanceScope = ARGV[i + 22],
         }
 
+        -- Exact overdraft delta supplied by Go for pending-cancel reversals.
+        -- Normal transaction paths pass zero and keep Lua's live-state split
+        -- calculation authoritative.
+        local overdraftAmount = ARGV[i + 23]
+
         -- Preserve the Go-provided version before the cache may overwrite it.
         -- Used for stale-version detection on overdraft-relevant operations.
         local incomingVersion = balance.Version
@@ -386,6 +391,12 @@ local function main()
                 else
                     result = sub_decimal(balance.Available, amount)
                 end
+            elseif operation == "DEBIT" and transactionStatus == "PENDING" and isDebitDirection then
+                -- Legacy pending overdraft companion: the user-facing source
+                -- is an ON_HOLD, but the internal direction=debit companion
+                -- receives a synthetic DEBIT so liability state matches the
+                -- one-phase overdraft path.
+                result = add_decimal(balance.Available, amount)
             elseif operation == "ON_HOLD" and transactionStatus == "PENDING" and routeValidationEnabled == 1 then
                 -- Double-entry: ON_HOLD only increments OnHold.
                 -- The Available-- was already done by the separate DEBIT operation.
@@ -415,6 +426,11 @@ local function main()
                 else
                     result = add_decimal(balance.Available, amount)
                 end
+            elseif operation == "CREDIT" and transactionStatus == "CANCELED" and isDebitDirection then
+                -- Legacy pending overdraft companion cancel: shrink the
+                -- direction=debit liability that was created by the pending
+                -- companion DEBIT.
+                result = sub_decimal(balance.Available, amount)
             elseif operation == "ON_HOLD" and transactionStatus == "APPROVED" and routeValidationEnabled == 1 then
                 -- Double-entry: ON_HOLD in APPROVED only decrements OnHold.
                 -- The Available++ will be a separate CREDIT operation.
@@ -476,6 +492,9 @@ local function main()
             end
 
             local repay = min_decimal(amount, balance.OverdraftUsed)
+            if isPositive(overdraftAmount) then
+                repay = min_decimal(min_decimal(overdraftAmount, amount), balance.OverdraftUsed)
+            end
 
             newOverdraftUsed = sub_decimal(balance.OverdraftUsed, repay)
             -- `result` was already computed as balance.Available + amount
@@ -483,6 +502,22 @@ local function main()
             -- portion to expose just the remainder that flows into
             -- Available; the repayment itself leaves Available untouched
             -- because it goes toward paying down OverdraftUsed.
+            result = sub_decimal(result, repay)
+        end
+
+        -- Legacy pending cancel reversal: RELEASE both clears OnHold and
+        -- restores Available. If the original hold consumed overdraft, only
+        -- the non-overdraft portion should return to Available and the exact
+        -- overdraft delta must be removed from OverdraftUsed.
+        if operation == "RELEASE" and transactionStatus == "CANCELED" and routeValidationEnabled == 0 and
+            not isDebitDirection and balance.AccountType ~= "external" and isPositive(overdraftAmount) then
+            if balance.Version ~= incomingVersion then
+                rollback(rollbackBalances, ttl)
+                return redis.error_reply("0175")
+            end
+
+            local repay = min_decimal(min_decimal(overdraftAmount, amount), balance.OverdraftUsed)
+            newOverdraftUsed = sub_decimal(balance.OverdraftUsed, repay)
             result = sub_decimal(result, repay)
         end
 

@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
@@ -190,6 +192,104 @@ func TestEnrichOverdraftOperations_SourceDebitSplit(t *testing.T) {
 	assert.True(t, ft.Amount.Value.Equal(decimal.NewFromInt(50)),
 		"companion FromTo amount must equal the deficit")
 	assert.True(t, ft.IsFrom, "debit enrichment companion lives on the source side")
+}
+
+func TestEnrichOverdraftOperations_PendingLegacyOnHoldSplit(t *testing.T) {
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	source := overdraftEnabledBalance(t, "@alice", decimal.NewFromInt(50), "100")
+	companion := companionOverdraftBalance("@alice")
+
+	primary := mmodel.BalanceOperation{
+		Balance: source,
+		Alias:   "0#@alice#default",
+		Amount: mtransaction.Amount{
+			Asset:                  "BRL",
+			Value:                  decimal.NewFromInt(100),
+			Operation:              constant.ONHOLD,
+			TransactionType:        constant.PENDING,
+			Direction:              constant.DirectionDebit,
+			RouteValidationEnabled: false,
+		},
+		InternalKey: utils.BalanceInternalKey(orgID, ledgerID, "@alice#default"),
+	}
+
+	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
+		assert.Equal(t, []string{"@alice#overdraft"}, aliases)
+
+		return []*mmodel.Balance{companion}, nil
+	}
+
+	validate := &mtransaction.Responses{
+		From: map[string]mtransaction.Amount{
+			"0#@alice#default": primary.Amount,
+		},
+		Sources: []string{"@alice#default"},
+		Aliases: []string{"@alice#default"},
+	}
+
+	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+		[]mmodel.BalanceOperation{primary}, validate, loader)
+	require.NoError(t, err)
+	require.Len(t, enriched, 2)
+
+	companionOp := enriched[1]
+	assert.Equal(t, libConstants.DEBIT, companionOp.Amount.Operation,
+		"pending legacy hold must still debit the direction=debit companion")
+	assert.Equal(t, constant.DirectionDebit, companionOp.Amount.Direction)
+	assert.True(t, companionOp.Amount.Value.Equal(decimal.NewFromInt(50)))
+	assert.Equal(t, constant.PENDING, companionOp.Amount.TransactionType)
+
+	require.Len(t, companionFromTos, 1)
+	assert.Equal(t, "0#@alice#overdraft", companionFromTos[0].AccountAlias)
+	assert.True(t, companionFromTos[0].IsFrom)
+	assert.Contains(t, validate.Sources, "@alice#overdraft")
+}
+
+func TestEnrichOverdraftOperations_PendingRouteValidationOnHoldDoesNotDoubleSplit(t *testing.T) {
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	source := overdraftEnabledBalance(t, "@alice", decimal.NewFromInt(50), "100")
+	companion := companionOverdraftBalance("@alice")
+
+	debit := mmodel.BalanceOperation{
+		Balance: source,
+		Alias:   "0#@alice#default",
+		Amount: mtransaction.Amount{
+			Asset:                  "BRL",
+			Value:                  decimal.NewFromInt(100),
+			Operation:              libConstants.DEBIT,
+			TransactionType:        constant.PENDING,
+			Direction:              constant.DirectionDebit,
+			RouteValidationEnabled: true,
+		},
+	}
+	onHold := debit
+	onHold.Amount.Operation = constant.ONHOLD
+	onHold.Amount.Direction = constant.DirectionCredit
+
+	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
+		return []*mmodel.Balance{companion}, nil
+	}
+
+	validate := &mtransaction.Responses{
+		From: map[string]mtransaction.Amount{
+			"0#@alice#default": onHold.Amount,
+		},
+		Sources: []string{"@alice#default"},
+		Aliases: []string{"@alice#default"},
+	}
+
+	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+		[]mmodel.BalanceOperation{debit, onHold}, validate, loader)
+	require.NoError(t, err)
+
+	require.Len(t, enriched, 3, "only the generated DEBIT leg may create a companion")
+	assert.Equal(t, libConstants.DEBIT, enriched[2].Amount.Operation)
+	assert.True(t, enriched[2].Amount.Value.Equal(decimal.NewFromInt(50)))
+	require.Len(t, companionFromTos, 1, "route-validation ON_HOLD leg must not create a duplicate companion")
 }
 
 // TestEnrichOverdraftOperations_NoSplitForNonOverflow guards the common path:
@@ -520,6 +620,120 @@ func TestRejectInternalScopeBalances_AllowsTransactionalBalances(t *testing.T) {
 
 	err := rejectInternalScopeBalances(context.Background(), transactional)
 	require.NoError(t, err, "transactional balances and nil entries must pass through")
+}
+
+func TestAnnotateCanceledOverdraftAmounts_UsesPendingCompanionAmount(t *testing.T) {
+	release := mmodel.BalanceOperation{
+		Alias: "0#@alice#default",
+		Amount: mtransaction.Amount{
+			Value:                  decimal.NewFromInt(100),
+			Operation:              constant.RELEASE,
+			TransactionType:        constant.CANCELED,
+			RouteValidationEnabled: false,
+		},
+	}
+
+	tran := &transaction.Transaction{
+		Operations: []*operation.Operation{
+			{
+				Type:         libConstants.DEBIT,
+				BalanceKey:   constant.OverdraftBalanceKey,
+				AccountAlias: "@alice",
+				Amount:       operation.Amount{Value: decimalPtr(decimal.NewFromInt(50))},
+			},
+		},
+	}
+
+	annotated := annotateCanceledOverdraftAmounts([]mmodel.BalanceOperation{release}, tran)
+	require.Len(t, annotated, 1)
+	assert.True(t, annotated[0].Amount.OverdraftAmount.Equal(decimal.NewFromInt(50)),
+		"legacy RELEASE needs the exact pending overdraft deficit so Lua restores only the non-overdraft portion")
+}
+
+func TestAnnotateCanceledOverdraftAmounts_RouteValidationAnnotatesCreditOnly(t *testing.T) {
+	release := mmodel.BalanceOperation{
+		Alias: "0#@alice#default",
+		Amount: mtransaction.Amount{
+			Value:                  decimal.NewFromInt(100),
+			Operation:              constant.RELEASE,
+			TransactionType:        constant.CANCELED,
+			RouteValidationEnabled: true,
+		},
+	}
+	credit := release
+	credit.Amount.Operation = libConstants.CREDIT
+
+	tran := &transaction.Transaction{
+		Operations: []*operation.Operation{
+			{
+				Type:         libConstants.DEBIT,
+				BalanceKey:   constant.OverdraftBalanceKey,
+				AccountAlias: "@alice",
+				Amount:       operation.Amount{Value: decimalPtr(decimal.NewFromInt(20))},
+			},
+		},
+	}
+
+	annotated := annotateCanceledOverdraftAmounts([]mmodel.BalanceOperation{release, credit}, tran)
+	require.Len(t, annotated, 2)
+	assert.True(t, annotated[0].Amount.OverdraftAmount.IsZero(),
+		"route-validation RELEASE only clears OnHold; CREDIT carries the overdraft repayment override")
+	assert.True(t, annotated[1].Amount.OverdraftAmount.Equal(decimal.NewFromInt(20)))
+}
+
+func TestEnrichOverdraftOperations_CanceledReleaseAddsSourceCompanionCredit(t *testing.T) {
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	source := overdraftEnabledBalance(t, "@alice", decimal.Zero, "100")
+	source.OverdraftUsed = decimal.NewFromInt(50)
+	companion := companionOverdraftBalance("@alice")
+	companion.Available = decimal.NewFromInt(50)
+
+	release := mmodel.BalanceOperation{
+		Balance: source,
+		Alias:   "0#@alice#default",
+		Amount: mtransaction.Amount{
+			Asset:           "BRL",
+			Value:           decimal.NewFromInt(100),
+			Operation:       constant.RELEASE,
+			TransactionType: constant.CANCELED,
+			Direction:       constant.DirectionCredit,
+			OverdraftAmount: decimal.NewFromInt(50),
+		},
+	}
+
+	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
+		assert.Equal(t, []string{"@alice#overdraft"}, aliases)
+
+		return []*mmodel.Balance{companion}, nil
+	}
+
+	validate := &mtransaction.Responses{
+		From: map[string]mtransaction.Amount{
+			"0#@alice#default": release.Amount,
+		},
+		Sources: []string{"@alice#default"},
+		Aliases: []string{"@alice#default"},
+	}
+
+	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+		[]mmodel.BalanceOperation{release}, validate, loader)
+	require.NoError(t, err)
+	require.Len(t, enriched, 2)
+
+	companionOp := enriched[1]
+	assert.Equal(t, libConstants.CREDIT, companionOp.Amount.Operation,
+		"cancel must credit the direction=debit companion to remove the pending liability")
+	assert.True(t, companionOp.Amount.Value.Equal(decimal.NewFromInt(50)))
+
+	require.Len(t, companionFromTos, 1)
+	assert.True(t, companionFromTos[0].IsFrom, "cancel companion remains on the source side")
+	assert.Contains(t, validate.Sources, "@alice#overdraft")
+}
+
+func decimalPtr(value decimal.Decimal) *decimal.Decimal {
+	return &value
 }
 
 // TestEnrichOverdraftOperations_DebitCompanionInheritsRouteID locks in the

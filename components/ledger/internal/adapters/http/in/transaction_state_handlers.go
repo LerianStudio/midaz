@@ -472,6 +472,21 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	}
 
 	balanceOps := buildBalanceOperations(ctx, organizationID, ledgerID, validate, balances)
+	balanceOps = annotateCanceledOverdraftAmounts(balanceOps, tran)
+
+	var companionFromTos []mtransaction.FromTo
+	if transactionStatus == constant.CANCELED {
+		balanceOps, companionFromTos, err = enrichOverdraftOperations(ctx, organizationID, ledgerID, balanceOps,
+			validate, handler.Query.GetBalances)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to enrich canceled overdraft operations", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to enrich canceled overdraft operations", libLog.Err(err))
+
+			deleteLockOnError()
+
+			return http.WithError(c, err)
+		}
+	}
 
 	routeCache, err := handler.Query.ValidateAccountingRules(ctx, organizationID, ledgerID, balanceOps, validate, action)
 	if err != nil {
@@ -528,6 +543,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		fromTo = append(fromTo, to...)
 	}
 
+	fromTo = append(fromTo, companionFromTos...)
+
 	tran.UpdatedAt = time.Now()
 	tran.Status = transaction.Status{
 		Code:        transactionStatus,
@@ -544,8 +561,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	tran.Source = getAliasWithoutKey(validate.Sources)
-	tran.Destination = getAliasWithoutKey(validate.Destinations)
+	tran.Source = getAliasWithoutKey(filterCompanionAliases(validate.Sources))
+	tran.Destination = getAliasWithoutKey(filterCompanionAliases(validate.Destinations))
 	tran.Operations = operations
 
 	ctxBackup, spanBackup := tracer.Start(ctx, "handler.commit_or_cancel_transaction.send_to_redis_queue")

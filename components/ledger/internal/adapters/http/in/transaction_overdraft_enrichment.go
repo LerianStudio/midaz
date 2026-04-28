@@ -7,6 +7,7 @@ package in
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
@@ -14,6 +15,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -127,8 +130,9 @@ func enrichOverdraftOperations(
 
 	debits := collectOverdraftDebitSplits(balanceOps)
 	refunds := collectOverdraftRefundSplits(balanceOps)
+	cancellations := collectOverdraftCancelSplits(balanceOps)
 
-	if len(debits) == 0 && len(refunds) == 0 {
+	if len(debits) == 0 && len(refunds) == 0 && len(cancellations) == 0 {
 		return balanceOps, nil, nil
 	}
 
@@ -138,7 +142,7 @@ func enrichOverdraftOperations(
 	// same balance can also appear as both a debit and a refund candidate
 	// across a transaction (e.g. a multi-leg transfer), so the alias set is
 	// built from the union of both.
-	aliasSet := make(map[string]struct{}, len(debits)+len(refunds))
+	aliasSet := make(map[string]struct{}, len(debits)+len(refunds)+len(cancellations))
 
 	for _, s := range debits {
 		aliasSet[s.companionAliasKey] = struct{}{}
@@ -146,6 +150,10 @@ func enrichOverdraftOperations(
 
 	for _, r := range refunds {
 		aliasSet[r.companionAliasKey] = struct{}{}
+	}
+
+	for _, c := range cancellations {
+		aliasSet[c.companionAliasKey] = struct{}{}
 	}
 
 	uniqueAliases := make([]string, 0, len(aliasSet))
@@ -220,6 +228,33 @@ func enrichOverdraftOperations(
 
 		companionFromTos = append(companionFromTos,
 			buildCompanionFromTo(r.destination, companionOp, false /* isFrom */, primaryRouteID))
+	}
+
+	for _, c := range cancellations {
+		companion, ok := companionByAliasKey[c.companionAliasKey]
+		if !ok {
+			logger.Log(ctx, libLog.LevelWarn,
+				"Overdraft companion balance not found; skipping cancel enrichment",
+				libLog.String("alias_key", c.companionAliasKey))
+
+			continue
+		}
+
+		companionOp := buildCompanionCreditOp(organizationID, ledgerID, overdraftRefund{
+			destination:       c.source,
+			repayAmount:       c.repayAmount,
+			companionAliasKey: c.companionAliasKey,
+		}, companion)
+		balanceOps = append(balanceOps, companionOp)
+
+		primaryRouteID := lookupRouteID(validate, c.source.Alias, true /* isFrom */)
+
+		if validate != nil {
+			registerCompanionInValidate(validate, c.source, companionOp, primaryRouteID)
+		}
+
+		companionFromTos = append(companionFromTos,
+			buildCompanionFromTo(c.source, companionOp, true /* isFrom */, primaryRouteID))
 	}
 
 	return balanceOps, companionFromTos, nil
@@ -368,10 +403,7 @@ func collectOverdraftDebitSplits(balanceOps []mmodel.BalanceOperation) []overdra
 			continue
 		}
 
-		// DetectOverdraftSplit consumes the transaction-layer Balance shape,
-		// so we convert lazily only when the op is a DEBIT. This keeps the
-		// common (non-overdraft) path free of allocation.
-		if op.Amount.Operation != libConstants.DEBIT {
+		if !isOverdraftDebitSplitCandidate(op.Amount) {
 			continue
 		}
 
@@ -380,7 +412,10 @@ func collectOverdraftDebitSplits(balanceOps []mmodel.BalanceOperation) []overdra
 			continue
 		}
 
-		split, deficit := mtransaction.DetectOverdraftSplit(op.Amount, *txBalance)
+		detectAmount := op.Amount
+		detectAmount.Operation = libConstants.DEBIT
+
+		split, deficit := mtransaction.DetectOverdraftSplit(detectAmount, *txBalance)
 		if !split {
 			continue
 		}
@@ -393,6 +428,16 @@ func collectOverdraftDebitSplits(balanceOps []mmodel.BalanceOperation) []overdra
 	}
 
 	return splits
+}
+
+func isOverdraftDebitSplitCandidate(amount mtransaction.Amount) bool {
+	if amount.Operation == libConstants.DEBIT {
+		return true
+	}
+
+	return amount.Operation == constant.ONHOLD &&
+		amount.TransactionType == constant.PENDING &&
+		!amount.RouteValidationEnabled
 }
 
 // buildCompanionDebitOp constructs the BalanceOperation that mirrors the
@@ -463,7 +508,7 @@ func collectOverdraftRefundSplits(balanceOps []mmodel.BalanceOperation) []overdr
 			continue
 		}
 
-		if op.Amount.Operation != libConstants.CREDIT {
+		if op.Amount.Operation != libConstants.CREDIT || isCancelOverdraftOverride(op.Amount) {
 			continue
 		}
 
@@ -485,6 +530,56 @@ func collectOverdraftRefundSplits(balanceOps []mmodel.BalanceOperation) []overdr
 	}
 
 	return refunds
+}
+
+type overdraftCancel struct {
+	source            mmodel.BalanceOperation
+	repayAmount       decimal.Decimal
+	companionAliasKey string
+}
+
+func collectOverdraftCancelSplits(balanceOps []mmodel.BalanceOperation) []overdraftCancel {
+	cancellations := make([]overdraftCancel, 0)
+
+	for _, op := range balanceOps {
+		if op.Balance == nil || !isCancelOverdraftOverride(op.Amount) {
+			continue
+		}
+
+		txBalance, tErr := op.Balance.ToTransactionBalance()
+		if tErr != nil || txBalance == nil {
+			continue
+		}
+
+		if txBalance.Direction != constant.DirectionCredit || !txBalance.OverdraftUsed.GreaterThan(decimal.Zero) {
+			continue
+		}
+
+		repay := decimal.Min(op.Amount.OverdraftAmount, txBalance.OverdraftUsed)
+		if repay.GreaterThan(op.Amount.Value) {
+			repay = op.Amount.Value
+		}
+
+		if !repay.GreaterThan(decimal.Zero) {
+			continue
+		}
+
+		cancellations = append(cancellations, overdraftCancel{
+			source:            op,
+			repayAmount:       repay,
+			companionAliasKey: op.Balance.Alias + "#" + constant.OverdraftBalanceKey,
+		})
+	}
+
+	return cancellations
+}
+
+func isCancelOverdraftOverride(amount mtransaction.Amount) bool {
+	if amount.TransactionType != constant.CANCELED || !amount.OverdraftAmount.GreaterThan(decimal.Zero) {
+		return false
+	}
+
+	return amount.Operation == constant.RELEASE || amount.Operation == libConstants.CREDIT
 }
 
 // buildCompanionCreditOp constructs the CREDIT op on the direction=debit
@@ -659,4 +754,93 @@ func stripIndexPrefix(alias string) string {
 	}
 
 	return alias[len(prefix):]
+}
+
+func accountAliasFromOperationAlias(alias string) string {
+	bare := stripIndexPrefix(alias)
+	idx := strings.LastIndex(bare, "#")
+	if idx < 0 {
+		return bare
+	}
+
+	return bare[:idx]
+}
+
+func pendingOverdraftUsageByAlias(ops []*operation.Operation) map[string]decimal.Decimal {
+	usage := make(map[string]decimal.Decimal)
+
+	for _, op := range ops {
+		if op == nil || op.BalanceKey != constant.OverdraftBalanceKey || op.Type != libConstants.DEBIT || op.Amount.Value == nil {
+			continue
+		}
+
+		if !op.Amount.Value.GreaterThan(decimal.Zero) {
+			continue
+		}
+
+		usage[op.AccountAlias] = usage[op.AccountAlias].Add(*op.Amount.Value)
+	}
+
+	for _, op := range ops {
+		if op == nil || op.BalanceKey == constant.OverdraftBalanceKey || op.Type != constant.ONHOLD {
+			continue
+		}
+
+		if existing, ok := usage[op.AccountAlias]; ok && existing.GreaterThan(decimal.Zero) {
+			continue
+		}
+
+		before, beforeErr := decimal.NewFromString(op.Snapshot.OverdraftUsedBefore)
+		after, afterErr := decimal.NewFromString(op.Snapshot.OverdraftUsedAfter)
+		if beforeErr != nil || afterErr != nil {
+			continue
+		}
+
+		delta := after.Sub(before)
+		if delta.GreaterThan(decimal.Zero) {
+			usage[op.AccountAlias] = usage[op.AccountAlias].Add(delta)
+		}
+	}
+
+	return usage
+}
+
+func annotateCanceledOverdraftAmounts(balanceOps []mmodel.BalanceOperation, tran *transaction.Transaction) []mmodel.BalanceOperation {
+	if tran == nil || len(tran.Operations) == 0 {
+		return balanceOps
+	}
+
+	usageByAlias := pendingOverdraftUsageByAlias(tran.Operations)
+	if len(usageByAlias) == 0 {
+		return balanceOps
+	}
+
+	for i := range balanceOps {
+		amount := balanceOps[i].Amount
+		if amount.TransactionType != constant.CANCELED {
+			continue
+		}
+
+		if amount.Operation != constant.RELEASE && amount.Operation != libConstants.CREDIT {
+			continue
+		}
+
+		if amount.RouteValidationEnabled && amount.Operation != libConstants.CREDIT {
+			continue
+		}
+
+		if !amount.RouteValidationEnabled && amount.Operation != constant.RELEASE {
+			continue
+		}
+
+		alias := accountAliasFromOperationAlias(balanceOps[i].Alias)
+		usage, ok := usageByAlias[alias]
+		if !ok || !usage.GreaterThan(decimal.Zero) {
+			continue
+		}
+
+		balanceOps[i].Amount.OverdraftAmount = usage
+	}
+
+	return balanceOps
 }

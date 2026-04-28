@@ -629,8 +629,8 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 // operation. It must match the stride used in the Lua script's parsing loop
 // (balance_atomic_operation.lua: `for i = 1, #ARGV, groupSize do`).
 //
-// Layout: 17 base fields + 6 overdraft fields = 23 total.
-const luaArgsPerOperation = 23
+// Layout: 17 base fields + 7 overdraft fields = 24 total.
+const luaArgsPerOperation = 24
 
 func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.Context, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*balanceAtomicOperationPlan, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -689,7 +689,7 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 			}
 		}
 
-		// Each group of luaArgsPerOperation (23) values maps to one iteration
+		// Each group of luaArgsPerOperation (24) values maps to one iteration
 		// of the Lua script's `for i = 1, #ARGV, groupSize` loop.
 		// See: scripts/balance_atomic_operation.lua.
 		plan.args = append(plan.args,
@@ -716,6 +716,7 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 			overdraftLimitEnabled,                       // ARGV[i+20] → balance.OverdraftLimitEnabled (0/1)
 			overdraftLimit,                              // ARGV[i+21] → balance.OverdraftLimit
 			balanceScope,                                // ARGV[i+22] → balance.BalanceScope
+			blcs.Amount.OverdraftAmount.String(),        // ARGV[i+23] → overdraft reversal amount
 		)
 
 		plan.mapBalances[blcs.Alias] = blcs.Balance
