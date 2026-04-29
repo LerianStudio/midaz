@@ -857,6 +857,108 @@ func TestTransactionRevert_FoldsOverdraftCompanionIntoDefaultLeg(t *testing.T) {
 		"default reverse credit must include the default movement plus overdraft companion amount")
 }
 
+func TestTransactionRevert_FoldsOverdraftCompanionRegardlessOfOperationOrder(t *testing.T) {
+	t.Parallel()
+
+	amount100 := decimal.NewFromInt(100)
+	amount50 := decimal.NewFromInt(50)
+	txn := Transaction{
+		Description: "overdraft transfer with companion before default",
+		AssetCode:   "BRL",
+		Amount:      &amount100,
+		Operations: []*operation.Operation{
+			{
+				Type:         pkgConstant.OVERDRAFT,
+				Direction:    pkgConstant.DirectionDebit,
+				AccountAlias: "@source",
+				BalanceKey:   pkgConstant.OverdraftBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount50},
+			},
+			{
+				Type:         constant.DEBIT,
+				AccountAlias: "@source",
+				BalanceKey:   pkgConstant.DefaultBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount50},
+			},
+			{
+				Type:         constant.CREDIT,
+				AccountAlias: "@destination",
+				BalanceKey:   pkgConstant.DefaultBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount100},
+			},
+		},
+	}
+
+	reverted := txn.TransactionRevert()
+
+	require.Len(t, reverted.Send.Source.From, 1)
+	assert.Equal(t, "@destination", reverted.Send.Source.From[0].AccountAlias)
+	assert.True(t, reverted.Send.Source.From[0].Amount.Value.Equal(amount100))
+	require.Len(t, reverted.Send.Distribute.To, 1)
+	assert.Equal(t, "@source", reverted.Send.Distribute.To[0].AccountAlias)
+	assert.Equal(t, pkgConstant.DefaultBalanceKey, reverted.Send.Distribute.To[0].BalanceKey)
+	assert.True(t, reverted.Send.Distribute.To[0].Amount.Value.Equal(amount100),
+		"companion amount must be folded even when PostgreSQL returns it before the default DEBIT")
+}
+
+func TestTransactionRevert_DoesNotDoubleCountCommittedPendingOverdraftCompanion(t *testing.T) {
+	t.Parallel()
+
+	amount100 := decimal.NewFromInt(100)
+	amount50 := decimal.NewFromInt(50)
+	txn := Transaction{
+		Description: "committed pending overdraft transfer",
+		AssetCode:   "BRL",
+		Amount:      &amount100,
+		Operations: []*operation.Operation{
+			{
+				Type:         constant.ONHOLD,
+				Direction:    pkgConstant.DirectionDebit,
+				AccountAlias: "@source",
+				BalanceKey:   pkgConstant.DefaultBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount100},
+			},
+			{
+				Type:         pkgConstant.OVERDRAFT,
+				Direction:    pkgConstant.DirectionDebit,
+				AccountAlias: "@source",
+				BalanceKey:   pkgConstant.OverdraftBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount50},
+			},
+			{
+				Type:         constant.CREDIT,
+				AccountAlias: "@destination",
+				BalanceKey:   pkgConstant.DefaultBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount100},
+			},
+			{
+				Type:         constant.DEBIT,
+				AccountAlias: "@source",
+				BalanceKey:   pkgConstant.DefaultBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount100},
+			},
+		},
+	}
+
+	reverted := txn.TransactionRevert()
+
+	require.Len(t, reverted.Send.Source.From, 1)
+	assert.Equal(t, "@destination", reverted.Send.Source.From[0].AccountAlias)
+	assert.True(t, reverted.Send.Source.From[0].Amount.Value.Equal(amount100))
+	require.Len(t, reverted.Send.Distribute.To, 1)
+	assert.Equal(t, "@source", reverted.Send.Distribute.To[0].AccountAlias)
+	assert.Equal(t, pkgConstant.DefaultBalanceKey, reverted.Send.Distribute.To[0].BalanceKey)
+	assert.True(t, reverted.Send.Distribute.To[0].Amount.Value.Equal(amount100),
+		"committed pending DEBIT already carries the full amount; companion must not inflate revert to 150")
+}
+
 func TestTransactionRevert_DirectionNotSet(t *testing.T) {
 	t.Parallel()
 

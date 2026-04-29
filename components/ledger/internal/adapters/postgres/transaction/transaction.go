@@ -310,7 +310,7 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 			return entries
 		}
 
-		entries[idx].Amount.Value = entries[idx].Amount.Value.Add(*op.Amount.Value)
+		entries[idx].Amount.Value = decimal.Min(entries[idx].Amount.Value.Add(*op.Amount.Value), *t.Amount)
 
 		return entries
 	}
@@ -321,23 +321,8 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 		}
 
 		switch op.Type {
-		// Only CREDIT and DEBIT appear in APPROVED transactions, which is the
-		// only status eligible for revert (guarded upstream).  ONHOLD and
-		// RELEASE are excluded because they belong to PENDING flows.
-		case pkgConstant.OVERDRAFT:
-			switch op.Direction {
-			case pkgConstant.DirectionCredit:
-				froms = addCompanionAmount(froms, fromByAlias, op)
-			case pkgConstant.DirectionDebit, "":
-				tos = addCompanionAmount(tos, toByAlias, op)
-			}
-
-			continue
-
 		case constant.CREDIT:
 			if op.BalanceKey == pkgConstant.OverdraftBalanceKey {
-				froms = addCompanionAmount(froms, fromByAlias, op)
-
 				continue
 			}
 
@@ -360,8 +345,6 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 			fromByAlias[op.AccountAlias] = len(froms) - 1
 		case constant.DEBIT:
 			if op.BalanceKey == pkgConstant.OverdraftBalanceKey {
-				tos = addCompanionAmount(tos, toByAlias, op)
-
 				continue
 			}
 
@@ -382,6 +365,19 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 				RouteID:         op.RouteID,
 			})
 			toByAlias[op.AccountAlias] = len(tos) - 1
+		}
+	}
+
+	for _, op := range t.Operations {
+		if op.Amount.Value == nil || (op.Type != pkgConstant.OVERDRAFT && op.BalanceKey != pkgConstant.OverdraftBalanceKey) {
+			continue
+		}
+
+		switch op.Direction {
+		case pkgConstant.DirectionCredit:
+			froms = addCompanionAmount(froms, fromByAlias, op)
+		case pkgConstant.DirectionDebit, "":
+			tos = addCompanionAmount(tos, toByAlias, op)
 		}
 	}
 
