@@ -172,12 +172,12 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	if headerParams.Status != nil && *headerParams.Status != "ACTIVE" && *headerParams.Status != "INACTIVE" {
+	if headerParams.Status != nil && !isValidStatus(*headerParams.Status, ledgerAllowedStatuses) {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLedger, "status")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters: invalid ledger status", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to validate ledger status query parameter, Error: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate ledger status query parameter", libLog.String("status", *headerParams.Status), libLog.Err(err))
 
 		return http.WithError(c, err)
 	}

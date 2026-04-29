@@ -162,12 +162,12 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	if headerParams.Status != nil && *headerParams.Status != "ACTIVE" && *headerParams.Status != "INACTIVE" && *headerParams.Status != "BLOCKED" {
+	if headerParams.Status != nil && !isValidStatus(*headerParams.Status, accountAllowedStatuses) {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityAccount, "status")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters: invalid account status", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to validate account status query parameter, Error: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate account status query parameter", libLog.String("status", *headerParams.Status), libLog.Err(err))
 
 		return http.WithError(c, err)
 	}

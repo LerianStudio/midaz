@@ -202,12 +202,12 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	if headerParams.Status != nil && *headerParams.Status != "ACTIVE" && *headerParams.Status != "INACTIVE" {
+	if headerParams.Status != nil && !isValidStatus(*headerParams.Status, organizationAllowedStatuses) {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityOrganization, "status")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters: invalid organization status", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to validate organization status query parameter, Error: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate organization status query parameter", libLog.String("status", *headerParams.Status), libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
