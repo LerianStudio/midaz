@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	"github.com/iancoleman/strcase"
 	"go.mongodb.org/mongo-driver/bson"
 )

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/google/uuid"

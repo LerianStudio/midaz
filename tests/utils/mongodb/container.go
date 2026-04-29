@@ -16,7 +16,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 
-	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
+	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"

@@ -7,8 +7,8 @@ package bootstrap
 import (
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

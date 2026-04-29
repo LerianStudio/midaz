@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v4/commons/crypto"
+	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"

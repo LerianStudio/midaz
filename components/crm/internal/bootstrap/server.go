@@ -8,10 +8,10 @@ import (
 	"context"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libCommonsLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libCommonsOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	libCommonsServer "github.com/LerianStudio/lib-commons/v4/commons/server"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libCommonsLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libCommonsOtel "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommonsServer "github.com/LerianStudio/lib-commons/v5/commons/server"
 	"github.com/gofiber/fiber/v2"
 )
 

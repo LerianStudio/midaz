@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
-	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

@@ -7,7 +7,7 @@ package alias
 import (
 	"time"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v4/commons/crypto"
+	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"

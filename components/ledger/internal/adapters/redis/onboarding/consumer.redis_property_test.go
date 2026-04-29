@@ -25,7 +25,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	tmvalkey "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/valkey"
+	tmvalkey "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/valkey"
 	"github.com/stretchr/testify/require"
 )
 
