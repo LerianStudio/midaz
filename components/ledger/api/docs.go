@@ -8933,7 +8933,7 @@ const docTemplate = `
           "example": true
         },
         "direction": {
-          "description": "Direction is the accounting direction of the balance (\"credit\" or\n\"debit\"). Optional at creation; when omitted, defaults to the\naccount's natural direction.\nrequired: false\nexample: credit",
+          "description": "Direction is the accounting direction of the balance (\"credit\" or\n\"debit\"). Optional at creation; when omitted, defaults to \"credit\".\nrequired: false\nexample: credit",
           "type": "string",
           "example": "credit"
         },
@@ -9284,7 +9284,7 @@ const docTemplate = `
       }
     },
     "CreateTransactionInflowInput": {
-      "description": "CreateTransactionInflowInput is the input payload to create an inflow transaction. Contains all necessary fields to create a financial transaction without source information, only destination. Pending is not supported for inflows because the auto-filled external source account cannot hold funds.",
+      "description": "CreateTransactionInflowInput is the input payload to create an inflow transaction. Contains all necessary fields to create a financial transaction without source information, only destination.",
       "type": "object",
       "required": [
         "send"
