@@ -74,6 +74,22 @@ var transactionColumnListPrefixed = []string{
 	"t.route_id",
 }
 
+// operationColumnListPrefixed mirrors operation.operationColumnList with the "o."
+// table prefix for JOIN queries. Shared by FindWithOperations and
+// FindOrListAllWithOperations so that column-set drift is impossible.
+// When operation.operationColumnList gains a column, add the prefixed entry here
+// at the same trailing position to keep scan-site alignment.
+var operationColumnListPrefixed = []string{
+	"o.id", "o.transaction_id", "o.description", "o.type", "o.asset_code",
+	"o.amount", "o.available_balance", "o.on_hold_balance", "o.available_balance_after",
+	"o.on_hold_balance_after", "o.status", "o.status_description", "o.account_id",
+	"o.account_alias", "o.balance_id", "o.chart_of_accounts", "o.organization_id",
+	"o.ledger_id", "o.created_at", "o.updated_at", "o.deleted_at", "o.route",
+	"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
+	"o.direction", "o.route_id", "o.route_code", "o.route_description",
+	"o.snapshot",
+}
+
 // Repository provides an interface for operations related to transaction template entities.
 // It defines methods for creating, retrieving, updating, and deleting transactions.
 type Repository interface {
@@ -1243,16 +1259,6 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_transaction_with_operations.query")
 	defer spanQuery.End()
 
-	operationColumnListPrefixed := []string{
-		"o.id", "o.transaction_id", "o.description", "o.type", "o.asset_code",
-		"o.amount", "o.available_balance", "o.on_hold_balance", "o.available_balance_after",
-		"o.on_hold_balance_after", "o.status", "o.status_description", "o.account_id",
-		"o.account_alias", "o.balance_id", "o.chart_of_accounts", "o.organization_id",
-		"o.ledger_id", "o.created_at", "o.updated_at", "o.deleted_at", "o.route",
-		"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
-		"o.direction", "o.route_id", "o.route_code", "o.route_description",
-	}
-
 	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
 
 	findWithOps := squirrel.Select(selectColumns...).
@@ -1339,6 +1345,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			&op.RouteID,
 			&op.RouteCode,
 			&op.RouteDescription,
+			&op.Snapshot,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
 
@@ -1427,16 +1434,6 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	operationColumnListPrefixed := []string{
-		"o.id", "o.transaction_id", "o.description", "o.type", "o.asset_code",
-		"o.amount", "o.available_balance", "o.on_hold_balance", "o.available_balance_after",
-		"o.on_hold_balance_after", "o.status", "o.status_description", "o.account_id",
-		"o.account_alias", "o.balance_id", "o.chart_of_accounts", "o.organization_id",
-		"o.ledger_id", "o.created_at", "o.updated_at", "o.deleted_at", "o.route",
-		"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
-		"o.direction", "o.route_id", "o.route_code", "o.route_description",
-	}
-
 	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
 
 	findAll := squirrel.
@@ -1492,6 +1489,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			opBalanceAffected                                            *bool
 			opVersionBalance, opVersionBalanceAfter                      *int64
 			opDirection, opRouteID, opRouteCode, opRouteDescription      *string
+			opSnapshot                                                   json.RawMessage
 		)
 
 		if err := rows.Scan(
@@ -1541,6 +1539,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&opRouteID,
 			&opRouteCode,
 			&opRouteDescription,
+			&opSnapshot,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
 
@@ -1604,6 +1603,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 				RouteID:               opRouteID,
 				RouteCode:             opRouteCode,
 				RouteDescription:      opRouteDescription,
+				Snapshot:              opSnapshot,
 			}
 
 			t.Operations = append(t.Operations, op.ToEntity())

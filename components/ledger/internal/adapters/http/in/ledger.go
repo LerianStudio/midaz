@@ -86,13 +86,13 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 //	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Param			id				path		string			true	"Ledger ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
 //	@Success		200				{object}	mmodel.Ledger	"Successfully retrieved ledger"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Ledger or organization not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{id} [get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id} [get]
 func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -106,7 +106,7 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -239,7 +239,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 //	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
-//	@Param			id				path		string						true	"Ledger ID in UUID format"
+//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
 //	@Param			ledger			body		mmodel.UpdateLedgerInput	true	"Ledger fields to update. Only supplied fields will be modified."
 //	@Success		200				{object}	mmodel.Ledger				"Successfully updated ledger"
 //	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
@@ -247,7 +247,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 //	@Failure		403				{object}	mmodel.Error				"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error				"Ledger or organization not found"
 //	@Failure		500				{object}	mmodel.Error				"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{id} [patch]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id} [patch]
 func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -256,7 +256,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_ledger")
 	defer span.End()
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -303,14 +303,14 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 //	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Param			id				path		string			true	"Ledger ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
 //	@Success		204				"Ledger successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden action or not permitted in production environment"
 //	@Failure		404				{object}	mmodel.Error	"Ledger or organization not found"
 //	@Failure		409				{object}	mmodel.Error	"Conflict: Cannot delete ledger with dependent resources"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{id} [delete]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id} [delete]
 func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -324,7 +324,7 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -409,13 +409,13 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			id				path		string	true	"Ledger ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Success		200				{object}	mmodel.LedgerSettings	"Successfully retrieved ledger settings"
 //	@Failure		401				{object}	mmodel.Error			"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error			"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error			"Ledger not found"
 //	@Failure		500				{object}	mmodel.Error			"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{id}/settings [get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings [get]
 func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -429,7 +429,7 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -465,7 +465,7 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 //	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Param			id				path		string			true	"Ledger ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
 //	@Param			settings		body		object	true	"Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)"
 //	@Success		200				{object}	mmodel.LedgerSettings	"Successfully updated ledger settings"
 //	@Failure		400				{object}	mmodel.Error	"Invalid request body, unknown field (0147), or invalid field type (0148)"
@@ -473,7 +473,7 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Ledger not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{id}/settings [patch]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings [patch]
 func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -487,7 +487,7 @@ func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}

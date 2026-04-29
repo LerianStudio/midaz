@@ -62,9 +62,7 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 		if uerr := json.Unmarshal([]byte(value), &cached); uerr != nil {
 			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error unmarshalling balance cache value: %v", uerr))
 		} else {
-			balance.Available = cached.Available
-			balance.OnHold = cached.OnHold
-			balance.Version = cached.Version
+			applyBalanceCacheOverlay(balance, &cached)
 		}
 	}
 

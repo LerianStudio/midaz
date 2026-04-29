@@ -34,6 +34,7 @@ import (
 func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
 	balances []*mmodel.Balance,
+	balancesAfter []*mmodel.Balance,
 	fromTo []mtransaction.FromTo,
 	transactionInput mtransaction.Transaction,
 	tran transaction.Transaction,
@@ -59,6 +60,26 @@ func (handler *TransactionHandler) BuildOperations(
 		span.SetAttributes(attribute.Bool("app.route_validation_enabled", true))
 	}
 
+	// Index Lua's authoritative post-mutation balances by `alias#key` so we
+	// can resolve the "balance after" side of each Operation record directly
+	// instead of recomputing it via OperateBalances. This is what keeps
+	// operation records in sync with the balance table when the Lua
+	// overdraft branch floors a credit balance at zero — without this,
+	// `available_balance_after` carries the naive `before - amount` arithmetic
+	// (e.g. `50 - 100 = -50`) while the DB balance itself shows 0. The map
+	// is nil-tolerant: legacy callers (replay path in bootstrap/redis.consumer.go)
+	// that cannot supply `balancesAfter` fall back to OperateBalances
+	// gracefully.
+	afterByAliasKey := make(map[string]*mmodel.Balance, len(balancesAfter))
+
+	for _, b := range balancesAfter {
+		if b == nil {
+			continue
+		}
+
+		afterByAliasKey[b.Alias+"#"+b.Key] = b
+	}
+
 	// Track aliases that already had double-entry operations built, so we skip
 	// the second Lua before-balance for the same source account.
 	processedDoubleEntry := make(map[string]bool)
@@ -70,13 +91,57 @@ func (handler *TransactionHandler) BuildOperations(
 
 				preBalances = append(preBalances, blc)
 
-				amt, bat, err := mtransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ToTransactionBalance())
+				txBal, tErr := blc.ToTransactionBalance()
+				if tErr != nil {
+					libOpentelemetry.HandleSpanError(span, "Corrupted balance for validation", tErr)
+
+					logger.Log(ctx, libLog.LevelWarn, "Corrupted balance OverdraftLimit", libLog.Err(tErr))
+
+					return nil, nil, tErr
+				}
+
+				amt, bat, err := mtransaction.ValidateFromToOperation(fromTo[i], *validate, txBal)
 				if err != nil {
 					libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 
 					logger.Log(ctx, libLog.LevelWarn, "Failed to validate balance", libLog.Err(err))
 
 					return nil, nil, err
+				}
+
+				// Prefer the Lua-authoritative after-state when available —
+				// it correctly reflects the overdraft floor-at-zero and any
+				// OverdraftUsed repayment decrement that the naive
+				// OperateBalances path above cannot model.
+				//
+				// Hoist `after` into the outer scope so the snapshot builder
+				// can use it below (after is nil when the legacy replay path
+				// cannot supply `balancesAfter`).
+				var after *mmodel.Balance
+
+				if a, ok := afterByAliasKey[blc.Alias+"#"+blc.Key]; ok && a != nil {
+					after = a
+					bat.Available = after.Available
+					bat.OnHold = after.OnHold
+					bat.Version = after.Version
+
+					// Clip the Operation record's amount to the ACTUAL
+					// movement on this balance. Without overdraft the
+					// movement equals the requested amount; with
+					// overdraft, Lua redirects part of it onto the
+					// companion balance (a separate Operation record with
+					// its own amount), so the primary op's "amount"
+					// field should reflect only what really moved on
+					// this balance. This preserves double-entry across
+					// the enriched record set:
+					//   sum(primary.amount, companion.amount) == requested amount
+					// Pre-fix, the primary recorded the full requested
+					// amount AND the companion recorded the redirected
+					// portion, so sum(debits) > sum(credits) and the
+					// audit trail broke. See regression: operation row
+					// for overdraft debit split showing amount=100 while
+					// the default balance only moved 50.
+					amt.Value = effectiveOperationAmount(amt, blc.Available, after.Available, blc.OnHold, after.OnHold)
 				}
 
 				if ops, handled, err := handler.tryBuildDoubleEntryOps(
@@ -86,6 +151,33 @@ func (handler *TransactionHandler) BuildOperations(
 					return nil, nil, err
 				} else if handled {
 					if len(ops) > 0 {
+						// Always-populated snapshot contract: every op carries
+						// snapshot + typed Balance.OverdraftUsed / BalanceAfter
+						// .OverdraftUsed regardless of overdraft participation.
+						// Double-entry rows share the Lua-authoritative final
+						// overdraft lifecycle so pending/cancel overdraft rows do
+						// not show stale 0->0 snapshots.
+						for _, pendingOp := range ops {
+							if isAnnotation {
+								pendingOp.Snapshot = buildOperationSnapshot(nil, nil)
+								pendingOp.Balance.OverdraftUsed = decimal.Zero
+								pendingOp.BalanceAfter.OverdraftUsed = decimal.Zero
+							} else {
+								pendingOp.Snapshot = buildOperationSnapshot(blc, after)
+								if blc != nil {
+									pendingOp.Balance.OverdraftUsed = blc.OverdraftUsed
+									pendingOp.BalanceAfter.OverdraftUsed = blc.OverdraftUsed
+								} else {
+									pendingOp.Balance.OverdraftUsed = decimal.Zero
+									pendingOp.BalanceAfter.OverdraftUsed = decimal.Zero
+								}
+
+								if after != nil {
+									pendingOp.BalanceAfter.OverdraftUsed = after.OverdraftUsed
+								}
+							}
+						}
+
 						operations = append(operations, ops...)
 
 						if err := metricFactory.RecordTransactionProcessed(
@@ -107,6 +199,31 @@ func (handler *TransactionHandler) BuildOperations(
 					return nil, nil, err
 				}
 
+				// Always-populated snapshot contract: every op carries snapshot
+				// + typed Balance.OverdraftUsed / BalanceAfter.OverdraftUsed
+				// regardless of overdraft participation. Annotation ops carry
+				// "0"/"0" + decimal.Zero (no balance movement, but the wire
+				// shape stays uniform).
+				if isAnnotation {
+					op.Snapshot = buildOperationSnapshot(nil, nil)
+					op.Balance.OverdraftUsed = decimal.Zero
+					op.BalanceAfter.OverdraftUsed = decimal.Zero
+				} else {
+					op.Snapshot = buildOperationSnapshot(blc, after)
+
+					if blc != nil {
+						op.Balance.OverdraftUsed = blc.OverdraftUsed
+					} else {
+						op.Balance.OverdraftUsed = decimal.Zero
+					}
+
+					if after != nil {
+						op.BalanceAfter.OverdraftUsed = after.OverdraftUsed
+					} else {
+						op.BalanceAfter.OverdraftUsed = decimal.Zero
+					}
+				}
+
 				operations = append(operations, op)
 
 				if err := metricFactory.RecordTransactionProcessed(
@@ -118,6 +235,32 @@ func (handler *TransactionHandler) BuildOperations(
 				}
 			}
 		}
+	}
+
+	// Companion snapshot propagation: overdraft companions are built from their
+	// own blc/after values (which have OverdraftUsed=0 since the companion balance
+	// doesn't track overdraft usage). The primary (default key) operation carries
+	// the DEFAULT balance's overdraft lifecycle; propagate it to companions so
+	// both rows in the pair tell the same story. Under the always-populated
+	// contract every primary already carries a snapshot value; companions get a
+	// value-copy of the primary's data.
+	snapshotAdapters := make([]*operationForSnapshot, len(operations))
+	for idx, op := range operations {
+		snapshotAdapters[idx] = &operationForSnapshot{
+			accountAlias:              op.AccountAlias,
+			balanceKey:                op.BalanceKey,
+			snapshot:                  op.Snapshot,
+			balanceOverdraftUsed:      op.Balance.OverdraftUsed,
+			balanceAfterOverdraftUsed: op.BalanceAfter.OverdraftUsed,
+		}
+	}
+
+	propagateSnapshotToCompanions(snapshotAdapters)
+
+	for idx, a := range snapshotAdapters {
+		operations[idx].Snapshot = a.snapshot
+		operations[idx].Balance.OverdraftUsed = a.balanceOverdraftUsed
+		operations[idx].BalanceAfter.OverdraftUsed = a.balanceAfterOverdraftUsed
 	}
 
 	resolveRouteCodesFromCache(operations, transactionRouteCache, action)
@@ -139,20 +282,45 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 		return
 	}
 
-	actionCache, ok := cache.Actions[action]
-	if !ok {
-		return
-	}
-
 	for _, op := range operations {
 		if op.RouteID == nil || *op.RouteID == "" {
+			continue
+		}
+
+		// Companion operations (BalanceKey = "overdraft") are emitted by
+		// the enrichment engine and represent the overdraft leg of the
+		// transaction. They share the primary's RouteID but must resolve
+		// their rubric through the `overdraft` AccountingEntry — not the
+		// top-level transaction action. This mirrors the hold/commit/cancel
+		// pattern where a single routeID drives multiple action-specific
+		// rubric lookups.
+		//
+		// Both DEBIT (overdraft usage — deficit grows) and CREDIT
+		// (repayment — deficit shrinks) on the overdraft balance resolve
+		// to ActionOverdraft. The direction-based rubric selection
+		// (Debit vs Credit) happens inside resolveAccountingRubric via
+		// op.Direction. The enrichment engine sets Direction="credit" on
+		// repayment companions so the resolver picks Overdraft.Credit
+		// without special-casing here.
+		resolvedAction := action
+
+		if op.BalanceKey == constant.OverdraftBalanceKey {
+			resolvedAction = constant.ActionOverdraft
+		}
+
+		actionCache, ok := cache.Actions[resolvedAction]
+		if !ok {
+			// No entries for this action — e.g. route defines only Direct
+			// and the companion wants Overdraft. Leave RouteCode nil; the
+			// primary op still resolves correctly, and the companion
+			// simply carries no accounting rubric.
 			continue
 		}
 
 		routeID := *op.RouteID
 
 		if rc, ok := findRouteInActionCache(actionCache, routeID); ok {
-			if rubric := resolveAccountingRubric(rc.AccountingEntries, action, op.Direction); rubric != nil && rubric.Code != "" {
+			if rubric := resolveAccountingRubric(rc.AccountingEntries, resolvedAction, op.Direction); rubric != nil && rubric.Code != "" {
 				code := rubric.Code
 				op.RouteCode = &code
 
@@ -186,6 +354,8 @@ func resolveAccountingRubric(entries *mmodel.AccountingEntries, action, directio
 		entry = entries.Cancel
 	case constant.ActionRevert:
 		entry = entries.Revert
+	case constant.ActionOverdraft:
+		entry = entries.Overdraft
 	}
 
 	if entry == nil {
@@ -218,6 +388,136 @@ func findRouteInActionCache(actionCache mmodel.ActionRouteCache, routeID string)
 	}
 
 	return mmodel.OperationRouteCache{}, false
+}
+
+// effectiveOperationAmount returns the amount that should be recorded on a
+// standard Operation record when the Lua-authoritative after-state differs
+// from the naive "before − requested amount" arithmetic. The only case
+// where this happens today is the overdraft engine redirecting part of a
+// debit/credit onto the companion balance:
+//
+//   - Debit split: source.default goes from 50 → 0 for a requested debit of
+//     100 (the remaining 50 is debited onto the companion's Available via a
+//     separate, enrichment-produced Operation record). The primary
+//     Operation record's `amount` should be 50, not 100, so that
+//     `sum(debits) == sum(credits)` across the enriched record set.
+//   - Credit repayment: destination.default goes from 0 → 30 for a
+//     requested credit of 80 because the first 50 repaid outstanding
+//     overdraft (recorded as a CREDIT on the companion). The primary
+//     Operation record's `amount` should be 30.
+//
+// For every non-overdraft operation the |Available delta| + |OnHold delta|
+// equals the requested amount, so the clip is a no-op — the function is
+// safe to call on every operation. Direction-aware arithmetic does not
+// need special handling here: what matters is the absolute movement on the
+// balance, which is always non-negative.
+//
+// Returns the smaller of the requested amount and the observed movement,
+// so a balance that somehow moves MORE than the requested amount (a bug
+// that should not exist) never retroactively inflates the Operation
+// amount — we keep the request as the upper bound and surface the anomaly
+// via the balance vs. operation divergence in downstream reconciliation.
+func effectiveOperationAmount(
+	amt mtransaction.Amount,
+	beforeAvailable, afterAvailable, beforeOnHold, afterOnHold decimal.Decimal,
+) decimal.Decimal {
+	availableDelta := beforeAvailable.Sub(afterAvailable).Abs()
+	onHoldDelta := beforeOnHold.Sub(afterOnHold).Abs()
+
+	// Available and OnHold deltas are additive for the PENDING/COMMIT/CANCEL
+	// transaction-type flow (a PENDING entry moves amount from Available
+	// into OnHold; both deltas individually equal the amount, so adding
+	// them would double-count). Use the max instead — it matches the
+	// requested amount on every non-overdraft path and only shrinks in
+	// the overdraft redirect case (where OnHold is untouched and only
+	// Available shrinks by the non-redirected portion).
+	movement := availableDelta
+	if onHoldDelta.GreaterThan(movement) {
+		movement = onHoldDelta
+	}
+
+	// Upper-bound at the requested amount. A movement greater than the
+	// requested amount would indicate a ledger bug (e.g. Lua applied more
+	// than it was asked to); we do not want the Operation record to
+	// silently inflate in that case.
+	if movement.GreaterThan(amt.Value) {
+		return amt.Value
+	}
+
+	return movement
+}
+
+// buildOperationSnapshot returns a snapshot for the operation. Always
+// populated — non-overdraft operations carry "0" / "0", matching the
+// always-populated wire-shape contract.
+//
+// `before` and `after` are the pre- and post-mutation balance values for
+// the balance the operation acts on. Either may be nil (defensive against
+// builder paths that don't have one or the other in scope) — nil decays
+// to "0" for the corresponding field.
+//
+// For PENDING / CANCELED paths, call with before == after (the hold/cancel
+// does not mutate OverdraftUsed, but capturing the pre-state keeps shape
+// consistent with the standard path).
+func buildOperationSnapshot(before, after *mmodel.Balance) mmodel.OperationSnapshot {
+	snap := mmodel.OperationSnapshot{
+		OverdraftUsedBefore: "0",
+		OverdraftUsedAfter:  "0",
+	}
+
+	if before != nil {
+		snap.OverdraftUsedBefore = before.OverdraftUsed.String()
+	}
+
+	if after != nil {
+		snap.OverdraftUsedAfter = after.OverdraftUsed.String()
+	}
+
+	return snap
+}
+
+// operationForSnapshot is a lightweight adapter used by propagateSnapshotToCompanions
+// to decouple the propagation logic from the concrete operation.Operation type,
+// making the function independently testable.
+type operationForSnapshot struct {
+	accountAlias              string
+	balanceKey                string
+	snapshot                  mmodel.OperationSnapshot
+	balanceOverdraftUsed      decimal.Decimal
+	balanceAfterOverdraftUsed decimal.Decimal
+}
+
+// propagateSnapshotToCompanions copies the primary (default-key) operation's
+// snapshot and typed OverdraftUsed fields to each companion (overdraft-key)
+// operation that shares the same account alias. This ensures both rows in the
+// operation pair tell the same lifecycle story.
+//
+// Under the always-populated contract every primary already carries a snapshot
+// value; companions get a value-copy of the primary's data.
+func propagateSnapshotToCompanions(ops []*operationForSnapshot) {
+	// Index primaries by bare account alias.
+	primaryByAlias := make(map[string]*operationForSnapshot, len(ops))
+
+	for _, op := range ops {
+		if op.balanceKey != constant.OverdraftBalanceKey {
+			primaryByAlias[op.accountAlias] = op
+		}
+	}
+
+	for _, op := range ops {
+		if op.balanceKey != constant.OverdraftBalanceKey {
+			continue
+		}
+
+		primary, ok := primaryByAlias[op.accountAlias]
+		if !ok {
+			continue
+		}
+
+		op.snapshot = primary.snapshot
+		op.balanceOverdraftUsed = primary.balanceOverdraftUsed
+		op.balanceAfterOverdraftUsed = primary.balanceAfterOverdraftUsed
+	}
 }
 
 // zeroAnnotationBalances zeroes out the Available, OnHold, and Version fields of the
@@ -254,7 +554,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	blc *mmodel.Balance,
 	ft mtransaction.FromTo,
 	amt mtransaction.Amount,
-	_ mtransaction.Balance,
+	bat mtransaction.Balance,
 	tran transaction.Transaction,
 	transactionInput mtransaction.Transaction,
 	transactionDate time.Time,
@@ -272,11 +572,25 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		description = transactionInput.Description
 	}
 
-	// Op1: DEBIT (debit) - Available-- only
-	// Balance before: original balance
-	// Balance after: Available decreased, OnHold unchanged
+	// Op1: DEBIT (debit) - Available-- only. Prefer Lua's authoritative
+	// final Available when present; the overdraft branch floors at zero, while
+	// naive local arithmetic would record negative audit balances.
 	debitAvailable := blc.Available.Sub(amt.Value)
+	debitAmount := amt.Value
 	debitVersion := blc.Version + 1
+	onholdOnHold := blc.OnHold.Add(amt.Value)
+	onholdVersion := debitVersion + 1
+
+	if bat.Version > 0 {
+		debitAvailable = bat.Available
+		onholdOnHold = bat.OnHold
+		onholdVersion = bat.Version
+
+		debitAmount = blc.Available.Sub(debitAvailable).Abs()
+		if debitAmount.GreaterThan(amt.Value) {
+			debitAmount = amt.Value
+		}
+	}
 
 	debitBalance := operation.Balance{
 		Available: &blc.Available,
@@ -306,7 +620,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		Type:            constant.DEBIT,
 		AssetCode:       transactionInput.Send.Asset,
 		ChartOfAccounts: ft.ChartOfAccounts,
-		Amount:          operation.Amount{Value: &amt.Value},
+		Amount:          operation.Amount{Value: &debitAmount},
 		Balance:         debitBalance,
 		BalanceAfter:    debitBalanceAfter,
 		BalanceID:       blc.ID,
@@ -327,8 +641,6 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	// Op2: ONHOLD (credit) - OnHold++ only
 	// Balance before: op1's balance after (chaining)
 	// Balance after: OnHold increased, Available unchanged from op1
-	onholdOnHold := blc.OnHold.Add(amt.Value)
-	onholdVersion := debitVersion + 1
 
 	onholdBalance := operation.Balance{
 		Available: &debitAvailable,
@@ -609,11 +921,16 @@ func (handler *TransactionHandler) buildStandardOp(
 		return nil, err
 	}
 
+	opType := amt.Operation
+	if blc.Key == constant.OverdraftBalanceKey {
+		opType = constant.OVERDRAFT
+	}
+
 	return &operation.Operation{
 		ID:              operationID.String(),
 		TransactionID:   tran.ID,
 		Description:     description,
-		Type:            amt.Operation,
+		Type:            opType,
 		AssetCode:       transactionInput.Send.Asset,
 		ChartOfAccounts: ft.ChartOfAccounts,
 		Amount:          amount,
@@ -775,7 +1092,48 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
+	// Scope protection on the CREATE path: SendTransactionToRedisQueue above
+	// runs with nil balances (the queue seed precedes GetBalances), so its
+	// built-in scope guard is a no-op for user-created transactions. Re-check
+	// here now that balances are loaded. Rejecting a direct operation on an
+	// internal-scope balance BEFORE enrichment runs keeps the companion
+	// balance isolated from client-initiated mutations.
+	if err := rejectInternalScopeBalances(ctx, balances); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rejected transaction targeting internal-scope balance", err)
+		logger.Log(ctx, libLog.LevelWarn, "Rejected transaction targeting internal-scope balance", libLog.Err(err))
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+
+		return http.WithError(c, err)
+	}
+
 	balanceOps := buildBalanceOperations(ctx, params.OrganizationID, params.LedgerID, validate, balances)
+
+	// Overdraft enrichment: when a source debit exceeds available funds on a
+	// credit-direction balance with AllowOverdraft=true, append a debit op on
+	// the companion #overdraft balance for the deficit. See
+	// transaction_overdraft_enrichment.go for the full rationale. Disabled
+	// balances and out-of-scope operations fall through as a no-op so legacy
+	// transaction flows remain untouched.
+	//
+	// `companionFromTos` are returned so the caller can splice them into the
+	// `fromTo` slice built below; without this, BuildOperations' match loop
+	// never emits an Operation record for the companion balance and the
+	// audit trail is missing the overdraft leg (DB balances still converge
+	// correctly, but `response.operations` and Postgres `operation` rows do
+	// not include the companion).
+	balanceOps, companionFromTos, err := enrichOverdraftOperations(ctx, params.OrganizationID, params.LedgerID, balanceOps,
+		validate, handler.Query.GetBalances)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to enrich overdraft operations", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to enrich overdraft operations", libLog.Err(err))
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+
+		return http.WithError(c, err)
+	}
 
 	routeCache, err := handler.Query.ValidateAccountingRules(ctx, params.OrganizationID, params.LedgerID, balanceOps, validate, action)
 	if err != nil {
@@ -816,6 +1174,15 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		fromTo = append(fromTo, to...)
 	}
 
+	// Splice the enrichment-produced companion FromTo entries into the slice
+	// BEFORE BuildOperations runs. Each companion carries an AccountAlias in
+	// concat form ("<i>#@alias#overdraft") that matches the Lua-returned
+	// `balance.Alias`, so the `balances × fromTo` loop in BuildOperations
+	// now emits one Operation record per companion balance mutation. This
+	// is the audit-trail half of the enrichment contract; the balance-state
+	// half is handled by the enrichment engine up above.
+	fromTo = append(fromTo, companionFromTos...)
+
 	amount := transactionInput.Send.Value
 
 	tran := &transaction.Transaction{
@@ -838,7 +1205,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		},
 	}
 
-	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action)
+	operations, _, err := handler.BuildOperations(ctx, balancesBefore, balancesAfter, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build operations", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to build operations", libLog.Err(err))
@@ -851,8 +1218,15 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
-	tran.Source = getAliasWithoutKey(validate.Sources)
-	tran.Destination = getAliasWithoutKey(validate.Destinations)
+	// The companion overdraft balances participate in the transaction at the
+	// ledger layer but are NOT user-facing sources or destinations — they are
+	// system-managed liability ledgers. Filter them out of the alias-key
+	// lists before stripping `#key` so `tran.Source` / `tran.Destination`
+	// reflect only the client-submitted accounts (and do not produce duplicates
+	// like `[@alice, @alice]` when the companion's bare alias collapses to
+	// the same value after the strip).
+	tran.Source = getAliasWithoutKey(filterCompanionAliases(validate.Sources))
+	tran.Destination = getAliasWithoutKey(filterCompanionAliases(validate.Destinations))
 	tran.Operations = operations
 
 	handler.Command.UpdateTransactionBackupOperations(ctx, params.OrganizationID, params.LedgerID, transactionID.String(), operations, action)

@@ -503,8 +503,10 @@ func TestInsertOperationChunk_ColumnCount(t *testing.T) {
 	t.Parallel()
 
 	// Verify that operationColumnList has expected number of columns
-	// This ensures the bulk insert won't have column/value mismatch
-	expectedColumns := 30 // Based on operationColumnList definition
+	// This ensures the bulk insert won't have column/value mismatch.
+	// Count was bumped from 30 → 31 when the `snapshot` JSONB column was
+	// appended to the list.
+	expectedColumns := 31 // Based on operationColumnList definition
 	assert.Equal(t, expectedColumns, len(operationColumnList),
 		"operationColumnList should have %d columns", expectedColumns)
 }
@@ -512,9 +514,11 @@ func TestInsertOperationChunk_ColumnCount(t *testing.T) {
 func TestInsertOperationChunk_ParameterLimitCalculation(t *testing.T) {
 	t.Parallel()
 
-	// Verify that 1000 rows * 30 columns stays under PostgreSQL's 65,535 limit
+	// Verify that 1000 rows * 31 columns stays under PostgreSQL's 65,535 limit.
+	// Column count was bumped from 30 → 31 when the `snapshot` JSONB column
+	// was appended.
 	const chunkSize = 1000
-	const columnCount = 30 // operationColumnList length
+	const columnCount = 31 // operationColumnList length
 	const postgresLimit = 65535
 
 	parametersPerChunk := chunkSize * columnCount

@@ -4,7 +4,7 @@ info:
   description: The CRM API provides a set of endpoints for managing holder data, including
     information related to their ledger accounts.
   title: CRM API
-  version: 1.0.0
+  version: v3.7.0
 servers:
 - url: //localhost:4003/
 paths:

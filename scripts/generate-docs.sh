@@ -50,6 +50,34 @@ print_step() {
     fi
 }
 
+# Resolve swag even when GOPATH/bin is not on PATH.
+resolve_swag_bin() {
+    if command -v swag >/dev/null 2>&1; then
+        command -v swag
+        return 0
+    fi
+
+    local go_bin=""
+    go_bin="$(go env GOBIN 2>/dev/null || true)"
+
+    if [ -z "${go_bin}" ]; then
+        local go_path=""
+        go_path="$(go env GOPATH 2>/dev/null || true)"
+        if [ -n "${go_path}" ]; then
+            go_bin="${go_path}/bin"
+        fi
+    fi
+
+    if [ -n "${go_bin}" ] && [ -x "${go_bin}/swag" ]; then
+        printf '%s\n' "${go_bin}/swag"
+        return 0
+    fi
+
+    return 1
+}
+
+SWAG_BIN=""
+
 # Generate OpenAPI specs for a component
 generate_openapi_spec() {
     local component="$1"
@@ -62,7 +90,7 @@ generate_openapi_spec() {
     local out_log="${LOG_DIR}/${component}_swag.out"
     local err_log="${LOG_DIR}/${component}_swag.err"
 
-    if (cd "${component_dir}" && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal --instanceName "${component}" > "${out_log}" 2> "${err_log}"); then
+    if (cd "${component_dir}" && "${SWAG_BIN}" init -g cmd/app/main.go -o api --parseDependency --parseInternal --instanceName "${component}" > "${out_log}" 2> "${err_log}"); then
         local end_time=$(date +%s.%N)
         local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
         print_step "Generated ${component} OpenAPI spec" "SUCCESS" "${elapsed}"
@@ -122,17 +150,24 @@ install_npm_dependencies() {
         return 0
     fi
     
-    if (cd "${postman_dir}" && npm install --silent > "${npm_out}" 2> "${npm_err}"); then
+    if [ -f "${postman_dir}/package-lock.json" ]; then
+        if (cd "${postman_dir}" && npm ci --silent > "${npm_out}" 2> "${npm_err}"); then
+            local end_time=$(date +%s.%N)
+            local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
+            print_step "Installed Node.js dependencies" "SUCCESS" "${elapsed}"
+            return 0
+        fi
+    elif (cd "${postman_dir}" && npm install --silent > "${npm_out}" 2> "${npm_err}"); then
         local end_time=$(date +%s.%N)
         local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
         print_step "Installed Node.js dependencies" "SUCCESS" "${elapsed}"
         return 0
-    else
-        print_step "Install Node.js dependencies" "FAILED"
-        echo -e "      ${RED}Error details:${NC}"
-        head -5 "${npm_err}" | sed 's/^/        /'
-        return 1
     fi
+
+    print_step "Install Node.js dependencies" "FAILED"
+    echo -e "      ${RED}Error details:${NC}"
+    head -5 "${npm_err}" | sed 's/^/        /'
+    return 1
 }
 
 # Convert to Postman collection
@@ -182,14 +217,24 @@ main() {
     
     # Track overall success
     local overall_success=true
+
+    if ! SWAG_BIN="$(resolve_swag_bin)"; then
+        print_step "Resolve swag executable" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        echo "        swag was not found on PATH or in Go's bin directory."
+        echo "        Install it with: go install github.com/swaggo/swag/cmd/swag@v1.16.6"
+        overall_success=false
+    fi
     
     # Generate OpenAPI specs for each component
-    for component in "${COMPONENTS[@]}"; do
-        if ! generate_openapi_spec "$component"; then
-            overall_success=false
-            break
-        fi
-    done
+    if [ "$overall_success" = true ]; then
+        for component in "${COMPONENTS[@]}"; do
+            if ! generate_openapi_spec "$component"; then
+                overall_success=false
+                break
+            fi
+        done
+    fi
 
     # Generate openapi.yaml for each component
     if [ "$overall_success" = true ]; then

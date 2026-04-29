@@ -503,8 +503,17 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 
 		var buildErr error
 
+		// Replay path: Lua's authoritative `balancesAfter` is not captured
+		// in the backup envelope, so BuildOperations falls back to the
+		// OperateBalances-recomputation branch. For non-overdraft
+		// transactions this is correct; for overdraft transactions the
+		// operation records will carry the naive `before - amount`
+		// arithmetic — the balance table remains consistent (Lua already
+		// flushed it) but the audit trail may diverge. Capturing Lua's
+		// after-state in the backup envelope is tracked under T-006.1 /
+		// T-009 hardening items.
 		operations, _, buildErr = r.TransactionHandler.BuildOperations(
-			msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action,
+			msgCtxWithSpan, balances, nil /* balancesAfter */, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action,
 		)
 		if buildErr != nil {
 			libOpentelemetry.HandleSpanError(msgSpan, "Failed to validate balances", buildErr)

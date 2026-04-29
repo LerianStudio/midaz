@@ -53,6 +53,12 @@ func TestUpdateBalance(t *testing.T) {
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
+	// Find is always called (scope guard requires the current balance).
+	mockBalanceRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, balanceID).
+		Return(expectedBalance, nil).
+		Times(1)
+
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
 		Return(expectedBalance, nil).
@@ -63,6 +69,14 @@ func TestUpdateBalance(t *testing.T) {
 		Get(gomock.Any(), gomock.Any()).
 		Return("", nil).
 		Times(1)
+
+	// No Settings in the update payload → the cache settings rewrite MUST NOT
+	// fire. AllowSending/AllowReceiving mutations don't touch the overdraft
+	// settings contract guarded by UpdateBalanceCacheSettings, so the cached
+	// balance JSON (including its live transactional state) is left alone.
+	mockRedisRepo.EXPECT().
+		UpdateBalanceCacheSettings(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
 
 	uc := UseCase{
 		BalanceRepo:          mockBalanceRepo,
@@ -98,6 +112,17 @@ func TestUpdateBalance_RepoError(t *testing.T) {
 	}
 
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+	// Find is always called (scope guard requires the current balance).
+	normalBalance := &mmodel.Balance{
+		ID:    balanceID.String(),
+		Alias: "@test",
+		Key:   "default",
+	}
+	mockBalanceRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, balanceID).
+		Return(normalBalance, nil).
+		Times(1)
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
@@ -160,6 +185,12 @@ func TestUpdateBalance_RedisOverlay(t *testing.T) {
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
+	// Find is always called (scope guard requires the current balance).
+	mockBalanceRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, balanceID).
+		Return(repoBalance, nil).
+		Times(1)
+
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
 		Return(repoBalance, nil).
@@ -169,6 +200,15 @@ func TestUpdateBalance_RedisOverlay(t *testing.T) {
 		Get(gomock.Any(), gomock.Any()).
 		Return(string(cachedJSON), nil).
 		Times(1)
+
+	// No Settings in the update → the cache rewrite MUST NOT run, so the
+	// in-flight transactional snapshot held in Redis (Available=500, OnHold=50,
+	// Version=5) is neither overwritten nor deleted. This is the whole point
+	// of replacing the prior Del: preserving live state across settings-free
+	// updates.
+	mockRedisRepo.EXPECT().
+		UpdateBalanceCacheSettings(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
 
 	uc := UseCase{
 		BalanceRepo:          mockBalanceRepo,
@@ -191,6 +231,187 @@ func TestUpdateBalance_RedisOverlay(t *testing.T) {
 	assert.Equal(t, "USD", result.AssetCode)
 	assert.False(t, result.AllowSending)
 	assert.True(t, result.AllowReceiving)
+}
+
+// TestUpdateBalance_CacheSettingsUpdate_UsesCompositeAliasKey pins the exact
+// composite `alias#key` that the command layer passes to the Redis repo when
+// rewriting settings in the cached balance. If the composition rule drifts
+// (e.g. a refactor separates alias and key into distinct arguments or
+// re-orders them), this test fails loudly so the Lua-mutated balance key
+// and the command-side cache key stay in lock-step.
+//
+// The repo method is responsible for composing BalanceInternalKey from the
+// composite cacheKey + (org, ledger); this test pins the command-side
+// contract with the repo, not the full prefixed Redis key.
+func TestUpdateBalance_CacheSettingsUpdate_UsesCompositeAliasKey(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	allowOverdraft := true
+	newSettings := &mmodel.BalanceSettings{
+		AllowOverdraft: allowOverdraft,
+	}
+	balanceUpdate := mmodel.UpdateBalance{Settings: newSettings}
+
+	expectedBalance := &mmodel.Balance{
+		ID:             balanceID.String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Alias:          "@user1",
+		Key:            "default",
+		AllowSending:   true,
+		AllowReceiving: true,
+	}
+
+	// The command layer MUST pass the composite "alias#key" form so the repo
+	// can rebuild BalanceInternalKey consistently with the Lua script's
+	// SET NX key. Any other separator or ordering would desynchronize the
+	// write and the transactional read.
+	expectedCompositeKey := "@user1#default"
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	// Settings path triggers Find + ensureOverdraftBalance; stub them as no-ops
+	// that simulate a balance which already has overdraft enabled (avoids the
+	// auto-create side-effect). Find returns a balance whose settings match the
+	// update — enforceOverdraftTransition treats this as a no-op transition.
+	existing := &mmodel.Balance{
+		ID:             balanceID.String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Alias:          "@user1",
+		Key:            "default",
+		Settings: &mmodel.BalanceSettings{
+			AllowOverdraft: true,
+		},
+	}
+
+	mockBalanceRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, balanceID).
+		Return(existing, nil).
+		Times(1)
+
+	mockBalanceRepo.EXPECT().
+		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
+		Return(expectedBalance, nil).
+		Times(1)
+
+	// The Get overlay still uses the same prefixed key; keep it tolerant.
+	mockRedisRepo.EXPECT().
+		Get(gomock.Any(), gomock.Any()).
+		Return("", nil).
+		Times(1)
+
+	// HARD GATE: the cacheKey arg MUST be the composite "alias#key".
+	// The new settings payload MUST be forwarded verbatim so the repo can
+	// apply an in-place rewrite without losing live transactional state.
+	mockRedisRepo.EXPECT().
+		UpdateBalanceCacheSettings(gomock.Any(), organizationID, ledgerID, expectedCompositeKey, newSettings).
+		Return(nil).
+		Times(1)
+
+	uc := UseCase{
+		BalanceRepo:          mockBalanceRepo,
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	result, err := uc.Update(context.TODO(), organizationID, ledgerID, balanceID, balanceUpdate)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, expectedBalance.ID, result.ID)
+}
+
+// TestUpdateBalance_CacheSettingsUpdate_FailureIsBestEffort verifies that a
+// Redis failure during the settings-only cache rewrite does not propagate to
+// the caller: the PostgreSQL write has already succeeded and is durable, so
+// the update must still return the updated balance. A subsequent
+// transaction's cache miss (or the sync worker) will reconcile.
+//
+// A Settings payload is used to guarantee the cache-rewrite path actually
+// executes (non-settings updates skip the rewrite by design).
+func TestUpdateBalance_CacheSettingsUpdate_FailureIsBestEffort(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	allowOverdraft := true
+	balanceUpdate := mmodel.UpdateBalance{
+		Settings: &mmodel.BalanceSettings{
+			AllowOverdraft: allowOverdraft,
+		},
+	}
+
+	expectedBalance := &mmodel.Balance{
+		ID:             balanceID.String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Alias:          "@user1",
+		Key:            "default",
+	}
+
+	// Find returns a balance whose settings already match the update — the
+	// enforceOverdraftTransition check treats this as a no-op transition so
+	// the test stays focused on the cache-rewrite failure path.
+	existing := &mmodel.Balance{
+		ID:             balanceID.String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Alias:          "@user1",
+		Key:            "default",
+		Settings: &mmodel.BalanceSettings{
+			AllowOverdraft: true,
+		},
+	}
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	mockBalanceRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, balanceID).
+		Return(existing, nil).
+		Times(1)
+
+	mockBalanceRepo.EXPECT().
+		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
+		Return(expectedBalance, nil).
+		Times(1)
+
+	mockRedisRepo.EXPECT().
+		Get(gomock.Any(), gomock.Any()).
+		Return("", nil).
+		Times(1)
+
+	// Redis is down / network partition. The use case must swallow the error
+	// and return the updated balance anyway — the PG write is the source of
+	// truth and cannot be rolled back at this point.
+	mockRedisRepo.EXPECT().
+		UpdateBalanceCacheSettings(gomock.Any(), organizationID, ledgerID, gomock.Any(), gomock.Any()).
+		Return(errors.New("redis connection refused")).
+		Times(1)
+
+	uc := UseCase{
+		BalanceRepo:          mockBalanceRepo,
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	result, err := uc.Update(context.TODO(), organizationID, ledgerID, balanceID, balanceUpdate)
+
+	require.NoError(t, err, "Cache rewrite failure must not propagate — PG write is durable")
+	require.NotNil(t, result)
+	assert.Equal(t, expectedBalance.ID, result.ID)
 }
 
 func TestUpdateBalances_PrimaryPath_UsesAfterDirectly(t *testing.T) {

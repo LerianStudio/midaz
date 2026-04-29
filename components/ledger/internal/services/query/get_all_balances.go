@@ -67,9 +67,7 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 				continue
 			}
 
-			balances[i].Available = cachedBalance.Available
-			balances[i].OnHold = cachedBalance.OnHold
-			balances[i].Version = cachedBalance.Version
+			applyBalanceCacheOverlay(balances[i], &cachedBalance)
 		}
 	}
 
@@ -124,9 +122,7 @@ func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, le
 				continue
 			}
 
-			balances[i].Available = cachedBalance.Available
-			balances[i].OnHold = cachedBalance.OnHold
-			balances[i].Version = cachedBalance.Version
+			applyBalanceCacheOverlay(balances[i], &cachedBalance)
 		}
 	}
 

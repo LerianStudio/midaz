@@ -6,9 +6,11 @@ package operation
 
 import (
 	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1096,4 +1098,58 @@ func TestOperationColumnList_ContainsRouteDescription(t *testing.T) {
 	}
 
 	assert.True(t, found, "operationColumnList must contain 'route_description'")
+}
+
+// TestOperation_JSONMarshal_OmitsSnapshot is a regression guard: the snapshot
+// block must NOT appear on the public JSON wire. The snapshot's information
+// surfaces via the typed balance.overdraftUsed / balanceAfter.overdraftUsed
+// fields instead. Removing the outer `json:"-"` tag on Operation.Snapshot
+// would break API consumers that depend on the lean wire shape.
+func TestOperation_JSONMarshal_OmitsSnapshot(t *testing.T) {
+	t.Parallel()
+
+	op := Operation{
+		ID: "op-wire-guard",
+		Snapshot: mmodel.OperationSnapshot{
+			OverdraftUsedBefore: "0",
+			OverdraftUsedAfter:  "50",
+		},
+	}
+
+	b, err := json.Marshal(op)
+	require.NoError(t, err)
+
+	raw := string(b)
+	assert.NotContains(t, raw, `"snapshot"`,
+		"Operation JSON wire shape must not include snapshot block; values surface via balance.overdraftUsed/balanceAfter.overdraftUsed")
+	assert.NotContains(t, raw, `"overdraftUsedBefore"`,
+		"Operation JSON must not leak inner snapshot keys")
+	assert.NotContains(t, raw, `"overdraftUsedAfter"`,
+		"Operation JSON must not leak inner snapshot keys")
+}
+
+// TestOperationLog_JSONMarshal_OmitsSnapshot is a regression guard for the
+// audit-log projection: the snapshot block must NOT appear on OperationLog's
+// JSON output. Same rationale as TestOperation_JSONMarshal_OmitsSnapshot.
+func TestOperationLog_JSONMarshal_OmitsSnapshot(t *testing.T) {
+	t.Parallel()
+
+	log := OperationLog{
+		ID: "oplog-wire-guard",
+		Snapshot: mmodel.OperationSnapshot{
+			OverdraftUsedBefore: "25",
+			OverdraftUsedAfter:  "100",
+		},
+	}
+
+	b, err := json.Marshal(log)
+	require.NoError(t, err)
+
+	raw := string(b)
+	assert.NotContains(t, raw, `"snapshot"`,
+		"OperationLog JSON wire shape must not include snapshot block")
+	assert.NotContains(t, raw, `"overdraftUsedBefore"`,
+		"OperationLog JSON must not leak inner snapshot keys")
+	assert.NotContains(t, raw, `"overdraftUsedAfter"`,
+		"OperationLog JSON must not leak inner snapshot keys")
 }

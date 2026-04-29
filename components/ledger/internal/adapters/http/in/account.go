@@ -226,13 +226,13 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			id				path		string			true	"Account ID in UUID format"
+//	@Param			account_id				path		string			true	"Account ID in UUID format"
 //	@Success		200				{object}	mmodel.Account	"Successfully retrieved account"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Account, ledger, or organization not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id} [get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id} [get]
 func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -391,7 +391,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
-//	@Param			id				path		string						true	"Account ID in UUID format"
+//	@Param			account_id				path		string						true	"Account ID in UUID format"
 //	@Param			account			body		mmodel.UpdateAccountInput	true	"Account properties to update including name, status, portfolio, segment, and optional metadata"
 //	@Success		200				{object}	mmodel.Account				"Successfully updated account"
 //	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
@@ -400,7 +400,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 //	@Failure		404				{object}	mmodel.Error				"Account, ledger, organization, portfolio, or segment not found"
 //	@Failure		409				{object}	mmodel.Error				"Conflict: Account with the same name already exists"
 //	@Failure		500				{object}	mmodel.Error				"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id} [patch]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id} [patch]
 func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -462,14 +462,14 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			id				path		string			true	"Account ID in UUID format"
+//	@Param			account_id				path		string			true	"Account ID in UUID format"
 //	@Success		204				"Account successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Account, ledger, or organization not found"
 //	@Failure		409				{object}	mmodel.Error	"Conflict: Account cannot be deleted due to existing dependencies"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id} [delete]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id} [delete]
 func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

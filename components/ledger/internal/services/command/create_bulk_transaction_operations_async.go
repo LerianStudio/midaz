@@ -553,6 +553,7 @@ func (uc *UseCase) processMetadataAndEvents(
 			defer cancel()
 
 			uc.SendTransactionEvents(opCtx, tx)
+			uc.SendOverdraftEvents(opCtx, tx)
 		}()
 	}
 }

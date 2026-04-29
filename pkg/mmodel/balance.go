@@ -11,6 +11,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -83,6 +84,21 @@ type Balance struct {
 	// Whether the account can receive funds to this balance
 	// example: true
 	AllowReceiving bool `json:"allowReceiving" example:"true"`
+
+	// Direction is the accounting direction of the balance. One of
+	// "credit" or "debit". Empty string denotes legacy rows predating the
+	// overdraft feature and is treated as "credit" by the engine.
+	// example: credit
+	Direction string `json:"direction,omitempty" example:"credit"`
+
+	// OverdraftUsed is the amount of overdraft currently consumed by this
+	// balance. Always non-negative; zero when the balance is in the black.
+	// example: 0
+	OverdraftUsed decimal.Decimal `json:"overdraftUsed" example:"0"`
+
+	// Settings carries optional per-balance configuration (overdraft,
+	// balance scope). Nil for legacy balances without custom settings.
+	Settings *BalanceSettings `json:"settings,omitempty"`
 
 	// Timestamp when the balance was created (RFC3339 format)
 	// example: 2021-01-01T00:00:00Z
@@ -166,6 +182,21 @@ type BalanceHistory struct {
 	// maxLength: 50
 	AccountType string `json:"accountType" example:"creditCard" maxLength:"50"`
 
+	// Direction is the accounting direction of the balance at the time of
+	// the snapshot. One of "credit" or "debit". Empty string denotes
+	// legacy rows predating the overdraft feature.
+	// example: credit
+	Direction string `json:"direction,omitempty" example:"credit"`
+
+	// OverdraftUsed is the amount of overdraft consumed at the time of
+	// the snapshot. Always non-negative.
+	// example: 0
+	OverdraftUsed decimal.Decimal `json:"overdraftUsed" example:"0"`
+
+	// Settings is the per-balance configuration snapshot at the time the
+	// history row was recorded. Nil for legacy balances.
+	Settings *BalanceSettings `json:"settings,omitempty"`
+
 	// Timestamp when the balance was created (RFC3339 format)
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
@@ -177,7 +208,9 @@ type BalanceHistory struct {
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 } // @name BalanceHistory
 
-// ToHistoryResponse converts a Balance to BalanceHistory (without permission flags)
+// ToHistoryResponse converts a Balance to BalanceHistory (without permission flags).
+// Settings are deep-copied so the history snapshot is fully independent of the
+// live balance — mutations on either side cannot affect the other.
 func (b *Balance) ToHistoryResponse() *BalanceHistory {
 	return &BalanceHistory{
 		ID:             b.ID,
@@ -191,14 +224,43 @@ func (b *Balance) ToHistoryResponse() *BalanceHistory {
 		OnHold:         b.OnHold,
 		Version:        b.Version,
 		AccountType:    b.AccountType,
+		Direction:      b.Direction,
+		OverdraftUsed:  b.OverdraftUsed,
+		Settings:       deepCopySettings(b.Settings),
 		CreatedAt:      b.CreatedAt,
 		UpdatedAt:      b.UpdatedAt,
 	}
 }
 
-// ToTransactionBalance converts mmodel.Balance to mtransaction.Balance
-func (b *Balance) ToTransactionBalance() *mtransaction.Balance {
-	return &mtransaction.Balance{
+// deepCopySettings returns an independent copy of the given BalanceSettings,
+// including the inner OverdraftLimit pointer. Returns nil when src is nil.
+func deepCopySettings(src *BalanceSettings) *BalanceSettings {
+	if src == nil {
+		return nil
+	}
+
+	cp := *src
+
+	if src.OverdraftLimit != nil {
+		v := *src.OverdraftLimit
+		cp.OverdraftLimit = &v
+	}
+
+	return &cp
+}
+
+// ToTransactionBalance converts mmodel.Balance to mtransaction.Balance,
+// flattening the optional Settings into individual fields.
+//
+// Returns an error when Settings.OverdraftLimit is non-nil but cannot be
+// parsed as a decimal. Callers must surface this error rather than continue
+// with a silently-zeroed limit, because a corrupted limit combined with
+// OverdraftLimitEnabled=true would otherwise admit an unbounded overdraft
+// authorization at the validation/Lua boundary. Validate() prevents creation
+// of invalid limits, so this only triggers on data corruption (manual DB
+// edits, migration bugs) — fail closed.
+func (b *Balance) ToTransactionBalance() (*mtransaction.Balance, error) {
+	result := &mtransaction.Balance{
 		ID:             b.ID,
 		OrganizationID: b.OrganizationID,
 		LedgerID:       b.LedgerID,
@@ -212,11 +274,30 @@ func (b *Balance) ToTransactionBalance() *mtransaction.Balance {
 		AccountType:    b.AccountType,
 		AllowSending:   b.AllowSending,
 		AllowReceiving: b.AllowReceiving,
+		Direction:      b.Direction,
+		OverdraftUsed:  b.OverdraftUsed,
 		CreatedAt:      b.CreatedAt,
 		UpdatedAt:      b.UpdatedAt,
 		DeletedAt:      b.DeletedAt,
 		Metadata:       b.Metadata,
 	}
+
+	if b.Settings != nil {
+		result.AllowOverdraft = b.Settings.AllowOverdraft
+		result.OverdraftLimitEnabled = b.Settings.OverdraftLimitEnabled
+		result.BalanceScope = b.Settings.BalanceScope
+
+		if b.Settings.OverdraftLimit != nil {
+			lim, err := decimal.NewFromString(*b.Settings.OverdraftLimit)
+			if err != nil {
+				return nil, fmt.Errorf("invalid OverdraftLimit %q on balance %s: %w", *b.Settings.OverdraftLimit, b.ID, err)
+			}
+
+			result.OverdraftLimit = lim
+		}
+	}
+
+	return result, nil
 }
 
 // CreateAdditionalBalance is a struct designed to encapsulate balance create request payload data.
@@ -238,6 +319,17 @@ type CreateAdditionalBalance struct {
 	// required: false
 	// example: true
 	AllowReceiving *bool `json:"allowReceiving" example:"true"`
+
+	// Direction is the accounting direction of the balance ("credit" or
+	// "debit"). Optional at creation; when omitted, defaults to "credit".
+	// required: false
+	// example: credit
+	Direction *string `json:"direction,omitempty" example:"credit"`
+
+	// Settings is the optional per-balance configuration (overdraft,
+	// balance scope). When omitted, platform defaults are applied.
+	// required: false
+	Settings *BalanceSettings `json:"settings,omitempty"`
 } // @name CreateAdditionalBalance
 
 // UpdateBalance is a struct designed to encapsulate balance update request payload data.
@@ -254,6 +346,12 @@ type UpdateBalance struct {
 	// required: false
 	// example: true
 	AllowReceiving *bool `json:"allowReceiving" example:"true"`
+
+	// Settings is the per-balance configuration (overdraft, balance
+	// scope). When provided, replaces the existing settings in full.
+	// Direction is intentionally absent: it is immutable after creation.
+	// required: false
+	Settings *BalanceSettings `json:"settings,omitempty"`
 } // @name UpdateBalance
 
 // CreateBalanceInput is the input model used by services to create a balance synchronously.
@@ -340,6 +438,22 @@ type Balances struct {
 // BalanceRedis is an internal struct for Redis cache representation of balance data.
 //
 // This is an internal model not exposed via API.
+//
+// CACHE JSON CASING CONTRACT: the Redis balance entry is a JSON string whose
+// keys are CamelCase (e.g. "Available", "Direction", "AllowOverdraft") because
+// the original writer is the Lua atomic script (cjson.encode on a table with
+// CamelCase keys) and Lua table access is case-sensitive. Every Go writer to
+// the same key MUST emit CamelCase. If a Go writer uses the default BalanceRedis
+// struct tags (which are camelCase: "available", "direction", etc.), the next
+// Lua cjson.decode will see balance.Available == nil and arithmetic helpers
+// will fail with "attempt to compare nil with number".
+//
+// The canonical Go writer that respects this contract is
+// UpdateBalanceCacheSettings in adapters/redis/transaction/consumer.redis.go,
+// which operates on map[string]any with explicit CamelCase keys and uses the
+// luaBalanceSettingKey helper to purge legacy camelCase aliases. Any new Go
+// writer to the balance cache MUST follow the same pattern — do NOT marshal
+// BalanceRedis directly; use map[string]any with CamelCase keys.
 type BalanceRedis struct {
 	// Unique identifier for the balance (UUID format)
 	ID string `json:"id"`
@@ -377,6 +491,24 @@ type BalanceRedis struct {
 
 	// Whether the account can receive funds (1=true, 0=false)
 	AllowReceiving int `json:"allowReceiving"`
+
+	// Accounting direction of the balance ("credit" or "debit")
+	Direction string `json:"direction"`
+
+	// Amount of overdraft currently consumed (decimal string for Lua)
+	OverdraftUsed string `json:"overdraftUsed"`
+
+	// Whether overdraft is allowed (1=true, 0=false for Lua)
+	AllowOverdraft int `json:"allowOverdraft"`
+
+	// Whether the overdraft limit is enabled (1=true, 0=false for Lua)
+	OverdraftLimitEnabled int `json:"overdraftLimitEnabled"`
+
+	// Maximum overdraft amount (decimal string for Lua)
+	OverdraftLimit string `json:"overdraftLimit"`
+
+	// Balance scope ("transactional" or "internal")
+	BalanceScope string `json:"balanceScope"`
 }
 
 // UnmarshalJSON is a custom unmarshal function for BalanceRedis
@@ -384,8 +516,9 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	type Alias BalanceRedis
 
 	aux := struct {
-		Available any `json:"available"`
-		OnHold    any `json:"onHold"`
+		Available     any `json:"available"`
+		OnHold        any `json:"onHold"`
+		OverdraftUsed any `json:"overdraftUsed"`
 		*Alias
 	}{
 		Alias: (*Alias)(b),
@@ -455,6 +588,12 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 		}
 
 		b.OnHold = decimal.NewFromFloat(f)
+	}
+
+	b.OverdraftUsed = utils.ParseDecimalString(aux.OverdraftUsed, "0")
+
+	if b.OverdraftLimit == "" {
+		b.OverdraftLimit = "0"
 	}
 
 	// Set default value for Key if not provided (backwards compatibility)

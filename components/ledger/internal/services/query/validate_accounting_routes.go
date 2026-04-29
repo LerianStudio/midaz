@@ -429,6 +429,18 @@ func uniqueValues(m map[string]string) int {
 // validateDirectionRouteMatch validates that an operation's direction is compatible with the route's operation type.
 // Source routes only accept debit, destination routes only accept credit, bidirectional routes accept both.
 func validateDirectionRouteMatch(operation mmodel.BalanceOperation, routeCache mmodel.OperationRouteCache) error {
+	// System-generated companion operations on the overdraft balance are exempt
+	// from direction validation. The companion's balance has direction=debit
+	// (set during auto-creation), which clashes with destination-type routes
+	// that expect direction=credit. Since companion ops are system-generated
+	// with a direction determined by the overdraft balance's immutable direction,
+	// blocking them serves no user-facing safety purpose. The OverdraftBalanceKey
+	// is set only by the enrichment engine and cannot be specified by the user
+	// (key "overdraft" is reserved — see T-003 scope protection).
+	if operation.Balance != nil && operation.Balance.Key == constant.OverdraftBalanceKey {
+		return nil
+	}
+
 	// Double-entry split operations use ON_HOLD, RELEASE, and reversal CREDIT/DEBIT
 	// that intentionally cross the normal direction-route mapping. Skip validation
 	// for these:
