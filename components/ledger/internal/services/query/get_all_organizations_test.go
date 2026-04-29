@@ -31,25 +31,23 @@ func TestGetAllOrganizations(t *testing.T) {
 		OnboardingMetadataRepo: mockMetadataRepo,
 	}
 
-	filter := http.QueryHeader{
-		Limit: 10,
-		Page:  1,
-	}
-
 	tests := []struct {
 		name           string
 		filter         http.QueryHeader
-		mockSetup      func()
+		mockSetup      func(filter http.QueryHeader)
 		expectErr      bool
 		expectedResult []*mmodel.Organization
 	}{
 		{
-			name:   "Success - Retrieve organizations with metadata",
-			filter: filter,
-			mockSetup: func() {
+			name: "Success - Retrieve organizations with metadata",
+			filter: http.QueryHeader{
+				Limit: 10,
+				Page:  1,
+			},
+			mockSetup: func(filter http.QueryHeader) {
 				validUUID := uuid.New()
 				mockOrganizationRepo.EXPECT().
-					FindAll(gomock.Any(), filter.ToOffsetPagination(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), filter).
 					Return([]*mmodel.Organization{
 						{ID: validUUID.String(), LegalName: "Test Organization", Status: mmodel.Status{Code: "active"}},
 					}, nil)
@@ -70,9 +68,9 @@ func TestGetAllOrganizations(t *testing.T) {
 				Limit: 10,
 				Page:  1,
 			},
-			mockSetup: func() {
+			mockSetup: func(filter http.QueryHeader) {
 				mockOrganizationRepo.EXPECT().
-					FindAll(gomock.Any(), filter.ToOffsetPagination(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), filter).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
 			expectErr:      true,
@@ -84,10 +82,10 @@ func TestGetAllOrganizations(t *testing.T) {
 				Limit: 10,
 				Page:  1,
 			},
-			mockSetup: func() {
+			mockSetup: func(filter http.QueryHeader) {
 				validUUID := uuid.New()
 				mockOrganizationRepo.EXPECT().
-					FindAll(gomock.Any(), filter.ToOffsetPagination(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), filter).
 					Return([]*mmodel.Organization{
 						{ID: validUUID.String(), LegalName: "Test Organization", Status: mmodel.Status{Code: "active"}},
 					}, nil)
@@ -102,7 +100,7 @@ func TestGetAllOrganizations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.mockSetup()
+			tt.mockSetup(tt.filter)
 
 			ctx := context.Background()
 			result, err := uc.GetAllOrganizations(ctx, tt.filter)

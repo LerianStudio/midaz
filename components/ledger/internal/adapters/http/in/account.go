@@ -115,6 +115,14 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 //	@Param			sort_order		query		string																false	"Sort direction for results based on creation date"	Enums(asc,desc)
 //	@Param			portfolio_id	query		string																false	"Filter accounts by portfolio ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics)."	format(uuid)
 //	@Param			segment_id		query		string																false	"Filter accounts by segment ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics)."	format(uuid)
+//	@Param			status			query		string																false	"Filter accounts by status"
+//	@Param			type			query		string																false	"Filter accounts by type (e.g., deposit, savings, external)"
+//	@Param			asset_code		query		string																false	"Filter accounts by asset code (e.g., USD, BRL, EUR)"
+//	@Param			entity_id		query		string																false	"Filter accounts by entity ID"
+//	@Param			blocked			query		boolean																false	"Filter accounts by blocked status"				Enums(true,false)
+//	@Param			parent_account_id	query	string																false	"Filter accounts by parent account ID (UUID format)"	format(uuid)
+//	@Param			name				query	string																false	"Filter accounts by name (case-insensitive, prefix match)"	maxLength(256)
+//	@Param			alias				query	string																false	"Filter accounts by alias (case-insensitive, prefix match)"	maxLength(256)
 //	@Success		200				{object}	http.Pagination{items=[]mmodel.Account}	"Successfully retrieved accounts list"
 //	@Failure		400				{object}	mmodel.Error														"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error														"Unauthorized access"

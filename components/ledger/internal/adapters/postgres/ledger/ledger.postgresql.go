@@ -50,7 +50,7 @@ var ledgerColumnList = []string{
 type Repository interface {
 	Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
 	Find(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error)
-	FindAll(ctx context.Context, organizationID uuid.UUID, filter http.Pagination, name *string) ([]*mmodel.Ledger, error)
+	FindAll(ctx context.Context, organizationID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Ledger, error)
 	FindByName(ctx context.Context, organizationID uuid.UUID, name string) (bool, error)
 	ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Ledger, error)
 	Update(ctx context.Context, organizationID, id uuid.UUID, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
@@ -265,7 +265,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 }
 
 // FindAll retrieves Ledgers entities from the database.
-func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, filter http.Pagination, name *string) ([]*mmodel.Ledger, error) {
+func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Ledger, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_ledgers")
@@ -280,22 +280,35 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 		return nil, err
 	}
 
+	pagination := filter.ToOffsetPagination()
+
 	var ledgers []*mmodel.Ledger
 
 	findAll := squirrel.Select(ledgerColumnList...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
-		OrderBy("id " + strings.ToUpper(filter.SortOrder)).
-		Limit(libCommons.SafeIntToUint64(filter.Limit)).
-		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
+		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.StartDate, libPointers.Int(0), false)}).
+		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.EndDate, libPointers.Int(0), true)}).
+		OrderBy("id " + strings.ToUpper(pagination.SortOrder)).
+		Limit(libCommons.SafeIntToUint64(pagination.Limit)).
+		Offset(libCommons.SafeIntToUint64((pagination.Page - 1) * pagination.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
-	if name != nil && *name != "" {
-		sanitized := http.EscapeSearchMetacharacters(*name)
-		findAll = findAll.Where(squirrel.ILike{"name": sanitized + "%"})
+	// Filter by entity IDs when provided (metadata composition)
+	if len(filter.EntityIDs) > 0 {
+		findAll = findAll.Where(squirrel.Expr("id = ANY(?)", pq.Array(filter.EntityIDs)))
+	}
+
+	if filter.Name != nil && *filter.Name != "" {
+		sanitized := http.EscapeSearchMetacharacters(*filter.Name)
+		findAll = findAll.Where(
+			squirrel.Expr("lower(name) LIKE lower(?) || '%' ESCAPE '\\'", sanitized),
+		)
+	}
+
+	if !libCommons.IsNilOrEmpty(filter.Status) {
+		findAll = findAll.Where(squirrel.Expr("status = ?", *filter.Status))
 	}
 
 	query, args, err := findAll.ToSql()

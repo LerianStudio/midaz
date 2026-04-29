@@ -37,7 +37,7 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 		return nil, err
 	}
 
-	if metadata == nil {
+	if len(metadata) == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No metadata found", err)
@@ -55,7 +55,9 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	accounts, err := uc.AccountRepo.ListByIDs(ctx, organizationID, ledgerID, portfolioID, segmentID, uuids)
+	filter.EntityIDs = uuids
+
+	accounts, err := uc.AccountRepo.FindAll(ctx, organizationID, ledgerID, portfolioID, segmentID, filter)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())

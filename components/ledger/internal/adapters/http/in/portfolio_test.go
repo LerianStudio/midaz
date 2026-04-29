@@ -638,9 +638,9 @@ func TestHandler_GetAllPortfolios(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// PortfolioRepo.ListByIDs returns the portfolios
+				// PortfolioRepo.FindAll returns the portfolios
 				portfolioRepo.EXPECT().
-					ListByIDs(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
 					Return([]*mmodel.Portfolio{
 						{
 							ID:             portfolio1ID,
@@ -715,9 +715,9 @@ func TestHandler_GetAllPortfolios(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// PortfolioRepo.ListByIDs returns not found error
+				// PortfolioRepo.FindAll returns not found error
 				portfolioRepo.EXPECT().
-					ListByIDs(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())).
 					Times(1)
 			},

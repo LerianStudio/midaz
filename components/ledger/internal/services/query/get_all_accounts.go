@@ -30,7 +30,7 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving accounts")
 
-	accounts, err := uc.AccountRepo.FindAll(ctx, organizationID, ledgerID, portfolioID, segmentID, filter.ToOffsetPagination())
+	accounts, err := uc.AccountRepo.FindAll(ctx, organizationID, ledgerID, portfolioID, segmentID, filter)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting accounts on repo: %v", err))
 

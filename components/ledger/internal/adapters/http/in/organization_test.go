@@ -451,7 +451,7 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 			queryParams: "",
 			setupMocks: func(orgRepo *organization.MockRepository, metadataRepo *mongodb.MockRepository) {
 				orgRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Organization{}, nil).
 					Times(1)
 			},
@@ -479,7 +479,7 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 				org2ID := uuid.New().String()
 
 				orgRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Organization{
 						{
 							ID:            org1ID,
@@ -545,9 +545,9 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// OrganizationRepo.ListByIDs returns the organizations
+				// OrganizationRepo.FindAll returns the organizations
 				orgRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Organization{
 						{
 							ID:            org1ID,
@@ -620,9 +620,9 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// OrganizationRepo.ListByIDs returns not found error
+				// OrganizationRepo.FindAll returns not found error
 				orgRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any()).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())).
 					Times(1)
 			},
@@ -640,7 +640,7 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 			queryParams: "",
 			setupMocks: func(orgRepo *organization.MockRepository, metadataRepo *mongodb.MockRepository) {
 				orgRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any()).
 					Return(nil, pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
@@ -1045,7 +1045,7 @@ func TestProperty_Headers_InvalidFormats(t *testing.T) {
 
 	// Mock repo to return empty list (we're testing HTTP layer, not business logic)
 	mockOrgRepo.EXPECT().
-		FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		FindAll(gomock.Any(), gomock.Any()).
 		Return([]*mmodel.Organization{}, nil).
 		AnyTimes()
 
