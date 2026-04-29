@@ -53,7 +53,7 @@ func NewOrchestratorWithConfig(t *testing.T, cfg OrchestratorConfig) *Orchestrat
 	_ = ctx // Silence unused variable warning
 
 	// Initialize Docker client
-	dockerCli, err := docker.NewClientWithOpts(docker.FromEnv, docker.WithAPIVersionNegotiation())
+	dockerCli, err := docker.New(docker.FromEnv)
 	require.NoError(t, err, "failed to create Docker client")
 
 	orch := &Orchestrator{

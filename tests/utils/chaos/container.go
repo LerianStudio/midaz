@@ -116,6 +116,7 @@ func (o *Orchestrator) IsContainerRunning(ctx context.Context, containerID strin
 	if err != nil {
 		return false, err
 	}
+
 	if inspect.Container.State == nil {
 		return false, nil
 	}
@@ -131,6 +132,7 @@ func (o *Orchestrator) IsContainerPaused(ctx context.Context, containerID string
 	if err != nil {
 		return false, err
 	}
+
 	if inspect.Container.State == nil {
 		return false, nil
 	}
