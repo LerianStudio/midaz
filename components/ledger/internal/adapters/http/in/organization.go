@@ -80,7 +80,7 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
-//	@Param			id				path		string							true	"Organization ID in UUID format"
+//	@Param			organization_id	path		string							true	"Organization ID in UUID format"
 //	@Param			organization	body		mmodel.UpdateOrganizationInput	true	"Organization fields to update. Only supplied fields will be modified."
 //	@Success		200				{object}	mmodel.Organization				"Successfully updated organization"
 //	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
@@ -88,7 +88,7 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 //	@Failure		403				{object}	mmodel.Error					"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error					"Organization not found"
 //	@Failure		500				{object}	mmodel.Error					"Internal server error"
-//	@Router			/v1/organizations/{id} [patch]
+//	@Router			/v1/organizations/{organization_id} [patch]
 func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -125,13 +125,13 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 //	@Produce		json
 //	@Param			Authorization	header		string				true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string				false	"Request ID for tracing"
-//	@Param			id				path		string				true	"Organization ID in UUID format"
+//	@Param			organization_id	path		string				true	"Organization ID in UUID format"
 //	@Success		200				{object}	mmodel.Organization	"Successfully retrieved organization"
 //	@Failure		401				{object}	mmodel.Error		"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error		"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error		"Organization not found"
 //	@Failure		500				{object}	mmodel.Error		"Internal server error"
-//	@Router			/v1/organizations/{id} [get]
+//	@Router			/v1/organizations/{organization_id} [get]
 func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -266,14 +266,14 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 //	@Tags			Organizations
 //	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Param			id				path		string			true	"Organization ID in UUID format"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Success		204				"Organization successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden action or not permitted in production environment"
 //	@Failure		404				{object}	mmodel.Error	"Organization not found"
 //	@Failure		409				{object}	mmodel.Error	"Conflict: Cannot delete organization with dependent resources"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{id} [delete]
+//	@Router			/v1/organizations/{organization_id} [delete]
 func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

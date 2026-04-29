@@ -343,7 +343,7 @@ func TestIntegration_OperationRepository_CreateBulk_SortingVerification(t *testi
 }
 
 // TestIntegration_OperationRepository_CreateBulk_Chunking tests that large batches
-// are correctly chunked (operation has 30 columns, chunk size is 1000).
+// are correctly chunked (operation has 31 columns, chunk size is 1000).
 func TestIntegration_OperationRepository_CreateBulk_Chunking(t *testing.T) {
 	// Arrange
 	infra := setupBulkTestInfra(t)

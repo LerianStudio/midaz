@@ -21,7 +21,6 @@ import (
 	// If key != "default", it validates that the default balance exists and that the account type allows additional balances.
 
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	"github.com/google/uuid"
 )
 
 func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
@@ -84,8 +83,25 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 		return nil, err
 	}
 
+	// Default balances (created alongside an account or asset) always use
+	// the "credit" direction. The migration defines direction as NOT NULL
+	// with a CHECK constraint (credit|debit), so we must set an explicit
+	// value rather than relying on the DB default — the INSERT column list
+	// includes "direction" and would otherwise send an empty string and
+	// fail the CHECK. Setting it here also ensures the Go model stays
+	// consistent with the persisted row returned by RETURNING.
+	now := time.Now()
+
+	balanceUUID, uuidErr := libCommons.GenerateUUIDv7()
+	if uuidErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate UUID for balance", uuidErr)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate UUID for balance", libLog.Err(uuidErr))
+
+		return nil, uuidErr
+	}
+
 	newBalance := &mmodel.Balance{
-		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		ID:             balanceUUID.String(),
 		Alias:          input.Alias,
 		Key:            normalizedKey,
 		OrganizationID: input.OrganizationID.String(),
@@ -95,8 +111,9 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 		AccountType:    input.AccountType,
 		AllowSending:   input.AllowSending,
 		AllowReceiving: input.AllowReceiving,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		Direction:      constant.DirectionCredit,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
 	created, err := uc.BalanceRepo.Create(ctx, newBalance)

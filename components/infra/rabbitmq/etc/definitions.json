@@ -79,6 +79,15 @@
       "vhost": "/",
       "type": "topic",
       "durable": true
+    },
+    {
+      "name": "transaction.overdraft_events.exchange",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
     }
   ],
   "bindings": [

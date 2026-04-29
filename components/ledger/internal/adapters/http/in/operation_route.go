@@ -132,10 +132,10 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 //	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
 //	@Param			organization_id	path		string					true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
-//	@Param			id				path		string					true	"Operation Route ID in UUID format"
+//	@Param			operation_route_id				path		string					true	"Operation Route ID in UUID format"
 //	@Success		200				{object}	mmodel.OperationRoute	"Successfully retrieved operation route"
 //	@Failure		401				{object}	mmodel.Error			"Unauthorized access"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{id} [get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id} [get]
 func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -565,15 +565,21 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 
 	entityName := reflect.TypeOf(mmodel.OperationRoute{}).Name()
 
+	// newScenarios are validated with ErrAccountingEntryFieldRequired (0166 —
+	// UnprocessableOperationError) instead of ErrMissingFieldsInRequest (0009 —
+	// ValidationError) so HTTP callers get a 422-class response that surfaces
+	// the scenario-specific field path.
 	actions := []struct {
-		name  string
-		entry *mmodel.AccountingEntry
+		name    string
+		entry   *mmodel.AccountingEntry
+		errCode error
 	}{
-		{"direct", entries.Direct},
-		{"hold", entries.Hold},
-		{"commit", entries.Commit},
-		{"cancel", entries.Cancel},
-		{"revert", entries.Revert},
+		{constant.ActionDirect, entries.Direct, constant.ErrMissingFieldsInRequest},
+		{constant.ActionHold, entries.Hold, constant.ErrMissingFieldsInRequest},
+		{constant.ActionCommit, entries.Commit, constant.ErrMissingFieldsInRequest},
+		{constant.ActionCancel, entries.Cancel, constant.ErrMissingFieldsInRequest},
+		{constant.ActionRevert, entries.Revert, constant.ErrMissingFieldsInRequest},
+		{constant.ActionOverdraft, entries.Overdraft, constant.ErrAccountingEntryFieldRequired},
 	}
 
 	for _, action := range actions {
@@ -585,7 +591,7 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 		if action.entry.Debit == nil && action.entry.Credit == nil {
 			fieldPath := "accountingEntries." + action.name + ".debit, accountingEntries." + action.name + ".credit"
 
-			err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
+			err := pkg.ValidateBusinessError(action.errCode, entityName, fieldPath)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting entry missing both debit and credit", err)
 
@@ -596,14 +602,14 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 
 		// Validate debit rubric if present
 		if action.entry.Debit != nil {
-			if err := handler.validateRubricStructure(ctx, span, logger, entityName, action.name, "debit", action.entry.Debit); err != nil {
+			if err := handler.validateRubricStructure(ctx, span, logger, entityName, action.name, "debit", action.entry.Debit, action.errCode); err != nil {
 				return err
 			}
 		}
 
 		// Validate credit rubric if present
 		if action.entry.Credit != nil {
-			if err := handler.validateRubricStructure(ctx, span, logger, entityName, action.name, "credit", action.entry.Credit); err != nil {
+			if err := handler.validateRubricStructure(ctx, span, logger, entityName, action.name, "credit", action.entry.Credit, action.errCode); err != nil {
 				return err
 			}
 		}
@@ -613,17 +619,21 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 }
 
 // validateRubricStructure validates that a rubric has non-empty code and description.
+// The errCode parameter controls which business error is raised on failure so callers
+// can differentiate validation classes (e.g., legacy scenarios use 0009, new overdraft
+// and refund scenarios use 0166).
 func (handler *OperationRouteHandler) validateRubricStructure(
 	ctx context.Context,
 	span trace.Span,
 	logger libLog.Logger,
 	entityName, actionName, side string,
 	rubric *mmodel.AccountingRubric,
+	errCode error,
 ) error {
 	if strings.TrimSpace(rubric.Code) == "" {
 		fieldPath := "accountingEntries." + actionName + "." + side + ".code"
 
-		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
+		err := pkg.ValidateBusinessError(errCode, entityName, fieldPath)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric code is empty", err)
 
@@ -635,7 +645,7 @@ func (handler *OperationRouteHandler) validateRubricStructure(
 	if strings.TrimSpace(rubric.Description) == "" {
 		fieldPath := "accountingEntries." + actionName + "." + side + ".description"
 
-		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
+		err := pkg.ValidateBusinessError(errCode, entityName, fieldPath)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric description is empty", err)
 
@@ -649,15 +659,16 @@ func (handler *OperationRouteHandler) validateRubricStructure(
 
 // validAccountingEntryKeys defines the allowed top-level keys inside accountingEntries.
 var validAccountingEntryKeys = map[string]struct{}{
-	"direct": {},
-	"hold":   {},
-	"commit": {},
-	"cancel": {},
-	"revert": {},
+	constant.ActionDirect:    {},
+	constant.ActionHold:      {},
+	constant.ActionCommit:    {},
+	constant.ActionCancel:    {},
+	constant.ActionRevert:    {},
+	constant.ActionOverdraft: {},
 }
 
 // findUnknownAccountingEntryKeys parses the raw JSON for accountingEntries and returns
-// a map of keys that are not in the allowed set (direct, hold, commit, cancel, revert).
+// a map of keys that are not in the allowed set (see validAccountingEntryKeys).
 // Returns nil when all keys are valid. The returned map is suitable for use with
 // ValidateBadRequestFieldsError to produce a standard 0053 "Unexpected Fields" error.
 func findUnknownAccountingEntryKeys(raw json.RawMessage) map[string]any {
@@ -693,11 +704,21 @@ type fieldRequirement struct {
 //	source:      direct[D], hold[D][C], commit[D], cancel[D][C]
 //	destination: direct[C], commit[C]
 //	bidirectional: all scenarios require [D][C]
+//	overdraft: both debit and credit are required regardless of direction.
 //
 // Note: Blocked scenarios (source/revert, destination/hold, etc.) are validated
 // separately by validateDirectionScenarioMatrix. This function assumes the
 // scenario is allowed for the direction.
 func getFieldRequirements(operationType, scenario string) fieldRequirement {
+	// Overdraft always requires both rubrics, regardless of direction.
+	// Keeping this rule explicit (rather than relying on the default fallthrough)
+	// documents the requirement next to the scenario list above and makes it
+	// harder to accidentally loosen via future edits to the source/destination
+	// switches.
+	if scenario == constant.ActionOverdraft {
+		return fieldRequirement{debitRequired: true, creditRequired: true}
+	}
+
 	// Bidirectional always requires both
 	if operationType == constant.OperationRouteTypeBidirectional {
 		return fieldRequirement{debitRequired: true, creditRequired: true}
@@ -735,10 +756,15 @@ func getFieldRequirements(operationType, scenario string) fieldRequirement {
 //   - source: direct[D], hold[D][C], commit[D], cancel[D][C], revert[✗]
 //   - destination: direct[C], hold[✗], commit[C], cancel[✗], revert[✗]
 //   - bidirectional: all scenarios allowed with [D][C]
+//   - overdraft / refund: both debit and credit are required on every
+//     operationType. They fall through to the explicit early return in
+//     getFieldRequirements, so the default debit+credit requirement applies
+//     uniformly across source / destination / bidirectional routes.
 //
 // Additional rules:
 //   - Reserve group (hold, commit, cancel) must be atomic for source/bidirectional
-//   - direct is mandatory when any other scenario is present
+//   - direct is mandatory when any other scenario is present (including
+//     overdraft and refund)
 //   - revert is only allowed for bidirectional
 func (handler *OperationRouteHandler) validateAccountingRulesMatrix(
 	ctx context.Context,
@@ -937,8 +963,13 @@ func (handler *OperationRouteHandler) validateDirectMandatory(
 	defer span.End()
 
 	hasDirect := entries.Direct != nil
+	// Overdraft is a supplementary accounting scenario that still requires
+	// direct as a base. Without this, a payload setting only overdraft
+	// would bypass the direct-mandatory check and yield an incomplete
+	// accounting description.
 	hasOtherScenarios := entries.Hold != nil || entries.Commit != nil ||
-		entries.Cancel != nil || entries.Revert != nil
+		entries.Cancel != nil || entries.Revert != nil ||
+		entries.Overdraft != nil
 
 	// If any other scenario exists, direct must also exist
 	if hasOtherScenarios && !hasDirect {
@@ -986,6 +1017,7 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 		{constant.ActionCommit, entries.Commit},
 		{constant.ActionCancel, entries.Cancel},
 		{constant.ActionRevert, entries.Revert},
+		{constant.ActionOverdraft, entries.Overdraft},
 	}
 
 	for _, action := range actions {
@@ -1089,24 +1121,27 @@ func mergeAccountingEntries(existing, incoming *mmodel.AccountingEntries, rawUpd
 		return existingEntry
 	}
 
-	var incomingDirect, incomingHold, incomingCommit, incomingCancel, incomingRevert *mmodel.AccountingEntry
+	var incomingDirect, incomingHold, incomingCommit, incomingCancel, incomingRevert, incomingOverdraft *mmodel.AccountingEntry
 	if incoming != nil {
 		incomingDirect = incoming.Direct
 		incomingHold = incoming.Hold
 		incomingCommit = incoming.Commit
 		incomingCancel = incoming.Cancel
 		incomingRevert = incoming.Revert
+		incomingOverdraft = incoming.Overdraft
 	}
 
-	merged.Direct = applyMerge("direct", existing.Direct, incomingDirect)
-	merged.Hold = applyMerge("hold", existing.Hold, incomingHold)
-	merged.Commit = applyMerge("commit", existing.Commit, incomingCommit)
-	merged.Cancel = applyMerge("cancel", existing.Cancel, incomingCancel)
-	merged.Revert = applyMerge("revert", existing.Revert, incomingRevert)
+	merged.Direct = applyMerge(constant.ActionDirect, existing.Direct, incomingDirect)
+	merged.Hold = applyMerge(constant.ActionHold, existing.Hold, incomingHold)
+	merged.Commit = applyMerge(constant.ActionCommit, existing.Commit, incomingCommit)
+	merged.Cancel = applyMerge(constant.ActionCancel, existing.Cancel, incomingCancel)
+	merged.Revert = applyMerge(constant.ActionRevert, existing.Revert, incomingRevert)
+	merged.Overdraft = applyMerge(constant.ActionOverdraft, existing.Overdraft, incomingOverdraft)
 
 	// Check if all entries are nil - return nil instead of empty struct
 	if merged.Direct == nil && merged.Hold == nil && merged.Commit == nil &&
-		merged.Cancel == nil && merged.Revert == nil {
+		merged.Cancel == nil && merged.Revert == nil &&
+		merged.Overdraft == nil {
 		return nil
 	}
 
@@ -1150,6 +1185,12 @@ func mergeAccountingEntriesSimple(existing, incoming *mmodel.AccountingEntries) 
 		merged.Revert = incoming.Revert
 	} else if existing != nil {
 		merged.Revert = existing.Revert
+	}
+
+	if incoming.Overdraft != nil {
+		merged.Overdraft = incoming.Overdraft
+	} else if existing != nil {
+		merged.Overdraft = existing.Overdraft
 	}
 
 	return merged

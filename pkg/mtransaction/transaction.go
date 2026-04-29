@@ -32,10 +32,35 @@ type Balance struct {
 	AccountType    string          `json:"accountType" example:"creditCard"`
 	AllowSending   bool            `json:"allowSending" example:"true"`
 	AllowReceiving bool            `json:"allowReceiving" example:"true"`
-	CreatedAt      time.Time       `json:"createdAt" example:"2021-01-01T00:00:00Z"`
-	UpdatedAt      time.Time       `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
-	DeletedAt      *time.Time      `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
-	Metadata       map[string]any  `json:"metadata,omitempty"`
+	// Direction is the accounting direction of the balance ("credit" or
+	// "debit"). Empty string denotes a legacy balance that predates the
+	// overdraft feature and is treated as "credit" by the engine.
+	Direction string `json:"direction,omitempty" example:"credit"`
+	// OverdraftUsed is the amount of overdraft currently consumed by the
+	// balance. Always non-negative. Zero when the balance is in the black.
+	OverdraftUsed decimal.Decimal `json:"overdraftUsed" example:"0"`
+	// AllowOverdraft enables overdraft behavior when true.
+	AllowOverdraft bool `json:"allowOverdraft"`
+	// OverdraftLimitEnabled gates the OverdraftLimit value. When false,
+	// the limit is zero (unlimited if AllowOverdraft is true).
+	OverdraftLimitEnabled bool `json:"overdraftLimitEnabled"`
+	// OverdraftLimit is the maximum overdraft amount as a decimal.
+	// Only meaningful when OverdraftLimitEnabled is true.
+	//
+	// Type asymmetry note: this field is decimal.Decimal for runtime
+	// arithmetic (comparison, subtraction in ValidateOverdraftLimit). The
+	// corresponding BalanceSettings.OverdraftLimit is *string to preserve
+	// JSON precision across marshal/unmarshal cycles. ToTransactionBalance()
+	// in pkg/mmodel/balance.go bridges the two: it parses the *string into
+	// a decimal.Decimal, returning an error on malformed values.
+	OverdraftLimit decimal.Decimal `json:"overdraftLimit"`
+	// BalanceScope is the balance scope ("transactional" or "internal").
+	// Empty string is treated as "transactional" for backward compatibility.
+	BalanceScope string         `json:"balanceScope"`
+	CreatedAt    time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z"`
+	UpdatedAt    time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
+	DeletedAt    *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
+	Metadata     map[string]any `json:"metadata,omitempty"`
 } // @name Balance
 
 type Responses struct {
@@ -74,6 +99,10 @@ type Amount struct {
 	TransactionType        string `json:"transactionType,omitempty" swaggerignore:"true"`
 	Direction              string `json:"direction,omitempty" swaggerignore:"true"`
 	RouteValidationEnabled bool   `json:"routeValidationEnabled,omitempty" swaggerignore:"true"`
+	// OverdraftAmount carries the exact overdraft delta for state-transition
+	// reversals. It is zero for normal transactions, where Lua derives the
+	// split from live balance state.
+	OverdraftAmount decimal.Decimal `json:"overdraftAmount,omitempty" swaggerignore:"true"`
 } // @name Amount
 
 // Share structure for marshaling/unmarshalling JSON.

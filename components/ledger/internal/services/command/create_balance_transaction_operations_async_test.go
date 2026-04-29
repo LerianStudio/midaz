@@ -133,6 +133,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Validate:    validate,
 			Balances:    balances,
 			Input:       transactionInput,
+			Version:     "v2",
 		}
 
 		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
@@ -257,6 +258,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Validate:    validate,
 			Balances:    balances,
 			Input:       transactionInput,
+			Version:     "v2",
 		}
 
 		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
@@ -386,7 +388,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			},
 		}
 
-		// Create operations for the transaction
+		// Create operations for the transaction.
+		// operation1 carries non-zero overdraft snapshot values so that the
+		// msgpack round-trip assertion in the OperationRepo.Create mock is
+		// non-trivial — a regression that drops snapshot during serialization
+		// will fail with a clear message.
 		Amount := decimal.NewFromInt(50)
 		operation1 := &operation.Operation{
 			ID:             uuid.New().String(),
@@ -399,11 +405,17 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Amount: operation.Amount{
 				Value: &Amount,
 			},
-			Balance: operation.Balance{ // ensure version before is present
-				Version: Int64Ptr(1),
+			Balance: operation.Balance{
+				Version:       Int64Ptr(1),
+				OverdraftUsed: decimal.Zero,
 			},
-			BalanceAfter: operation.Balance{ // ensure version after is present
-				Version: Int64Ptr(2),
+			BalanceAfter: operation.Balance{
+				Version:       Int64Ptr(2),
+				OverdraftUsed: decimal.NewFromInt(50),
+			},
+			Snapshot: mmodel.OperationSnapshot{
+				OverdraftUsedBefore: "0",
+				OverdraftUsedAfter:  "50",
 			},
 			Metadata: map[string]interface{}{"key1": "value1"},
 		}
@@ -420,11 +432,17 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Amount: operation.Amount{
 				Value: &Amount,
 			},
-			Balance: operation.Balance{ // ensure version before is present
-				Version: Int64Ptr(1),
+			Balance: operation.Balance{
+				Version:       Int64Ptr(1),
+				OverdraftUsed: decimal.Zero,
 			},
-			BalanceAfter: operation.Balance{ // ensure version after is present
-				Version: Int64Ptr(2),
+			BalanceAfter: operation.Balance{
+				Version:       Int64Ptr(2),
+				OverdraftUsed: decimal.Zero,
+			},
+			Snapshot: mmodel.OperationSnapshot{
+				OverdraftUsedBefore: "0",
+				OverdraftUsedAfter:  "0",
 			},
 			Metadata: map[string]interface{}{"key2": "value2"},
 		}
@@ -445,6 +463,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Validate:    validate,
 			Balances:    balances,
 			Input:       transactionInput,
+			Version:     "v2",
 		}
 
 		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
@@ -476,22 +495,50 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(1)
 
-		// Mock OperationRepo.Create for both operations and assert versions exist
+		// Mock OperationRepo.Create for both operations and assert versions exist.
+		// Identity is asserted by ID inside DoAndReturn — direct struct equality
+		// against operation1 / operation2 isn't usable here because the
+		// transaction payload survives a msgpack round-trip via the queue, and
+		// msgpack normalizes the internal big.Int of zero-valued
+		// decimal.Decimal fields (Balance.OverdraftUsed under the always-
+		// populated snapshot contract). The decimals still compare equal
+		// semantically (`decimal.Equal`) but reflect.DeepEqual returns false,
+		// which is the implicit matcher gomock uses when given a concrete
+		// argument. Match by gomock.Any() and assert identity + snapshot
+		// preservation explicitly.
+		expectedOps := map[string]*operation.Operation{
+			operation1.ID: operation1,
+			operation2.ID: operation2,
+		}
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), operation1).
+			Create(gomock.Any(), gomock.Any()).
 			DoAndReturn(func(_ context.Context, op *operation.Operation) (*operation.Operation, error) {
-				assert.NotNil(t, op.Balance.Version)
-				assert.NotNil(t, op.BalanceAfter.Version)
-				return op, nil
-			})
+				exp, ok := expectedOps[op.ID]
+				require.True(t, ok, "unexpected operation ID: %s", op.ID)
+				delete(expectedOps, op.ID)
 
-		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), operation2).
-			DoAndReturn(func(_ context.Context, op *operation.Operation) (*operation.Operation, error) {
 				assert.NotNil(t, op.Balance.Version)
 				assert.NotNil(t, op.BalanceAfter.Version)
+
+				// Always-populated snapshot contract: msgpack must preserve snapshot fields.
+				assert.Equal(t, exp.Snapshot.OverdraftUsedBefore, op.Snapshot.OverdraftUsedBefore,
+					"msgpack must preserve Snapshot.OverdraftUsedBefore for op %s", op.ID)
+				assert.Equal(t, exp.Snapshot.OverdraftUsedAfter, op.Snapshot.OverdraftUsedAfter,
+					"msgpack must preserve Snapshot.OverdraftUsedAfter for op %s", op.ID)
+
+				// Decimal-aware equality survives msgpack big.Int normalization
+				// (decimal.Zero{} vs decimal.NewFromInt(0) are .Equal() but not
+				// reflect.DeepEqual).
+				assert.True(t, op.Balance.OverdraftUsed.Equal(exp.Balance.OverdraftUsed),
+					"msgpack must preserve Balance.OverdraftUsed for op %s: got %s want %s",
+					op.ID, op.Balance.OverdraftUsed.String(), exp.Balance.OverdraftUsed.String())
+				assert.True(t, op.BalanceAfter.OverdraftUsed.Equal(exp.BalanceAfter.OverdraftUsed),
+					"msgpack must preserve BalanceAfter.OverdraftUsed for op %s: got %s want %s",
+					op.ID, op.BalanceAfter.OverdraftUsed.String(), exp.BalanceAfter.OverdraftUsed.String())
+
 				return op, nil
-			})
+			}).
+			Times(2)
 
 		// Mock MetadataRepo.Create for operation metadata
 		mockMetadataRepo.EXPECT().
@@ -630,6 +677,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Validate:    validate,
 			Balances:    balances,
 			Input:       transactionInput,
+			Version:     "v2",
 		}
 
 		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
@@ -782,6 +830,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Validate:    validate,
 			Balances:    balances,
 			Input:       transactionInput,
+			Version:     "v2",
 		}
 
 		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
@@ -942,6 +991,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Validate:    validate,
 			Balances:    balances,
 			Input:       transactionInput,
+			Version:     "v2",
 		}
 
 		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
@@ -1106,6 +1156,7 @@ func TestCreateBTOAsync(t *testing.T) {
 		Validate:    validate,
 		Balances:    balances,
 		Input:       transactionInput,
+		Version:     "v2",
 	}
 
 	transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)

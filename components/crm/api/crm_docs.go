@@ -1596,7 +1596,7 @@ const docTemplatecrm = `{
 
 // SwaggerInfocrm holds exported Swagger Info so clients can modify it
 var SwaggerInfocrm = &swag.Spec{
-	Version:          "1.0.0",
+	Version:          "v3.7.0",
 	Host:             "localhost:4003",
 	BasePath:         "/",
 	Schemes:          []string{},

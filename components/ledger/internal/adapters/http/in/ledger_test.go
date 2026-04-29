@@ -347,10 +347,10 @@ func TestHandler_UpdateLedger(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/ledgers/:id",
+			app.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
-					c.Locals("id", ledgerID)
+					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
 				func(c *fiber.Ctx) error {
@@ -477,10 +477,10 @@ func TestHandler_GetLedgerByID(t *testing.T) {
 			handler := &LedgerHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:id",
+			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
-					c.Locals("id", ledgerID)
+					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
 				handler.GetLedgerByID,
@@ -870,10 +870,10 @@ func TestHandler_DeleteLedgerByID(t *testing.T) {
 			handler := &LedgerHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Delete("/v1/organizations/:organization_id/ledgers/:id",
+			app.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
-					c.Locals("id", ledgerID)
+					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
 				handler.DeleteLedgerByID,
@@ -1159,10 +1159,10 @@ func TestHandler_GetLedgerSettings(t *testing.T) {
 			handler := &LedgerHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:id/settings",
+			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/settings",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
-					c.Locals("id", ledgerID)
+					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
 				handler.GetLedgerSettings,
@@ -1349,10 +1349,10 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 			handler := &LedgerHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/ledgers/:id/settings",
+			app.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/settings",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
-					c.Locals("id", ledgerID)
+					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
 				func(c *fiber.Ctx) error {

@@ -106,6 +106,21 @@ func (mr *MockRedisRepositoryMockRecorder) GetBalanceSyncKeys(ctx, limit any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalanceSyncKeys", reflect.TypeOf((*MockRedisRepository)(nil).GetBalanceSyncKeys), ctx, limit)
 }
 
+// GetBalanceSyncKeysLegacy mocks base method.
+func (m *MockRedisRepository) GetBalanceSyncKeysLegacy(ctx context.Context, limit int64) ([]SyncKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBalanceSyncKeysLegacy", ctx, limit)
+	ret0, _ := ret[0].([]SyncKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBalanceSyncKeysLegacy indicates an expected call of GetBalanceSyncKeysLegacy.
+func (mr *MockRedisRepositoryMockRecorder) GetBalanceSyncKeysLegacy(ctx, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalanceSyncKeysLegacy", reflect.TypeOf((*MockRedisRepository)(nil).GetBalanceSyncKeysLegacy), ctx, limit)
+}
+
 // GetBalancesByKeys mocks base method.
 func (m *MockRedisRepository) GetBalancesByKeys(ctx context.Context, keys []string) (map[string]*mmodel.BalanceRedis, error) {
 	m.ctrl.T.Helper()
@@ -309,4 +324,18 @@ func (m *MockRedisRepository) SetNX(ctx context.Context, key, value string, ttl 
 func (mr *MockRedisRepositoryMockRecorder) SetNX(ctx, key, value, ttl any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNX", reflect.TypeOf((*MockRedisRepository)(nil).SetNX), ctx, key, value, ttl)
+}
+
+// UpdateBalanceCacheSettings mocks base method.
+func (m *MockRedisRepository) UpdateBalanceCacheSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, settings *mmodel.BalanceSettings) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateBalanceCacheSettings", ctx, organizationID, ledgerID, cacheKey, settings)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateBalanceCacheSettings indicates an expected call of UpdateBalanceCacheSettings.
+func (mr *MockRedisRepositoryMockRecorder) UpdateBalanceCacheSettings(ctx, organizationID, ledgerID, cacheKey, settings any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBalanceCacheSettings", reflect.TypeOf((*MockRedisRepository)(nil).UpdateBalanceCacheSettings), ctx, organizationID, ledgerID, cacheKey, settings)
 }

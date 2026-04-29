@@ -13,6 +13,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -92,6 +93,38 @@ func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, led
 			balanceKey = constant.DefaultBalanceKey
 		}
 
+		// OverdraftUsed is stored as a decimal string in the Lua/Redis layer.
+		// An unparseable value is treated as zero to match the Lua fallback
+		// rather than corrupting the domain model with an arbitrary number.
+		overdraftUsed, derr := decimal.NewFromString(b.OverdraftUsed)
+		if derr != nil {
+			overdraftUsed = decimal.Zero
+		}
+
+		// Synthesize Settings only when at least one field diverges from the
+		// defaults. This preserves nil Settings for legacy balances that never
+		// had custom configuration. Mirrors the materialization logic used by
+		// consumer.redis.go:balanceRedisToBalance so transaction flows observe
+		// the same overdraft configuration whether the balance is read from
+		// the cache path (here) or returned from the Lua script.
+		var settings *mmodel.BalanceSettings
+		if b.AllowOverdraft != 0 || b.OverdraftLimitEnabled != 0 ||
+			(b.BalanceScope != "" && b.BalanceScope != mmodel.BalanceScopeTransactional) ||
+			(b.OverdraftLimit != "" && b.OverdraftLimit != "0") {
+			settings = &mmodel.BalanceSettings{
+				BalanceScope:          b.BalanceScope,
+				AllowOverdraft:        b.AllowOverdraft == 1,
+				OverdraftLimitEnabled: b.OverdraftLimitEnabled == 1,
+			}
+			// Only expose OverdraftLimit when the limit is actively enforced.
+			// BalanceSettings.Validate() requires OverdraftLimit to be nil
+			// whenever OverdraftLimitEnabled is false.
+			if b.OverdraftLimitEnabled == 1 && b.OverdraftLimit != "" {
+				limit := b.OverdraftLimit
+				settings.OverdraftLimit = &limit
+			}
+		}
+
 		cached = append(cached, &mmodel.Balance{
 			ID:             b.ID,
 			AccountID:      b.AccountID,
@@ -106,6 +139,9 @@ func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, led
 			AllowSending:   b.AllowSending == 1,
 			AllowReceiving: b.AllowReceiving == 1,
 			AssetCode:      b.AssetCode,
+			Direction:      b.Direction,
+			OverdraftUsed:  overdraftUsed,
+			Settings:       settings,
 		})
 	}
 

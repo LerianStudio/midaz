@@ -303,7 +303,7 @@ func BenchmarkOperation_CreateBulk_Concurrent(b *testing.B) {
 }
 
 // BenchmarkOperation_CreateBulk_Chunking benchmarks large batches that require chunking.
-// Operation has 30 columns, so chunks are 1000 rows each.
+// Operation has 31 columns, so chunks are 1000 rows each.
 func BenchmarkOperation_CreateBulk_Chunking(b *testing.B) {
 	infra := setupBenchmarkInfra(b)
 	ctx := context.Background()
@@ -434,13 +434,13 @@ func BenchmarkOperation_CreateBulk_MemoryAllocation(b *testing.B) {
 	}
 }
 
-// BenchmarkOperation_CreateBulk_FieldCount demonstrates impact of Operation's 30 columns
+// BenchmarkOperation_CreateBulk_FieldCount demonstrates impact of Operation's 31 columns
 // compared to simpler entities. This benchmark helps understand query building overhead.
 func BenchmarkOperation_CreateBulk_FieldCount(b *testing.B) {
 	infra := setupBenchmarkInfra(b)
 	ctx := context.Background()
 
-	// Operation has 30 columns, testing query building impact at different sizes
+	// Operation has 31 columns, testing query building impact at different sizes
 	benchmarks := []struct {
 		name      string
 		batchSize int

@@ -25,11 +25,10 @@ on:
 jobs:
   go-analysis:
     name: Go Analysis
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@v1.23.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@v1.26.3
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
       filter_paths: '["components/crm", "components/ledger"]'
-      shared_paths: '["go.mod", "go.sum", "pkg/", "Makefile"]'
       path_level: 2
       app_name_prefix: "midaz"
       go_version: "1.25.8"

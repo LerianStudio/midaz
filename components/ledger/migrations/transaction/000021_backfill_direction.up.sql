@@ -7,13 +7,7 @@ UPDATE operation SET direction = CASE
     ELSE 'debit'
 END WHERE direction IS NULL;
 
--- Domain CHECK with NOT VALID: registers the constraint without scanning the table.
--- ACCESS EXCLUSIVE lock for milliseconds only. New INSERTs/UPDATEs are validated
--- against the CHECK from this point on.
+-- Direction validation is enforced at the application layer (not via CHECK constraint)
+-- to avoid blocking INSERTs during rolling updates when v3.5.3 messages arrive
+-- without a direction field. See inferDirectionFromType in the Go service layer.
 ALTER TABLE operation DROP CONSTRAINT IF EXISTS chk_operation_direction;
-ALTER TABLE operation ADD CONSTRAINT chk_operation_direction
-    CHECK (LOWER(direction) IN ('debit', 'credit')) NOT VALID;
-
--- VALIDATE performs the full scan to verify existing rows satisfy the CHECK.
--- Uses SHARE UPDATE EXCLUSIVE lock — reads and writes continue normally.
-ALTER TABLE operation VALIDATE CONSTRAINT chk_operation_direction;

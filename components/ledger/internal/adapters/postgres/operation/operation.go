@@ -6,6 +6,7 @@ package operation
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -14,6 +15,33 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
+
+// emptyJSONObject is the canonical fallback JSONB payload used when marshal
+// of the snapshot fails (practically unreachable, but defensive). The
+// always-populated zero shape — `{"overdraftUsedBefore":"0","overdraftUsedAfter":"0"}`
+// — is preferred when the entity carries the (default-zero) snapshot value;
+// this constant only covers the impossible-marshal-error fallback.
+var emptyJSONObject = json.RawMessage(`{"overdraftUsedBefore":"0","overdraftUsedAfter":"0"}`)
+
+// parseDecimalOrZero parses a string-encoded decimal from an OperationSnapshot
+// field (e.g., OverdraftUsedBefore / OverdraftUsedAfter) into a decimal.Decimal
+// suitable for the typed Balance.OverdraftUsed convenience field. Empty input
+// or parse errors fall back to decimal.Zero — the snapshot is read-only audit
+// context, never a correctness gate, so unparseable strings on historical rows
+// must surface as zero rather than poison the read path. Per-field isolation:
+// a malformed "before" must not poison the "after" parse.
+func parseDecimalOrZero(s string) decimal.Decimal {
+	if s == "" {
+		return decimal.Zero
+	}
+
+	d, err := decimal.NewFromString(s)
+	if err != nil {
+		return decimal.Zero
+	}
+
+	return d
+}
 
 // OperationPostgreSQLModel represents the entity OperationPostgreSQLModel into SQL context in Database
 //
@@ -50,6 +78,13 @@ type OperationPostgreSQLModel struct {
 	RouteCode             *string          // Route code for accounting traceability
 	RouteDescription      *string          // Route description for accounting traceability
 	Metadata              map[string]any   // Additional custom attributes
+	// Snapshot holds the pre-marshalled JSONB payload for the operation.snapshot
+	// column. The raw bytes are round-tripped as-is to avoid double-marshal
+	// with pgx. NOT NULL in PG (DEFAULT '{}'); ToEntity defaults missing keys
+	// to "0" so the in-memory entity always carries a fully populated snapshot
+	// value (never nil) regardless of row age — legacy rows with `'{}'` decode
+	// to the same shape as a freshly written non-overdraft op.
+	Snapshot json.RawMessage `db:"snapshot"`
 }
 
 // OperationPointInTimeModel is a lightweight model for point-in-time balance queries.
@@ -66,6 +101,10 @@ type OperationPointInTimeModel struct {
 	OnHoldBalanceAfter    *decimal.Decimal // On-hold balance after operation
 	VersionBalanceAfter   *int64           // Balance version after operation
 	CreatedAt             time.Time        // Creation timestamp (used as UpdatedAt for balance)
+	// Snapshot holds the pre-marshalled JSONB payload for the operation.snapshot
+	// column. Point-in-time queries carry it through so historical balance
+	// reconstruction surfaces the same overdraft context as live reads.
+	Snapshot json.RawMessage `db:"snapshot"`
 }
 
 // ToEntity converts an OperationPointInTimeModel to entity Operation with only point-in-time relevant fields
@@ -76,7 +115,7 @@ func (t *OperationPointInTimeModel) ToEntity() *Operation {
 		Version:   t.VersionBalanceAfter,
 	}
 
-	return &Operation{
+	op := &Operation{
 		ID:           t.ID,
 		BalanceID:    t.BalanceID,
 		AccountID:    t.AccountID,
@@ -85,6 +124,39 @@ func (t *OperationPointInTimeModel) ToEntity() *Operation {
 		BalanceAfter: balanceAfter,
 		CreatedAt:    t.CreatedAt,
 	}
+
+	// Always-populated snapshot contract: default to zero values, then
+	// overlay any fields present in the JSONB. Legacy rows (snapshot = '{}'),
+	// missing keys, and malformed JSON all decode to the same shape — uniform
+	// wire response regardless of row age.
+	op.Snapshot = mmodel.OperationSnapshot{
+		OverdraftUsedBefore: "0",
+		OverdraftUsedAfter:  "0",
+	}
+
+	if len(t.Snapshot) > 0 {
+		var decoded mmodel.OperationSnapshot
+		if err := json.Unmarshal(t.Snapshot, &decoded); err == nil {
+			if decoded.OverdraftUsedBefore != "" {
+				op.Snapshot.OverdraftUsedBefore = decoded.OverdraftUsedBefore
+			}
+
+			if decoded.OverdraftUsedAfter != "" {
+				op.Snapshot.OverdraftUsedAfter = decoded.OverdraftUsedAfter
+			}
+		}
+		// Malformed JSON: silently keep the zero defaults. Read-side
+		// resilience policy — historical bad rows must not crash live
+		// reads. No logger in scope at this layer.
+	}
+
+	// Only BalanceAfter is populated on PIT models — these queries
+	// reconstruct a single historical balance state (the "after" view at
+	// a given timestamp), not a pre/post pair. See the PIT model comment
+	// above for the rationale.
+	op.BalanceAfter.OverdraftUsed = parseDecimalOrZero(op.Snapshot.OverdraftUsedAfter)
+
+	return op
 }
 
 // Status structure for marshaling/unmarshalling JSON.
@@ -143,6 +215,16 @@ type Balance struct {
 	// example: 2
 	// minimum: 0
 	Version *int64 `json:"version" example:"2" minimum:"0"`
+
+	// OverdraftUsed is populated from OperationSnapshot.OverdraftUsedBefore when this Balance
+	// represents the state BEFORE the operation, or from OperationSnapshot.OverdraftUsedAfter
+	// when it represents the state AFTER. Parsed from the snapshot's string-encoded decimal.
+	// Always present under the always-populated wire-shape contract — non-overdraft
+	// operations carry decimal.Zero. Parse errors on malformed historical rows also
+	// fall back to decimal.Zero (read-only audit context, never a correctness gate).
+	// example: 130
+	// minimum: 0
+	OverdraftUsed decimal.Decimal `json:"overdraftUsed" example:"130" minimum:"0"`
 } // @name Balance
 
 // IsEmpty method that set empty or nil in fields
@@ -276,6 +358,15 @@ type Operation struct {
 	// Additional custom attributes
 	// example: {"reason": "Purchase refund", "reference": "INV-12345"}
 	Metadata map[string]any `json:"metadata"`
+
+	// System-generated per-operation context snapshot (e.g., overdraft lifecycle).
+	// Internal only — NOT emitted on the public JSON wire. The snapshot's information
+	// surfaces via the typed balance.overdraftUsed and balanceAfter.overdraftUsed
+	// fields instead, which are parsed from the snapshot on the PG/Redis read paths.
+	// Still populated in memory by the operation builders, persisted as JSONB in the
+	// `snapshot` column, and round-tripped through the Redis cache envelope.
+	// Forward-compatible: future keys may be added without schema migration.
+	Snapshot mmodel.OperationSnapshot `json:"-"`
 } // @name Operation
 
 // ToEntity converts an OperationPostgreSQLModel to entity Operation
@@ -347,6 +438,38 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 		Operation.DeletedAt = &deletedAtCopy
 	}
 
+	// Always-populated snapshot contract: default to zero values, then
+	// overlay any fields present in the JSONB. Legacy rows (snapshot = '{}'),
+	// missing keys, and malformed JSON all decode to the same shape — uniform
+	// wire response regardless of row age. Malformed payloads are tolerated
+	// silently (read-only audit context, never a correctness gate); the
+	// write-path validation in FromEntity is the authoritative gate.
+	Operation.Snapshot = mmodel.OperationSnapshot{
+		OverdraftUsedBefore: "0",
+		OverdraftUsedAfter:  "0",
+	}
+
+	if len(t.Snapshot) > 0 {
+		var decoded mmodel.OperationSnapshot
+		if err := json.Unmarshal(t.Snapshot, &decoded); err == nil {
+			if decoded.OverdraftUsedBefore != "" {
+				Operation.Snapshot.OverdraftUsedBefore = decoded.OverdraftUsedBefore
+			}
+
+			if decoded.OverdraftUsedAfter != "" {
+				Operation.Snapshot.OverdraftUsedAfter = decoded.OverdraftUsedAfter
+			}
+		}
+	}
+
+	// Surface the string-encoded overdraftUsed as typed decimal values on
+	// the nested Balance DTOs so HTTP consumers and audit-log pipelines
+	// don't need to re-parse the snapshot string. Each field is parsed
+	// independently — a malformed before must not poison the after, and
+	// vice versa. Both fields always populated; parse errors yield zero.
+	Operation.Balance.OverdraftUsed = parseDecimalOrZero(Operation.Snapshot.OverdraftUsedBefore)
+	Operation.BalanceAfter.OverdraftUsed = parseDecimalOrZero(Operation.Snapshot.OverdraftUsedAfter)
+
 	return Operation
 }
 
@@ -411,6 +534,19 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		deletedAtCopy := *operation.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
+
+	// Always marshal the snapshot — entity.Snapshot is a value type, never
+	// nil. The default zero shape — {"overdraftUsedBefore":"0","overdraftUsedAfter":"0"}
+	// — is what non-overdraft ops persist. A marshal error on a struct of two
+	// strings is practically unreachable, but we fall back to the canonical
+	// zero JSON literal to keep the write path from failing on a non-critical
+	// audit field. The existing FromEntity signature has no error return.
+	raw, err := json.Marshal(operation.Snapshot)
+	if err != nil || len(raw) == 0 {
+		t.Snapshot = append(json.RawMessage(nil), emptyJSONObject...)
+	} else {
+		t.Snapshot = raw
+	}
 }
 
 // ToRedis converts an Operation to its flat Redis cache representation.
@@ -470,6 +606,9 @@ func (op *Operation) ToRedis() mmodel.OperationRedis {
 	r.StatusCode = op.Status.Code
 	r.StatusDescription = op.Status.Description
 
+	// Value copy: Snapshot is a value type, copies are independent.
+	r.Snapshot = op.Snapshot
+
 	return r
 }
 
@@ -483,7 +622,7 @@ func OperationFromRedis(r mmodel.OperationRedis) *Operation {
 	balAfterOnHold := r.BalanceAfterOnHold
 	balAfterVersion := r.BalanceAfterVersion
 
-	return &Operation{
+	op := &Operation{
 		ID:              r.ID,
 		TransactionID:   r.TransactionID,
 		Description:     r.Description,
@@ -520,7 +659,29 @@ func OperationFromRedis(r mmodel.OperationRedis) *Operation {
 		RouteCode:        r.RouteCode,
 		RouteDescription: r.RouteDescription,
 		Metadata:         r.Metadata,
+		Snapshot:         r.Snapshot,
 	}
+
+	// Legacy cache envelopes (no `snapshot` key) decode to the zero-value
+	// OperationSnapshot{"", ""}. Promote empty strings to "0" so the
+	// rehydrated entity matches the always-populated wire-shape contract —
+	// same shape as freshly written non-overdraft ops.
+	if op.Snapshot.OverdraftUsedBefore == "" {
+		op.Snapshot.OverdraftUsedBefore = "0"
+	}
+
+	if op.Snapshot.OverdraftUsedAfter == "" {
+		op.Snapshot.OverdraftUsedAfter = "0"
+	}
+
+	// Rehydrate typed Balance.OverdraftUsed fields from the snapshot so the
+	// Redis read path is consistent with the PG read path (ToEntity) and the
+	// HTTP write path (BuildOperations). Parse errors fall back to zero —
+	// snapshot is read-only audit context, never a correctness gate.
+	op.Balance.OverdraftUsed = parseDecimalOrZero(op.Snapshot.OverdraftUsedBefore)
+	op.BalanceAfter.OverdraftUsed = parseDecimalOrZero(op.Snapshot.OverdraftUsedAfter)
+
+	return op
 }
 
 // UpdateOperationInput is a struct design to encapsulate payload data.
@@ -658,6 +819,13 @@ type OperationLog struct {
 	// example: Settlement route for service charges
 	// maxLength: 250
 	RouteDescription *string `json:"routeDescription,omitempty" example:"Settlement route for service charges" maxLength:"250"`
+
+	// System-generated per-operation context snapshot (e.g., overdraft lifecycle).
+	// Internal only — NOT emitted on the audit-log JSON wire. Mirrors
+	// Operation.Snapshot verbatim. The snapshot's information surfaces via
+	// the typed balance.overdraftUsed and balanceAfter.overdraftUsed fields.
+	// Forward-compatible: future keys may be added without a schema migration.
+	Snapshot mmodel.OperationSnapshot `json:"-"`
 }
 
 // ToLog converts an Operation excluding the fields that are not immutable
@@ -683,5 +851,7 @@ func (o *Operation) ToLog() *OperationLog {
 		RouteID:          o.RouteID,
 		RouteCode:        o.RouteCode,
 		RouteDescription: o.RouteDescription,
+		// Value copy: snapshot is a value type, copies are independent.
+		Snapshot: o.Snapshot,
 	}
 }

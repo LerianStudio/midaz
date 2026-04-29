@@ -17,7 +17,7 @@ import (
 )
 
 // @title						CRM API
-// @version					1.0.0
+// @version					v3.7.0
 // @description				The CRM API provides a set of endpoints for managing holder data, including information related to their ledger accounts.
 // @host						localhost:4003
 // @BasePath					/
