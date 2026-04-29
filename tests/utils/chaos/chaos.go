@@ -12,7 +12,7 @@ import (
 	"time"
 
 	toxiproxyclient "github.com/Shopify/toxiproxy/v2/client"
-	docker "github.com/docker/docker/client"
+	docker "github.com/moby/moby/client"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,7 +53,7 @@ func NewOrchestratorWithConfig(t *testing.T, cfg OrchestratorConfig) *Orchestrat
 	_ = ctx // Silence unused variable warning
 
 	// Initialize Docker client
-	dockerCli, err := docker.NewClientWithOpts(docker.FromEnv, docker.WithAPIVersionNegotiation())
+	dockerCli, err := docker.New(docker.FromEnv)
 	require.NoError(t, err, "failed to create Docker client")
 
 	orch := &Orchestrator{

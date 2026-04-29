@@ -5,7 +5,7 @@
 package testutils
 
 import (
-	"github.com/docker/docker/api/types/container"
+	"github.com/moby/moby/api/types/container"
 )
 
 // ApplyResourceLimits configures memory and CPU limits on a container's HostConfig.
