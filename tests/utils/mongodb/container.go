@@ -14,7 +14,7 @@ import (
 
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 
-	"github.com/docker/docker/api/types/container"
+	"github.com/moby/moby/api/types/container"
 
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	"github.com/stretchr/testify/require"

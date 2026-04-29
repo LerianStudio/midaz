@@ -13,7 +13,7 @@ import (
 
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 
-	"github.com/docker/docker/api/types/container"
+	"github.com/moby/moby/api/types/container"
 
 	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
 	"github.com/redis/go-redis/v9"

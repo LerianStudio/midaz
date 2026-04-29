@@ -12,7 +12,7 @@ import (
 	"time"
 
 	toxiproxyclient "github.com/Shopify/toxiproxy/v2/client"
-	docker "github.com/docker/docker/client"
+	docker "github.com/moby/moby/client"
 	"github.com/stretchr/testify/require"
 )
 
