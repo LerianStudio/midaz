@@ -7,11 +7,12 @@ package in
 import (
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -157,6 +158,16 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
+
+		return http.WithError(c, err)
+	}
+
+	if headerParams.Status != nil && *headerParams.Status != "ACTIVE" && *headerParams.Status != "INACTIVE" && *headerParams.Status != "BLOCKED" {
+		err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityAccount, "status")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters: invalid account status", err)
+
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to validate account status query parameter, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}

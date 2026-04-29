@@ -701,6 +701,34 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			},
 		},
 		{
+			name:           "blocked status filter returns 400",
+			queryParams:    "?status=BLOCKED",
+			setupMocks:     func(ledgerRepo *ledger.MockRepository, metadataRepo *mongodb.MockRepository, orgID uuid.UUID) {},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Equal(t, cn.ErrInvalidQueryParameter.Error(), errResp["code"])
+				assert.Equal(t, "Invalid Query Parameter", errResp["title"])
+			},
+		},
+		{
+			name:           "unknown status filter returns 400",
+			queryParams:    "?status=INVALID",
+			setupMocks:     func(ledgerRepo *ledger.MockRepository, metadataRepo *mongodb.MockRepository, orgID uuid.UUID) {},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Equal(t, cn.ErrInvalidQueryParameter.Error(), errResp["code"])
+				assert.Equal(t, "Invalid Query Parameter", errResp["title"])
+			},
+		},
+		{
 			name:        "repository error returns 500",
 			queryParams: "",
 			setupMocks: func(ledgerRepo *ledger.MockRepository, metadataRepo *mongodb.MockRepository, orgID uuid.UUID) {
