@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"os"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -198,6 +198,16 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
 		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
+
+		return http.WithError(c, err)
+	}
+
+	if headerParams.Status != nil && !isValidStatus(*headerParams.Status, organizationAllowedStatuses) {
+		err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityOrganization, "status")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters: invalid organization status", err)
+
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate organization status query parameter", libLog.String("status", *headerParams.Status), libLog.Err(err))
 
 		return http.WithError(c, err)
 	}

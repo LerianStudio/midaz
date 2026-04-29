@@ -636,6 +636,20 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 			},
 		},
 		{
+			name:           "unknown status filter returns 400",
+			queryParams:    "?status=INVALID",
+			setupMocks:     func(orgRepo *organization.MockRepository, metadataRepo *mongodb.MockRepository) {},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Equal(t, cn.ErrInvalidQueryParameter.Error(), errResp["code"])
+				assert.Equal(t, "Invalid Query Parameter", errResp["title"])
+			},
+		},
+		{
 			name:        "repository error returns 500",
 			queryParams: "",
 			setupMocks: func(orgRepo *organization.MockRepository, metadataRepo *mongodb.MockRepository) {

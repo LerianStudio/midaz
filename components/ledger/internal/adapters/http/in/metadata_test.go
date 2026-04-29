@@ -14,7 +14,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/gofiber/fiber/v2"

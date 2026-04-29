@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
+	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"

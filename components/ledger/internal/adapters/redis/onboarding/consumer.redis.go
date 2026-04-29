@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	tmvalkey "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/valkey"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	tmvalkey "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/valkey"
 	"github.com/redis/go-redis/v9"
 )
 

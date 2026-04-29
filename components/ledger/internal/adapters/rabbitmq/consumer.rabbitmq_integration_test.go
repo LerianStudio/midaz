@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v4/commons/rabbitmq"
-	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
+	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
 

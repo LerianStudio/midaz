@@ -7,7 +7,7 @@ package mtransaction
 import (
 	"testing"
 
-	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"

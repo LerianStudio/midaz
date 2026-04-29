@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"

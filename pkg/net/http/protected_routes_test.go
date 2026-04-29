@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package http
 
 import (
@@ -5,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/gofiber/fiber/v2"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"

@@ -12,11 +12,11 @@ import (
 	"net/http"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
-	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
-	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
+	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
+	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
 	"go.mongodb.org/mongo-driver/bson"
 )

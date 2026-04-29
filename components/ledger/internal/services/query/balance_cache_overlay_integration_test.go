@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"

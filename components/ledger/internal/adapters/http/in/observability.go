@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"strings"
 
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"

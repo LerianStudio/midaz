@@ -11,7 +11,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 
-	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"
 )
 
 // TestCalculateRefundSplit verifies the pure-function credit-split helper

@@ -12,9 +12,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"

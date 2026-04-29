@@ -16,9 +16,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
-	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/gofiber/fiber/v2"

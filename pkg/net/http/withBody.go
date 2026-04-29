@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"

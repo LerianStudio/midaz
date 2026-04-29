@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -24,7 +24,7 @@ import (
 	// If the transaction route cache exists in Redis, it returns the cached data as TransactionRouteCache.
 	// If not found in cache, it fetches the transaction route from database and creates the cache for future use.
 	// The cache is persistent (no TTL) and stores the msgpack-encoded binary representation of the transaction route cache structure.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 )
 
 // cacheNotFoundSentinel is the sentinel value stored in Redis when a transaction route is not found in the database.

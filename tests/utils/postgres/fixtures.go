@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"

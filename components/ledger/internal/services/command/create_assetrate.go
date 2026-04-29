@@ -10,8 +10,8 @@ import (
 	"reflect"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -19,7 +19,7 @@ import (
 	"github.com/google/uuid"
 
 	// CreateOrUpdateAssetRate creates or updates an asset rate.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 )
 
 func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *assetrate.CreateAssetRateInput) (*assetrate.AssetRate, error) {

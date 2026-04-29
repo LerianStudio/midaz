@@ -6,6 +6,7 @@ package in
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http/httptest"
 	"testing"
@@ -21,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -422,6 +424,38 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
+			},
+		},
+		{
+			name:        "blocked status filter is accepted",
+			queryParams: "?status=BLOCKED",
+			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+				accountRepo.EXPECT().
+					FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
+					DoAndReturn(func(ctx any, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader) ([]*mmodel.Account, error) {
+						if filter.Status == nil || *filter.Status != "BLOCKED" {
+							return nil, errors.New("expected BLOCKED status filter")
+						}
+
+						return []*mmodel.Account{}, nil
+					}).
+					Times(1)
+			},
+			expectedStatus: 200,
+		},
+		{
+			name:        "unknown status filter returns 400",
+			queryParams: "?status=INVALID",
+			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Equal(t, cn.ErrInvalidQueryParameter.Error(), errResp["code"])
+				assert.Equal(t, "Invalid Query Parameter", errResp["title"])
 			},
 		},
 		{

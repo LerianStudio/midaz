@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 )
 
 // MongoChecker probes a MongoDB connection using ping command.

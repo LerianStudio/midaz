@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"

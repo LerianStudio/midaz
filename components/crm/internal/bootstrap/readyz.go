@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	"github.com/LerianStudio/lib-commons/v5/commons/opentelemetry/metrics"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/attribute"

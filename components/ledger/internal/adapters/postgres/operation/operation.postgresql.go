@@ -14,12 +14,12 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -34,7 +34,7 @@ import (
 	// It defines methods for creating, retrieving, updating, and deleting operation templates.
 	//
 	//go:generate mockgen --destination=operation.postgresql_mock.go --package=operation . Repository
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 )
 
 // OperationFilter holds optional filters for listing operations.

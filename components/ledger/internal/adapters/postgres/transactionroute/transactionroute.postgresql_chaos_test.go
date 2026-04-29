@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"

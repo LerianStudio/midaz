@@ -6,9 +6,9 @@ package in
 
 import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
