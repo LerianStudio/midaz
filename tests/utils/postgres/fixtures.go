@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -801,4 +801,64 @@ func SoftDeleteOperationTransactionRouteLink(t *testing.T, db *sql.DB, linkID uu
 		UPDATE operation_transaction_route SET deleted_at = NOW() WHERE id = $1
 	`, linkID)
 	require.NoError(t, err, "failed to soft-delete operation transaction route link")
+}
+
+// AccountParams holds parameters for creating a test account with full control over all fields.
+type AccountParams struct {
+	Name            string
+	Alias           string
+	AssetCode       string
+	Type            string
+	Status          string
+	Blocked         bool
+	EntityID        *string
+	ParentAccountID *uuid.UUID
+	PortfolioID     *uuid.UUID
+	SegmentID       *uuid.UUID
+	DeletedAt       *time.Time
+}
+
+// DefaultAccountParams returns default parameters for creating a test account.
+func DefaultAccountParams() AccountParams {
+	return AccountParams{
+		Name:      "Test Account",
+		Alias:     "@test",
+		AssetCode: "USD",
+		Type:      "deposit",
+		Status:    "ACTIVE",
+		Blocked:   false,
+	}
+}
+
+// CreateTestAccountWithParams inserts an account with full control over all fields.
+func CreateTestAccountWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params AccountParams) uuid.UUID {
+	t.Helper()
+
+	id := uuid.Must(libCommons.GenerateUUIDv7())
+	now := time.Now().Truncate(time.Microsecond)
+
+	var portfolioIDVal, segmentIDVal, parentAccountIDVal, entityIDVal any
+	if params.PortfolioID != nil {
+		portfolioIDVal = *params.PortfolioID
+	}
+
+	if params.SegmentID != nil {
+		segmentIDVal = *params.SegmentID
+	}
+
+	if params.ParentAccountID != nil {
+		parentAccountIDVal = *params.ParentAccountID
+	}
+
+	if params.EntityID != nil {
+		entityIDVal = *params.EntityID
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO account (id, name, asset_code, organization_id, ledger_id, portfolio_id, segment_id, status, alias, type, blocked, entity_id, parent_account_id, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+	`, id, params.Name, params.AssetCode, orgID, ledgerID, portfolioIDVal, segmentIDVal, params.Status, params.Alias, params.Type, params.Blocked, entityIDVal, parentAccountIDVal, now, now, params.DeletedAt)
+	require.NoError(t, err, "failed to insert test account with params")
+
+	return id
 }

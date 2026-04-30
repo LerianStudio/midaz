@@ -14,12 +14,13 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
@@ -147,6 +148,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	}
 
 	go uc.SendTransactionEvents(ctx, tran)
+	go uc.SendOverdraftEvents(ctx, tran)
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: cleaning up transaction %s after successful processing", tran.ID))
 
@@ -293,6 +295,7 @@ func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(ctx context.Context, 
 			expectedStatus,
 			queue.TransactionStatus,
 		))
+
 		return
 	}
 
@@ -306,6 +309,20 @@ func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(ctx context.Context, 
 func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput mtransaction.Transaction, validate *mtransaction.Responses, transactionStatus, action string, transactionDate time.Time, balances []*mmodel.Balance) error {
 	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+
+	// Scope protection: a transaction that targets any internal-scope
+	// balance (e.g. auto-created overdraft reserves) MUST be rejected
+	// BEFORE the transaction is published to the Redis queue. This keeps
+	// system-managed balances out of the user-initiated mutation path
+	// across every entry point (HTTP, gRPC, DSL).
+	for _, b := range balances {
+		if b != nil && b.Settings != nil && b.Settings.BalanceScope == mmodel.BalanceScopeInternal {
+			logger.Log(ctx, libLog.LevelWarn, "Rejected transaction targeting internal balance",
+				libLog.String("event", "rejected_internal_balance_transaction"))
+
+			return pkg.ValidateBusinessError(constant.ErrDirectOperationOnInternalBalance, constant.EntityBalance, b.Alias)
+		}
+	}
 
 	utils.SanitizeAccountAliases(&transactionInput)
 

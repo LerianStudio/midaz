@@ -8,11 +8,12 @@ import (
 	"database/sql"
 	"time"
 
-	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	"github.com/shopspring/decimal"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
+	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/google/uuid"
@@ -296,6 +297,23 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 
 	froms := make([]mtransaction.FromTo, 0)
 	tos := make([]mtransaction.FromTo, 0)
+	fromByAlias := make(map[string]int)
+	toByAlias := make(map[string]int)
+
+	addCompanionAmount := func(entries []mtransaction.FromTo, indexByAlias map[string]int, op *operation.Operation) []mtransaction.FromTo {
+		idx, ok := indexByAlias[op.AccountAlias]
+		if !ok {
+			return entries
+		}
+
+		if entries[idx].Amount == nil {
+			return entries
+		}
+
+		entries[idx].Amount.Value = decimal.Min(entries[idx].Amount.Value.Add(*op.Amount.Value), *t.Amount)
+
+		return entries
+	}
 
 	for _, op := range t.Operations {
 		if op.Amount.Value == nil {
@@ -303,13 +321,20 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 		}
 
 		switch op.Type {
-		// Only CREDIT and DEBIT appear in APPROVED transactions, which is the
-		// only status eligible for revert (guarded upstream).  ONHOLD and
-		// RELEASE are excluded because they belong to PENDING flows.
 		case constant.CREDIT:
+			if op.BalanceKey == pkgConstant.OverdraftBalanceKey {
+				continue
+			}
+
+			balanceKey := op.BalanceKey
+			if balanceKey == "" {
+				balanceKey = pkgConstant.DefaultBalanceKey
+			}
+
 			froms = append(froms, mtransaction.FromTo{
 				IsFrom:          true,
 				AccountAlias:    op.AccountAlias,
+				BalanceKey:      balanceKey,
 				Amount:          &mtransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
@@ -317,10 +342,21 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 				Route:           op.Route,
 				RouteID:         op.RouteID,
 			})
+			fromByAlias[op.AccountAlias] = len(froms) - 1
 		case constant.DEBIT:
+			if op.BalanceKey == pkgConstant.OverdraftBalanceKey {
+				continue
+			}
+
+			balanceKey := op.BalanceKey
+			if balanceKey == "" {
+				balanceKey = pkgConstant.DefaultBalanceKey
+			}
+
 			tos = append(tos, mtransaction.FromTo{
 				IsFrom:          false,
 				AccountAlias:    op.AccountAlias,
+				BalanceKey:      balanceKey,
 				Amount:          &mtransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
@@ -328,6 +364,20 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 				Route:           op.Route,
 				RouteID:         op.RouteID,
 			})
+			toByAlias[op.AccountAlias] = len(tos) - 1
+		}
+	}
+
+	for _, op := range t.Operations {
+		if op.Amount.Value == nil || (op.Type != pkgConstant.OVERDRAFT && op.BalanceKey != pkgConstant.OverdraftBalanceKey) {
+			continue
+		}
+
+		switch op.Direction {
+		case pkgConstant.DirectionCredit:
+			froms = addCompanionAmount(froms, fromByAlias, op)
+		case pkgConstant.DirectionDebit, "":
+			tos = addCompanionAmount(tos, toByAlias, op)
 		}
 	}
 

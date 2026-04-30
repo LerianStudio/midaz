@@ -10,14 +10,14 @@ import (
 	"os"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/bootstrap"
 )
 
 // @title						CRM API
-// @version					1.0.0
+// @version					v3.7.0
 // @description				The CRM API provides a set of endpoints for managing holder data, including information related to their ledger accounts.
 // @host						localhost:4003
 // @BasePath					/

@@ -164,7 +164,7 @@ func (i *Infrastructure) RegisterContainerWithPort(name string, container testco
 		return nil, fmt.Errorf("failed to get container host: %w", err)
 	}
 
-	mappedPort, err := container.MappedPort(ctx, nat.Port(portID))
+	mappedPort, err := container.MappedPort(ctx, portID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get mapped port %s: %w", portID, err)
 	}
@@ -218,7 +218,7 @@ func (i *Infrastructure) CreateProxyFor(containerName string, listenPort string)
 	// Update container info with proxy address
 	ctx := context.Background()
 	toxiHost, _ := i.toxiproxy.Container.Host(ctx)
-	mappedPort, _ := i.toxiproxy.Container.MappedPort(ctx, nat.Port(listenPort))
+	mappedPort, _ := i.toxiproxy.Container.MappedPort(ctx, listenPort)
 	info.ProxyListen = fmt.Sprintf("%s:%s", toxiHost, mappedPort.Port())
 
 	i.proxies[containerName] = proxy

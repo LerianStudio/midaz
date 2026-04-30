@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -18,7 +18,7 @@ import (
 
 	// validateAliasClosingDate validates the closing date of an alias
 	// It checks if the closing date is before the creation date
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 )
 
 func (uc *UseCase) validateAliasClosingDate(ctx context.Context, organizationID string, holderID, aliasId uuid.UUID, closingDate *mmodel.Date) error {

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"

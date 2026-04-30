@@ -15,7 +15,25 @@ const (
 	ActionRevert = "revert"
 )
 
+// Supplementary accounting entry actions.
+//
+// These are NOT valid transaction-route action values and therefore are NOT
+// included in ValidActions or the migration 000023 CHECK constraint. They
+// identify additional accounting entries on an operation route
+// (AccountingEntries.Overdraft) that are recorded alongside the primary
+// direct scenario to describe the accounting impact of overdraft usage and
+// repayment. Keeping them separate from ValidActions avoids loosening the
+// DB-level whitelist for transaction-route associations.
+const (
+	ActionOverdraft = "overdraft"
+)
+
 // ValidActions contains all valid action values for programmatic validation.
+//
+// This slice mirrors the migration 000023 CHECK constraint on the
+// transaction-route association table and MUST NOT include ActionOverdraft:
+// it is an accounting-entry action, not a transaction-route action, and the
+// DB constraint rejects it by design.
 var ValidActions = []string{
 	ActionDirect,
 	ActionHold,

@@ -47,7 +47,7 @@ func TestGetAllMetadataOrganizations(t *testing.T) {
 						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
 					}, nil)
 				mockOrganizationRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
+					FindAll(gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Organization{
 						{ID: validUUID.String(), LegalName: "Test Organization", Status: mmodel.Status{Code: "active"}},
 					}, nil)
@@ -67,10 +67,100 @@ func TestGetAllMetadataOrganizations(t *testing.T) {
 						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
 					}, nil)
 				mockOrganizationRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
+					FindAll(gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("database error"))
 			},
 			expectErr:      true,
+			expectedResult: nil,
+		},
+		{
+			name: "Success - Metadata filter combined with status filter",
+			filter: http.QueryHeader{
+				UseMetadata: true,
+				Status:      func() *string { s := "ACTIVE"; return &s }(),
+			},
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: validUUID.String(), Data: map[string]any{"tier": "enterprise"}},
+					}, nil)
+				// entityIDs AND status filter are both passed to FindAll
+				mockOrganizationRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any()).
+					Return([]*mmodel.Organization{
+						{ID: validUUID.String(), LegalName: "Enterprise Org", Status: mmodel.Status{Code: "ACTIVE"}},
+					}, nil)
+			},
+			expectErr:      false,
+			expectedResult: nil,
+		},
+		{
+			name: "Success - Metadata filter combined with legal_name filter",
+			filter: http.QueryHeader{
+				UseMetadata: true,
+				LegalName:   func() *string { s := "Acme"; return &s }(),
+			},
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: validUUID.String(), Data: map[string]any{"industry": "tech"}},
+					}, nil)
+				mockOrganizationRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any()).
+					Return([]*mmodel.Organization{
+						{ID: validUUID.String(), LegalName: "Acme Corporation", Status: mmodel.Status{Code: "ACTIVE"}},
+					}, nil)
+			},
+			expectErr:      false,
+			expectedResult: nil,
+		},
+		{
+			name: "Success - Metadata filter combined with doing_business_as filter",
+			filter: http.QueryHeader{
+				UseMetadata:     true,
+				DoingBusinessAs: func() *string { s := "TechCorp"; return &s }(),
+			},
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: validUUID.String(), Data: map[string]any{"region": "LATAM"}},
+					}, nil)
+				mockOrganizationRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any()).
+					Return([]*mmodel.Organization{
+						{ID: validUUID.String(), LegalName: "Tech Corporation LLC", DoingBusinessAs: func() *string { s := "TechCorp"; return &s }()},
+					}, nil)
+			},
+			expectErr:      false,
+			expectedResult: nil,
+		},
+		{
+			name: "Success - Metadata filter combined with multiple filters (status + legal_name)",
+			filter: http.QueryHeader{
+				UseMetadata: true,
+				Status:      func() *string { s := "ACTIVE"; return &s }(),
+				LegalName:   func() *string { s := "Global"; return &s }(),
+			},
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: validUUID.String(), Data: map[string]any{"size": "large"}},
+					}, nil)
+				mockOrganizationRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any()).
+					Return([]*mmodel.Organization{
+						{ID: validUUID.String(), LegalName: "Global Industries", Status: mmodel.Status{Code: "ACTIVE"}},
+					}, nil)
+			},
+			expectErr:      false,
 			expectedResult: nil,
 		},
 	}

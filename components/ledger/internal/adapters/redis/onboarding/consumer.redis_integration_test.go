@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
 	"github.com/google/uuid"
 	redisv9 "github.com/redis/go-redis/v9"

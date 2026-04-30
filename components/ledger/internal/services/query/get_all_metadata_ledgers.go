@@ -9,9 +9,9 @@ import (
 	"errors"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -37,7 +37,7 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 		return nil, err
 	}
 
-	if metadata == nil {
+	if len(metadata) == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No metadata found", err)
@@ -55,7 +55,9 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	ledgers, err := uc.LedgerRepo.ListByIDs(ctx, organizationID, uuids)
+	filter.EntityIDs = uuids
+
+	ledgers, err := uc.LedgerRepo.FindAll(ctx, organizationID, filter)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())

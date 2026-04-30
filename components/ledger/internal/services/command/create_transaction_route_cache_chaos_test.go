@@ -22,9 +22,9 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
-	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
+	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"

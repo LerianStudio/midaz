@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

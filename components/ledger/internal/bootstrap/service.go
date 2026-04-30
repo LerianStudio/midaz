@@ -10,12 +10,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
-	tmconsumer "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/consumer"
-	tmevent "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/event"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	"github.com/LerianStudio/lib-commons/v5/commons/opentelemetry/metrics"
+	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"
+	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
 )
 
 // Service is the unified ledger service that owns all infrastructure directly.

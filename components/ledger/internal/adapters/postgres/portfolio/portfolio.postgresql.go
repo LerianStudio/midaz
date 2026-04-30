@@ -14,12 +14,12 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -50,7 +50,7 @@ var portfolioColumnList = []string{
 type Repository interface {
 	Create(ctx context.Context, portfolio *mmodel.Portfolio) (*mmodel.Portfolio, error)
 	FindByIDEntity(ctx context.Context, organizationID, ledgerID, entityID uuid.UUID) (*mmodel.Portfolio, error)
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Portfolio, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Portfolio, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Portfolio, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Portfolio, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, portfolio *mmodel.Portfolio) (*mmodel.Portfolio, error)
@@ -248,7 +248,7 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 }
 
 // FindAll retrieves Portfolio entities from the database.
-func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Portfolio, error) {
+func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Portfolio, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_portfolios")
@@ -265,17 +265,32 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 	var portfolios []*mmodel.Portfolio
 
+	pagination := filter.ToOffsetPagination()
+
 	findAll := squirrel.Select(portfolioColumnList...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
-		OrderBy("id " + strings.ToUpper(filter.SortOrder)).
-		Limit(libCommons.SafeIntToUint64(filter.Limit)).
-		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
+		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.StartDate, libPointers.Int(0), false)}).
+		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.EndDate, libPointers.Int(0), true)}).
+		OrderBy("id " + strings.ToUpper(pagination.SortOrder)).
+		Limit(libCommons.SafeIntToUint64(pagination.Limit)).
+		Offset(libCommons.SafeIntToUint64((pagination.Page - 1) * pagination.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
+
+	// Filter by entity IDs when provided (metadata composition)
+	if len(filter.EntityIDs) > 0 {
+		findAll = findAll.Where(squirrel.Expr("id = ANY(?)", pq.Array(filter.EntityIDs)))
+	}
+
+	if !libCommons.IsNilOrEmpty(filter.EntityID) {
+		findAll = findAll.Where(squirrel.Expr("entity_id = ?", *filter.EntityID))
+	}
+
+	if !libCommons.IsNilOrEmpty(filter.Status) {
+		findAll = findAll.Where(squirrel.Expr("status = ?", *filter.Status))
+	}
 
 	query, args, err := findAll.ToSql()
 	if err != nil {

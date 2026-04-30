@@ -41,7 +41,7 @@ Midaz implements a financial hierarchy: Organizations → Ledgers → Assets, Po
 - [Infrastructure](components/infra/): Docker Compose for PostgreSQL, MongoDB, RabbitMQ, Valkey, Grafana/OTEL
 - [Shared Packages](pkg/): Cross-component libraries
   - [Domain Models](pkg/mmodel/): Organization, Ledger, Account, Asset, Transaction, Balance, etc.
-  - [Error Constants](pkg/constant/errors.go): Numeric error codes (0001–0161) and CRM error codes
+  - [Error Constants](pkg/constant/errors.go): Numeric error codes (0001–0175) and CRM error codes (includes overdraft codes 0167–0175)
   - [Error Types](pkg/errors.go): Typed errors — EntityNotFound, Validation, Conflict, Unauthorized, Forbidden, etc.
   - [Gold DSL](pkg/gold/): ANTLR4 grammar and parser for transaction DSL
   - [HTTP Utilities](pkg/net/http/): Middleware, pagination, protected routes, response helpers

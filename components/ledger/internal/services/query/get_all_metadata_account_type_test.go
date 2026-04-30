@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
@@ -43,10 +44,10 @@ func TestGetAllMetadataAccountType_Success(t *testing.T) {
 		}, nil)
 
 	mockAccountTypeRepo.EXPECT().
-		ListByIDs(gomock.Any(), organizationID, ledgerID, gomock.Eq([]uuid.UUID{validUUID})).
+		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		Return([]*mmodel.AccountType{
 			{ID: validUUID, Name: "Test Account Type", Description: "Test Description"},
-		}, nil)
+		}, libHTTP.CursorPagination{}, nil)
 
 	ctx := context.Background()
 	result, pagination, err := uc.GetAllMetadataAccountType(ctx, organizationID, ledgerID, filter)
@@ -110,8 +111,8 @@ func TestGetAllMetadataAccountType_AccountTypeRepoError(t *testing.T) {
 		}, nil)
 
 	mockAccountTypeRepo.EXPECT().
-		ListByIDs(gomock.Any(), organizationID, ledgerID, gomock.Eq([]uuid.UUID{validUUID})).
-		Return(nil, errors.New("account type repo error"))
+		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Return(nil, libHTTP.CursorPagination{}, errors.New("account type repo error"))
 
 	ctx := context.Background()
 	result, _, err := uc.GetAllMetadataAccountType(ctx, organizationID, ledgerID, filter)
@@ -144,8 +145,8 @@ func TestGetAllMetadataAccountType_DatabaseItemNotFound(t *testing.T) {
 		}, nil)
 
 	mockAccountTypeRepo.EXPECT().
-		ListByIDs(gomock.Any(), organizationID, ledgerID, gomock.Eq([]uuid.UUID{validUUID})).
-		Return(nil, services.ErrDatabaseItemNotFound)
+		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound)
 
 	ctx := context.Background()
 	result, _, err := uc.GetAllMetadataAccountType(ctx, organizationID, ledgerID, filter)
@@ -180,11 +181,11 @@ func TestGetAllMetadataAccountType_MultipleAccountTypes(t *testing.T) {
 		}, nil)
 
 	mockAccountTypeRepo.EXPECT().
-		ListByIDs(gomock.Any(), organizationID, ledgerID, gomock.Eq([]uuid.UUID{validUUID1, validUUID2})).
+		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		Return([]*mmodel.AccountType{
 			{ID: validUUID1, Name: "Test Account Type 1", Description: "Test Description 1"},
 			{ID: validUUID2, Name: "Test Account Type 2", Description: "Test Description 2"},
-		}, nil)
+		}, libHTTP.CursorPagination{}, nil)
 
 	ctx := context.Background()
 	result, pagination, err := uc.GetAllMetadataAccountType(ctx, organizationID, ledgerID, filter)
@@ -224,11 +225,11 @@ func TestGetAllMetadataAccountType_PartialMetadataMatch(t *testing.T) {
 		}, nil)
 
 	mockAccountTypeRepo.EXPECT().
-		ListByIDs(gomock.Any(), organizationID, ledgerID, gomock.Eq([]uuid.UUID{validUUID1})).
+		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		Return([]*mmodel.AccountType{
 			{ID: validUUID1, Name: "Test Account Type 1", Description: "Test Description 1"},
 			{ID: validUUID2, Name: "Test Account Type 2", Description: "Test Description 2"},
-		}, nil)
+		}, libHTTP.CursorPagination{}, nil)
 
 	ctx := context.Background()
 	result, pagination, err := uc.GetAllMetadataAccountType(ctx, organizationID, ledgerID, filter)
@@ -241,4 +242,136 @@ func TestGetAllMetadataAccountType_PartialMetadataMatch(t *testing.T) {
 	assert.Equal(t, map[string]any{"key1": "value1"}, result[0].Metadata)
 	assert.Equal(t, "Test Account Type 2", result[1].Name)
 	assert.Nil(t, result[1].Metadata)
+}
+
+func TestGetAllMetadataAccountType_MetadataWithStatusFilter(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AccountTypeRepo:        mockAccountTypeRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
+	}
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	validUUID := uuid.New()
+	filter := http.QueryHeader{
+		UseMetadata: true,
+		Status:      func() *string { s := "ACTIVE"; return &s }(),
+	}
+
+	mockMetadataRepo.EXPECT().
+		FindList(gomock.Any(), "AccountType", gomock.Any()).
+		Return([]*mongodb.Metadata{
+			{EntityID: validUUID.String(), Data: map[string]any{"category": "savings"}},
+		}, nil)
+
+	// entityIDs AND status filter are both passed to FindAll
+	mockAccountTypeRepo.EXPECT().
+		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Return([]*mmodel.AccountType{
+			{ID: validUUID, Name: "Savings Account Type", Description: "For savings accounts"},
+		}, libHTTP.CursorPagination{}, nil)
+
+	ctx := context.Background()
+	result, pagination, err := uc.GetAllMetadataAccountType(ctx, organizationID, ledgerID, filter)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.NotNil(t, pagination)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "Savings Account Type", result[0].Name)
+	assert.Equal(t, "savings", result[0].Metadata["category"])
+}
+
+func TestGetAllMetadataAccountType_MetadataWithNameFilter(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AccountTypeRepo:        mockAccountTypeRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
+	}
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	validUUID := uuid.New()
+	filter := http.QueryHeader{
+		UseMetadata: true,
+		Name:        func() *string { s := "Checking"; return &s }(),
+	}
+
+	mockMetadataRepo.EXPECT().
+		FindList(gomock.Any(), "AccountType", gomock.Any()).
+		Return([]*mongodb.Metadata{
+			{EntityID: validUUID.String(), Data: map[string]any{"access": "standard"}},
+		}, nil)
+
+	mockAccountTypeRepo.EXPECT().
+		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Return([]*mmodel.AccountType{
+			{ID: validUUID, Name: "Checking Account Type", Description: "For checking accounts"},
+		}, libHTTP.CursorPagination{}, nil)
+
+	ctx := context.Background()
+	result, pagination, err := uc.GetAllMetadataAccountType(ctx, organizationID, ledgerID, filter)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.NotNil(t, pagination)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "Checking Account Type", result[0].Name)
+	assert.Equal(t, "standard", result[0].Metadata["access"])
+}
+
+func TestGetAllMetadataAccountType_MetadataWithMultipleFilters(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AccountTypeRepo:        mockAccountTypeRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
+	}
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	validUUID := uuid.New()
+	filter := http.QueryHeader{
+		UseMetadata: true,
+		Status:      func() *string { s := "ACTIVE"; return &s }(),
+		Name:        func() *string { s := "Investment"; return &s }(),
+	}
+
+	mockMetadataRepo.EXPECT().
+		FindList(gomock.Any(), "AccountType", gomock.Any()).
+		Return([]*mongodb.Metadata{
+			{EntityID: validUUID.String(), Data: map[string]any{"risk_level": "high"}},
+		}, nil)
+
+	// All filters combined: entityIDs + status + name
+	mockAccountTypeRepo.EXPECT().
+		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Return([]*mmodel.AccountType{
+			{ID: validUUID, Name: "Investment Account Type", Description: "For investment accounts"},
+		}, libHTTP.CursorPagination{}, nil)
+
+	ctx := context.Background()
+	result, pagination, err := uc.GetAllMetadataAccountType(ctx, organizationID, ledgerID, filter)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.NotNil(t, pagination)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "Investment Account Type", result[0].Name)
+	assert.Equal(t, "high", result[0].Metadata["risk_level"])
 }

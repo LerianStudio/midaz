@@ -10,20 +10,20 @@ import (
 	"os"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/bootstrap"
 )
 
 // @title			Midaz Ledger API
-// @version		v1.48.0
+// @version		v3.7.0
 // @description	This is a swagger documentation for the Midaz Ledger API (unified onboarding + transaction)
 // @termsOfService	http://swagger.io/terms/
 // @contact.name	Discord community
 // @contact.url	https://discord.gg/DnhqKwkGv3
-// @license.name	Apache 2.0
-// @license.url	http://www.apache.org/licenses/LICENSE-2.0.html
+// @license.name	Elastic License 2.0
+// @license.url	https://www.elastic.co/licensing/elastic-license
 // @host			localhost:3000
 // @BasePath		/
 func main() {

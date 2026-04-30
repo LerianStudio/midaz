@@ -11,8 +11,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
-	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/gofiber/fiber/v2"

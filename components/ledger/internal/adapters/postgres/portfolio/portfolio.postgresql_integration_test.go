@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -326,7 +326,7 @@ func TestIntegration_PortfolioRepository_FindAll_ReturnsPortfolios(t *testing.T)
 	ctx := context.Background()
 
 	// Act
-	portfolios, err := repo.FindAll(ctx, orgID, ledgerID, defaultPagination())
+	portfolios, err := repo.FindAll(ctx, orgID, ledgerID, defaultQueryHeader())
 
 	// Assert
 	require.NoError(t, err, "FindAll should not return error")
@@ -355,7 +355,7 @@ func TestIntegration_PortfolioRepository_FindAll_Pagination(t *testing.T) {
 	ctx := context.Background()
 
 	// Page 1: limit=2, page=1
-	page1Filter := http.Pagination{
+	page1Filter := http.QueryHeader{
 		Limit:     2,
 		Page:      1,
 		SortOrder: "DESC",
@@ -368,7 +368,7 @@ func TestIntegration_PortfolioRepository_FindAll_Pagination(t *testing.T) {
 	assert.Len(t, page1, 2, "page 1 should have 2 items")
 
 	// Page 2: limit=2, page=2
-	page2Filter := http.Pagination{
+	page2Filter := http.QueryHeader{
 		Limit:     2,
 		Page:      2,
 		SortOrder: "DESC",
@@ -381,7 +381,7 @@ func TestIntegration_PortfolioRepository_FindAll_Pagination(t *testing.T) {
 	assert.Len(t, page2, 2, "page 2 should have 2 items")
 
 	// Page 3: limit=2, page=3 (should have 1 item)
-	page3Filter := http.Pagination{
+	page3Filter := http.QueryHeader{
 		Limit:     2,
 		Page:      3,
 		SortOrder: "DESC",
@@ -436,7 +436,7 @@ func TestIntegration_PortfolioRepository_FindAll_ExcludesDeleted(t *testing.T) {
 	ctx := context.Background()
 
 	// Act
-	portfolios, err := repo.FindAll(ctx, orgID, ledgerID, defaultPagination())
+	portfolios, err := repo.FindAll(ctx, orgID, ledgerID, defaultQueryHeader())
 
 	// Assert
 	require.NoError(t, err, "FindAll should not return error")
@@ -649,8 +649,8 @@ func TestIntegration_PortfolioRepository_Count_ReturnsZeroForEmptyLedger(t *test
 // Helpers
 // ============================================================================
 
-func defaultPagination() http.Pagination {
-	return http.Pagination{
+func defaultQueryHeader() http.QueryHeader {
+	return http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "DESC",

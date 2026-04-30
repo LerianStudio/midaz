@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
-	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
+	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

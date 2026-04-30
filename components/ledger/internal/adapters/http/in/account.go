@@ -7,11 +7,12 @@ package in
 import (
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -115,6 +116,14 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 //	@Param			sort_order		query		string																false	"Sort direction for results based on creation date"	Enums(asc,desc)
 //	@Param			portfolio_id	query		string																false	"Filter accounts by portfolio ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics)."	format(uuid)
 //	@Param			segment_id		query		string																false	"Filter accounts by segment ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics)."	format(uuid)
+//	@Param			status			query		string																false	"Filter accounts by status"
+//	@Param			type			query		string																false	"Filter accounts by type (e.g., deposit, savings, external)"
+//	@Param			asset_code		query		string																false	"Filter accounts by asset code (e.g., USD, BRL, EUR)"
+//	@Param			entity_id		query		string																false	"Filter accounts by entity ID"
+//	@Param			blocked			query		boolean																false	"Filter accounts by blocked status"				Enums(true,false)
+//	@Param			parent_account_id	query	string																false	"Filter accounts by parent account ID (UUID format)"	format(uuid)
+//	@Param			name				query	string																false	"Filter accounts by name (case-insensitive, prefix match)"	maxLength(256)
+//	@Param			alias				query	string																false	"Filter accounts by alias (case-insensitive, prefix match)"	maxLength(256)
 //	@Success		200				{object}	http.Pagination{items=[]mmodel.Account}	"Successfully retrieved accounts list"
 //	@Failure		400				{object}	mmodel.Error														"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error														"Unauthorized access"
@@ -149,6 +158,16 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
+
+		return http.WithError(c, err)
+	}
+
+	if headerParams.Status != nil && !isValidStatus(*headerParams.Status, accountAllowedStatuses) {
+		err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityAccount, "status")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters: invalid account status", err)
+
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate account status query parameter", libLog.String("status", *headerParams.Status), libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
@@ -226,13 +245,13 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			id				path		string			true	"Account ID in UUID format"
+//	@Param			account_id				path		string			true	"Account ID in UUID format"
 //	@Success		200				{object}	mmodel.Account	"Successfully retrieved account"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Account, ledger, or organization not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id} [get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id} [get]
 func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -391,7 +410,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
-//	@Param			id				path		string						true	"Account ID in UUID format"
+//	@Param			account_id				path		string						true	"Account ID in UUID format"
 //	@Param			account			body		mmodel.UpdateAccountInput	true	"Account properties to update including name, status, portfolio, segment, and optional metadata"
 //	@Success		200				{object}	mmodel.Account				"Successfully updated account"
 //	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
@@ -400,7 +419,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 //	@Failure		404				{object}	mmodel.Error				"Account, ledger, organization, portfolio, or segment not found"
 //	@Failure		409				{object}	mmodel.Error				"Conflict: Account with the same name already exists"
 //	@Failure		500				{object}	mmodel.Error				"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id} [patch]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id} [patch]
 func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -462,14 +481,14 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			id				path		string			true	"Account ID in UUID format"
+//	@Param			account_id				path		string			true	"Account ID in UUID format"
 //	@Success		204				"Account successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Account, ledger, or organization not found"
 //	@Failure		409				{object}	mmodel.Error	"Conflict: Account cannot be deleted due to existing dependencies"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id} [delete]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id} [delete]
 func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

@@ -9,19 +9,17 @@ import (
 	"encoding/json"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
-
-	// UpdateBalances persists balance updates to PostgreSQL.
-	// When balancesAfter is non-empty, it uses the Lua-computed AFTER states directly (primary path).
-	// When balancesAfter is empty (legacy payloads during rolling update), it falls back to
-	// recalculating via OperateBalances for backward compatibility.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
 func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate mtransaction.Responses, balances []*mmodel.Balance, balancesAfter []*mmodel.Balance) error {
@@ -75,10 +73,19 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		for _, balance := range balances {
 			_, spanBalance := tracer.Start(ctx, "command.update_balances_new.balance")
 
-			calculateBalances, err := mtransaction.OperateBalances(fromTo[balance.Alias], *balance.ToTransactionBalance())
+			txBal, tErr := balance.ToTransactionBalance()
+			if tErr != nil {
+				libOpentelemetry.HandleSpanError(spanUpdateBalances, "Corrupted balance for fallback path", tErr)
+				logger.Log(ctx, libLog.LevelError, "Corrupted balance OverdraftLimit in fallback path", libLog.Err(tErr))
+				spanBalance.End()
+
+				return tErr
+			}
+
+			calculateBalances, err := mtransaction.OperateBalances(fromTo[balance.Alias], *txBal)
 			if err != nil {
 				libOpentelemetry.HandleSpanError(spanUpdateBalances, "Failed to update balances on database", err)
-				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances on database: %v", err.Error()))
+				logger.Log(ctx, libLog.LevelError, "Failed to update balances on database", libLog.Err(err))
 				spanBalance.End()
 
 				return err
@@ -102,7 +109,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, newBalances); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdateBalances, "Failed to update balances on database", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances on database: %v", err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to update balances on database", libLog.Err(err))
 
 		return err
 	}
@@ -112,18 +119,78 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 // Update balance in the repository and returns the updated balance.
 // Overlays Redis cached values for Available, OnHold, and Version to ensure freshest data.
+//
+// The method always loads the current balance first to enforce scope
+// protection: internal-scope balances (e.g. overdraft companions) are
+// rejected with 0175 regardless of which fields the payload carries.
+//
+// When update.Settings is non-nil, the use case additionally:
+//  1. Validates the Settings payload (HARD GATE — fails closed, no partial writes).
+//  2. Enforces overdraft transition invariants:
+//     - reducing limit below current usage is rejected
+//  3. Auto-creates the system-managed "overdraft" balance on a false→true
+//     transition (idempotent — existing overdraft balances are reused).
 func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, update mmodel.UpdateBalance) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.update_balance")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, "Trying to update balance")
+	logger.Log(ctx, libLog.LevelInfo, "Updating balance")
+
+	// Always load the current balance so the scope guard can fire
+	// regardless of which fields the payload contains (Settings,
+	// AllowSending, AllowReceiving, or any combination). Without this
+	// unconditional Find, a payload without Settings bypasses the guard.
+	current, err := uc.BalanceRepo.Find(ctx, organizationID, ledgerID, balanceID)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to fetch current balance for update", err)
+		logger.Log(ctx, libLog.LevelError, "Error fetching current balance", libLog.Err(err))
+
+		return nil, err
+	}
+
+	// Scope protection: internal-scope balances are managed exclusively by
+	// the system (e.g. overdraft reserves) and cannot be updated via the
+	// public API. This guard runs AFTER Find (so a non-existent balance
+	// returns 404, not 422) and BEFORE any Settings validation, overdraft
+	// transition enforcement, or repo Update — no partial mutations.
+	if current != nil && current.Settings != nil && current.Settings.BalanceScope == mmodel.BalanceScopeInternal {
+		err = pkg.ValidateBusinessError(constant.ErrUpdateOfInternalBalance, constant.EntityBalance)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rejected update on internal-scope balance", err)
+		logger.Log(ctx, libLog.LevelWarn, "Rejected update on internal-scope balance",
+			libLog.String("alias", current.Alias),
+			libLog.String("key", current.Key))
+
+		return nil, err
+	}
+
+	if update.Settings != nil {
+		if err := validateUpdateSettings(ctx, logger, span, update.Settings); err != nil {
+			return nil, err
+		}
+
+		if err := enforceOverdraftTransition(ctx, logger, span, current, update.Settings); err != nil {
+			return nil, err
+		}
+	}
+
+	// Auto-create the system-managed overdraft balance BEFORE persisting
+	// the settings update. If auto-creation fails (e.g., Create returns a
+	// database error), the parent balance's settings MUST NOT have been
+	// mutated — this keeps the pair (parent.AllowOverdraft, overdraft
+	// balance) consistent on failure. Guarded so the path only runs when
+	// the caller actually provided new settings.
+	if update.Settings != nil {
+		if err := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, current, update.Settings); err != nil {
+			return nil, err
+		}
+	}
 
 	balance, err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update balance on repo", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error update balance: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to update balance", libLog.Err(err))
 
 		return nil, err
 	}
@@ -134,17 +201,48 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	value, rerr := uc.TransactionRedisRepo.Get(ctx, internalKey)
 	if rerr != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance cache value on redis", rerr)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get balance cache value on redis: %v", rerr))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to get balance cache value on Redis", libLog.Err(rerr))
 	}
 
 	if value != "" {
 		cached := mmodel.BalanceRedis{}
 		if uerr := json.Unmarshal([]byte(value), &cached); uerr != nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error unmarshalling balance cache value: %v", uerr))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to unmarshal balance cache value", libLog.Err(uerr))
 		} else {
 			balance.Available = cached.Available
 			balance.OnHold = cached.OnHold
 			balance.Version = cached.Version
+
+			if ou, perr := decimal.NewFromString(cached.OverdraftUsed); perr == nil {
+				balance.OverdraftUsed = ou
+			}
+		}
+	}
+
+	// When the caller updates overdraft/scope Settings, rewrite ONLY those
+	// fields in the cached JSON blob in place. Deleting the key would discard
+	// live transactional state (Available, OnHold, Version, OverdraftUsed)
+	// that the Lua atomic script may have mutated but not yet flushed to
+	// PostgreSQL. An in-place settings rewrite preserves that state while
+	// making the new overdraft configuration visible to the next transaction.
+	//
+	// The repo method composes its own BalanceInternalKey from (org, ledger,
+	// alias#key) and applies the tenant prefix internally, mirroring the Get
+	// above. A cache miss inside the repo is a no-op — the next transaction
+	// will load the freshly-persisted settings via the Lua SETNX path.
+	//
+	// Non-settings updates (e.g. AllowSending, AllowReceiving) do not trigger
+	// this rewrite: those fields are not part of the settings contract this
+	// method guards, and leaving the cache alone avoids a useless round-trip.
+	//
+	// This is best-effort: the PostgreSQL write is already durable, so a
+	// Redis-side failure here is logged and swallowed. A subsequent cache
+	// miss or the sync worker will reconcile.
+	if update.Settings != nil {
+		cacheKey := balance.Alias + "#" + balance.Key
+		if uerr := uc.TransactionRedisRepo.UpdateBalanceCacheSettings(ctx, organizationID, ledgerID, cacheKey, update.Settings); uerr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update balance cache settings on redis", uerr)
+			logger.Log(ctx, libLog.LevelWarn, "Failed to update balance cache settings on Redis", libLog.Err(uerr))
 		}
 	}
 

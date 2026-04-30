@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"

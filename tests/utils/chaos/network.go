@@ -13,7 +13,7 @@ import (
 	"time"
 
 	toxiproxyclient "github.com/Shopify/toxiproxy/v2/client"
-	"github.com/docker/docker/api/types/container"
+	"github.com/moby/moby/api/types/container"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	tctoxiproxy "github.com/testcontainers/testcontainers-go/modules/toxiproxy"

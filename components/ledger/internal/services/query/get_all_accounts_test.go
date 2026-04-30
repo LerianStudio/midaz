@@ -58,7 +58,7 @@ func TestGetAllAccount(t *testing.T) {
 				bFalse := false
 				bTrue := true
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter).
 					Return([]*mmodel.Account{
 						{ID: "acc1", Blocked: &bFalse},
 						{ID: "acc2", Blocked: &bTrue},
@@ -91,7 +91,7 @@ func TestGetAllAccount(t *testing.T) {
 			segmentID:   &segmentID,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, &segmentID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, &segmentID, filter).
 					Return([]*mmodel.Account{
 						{ID: "acc1"},
 					}, nil).
@@ -115,7 +115,7 @@ func TestGetAllAccount(t *testing.T) {
 			segmentID:   nil,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter).
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
@@ -128,7 +128,7 @@ func TestGetAllAccount(t *testing.T) {
 			segmentID:   nil,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter).
 					Return(nil, errors.New("failed to retrieve accounts")).
 					Times(1)
 			},
@@ -141,7 +141,7 @@ func TestGetAllAccount(t *testing.T) {
 			segmentID:   nil,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter).
 					Return([]*mmodel.Account{
 						{ID: "acc1"},
 						{ID: "acc2"},

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -444,9 +444,9 @@ func TestIntegration_OrganizationRepository_ListByIDs_EdgeCases(t *testing.T) {
 // FindAll (Pagination) Tests
 // ============================================================================
 
-// defaultPagination returns a Pagination with valid date range for tests.
-func defaultPagination(page, limit int) http.Pagination {
-	return http.Pagination{
+// defaultQueryHeader returns a QueryHeader with valid date range for tests.
+func defaultQueryHeader(page, limit int) http.QueryHeader {
+	return http.QueryHeader{
 		Page:      page,
 		Limit:     limit,
 		StartDate: time.Now().AddDate(-1, 0, 0), // 1 year ago
@@ -472,39 +472,39 @@ func TestIntegration_OrganizationRepository_FindAll_Pagination(t *testing.T) {
 
 	cases := []struct {
 		name        string
-		filter      http.Pagination
+		filter      http.QueryHeader
 		expectCount int
 	}{
 		{
 			name:        "page 1 limit 2",
-			filter:      defaultPagination(1, 2),
+			filter:      defaultQueryHeader(1, 2),
 			expectCount: 2,
 		},
 		{
 			name:        "page 2 limit 2",
-			filter:      defaultPagination(2, 2),
+			filter:      defaultQueryHeader(2, 2),
 			expectCount: 2,
 		},
 		{
 			name:        "page 3 limit 2 (last page with 1 item)",
-			filter:      defaultPagination(3, 2),
+			filter:      defaultQueryHeader(3, 2),
 			expectCount: 1,
 		},
 		{
 			name:        "page beyond data returns empty",
-			filter:      defaultPagination(10, 2),
+			filter:      defaultQueryHeader(10, 2),
 			expectCount: 0,
 		},
 		{
 			name:        "limit larger than total returns all",
-			filter:      defaultPagination(1, 100),
+			filter:      defaultQueryHeader(1, 100),
 			expectCount: 5,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			orgs, err := repo.FindAll(ctx, tc.filter, nil, nil)
+			orgs, err := repo.FindAll(ctx, tc.filter)
 
 			require.NoError(t, err)
 			assert.Len(t, orgs, tc.expectCount)
@@ -527,10 +527,10 @@ func TestIntegration_OrganizationRepository_FindAll_NoDuplicatesAcrossPages(t *t
 	}
 
 	// Fetch page 1 and page 2 with limit 2
-	page1, err := repo.FindAll(ctx, defaultPagination(1, 2), nil, nil)
+	page1, err := repo.FindAll(ctx, defaultQueryHeader(1, 2))
 	require.NoError(t, err)
 
-	page2, err := repo.FindAll(ctx, defaultPagination(2, 2), nil, nil)
+	page2, err := repo.FindAll(ctx, defaultQueryHeader(2, 2))
 	require.NoError(t, err)
 
 	// Collect all IDs and ensure no duplicates
@@ -570,7 +570,7 @@ func TestIntegration_OrganizationRepository_FindAll_ExcludesSoftDeleted(t *testi
 	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, deletedParams)
 
 	// FindAll should only return active organizations
-	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), nil, nil)
+	orgs, err := repo.FindAll(ctx, defaultQueryHeader(1, 10))
 
 	require.NoError(t, err)
 	assert.Len(t, orgs, 2, "should only return active organizations")
@@ -608,7 +608,9 @@ func TestIntegration_OrganizationRepository_FindAll_FilterByLegalName(t *testing
 
 	// Filter by "Acme" prefix - should return 2
 	legalName := "Acme"
-	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &legalName, nil)
+	filter := defaultQueryHeader(1, 10)
+	filter.LegalName = &legalName
+	orgs, err := repo.FindAll(ctx, filter)
 
 	require.NoError(t, err)
 	assert.Len(t, orgs, 2, "should return organizations matching 'Acme' prefix")
@@ -631,7 +633,9 @@ func TestIntegration_OrganizationRepository_FindAll_FilterByLegalName_CaseInsens
 
 	// Search with lowercase
 	legalName := "acme"
-	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &legalName, nil)
+	filter := defaultQueryHeader(1, 10)
+	filter.LegalName = &legalName
+	orgs, err := repo.FindAll(ctx, filter)
 
 	require.NoError(t, err)
 	assert.Len(t, orgs, 1, "ILIKE should match case-insensitively")
@@ -665,7 +669,9 @@ func TestIntegration_OrganizationRepository_FindAll_FilterByDoingBusinessAs(t *t
 
 	// Filter by "Tech" prefix in doing_business_as
 	dba := "Tech"
-	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), nil, &dba)
+	filter := defaultQueryHeader(1, 10)
+	filter.DoingBusinessAs = &dba
+	orgs, err := repo.FindAll(ctx, filter)
 
 	require.NoError(t, err)
 	assert.Len(t, orgs, 2, "should return organizations with DBA matching 'Tech' prefix")
@@ -694,7 +700,10 @@ func TestIntegration_OrganizationRepository_FindAll_FilterByBothNames(t *testing
 	// Filter by legal_name "Acme" AND doing_business_as "Acme" - only first matches both
 	legalName := "Acme"
 	dba := "Acme"
-	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &legalName, &dba)
+	filter := defaultQueryHeader(1, 10)
+	filter.LegalName = &legalName
+	filter.DoingBusinessAs = &dba
+	orgs, err := repo.FindAll(ctx, filter)
 
 	require.NoError(t, err)
 	assert.Len(t, orgs, 1, "should return only organization matching both filters")
@@ -716,7 +725,7 @@ func TestIntegration_OrganizationRepository_FindAll_NilFiltersReturnsAll(t *test
 	}
 
 	// Nil filters should return all
-	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), nil, nil)
+	orgs, err := repo.FindAll(ctx, defaultQueryHeader(1, 10))
 
 	require.NoError(t, err)
 	assert.Len(t, orgs, 3, "nil filters should return all organizations")
@@ -735,7 +744,9 @@ func TestIntegration_OrganizationRepository_FindAll_PrefixMatchOnly(t *testing.T
 
 	// "Acme" should NOT match "MyAcmeCorp" because we use prefix match (term%)
 	legalName := "Acme"
-	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &legalName, nil)
+	filter := defaultQueryHeader(1, 10)
+	filter.LegalName = &legalName
+	orgs, err := repo.FindAll(ctx, filter)
 
 	require.NoError(t, err)
 	assert.Len(t, orgs, 0, "prefix match should not find 'Acme' inside 'MyAcmeCorp'")
@@ -796,8 +807,10 @@ func TestIntegration_OrganizationRepository_FindAll_WildcardInjection(t *testing
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			filter := tc.legalName
-			orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &filter, nil)
+			legalNameFilter := tc.legalName
+			qh := defaultQueryHeader(1, 10)
+			qh.LegalName = &legalNameFilter
+			orgs, err := repo.FindAll(ctx, qh)
 
 			require.NoError(t, err)
 			assert.Len(t, orgs, tc.expectLen, tc.reason)
@@ -819,7 +832,9 @@ func TestIntegration_OrganizationRepository_FindAll_LiteralSpecialCharsInName(t 
 
 	// Searching for "100%" should find it (literal match)
 	legalName := "100%"
-	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &legalName, nil)
+	filter := defaultQueryHeader(1, 10)
+	filter.LegalName = &legalName
+	orgs, err := repo.FindAll(ctx, filter)
 
 	require.NoError(t, err)
 	assert.Len(t, orgs, 1, "should find organization with literal '%' in name")
@@ -1211,14 +1226,14 @@ func TestIntegration_GetDB_TenantContext_FindAllThroughTenantPath(t *testing.T) 
 	}
 
 	// Act -- FindAll through tenant context.
-	orgs, err := repo.FindAll(tenantCtx, defaultPagination(1, 10), nil, nil)
+	orgs, err := repo.FindAll(tenantCtx, defaultQueryHeader(1, 10))
 
 	// Assert
 	require.NoError(t, err, "FindAll through tenant context should succeed")
 	assert.Len(t, orgs, 3, "tenant context should return tenant organizations")
 
 	// Verify static path returns 0 (no data in static container).
-	staticOrgs, err := repo.FindAll(context.Background(), defaultPagination(1, 10), nil, nil)
+	staticOrgs, err := repo.FindAll(context.Background(), defaultQueryHeader(1, 10))
 	require.NoError(t, err)
 	assert.Len(t, staticOrgs, 0, "static path should return no organizations")
 }

@@ -3,22 +3,22 @@
 <div align="center">
 
 [![Latest Release](https://img.shields.io/github/v/release/LerianStudio/midaz?include_prereleases)](https://github.com/LerianStudio/midaz/v3/releases)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/LerianStudio/midaz/v3/blob/main/LICENSE)
+[![License: Elastic-2.0](https://img.shields.io/badge/License-Elastic_2.0-blue.svg)](https://github.com/LerianStudio/midaz/blob/main/LICENSE)
 [![Go Report](https://goreportcard.com/badge/github.com/lerianstudio/midaz)](https://goreportcard.com/report/github.com/lerianstudio/midaz)
 [![Discord](https://img.shields.io/badge/Discord-Lerian%20Studio-%237289da.svg?logo=discord)](https://discord.gg/DnhqKwkGv3)
 
 </div>
 
-# Lerian Midaz: Enterprise-Grade Open-Source Ledger System
+# Lerian Midaz: Enterprise-Grade Source-Available Ledger System
 
-Lerian Midaz is a modern, open-source ledger system for building financial infrastructure. It scales from fintech startups to enterprise banking solutions. The robust architecture empowers developers to create sophisticated financial applications that handle complex transactional requirements.
+Lerian Midaz is a modern, source-available ledger system for building financial infrastructure. It scales from fintech startups to enterprise banking solutions. The robust architecture empowers developers to create sophisticated financial applications that handle complex transactional requirements.
 
 ## Why Midaz?
 
 - **Enterprise-Ready**: Built with the reliability, scalability, and security needed for mission-critical financial systems
 - **Developer-Friendly**: Clean architecture and comprehensive API documentation for rapid integration and development
 - **Future-Proof Design**: Multi-asset and multi-currency support to handle both traditional and digital assets in a single system
-- **Community-Backed**: Growing open-source community with commercial support options available from Lerian
+- **Community-Backed**: Growing developer community with commercial support options available from Lerian
 
 ## Core Banking
 
@@ -31,7 +31,7 @@ At Lerian, we view a core banking system as a comprehensive platform consisting 
 2. **Transactional Messaging Integrations**: These are responsible for integrating with external systems to generate debits and credits in the ledger. Examples include instant payments (like PIX in Brazil), card transactions, and wire transfers.
 3. **Governance Integrations**: These are responsible for enhancing the core banking capabilities with KYC, anti-fraud/AML measures, management reporting, regulatory compliance, and accounting reporting.
 
-Our open-source approach allows for the integration of Midaz with other components, like transactional messaging and governance, creating a complete core banking solution tailored to your specific needs. We also provide a marketplace with different plugins that streamline the integration of these messaging systems and governance players. These plugins are built by both Lerian and the community/partners.
+Our source-available approach allows for the integration of Midaz with other components, like transactional messaging and governance, creating a complete core banking solution tailored to your specific needs. We also provide a marketplace with different plugins that streamline the integration of these messaging systems and governance players. These plugins are built by both Lerian and the community/partners.
 
 Interested in contributing to plugin development? Reach out in the Discussions tab or at [contact@lerian.studio](mailto:contact@lerian.studio).
 
@@ -123,7 +123,7 @@ Follow our [Getting Started Guide](https://docs.lerian.studio/en/midaz/midaz-get
 
 ## Contributing & License
 
-We welcome contributions from the community. Read our [Contributing Guidelines](CONTRIBUTING.md) to get started. Lerian Midaz is released under the Apache License 2.0. See [LICENSE](LICENSE) for details. You can use, modify, and distribute Midaz as long as you include the original copyright and license notice.
+We welcome contributions from the community. Read our [Contributing Guidelines](CONTRIBUTING.md) to get started. Lerian Midaz is released under the [Elastic License 2.0 (ELv2)](LICENSE) — a source-available license that allows you to use, copy, modify, and redistribute Midaz, with three primary limitations: you may not provide it to others as a managed/hosted service, circumvent its license key functionality, or remove/obscure license notices.
 
 ## About Lerian
 

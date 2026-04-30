@@ -6,9 +6,9 @@ package in
 
 import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
@@ -110,12 +110,12 @@ func RegisterOnboardingRoutesToApp(f fiber.Router, auth *middleware.AuthClient, 
 
 	// Ledgers
 	f.Post("/v1/organizations/:organization_id/ledgers", protectedMidaz(auth, "ledgers", "post", routeOptions, http.ParseUUIDPathParameters("ledger"), http.WithBody(new(mmodel.CreateLedgerInput), lh.CreateLedger))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:id", protectedMidaz(auth, "ledgers", "patch", routeOptions, http.ParseUUIDPathParameters("ledger"), http.WithBody(new(mmodel.UpdateLedgerInput), lh.UpdateLedger))...)
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id", protectedMidaz(auth, "ledgers", "patch", routeOptions, http.ParseUUIDPathParameters("ledger"), http.WithBody(new(mmodel.UpdateLedgerInput), lh.UpdateLedger))...)
 	f.Get("/v1/organizations/:organization_id/ledgers", protectedMidaz(auth, "ledgers", "get", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.GetAllLedgers)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:id", protectedMidaz(auth, "ledgers", "get", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.GetLedgerByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:id/settings", protectedMidaz(auth, "ledgers", "get", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.GetLedgerSettings)...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:id/settings", protectedMidaz(auth, "ledgers", "patch", routeOptions, http.ParseUUIDPathParameters("ledger"), http.WithBodyLimit(SettingsMaxPayloadSize), http.WithBody(new(map[string]any), lh.UpdateLedgerSettings))...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:id", protectedMidaz(auth, "ledgers", "delete", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.DeleteLedgerByID)...)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id", protectedMidaz(auth, "ledgers", "get", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.GetLedgerByID)...)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/settings", protectedMidaz(auth, "ledgers", "get", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.GetLedgerSettings)...)
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/settings", protectedMidaz(auth, "ledgers", "patch", routeOptions, http.ParseUUIDPathParameters("ledger"), http.WithBodyLimit(SettingsMaxPayloadSize), http.WithBody(new(map[string]any), lh.UpdateLedgerSettings))...)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id", protectedMidaz(auth, "ledgers", "delete", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.DeleteLedgerByID)...)
 	f.Head("/v1/organizations/:organization_id/ledgers/metrics/count", protectedMidaz(auth, "ledgers", "head", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.CountLedgers)...)
 
 	// Assets

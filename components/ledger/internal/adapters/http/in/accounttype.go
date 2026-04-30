@@ -7,9 +7,9 @@ package in
 import (
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -87,13 +87,13 @@ func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error 
 //	@Param			X-Request-Id	header		string				false	"Request ID for tracing"
 //	@Param			organization_id	path		string				true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string				true	"Ledger ID in UUID format"
-//	@Param			id				path		string				true	"Account Type ID in UUID format"
+//	@Param			account_type_id				path		string				true	"Account Type ID in UUID format"
 //	@Success		200				{object}	mmodel.AccountType	"Successfully retrieved account type"
 //	@Failure		401				{object}	mmodel.Error		"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error		"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error		"Account type, ledger, or organization not found"
 //	@Failure		500				{object}	mmodel.Error		"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id} [get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id} [get]
 func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -144,7 +144,7 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
 //	@Param			organization_id	path		string							true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string							true	"Ledger ID in UUID format"
-//	@Param			id				path		string							true	"Account Type ID in UUID format"
+//	@Param			account_type_id				path		string							true	"Account Type ID in UUID format"
 //	@Param			accountType		body		mmodel.UpdateAccountTypeInput	true	"Account Type Update Input"
 //	@Success		200				{object}	mmodel.AccountType				"Successfully updated account type"
 //	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
@@ -152,7 +152,7 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 //	@Failure		403				{object}	mmodel.Error					"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error					"Account type not found"
 //	@Failure		500				{object}	mmodel.Error					"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id} [patch]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id} [patch]
 func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -213,12 +213,12 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			organization_id	path	string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
-//	@Param			id				path	string	true	"Account Type ID in UUID format"
+//	@Param			account_type_id				path	string	true	"Account Type ID in UUID format"
 //	@Success		204				"Successfully deleted account type"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		404				{object}	mmodel.Error	"Account type not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id} [delete]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id} [delete]
 func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -268,6 +268,7 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string																										true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string																										true	"Ledger ID in UUID format"
 //	@Param			metadata		query		string																										false	"JSON string to filter account types by metadata fields"
+//	@Param			key_value		query		string																										false	"Filter account types by key value"
 //	@Param			limit			query		int																											false	"Limit of account types per page (default: 10, max: 100)"
 //	@Param			page			query		int																											false	"Page number for offset pagination (default: 1)"
 //	@Param			cursor			query		string																										false	"Cursor for cursor-based pagination"

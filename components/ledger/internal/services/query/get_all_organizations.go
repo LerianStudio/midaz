@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -19,7 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
 	// GetAllOrganizations fetch all Organizations from the repository
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 )
 
 func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHeader) ([]*mmodel.Organization, error) {
@@ -30,7 +30,7 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHea
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving organizations")
 
-	organizations, err := uc.OrganizationRepo.FindAll(ctx, filter.ToOffsetPagination(), filter.LegalName, filter.DoingBusinessAs)
+	organizations, err := uc.OrganizationRepo.FindAll(ctx, filter)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting organizations on repo: %v", err))
 

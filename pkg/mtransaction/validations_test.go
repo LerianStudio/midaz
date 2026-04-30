@@ -10,9 +10,9 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/LerianStudio/lib-commons/v4/commons"
-	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
-	"github.com/LerianStudio/lib-commons/v4/commons/log"
+	"github.com/LerianStudio/lib-commons/v5/commons"
+	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	"github.com/LerianStudio/lib-commons/v5/commons/log"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"

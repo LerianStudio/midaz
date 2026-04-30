@@ -14,13 +14,13 @@ import (
 	"syscall"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
-	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
-	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
@@ -503,8 +503,17 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 
 		var buildErr error
 
+		// Replay path: Lua's authoritative `balancesAfter` is not captured
+		// in the backup envelope, so BuildOperations falls back to the
+		// OperateBalances-recomputation branch. For non-overdraft
+		// transactions this is correct; for overdraft transactions the
+		// operation records will carry the naive `before - amount`
+		// arithmetic — the balance table remains consistent (Lua already
+		// flushed it) but the audit trail may diverge. Capturing Lua's
+		// after-state in the backup envelope is tracked under T-006.1 /
+		// T-009 hardening items.
 		operations, _, buildErr = r.TransactionHandler.BuildOperations(
-			msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action,
+			msgCtxWithSpan, balances, nil /* balancesAfter */, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action,
 		)
 		if buildErr != nil {
 			libOpentelemetry.HandleSpanError(msgSpan, "Failed to validate balances", buildErr)

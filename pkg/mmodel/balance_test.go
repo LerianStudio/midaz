@@ -168,6 +168,7 @@ func TestBalance_ToTransactionBalance(t *testing.T) {
 		name    string
 		balance *Balance
 		want    *mtransaction.Balance
+		wantErr bool
 	}{
 		{
 			name: "all fields populated",
@@ -292,13 +293,31 @@ func TestBalance_ToTransactionBalance(t *testing.T) {
 				Metadata:       nil,
 			},
 		},
+		{
+			name: "corrupted OverdraftLimit returns error",
+			balance: &Balance{
+				ID: "bal-corrupted",
+				Settings: &BalanceSettings{
+					OverdraftLimit: func() *string { s := "not-a-number"; return &s }(),
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := tt.balance.ToTransactionBalance()
+			got, err := tt.balance.ToTransactionBalance()
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, got)
+
+				return
+			}
+
+			require.NoError(t, err)
 
 			assert.Equal(t, tt.want.ID, got.ID)
 			assert.Equal(t, tt.want.OrganizationID, got.OrganizationID)

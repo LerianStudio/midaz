@@ -8,9 +8,9 @@ import (
 	"testing"
 	"testing/quick"
 
-	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
-	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
-	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
+	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
+	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/stretchr/testify/require"
 )

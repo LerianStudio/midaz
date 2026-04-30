@@ -21,10 +21,10 @@ import (
 	"testing"
 	"time"
 
-	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
-	tmrabbitmq "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/rabbitmq"
-	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
+	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	tmrabbitmq "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/rabbitmq"
+	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
 	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
 
 	amqp "github.com/rabbitmq/amqp091-go"

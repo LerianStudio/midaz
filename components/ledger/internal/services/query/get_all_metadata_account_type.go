@@ -9,9 +9,9 @@ import (
 	"errors"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -20,7 +20,7 @@ import (
 	"github.com/google/uuid"
 
 	// GetAllMetadataAccountType fetch all Account Types from the repository filtered by metadata
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 )
 
 func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.AccountType, libHTTP.CursorPagination, error) {
@@ -56,7 +56,9 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	accountTypes, err := uc.AccountTypeRepo.ListByIDs(ctx, organizationID, ledgerID, uuids)
+	filter.EntityIDs = uuids
+
+	accountTypes, _, err := uc.AccountTypeRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())

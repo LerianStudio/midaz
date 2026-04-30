@@ -12,11 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
-	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
-	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
 	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -71,9 +71,10 @@ type tenantCollector struct {
 const tenantReconcileInterval = 10 * time.Second
 
 // maxBatchSize is the upper bound for batch size, derived from PostgreSQL's 65535
-// bind-parameter limit. Each balance uses 4 params + 3 shared = (65535-3)/4 = 16383.
-// In practice, batches above a few hundred rarely make sense for this workload.
-const maxBatchSize = 16000
+// bind-parameter limit. Each balance uses 5 params + 3 shared = (65535-3)/5 = 13106.
+// The 5th parameter is overdraft_used (added once the cache script began
+// tracking it). Batches above a few hundred rarely make sense for this workload.
+const maxBatchSize = 13000
 
 func NewBalanceSyncWorker(logger libLog.Logger, useCase *command.UseCase, syncCfg BalanceSyncConfig) *BalanceSyncWorker {
 	// Apply safe defaults for zero-value config (e.g., in tests)

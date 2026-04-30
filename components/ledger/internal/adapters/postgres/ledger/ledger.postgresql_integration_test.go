@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	"github.com/google/uuid"
@@ -140,9 +140,9 @@ func TestIntegration_LedgerRepository_ListByIDs_IsolatesByOrganization(t *testin
 // FindAll (Pagination) Tests
 // ============================================================================
 
-// defaultPagination returns a Pagination with valid date range for tests.
-func defaultPagination(page, limit int) http.Pagination {
-	return http.Pagination{
+// defaultQueryHeader returns a QueryHeader with valid date range for tests.
+func defaultQueryHeader(page, limit int) http.QueryHeader {
+	return http.QueryHeader{
 		Page:      page,
 		Limit:     limit,
 		StartDate: time.Now().AddDate(-1, 0, 0), // 1 year ago
@@ -167,39 +167,39 @@ func TestIntegration_LedgerRepository_FindAll_Pagination(t *testing.T) {
 
 	cases := []struct {
 		name        string
-		filter      http.Pagination
+		filter      http.QueryHeader
 		expectCount int
 	}{
 		{
 			name:        "page 1 limit 2",
-			filter:      defaultPagination(1, 2),
+			filter:      defaultQueryHeader(1, 2),
 			expectCount: 2,
 		},
 		{
 			name:        "page 2 limit 2",
-			filter:      defaultPagination(2, 2),
+			filter:      defaultQueryHeader(2, 2),
 			expectCount: 2,
 		},
 		{
 			name:        "page 3 limit 2 (last page with 1 item)",
-			filter:      defaultPagination(3, 2),
+			filter:      defaultQueryHeader(3, 2),
 			expectCount: 1,
 		},
 		{
 			name:        "page beyond data returns empty",
-			filter:      defaultPagination(10, 2),
+			filter:      defaultQueryHeader(10, 2),
 			expectCount: 0,
 		},
 		{
 			name:        "limit larger than total returns all",
-			filter:      defaultPagination(1, 100),
+			filter:      defaultQueryHeader(1, 100),
 			expectCount: 5,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ledgers, err := repo.FindAll(ctx, orgID, tc.filter, nil)
+			ledgers, err := repo.FindAll(ctx, orgID, tc.filter)
 
 			require.NoError(t, err)
 			assert.Len(t, ledgers, tc.expectCount)
@@ -228,7 +228,7 @@ func TestIntegration_LedgerRepository_FindAll_ExcludesSoftDeleted(t *testing.T) 
 	deletedParams.DeletedAt = &deletedAt
 	pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, deletedParams)
 
-	ledgers, err := repo.FindAll(ctx, orgID, defaultPagination(1, 10), nil)
+	ledgers, err := repo.FindAll(ctx, orgID, defaultQueryHeader(1, 10))
 
 	require.NoError(t, err)
 	assert.Len(t, ledgers, 2, "should only return active ledgers")
@@ -259,13 +259,13 @@ func TestIntegration_LedgerRepository_FindAll_IsolatesByOrganization(t *testing.
 	pgtestutil.CreateTestLedgerWithParams(t, container.DB, org2ID, params)
 
 	// FindAll for org1 should only return org1's ledgers
-	ledgers, err := repo.FindAll(ctx, org1ID, defaultPagination(1, 10), nil)
+	ledgers, err := repo.FindAll(ctx, org1ID, defaultQueryHeader(1, 10))
 
 	require.NoError(t, err)
 	assert.Len(t, ledgers, 2, "should only return org1's ledgers")
 
 	// FindAll for org2 should only return org2's ledger
-	ledgers, err = repo.FindAll(ctx, org2ID, defaultPagination(1, 10), nil)
+	ledgers, err = repo.FindAll(ctx, org2ID, defaultQueryHeader(1, 10))
 
 	require.NoError(t, err)
 	assert.Len(t, ledgers, 1, "should only return org2's ledgers")
@@ -298,7 +298,9 @@ func TestIntegration_LedgerRepository_FindAll_FilterByName(t *testing.T) {
 
 	// Filter by "Primary" prefix - should return 2
 	name := "Primary"
-	ledgers, err := repo.FindAll(ctx, orgID, defaultPagination(1, 10), &name)
+	filter := defaultQueryHeader(1, 10)
+	filter.Name = &name
+	ledgers, err := repo.FindAll(ctx, orgID, filter)
 
 	require.NoError(t, err)
 	assert.Len(t, ledgers, 2, "should return ledgers matching 'Primary' prefix")
@@ -322,7 +324,9 @@ func TestIntegration_LedgerRepository_FindAll_FilterByName_CaseInsensitive(t *te
 
 	// Search with lowercase
 	name := "primary"
-	ledgers, err := repo.FindAll(ctx, orgID, defaultPagination(1, 10), &name)
+	filter := defaultQueryHeader(1, 10)
+	filter.Name = &name
+	ledgers, err := repo.FindAll(ctx, orgID, filter)
 
 	require.NoError(t, err)
 	assert.Len(t, ledgers, 1, "ILIKE should match case-insensitively")
@@ -345,7 +349,7 @@ func TestIntegration_LedgerRepository_FindAll_NilNameReturnsAll(t *testing.T) {
 	}
 
 	// Nil name should return all
-	ledgers, err := repo.FindAll(ctx, orgID, defaultPagination(1, 10), nil)
+	ledgers, err := repo.FindAll(ctx, orgID, defaultQueryHeader(1, 10))
 
 	require.NoError(t, err)
 	assert.Len(t, ledgers, 3, "nil name filter should return all ledgers")
@@ -365,7 +369,9 @@ func TestIntegration_LedgerRepository_FindAll_PrefixMatchOnly(t *testing.T) {
 
 	// "Primary" should NOT match "MyPrimaryLedger" because we use prefix match (term%)
 	name := "Primary"
-	ledgers, err := repo.FindAll(ctx, orgID, defaultPagination(1, 10), &name)
+	filter := defaultQueryHeader(1, 10)
+	filter.Name = &name
+	ledgers, err := repo.FindAll(ctx, orgID, filter)
 
 	require.NoError(t, err)
 	assert.Len(t, ledgers, 0, "prefix match should not find 'Primary' inside 'MyPrimaryLedger'")
@@ -420,8 +426,10 @@ func TestIntegration_LedgerRepository_FindAll_WildcardInjection(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			filter := tc.filter
-			ledgers, err := repo.FindAll(ctx, orgID, defaultPagination(1, 10), &filter)
+			nameFilter := tc.filter
+			qh := defaultQueryHeader(1, 10)
+			qh.Name = &nameFilter
+			ledgers, err := repo.FindAll(ctx, orgID, qh)
 
 			require.NoError(t, err)
 			assert.Len(t, ledgers, tc.expectLen, tc.reason)
@@ -444,7 +452,9 @@ func TestIntegration_LedgerRepository_FindAll_LiteralSpecialCharsInName(t *testi
 
 	// Searching for "100%" should find it (literal match)
 	name := "100%"
-	ledgers, err := repo.FindAll(ctx, orgID, defaultPagination(1, 10), &name)
+	filter := defaultQueryHeader(1, 10)
+	filter.Name = &name
+	ledgers, err := repo.FindAll(ctx, orgID, filter)
 
 	require.NoError(t, err)
 	assert.Len(t, ledgers, 1, "should find ledger with literal '%' in name")

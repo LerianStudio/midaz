@@ -11,12 +11,13 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libCrypto "github.com/LerianStudio/lib-commons/v4/commons/crypto"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	"github.com/LerianStudio/lib-commons/v5/commons/opentelemetry/metrics"
+	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
@@ -63,6 +64,8 @@ type Config struct {
 	MultiTenantRedisPassword               string `env:"MULTI_TENANT_REDIS_PASSWORD"`
 	MultiTenantRedisTLS                    bool   `env:"MULTI_TENANT_REDIS_TLS"`
 	ApplicationName                        string `env:"APPLICATION_NAME"`
+	DeploymentMode                         string `env:"DEPLOYMENT_MODE"`
+	Version                                string `env:"VERSION"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -175,8 +178,20 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize tenant middleware: %w", err)
 	}
 
-	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, holderHandler, aliasHandler)
-	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
+	// Get metrics factory from telemetry for readyz metrics emission
+	var metricsFactory *metrics.MetricsFactory
+	if telemetry != nil {
+		metricsFactory = telemetry.MetricsFactory
+	}
+
+	// Build readyz handler with MongoDB checker
+	readyzHandler, err := buildReadyzHandler(cfg, logger, mongoConnection, metricsFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize readyz handler: %w", err)
+	}
+
+	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, readyzHandler, holderHandler, aliasHandler)
+	serverAPI := NewServer(cfg, httpApp, logger, telemetry, readyzHandler)
 
 	return &Service{
 		Server:        serverAPI,
@@ -276,4 +291,79 @@ func resolveLoggerEnvironment(env string) libZap.Environment {
 	default:
 		return libZap.EnvironmentDevelopment
 	}
+}
+
+// buildReadyzHandler creates the ReadyzHandler with appropriate checkers based on configuration.
+// In single-tenant mode, the MongoDB checker returns actual status.
+// In multi-tenant mode (future), database checkers would return "n/a" globally.
+func buildReadyzHandler(
+	cfg *Config,
+	logger libLog.Logger,
+	mongoConnection *libMongo.Client,
+	metricsFactory *metrics.MetricsFactory,
+) (*ReadyzHandler, error) {
+	// Build Mongo URI for TLS detection
+	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(cfg.MongoDBPort, cfg.MongoDBParameters, logger)
+
+	mongoURI, err := resolveMongoURI(cfg, mongoPort, mongoParameters)
+	if err != nil {
+		// If we can't resolve the URI, use empty string (TLS detection will return false)
+		logger.Log(context.Background(), libLog.LevelWarn,
+			"Failed to resolve MongoDB URI for TLS detection, falling back to empty string",
+			libLog.Err(err))
+
+		mongoURI = ""
+	}
+
+	var checkers []DependencyChecker
+
+	// tlsRelevantCheckers holds only real dependency checkers for TLS validation.
+	// NAChecker is excluded since it represents a non-configured dependency.
+	var tlsRelevantCheckers []DependencyChecker
+
+	// MongoDB checker - returns actual status in single-tenant mode
+	if mongoConnection != nil {
+		mongoChecker := NewMongoChecker("mongo", mongoConnection, mongoURI)
+		checkers = append(checkers, mongoChecker)
+		tlsRelevantCheckers = append(tlsRelevantCheckers, mongoChecker)
+	} else {
+		// If no connection, add a skipped checker (excluded from TLS validation)
+		tlsEnabled, _ := detectMongoTLS(mongoURI)
+		checkers = append(checkers, NewNAChecker("mongo", "MongoDB client not configured", tlsEnabled))
+	}
+
+	// Build TLS validation results from real dependency checkers only
+	tlsResults := make([]TLSValidationResult, 0, len(tlsRelevantCheckers))
+	for _, checker := range tlsRelevantCheckers {
+		tlsResults = append(tlsResults, TLSValidationResult{
+			Name:       checker.Name(),
+			TLSEnabled: checker.TLSEnabled(),
+		})
+	}
+
+	// ValidateSaaSTLS returns error ONLY for DEPLOYMENT_MODE=saas with insecure deps.
+	// The error is returned to the caller to fail startup.
+	if err := ValidateSaaSTLS(cfg.DeploymentMode, tlsResults); err != nil {
+		return nil, err
+	}
+
+	// For BYOC mode, log a warning for insecure dependencies (recommended but not enforced)
+	if IsTLSRecommended(cfg.DeploymentMode) {
+		for _, result := range tlsResults {
+			if !result.TLSEnabled {
+				logger.Log(context.Background(), libLog.LevelWarn,
+					"TLS recommended but not configured for dependency",
+					libLog.String("dependency", result.Name),
+					libLog.String("deployment_mode", cfg.DeploymentMode))
+			}
+		}
+	}
+
+	return NewReadyzHandler(ReadyzHandlerConfig{
+		Logger:         logger,
+		Checkers:       checkers,
+		Version:        cfg.Version,
+		DeploymentMode: cfg.DeploymentMode,
+		MetricsFactory: metricsFactory,
+	}), nil
 }
