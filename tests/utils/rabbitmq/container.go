@@ -14,7 +14,7 @@ import (
 
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 
-	"github.com/docker/docker/api/types/container"
+	"github.com/moby/moby/api/types/container"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/require"

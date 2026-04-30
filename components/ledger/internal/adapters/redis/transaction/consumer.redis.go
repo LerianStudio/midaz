@@ -15,16 +15,17 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	tmvalkey "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/valkey"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	tmvalkey "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/valkey"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -98,6 +99,9 @@ type RedisRepository interface {
 	// Each claimed key gets a distributed lock (SET NX EX) to prevent concurrent processing.
 	// Returns the claimed keys with their scores for conditional removal later.
 	GetBalanceSyncKeys(ctx context.Context, limit int64) ([]SyncKey, error)
+	// GetBalanceSyncKeysLegacy claims due keys from the legacy ZSET (balance-sync, pre-v3.6.2).
+	// Used by the legacy drainer to process entries written by v3.5.x (seconds) or v3.6.0 (microseconds).
+	GetBalanceSyncKeysLegacy(ctx context.Context, limit int64) ([]SyncKey, error)
 	// ScheduleBalanceSyncBatch schedules multiple balance keys for sync using ZADD NX.
 	// Each member is a balance key with score = scheduled sync time (Unix timestamp).
 	// Uses NX mode: only adds new members, does not update scores of existing ones.
@@ -115,6 +119,20 @@ type RedisRepository interface {
 	// preventing removal of entries re-scheduled by newer mutations.
 	// Returns the number of keys actually removed from the schedule.
 	RemoveBalanceSyncKeysBatch(ctx context.Context, keys []SyncKey) (int64, error)
+	// UpdateBalanceCacheSettings performs an in-place, settings-only update of a
+	// cached balance entry. It GETs the current JSON blob, mutates ONLY the
+	// overdraft/scope settings fields, and SETs it back with the Lua script's
+	// canonical 1-hour TTL.
+	//
+	// Transactional fields (Available, OnHold, Version, OverdraftUsed) are
+	// deliberately NOT touched: the Redis copy is the authoritative live state
+	// that the atomic Lua script mutates on every transaction, and may be ahead
+	// of PostgreSQL while sync is pending. Overwriting them — or deleting the
+	// key outright — would lose in-flight mutations.
+	//
+	// A cache miss (key absent) is a no-op: the next transaction will load the
+	// freshly-updated settings directly from PostgreSQL on its first SETNX.
+	UpdateBalanceCacheSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, settings *mmodel.BalanceSettings) error
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -532,6 +550,17 @@ func (r *balanceAtomicResponse) UnmarshalJSON(data []byte) error {
 
 // balanceRedisToBalance converts a BalanceRedis (Lua/cache format) to a Balance (domain model),
 // enriching it with fields from the mapBalances lookup that are not stored in Redis.
+//
+// Overdraft fields (Direction, OverdraftUsed, Settings) are propagated from the
+// BalanceRedis payload so downstream consumers (sync worker, history writer)
+// observe the post-Lua state computed atomically in the cache. OverdraftUsed is
+// parsed from its decimal-string cache representation; on parse failure we fall
+// back to zero (matching the safe default the Lua script uses on missing
+// fields) rather than corrupting the domain value.
+//
+// A non-nil BalanceSettings is materialized when any of the overdraft settings
+// fields is non-default, preserving backwards compatibility with legacy
+// balances that have no Settings payload.
 func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel.Balance) *mmodel.Balance {
 	mapBalance, ok := mapBalances[b.Alias]
 	if !ok {
@@ -541,6 +570,37 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 	balanceKey := mapBalance.Key
 	if balanceKey == "" {
 		balanceKey = constant.DefaultBalanceKey
+	}
+
+	// OverdraftUsed is stored as a decimal string in the Lua/Redis layer.
+	// An unparseable value is treated as zero to match the Lua fallback
+	// rather than corrupting the domain model with an arbitrary number.
+	overdraftUsed, err := decimal.NewFromString(b.OverdraftUsed)
+	if err != nil {
+		overdraftUsed = decimal.Zero
+	}
+
+	// Synthesize Settings only when at least one field diverges from the
+	// defaults. This preserves nil Settings for legacy balances that never
+	// had custom configuration, avoiding spurious non-nil snapshots in the
+	// history pipeline.
+	var settings *mmodel.BalanceSettings
+	if b.AllowOverdraft != 0 || b.OverdraftLimitEnabled != 0 ||
+		(b.BalanceScope != "" && b.BalanceScope != mmodel.BalanceScopeTransactional) ||
+		(b.OverdraftLimit != "" && b.OverdraftLimit != "0") {
+		settings = &mmodel.BalanceSettings{
+			BalanceScope:          b.BalanceScope,
+			AllowOverdraft:        b.AllowOverdraft == 1,
+			OverdraftLimitEnabled: b.OverdraftLimitEnabled == 1,
+		}
+		// Only expose OverdraftLimit when the limit is actively enforced.
+		// Settings.Validate() requires OverdraftLimit to be nil whenever
+		// OverdraftLimitEnabled is false, and the cache carries "0" as a
+		// placeholder for legacy/unused entries.
+		if b.OverdraftLimitEnabled == 1 && b.OverdraftLimit != "" {
+			limit := b.OverdraftLimit
+			settings.OverdraftLimit = &limit
+		}
 	}
 
 	return &mmodel.Balance{
@@ -557,6 +617,9 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 		AssetCode:      mapBalance.AssetCode,
 		OrganizationID: mapBalance.OrganizationID,
 		LedgerID:       mapBalance.LedgerID,
+		Direction:      b.Direction,
+		OverdraftUsed:  overdraftUsed,
+		Settings:       settings,
 		CreatedAt:      mapBalance.CreatedAt,
 		UpdatedAt:      mapBalance.UpdatedAt,
 	}
@@ -564,8 +627,10 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 
 // luaArgsPerOperation is the number of ARGV entries appended per balance
 // operation. It must match the stride used in the Lua script's parsing loop
-// (balance_atomic_operation.lua: `for i = 2, #ARGV, groupSize do`).
-const luaArgsPerOperation = 17
+// (balance_atomic_operation.lua: `for i = 1, #ARGV, groupSize do`).
+//
+// Layout: 17 base fields + 7 overdraft fields = 24 total.
+const luaArgsPerOperation = 24
 
 func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.Context, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*balanceAtomicOperationPlan, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -598,9 +663,35 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 			return nil, err
 		}
 
-		// Each group of luaArgsPerOperation (17) values maps to one iteration
-		// of the Lua script's `for i = 2, #ARGV, groupSize` loop.
-		// See: scripts/balance_atomic_operation.lua lines 256-300.
+		// Flatten optional per-balance settings into primitive ARGV values.
+		// When Settings is nil (legacy balances), defaults are used:
+		// overdraft disabled, limit disabled, zero limit, transactional scope.
+		allowOverdraft := 0
+		overdraftLimitEnabled := 0
+		overdraftLimit := "0"
+		balanceScope := mmodel.BalanceScopeTransactional
+
+		if blcs.Balance.Settings != nil {
+			if blcs.Balance.Settings.AllowOverdraft {
+				allowOverdraft = 1
+			}
+
+			if blcs.Balance.Settings.OverdraftLimitEnabled {
+				overdraftLimitEnabled = 1
+			}
+
+			if blcs.Balance.Settings.OverdraftLimit != nil {
+				overdraftLimit = *blcs.Balance.Settings.OverdraftLimit
+			}
+
+			if blcs.Balance.Settings.BalanceScope != "" {
+				balanceScope = blcs.Balance.Settings.BalanceScope
+			}
+		}
+
+		// Each group of luaArgsPerOperation (24) values maps to one iteration
+		// of the Lua script's `for i = 1, #ARGV, groupSize` loop.
+		// See: scripts/balance_atomic_operation.lua.
 		plan.args = append(plan.args,
 			prefixedInternalKey,        // ARGV[i+0]  → redisBalanceKey
 			isPending,                  // ARGV[i+1]  → isPending
@@ -619,6 +710,13 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 			boolToInt(blcs.Balance.AllowSending),        // ARGV[i+14] → balance.AllowSending    (cache-only)
 			boolToInt(blcs.Balance.AllowReceiving),      // ARGV[i+15] → balance.AllowReceiving  (cache-only)
 			blcs.Balance.Key,                            // ARGV[i+16] → balance.Key             (cache-only)
+			blcs.Balance.Direction,                      // ARGV[i+17] → balance.Direction
+			blcs.Balance.OverdraftUsed.String(),         // ARGV[i+18] → balance.OverdraftUsed
+			allowOverdraft,                              // ARGV[i+19] → balance.AllowOverdraft (0/1)
+			overdraftLimitEnabled,                       // ARGV[i+20] → balance.OverdraftLimitEnabled (0/1)
+			overdraftLimit,                              // ARGV[i+21] → balance.OverdraftLimit
+			balanceScope,                                // ARGV[i+22] → balance.BalanceScope
+			blcs.Amount.OverdraftAmount.String(),        // ARGV[i+23] → overdraft reversal amount
 		)
 
 		plan.mapBalances[blcs.Alias] = blcs.Balance
@@ -649,8 +747,28 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 // Lua error codes emitted by balance_atomic_operation.lua:
 //   - "0018" → ErrInsufficientFunds (negative available on non-external, or positive on external CREDIT)
 //   - "0098" → ErrOnHoldExternalAccount (external account used in pending source)
-//   - "0061" → ErrTransactionBackupCacheRetrievalFailed (balance key vanished mid-script)
+//   - "0139" → ErrTransactionBackupCacheRetrievalFailed (balance key vanished mid-script)
+//   - "0167" → ErrOverdraftLimitExceeded (transaction would push usage past the configured limit)
+//   - "0174" → ErrStaleBalanceVersion (balance changed between Go read and Lua execution)
+//
+// Ordering note: more specific codes ("0167", "0174") are matched before the
+// generic "0018" insufficient-funds branch so that a single error string like
+// "0167" is not misclassified by loose substring matching.
 func mapBalanceAtomicScriptError(span trace.Span, err error) error {
+	if strings.Contains(err.Error(), constant.ErrOverdraftLimitExceeded.Error()) {
+		mappedErr := pkg.ValidateBusinessError(constant.ErrOverdraftLimitExceeded, "validateBalance")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft limit exceeded", mappedErr)
+
+		return mappedErr
+	}
+
+	if strings.Contains(err.Error(), constant.ErrStaleBalanceVersion.Error()) {
+		mappedErr := pkg.ValidateBusinessError(constant.ErrStaleBalanceVersion, "validateBalance")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Stale balance version detected", mappedErr)
+
+		return mappedErr
+	}
+
 	if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed run lua script on redis", mappedErr)
@@ -1073,6 +1191,68 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	return out, nil
 }
 
+// GetBalanceSyncKeysLegacy claims due keys from the legacy ZSET (balance-sync, pre-v3.6.2).
+// Reuses the same Lua claim script — the fractional-second `now` works with seconds-based
+// scores because both are in the ~1e9 range. Microsecond scores (~1e15) will never be
+// "due" and remain in the ZSET until TTL expiry or manual cleanup.
+func (rr *RedisConsumerRepository) GetBalanceSyncKeysLegacy(ctx context.Context, limit int64) ([]SyncKey, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.get_balance_sync_keys_legacy")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get redis client", libLog.Err(err))
+
+		return nil, err
+	}
+
+	script := redis.NewScript(claimBalanceSyncKeysLua)
+
+	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKeyLegacy)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace legacy schedule key", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace legacy schedule key", libLog.Err(err))
+
+		return nil, err
+	}
+
+	prefixedLockPrefix, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncLockPrefix)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace lock prefix", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace lock prefix", libLog.Err(err))
+
+		return nil, err
+	}
+
+	const claimTTLSeconds int64 = 600
+
+	res, err := script.Run(ctx, rds, []string{prefixedScheduleKey}, limit, claimTTLSeconds, prefixedLockPrefix).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to run claim_balance_sync_keys.lua (legacy)", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to run claim_balance_sync_keys.lua (legacy)", libLog.Err(err))
+
+		return nil, err
+	}
+
+	out, err := parseSyncKeysFromLuaResult(res, logger, ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to parse legacy claim script result", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to parse legacy claim script result", libLog.Err(err))
+
+		return nil, err
+	}
+
+	if len(out) > 0 {
+		logger.Log(ctx, libLog.LevelInfo, "Claimed legacy balance sync keys",
+			libLog.Int("count", len(out)))
+	}
+
+	return out, nil
+}
+
 // parseSyncKeysFromLuaResult converts the raw Lua script result (alternating
 // [member, score, member, score, ...]) into a typed []SyncKey slice.
 //
@@ -1257,6 +1437,176 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 	}
 
 	return balance, nil
+}
+
+// luaBalanceSettingKey deletes every legacy alias for a cached balance settings
+// field so the subsequent authoritative write carries exactly one key per
+// field. The first argument is the Lua-native CamelCase key that the atomic
+// script reads; the variadic arguments enumerate camelCase / legacy spellings
+// that must be dropped from the map to avoid duplicate keys in the JSON
+// document (Go encoders emit both which Lua then sees twice).
+//
+// This helper is the SINGLE SOURCE OF TRUTH for the CamelCase ↔ camelCase
+// mapping between Go writers and the Lua atomic script. If additional Go
+// writers to the balance cache appear (e.g. tenant migration, admin tooling),
+// they MUST use this helper (or its equivalent mapping) to ensure the cached
+// JSON is Lua-compatible. See the CACHE JSON CASING CONTRACT on BalanceRedis
+// in pkg/mmodel/balance.go for the full rationale.
+func luaBalanceSettingKey(m map[string]any, primary string, aliases ...string) {
+	delete(m, primary)
+
+	for _, alias := range aliases {
+		delete(m, alias)
+	}
+}
+
+// balanceCacheSettingsTTL matches the TTL the balance atomic Lua script applies
+// to each cached balance key (`local ttl = 3600 -- 1 hour` in
+// scripts/balance_atomic_operation.lua). Keeping the two in lock-step ensures
+// a settings-only rewrite does not silently extend or shrink the lifetime of
+// an entry relative to the transactional refreshes driven by Lua.
+const balanceCacheSettingsTTL = 3600 * time.Second
+
+// UpdateBalanceCacheSettings rewrites the settings fields of a cached balance
+// JSON blob in-place, preserving the live transactional state (Available,
+// OnHold, Version, OverdraftUsed) that the Lua atomic script may have mutated
+// but not yet flushed to PostgreSQL.
+//
+// Flow:
+//  1. GET the current JSON by the tenant-prefixed internal key.
+//  2. On cache miss (redis.Nil), return nil — the next transaction's SETNX
+//     will load the just-persisted settings from PostgreSQL.
+//  3. Unmarshal, overwrite ONLY the settings-derived fields, remarshal.
+//  4. SET back with the Lua script's canonical TTL (1 hour).
+//
+// Errors are surfaced to the caller so the command layer can decide whether to
+// log (best-effort) or escalate; this method does not swallow them internally.
+func (rr *RedisConsumerRepository) UpdateBalanceCacheSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, settings *mmodel.BalanceSettings) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.update_balance_cache_settings")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.organization_id", organizationID.String()),
+		attribute.String("app.ledger_id", ledgerID.String()),
+	)
+
+	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, cacheKey)
+
+	prefixedKey, err := tenantKeyFromContextOrError(ctx, internalKey)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace balance cache key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace balance cache key", libLog.Err(err))
+
+		return err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
+
+		return err
+	}
+
+	// Read the current JSON. A missing key means the Lua script has not yet
+	// primed the cache for this balance; the next transaction will load the
+	// fresh settings directly from PostgreSQL, so there is nothing to rewrite.
+	val, err := rds.Get(ctx, prefixedKey).Result()
+	if errors.Is(err, redis.Nil) {
+		logger.Log(ctx, libLog.LevelDebug, "Balance cache miss on settings update (no-op)")
+
+		return nil
+	}
+
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get balance cache for settings update", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get balance cache for settings update", libLog.Err(err))
+
+		return err
+	}
+
+	// The cache payload is primed by the Lua atomic script
+	// (scripts/balance_atomic_operation.lua), which uses cjson.encode() on a
+	// table with CamelCase keys (ID, Available, Direction, AllowOverdraft, …).
+	// Lua table access is case-sensitive, so if we re-marshal through
+	// mmodel.BalanceRedis — whose struct tags are camelCase — the subsequent
+	// cjson.decode in the script would see `balance.Available == nil`,
+	// `balance.Direction == nil`, and blow up in arithmetic helpers with
+	// "attempt to compare nil with number".
+	//
+	// To avoid that incompatibility we work on an untyped map: Go's case-
+	// insensitive unmarshal handles legacy cache entries in either casing,
+	// and we write back using the Lua-native CamelCase keys. Any stale
+	// camelCase duplicates from a buggy earlier writer are removed so the
+	// cache carries a single authoritative key per field.
+	var cached map[string]any
+	if err := json.Unmarshal([]byte(val), &cached); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to unmarshal cached balance for settings update", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to unmarshal cached balance for settings update", libLog.Err(err))
+
+		return err
+	}
+
+	// Only settings fields are mutated. Available, OnHold, Version,
+	// OverdraftUsed, and identity fields (ID, Alias, Key, AssetCode, etc.)
+	// remain untouched so any in-flight transactional state is preserved.
+	//
+	// For each managed field we drop every camelCase variant produced by
+	// earlier (pre-fix) writers before setting the Lua-native CamelCase
+	// key. Keeping both casings in the same document would let Lua read
+	// a stale value while Go reads the fresh one.
+	luaBalanceSettingKey(cached, "AllowOverdraft", "allowOverdraft", "allowoverdraft")
+	luaBalanceSettingKey(cached, "OverdraftLimitEnabled", "overdraftLimitEnabled", "overdraftlimitenabled")
+	luaBalanceSettingKey(cached, "OverdraftLimit", "overdraftLimit", "overdraftlimit")
+	luaBalanceSettingKey(cached, "BalanceScope", "balanceScope", "balancescope")
+
+	if settings != nil {
+		cached["AllowOverdraft"] = boolToInt(settings.AllowOverdraft)
+		cached["OverdraftLimitEnabled"] = boolToInt(settings.OverdraftLimitEnabled)
+
+		// OverdraftLimit pointer-to-string: overwrite when provided, otherwise
+		// reset to the Lua-compatible "0" placeholder to mirror the behaviour
+		// of buildBalanceAtomicOperationPlan for disabled/unset limits.
+		if settings.OverdraftLimit != nil {
+			cached["OverdraftLimit"] = *settings.OverdraftLimit
+		} else {
+			cached["OverdraftLimit"] = "0"
+		}
+
+		if settings.BalanceScope != "" {
+			cached["BalanceScope"] = settings.BalanceScope
+		} else {
+			cached["BalanceScope"] = mmodel.BalanceScopeTransactional
+		}
+	} else {
+		// A nil settings payload means: reset to defaults. Matches the Lua
+		// plan-builder's zero-state for balances without Settings.
+		cached["AllowOverdraft"] = 0
+		cached["OverdraftLimitEnabled"] = 0
+		cached["OverdraftLimit"] = "0"
+		cached["BalanceScope"] = mmodel.BalanceScopeTransactional
+	}
+
+	data, err := json.Marshal(cached)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to marshal updated cached balance", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to marshal updated cached balance", libLog.Err(err))
+
+		return err
+	}
+
+	if err := rds.Set(ctx, prefixedKey, string(data), balanceCacheSettingsTTL).Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to write settings-only balance cache update", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to write settings-only balance cache update", libLog.Err(err))
+
+		return err
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Balance cache settings updated in place")
+
+	return nil
 }
 
 // GetBalancesByKeys retrieves multiple balance values using MGET.

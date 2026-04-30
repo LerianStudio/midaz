@@ -10,7 +10,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
+	docker "github.com/moby/moby/client"
 )
 
 // ContainerChaosConfig holds configuration for container chaos operations.
@@ -36,7 +36,9 @@ func (o *Orchestrator) PauseContainer(ctx context.Context, containerID string) e
 	o.t.Helper()
 	o.t.Logf("Chaos: pausing container %s", containerID)
 
-	return o.docker.ContainerPause(ctx, containerID)
+	_, err := o.docker.ContainerPause(ctx, containerID, docker.ContainerPauseOptions{})
+
+	return err
 }
 
 // UnpauseContainer resumes a paused container.
@@ -44,7 +46,9 @@ func (o *Orchestrator) UnpauseContainer(ctx context.Context, containerID string)
 	o.t.Helper()
 	o.t.Logf("Chaos: unpausing container %s", containerID)
 
-	return o.docker.ContainerUnpause(ctx, containerID)
+	_, err := o.docker.ContainerUnpause(ctx, containerID, docker.ContainerUnpauseOptions{})
+
+	return err
 }
 
 // StopContainer stops a running container gracefully.
@@ -55,9 +59,11 @@ func (o *Orchestrator) StopContainer(ctx context.Context, containerID string, ti
 
 	timeoutSeconds := int(timeout.Seconds())
 
-	return o.docker.ContainerStop(ctx, containerID, container.StopOptions{
+	_, err := o.docker.ContainerStop(ctx, containerID, docker.ContainerStopOptions{
 		Timeout: &timeoutSeconds,
 	})
+
+	return err
 }
 
 // StartContainer starts a stopped container.
@@ -65,7 +71,9 @@ func (o *Orchestrator) StartContainer(ctx context.Context, containerID string) e
 	o.t.Helper()
 	o.t.Logf("Chaos: starting container %s", containerID)
 
-	return o.docker.ContainerStart(ctx, containerID, container.StartOptions{})
+	_, err := o.docker.ContainerStart(ctx, containerID, docker.ContainerStartOptions{})
+
+	return err
 }
 
 // RestartContainer restarts a container.
@@ -76,9 +84,11 @@ func (o *Orchestrator) RestartContainer(ctx context.Context, containerID string,
 
 	timeoutSeconds := int(timeout.Seconds())
 
-	return o.docker.ContainerRestart(ctx, containerID, container.StopOptions{
+	_, err := o.docker.ContainerRestart(ctx, containerID, docker.ContainerRestartOptions{
 		Timeout: &timeoutSeconds,
 	})
+
+	return err
 }
 
 // KillContainer sends a signal to a container.
@@ -93,31 +103,41 @@ func (o *Orchestrator) KillContainer(ctx context.Context, containerID string, si
 
 	o.t.Logf("Chaos: killing container %s (signal: %s)", containerID, signal)
 
-	return o.docker.ContainerKill(ctx, containerID, signal)
+	_, err := o.docker.ContainerKill(ctx, containerID, docker.ContainerKillOptions{Signal: signal})
+
+	return err
 }
 
 // IsContainerRunning checks if a container is in running state.
 func (o *Orchestrator) IsContainerRunning(ctx context.Context, containerID string) (bool, error) {
 	o.t.Helper()
 
-	inspect, err := o.docker.ContainerInspect(ctx, containerID)
+	inspect, err := o.docker.ContainerInspect(ctx, containerID, docker.ContainerInspectOptions{})
 	if err != nil {
 		return false, err
 	}
 
-	return inspect.State.Running, nil
+	if inspect.Container.State == nil {
+		return false, nil
+	}
+
+	return inspect.Container.State.Running, nil
 }
 
 // IsContainerPaused checks if a container is in paused state.
 func (o *Orchestrator) IsContainerPaused(ctx context.Context, containerID string) (bool, error) {
 	o.t.Helper()
 
-	inspect, err := o.docker.ContainerInspect(ctx, containerID)
+	inspect, err := o.docker.ContainerInspect(ctx, containerID, docker.ContainerInspectOptions{})
 	if err != nil {
 		return false, err
 	}
 
-	return inspect.State.Paused, nil
+	if inspect.Container.State == nil {
+		return false, nil
+	}
+
+	return inspect.Container.State.Paused, nil
 }
 
 // WaitForContainerRunning waits for a container to be in running state.

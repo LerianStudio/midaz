@@ -6,10 +6,11 @@ package command
 
 import (
 	"context"
+	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -66,7 +67,13 @@ func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBa
 	// Validate balance rules (eligibility, asset codes, sending/receiving permissions).
 	// Skipped for state transitions where rules were enforced on the original transaction.
 	if !skipBalanceValidation {
-		txBalances := deduplicateBalances(input.BalanceOperations)
+		txBalances, err := deduplicateBalances(input.BalanceOperations)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Corrupted balance OverdraftLimit", err)
+			logger.Log(ctx, libLog.LevelError, "Corrupted balance OverdraftLimit during deduplication", libLog.Err(err))
+
+			return nil, err
+		}
 
 		if err := mtransaction.ValidateBalancesRules(
 			ctx,
@@ -111,7 +118,11 @@ func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBa
 // len(balances) == len(validate.From) + len(validate.To) relies on this
 // deduplication. This invariant holds because validate.From/To maps use the
 // composite alias as key (one entry per account), not per split operation.
-func deduplicateBalances(operations []mmodel.BalanceOperation) []*mtransaction.Balance {
+//
+// Returns an error when any balance has a corrupted OverdraftLimit string,
+// so the caller can fail the transaction rather than silently treat the
+// limit as zero — see Balance.ToTransactionBalance.
+func deduplicateBalances(operations []mmodel.BalanceOperation) ([]*mtransaction.Balance, error) {
 	seen := make(map[string]bool, len(operations))
 	balances := make([]*mtransaction.Balance, 0, len(operations))
 
@@ -122,8 +133,13 @@ func deduplicateBalances(operations []mmodel.BalanceOperation) []*mtransaction.B
 
 		seen[bo.Alias] = true
 
-		balances = append(balances, bo.Balance.ToTransactionBalance())
+		txBal, err := bo.Balance.ToTransactionBalance()
+		if err != nil {
+			return nil, fmt.Errorf("corrupted balance %s: %w", bo.Balance.ID, err)
+		}
+
+		balances = append(balances, txBal)
 	}
 
-	return balances
+	return balances, nil
 }

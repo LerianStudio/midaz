@@ -238,6 +238,148 @@ func TestGetBalancesFromCache(t *testing.T) {
 	})
 }
 
+// TestGetBalancesFromCache_PropagatesOverdraftFields guards against the
+// regression where the cache path stripped Direction, OverdraftUsed, and
+// Settings off of mmodel.Balance, causing the Lua atomic script to observe
+// Direction="" + AllowOverdraft=0 and reject overdraft-enabled transactions
+// with 0018 (insufficient funds) instead of splitting at zero.
+func TestGetBalancesFromCache_PropagatesOverdraftFields(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	t.Run("overdraft enabled with limit", func(t *testing.T) {
+		aliases := []string{"@alice#default"}
+
+		cached := mmodel.BalanceRedis{
+			ID:                    uuid.New().String(),
+			AccountID:             uuid.New().String(),
+			Available:             decimal.NewFromInt(50),
+			OnHold:                decimal.NewFromInt(0),
+			Version:               3,
+			AccountType:           "deposit",
+			AllowSending:          1,
+			AllowReceiving:        1,
+			AssetCode:             "BRL",
+			Direction:             "credit",
+			OverdraftUsed:         "10",
+			AllowOverdraft:        1,
+			OverdraftLimitEnabled: 1,
+			OverdraftLimit:        "100",
+			BalanceScope:          mmodel.BalanceScopeTransactional,
+		}
+		cachedJSON, err := json.Marshal(cached)
+		assert.NoError(t, err)
+
+		internalKey := utils.BalanceInternalKey(organizationID, ledgerID, "@alice#default")
+		mockRedisRepo.EXPECT().
+			Get(gomock.Any(), internalKey).
+			Return(string(cachedJSON), nil).
+			Times(1)
+
+		balances, misses := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
+		assert.Empty(t, misses)
+		assert.Len(t, balances, 1)
+
+		got := balances[0]
+		assert.Equal(t, "credit", got.Direction, "Direction must propagate so Lua can gate overdraft")
+		assert.True(t, got.OverdraftUsed.Equal(decimal.NewFromInt(10)),
+			"OverdraftUsed must round-trip through the cache path, got %s", got.OverdraftUsed)
+		if assert.NotNil(t, got.Settings, "Settings must be materialized when overdraft is configured") {
+			assert.True(t, got.Settings.AllowOverdraft, "AllowOverdraft must flow into Settings")
+			assert.True(t, got.Settings.OverdraftLimitEnabled, "OverdraftLimitEnabled must flow into Settings")
+			if assert.NotNil(t, got.Settings.OverdraftLimit, "OverdraftLimit must be exposed when enabled") {
+				assert.Equal(t, "100", *got.Settings.OverdraftLimit)
+			}
+		}
+	})
+
+	t.Run("legacy balance without overdraft stays nil", func(t *testing.T) {
+		aliases := []string{"@legacy#default"}
+
+		cached := mmodel.BalanceRedis{
+			ID:             uuid.New().String(),
+			AccountID:      uuid.New().String(),
+			Available:      decimal.NewFromInt(500),
+			OnHold:         decimal.NewFromInt(0),
+			Version:        1,
+			AccountType:    "deposit",
+			AllowSending:   1,
+			AllowReceiving: 1,
+			AssetCode:      "USD",
+			// All overdraft fields zero/empty, as a legacy cache entry.
+		}
+		cachedJSON, err := json.Marshal(cached)
+		assert.NoError(t, err)
+
+		internalKey := utils.BalanceInternalKey(organizationID, ledgerID, "@legacy#default")
+		mockRedisRepo.EXPECT().
+			Get(gomock.Any(), internalKey).
+			Return(string(cachedJSON), nil).
+			Times(1)
+
+		balances, misses := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
+		assert.Empty(t, misses)
+		assert.Len(t, balances, 1)
+
+		got := balances[0]
+		assert.Nil(t, got.Settings,
+			"Settings must stay nil for legacy balances to avoid spurious history snapshots")
+		assert.True(t, got.OverdraftUsed.IsZero(), "OverdraftUsed must default to zero")
+	})
+
+	t.Run("overdraft enabled without limit omits OverdraftLimit pointer", func(t *testing.T) {
+		aliases := []string{"@unlimited#default"}
+
+		cached := mmodel.BalanceRedis{
+			ID:                    uuid.New().String(),
+			AccountID:             uuid.New().String(),
+			Available:             decimal.NewFromInt(0),
+			OnHold:                decimal.NewFromInt(0),
+			Version:               1,
+			AccountType:           "deposit",
+			AllowSending:          1,
+			AllowReceiving:        1,
+			AssetCode:             "BRL",
+			Direction:             "credit",
+			OverdraftUsed:         "0",
+			AllowOverdraft:        1,
+			OverdraftLimitEnabled: 0,
+			OverdraftLimit:        "0",
+			BalanceScope:          mmodel.BalanceScopeTransactional,
+		}
+		cachedJSON, err := json.Marshal(cached)
+		assert.NoError(t, err)
+
+		internalKey := utils.BalanceInternalKey(organizationID, ledgerID, "@unlimited#default")
+		mockRedisRepo.EXPECT().
+			Get(gomock.Any(), internalKey).
+			Return(string(cachedJSON), nil).
+			Times(1)
+
+		balances, misses := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
+		assert.Empty(t, misses)
+		assert.Len(t, balances, 1)
+
+		got := balances[0]
+		if assert.NotNil(t, got.Settings) {
+			assert.True(t, got.Settings.AllowOverdraft)
+			assert.False(t, got.Settings.OverdraftLimitEnabled)
+			assert.Nil(t, got.Settings.OverdraftLimit,
+				"OverdraftLimit must be nil when OverdraftLimitEnabled is false (Validate() contract)")
+		}
+	})
+}
+
 func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 	tests := []struct {
 		name    string

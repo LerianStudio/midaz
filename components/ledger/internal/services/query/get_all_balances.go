@@ -9,9 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -20,7 +20,7 @@ import (
 	// GetAllBalances methods responsible to get all balances from a database.
 	// This method is used to get all balances from a database and return them in a cursor pagination format.
 	// It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 )
 
 func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
@@ -67,9 +67,7 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 				continue
 			}
 
-			balances[i].Available = cachedBalance.Available
-			balances[i].OnHold = cachedBalance.OnHold
-			balances[i].Version = cachedBalance.Version
+			applyBalanceCacheOverlay(balances[i], &cachedBalance)
 		}
 	}
 
@@ -124,9 +122,7 @@ func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, le
 				continue
 			}
 
-			balances[i].Available = cachedBalance.Available
-			balances[i].OnHold = cachedBalance.OnHold
-			balances[i].Version = cachedBalance.Version
+			applyBalanceCacheOverlay(balances[i], &cachedBalance)
 		}
 	}
 

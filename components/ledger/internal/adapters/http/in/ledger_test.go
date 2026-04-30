@@ -347,10 +347,10 @@ func TestHandler_UpdateLedger(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/ledgers/:id",
+			app.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
-					c.Locals("id", ledgerID)
+					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
 				func(c *fiber.Ctx) error {
@@ -477,10 +477,10 @@ func TestHandler_GetLedgerByID(t *testing.T) {
 			handler := &LedgerHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:id",
+			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
-					c.Locals("id", ledgerID)
+					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
 				handler.GetLedgerByID,
@@ -516,7 +516,7 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			queryParams: "",
 			setupMocks: func(ledgerRepo *ledger.MockRepository, metadataRepo *mongodb.MockRepository, orgID uuid.UUID) {
 				ledgerRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), orgID, gomock.Any()).
 					Return([]*mmodel.Ledger{}, nil).
 					Times(1)
 			},
@@ -544,7 +544,7 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 				ledger2ID := uuid.New().String()
 
 				ledgerRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), orgID, gomock.Any()).
 					Return([]*mmodel.Ledger{
 						{
 							ID:             ledger1ID,
@@ -610,9 +610,9 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// LedgerRepo.ListByIDs returns the ledgers
+				// LedgerRepo.FindAll returns the ledgers
 				ledgerRepo.EXPECT().
-					ListByIDs(gomock.Any(), orgID, gomock.Any()).
+					FindAll(gomock.Any(), orgID, gomock.Any()).
 					Return([]*mmodel.Ledger{
 						{
 							ID:             ledger1ID,
@@ -685,9 +685,9 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// LedgerRepo.ListByIDs returns not found error
+				// LedgerRepo.FindAll returns not found error
 				ledgerRepo.EXPECT().
-					ListByIDs(gomock.Any(), orgID, gomock.Any()).
+					FindAll(gomock.Any(), orgID, gomock.Any()).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())).
 					Times(1)
 			},
@@ -701,11 +701,39 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			},
 		},
 		{
+			name:           "blocked status filter returns 400",
+			queryParams:    "?status=BLOCKED",
+			setupMocks:     func(ledgerRepo *ledger.MockRepository, metadataRepo *mongodb.MockRepository, orgID uuid.UUID) {},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Equal(t, cn.ErrInvalidQueryParameter.Error(), errResp["code"])
+				assert.Equal(t, "Invalid Query Parameter", errResp["title"])
+			},
+		},
+		{
+			name:           "unknown status filter returns 400",
+			queryParams:    "?status=INVALID",
+			setupMocks:     func(ledgerRepo *ledger.MockRepository, metadataRepo *mongodb.MockRepository, orgID uuid.UUID) {},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Equal(t, cn.ErrInvalidQueryParameter.Error(), errResp["code"])
+				assert.Equal(t, "Invalid Query Parameter", errResp["title"])
+			},
+		},
+		{
 			name:        "repository error returns 500",
 			queryParams: "",
 			setupMocks: func(ledgerRepo *ledger.MockRepository, metadataRepo *mongodb.MockRepository, orgID uuid.UUID) {
 				ledgerRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), orgID, gomock.Any()).
 					Return(nil, pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
@@ -870,10 +898,10 @@ func TestHandler_DeleteLedgerByID(t *testing.T) {
 			handler := &LedgerHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Delete("/v1/organizations/:organization_id/ledgers/:id",
+			app.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
-					c.Locals("id", ledgerID)
+					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
 				handler.DeleteLedgerByID,
@@ -1159,10 +1187,10 @@ func TestHandler_GetLedgerSettings(t *testing.T) {
 			handler := &LedgerHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:id/settings",
+			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/settings",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
-					c.Locals("id", ledgerID)
+					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
 				handler.GetLedgerSettings,
@@ -1349,10 +1377,10 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 			handler := &LedgerHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/ledgers/:id/settings",
+			app.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/settings",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
-					c.Locals("id", ledgerID)
+					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
 				func(c *fiber.Ctx) error {

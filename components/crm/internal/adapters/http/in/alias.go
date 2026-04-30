@@ -12,9 +12,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -102,7 +102,7 @@ func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_alias_by_id")
 	defer span.End()
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "alias_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -162,7 +162,7 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_alias")
 	defer span.End()
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "alias_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -237,7 +237,7 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.remove_alias_by_id")
 	defer span.End()
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	id, err := http.GetUUIDFromLocals(c, "alias_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}

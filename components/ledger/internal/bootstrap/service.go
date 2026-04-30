@@ -10,26 +10,27 @@ import (
 	"os/signal"
 	"syscall"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
-	tmconsumer "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/consumer"
-	tmevent "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/event"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	"github.com/LerianStudio/lib-commons/v5/commons/opentelemetry/metrics"
+	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"
+	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
 )
 
 // Service is the unified ledger service that owns all infrastructure directly.
 type Service struct {
-	UnifiedServer         *UnifiedServer
-	MultiQueueConsumer    *MultiQueueConsumer
-	MultiTenantConsumer   *tmconsumer.MultiTenantConsumer
-	RedisQueueConsumer    *RedisQueueConsumer
-	BalanceSyncWorker     *BalanceSyncWorker
-	EventListener         *tmevent.TenantEventListener
-	CircuitBreakerManager *CircuitBreakerManager
-	Logger                libLog.Logger
-	Telemetry             *libOpentelemetry.Telemetry
-	metricsFactory        *metrics.MetricsFactory
+	UnifiedServer            *UnifiedServer
+	MultiQueueConsumer       *MultiQueueConsumer
+	MultiTenantConsumer      *tmconsumer.MultiTenantConsumer
+	RedisQueueConsumer       *RedisQueueConsumer
+	BalanceSyncWorker        *BalanceSyncWorker
+	LegacyBalanceSyncDrainer *LegacyBalanceSyncDrainer
+	EventListener            *tmevent.TenantEventListener
+	CircuitBreakerManager    *CircuitBreakerManager
+	Logger                   libLog.Logger
+	Telemetry                *libOpentelemetry.Telemetry
+	metricsFactory           *metrics.MetricsFactory
 }
 
 // Run starts the unified ledger service with all APIs on a single port.
@@ -60,6 +61,11 @@ func (s *Service) Run() {
 	// Balance sync worker (optional, started when configured)
 	if s.BalanceSyncWorker != nil {
 		launcherOpts = append(launcherOpts, libCommons.RunApp("Balance Sync Worker", s.BalanceSyncWorker))
+	}
+
+	// Legacy balance sync drainer — drains pre-v3.6.2 ZSET entries
+	if s.LegacyBalanceSyncDrainer != nil {
+		launcherOpts = append(launcherOpts, libCommons.RunApp("Legacy Balance Sync Drainer", s.LegacyBalanceSyncDrainer))
 	}
 
 	// Tenant event listener (Redis Pub/Sub)

@@ -12,11 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
-	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
-	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
 	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -71,9 +71,10 @@ type tenantCollector struct {
 const tenantReconcileInterval = 10 * time.Second
 
 // maxBatchSize is the upper bound for batch size, derived from PostgreSQL's 65535
-// bind-parameter limit. Each balance uses 4 params + 3 shared = (65535-3)/4 = 16383.
-// In practice, batches above a few hundred rarely make sense for this workload.
-const maxBatchSize = 16000
+// bind-parameter limit. Each balance uses 5 params + 3 shared = (65535-3)/5 = 13106.
+// The 5th parameter is overdraft_used (added once the cache script began
+// tracking it). Batches above a few hundred rarely make sense for this workload.
+const maxBatchSize = 13000
 
 func NewBalanceSyncWorker(logger libLog.Logger, useCase *command.UseCase, syncCfg BalanceSyncConfig) *BalanceSyncWorker {
 	// Apply safe defaults for zero-value config (e.g., in tests)
@@ -616,4 +617,72 @@ func (w *BalanceSyncWorker) extractIDsFromMember(member string) (organizationID 
 	}
 
 	return uuid.UUID{}, uuid.UUID{}, fmt.Errorf("balance sync key missing two UUIDs (orgID, ledgerID): %q", member)
+}
+
+// LegacyBalanceSyncDrainer drains entries from the legacy ZSET (balance-sync, pre-v3.6.2).
+// It reuses the same flush pipeline as the main worker but reads from the legacy key
+// with a longer idle wait. Once the legacy ZSET is fully drained, the drainer idles.
+type LegacyBalanceSyncDrainer struct {
+	logger   libLog.Logger
+	idleWait time.Duration
+	useCase  *command.UseCase
+	syncCfg  BalanceSyncConfig
+}
+
+// NewLegacyBalanceSyncDrainer creates a drainer for the pre-v3.6.2 balance-sync ZSET.
+func NewLegacyBalanceSyncDrainer(logger libLog.Logger, useCase *command.UseCase, syncCfg BalanceSyncConfig) *LegacyBalanceSyncDrainer {
+	if syncCfg.BatchSize <= 0 {
+		syncCfg.BatchSize = 50
+	}
+
+	if syncCfg.FlushTimeoutMs <= 0 {
+		syncCfg.FlushTimeoutMs = 2000
+	}
+
+	if syncCfg.PollIntervalMs <= 0 {
+		syncCfg.PollIntervalMs = 1000
+	}
+
+	return &LegacyBalanceSyncDrainer{
+		logger:   logger,
+		idleWait: 30 * time.Second, // long backoff — legacy ZSET drains to zero
+		useCase:  useCase,
+		syncCfg:  syncCfg,
+	}
+}
+
+// Run implements the Launcher interface for the legacy drainer.
+func (d *LegacyBalanceSyncDrainer) Run(_ *libCommons.Launcher) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	d.logger.Log(ctx, libLog.LevelInfo, "LegacyBalanceSyncDrainer started — draining balance-sync (pre-v3.6.2)")
+
+	// Reuse the same collector/flush infrastructure as the main worker,
+	// but fetch from the legacy ZSET key via GetBalanceSyncKeysLegacy.
+	worker := NewBalanceSyncWorker(d.logger, d.useCase, d.syncCfg)
+	worker.idleWait = d.idleWait
+
+	collector := NewBalanceSyncCollector(
+		d.syncCfg.BatchSize,
+		d.syncCfg.FlushTimeout(),
+		d.syncCfg.PollInterval(),
+		d.logger,
+	)
+
+	collector.Run(ctx,
+		func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
+			return worker.flushBatch(flushCtx, keys)
+		},
+		func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
+			return d.useCase.TransactionRedisRepo.GetBalanceSyncKeysLegacy(fetchCtx, limit)
+		},
+		func(waitCtx context.Context) bool {
+			return waitOrDone(waitCtx, d.idleWait, d.logger)
+		},
+	)
+
+	d.logger.Log(ctx, libLog.LevelInfo, "LegacyBalanceSyncDrainer: shutting down...")
+
+	return nil
 }

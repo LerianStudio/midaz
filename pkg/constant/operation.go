@@ -5,10 +5,13 @@
 package constant
 
 const (
-	DEBIT   = "DEBIT"
-	CREDIT  = "CREDIT"
-	ONHOLD  = "ON_HOLD"
-	RELEASE = "RELEASE"
+	DEBIT  = "DEBIT"
+	CREDIT = "CREDIT"
+	// OVERDRAFT is the public/persisted operation type for system-generated
+	// overdraft companion rows. Direction still carries debit/credit semantics.
+	OVERDRAFT = "OVERDRAFT"
+	ONHOLD    = "ON_HOLD"
+	RELEASE   = "RELEASE"
 
 	DirectionDebit  = "debit"
 	DirectionCredit = "credit"

@@ -5,7 +5,7 @@
 package transactionroute
 
 import (
-	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/pagination"
 	"github.com/Masterminds/squirrel"
 )

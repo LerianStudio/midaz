@@ -4,7 +4,7 @@
 
 package utils
 
-import "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
+import "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry/metrics"
 
 var (
 	BalanceSynced = metrics.Metric{
@@ -128,5 +128,28 @@ var (
 		Name:        "bulk_recorder_fallback_total",
 		Unit:        "1",
 		Description: "Total fallback activations when bulk processing fails.",
+	}
+
+	// Readyz endpoint metrics
+
+	// ReadyzCheckDuration tracks the duration of individual health check probes.
+	ReadyzCheckDuration = metrics.Metric{
+		Name:        "readyz_check_duration_ms",
+		Unit:        "ms",
+		Description: "Duration of individual health check probes in milliseconds.",
+	}
+
+	// ReadyzCheckStatus counts health check outcomes by checker and status.
+	ReadyzCheckStatus = metrics.Metric{
+		Name:        "readyz_check_status_total",
+		Unit:        "1",
+		Description: "Count of health check outcomes by checker and status.",
+	}
+
+	// ReadyzRequestsTotal counts total readyz endpoint requests.
+	ReadyzRequestsTotal = metrics.Metric{
+		Name:        "readyz_requests_total",
+		Unit:        "1",
+		Description: "Total number of readyz endpoint requests.",
 	}
 )

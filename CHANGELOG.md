@@ -1,3 +1,81 @@
+# Midaz Changelog
+
+## [3.6.3](https://github.com/LerianStudio/midaz/releases/tag/v3.6.3)
+
+- Fixes:
+  - Eliminate Redis backup_queue backlog by cleaning duplicate bulk payloads and normalizing cleanup status with a shared utils helper.
+  - Split balance sync into v2 and legacy ZSET keys with a legacy drainer for rollback-safe migration.
+
+Contributors: @ClaraTersi, @bedatty, @lerian-studio
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.6.2...v3.6.3)
+
+---
+
+## [3.6.2](https://github.com/LerianStudio/midaz/releases/tag/v3.6.2)
+
+- Fixes:
+  - Align backup consumer and operation direction validation; bump lib-commons to v4.6.1.
+  - Replace per-transaction backup lock with cycle-level leader lock.
+  - Prevent publish TOCTOU race using ChannelSnapshot.
+  - Add legacy payload compatibility for missing Version field.
+  - Implement conditional cleanup for Redis transaction backups.
+
+Contributors: @mclara.tersi
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.6.1...v3.6.2)
+
+---
+
+## [3.6.1](https://github.com/LerianStudio/midaz/releases/tag/v3.6.1)
+
+- Fixes:
+  - Remove unnecessary comment from Dockerfile.
+  - Remove NOT NULL from direction column and use safe PG 12+ CHECK pattern.
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.6.0...v3.6.1)
+
+---
+
+## [3.6.0](https://github.com/LerianStudio/midaz/releases/tag/v3.6.0)
+
+Features:
+- Added TLS CA certificate configuration for MongoDB connections.
+- Implemented accounting rules validation for operation routes.
+- Added segment and portfolio filters to account listing.
+- Enhanced mergeAccountingEntries to support explicit null removals and updated operation route validation logic.
+- Added dual-trigger balance sync (size OR timeout) for near-real-time persistence.
+
+Fixes:
+- Fixed UUID retrieval by replacing direct access to context locals with a helper function.
+- Corrected title formatting in validation error messages and added null handling for accounting entries.
+- Addressed review findings on count transactions tests and count endpoint.
+- Fixed backup queue action field and accounting information on transaction revert.
+- Resolved lint errors and added nolint directives for deferred refactoring targets.
+
+Improvements:
+- Enhanced logger configuration with environment variables for log level and service name.
+- Improved error handling in balance sync collector to avoid tight loops and enhanced Redis key management in sync balances batch.
+- Updated validation error handling in operation route tests to use UnprocessableOperationError.
+- Enhanced organization creation logging with OpenTelemetry attributes.
+- Updated ledger settings schema descriptions to include null as a valid type for accounting fields.
+
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.3...v3.6.0)
+
+---
+
+## [v3.5.3] - 2026-03-09
+
+### 🐛 Bug Fixes
+- restore description field to CRM Address model
+
+### 🔧 Maintenance
+- remove beta version libCommons
+- update fiber to 2.52.12
+- Update CHANGELOG
+
+
 ## [v3.5.2] - 2026-02-24
 
 ### ✨ Features
@@ -10422,3 +10500,4 @@ BREAKING
 
 ## Test Entry
 - Test GPT changelog generation 2026-01-19
+

@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
+	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -772,6 +773,192 @@ func TestTransactionRevert_NilAmount(t *testing.T) {
 	assert.Empty(t, result.Send.Distribute.To, "should return empty tos when Amount is nil")
 }
 
+func TestTransactionRevert_PreservesBalanceKey(t *testing.T) {
+	t.Parallel()
+
+	amount := decimal.NewFromInt(40)
+	txn := Transaction{
+		Description: "additional balance transfer",
+		AssetCode:   "BRL",
+		Amount:      &amount,
+		Operations: []*operation.Operation{
+			{
+				Type:         constant.CREDIT,
+				AccountAlias: "@receiver",
+				BalanceKey:   "voucher",
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount},
+			},
+			{
+				Type:         constant.DEBIT,
+				AccountAlias: "@sender",
+				BalanceKey:   "reserve",
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount},
+			},
+		},
+	}
+
+	reverted := txn.TransactionRevert()
+
+	require.Len(t, reverted.Send.Source.From, 1)
+	assert.Equal(t, "voucher", reverted.Send.Source.From[0].BalanceKey)
+	require.Len(t, reverted.Send.Distribute.To, 1)
+	assert.Equal(t, "reserve", reverted.Send.Distribute.To[0].BalanceKey)
+}
+
+func TestTransactionRevert_FoldsOverdraftCompanionIntoDefaultLeg(t *testing.T) {
+	t.Parallel()
+
+	amount100 := decimal.NewFromInt(100)
+	amount50 := decimal.NewFromInt(50)
+	txn := Transaction{
+		Description: "overdraft transfer",
+		AssetCode:   "BRL",
+		Amount:      &amount100,
+		Operations: []*operation.Operation{
+			{
+				Type:         constant.DEBIT,
+				AccountAlias: "@source",
+				BalanceKey:   pkgConstant.DefaultBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount50},
+			},
+			{
+				Type:         pkgConstant.OVERDRAFT,
+				Direction:    pkgConstant.DirectionDebit,
+				AccountAlias: "@source",
+				BalanceKey:   pkgConstant.OverdraftBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount50},
+			},
+			{
+				Type:         constant.CREDIT,
+				AccountAlias: "@destination",
+				BalanceKey:   pkgConstant.DefaultBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount100},
+			},
+		},
+	}
+
+	reverted := txn.TransactionRevert()
+
+	require.Len(t, reverted.Send.Source.From, 1)
+	assert.Equal(t, "@destination", reverted.Send.Source.From[0].AccountAlias)
+	assert.Equal(t, pkgConstant.DefaultBalanceKey, reverted.Send.Source.From[0].BalanceKey)
+	assert.True(t, reverted.Send.Source.From[0].Amount.Value.Equal(amount100))
+
+	require.Len(t, reverted.Send.Distribute.To, 1,
+		"internal overdraft companion must not be targeted directly by public revert transaction")
+	assert.Equal(t, "@source", reverted.Send.Distribute.To[0].AccountAlias)
+	assert.Equal(t, pkgConstant.DefaultBalanceKey, reverted.Send.Distribute.To[0].BalanceKey)
+	assert.True(t, reverted.Send.Distribute.To[0].Amount.Value.Equal(amount100),
+		"default reverse credit must include the default movement plus overdraft companion amount")
+}
+
+func TestTransactionRevert_FoldsOverdraftCompanionRegardlessOfOperationOrder(t *testing.T) {
+	t.Parallel()
+
+	amount100 := decimal.NewFromInt(100)
+	amount50 := decimal.NewFromInt(50)
+	txn := Transaction{
+		Description: "overdraft transfer with companion before default",
+		AssetCode:   "BRL",
+		Amount:      &amount100,
+		Operations: []*operation.Operation{
+			{
+				Type:         pkgConstant.OVERDRAFT,
+				Direction:    pkgConstant.DirectionDebit,
+				AccountAlias: "@source",
+				BalanceKey:   pkgConstant.OverdraftBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount50},
+			},
+			{
+				Type:         constant.DEBIT,
+				AccountAlias: "@source",
+				BalanceKey:   pkgConstant.DefaultBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount50},
+			},
+			{
+				Type:         constant.CREDIT,
+				AccountAlias: "@destination",
+				BalanceKey:   pkgConstant.DefaultBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount100},
+			},
+		},
+	}
+
+	reverted := txn.TransactionRevert()
+
+	require.Len(t, reverted.Send.Source.From, 1)
+	assert.Equal(t, "@destination", reverted.Send.Source.From[0].AccountAlias)
+	assert.True(t, reverted.Send.Source.From[0].Amount.Value.Equal(amount100))
+	require.Len(t, reverted.Send.Distribute.To, 1)
+	assert.Equal(t, "@source", reverted.Send.Distribute.To[0].AccountAlias)
+	assert.Equal(t, pkgConstant.DefaultBalanceKey, reverted.Send.Distribute.To[0].BalanceKey)
+	assert.True(t, reverted.Send.Distribute.To[0].Amount.Value.Equal(amount100),
+		"companion amount must be folded even when PostgreSQL returns it before the default DEBIT")
+}
+
+func TestTransactionRevert_DoesNotDoubleCountCommittedPendingOverdraftCompanion(t *testing.T) {
+	t.Parallel()
+
+	amount100 := decimal.NewFromInt(100)
+	amount50 := decimal.NewFromInt(50)
+	txn := Transaction{
+		Description: "committed pending overdraft transfer",
+		AssetCode:   "BRL",
+		Amount:      &amount100,
+		Operations: []*operation.Operation{
+			{
+				Type:         constant.ONHOLD,
+				Direction:    pkgConstant.DirectionDebit,
+				AccountAlias: "@source",
+				BalanceKey:   pkgConstant.DefaultBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount100},
+			},
+			{
+				Type:         pkgConstant.OVERDRAFT,
+				Direction:    pkgConstant.DirectionDebit,
+				AccountAlias: "@source",
+				BalanceKey:   pkgConstant.OverdraftBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount50},
+			},
+			{
+				Type:         constant.CREDIT,
+				AccountAlias: "@destination",
+				BalanceKey:   pkgConstant.DefaultBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount100},
+			},
+			{
+				Type:         constant.DEBIT,
+				AccountAlias: "@source",
+				BalanceKey:   pkgConstant.DefaultBalanceKey,
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount100},
+			},
+		},
+	}
+
+	reverted := txn.TransactionRevert()
+
+	require.Len(t, reverted.Send.Source.From, 1)
+	assert.Equal(t, "@destination", reverted.Send.Source.From[0].AccountAlias)
+	assert.True(t, reverted.Send.Source.From[0].Amount.Value.Equal(amount100))
+	require.Len(t, reverted.Send.Distribute.To, 1)
+	assert.Equal(t, "@source", reverted.Send.Distribute.To[0].AccountAlias)
+	assert.Equal(t, pkgConstant.DefaultBalanceKey, reverted.Send.Distribute.To[0].BalanceKey)
+	assert.True(t, reverted.Send.Distribute.To[0].Amount.Value.Equal(amount100),
+		"committed pending DEBIT already carries the full amount; companion must not inflate revert to 150")
+}
+
 func TestTransactionRevert_DirectionNotSet(t *testing.T) {
 	t.Parallel()
 
@@ -969,4 +1156,34 @@ func TestTransactionRevert_RoutePreservation(t *testing.T) {
 			tt.validate(t, result)
 		})
 	}
+}
+
+// TestOperationColumnListPrefixed_IncludesSnapshot is a compile-time-safe guard
+// that prevents column-list drift between the canonical operation.operationColumnList
+// (which includes "snapshot") and the prefixed copy used by FindWithOperations /
+// FindOrListAllWithOperations.
+func TestOperationColumnListPrefixed_IncludesSnapshot(t *testing.T) {
+	t.Parallel()
+
+	found := false
+
+	for _, col := range operationColumnListPrefixed {
+		if col == "o.snapshot" {
+			found = true
+
+			break
+		}
+	}
+
+	require.True(t, found,
+		"operationColumnListPrefixed must include 'o.snapshot'; "+
+			"without it, FindWithOperations and FindOrListAllWithOperations "+
+			"return operations with nil Snapshot, causing ToEntity to default "+
+			"all overdraft fields to zero regardless of stored values")
+
+	// Also verify total count matches operation.operationColumnList (31 columns).
+	// This catches additions to the canonical list that aren't mirrored here.
+	assert.Len(t, operationColumnListPrefixed, operation.ExportedOperationColumnListLen(),
+		"operationColumnListPrefixed column count must match operation.operationColumnList; "+
+			"a column was added to the canonical list but not to the prefixed copy")
 }

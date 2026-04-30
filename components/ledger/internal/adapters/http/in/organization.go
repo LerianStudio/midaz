@@ -7,11 +7,10 @@ package in
 import (
 	"fmt"
 	"os"
-	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -81,7 +80,7 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
-//	@Param			id				path		string							true	"Organization ID in UUID format"
+//	@Param			organization_id	path		string							true	"Organization ID in UUID format"
 //	@Param			organization	body		mmodel.UpdateOrganizationInput	true	"Organization fields to update. Only supplied fields will be modified."
 //	@Success		200				{object}	mmodel.Organization				"Successfully updated organization"
 //	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
@@ -89,7 +88,7 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 //	@Failure		403				{object}	mmodel.Error					"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error					"Organization not found"
 //	@Failure		500				{object}	mmodel.Error					"Internal server error"
-//	@Router			/v1/organizations/{id} [patch]
+//	@Router			/v1/organizations/{organization_id} [patch]
 func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -126,13 +125,13 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 //	@Produce		json
 //	@Param			Authorization	header		string				true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string				false	"Request ID for tracing"
-//	@Param			id				path		string				true	"Organization ID in UUID format"
+//	@Param			organization_id	path		string				true	"Organization ID in UUID format"
 //	@Success		200				{object}	mmodel.Organization	"Successfully retrieved organization"
 //	@Failure		401				{object}	mmodel.Error		"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error		"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error		"Organization not found"
 //	@Failure		500				{object}	mmodel.Error		"Internal server error"
-//	@Router			/v1/organizations/{id} [get]
+//	@Router			/v1/organizations/{organization_id} [get]
 func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -178,6 +177,8 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 //	@Param			sort_order			query		string																	false	"Sort direction for results based on creation date"	Enums(asc,desc)
 //	@Param			legal_name			query		string																	false	"Filter organizations by legal name (case-insensitive, prefix match)"	maxLength(256)
 //	@Param			doing_business_as	query		string																	false	"Filter organizations by doing business as name (case-insensitive, prefix match)"	maxLength(256)
+//	@Param			status				query		string																	false	"Filter organizations by status"
+//	@Param			legal_document		query		string																	false	"Filter organizations by legal document (exact match)"
 //	@Success		200					{object}	http.Pagination{items=[]mmodel.Organization}	"Successfully retrieved organizations list"
 //	@Failure		400					{object}	mmodel.Error															"Invalid query parameters"
 //	@Failure		401					{object}	mmodel.Error															"Unauthorized access"
@@ -201,6 +202,16 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
+	if headerParams.Status != nil && !isValidStatus(*headerParams.Status, organizationAllowedStatuses) {
+		err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityOrganization, "status")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters: invalid organization status", err)
+
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate organization status query parameter", libLog.String("status", *headerParams.Status), libLog.Err(err))
+
+		return http.WithError(c, err)
+	}
+
 	recordSafeQueryAttributes(span, headerParams)
 
 	pagination := http.Pagination{
@@ -213,7 +224,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 	if headerParams.Metadata != nil {
 		if headerParams.HasNameFilters() {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, reflect.TypeOf(mmodel.Organization{}).Name(), "metadata cannot be combined with name filters (legal_name, doing_business_as)")
+			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityOrganization, "metadata cannot be combined with name filters (legal_name, doing_business_as)")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters: metadata and name filters are mutually exclusive", err)
 
@@ -265,14 +276,14 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 //	@Tags			Organizations
 //	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Param			id				path		string			true	"Organization ID in UUID format"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Success		204				"Organization successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden action or not permitted in production environment"
 //	@Failure		404				{object}	mmodel.Error	"Organization not found"
 //	@Failure		409				{object}	mmodel.Error	"Conflict: Cannot delete organization with dependent resources"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{id} [delete]
+//	@Router			/v1/organizations/{organization_id} [delete]
 func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -289,7 +300,7 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Organization with ID: %s", id.String()))
 
 	if os.Getenv("ENV_NAME") == "production" {
-		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, reflect.TypeOf(mmodel.Organization{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, constant.EntityOrganization)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove organization in production environment", err)
 

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
-	tmvalkey "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/valkey"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	tmvalkey "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/valkey"
 	// =============================================================================
 	// FUZZ TESTS — Redis Key Namespacing (T-001)
 	//

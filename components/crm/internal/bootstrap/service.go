@@ -10,9 +10,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	tmevent "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/event"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
 )
 
 // Service is the application glue where we put all top level components to be used.

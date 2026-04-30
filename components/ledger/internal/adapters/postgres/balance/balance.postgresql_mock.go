@@ -14,7 +14,7 @@ import (
 	reflect "reflect"
 	time "time"
 
-	http "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	http "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	mmodel "github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	uuid "github.com/google/uuid"

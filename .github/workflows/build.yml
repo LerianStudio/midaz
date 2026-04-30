@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/build.yml@v1.23.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/build.yml@v1.27.5
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
       filter_paths: |-
@@ -46,7 +46,7 @@ jobs:
       !cancelled() &&
       needs.build.result == 'success' &&
       needs.build.outputs.has_builds == 'true'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gitops-update.yml@v1.23.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gitops-update.yml@v1.27.5
     with:
       runner_type: "firmino-lxc-runners"
       gitops_repository: "LerianStudio/midaz-firmino-gitops"
@@ -66,7 +66,7 @@ jobs:
   upload-onboarding-migrations:
     needs: [build]
     if: needs.build.result == 'success'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.23.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.27.5
     with:
       s3_bucket: "lerian-migration-files"
       file_pattern: "components/ledger/migrations/onboarding/*.sql"
@@ -79,7 +79,7 @@ jobs:
   upload-transaction-migrations:
     needs: [build]
     if: needs.build.result == 'success'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.23.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.27.5
     with:
       s3_bucket: "lerian-migration-files"
       file_pattern: "components/ledger/migrations/transaction/*.sql"
@@ -95,7 +95,7 @@ jobs:
   api_dog_e2e_tests:
     needs: [update_gitops]
     if: needs.update_gitops.result == 'success'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/api-dog-e2e-tests.yml@v1.23.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/api-dog-e2e-tests.yml@v1.27.5
     with:
       runner_type: "firmino-lxc-runners"
       auto_detect_environment: true

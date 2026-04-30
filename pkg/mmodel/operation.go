@@ -10,6 +10,33 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// OperationSnapshot carries system-generated per-operation context fields.
+// Always populated on every operation record — non-overdraft operations carry
+// "0" / "0" rather than absent fields, so the wire shape is uniform across
+// the entire ledger. Additional fields may be added in the future without a
+// schema migration.
+//
+// Key conventions (enforced via code review):
+//   - camelCase (matches Midaz API JSON convention).
+//   - Additive-only over time — never remove a shipped key, never repurpose.
+//   - All decimals are string-encoded (preserves precision regardless of client parser).
+//   - Always present. Non-overdraft operations carry "0" for both fields.
+//   - Reserved for system-generated context; user-supplied tagging goes in the separate `metadata` column.
+//
+// For companion rows on `@account#overdraft`, the snapshot mirrors the DEFAULT
+// balance's before/after — same values appear on both the primary and companion
+// rows so the lifecycle is visible from either.
+//
+// @Description Per-operation state snapshot. Read-only, system-generated. Always populated.
+type OperationSnapshot struct {
+	// String-encoded decimal of the default balance's overdraftUsed BEFORE this operation mutated it.
+	// "0" when the operation does not participate in the overdraft lifecycle.
+	OverdraftUsedBefore string `json:"overdraftUsedBefore" example:"50"`
+	// String-encoded decimal of the default balance's overdraftUsed AFTER this operation committed.
+	// "0" when the operation does not participate in the overdraft lifecycle.
+	OverdraftUsedAfter string `json:"overdraftUsedAfter" example:"130"`
+} // @name OperationSnapshot
+
 // OperationRedis is a flat Redis cache representation of an operation.
 // It mirrors the essential fields from the internal operation.Operation type
 // without nested structs, enabling storage in pkg/mmodel without importing
@@ -45,4 +72,8 @@ type OperationRedis struct {
 	RouteCode             *string         `json:"routeCode,omitempty"`
 	RouteDescription      *string         `json:"routeDescription,omitempty"`
 	Metadata              map[string]any  `json:"metadata,omitempty"`
+	// Snapshot is always populated — non-overdraft operations carry zero
+	// values rather than absent fields, matching the always-populated wire-
+	// shape contract.
+	Snapshot OperationSnapshot `json:"snapshot"`
 }

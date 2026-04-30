@@ -14,9 +14,9 @@ import (
 	"context"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
+	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"

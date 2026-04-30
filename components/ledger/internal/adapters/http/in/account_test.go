@@ -6,9 +6,9 @@ package in
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 	"time"
 
@@ -22,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -329,9 +330,9 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// AccountRepo.ListByIDs returns the accounts
+				// AccountRepo.FindAll returns the accounts
 				accountRepo.EXPECT().
-					ListByIDs(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
+					FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{
 							ID:             account1ID,
@@ -410,10 +411,10 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// AccountRepo.ListByIDs returns not found error
+				// AccountRepo.FindAll returns not found error
 				accountRepo.EXPECT().
-					ListByIDs(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())).
+					FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrNoAccountsFound, cn.EntityAccount)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -423,6 +424,38 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
+			},
+		},
+		{
+			name:        "blocked status filter is accepted",
+			queryParams: "?status=BLOCKED",
+			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+				accountRepo.EXPECT().
+					FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
+					DoAndReturn(func(ctx any, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader) ([]*mmodel.Account, error) {
+						if filter.Status == nil || *filter.Status != "BLOCKED" {
+							return nil, errors.New("expected BLOCKED status filter")
+						}
+
+						return []*mmodel.Account{}, nil
+					}).
+					Times(1)
+			},
+			expectedStatus: 200,
+		},
+		{
+			name:        "unknown status filter returns 400",
+			queryParams: "?status=INVALID",
+			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Equal(t, cn.ErrInvalidQueryParameter.Error(), errResp["code"])
+				assert.Equal(t, "Invalid Query Parameter", errResp["title"])
 			},
 		},
 		{
@@ -545,7 +578,7 @@ func TestAccountHandler_GetAccountByID(t *testing.T) {
 			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, accountID uuid.UUID) {
 				accountRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, cn.EntityAccount)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -684,7 +717,7 @@ func TestAccountHandler_GetAccountExternalByCode(t *testing.T) {
 			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				accountRepo.EXPECT().
 					FindAlias(gomock.Any(), orgID, ledgerID, gomock.Nil(), "@external/UNKNOWN").
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountAliasNotFound, cn.EntityAccount)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -820,7 +853,7 @@ func TestAccountHandler_GetAccountByAlias(t *testing.T) {
 			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				accountRepo.EXPECT().
 					FindAlias(gomock.Any(), orgID, ledgerID, gomock.Nil(), "@unknown").
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountAliasNotFound, cn.EntityAccount)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -998,7 +1031,7 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 				// First find returns not found
 				accountRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, cn.EntityAccount)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -1041,7 +1074,7 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 				// Retrieval fails
 				accountRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, cn.EntityAccount)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -1182,7 +1215,7 @@ func TestAccountHandler_DeleteAccountByID(t *testing.T) {
 			setupMocks: func(accountRepo *account.MockRepository, balancePort *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID) {
 				accountRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, cn.EntityAccount)).
 					Times(1)
 			},
 			expectedStatus: 404,

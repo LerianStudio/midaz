@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "js-yaml": "^4.1.1",
-    "uuid": "^9.0.1"
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "commander": "^9.4.1"

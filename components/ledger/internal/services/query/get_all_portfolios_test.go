@@ -31,17 +31,12 @@ func TestGetAllPortfolio(t *testing.T) {
 		OnboardingMetadataRepo: mockMetadataRepo,
 	}
 
-	filter := http.QueryHeader{
-		Limit: 10,
-		Page:  1,
-	}
-
 	tests := []struct {
 		name           string
 		organizationID uuid.UUID
 		ledgerID       uuid.UUID
 		filter         http.QueryHeader
-		mockSetup      func()
+		mockSetup      func(filter http.QueryHeader)
 		expectErr      bool
 		expectedResult []*mmodel.Portfolio
 	}{
@@ -49,11 +44,11 @@ func TestGetAllPortfolio(t *testing.T) {
 			name:           "Success - Retrieve portfolios with metadata",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
-			filter:         filter,
-			mockSetup: func() {
+			filter:         http.QueryHeader{Limit: 10, Page: 1},
+			mockSetup: func(filter http.QueryHeader) {
 				validUUID := uuid.New()
 				mockPortfolioRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter).
 					Return([]*mmodel.Portfolio{
 						{ID: validUUID.String(), Name: "Test Portfolio", Status: mmodel.Status{Code: "active"}},
 					}, nil)
@@ -73,9 +68,9 @@ func TestGetAllPortfolio(t *testing.T) {
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
 			filter:         http.QueryHeader{Limit: 10, Page: 1},
-			mockSetup: func() {
+			mockSetup: func(filter http.QueryHeader) {
 				mockPortfolioRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
 			expectErr:      true,
@@ -86,10 +81,10 @@ func TestGetAllPortfolio(t *testing.T) {
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
 			filter:         http.QueryHeader{Limit: 10, Page: 1},
-			mockSetup: func() {
+			mockSetup: func(filter http.QueryHeader) {
 				validUUID := uuid.New()
 				mockPortfolioRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter).
 					Return([]*mmodel.Portfolio{
 						{ID: validUUID.String(), Name: "Test Portfolio", Status: mmodel.Status{Code: "active"}},
 					}, nil)
@@ -104,7 +99,7 @@ func TestGetAllPortfolio(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.mockSetup()
+			tt.mockSetup(tt.filter)
 
 			ctx := context.Background()
 			result, err := uc.GetAllPortfolio(ctx, tt.organizationID, tt.ledgerID, tt.filter)

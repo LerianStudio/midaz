@@ -7,9 +7,9 @@ package in
 import (
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -93,6 +93,8 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 //	@Param			organization_id	path		string																true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string																true	"Ledger ID in UUID format"
 //	@Param			metadata		query		string																false	"JSON string to filter portfolios by metadata fields"
+//	@Param			entity_id		query		string																false	"Filter portfolios by entity ID"
+//	@Param			status			query		string																false	"Filter portfolios by status"
 //	@Param			limit			query		int																	false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
 //	@Param			page			query		int																	false	"Page number for pagination"					default(1)	minimum(1)
 //	@Param			start_date		query		string																false	"Filter portfolios created on or after this date (format: YYYY-MM-DD)"
@@ -193,13 +195,13 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string				false	"Request ID for tracing"
 //	@Param			organization_id	path		string				true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string				true	"Ledger ID in UUID format"
-//	@Param			id				path		string				true	"Portfolio ID in UUID format"
+//	@Param			portfolio_id				path		string				true	"Portfolio ID in UUID format"
 //	@Success		200				{object}	mmodel.Portfolio	"Successfully retrieved portfolio"
 //	@Failure		401				{object}	mmodel.Error		"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error		"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error		"Portfolio, ledger, or organization not found"
 //	@Failure		500				{object}	mmodel.Error		"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id} [get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id} [get]
 func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -250,7 +252,7 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
-//	@Param			id				path		string						true	"Portfolio ID in UUID format"
+//	@Param			portfolio_id				path		string						true	"Portfolio ID in UUID format"
 //	@Param			portfolio		body		mmodel.UpdatePortfolioInput	true	"Portfolio properties to update including name, entity ID, status, and optional metadata"
 //	@Success		200				{object}	mmodel.Portfolio			"Successfully updated portfolio"
 //	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
@@ -259,7 +261,7 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 //	@Failure		404				{object}	mmodel.Error				"Portfolio, ledger, or organization not found"
 //	@Failure		409				{object}	mmodel.Error				"Conflict: Portfolio with the same name already exists"
 //	@Failure		500				{object}	mmodel.Error				"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id} [patch]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id} [patch]
 func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -321,14 +323,14 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			id				path		string			true	"Portfolio ID in UUID format"
+//	@Param			portfolio_id				path		string			true	"Portfolio ID in UUID format"
 //	@Success		204				"Portfolio successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Portfolio, ledger, or organization not found"
 //	@Failure		409				{object}	mmodel.Error	"Conflict: Portfolio cannot be deleted due to existing dependencies"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id} [delete]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id} [delete]
 func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

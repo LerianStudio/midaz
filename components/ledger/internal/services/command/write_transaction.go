@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
@@ -20,7 +20,7 @@ import (
 
 	// WriteTransaction routes the transaction to sync or async execution
 	// based on the RABBITMQ_TRANSACTION_ASYNC environment variable.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 )
 
 func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) error {
@@ -47,6 +47,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 		BalancesAfter: blcAfter,
 		Transaction:   tran,
 		Input:         transactionInput,
+		Version:       "v2",
 	}
 
 	marshal, err := msgpack.Marshal(value)
@@ -127,6 +128,7 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 		BalancesAfter: blcAfter,
 		Transaction:   tran,
 		Input:         transactionInput,
+		Version:       "v2",
 	}
 
 	marshal, err := msgpack.Marshal(value)

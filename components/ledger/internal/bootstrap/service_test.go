@@ -10,10 +10,10 @@ import (
 	"net/http"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
-	tmmiddleware "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/middleware"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/middleware"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -243,11 +243,7 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 	t.Run("creates_server_without_route_registrars", func(t *testing.T) {
 		t.Parallel()
 
-		server := NewUnifiedServer(
-			":0",
-			logger,
-			telemetry,
-		)
+		server := NewUnifiedServer(":0", logger, telemetry, nil)
 
 		require.NotNil(t, server, "NewUnifiedServer should return non-nil server")
 		assert.Equal(t, ":0", server.ServerAddress())
@@ -256,16 +252,13 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 	t.Run("creates_server_with_route_registrar", func(t *testing.T) {
 		t.Parallel()
 
-		server := NewUnifiedServer(
-			":0",
-			logger,
-			telemetry,
-			func(router fiber.Router) {
-				router.Get("/test", func(c *fiber.Ctx) error {
-					return c.SendStatus(fiber.StatusNoContent)
-				})
-			},
-		)
+		registrar := func(router fiber.Router) {
+			router.Get("/test", func(c *fiber.Ctx) error {
+				return c.SendStatus(fiber.StatusNoContent)
+			})
+		}
+
+		server := NewUnifiedServer(":0", logger, telemetry, nil, registrar)
 
 		require.NotNil(t, server, "NewUnifiedServer should return non-nil server when a registrar is provided")
 		assert.Equal(t, ":0", server.ServerAddress())

@@ -9,9 +9,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
@@ -19,7 +19,13 @@ import (
 
 const ApplicationName = "plugin-crm"
 
-func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, hh *HolderHandler, ah *AliasHandler) *fiber.App {
+// ReadyzHandler is the interface for the readyz endpoint handler.
+// This interface is defined here to avoid circular imports with the bootstrap package.
+type ReadyzHandler interface {
+	HandleReadyz(c *fiber.Ctx) error
+}
+
+func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, readyzHandler ReadyzHandler, hh *HolderHandler, ah *AliasHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -40,6 +46,12 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	f.Get("/version", libHTTP.Version)
 	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)
 
+	// Readyz endpoint: registered BEFORE auth/tenant middleware for K8s readiness probes.
+	// K8s probes do not authenticate, so this endpoint MUST NOT require auth.
+	if readyzHandler != nil {
+		f.Get("/readyz", readyzHandler.HandleReadyz)
+	}
+
 	// Tenant middleware: registered only when multi-tenant mode is enabled.
 	// When tenantMw is nil (single-tenant mode), this block is skipped entirely.
 	if tenantMw != nil {
@@ -56,9 +68,9 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	// Aliases
 	f.Get("/v1/aliases", auth.Authorize(ApplicationName, "aliases", "get"), ah.GetAllAliases)
 	f.Post("/v1/holders/:holder_id/aliases", auth.Authorize(ApplicationName, "aliases", "post"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.CreateAliasInput), ah.CreateAlias))
-	f.Get("/v1/holders/:holder_id/aliases/:id", auth.Authorize(ApplicationName, "aliases", "get"), http.ParseUUIDPathParameters("aliases"), ah.GetAliasByID)
-	f.Patch("/v1/holders/:holder_id/aliases/:id", auth.Authorize(ApplicationName, "aliases", "patch"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.UpdateAliasInput), ah.UpdateAlias))
-	f.Delete("/v1/holders/:holder_id/aliases/:id", auth.Authorize(ApplicationName, "aliases", "delete"), http.ParseUUIDPathParameters("aliases"), ah.DeleteAliasByID)
+	f.Get("/v1/holders/:holder_id/aliases/:alias_id", auth.Authorize(ApplicationName, "aliases", "get"), http.ParseUUIDPathParameters("aliases"), ah.GetAliasByID)
+	f.Patch("/v1/holders/:holder_id/aliases/:alias_id", auth.Authorize(ApplicationName, "aliases", "patch"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.UpdateAliasInput), ah.UpdateAlias))
+	f.Delete("/v1/holders/:holder_id/aliases/:alias_id", auth.Authorize(ApplicationName, "aliases", "delete"), http.ParseUUIDPathParameters("aliases"), ah.DeleteAliasByID)
 	f.Delete("/v1/holders/:holder_id/aliases/:alias_id/related-parties/:related_party_id", auth.Authorize(ApplicationName, "aliases", "delete"), http.ParseUUIDPathParameters("related-parties"), ah.DeleteRelatedParty)
 
 	f.Use(tlMid.EndTracingSpans)

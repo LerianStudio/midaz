@@ -179,6 +179,42 @@ var (
 	ErrDirectScenarioRequired         = errors.New("0164")
 	ErrRevertOnlyBidirectional        = errors.New("0165")
 	ErrAccountingEntryFieldRequired   = errors.New("0166")
+
+	// Overdraft Feature Errors
+	//
+	// ErrOverdraftLimitExceeded is returned when a transaction would drive a
+	// balance past its configured overdraft limit.
+	ErrOverdraftLimitExceeded = errors.New("0167")
+	// ErrDirectOperationOnInternalBalance is returned when a user-initiated
+	// operation targets a balance whose scope is "internal".
+	ErrDirectOperationOnInternalBalance = errors.New("0168")
+	// ErrDeletionOfInternalBalance is returned when a delete request targets
+	// a balance whose scope is "internal".
+	ErrDeletionOfInternalBalance = errors.New("0169")
+	// ErrReservedBalanceKey is returned when a public create-balance request
+	// uses a system-managed key (e.g. "overdraft").
+	ErrReservedBalanceKey = errors.New("0170")
+	// ErrInvalidBalanceDirection is returned when the supplied balance
+	// direction is not one of the supported enum members.
+	ErrInvalidBalanceDirection = errors.New("0171")
+	// ErrInvalidBalanceSettings is returned when a balance settings payload
+	// fails validation (e.g. limit enabled without a value, invalid scope).
+	ErrInvalidBalanceSettings = errors.New("0172")
+	// ErrOverdraftLimitBelowUsage is returned when a caller attempts to
+	// reduce the overdraft limit below the currently used amount.
+	ErrOverdraftLimitBelowUsage = errors.New("0173")
+	// ErrStaleBalanceVersion is returned when the Redis atomic balance
+	// script detects that the balance version read by the caller no longer
+	// matches the version currently in the cache. This indicates another
+	// transaction mutated the balance between read and write, making the
+	// caller's pre-computed overdraft split/repayment amounts potentially
+	// incorrect. Callers should retry after re-reading the balance.
+	ErrStaleBalanceVersion = errors.New("0174")
+	// ErrUpdateOfInternalBalance is returned when a PATCH request targets
+	// a balance whose scope is "internal". Internal balances are
+	// system-managed (e.g. overdraft companions) and cannot be modified
+	// through the public API.
+	ErrUpdateOfInternalBalance = errors.New("0175")
 )
 
 // List of CRM errors.

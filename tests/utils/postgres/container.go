@@ -16,7 +16,7 @@ import (
 
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 
-	"github.com/docker/docker/api/types/container"
+	"github.com/moby/moby/api/types/container"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"

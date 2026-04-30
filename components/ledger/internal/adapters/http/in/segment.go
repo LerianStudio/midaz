@@ -7,9 +7,9 @@ package in
 import (
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -193,13 +193,13 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			id				path		string			true	"Segment ID in UUID format"
+//	@Param			segment_id				path		string			true	"Segment ID in UUID format"
 //	@Success		200				{object}	mmodel.Segment	"Successfully retrieved segment"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Segment, ledger, or organization not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id} [get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id} [get]
 func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -250,7 +250,7 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
-//	@Param			id				path		string						true	"Segment ID in UUID format"
+//	@Param			segment_id				path		string						true	"Segment ID in UUID format"
 //	@Param			segment			body		mmodel.UpdateSegmentInput	true	"Segment properties to update including name, status, and optional metadata"
 //	@Success		200				{object}	mmodel.Segment				"Successfully updated segment"
 //	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
@@ -259,7 +259,7 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 //	@Failure		404				{object}	mmodel.Error				"Segment, ledger, or organization not found"
 //	@Failure		409				{object}	mmodel.Error				"Conflict: Segment with the same name already exists"
 //	@Failure		500				{object}	mmodel.Error				"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id} [patch]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id} [patch]
 func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -321,14 +321,14 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			id				path		string			true	"Segment ID in UUID format"
+//	@Param			segment_id				path		string			true	"Segment ID in UUID format"
 //	@Success		204				"Segment successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Segment, ledger, or organization not found"
 //	@Failure		409				{object}	mmodel.Error	"Conflict: Segment cannot be deleted due to existing dependencies"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id} [delete]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id} [delete]
 func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

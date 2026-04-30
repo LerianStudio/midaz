@@ -10,11 +10,11 @@ import (
 	"os"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v4/commons/rabbitmq"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -91,7 +91,19 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		return nil, err
 	}
 
-	err := prmq.conn.Channel.Publish(
+	// Use ChannelSnapshot to get a consistent channel reference under lock,
+	// avoiding a TOCTOU race where another goroutine's reconnection could
+	// replace the channel between EnsureChannel and Publish.
+	ch := prmq.conn.ChannelSnapshot()
+	if ch == nil {
+		err := fmt.Errorf("rabbitmq channel unavailable after ensure")
+		logger.Log(ctx, libLog.LevelError, "Channel snapshot returned nil", libLog.Err(err))
+		libOpentelemetry.HandleSpanError(spanProducer, "Channel snapshot returned nil", err)
+
+		return nil, err
+	}
+
+	err := ch.Publish(
 		exchange,
 		key,
 		false,
@@ -138,7 +150,19 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefaultWithContext(ctx context.C
 		return nil, err
 	}
 
-	err := prmq.conn.Channel.Publish(
+	// Use ChannelSnapshot to get a consistent channel reference under lock,
+	// avoiding a TOCTOU race where another goroutine's reconnection could
+	// replace the channel between EnsureChannelContext and Publish.
+	ch := prmq.conn.ChannelSnapshot()
+	if ch == nil {
+		err := fmt.Errorf("rabbitmq channel unavailable after ensure")
+		logger.Log(ctx, libLog.LevelError, "Channel snapshot returned nil", libLog.Err(err))
+		libOpentelemetry.HandleSpanError(spanProducer, "Channel snapshot returned nil", err)
+
+		return nil, err
+	}
+
+	err := ch.Publish(
 		exchange,
 		key,
 		false,

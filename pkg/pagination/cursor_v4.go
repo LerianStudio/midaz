@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	cn "github.com/LerianStudio/lib-commons/v4/commons/constants"
-	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	cn "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	"github.com/Masterminds/squirrel"
 )
 

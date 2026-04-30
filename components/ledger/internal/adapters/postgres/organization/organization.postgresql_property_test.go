@@ -32,7 +32,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/stretchr/testify/require"
 )
 

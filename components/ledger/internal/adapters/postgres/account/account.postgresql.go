@@ -9,17 +9,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"reflect"
 	"slices"
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -56,7 +55,7 @@ var accountColumnList = []string{
 // It defines methods for creating, retrieving, updating, and deleting accounts in the database.
 type Repository interface {
 	Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error)
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.Pagination) ([]*mmodel.Account, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader) ([]*mmodel.Account, error)
 	Find(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error)
 	FindWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error)
 	FindAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, alias string) (*mmodel.Account, error)
@@ -190,7 +189,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
+			err := services.ValidatePGError(pgErr, constant.EntityAccount)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute query", err)
 
@@ -218,7 +217,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create account", err)
 
@@ -231,7 +230,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 }
 
 // FindAll retrieves an Account entities from the database (including soft-deleted ones) with pagination.
-func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.Pagination) ([]*mmodel.Account, error) {
+func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader) ([]*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_accounts")
@@ -260,6 +259,50 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	if segmentID != nil && *segmentID != uuid.Nil {
 		findAll = findAll.Where(squirrel.Expr("segment_id = ?", *segmentID))
+	}
+
+	// Filter by entity IDs when provided (metadata composition)
+	if len(filter.EntityIDs) > 0 {
+		findAll = findAll.Where(squirrel.Expr("id = ANY(?)", pq.Array(filter.EntityIDs)))
+	}
+
+	// Apply account-specific filters (status, type, asset_code, entity_id, blocked, parent_account_id)
+	if !libCommons.IsNilOrEmpty(filter.Status) {
+		findAll = findAll.Where(squirrel.Expr("status = ?", *filter.Status))
+	}
+
+	if !libCommons.IsNilOrEmpty(filter.Type) {
+		findAll = findAll.Where(squirrel.Expr("type = ?", *filter.Type))
+	}
+
+	if !libCommons.IsNilOrEmpty(filter.AssetCode) {
+		findAll = findAll.Where(squirrel.Expr("asset_code = ?", *filter.AssetCode))
+	}
+
+	if !libCommons.IsNilOrEmpty(filter.EntityID) {
+		findAll = findAll.Where(squirrel.Expr("entity_id = ?", *filter.EntityID))
+	}
+
+	if filter.Blocked != nil {
+		findAll = findAll.Where(squirrel.Expr("blocked = ?", *filter.Blocked))
+	}
+
+	if !libCommons.IsNilOrEmpty(filter.ParentAccountID) {
+		findAll = findAll.Where(squirrel.Expr("parent_account_id = ?", *filter.ParentAccountID))
+	}
+
+	if filter.Name != nil && *filter.Name != "" {
+		sanitized := http.EscapeSearchMetacharacters(*filter.Name)
+		findAll = findAll.Where(
+			squirrel.Expr("lower(name) LIKE lower(?) || '%' ESCAPE '\\'", sanitized),
+		)
+	}
+
+	if filter.Alias != nil && *filter.Alias != "" {
+		sanitized := http.EscapeSearchMetacharacters(*filter.Alias)
+		findAll = findAll.Where(
+			squirrel.Expr("lower(alias) LIKE lower(?) || '%' ESCAPE '\\'", sanitized),
+		)
 	}
 
 	findAll = findAll.OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
@@ -400,7 +443,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&acc.Blocked,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
@@ -485,7 +528,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		&acc.Blocked,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
@@ -571,7 +614,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		&acc.Blocked,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, constant.EntityAccount)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
@@ -645,7 +688,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 	spanQuery.End()
 
-	err = pkg.ValidateBusinessError(constant.ErrAliasUnavailability, reflect.TypeOf(mmodel.Account{}).Name(), alias)
+	err = pkg.ValidateBusinessError(constant.ErrAliasUnavailability, constant.EntityAccount, alias)
 
 	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Alias is already taken", err)
 
@@ -940,7 +983,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
+			err := services.ValidatePGError(pgErr, constant.EntityAccount)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
 
@@ -966,7 +1009,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account", err)
 
@@ -1022,7 +1065,7 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
-		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
 	}
 
 	spanExec.End()
