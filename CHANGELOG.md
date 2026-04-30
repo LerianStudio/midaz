@@ -1,5 +1,34 @@
 # Midaz Changelog
 
+## [3.7.0](https://github.com/LerianStudio/midaz/releases/tag/v3.7.0)
+
+- **Features:**
+  - Added new indexes for account filtering and enabled `pg_trgm` extension for text search.
+  - Implemented onboarding filters and enhanced filtering options for accounts and organizations with new parameters.
+  - Added filtering options for account types and portfolios.
+  - Added overdraft lifecycle event notifications via RabbitMQ.
+  - Implemented `readyz` handler with MongoDB health checks and integrated OpenTelemetry metrics.
+
+- **Fixes:**
+  - Removed semicolon from SQL comment in migration 000033.
+  - Addressed CodeRabbit review comments on `SECURITY.md`.
+  - Fixed issues with overdraft repayment and companion operations.
+  - Resolved issues with malformed overdraft rows and sensitive data in logs.
+  - Handled concurrent overdraft auto-creation gracefully via unique violation recovery.
+
+- **Improvements:**
+  - Updated Docker client initialization and cleaned up container state checks.
+  - Streamlined TLS validation by excluding non-configured checkers from readiness handler.
+  - Replaced `reflect.TypeOf` with constant entity names in validation errors.
+  - Updated Docker client imports and bumped dependencies.
+  - Standardized `SECURITY.md` across Lerian repos.
+
+Contributors: @ClaraTersi, @Ygohr, @bedatty, @gandalf-at-lerian, @lerian-studio
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.6.3...v3.7.0)
+
+---
+
 ## [3.6.3](https://github.com/LerianStudio/midaz/releases/tag/v3.6.3)
 
 - Fixes:
