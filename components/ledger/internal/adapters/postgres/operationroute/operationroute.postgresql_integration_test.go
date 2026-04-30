@@ -543,12 +543,29 @@ func TestIntegration_OperationRouteRepository_Delete_AlreadyDeleted(t *testing.T
 	ctx := context.Background()
 
 	// Act - delete already deleted record
-	// Note: The current implementation doesn't check rows affected for delete,
-	// so this will succeed silently (no error returned)
 	err := repo.Delete(ctx, orgID, ledgerID, operationRouteID)
 
-	// Assert - current behavior: no error (DELETE WHERE deleted_at IS NULL affects 0 rows)
-	require.NoError(t, err, "Delete does not return error for already-deleted record (known behavior)")
+	// Assert - already-deleted records are not matched by the soft-delete query
+	require.Error(t, err, "Delete should return error for already-deleted record")
+	assert.ErrorIs(t, err, services.ErrDatabaseItemNotFound, "error should be ErrDatabaseItemNotFound")
+}
+
+func TestIntegration_OperationRouteRepository_Delete_NotFound(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	ctx := context.Background()
+
+	// Act
+	err := repo.Delete(ctx, orgID, ledgerID, nonExistentID)
+
+	// Assert
+	require.Error(t, err, "Delete should return error for non-existent ID")
+	assert.ErrorIs(t, err, services.ErrDatabaseItemNotFound, "error should be ErrDatabaseItemNotFound")
 }
 
 // ============================================================================
