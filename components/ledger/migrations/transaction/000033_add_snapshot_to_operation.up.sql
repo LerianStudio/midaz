@@ -5,7 +5,7 @@
 -- No table rewrite is triggered because the default value is a constant.
 -- Pre-existing rows receive the default '{}' on read without physical update.
 --
--- No GIN index: the column is read-per-row; if future queries need filtering by
+-- No GIN index: the column is read-per-row. If future queries need filtering by
 -- snapshot keys, add an index in a follow-up migration.
 ALTER TABLE operation
     ADD COLUMN snapshot JSONB NOT NULL DEFAULT '{}'::jsonb;
