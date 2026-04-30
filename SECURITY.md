@@ -15,8 +15,6 @@ You can report security vulnerabilities through:
 
 2. **Email**
    - Send details to: [security@lerian.studio](mailto:security@lerian.studio)
-   - PGP key available for encrypted communications
-   - We recommend [Mailvelope](https://mailvelope.com/en) for email encryption
 
 **Please do NOT disclose the vulnerability publicly until we have addressed it.**
 
@@ -81,7 +79,7 @@ When deploying this application:
 
 ### Development Environment
 
-For local development, use `.env` files copied from the `.env.example` files provided in the repository. These files are gitignored and should never be committed.
+For local development, use `.env` files for configuration. These files are gitignored and should never be committed. Refer to the project documentation and `docker-compose` files for the required environment variables.
 
 ### Production Environment
 
