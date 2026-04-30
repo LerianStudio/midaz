@@ -32,7 +32,7 @@ func TestDeleteOperationRouteByIDSuccess(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		HasTransactionRouteLinks(gomock.Any(), operationRouteID).
+		HasTransactionRouteLinks(gomock.Any(), organizationID, ledgerID, operationRouteID).
 		Return(false, nil).
 		Times(1)
 
@@ -61,7 +61,7 @@ func TestDeleteOperationRouteByIDNotFound(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		HasTransactionRouteLinks(gomock.Any(), operationRouteID).
+		HasTransactionRouteLinks(gomock.Any(), organizationID, ledgerID, operationRouteID).
 		Return(false, nil).
 		Times(1)
 
@@ -96,7 +96,7 @@ func TestDeleteOperationRouteByIDError(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		HasTransactionRouteLinks(gomock.Any(), operationRouteID).
+		HasTransactionRouteLinks(gomock.Any(), organizationID, ledgerID, operationRouteID).
 		Return(false, nil).
 		Times(1)
 
@@ -126,7 +126,7 @@ func TestDeleteOperationRouteByIDLinkedToTransactionRoutes(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		HasTransactionRouteLinks(gomock.Any(), operationRouteID).
+		HasTransactionRouteLinks(gomock.Any(), organizationID, ledgerID, operationRouteID).
 		Return(true, nil).
 		Times(1)
 
@@ -161,7 +161,7 @@ func TestDeleteOperationRouteByIDHasLinksCheckError(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		HasTransactionRouteLinks(gomock.Any(), operationRouteID).
+		HasTransactionRouteLinks(gomock.Any(), organizationID, ledgerID, operationRouteID).
 		Return(false, linkCheckError).
 		Times(1)
 

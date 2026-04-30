@@ -46,7 +46,7 @@ type Repository interface {
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error)
-	HasTransactionRouteLinks(ctx context.Context, operationRouteID uuid.UUID) (bool, error)
+	HasTransactionRouteLinks(ctx context.Context, organizationID, ledgerID, operationRouteID uuid.UUID) (bool, error)
 	FindTransactionRouteIDs(ctx context.Context, operationRouteID uuid.UUID) ([]uuid.UUID, error)
 }
 
@@ -488,45 +488,68 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 	return record.ToEntity(), nil
 }
 
-// Delete an Operation Route entity from the database (soft delete) using the provided ID.
+// Delete soft-deletes an operation route using the provided IDs.
 func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_operation_route")
 	defer span.End()
 
+	if err := ctx.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Context finished before deleting operation route", err)
+
+		return err
+	}
+
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return err
 	}
 
-	query := "UPDATE operation_route SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL"
-	args := []any{organizationID, ledgerID, id}
+	query, args, err := squirrel.Update(r.tableName).
+		Set("deleted_at", squirrel.Expr("now()")).
+		Where(squirrel.Eq{
+			"organization_id": organizationID,
+			"ledger_id":       ledgerID,
+			"id":              id,
+			"deleted_at":      nil,
+		}).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build delete query", err)
 
-	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
+		logger.Log(ctx, libLog.LevelError, "Failed to build delete query", libLog.Err(err))
+
+		return err
+	}
+
+	_, spanExec := tracer.Start(ctx, "postgres.delete.exec")
+	defer spanExec.End()
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute delete query", err)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to execute delete query",
+			libLog.Err(err),
+			libLog.String("organization_id", organizationID.String()),
+			libLog.String("ledger_id", ledgerID.String()),
+			libLog.String("operation_route_id", id.String()),
+		)
 
 		return err
 	}
-
-	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get rows affected", libLog.Err(err))
 
 		return err
 	}
@@ -536,7 +559,13 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to delete operation route. Rows affected is 0", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to delete operation route. Rows affected is 0: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Operation route not found for delete",
+			libLog.Err(err),
+			libLog.String("organization_id", organizationID.String()),
+			libLog.String("ledger_id", ledgerID.String()),
+			libLog.String("operation_route_id", id.String()),
+			libLog.Any("rows_affected", rowsAffected),
+		)
 
 		return err
 	}
@@ -677,7 +706,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 // HasTransactionRouteLinks checks if an operation route is linked to any transaction routes.
 // It returns true if the operation route is linked to at least one transaction route, false otherwise.
-func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx context.Context, operationRouteID uuid.UUID) (bool, error) {
+func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx context.Context, organizationID, ledgerID, operationRouteID uuid.UUID) (bool, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.has_transaction_route_links")
@@ -692,8 +721,17 @@ func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx contex
 		return false, err
 	}
 
-	query := `SELECT EXISTS(SELECT 1 FROM operation_transaction_route WHERE operation_route_id = $1 AND deleted_at IS NULL)`
-	args := []any{operationRouteID}
+	query := `SELECT EXISTS(
+		SELECT 1
+		FROM operation_transaction_route otr
+		JOIN operation_route opr ON opr.id = otr.operation_route_id
+		WHERE otr.operation_route_id = $1
+		AND opr.organization_id = $2
+		AND opr.ledger_id = $3
+		AND otr.deleted_at IS NULL
+		AND opr.deleted_at IS NULL
+	)`
+	args := []any{operationRouteID, organizationID, ledgerID}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.has_transaction_route_links.query")
 

@@ -721,7 +721,7 @@ func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_NoLinks(t
 	ctx := context.Background()
 
 	// Act
-	hasLinks, err := repo.HasTransactionRouteLinks(ctx, operationRouteID)
+	hasLinks, err := repo.HasTransactionRouteLinks(ctx, orgID, ledgerID, operationRouteID)
 
 	// Assert
 	require.NoError(t, err, "HasTransactionRouteLinks should not return error")
@@ -747,11 +747,35 @@ func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_WithLinks
 	ctx := context.Background()
 
 	// Act
-	hasLinks, err := repo.HasTransactionRouteLinks(ctx, operationRouteID)
+	hasLinks, err := repo.HasTransactionRouteLinks(ctx, orgID, ledgerID, operationRouteID)
 
 	// Assert
 	require.NoError(t, err, "HasTransactionRouteLinks should not return error")
 	assert.True(t, hasLinks, "should return true for linked route")
+}
+
+func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_WrongScope(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	otherOrgID := uuid.Must(libCommons.GenerateUUIDv7())
+	otherLedgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	// Insert linked operation route in the owning organization/ledger.
+	operationRouteID := pgtestutil.CreateTestOperationRouteSimple(t, container.DB, orgID, ledgerID, "Scoped Linked Route", "source")
+	transactionRouteID := pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerID, "Scoped Transaction Route")
+	pgtestutil.CreateTestOperationTransactionRouteLink(t, container.DB, operationRouteID, transactionRouteID)
+
+	ctx := context.Background()
+
+	// Act
+	hasLinks, err := repo.HasTransactionRouteLinks(ctx, otherOrgID, otherLedgerID, operationRouteID)
+
+	// Assert
+	require.NoError(t, err, "HasTransactionRouteLinks should not return error")
+	assert.False(t, hasLinks, "should not expose links outside the requested organization/ledger")
 }
 
 func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_SoftDeletedLink(t *testing.T) {
@@ -774,7 +798,7 @@ func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_SoftDelet
 	ctx := context.Background()
 
 	// Act
-	hasLinks, err := repo.HasTransactionRouteLinks(ctx, operationRouteID)
+	hasLinks, err := repo.HasTransactionRouteLinks(ctx, orgID, ledgerID, operationRouteID)
 
 	// Assert
 	require.NoError(t, err, "HasTransactionRouteLinks should not return error")

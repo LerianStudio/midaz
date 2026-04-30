@@ -30,7 +30,7 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Remove operation route for id: %s", id.String()))
 
-	hasLinks, err := uc.OperationRouteRepo.HasTransactionRouteLinks(ctx, id)
+	hasLinks, err := uc.OperationRouteRepo.HasTransactionRouteLinks(ctx, organizationID, ledgerID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check transaction route links", err)
 
