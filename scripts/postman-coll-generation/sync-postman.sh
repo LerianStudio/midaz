@@ -172,7 +172,7 @@ merge_all_collections() {
 }
 
 # Process based on what was successfully converted
-# Check if at least one component succeeded
+# Require both component conversions to succeed
 if [ "$LEDGER_STATUS" != "SUCCESS" ] || [ "$CRM_STATUS" != "SUCCESS" ]; then
 	echo -e "${RED}OpenAPI conversion failed (ledger=${LEDGER_STATUS}, crm=${CRM_STATUS}).${NC}"
 	rm -rf "${TEMP_DIR}"
