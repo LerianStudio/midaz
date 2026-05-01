@@ -46,6 +46,28 @@ func TestDeleteOperationRouteByIDSuccess(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TestDeleteOperationRouteByIDContextCanceled tests deletion with canceled context.
+func TestDeleteOperationRouteByIDContextCanceled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	operationRouteID := uuid.New()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	mockRepo := operationroute.NewMockRepository(ctrl)
+	uc := &UseCase{
+		OperationRouteRepo: mockRepo,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := uc.DeleteOperationRouteByID(ctx, organizationID, ledgerID, operationRouteID)
+
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
 // TestDeleteOperationRouteByIDNotFound tests deletion when operation route is not found
 func TestDeleteOperationRouteByIDNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
