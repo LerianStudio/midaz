@@ -7,60 +7,80 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-
-	// DeleteOperationRouteByID is a method that deletes Operation Route information.
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 )
 
+// DeleteOperationRouteByID deletes an operation route by ID.
 func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_operation_route_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Remove operation route for id: %s", id.String()))
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.operation_route_id", id.String()),
+	)
 
-	hasLinks, err := uc.OperationRouteRepo.HasTransactionRouteLinks(ctx, id)
+	if err := ctx.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Context canceled before deleting operation route", err)
+
+		return err
+	}
+
+	hasLinks, err := uc.OperationRouteRepo.HasTransactionRouteLinks(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check transaction route links", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to check transaction route links", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error checking transaction route links for operation route %s: %v", id.String(), err))
+		logger.Log(ctx, libLog.LevelError, "Failed to check transaction route links",
+			libLog.Err(err),
+			libLog.String("operation_route_id", id.String()),
+		)
 
 		return err
 	}
 
 	if hasLinks {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation Route cannot be deleted because it is linked to transaction routes", nil)
+		err := pkg.ValidateBusinessError(constant.ErrOperationRouteLinkedToTransactionRoutes, constant.EntityOperationRoute)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Operation Route ID %s cannot be deleted because it is linked to transaction routes", id.String()))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation route is linked to transaction routes", err)
 
-		return pkg.ValidateBusinessError(constant.ErrOperationRouteLinkedToTransactionRoutes, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		logger.Log(ctx, libLog.LevelWarn, "Operation route is linked to transaction routes",
+			libLog.String("operation_route_id", id.String()),
+		)
+
+		return err
 	}
 
 	if err := uc.OperationRouteRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation Route ID not found", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation route not found", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Operation Route ID not found: %s", id.String()))
+			logger.Log(ctx, libLog.LevelWarn, "Operation route not found",
+				libLog.String("operation_route_id", id.String()),
+			)
 
 			return err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete operation route on repo by id", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to delete operation route", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error deleting operation route: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to delete operation route",
+			libLog.Err(err),
+			libLog.String("operation_route_id", id.String()),
+		)
 
 		return err
 	}

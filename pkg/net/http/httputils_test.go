@@ -321,6 +321,15 @@ func TestValidateDates_WithMaxDateRangeZero(t *testing.T) {
 	assert.Equal(t, int64(0), startDate.Unix())
 }
 
+func TestDefaultPaginationDateRange_UsesUTCDate(t *testing.T) {
+	localTime := time.Date(2026, time.April, 30, 23, 30, 0, 0, time.FixedZone("BRT", -3*60*60))
+
+	startDate, endDate := defaultPaginationDateRange(localTime, 1)
+
+	assert.Equal(t, time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC), startDate)
+	assert.Equal(t, time.Date(2026, time.May, 1, 23, 59, 59, 999999999, time.UTC), endDate)
+}
+
 func TestValidatePagination_ValidParams(t *testing.T) {
 	_, err := validatePagination("", "asc", 10)
 

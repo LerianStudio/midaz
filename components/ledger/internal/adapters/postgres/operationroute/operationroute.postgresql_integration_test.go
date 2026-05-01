@@ -543,12 +543,29 @@ func TestIntegration_OperationRouteRepository_Delete_AlreadyDeleted(t *testing.T
 	ctx := context.Background()
 
 	// Act - delete already deleted record
-	// Note: The current implementation doesn't check rows affected for delete,
-	// so this will succeed silently (no error returned)
 	err := repo.Delete(ctx, orgID, ledgerID, operationRouteID)
 
-	// Assert - current behavior: no error (DELETE WHERE deleted_at IS NULL affects 0 rows)
-	require.NoError(t, err, "Delete does not return error for already-deleted record (known behavior)")
+	// Assert - already-deleted records are not matched by the soft-delete query
+	require.Error(t, err, "Delete should return error for already-deleted record")
+	assert.ErrorIs(t, err, services.ErrDatabaseItemNotFound, "error should be ErrDatabaseItemNotFound")
+}
+
+func TestIntegration_OperationRouteRepository_Delete_NotFound(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	ctx := context.Background()
+
+	// Act
+	err := repo.Delete(ctx, orgID, ledgerID, nonExistentID)
+
+	// Assert
+	require.Error(t, err, "Delete should return error for non-existent ID")
+	assert.ErrorIs(t, err, services.ErrDatabaseItemNotFound, "error should be ErrDatabaseItemNotFound")
 }
 
 // ============================================================================
@@ -704,7 +721,7 @@ func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_NoLinks(t
 	ctx := context.Background()
 
 	// Act
-	hasLinks, err := repo.HasTransactionRouteLinks(ctx, operationRouteID)
+	hasLinks, err := repo.HasTransactionRouteLinks(ctx, orgID, ledgerID, operationRouteID)
 
 	// Assert
 	require.NoError(t, err, "HasTransactionRouteLinks should not return error")
@@ -730,11 +747,35 @@ func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_WithLinks
 	ctx := context.Background()
 
 	// Act
-	hasLinks, err := repo.HasTransactionRouteLinks(ctx, operationRouteID)
+	hasLinks, err := repo.HasTransactionRouteLinks(ctx, orgID, ledgerID, operationRouteID)
 
 	// Assert
 	require.NoError(t, err, "HasTransactionRouteLinks should not return error")
 	assert.True(t, hasLinks, "should return true for linked route")
+}
+
+func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_WrongScope(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	otherOrgID := uuid.Must(libCommons.GenerateUUIDv7())
+	otherLedgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	// Insert linked operation route in the owning organization/ledger.
+	operationRouteID := pgtestutil.CreateTestOperationRouteSimple(t, container.DB, orgID, ledgerID, "Scoped Linked Route", "source")
+	transactionRouteID := pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerID, "Scoped Transaction Route")
+	pgtestutil.CreateTestOperationTransactionRouteLink(t, container.DB, operationRouteID, transactionRouteID)
+
+	ctx := context.Background()
+
+	// Act
+	hasLinks, err := repo.HasTransactionRouteLinks(ctx, otherOrgID, otherLedgerID, operationRouteID)
+
+	// Assert
+	require.NoError(t, err, "HasTransactionRouteLinks should not return error")
+	assert.False(t, hasLinks, "should not expose links outside the requested organization/ledger")
 }
 
 func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_SoftDeletedLink(t *testing.T) {
@@ -757,7 +798,7 @@ func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_SoftDelet
 	ctx := context.Background()
 
 	// Act
-	hasLinks, err := repo.HasTransactionRouteLinks(ctx, operationRouteID)
+	hasLinks, err := repo.HasTransactionRouteLinks(ctx, orgID, ledgerID, operationRouteID)
 
 	// Assert
 	require.NoError(t, err, "HasTransactionRouteLinks should not return error")

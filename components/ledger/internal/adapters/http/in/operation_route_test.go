@@ -865,7 +865,7 @@ func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) {
 			setupMocks: func(operationRouteRepo *operationroute.MockRepository, orgID, ledgerID, operationRouteID uuid.UUID) {
 				// Check for transaction route links
 				operationRouteRepo.EXPECT().
-					HasTransactionRouteLinks(gomock.Any(), operationRouteID).
+					HasTransactionRouteLinks(gomock.Any(), orgID, ledgerID, operationRouteID).
 					Return(false, nil).
 					Times(1)
 
@@ -883,7 +883,7 @@ func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) {
 			setupMocks: func(operationRouteRepo *operationroute.MockRepository, orgID, ledgerID, operationRouteID uuid.UUID) {
 				// Check for transaction route links
 				operationRouteRepo.EXPECT().
-					HasTransactionRouteLinks(gomock.Any(), operationRouteID).
+					HasTransactionRouteLinks(gomock.Any(), orgID, ledgerID, operationRouteID).
 					Return(false, nil).
 					Times(1)
 
@@ -907,7 +907,7 @@ func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) {
 			setupMocks: func(operationRouteRepo *operationroute.MockRepository, orgID, ledgerID, operationRouteID uuid.UUID) {
 				// Check for transaction route links - returns true
 				operationRouteRepo.EXPECT().
-					HasTransactionRouteLinks(gomock.Any(), operationRouteID).
+					HasTransactionRouteLinks(gomock.Any(), orgID, ledgerID, operationRouteID).
 					Return(true, nil).
 					Times(1)
 				// Delete should NOT be called
@@ -926,7 +926,7 @@ func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) {
 			name: "has links check error returns 500",
 			setupMocks: func(operationRouteRepo *operationroute.MockRepository, orgID, ledgerID, operationRouteID uuid.UUID) {
 				operationRouteRepo.EXPECT().
-					HasTransactionRouteLinks(gomock.Any(), operationRouteID).
+					HasTransactionRouteLinks(gomock.Any(), orgID, ledgerID, operationRouteID).
 					Return(false, pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
@@ -948,7 +948,7 @@ func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) {
 			name: "repository delete error returns 500",
 			setupMocks: func(operationRouteRepo *operationroute.MockRepository, orgID, ledgerID, operationRouteID uuid.UUID) {
 				operationRouteRepo.EXPECT().
-					HasTransactionRouteLinks(gomock.Any(), operationRouteID).
+					HasTransactionRouteLinks(gomock.Any(), orgID, ledgerID, operationRouteID).
 					Return(false, nil).
 					Times(1)
 
