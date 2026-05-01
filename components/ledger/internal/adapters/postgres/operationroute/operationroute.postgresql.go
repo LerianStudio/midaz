@@ -103,6 +103,7 @@ func (r *OperationRoutePostgreSQLRepository) getDB(ctx context.Context) (dbresol
 
 func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organizationID, ledgerID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
 	operationRouteID := uuid.Nil
 	if operationRoute != nil {
 		operationRouteID = operationRoute.ID
@@ -110,6 +111,7 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 
 	ctx, span := tracer.Start(ctx, "postgres.create_operation_route")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
@@ -149,6 +151,7 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 
 		return nil, err
 	}
+
 	logger.Log(ctx, libLog.LevelDebug, "Built create operation route query", libLog.String("query", query))
 
 	_, spanExec := tracer.Start(ctx, "postgres.create.exec")
@@ -191,6 +194,7 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 
 		return nil, err
 	}
+
 	spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 
 	if rowsAffected == 0 {
@@ -215,6 +219,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 
 	ctx, span := tracer.Start(ctx, "postgres.find_operation_route")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
@@ -251,6 +256,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 
 		return nil, err
 	}
+
 	logger.Log(ctx, libLog.LevelDebug, "Built find operation route query", libLog.String("query", query))
 
 	operationRoute := &OperationRoutePostgreSQLModel{}
@@ -306,6 +312,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 
 	ctx, span := tracer.Start(ctx, "postgres.find_operation_routes_by_ids")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
@@ -347,6 +354,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 
 		return nil, err
 	}
+
 	logger.Log(ctx, libLog.LevelDebug, "Built find operation routes by IDs query", libLog.String("query", findByIDsSql))
 
 	_, spanQuery := tracer.Start(ctx, "postgres.find_by_ids.query")
@@ -400,6 +408,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 
 		return nil, err
 	}
+
 	spanQuery.SetAttributes(attribute.Int("db.rows_returned", len(operationRoutes)))
 
 	var missingIDs []string
@@ -433,6 +442,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 
 	ctx, span := tracer.Start(ctx, "postgres.update_operation_route")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
@@ -512,6 +522,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 
 		return nil, err
 	}
+
 	logger.Log(ctx, libLog.LevelDebug, "Built update operation route query", libLog.String("query", query))
 
 	_, spanExec := tracer.Start(ctx, "postgres.update.exec")
@@ -554,6 +565,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 
 		return nil, err
 	}
+
 	spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 
 	if rowsAffected == 0 {
@@ -578,6 +590,7 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_operation_route")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
@@ -618,6 +631,7 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 
 		return err
 	}
+
 	logger.Log(ctx, libLog.LevelDebug, "Built delete operation route query", libLog.String("query", query))
 
 	_, spanExec := tracer.Start(ctx, "postgres.delete.exec")
@@ -646,6 +660,7 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 
 		return err
 	}
+
 	spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 
 	if rowsAffected == 0 {
@@ -670,6 +685,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operation_routes")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
@@ -733,6 +749,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
+
 	logger.Log(ctx, libLog.LevelDebug, "Built find all operation routes query", libLog.String("query", query))
 
 	_, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -780,6 +797,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
+
 	spanQuery.SetAttributes(attribute.Int("db.rows_returned", len(operationRoutes)))
 
 	hasPagination := len(operationRoutes) > filter.Limit
@@ -806,6 +824,7 @@ func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx contex
 
 	ctx, span := tracer.Start(ctx, "postgres.has_transaction_route_links")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
@@ -853,6 +872,7 @@ func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx contex
 
 		return false, err
 	}
+
 	logger.Log(ctx, libLog.LevelDebug, "Built transaction route link query", libLog.String("query", query))
 
 	_, spanQuery := tracer.Start(ctx, "postgres.has_transaction_route_links.query")
@@ -872,6 +892,7 @@ func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx contex
 
 		return false, err
 	}
+
 	spanQuery.SetAttributes(attribute.Bool("app.operation_route_has_transaction_route_links", exists))
 
 	return exists, nil
@@ -882,6 +903,7 @@ func (r *OperationRoutePostgreSQLRepository) FindTransactionRouteIDs(ctx context
 
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_route_ids")
 	defer span.End()
+
 	span.SetAttributes(attribute.String("app.request.operation_route_id", operationRouteID.String()))
 
 	if err := ctx.Err(); err != nil {
@@ -918,6 +940,7 @@ func (r *OperationRoutePostgreSQLRepository) FindTransactionRouteIDs(ctx context
 
 		return nil, err
 	}
+
 	logger.Log(ctx, libLog.LevelDebug, "Built transaction route IDs query", libLog.String("query", query))
 
 	_, spanQuery := tracer.Start(ctx, "postgres.find_transaction_route_ids.query")
@@ -965,6 +988,7 @@ func (r *OperationRoutePostgreSQLRepository) FindTransactionRouteIDs(ctx context
 
 		return nil, err
 	}
+
 	spanQuery.SetAttributes(attribute.Int("db.rows_returned", len(transactionRouteIDs)))
 
 	return transactionRouteIDs, nil
