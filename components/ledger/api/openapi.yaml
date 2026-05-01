@@ -14,7 +14,7 @@ info:
   title: Midaz Ledger API
   version: v3.7.0
 servers:
-- url: //localhost:3002/
+- url: http://localhost:3002/
 paths:
   /v1/organizations:
     get:

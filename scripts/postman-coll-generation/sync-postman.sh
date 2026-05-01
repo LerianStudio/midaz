@@ -173,10 +173,10 @@ merge_all_collections() {
 
 # Process based on what was successfully converted
 # Check if at least one component succeeded
-if [ "$LEDGER_STATUS" != "SUCCESS" ] && [ "$CRM_STATUS" != "SUCCESS" ]; then
-    echo -e "${RED}No OpenAPI specs were successfully converted.${NC}"
-    rm -rf "${TEMP_DIR}"
-    exit 1
+if [ "$LEDGER_STATUS" != "SUCCESS" ] || [ "$CRM_STATUS" != "SUCCESS" ]; then
+	echo -e "${RED}OpenAPI conversion failed (ledger=${LEDGER_STATUS}, crm=${CRM_STATUS}).${NC}"
+	rm -rf "${TEMP_DIR}"
+	exit 1
 fi
 
 # Merge all successful collections

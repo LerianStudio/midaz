@@ -10985,7 +10985,7 @@ var SwaggerInfo = &swag.Spec{
 	Version:          "v3.7.0",
 	Host:             "localhost:3002",
 	BasePath:         "/",
-	Schemes:          []string{},
+	Schemes:          []string{"http"},
 	Title:            "Midaz Ledger API",
 	Description:      "This is a swagger documentation for the Midaz Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments), Transaction endpoints (transactions, balances, operations, asset-rates), and Metadata Index endpoints in a single service.",
 	InfoInstanceName: "swagger",

@@ -21,6 +21,7 @@ import (
 // @description				The CRM API provides a set of endpoints for managing holder data, including information related to their ledger accounts.
 // @host						localhost:4003
 // @BasePath					/
+// @schemes					http
 // @securityDefinitions.apikey	BearerAuth
 // @in							header
 // @name						Authorization

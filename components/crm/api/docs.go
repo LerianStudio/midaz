@@ -1599,7 +1599,7 @@ var SwaggerInfo = &swag.Spec{
 	Version:          "v3.7.0",
 	Host:             "localhost:4003",
 	BasePath:         "/",
-	Schemes:          []string{},
+	Schemes:          []string{"http"},
 	Title:            "CRM API",
 	Description:      "The CRM API provides a set of endpoints for managing holder data, including information related to their ledger accounts.",
 	InfoInstanceName: "swagger",

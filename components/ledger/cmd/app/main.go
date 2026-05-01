@@ -26,6 +26,7 @@ import (
 // @license.url	https://www.elastic.co/licensing/elastic-license
 // @host			localhost:3002
 // @BasePath		/
+// @schemes		http
 // @securityDefinitions.apikey	BearerAuth
 // @in							header
 // @name						Authorization

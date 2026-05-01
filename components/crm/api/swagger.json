@@ -1,4 +1,7 @@
 {
+    "schemes": [
+        "http"
+    ],
     "swagger": "2.0",
     "info": {
         "description": "The CRM API provides a set of endpoints for managing holder data, including information related to their ledger accounts.",

@@ -6,7 +6,7 @@ info:
   title: CRM API
   version: v3.7.0
 servers:
-- url: //localhost:4003/
+- url: http://localhost:4003/
 paths:
   /v1/aliases:
     get:
