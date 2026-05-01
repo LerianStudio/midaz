@@ -33,7 +33,7 @@ var validTransactionStatuses = map[string]bool{
 //	@Summary		Count Transactions by Filters
 //	@Description	Count transactions matching optional filters (route, status, date range)
 //	@Tags			Transactions
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"	format(uuid)
 //	@Param			ledger_id		path		string	true	"Ledger ID"			format(uuid)

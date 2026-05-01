@@ -11,6 +11,9 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -175,6 +178,41 @@ func TestNewRouter_PublicEndpointsBypassTenantMiddleware(t *testing.T) {
 
 			assert.Equal(t, tt.wantStatus, resp.StatusCode,
 				"public endpoint %s must be accessible without tenant context", tt.path)
+		})
+	}
+}
+
+func TestNewRouter_ServesSwaggerUIAssets(t *testing.T) {
+	t.Parallel()
+
+	app := NewRouter(
+		&libLog.GoLogger{},
+		&libOpentelemetry.Telemetry{},
+		&middleware.AuthClient{Enabled: false},
+		nil,
+		nil,
+		&HolderHandler{},
+		&AliasHandler{},
+	)
+
+	for _, path := range []string{
+		"/swagger/index.html",
+		"/swagger/doc.json",
+		"/swagger/swagger-ui.css",
+		"/swagger/swagger-ui-bundle.js",
+		"/swagger/swagger-ui-standalone-preset.js",
+	} {
+		path := path
+
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 	}
 }

@@ -44,7 +44,7 @@ func NewUnifiedServer(
 	routeRegistrars ...RouteRegistrar,
 ) *UnifiedServer {
 	app := fiber.New(fiber.Config{
-		AppName:               "Midaz Unified Ledger API",
+		AppName:               "Midaz Ledger API",
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
 			return libHTTP.FiberErrorHandler(ctx, err)
@@ -70,6 +70,9 @@ func NewUnifiedServer(
 	}
 
 	// Swagger documentation (unified onboarding + transaction)
+	app.Get("/swagger", func(c *fiber.Ctx) error {
+		return c.Redirect("/swagger/index.html", fiber.StatusMovedPermanently)
+	})
 	app.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
 		fiberSwagger.InstanceName("swagger"),
 	))

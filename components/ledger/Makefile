@@ -241,14 +241,19 @@ run:
 
 .PHONY: generate-docs
 generate-docs:
-	$(call title1,"Generating Swagger API documentation - Ledger (Unified)")
-	@if ! command -v jq >/dev/null 2>&1; then \
-		echo "$(RED)Error: jq is required. Install with: brew install jq$(NC)"; \
-		exit 1; \
-	fi
-	@chmod +x $(MIDAZ_ROOT)/components/ledger/scripts/merge-swagger.sh
-	@$(MIDAZ_ROOT)/components/ledger/scripts/merge-swagger.sh
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Unified Swagger documentation generated$(GREEN) ✔️$(NC)"
+	$(call title1,"Generating Swagger API documentation - Ledger")
+	@SWAG_BIN=$$(command -v swag 2>/dev/null || true); \
+	if [ -z "$$SWAG_BIN" ]; then \
+		echo "$(YELLOW)Installing swag...$(NC)"; \
+		go install github.com/swaggo/swag/cmd/swag@v1.16.6; \
+		GO_BIN=$$(go env GOBIN); \
+		if [ -z "$$GO_BIN" ]; then \
+			GO_BIN="$$(go env GOPATH)/bin"; \
+		fi; \
+		SWAG_BIN="$$GO_BIN/swag"; \
+	fi; \
+	cd $(MIDAZ_ROOT)/components/ledger && "$$SWAG_BIN" init -g cmd/app/main.go -o api --parseDependency --parseInternal --outputTypes go,json,yaml
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger documentation generated$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Developer Helper Commands

@@ -1167,6 +1167,8 @@ paths:
       summary: Update a Holder
       tags:
       - Holders
+schemes:
+- http
 securityDefinitions:
   BearerAuth:
     description: 'Bearer token authentication. Format: ''Bearer {access_token}''.

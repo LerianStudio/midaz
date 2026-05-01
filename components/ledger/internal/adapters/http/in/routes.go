@@ -53,8 +53,11 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/version", libHTTP.Version)
 
 	// Doc
+	f.Get("/swagger", func(c *fiber.Ctx) error {
+		return c.Redirect("/swagger/index.html", fiber.StatusMovedPermanently)
+	})
 	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
-		fiberSwagger.InstanceName("ledger"),
+		fiberSwagger.InstanceName("swagger"),
 	))
 
 	f.Use(tlMid.EndTracingSpans)
