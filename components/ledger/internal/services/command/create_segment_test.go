@@ -49,7 +49,7 @@ func TestCreateSegment(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					FindByName(gomock.Any(), gomock.Any(), gomock.Any(), "Test Segment").
+					ExistsByName(gomock.Any(), gomock.Any(), gomock.Any(), "Test Segment").
 					Return(true, nil)
 				mockRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
@@ -71,7 +71,7 @@ func TestCreateSegment(t *testing.T) {
 			},
 		},
 		{
-			name:           "Error when FindByName fails",
+			name:           "Error when ExistsByName fails",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
 			input: &mmodel.CreateSegmentInput{
@@ -83,7 +83,7 @@ func TestCreateSegment(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					FindByName(gomock.Any(), gomock.Any(), gomock.Any(), "Failing Segment").
+					ExistsByName(gomock.Any(), gomock.Any(), gomock.Any(), "Failing Segment").
 					Return(false, errors.New("repository error"))
 			},
 			expectErr:    true,
@@ -100,7 +100,7 @@ func TestCreateSegment(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					FindByName(gomock.Any(), gomock.Any(), gomock.Any(), "Default Status Segment").
+					ExistsByName(gomock.Any(), gomock.Any(), gomock.Any(), "Default Status Segment").
 					Return(true, nil)
 				mockRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).

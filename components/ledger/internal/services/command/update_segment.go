@@ -46,8 +46,8 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 		}
 
 		if segmentFound != nil && segmentFound.Name != upi.Name {
-			if _, err := uc.SegmentRepo.FindByName(ctx, organizationID, ledgerID, upi.Name); err != nil {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find segment by name", err)
+			if _, err := uc.SegmentRepo.ExistsByName(ctx, organizationID, ledgerID, upi.Name); err != nil {
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check segment name existence", err)
 				logger.Log(ctx, libLog.LevelWarn, "Segment name is not available", libLog.Err(err), libLog.String("segment_id", id.String()))
 
 				return nil, err

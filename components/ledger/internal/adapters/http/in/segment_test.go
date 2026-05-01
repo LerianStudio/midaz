@@ -43,9 +43,9 @@ func TestHandler_CreateSegment(t *testing.T) {
 				},
 			},
 			setupMocks: func(segmentRepo *segment.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
-				// FindByName check for duplicate names (returns false = name available)
+				// ExistsByName check for duplicate names (returns false = name available)
 				segmentRepo.EXPECT().
-					FindByName(gomock.Any(), orgID, ledgerID, "Test Segment").
+					ExistsByName(gomock.Any(), orgID, ledgerID, "Test Segment").
 					Return(false, nil).
 					Times(1)
 
@@ -95,9 +95,9 @@ func TestHandler_CreateSegment(t *testing.T) {
 				Name: "Existing Segment",
 			},
 			setupMocks: func(segmentRepo *segment.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
-				// FindByName returns error for duplicate
+				// ExistsByName returns error for duplicate
 				segmentRepo.EXPECT().
-					FindByName(gomock.Any(), orgID, ledgerID, "Existing Segment").
+					ExistsByName(gomock.Any(), orgID, ledgerID, "Existing Segment").
 					Return(true, pkg.ValidateBusinessError(cn.ErrDuplicateSegmentName, reflect.TypeOf(mmodel.Segment{}).Name(), "Existing Segment", ledgerID)).
 					Times(1)
 			},
@@ -118,7 +118,7 @@ func TestHandler_CreateSegment(t *testing.T) {
 			},
 			setupMocks: func(segmentRepo *segment.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				segmentRepo.EXPECT().
-					FindByName(gomock.Any(), orgID, ledgerID, "Test Segment").
+					ExistsByName(gomock.Any(), orgID, ledgerID, "Test Segment").
 					Return(false, nil).
 					Times(1)
 
@@ -212,7 +212,7 @@ func TestHandler_UpdateSegment(t *testing.T) {
 					Times(1)
 
 				segmentRepo.EXPECT().
-					FindByName(gomock.Any(), orgID, ledgerID, "Updated Segment Name").
+					ExistsByName(gomock.Any(), orgID, ledgerID, "Updated Segment Name").
 					Return(false, nil).
 					Times(1)
 
@@ -297,7 +297,7 @@ func TestHandler_UpdateSegment(t *testing.T) {
 					Times(1)
 
 				segmentRepo.EXPECT().
-					FindByName(gomock.Any(), orgID, ledgerID, "Existing Segment").
+					ExistsByName(gomock.Any(), orgID, ledgerID, "Existing Segment").
 					Return(true, pkg.ValidateBusinessError(cn.ErrDuplicateSegmentName, reflect.TypeOf(mmodel.Segment{}).Name(), "Existing Segment", ledgerID)).
 					Times(1)
 			},
@@ -344,7 +344,7 @@ func TestHandler_UpdateSegment(t *testing.T) {
 					Times(1)
 
 				segmentRepo.EXPECT().
-					FindByName(gomock.Any(), orgID, ledgerID, "Updated Name").
+					ExistsByName(gomock.Any(), orgID, ledgerID, "Updated Name").
 					Return(false, nil).
 					Times(1)
 
@@ -387,7 +387,7 @@ func TestHandler_UpdateSegment(t *testing.T) {
 					Times(1)
 
 				segmentRepo.EXPECT().
-					FindByName(gomock.Any(), orgID, ledgerID, "Updated Name").
+					ExistsByName(gomock.Any(), orgID, ledgerID, "Updated Name").
 					Return(false, nil).
 					Times(1)
 

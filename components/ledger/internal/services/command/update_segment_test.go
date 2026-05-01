@@ -57,7 +57,7 @@ func TestUpdateSegmentByID(t *testing.T) {
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Segment{ID: "123", Name: "Original Segment"}, nil)
 				mockSegmentRepo.EXPECT().
-					FindByName(gomock.Any(), gomock.Any(), gomock.Any(), "Updated Segment").
+					ExistsByName(gomock.Any(), gomock.Any(), gomock.Any(), "Updated Segment").
 					Return(false, nil)
 				mockSegmentRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -126,7 +126,7 @@ func TestUpdateSegmentByID(t *testing.T) {
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Segment{ID: "123", Name: "Original Segment"}, nil)
 				mockSegmentRepo.EXPECT().
-					FindByName(gomock.Any(), gomock.Any(), gomock.Any(), "Existing Segment").
+					ExistsByName(gomock.Any(), gomock.Any(), gomock.Any(), "Existing Segment").
 					Return(true, pkg.ValidateBusinessError(constant.ErrDuplicateSegmentName, reflect.TypeOf(mmodel.Segment{}).Name(), "Existing Segment", uuid.New()))
 			},
 			expectErr: true,
@@ -146,7 +146,7 @@ func TestUpdateSegmentByID(t *testing.T) {
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Segment{ID: "123", Name: "Original Segment"}, nil)
 				mockSegmentRepo.EXPECT().
-					FindByName(gomock.Any(), gomock.Any(), gomock.Any(), "Segment with Metadata Error").
+					ExistsByName(gomock.Any(), gomock.Any(), gomock.Any(), "Segment with Metadata Error").
 					Return(false, nil)
 				mockSegmentRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -175,7 +175,7 @@ func TestUpdateSegmentByID(t *testing.T) {
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Segment{ID: "123", Name: "Original Segment"}, nil)
 				mockSegmentRepo.EXPECT().
-					FindByName(gomock.Any(), gomock.Any(), gomock.Any(), "Update Failure Segment").
+					ExistsByName(gomock.Any(), gomock.Any(), gomock.Any(), "Update Failure Segment").
 					Return(false, nil)
 				mockSegmentRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
