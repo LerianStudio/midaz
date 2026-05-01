@@ -31,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/attribute"
 
 	// Repository provides an interface for operations related to operation route entities.
 	// It defines methods for creating, retrieving, updating, and deleting operation routes.
@@ -494,6 +495,11 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_operation_route")
 	defer span.End()
+	span.SetAttributes(
+		attribute.String("app.organization_id", organizationID.String()),
+		attribute.String("app.ledger_id", ledgerID.String()),
+		attribute.String("app.operation_route_id", id.String()),
+	)
 
 	if err := ctx.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Context finished before deleting operation route", err)
@@ -504,7 +510,6 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return err
@@ -523,10 +528,14 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build delete query", err)
 
-		logger.Log(ctx, libLog.LevelError, "Failed to build delete query", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to build delete query",
+			libLog.Err(err),
+			libLog.String("operation_route_id", id.String()),
+		)
 
 		return err
 	}
+	logger.Log(ctx, libLog.LevelDebug, "Built delete operation route query", libLog.String("query", query))
 
 	_, spanExec := tracer.Start(ctx, "postgres.delete.exec")
 	defer spanExec.End()
@@ -537,8 +546,6 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 
 		logger.Log(ctx, libLog.LevelError, "Failed to execute delete query",
 			libLog.Err(err),
-			libLog.String("organization_id", organizationID.String()),
-			libLog.String("ledger_id", ledgerID.String()),
 			libLog.String("operation_route_id", id.String()),
 		)
 
@@ -547,12 +554,16 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to get rows affected", err)
 
-		logger.Log(ctx, libLog.LevelError, "Failed to get rows affected", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get rows affected",
+			libLog.Err(err),
+			libLog.String("operation_route_id", id.String()),
+		)
 
 		return err
 	}
+	spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 
 	if rowsAffected == 0 {
 		err := services.ErrDatabaseItemNotFound
@@ -561,8 +572,6 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 
 		logger.Log(ctx, libLog.LevelWarn, "Operation route not found for delete",
 			libLog.Err(err),
-			libLog.String("organization_id", organizationID.String()),
-			libLog.String("ledger_id", ledgerID.String()),
 			libLog.String("operation_route_id", id.String()),
 			libLog.Any("rows_affected", rowsAffected),
 		)
@@ -711,43 +720,73 @@ func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx contex
 
 	ctx, span := tracer.Start(ctx, "postgres.has_transaction_route_links")
 	defer span.End()
+	span.SetAttributes(
+		attribute.String("app.organization_id", organizationID.String()),
+		attribute.String("app.ledger_id", ledgerID.String()),
+		attribute.String("app.operation_route_id", operationRouteID.String()),
+	)
+
+	if err := ctx.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Context finished before checking operation route links", err)
+
+		return false, err
+	}
 
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection",
+			libLog.Err(err),
+			libLog.String("operation_route_id", operationRouteID.String()),
+		)
 
 		return false, err
 	}
 
-	query := `SELECT EXISTS(
+	query, args, err := squirrel.Select().
+		Column(squirrel.Expr(`EXISTS(
 		SELECT 1
 		FROM operation_transaction_route otr
 		JOIN operation_route opr ON opr.id = otr.operation_route_id
-		WHERE otr.operation_route_id = $1
-		AND opr.organization_id = $2
-		AND opr.ledger_id = $3
+		WHERE otr.operation_route_id = ?
+		AND opr.organization_id = ?
+		AND opr.ledger_id = ?
 		AND otr.deleted_at IS NULL
 		AND opr.deleted_at IS NULL
-	)`
-	args := []any{operationRouteID, organizationID, ledgerID}
+	)`, operationRouteID, organizationID, ledgerID)).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build transaction route link query", err)
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.has_transaction_route_links.query")
+		logger.Log(ctx, libLog.LevelError, "Failed to build transaction route link query",
+			libLog.Err(err),
+			libLog.String("operation_route_id", operationRouteID.String()),
+		)
+
+		return false, err
+	}
+	logger.Log(ctx, libLog.LevelDebug, "Built transaction route link query", libLog.String("query", query))
+
+	_, spanQuery := tracer.Start(ctx, "postgres.has_transaction_route_links.query")
+	defer spanQuery.End()
 
 	var exists bool
 
 	row := db.QueryRowContext(ctx, query, args...)
 
-	spanQuery.End()
-
 	if err := row.Scan(&exists); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to scan exists result", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to scan transaction route link result", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan exists result: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to scan transaction route link result",
+			libLog.Err(err),
+			libLog.String("operation_route_id", operationRouteID.String()),
+		)
 
 		return false, err
 	}
+	spanQuery.SetAttributes(attribute.Bool("app.operation_route_has_transaction_route_links", exists))
 
 	return exists, nil
 }
