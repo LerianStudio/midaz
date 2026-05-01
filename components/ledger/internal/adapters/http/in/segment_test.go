@@ -206,6 +206,16 @@ func TestHandler_UpdateSegment(t *testing.T) {
 				Name: "Updated Segment Name",
 			},
 			setupMocks: func(segmentRepo *segment.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, segmentID uuid.UUID) {
+				segmentRepo.EXPECT().
+					Find(gomock.Any(), orgID, ledgerID, segmentID).
+					Return(&mmodel.Segment{ID: segmentID.String(), Name: "Original Segment Name"}, nil).
+					Times(1)
+
+				segmentRepo.EXPECT().
+					FindByName(gomock.Any(), orgID, ledgerID, "Updated Segment Name").
+					Return(false, nil).
+					Times(1)
+
 				// Update succeeds
 				segmentRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, segmentID, gomock.Any()).
@@ -276,13 +286,39 @@ func TestHandler_UpdateSegment(t *testing.T) {
 			},
 		},
 		{
+			name: "duplicate name on update returns 409 conflict",
+			payload: &mmodel.UpdateSegmentInput{
+				Name: "Existing Segment",
+			},
+			setupMocks: func(segmentRepo *segment.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, segmentID uuid.UUID) {
+				segmentRepo.EXPECT().
+					Find(gomock.Any(), orgID, ledgerID, segmentID).
+					Return(&mmodel.Segment{ID: segmentID.String(), Name: "Original Segment"}, nil).
+					Times(1)
+
+				segmentRepo.EXPECT().
+					FindByName(gomock.Any(), orgID, ledgerID, "Existing Segment").
+					Return(true, pkg.ValidateBusinessError(cn.ErrDuplicateSegmentName, reflect.TypeOf(mmodel.Segment{}).Name(), "Existing Segment", ledgerID)).
+					Times(1)
+			},
+			expectedStatus: 409,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrDuplicateSegmentName.Error(), errResp["code"])
+			},
+		},
+		{
 			name: "not found on update returns 404",
 			payload: &mmodel.UpdateSegmentInput{
 				Name: "Updated Name",
 			},
 			setupMocks: func(segmentRepo *segment.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, segmentID uuid.UUID) {
 				segmentRepo.EXPECT().
-					Update(gomock.Any(), orgID, ledgerID, segmentID, gomock.Any()).
+					Find(gomock.Any(), orgID, ledgerID, segmentID).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrSegmentIDNotFound, reflect.TypeOf(mmodel.Segment{}).Name())).
 					Times(1)
 			},
@@ -302,6 +338,16 @@ func TestHandler_UpdateSegment(t *testing.T) {
 				Name: "Updated Name",
 			},
 			setupMocks: func(segmentRepo *segment.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, segmentID uuid.UUID) {
+				segmentRepo.EXPECT().
+					Find(gomock.Any(), orgID, ledgerID, segmentID).
+					Return(&mmodel.Segment{ID: segmentID.String(), Name: "Original Segment"}, nil).
+					Times(1)
+
+				segmentRepo.EXPECT().
+					FindByName(gomock.Any(), orgID, ledgerID, "Updated Name").
+					Return(false, nil).
+					Times(1)
+
 				// Update succeeds
 				segmentRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, segmentID, gomock.Any()).
@@ -335,6 +381,16 @@ func TestHandler_UpdateSegment(t *testing.T) {
 				Name: "Updated Name",
 			},
 			setupMocks: func(segmentRepo *segment.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, segmentID uuid.UUID) {
+				segmentRepo.EXPECT().
+					Find(gomock.Any(), orgID, ledgerID, segmentID).
+					Return(&mmodel.Segment{ID: segmentID.String(), Name: "Original Segment"}, nil).
+					Times(1)
+
+				segmentRepo.EXPECT().
+					FindByName(gomock.Any(), orgID, ledgerID, "Updated Name").
+					Return(false, nil).
+					Times(1)
+
 				segmentRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, segmentID, gomock.Any()).
 					Return(nil, pkg.InternalServerError{
