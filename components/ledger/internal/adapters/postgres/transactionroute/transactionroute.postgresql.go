@@ -36,7 +36,7 @@ import (
 // Repository provides an interface for operations related to transaction route entities.
 // It defines methods for creating transaction routes.
 //
-//go:generate mockgen --destination=transactionroute.postgresql_mock.go --package=transactionroute . Repository
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=transactionroute.postgresql_mock.go --package=transactionroute . Repository
 type Repository interface {
 	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error)
 	FindByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error)

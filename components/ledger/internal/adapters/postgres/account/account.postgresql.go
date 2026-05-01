@@ -53,6 +53,8 @@ var accountColumnList = []string{
 
 // Repository provides an interface for operations related to account entities.
 // It defines methods for creating, retrieving, updating, and deleting accounts in the database.
+//
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=account.postgresql_mock.go --package=account . Repository
 type Repository interface {
 	Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader) ([]*mmodel.Account, error)

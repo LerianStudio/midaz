@@ -47,6 +47,8 @@ var organizationColumnList = []string{
 }
 
 // Repository defines the persistence operations for organization entities.
+//
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=organization.postgresql_mock.go --package=organization . Repository
 type Repository interface {
 	// Create inserts a new organization, generates its ID, and returns the persisted entity.
 	Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error)

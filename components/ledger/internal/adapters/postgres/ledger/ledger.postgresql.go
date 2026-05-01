@@ -47,6 +47,8 @@ var ledgerColumnList = []string{
 
 // Repository provides an interface for operations related to ledger entities.
 // It defines methods for creating, finding, updating, and deleting ledgers in the database.
+//
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=ledger.postgresql_mock.go --package=ledger . Repository
 type Repository interface {
 	Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
 	Find(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error)

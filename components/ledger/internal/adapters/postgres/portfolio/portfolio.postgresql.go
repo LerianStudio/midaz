@@ -47,6 +47,8 @@ var portfolioColumnList = []string{
 
 // Repository provides an interface for operations related to portfolio entities.
 // It defines methods for creating, finding, updating, and deleting portfolios in the database.
+//
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=portfolio.postgresql_mock.go --package=portfolio . Repository
 type Repository interface {
 	Create(ctx context.Context, portfolio *mmodel.Portfolio) (*mmodel.Portfolio, error)
 	FindByIDEntity(ctx context.Context, organizationID, ledgerID, entityID uuid.UUID) (*mmodel.Portfolio, error)

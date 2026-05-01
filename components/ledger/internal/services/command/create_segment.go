@@ -55,11 +55,11 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 		UpdatedAt:      time.Now(),
 	}
 
-	_, err = uc.SegmentRepo.FindByName(ctx, organizationID, ledgerID, cpi.Name)
+	_, err = uc.SegmentRepo.ExistsByName(ctx, organizationID, ledgerID, cpi.Name)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find segment by name", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check segment name existence", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error finding segment by name: %v", err))
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error checking segment name existence: %v", err))
 
 		return nil, err
 	}

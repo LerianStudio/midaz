@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
@@ -27,7 +25,35 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 	ctx, span := tracer.Start(ctx, "command.update_segment_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update segment %s", id.String()))
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	if upi.Name != "" {
+		segmentFound, err := uc.SegmentRepo.Find(ctx, organizationID, ledgerID, id)
+		if err != nil {
+			if errors.Is(err, services.ErrDatabaseItemNotFound) {
+				err = pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, constant.EntitySegment)
+
+				logger.Log(ctx, libLog.LevelWarn, "Segment not found", libLog.Err(err), libLog.String("segment_id", id.String()))
+			} else {
+				logger.Log(ctx, libLog.LevelError, "Failed to find segment", libLog.Err(err), libLog.String("segment_id", id.String()))
+			}
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find segment on repo by id", err)
+
+			return nil, err
+		}
+
+		if segmentFound != nil && segmentFound.Name != upi.Name {
+			if _, err := uc.SegmentRepo.ExistsByName(ctx, organizationID, ledgerID, upi.Name); err != nil {
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check segment name existence", err)
+				logger.Log(ctx, libLog.LevelWarn, "Segment name is not available", libLog.Err(err), libLog.String("segment_id", id.String()))
+
+				return nil, err
+			}
+		}
+	}
 
 	segment := &mmodel.Segment{
 		Name:   upi.Name,
@@ -36,27 +62,23 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 
 	segmentUpdated, err := uc.SegmentRepo.Update(ctx, organizationID, ledgerID, id, segment)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating segment on repo by id: %v", err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Segment ID not found: %s", id.String()))
-
+			err = pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, constant.EntitySegment)
+			logger.Log(ctx, libLog.LevelWarn, "Segment not found", libLog.Err(err), libLog.String("segment_id", id.String()))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update segment on repo by id", err)
 
 			return nil, err
 		}
 
+		logger.Log(ctx, libLog.LevelError, "Failed to update segment", libLog.Err(err), libLog.String("segment_id", id.String()))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update segment on repo by id", err)
 
 		return nil, err
 	}
 
-	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), id.String(), upi.Metadata)
+	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntitySegment, id.String(), upi.Metadata)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating metadata: %v", err))
-
+		logger.Log(ctx, libLog.LevelError, "Failed to update segment metadata", libLog.Err(err), libLog.String("segment_id", id.String()))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo by id", err)
 
 		return nil, err

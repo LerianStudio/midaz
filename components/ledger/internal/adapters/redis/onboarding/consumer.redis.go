@@ -24,7 +24,7 @@ import (
 // Callers MUST check for empty string to detect cache miss. Do not store
 // empty strings as values; use JSON or another format that is never empty.
 //
-//go:generate mockgen --destination=consumer.redis_mock.go --package=redis . RedisRepository
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=consumer.redis_mock.go --package=redis . RedisRepository
 type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
 	// Get retrieves a value by key. Returns ("", nil) on cache miss (key not found).

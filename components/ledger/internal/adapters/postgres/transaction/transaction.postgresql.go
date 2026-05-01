@@ -92,6 +92,8 @@ var operationColumnListPrefixed = []string{
 
 // Repository provides an interface for operations related to transaction template entities.
 // It defines methods for creating, retrieving, updating, and deleting transactions.
+//
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=transaction.postgresql_mock.go --package=transaction . Repository
 type Repository interface {
 	Create(ctx context.Context, transaction *Transaction) (*Transaction, error)
 	CreateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkInsertResult, error)

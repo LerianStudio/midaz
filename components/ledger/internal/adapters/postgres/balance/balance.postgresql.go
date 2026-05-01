@@ -59,7 +59,7 @@ var balanceColumnList = []string{
 // Repository provides an interface for operations related to balance template entities.
 // It defines methods for creating, finding, listing, updating, and deleting balance templates.
 //
-//go:generate mockgen --destination=balance.postgresql_mock.go --package=balance . Repository
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=balance.postgresql_mock.go --package=balance . Repository
 type Repository interface {
 	Create(ctx context.Context, balance *mmodel.Balance) (*mmodel.Balance, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Balance, error)
