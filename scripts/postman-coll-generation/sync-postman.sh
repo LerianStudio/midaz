@@ -93,7 +93,9 @@ convert_component "crm" "${CRM_API}/swagger.json"
 CRM_PID=$!
 
 # Wait for all conversions to complete
-wait $LEDGER_PID $CRM_PID
+set +e
+wait "$LEDGER_PID" "$CRM_PID"
+set -e
 
 # Check conversion results
 LEDGER_STATUS=$(cat "${TEMP_DIR}/ledger.status" 2>/dev/null || echo "FAILED")
