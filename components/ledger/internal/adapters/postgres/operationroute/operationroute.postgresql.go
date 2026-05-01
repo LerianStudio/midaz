@@ -36,7 +36,7 @@ import (
 
 // Repository provides the persistence contract for operation routes and their transaction-route links.
 //
-//go:generate mockgen --destination=operationroute.postgresql_mock.go --package=operationroute . Repository
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=operationroute.postgresql_mock.go --package=operationroute . Repository
 type Repository interface {
 	// Create persists a new operation route in the given organization and ledger.
 	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error)

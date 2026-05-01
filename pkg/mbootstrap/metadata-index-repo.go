@@ -10,7 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-//go:generate mockgen --destination=metadata-index-repo_mock.go --package=mbootstrap . MetadataIndexRepository
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=metadata-index-repo_mock.go --package=mbootstrap . MetadataIndexRepository
 
 // MetadataIndexRepository defines the interface for metadata index operations on MongoDB.
 // This interface is implemented by the MongoDB metadata repositories in both

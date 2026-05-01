@@ -48,6 +48,8 @@ var assetColumnList = []string{
 
 // Repository provides an interface for operations related to asset entities.
 // It defines methods for creating, finding, updating, and deleting assets in the database.
+//
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=asset.postgresql_mock.go --package=asset . Repository
 type Repository interface {
 	Create(ctx context.Context, asset *mmodel.Asset) (*mmodel.Asset, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error)

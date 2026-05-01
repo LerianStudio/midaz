@@ -61,7 +61,7 @@ type SyncKey struct {
 	Score float64
 }
 
-//go:generate mockgen --destination=consumer.redis_mock.go --package=redis . RedisRepository
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=consumer.redis_mock.go --package=redis . RedisRepository
 type RedisRepository interface {
 	// Set stores a key-value pair with a TTL.
 	Set(ctx context.Context, key, value string, ttl time.Duration) error

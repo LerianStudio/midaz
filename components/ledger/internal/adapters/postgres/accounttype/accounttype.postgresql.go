@@ -47,7 +47,7 @@ var accountTypeColumnList = []string{
 
 // Repository provides an interface for operations related to account type entities.
 //
-//go:generate mockgen --destination=accounttype.postgresql_mock.go --package=accounttype . Repository
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=accounttype.postgresql_mock.go --package=accounttype . Repository
 type Repository interface {
 	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, accountType *mmodel.AccountType) (*mmodel.AccountType, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, accountType *mmodel.AccountType) (*mmodel.AccountType, error)

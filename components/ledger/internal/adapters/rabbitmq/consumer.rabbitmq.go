@@ -43,6 +43,8 @@ func resolveMessageHeaderID(headers amqp.Table) string {
 
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.
 // It defines methods for registering queues and running consumers.
+//
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -source=consumer.rabbitmq.go -destination=consumer.rabbitmq_mock.go -package=rabbitmq
 type ConsumerRepository interface {
 	Register(queueName string, handler QueueHandlerFunc)
 	RunConsumers() error

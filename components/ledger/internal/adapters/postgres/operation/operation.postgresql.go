@@ -30,10 +30,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 
-	// Repository provides an interface for operations related to operation template entities.
-	// It defines methods for creating, retrieving, updating, and deleting operation templates.
-	//
-	//go:generate mockgen --destination=operation.postgresql_mock.go --package=operation . Repository
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 )
 
@@ -45,6 +41,10 @@ type OperationFilter struct {
 	RouteCode     *string
 }
 
+// Repository provides an interface for operations related to operation template entities.
+// It defines methods for creating, retrieving, updating, and deleting operation templates.
+//
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=operation.postgresql_mock.go --package=operation . Repository
 type Repository interface {
 	Create(ctx context.Context, operation *Operation) (*Operation, error)
 	CreateBulk(ctx context.Context, operations []*Operation) (*repository.BulkInsertResult, error)
