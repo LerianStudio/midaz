@@ -3,8 +3,10 @@ info:
   contact:
     name: Discord community
     url: https://discord.gg/DnhqKwkGv3
-  description: This is a swagger documentation for the Midaz Ledger API (unified onboarding
-    + transaction)
+  description: This is a swagger documentation for the Midaz Ledger API. This API
+    combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios,
+    segments), Transaction endpoints (transactions, balances, operations, asset-rates),
+    and Metadata Index endpoints in a single service.
   license:
     name: Elastic License 2.0
     url: https://www.elastic.co/licensing/elastic-license
@@ -12,17 +14,17 @@ info:
   title: Midaz Ledger API
   version: v3.7.0
 servers:
-- url: //localhost:3000/
+- url: //localhost:3002/
 paths:
   /v1/organizations:
     get:
       description: Returns a paginated list of organizations, optionally filtered
         by metadata, date range, and other criteria
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -132,10 +134,10 @@ paths:
       description: Creates a new organization with the provided details including
         legal name, legal document, and optional address information
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -191,10 +193,10 @@ paths:
       description: Returns the total count of organizations as a header without a
         response body
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -238,10 +240,10 @@ paths:
       description: 'Permanently removes an organization identified by its UUID. Note:
         This operation is not available in production environments.'
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -296,10 +298,10 @@ paths:
       description: Returns detailed information about an organization identified by
         its UUID
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -351,10 +353,10 @@ paths:
       description: Updates an organization's information such as legal name, address,
         or status. Only supplied fields will be updated.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -421,10 +423,10 @@ paths:
       description: Returns a paginated list of ledgers within the specified organization,
         optionally filtered by metadata, date range, and other criteria
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -531,10 +533,10 @@ paths:
       description: Creates a new ledger within the specified organization. A ledger
         is a financial record-keeping system for tracking assets, accounts, and transactions.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -601,10 +603,10 @@ paths:
       description: Returns the total count of ledgers for a specific organization
         as a header without a response body
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -654,10 +656,10 @@ paths:
       description: 'Permanently removes a ledger identified by its UUID. Note: This
         operation is not available in production environments.'
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -718,10 +720,10 @@ paths:
       description: Returns detailed information about a ledger identified by its UUID
         within the specified organization
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -779,10 +781,10 @@ paths:
       description: Updates a ledger's information such as name, status, or metadata.
         Only supplied fields will be updated.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -855,10 +857,10 @@ paths:
       description: Returns a paginated list of all account types for the specified
         organization and ledger, optionally filtered by metadata
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -961,10 +963,10 @@ paths:
     post:
       description: Endpoint to create a new Account Type.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -1037,10 +1039,10 @@ paths:
       description: Deletes an existing account type identified by its UUID within
         the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -1095,10 +1097,10 @@ paths:
       description: Returns detailed information about an account type identified by
         its UUID within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -1161,10 +1163,10 @@ paths:
     patch:
       description: Endpoint to update an existing Account Type.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -1243,10 +1245,10 @@ paths:
       description: Returns a paginated list of accounts within the specified ledger,
         optionally filtered by metadata, date range, and other criteria
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -1409,10 +1411,10 @@ paths:
         individual financial entities like bank accounts, credit cards, or expense
         categories.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -1493,10 +1495,10 @@ paths:
       description: Returns detailed information about an account identified by its
         alias within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -1561,10 +1563,10 @@ paths:
     get:
       description: Get Balances with alias
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -1629,10 +1631,10 @@ paths:
       description: Returns detailed information about an account identified by its
         external code within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -1697,10 +1699,10 @@ paths:
     get:
       description: Get External balances with code
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -1765,10 +1767,10 @@ paths:
       description: Returns the total count of accounts for the specified organization,
         ledger, and optional portfolio
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -1824,10 +1826,10 @@ paths:
       description: Permanently removes an account from the specified ledger. This
         operation cannot be undone.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -1894,10 +1896,10 @@ paths:
       description: Returns detailed information about an account identified by its
         UUID within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -1961,10 +1963,10 @@ paths:
       description: Updates an existing account's properties such as name, status,
         portfolio, segment, and metadata within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -2049,10 +2051,10 @@ paths:
     get:
       description: Get all balances by account id
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -2150,10 +2152,10 @@ paths:
     post:
       description: Create an Additional Balance with the input payload
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -2232,10 +2234,10 @@ paths:
       description: Get the historical state of all Balances for an account at a specific
         point in time (yyyy-mm-dd hh:mm:ss format)
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -2314,10 +2316,10 @@ paths:
     get:
       description: Get all Operations with the input ID
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -2440,10 +2442,10 @@ paths:
     get:
       description: Get an Operation with the input ID
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -2513,10 +2515,10 @@ paths:
     put:
       description: Create or Update an AssetRate with the input details
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -2588,10 +2590,10 @@ paths:
     get:
       description: Get an AssetRate by the Asset Code with the input details
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -2699,10 +2701,10 @@ paths:
     get:
       description: Get an AssetRate by External ID with the input details
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -2767,10 +2769,10 @@ paths:
       description: Returns a paginated list of assets within the specified ledger,
         optionally filtered by metadata, date range, and other criteria
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -2873,10 +2875,10 @@ paths:
         currencies, cryptocurrencies, commodities, or other financial instruments
         tracked in the ledger.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -2956,10 +2958,10 @@ paths:
       description: Returns the total count of assets for a specific ledger in an organization
         as a header without a response body
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -3015,10 +3017,10 @@ paths:
       description: Permanently removes an asset from the specified ledger. This operation
         cannot be undone.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -3085,10 +3087,10 @@ paths:
       description: Returns detailed information about an asset identified by its UUID
         within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -3152,10 +3154,10 @@ paths:
       description: Updates an existing asset's properties such as name, status, and
         metadata within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -3240,10 +3242,10 @@ paths:
     get:
       description: Get all balances
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -3330,10 +3332,10 @@ paths:
     delete:
       description: Delete a Balance with the input ID
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -3399,10 +3401,10 @@ paths:
     get:
       description: Get a Balance with the input ID
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -3465,10 +3467,10 @@ paths:
     patch:
       description: Update a Balance with the input payload
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -3547,10 +3549,10 @@ paths:
       description: Get the historical state of a Balance at a specific point in time
         (yyyy-mm-dd hh:mm:ss format)
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -3628,10 +3630,10 @@ paths:
       description: Returns a list of all operation routes within the specified ledger
         with cursor-based pagination
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -3723,10 +3725,10 @@ paths:
     post:
       description: Endpoint to create a new Operation Route.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -3793,10 +3795,10 @@ paths:
       description: Deletes an existing operation route identified by its UUID within
         the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -3851,10 +3853,10 @@ paths:
       description: Returns detailed information about an operation route identified
         by its UUID within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -3900,10 +3902,10 @@ paths:
       description: Updates an existing operation route's properties such as title,
         description, and type within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -3988,10 +3990,10 @@ paths:
       description: Returns a paginated list of portfolios within the specified ledger,
         optionally filtered by metadata, date range, and other criteria
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -4104,10 +4106,10 @@ paths:
         represent collections of accounts grouped for specific purposes such as business
         units, departments, or client portfolios.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -4187,10 +4189,10 @@ paths:
       description: Returns the total count of portfolios for a specific organization
         and ledger as a header without a response body
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -4253,10 +4255,10 @@ paths:
       description: Permanently removes a portfolio from the specified ledger. This
         operation cannot be undone.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -4323,10 +4325,10 @@ paths:
       description: Returns detailed information about a portfolio identified by its
         UUID within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -4390,10 +4392,10 @@ paths:
       description: Updates an existing portfolio's properties such as name, entity
         ID, status, and metadata within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -4479,10 +4481,10 @@ paths:
       description: Returns a paginated list of segments within the specified ledger,
         optionally filtered by metadata, date range, and other criteria
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -4585,10 +4587,10 @@ paths:
         logical divisions within a ledger, such as business areas, product lines,
         or customer categories.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -4667,10 +4669,10 @@ paths:
       description: Returns the total count of segments for the specified organization
         and ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -4726,10 +4728,10 @@ paths:
       description: Permanently removes a segment from the specified ledger. This operation
         cannot be undone.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -4796,10 +4798,10 @@ paths:
       description: Returns detailed information about a segment identified by its
         UUID within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -4863,10 +4865,10 @@ paths:
       description: Updates an existing segment's properties such as name, status,
         and metadata within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -4952,10 +4954,10 @@ paths:
       description: Returns the current configuration settings for a specific ledger.
         If no settings have been persisted, returns the default settings object.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -5019,10 +5021,10 @@ paths:
         preserves the existing ''accounting.validateAccountType'' value. Allowed fields:
         accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).'
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -5097,10 +5099,10 @@ paths:
     get:
       description: Endpoint to get all Transaction Routes with optional metadata filtering.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -5186,10 +5188,10 @@ paths:
     post:
       description: Endpoint to create a new Transaction Route.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -5255,10 +5257,10 @@ paths:
     delete:
       description: Endpoint to delete a Transaction Route by its ID.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -5324,10 +5326,10 @@ paths:
     get:
       description: Endpoint to get a Transaction Route by its ID.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -5396,10 +5398,10 @@ paths:
     patch:
       description: Endpoint to update a Transaction Route by its ID.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID for tracing
@@ -5471,10 +5473,10 @@ paths:
     get:
       description: Get all Transactions with the input metadata or without metadata
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -5561,10 +5563,10 @@ paths:
     post:
       description: Create a Transaction Annotation with the input payload
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -5636,10 +5638,10 @@ paths:
     post:
       description: Create a Transaction with the input DSL file
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -5715,10 +5717,10 @@ paths:
     post:
       description: Create a Transaction with the input payload
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -5790,10 +5792,10 @@ paths:
     post:
       description: Create a Transaction with the input payload
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -5866,10 +5868,10 @@ paths:
       description: Count transactions matching optional filters (route, status, date
         range)
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -5959,10 +5961,10 @@ paths:
     post:
       description: Create a Transaction with the input payload
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -6034,10 +6036,10 @@ paths:
     get:
       description: Get a Transaction with the input ID
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -6106,10 +6108,10 @@ paths:
     patch:
       description: Update a Transaction with the input payload
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -6187,10 +6189,10 @@ paths:
     post:
       description: Cancel a previously created pre transaction
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -6266,10 +6268,10 @@ paths:
     post:
       description: Commit a previously created transaction
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -6345,10 +6347,10 @@ paths:
     patch:
       description: Update an Operation with the input payload
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -6432,10 +6434,10 @@ paths:
     post:
       description: Revert a Transaction with Transaction ID only
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -6517,10 +6519,10 @@ paths:
     get:
       description: Get all metadata indexes, optionally filtered by entity name
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -6585,10 +6587,10 @@ paths:
     post:
       description: Create a metadata index for the specified entity
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -6666,10 +6668,10 @@ paths:
     delete:
       description: Delete a metadata index by entity name and index key
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
         in: header
         name: Authorization
-        required: true
         schema:
           type: string
       - description: Request ID
@@ -11140,4 +11142,11 @@ components:
             $ref: '#/components/schemas/Transaction'
           type: array
       type: object
+  securitySchemes:
+    BearerAuth:
+      description: 'Bearer token authentication. Format: ''Bearer {access_token}''.
+        Only required when auth plugin is enabled.'
+      in: header
+      name: Authorization
+      type: apiKey
 x-original-swagger-version: "2.0"

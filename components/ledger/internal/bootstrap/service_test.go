@@ -265,6 +265,36 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 	})
 }
 
+func TestNewUnifiedServer_ServesSwaggerUIAssets(t *testing.T) {
+	t.Parallel()
+
+	server := NewUnifiedServer(":0", newTestLogger(), &libOpentelemetry.Telemetry{}, nil)
+
+	for _, path := range []string{
+		"/swagger/index.html",
+		"/swagger/doc.json",
+		"/swagger/swagger-ui.css",
+		"/swagger/swagger-ui-bundle.js",
+		"/swagger/swagger-ui-standalone-preset.js",
+	} {
+		path := path
+
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			req, err := http.NewRequest(http.MethodGet, path, nil)
+			require.NoError(t, err)
+			req.Host = "localhost"
+
+			res, err := server.app.Test(req)
+			require.NoError(t, err)
+			defer res.Body.Close()
+
+			assert.Equal(t, http.StatusOK, res.StatusCode)
+		})
+	}
+}
+
 // TestTenantMiddleware_DisabledWhenNoManagers verifies that middleware constructed
 // with no managers is a valid non-nil instance but reports itself as disabled.
 func TestTenantMiddleware_DisabledWhenNoManagers(t *testing.T) {

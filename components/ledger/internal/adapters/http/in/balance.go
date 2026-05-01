@@ -33,7 +33,7 @@ type BalanceHandler struct {
 //	@Description	Get all balances
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -111,7 +111,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 //	@Description	Get all balances by account id
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -196,7 +196,7 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 //	@Description	Get a Balance with the input ID
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -252,7 +252,7 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 //	@Description	Delete a Balance with the input ID
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string			true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string			false	"Request ID"
 //	@Param			organization_id	path		string			true	"Organization ID"
 //	@Param			ledger_id		path		string			true	"Ledger ID"
@@ -310,7 +310,7 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 //	@Tags			Balances
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string					true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string					false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string					false	"Request ID"
 //	@Param			organization_id	path		string					true	"Organization ID"
 //	@Param			ledger_id		path		string					true	"Ledger ID"
@@ -373,7 +373,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 //	@Description	Get Balances with alias
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -433,7 +433,7 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 //	@Description	Get External balances with code
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -495,7 +495,7 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 //	@Tags			Balances
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string							false	"Request ID"
 //	@Param			organization_id	path		string							true	"Organization ID"
 //	@Param			ledger_id		path		string							true	"Ledger ID"
@@ -556,7 +556,7 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 //	@Description	Get the historical state of a Balance at a specific point in time (yyyy-mm-dd hh:mm:ss format)
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -651,7 +651,7 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 //	@Description	Get the historical state of all Balances for an account at a specific point in time (yyyy-mm-dd hh:mm:ss format)
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"

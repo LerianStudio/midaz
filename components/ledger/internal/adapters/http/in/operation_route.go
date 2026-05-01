@@ -38,7 +38,7 @@ type OperationRouteHandler struct {
 //	@Tags			Operation Route
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
 //	@Param			organization_id	path		string								true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
@@ -128,7 +128,7 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 //	@Description	Returns detailed information about an operation route identified by its UUID within the specified ledger
 //	@Tags			Operation Route
 //	@Produce		json
-//	@Param			Authorization	header		string					true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string					false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
 //	@Param			organization_id	path		string					true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
@@ -182,7 +182,7 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 //	@Tags			Operation Route
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization		header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id		header		string								false	"Request ID for tracing"
 //	@Param			organization_id		path		string								true	"Organization ID in UUID format"
 //	@Param			ledger_id			path		string								true	"Ledger ID in UUID format"
@@ -316,7 +316,7 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 //	@Description	Deletes an existing operation route identified by its UUID within the specified ledger
 //	@Tags			Operation Route
 //	@Produce		json
-//	@Param			Authorization		header	string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization		header	string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id		header	string	false	"Request ID for tracing"
 //	@Param			organization_id		path	string	true	"Organization ID in UUID format"
 //	@Param			ledger_id			path	string	true	"Ledger ID in UUID format"
@@ -370,7 +370,7 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 //	@Description	Returns a list of all operation routes within the specified ledger with cursor-based pagination
 //	@Tags			Operation Route
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
