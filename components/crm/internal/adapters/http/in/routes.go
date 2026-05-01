@@ -44,7 +44,12 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	// Swagger documentation without requiring a JWT or tenant context.
 	f.Get("/health", libHTTP.Ping)
 	f.Get("/version", libHTTP.Version)
-	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)
+	f.Get("/swagger", func(c *fiber.Ctx) error {
+		return c.Redirect("/swagger/index.html", fiber.StatusMovedPermanently)
+	})
+	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
+		fiberSwagger.InstanceName("swagger"),
+	))
 
 	// Readyz endpoint: registered BEFORE auth/tenant middleware for K8s readiness probes.
 	// K8s probes do not authenticate, so this endpoint MUST NOT require auth.

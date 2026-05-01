@@ -25,7 +25,6 @@ import (
 // @in							header
 // @name						Authorization
 // @description				Bearer token authentication. Format: 'Bearer {access_token}'. Only required when auth plugin is enabled.
-// @Security					BearerAuth
 func main() {
 	libCommons.InitLocalEnvConfig()
 

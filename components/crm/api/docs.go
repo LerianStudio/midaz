@@ -3,7 +3,7 @@ package api
 
 import "github.com/swaggo/swag"
 
-const docTemplatecrm = `{
+const docTemplate = `{
     "schemes": {{ marshal .Schemes }},
     "swagger": "2.0",
     "info": {
@@ -1594,20 +1594,20 @@ const docTemplatecrm = `{
     }
 }`
 
-// SwaggerInfocrm holds exported Swagger Info so clients can modify it
-var SwaggerInfocrm = &swag.Spec{
+// SwaggerInfo holds exported Swagger Info so clients can modify it
+var SwaggerInfo = &swag.Spec{
 	Version:          "v3.7.0",
 	Host:             "localhost:4003",
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "CRM API",
 	Description:      "The CRM API provides a set of endpoints for managing holder data, including information related to their ledger accounts.",
-	InfoInstanceName: "crm",
-	SwaggerTemplate:  docTemplatecrm,
+	InfoInstanceName: "swagger",
+	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
 	RightDelim:       "}}",
 }
 
 func init() {
-	swag.Register(SwaggerInfocrm.InstanceName(), SwaggerInfocrm)
+	swag.Register(SwaggerInfo.InstanceName(), SwaggerInfo)
 }

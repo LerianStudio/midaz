@@ -89,7 +89,7 @@ echo "Converting OpenAPI specs to Postman collections..."
 convert_component "ledger" "${LEDGER_API}/swagger.json"
 LEDGER_PID=$!
 
-convert_component "crm" "${CRM_API}/crm_swagger.json"
+convert_component "crm" "${CRM_API}/swagger.json"
 CRM_PID=$!
 
 # Wait for all conversions to complete

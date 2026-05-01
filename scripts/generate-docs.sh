@@ -90,12 +90,7 @@ generate_openapi_spec() {
     local out_log="${LOG_DIR}/${component}_swag.out"
     local err_log="${LOG_DIR}/${component}_swag.err"
 
-    local swag_args=(init -g cmd/app/main.go -o api --parseDependency --parseInternal)
-    if [ "${component}" = "ledger" ]; then
-        swag_args+=(--outputTypes go,json,yaml)
-    else
-        swag_args+=(--instanceName "${component}")
-    fi
+    local swag_args=(init -g cmd/app/main.go -o api --parseDependency --parseInternal --outputTypes go,json,yaml)
 
     if (cd "${component_dir}" && "${SWAG_BIN}" "${swag_args[@]}" > "${out_log}" 2> "${err_log}"); then
         local end_time=$(date +%s.%N)
@@ -120,10 +115,7 @@ generate_openapi_yaml() {
 
     local out_log="${LOG_DIR}/${component}_openapi.out"
     local err_log="${LOG_DIR}/${component}_openapi.err"
-    local swagger_file="${component}_swagger.json"
-    if [ "${component}" = "ledger" ]; then
-        swagger_file="swagger.json"
-    fi
+    local swagger_file="swagger.json"
 
     if (cd "${component_dir}" && \
         docker run --rm -v ./:/workspace --user "$(id -u):$(id -g)" \
