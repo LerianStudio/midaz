@@ -153,10 +153,20 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		case strings.Contains(key, "metadata."):
 			metadata = &bson.M{key: value}
 			useMetadata = true
-		case strings.Contains(key, "limit"):
-			limit, _ = strconv.Atoi(value)
-		case strings.Contains(key, "page"):
-			page, _ = strconv.Atoi(value)
+		case key == "limit":
+			parsedLimit, err := strconv.Atoi(value)
+			if err != nil {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "limit")
+			}
+
+			limit = parsedLimit
+		case key == "page":
+			parsedPage, err := strconv.Atoi(value)
+			if err != nil {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "page")
+			}
+
+			page = parsedPage
 		case strings.Contains(key, "cursor"):
 			cursor = value
 		case strings.Contains(key, "sort_order"):
@@ -265,6 +275,10 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	err := validateDates(&startDate, &endDate)
 	if err != nil {
 		return nil, err
+	}
+
+	if page <= 0 {
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "page")
 	}
 
 	cursor, err = validatePagination(cursor, sortOrder, limit)
@@ -400,6 +414,10 @@ type legacyCursor struct {
 // ValidatePagination validate pagination parameters
 func validatePagination(cursor, sortOrder string, limit int) (string, error) {
 	maxPaginationLimit := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100))
+
+	if limit <= 0 {
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "limit")
+	}
 
 	if limit > maxPaginationLimit {
 		return "", pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)

@@ -97,6 +97,7 @@ func computePosition(available, onHold, overdraftUsed decimal.Decimal, settings 
 
 	// Overdraft enabled AND limited → headroom = limit − used.
 	var limit decimal.Decimal
+
 	if settings.OverdraftLimit != nil {
 		if parsed, err := decimal.NewFromString(*settings.OverdraftLimit); err == nil {
 			limit = parsed

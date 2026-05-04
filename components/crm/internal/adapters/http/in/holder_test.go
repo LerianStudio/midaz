@@ -1020,96 +1020,52 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			},
 		},
 		{
-			name:        "zero limit passes through to repository",
+			name:        "zero limit returns 400",
 			queryParams: "?limit=0",
 			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
-				holderRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, gomock.Cond(func(x any) bool {
-						params, ok := x.(http.QueryHeader)
-						return ok && params.Limit == 0
-					}), false).
-					Return([]*mmodel.Holder{}, nil).
-					Times(1)
 			},
-			expectedStatus: 200,
-			validateBody: func(t *testing.T, body []byte) {
-				var result map[string]any
-				err := json.Unmarshal(body, &result)
-				require.NoError(t, err)
-
-				limit, ok := result["limit"].(float64)
-				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(0), limit)
-			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
 		},
 		{
-			name:        "negative limit passes through to repository",
+			name:        "negative limit returns 400",
 			queryParams: "?limit=-5",
 			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
-				holderRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, gomock.Cond(func(x any) bool {
-						params, ok := x.(http.QueryHeader)
-						return ok && params.Limit == -5
-					}), false).
-					Return([]*mmodel.Holder{}, nil).
-					Times(1)
 			},
-			expectedStatus: 200,
-			validateBody: func(t *testing.T, body []byte) {
-				var result map[string]any
-				err := json.Unmarshal(body, &result)
-				require.NoError(t, err)
-
-				limit, ok := result["limit"].(float64)
-				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(-5), limit)
-			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
 		},
 		{
-			name:        "negative page passes through to repository",
+			name:        "zero page returns 400",
+			queryParams: "?page=0",
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
+		},
+		{
+			name:        "negative page returns 400",
 			queryParams: "?page=-1",
 			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
-				holderRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, gomock.Cond(func(x any) bool {
-						params, ok := x.(http.QueryHeader)
-						return ok && params.Page == -1
-					}), false).
-					Return([]*mmodel.Holder{}, nil).
-					Times(1)
 			},
-			expectedStatus: 200,
-			validateBody: func(t *testing.T, body []byte) {
-				var result map[string]any
-				err := json.Unmarshal(body, &result)
-				require.NoError(t, err)
-
-				page, ok := result["page"].(float64)
-				require.True(t, ok, "page should be a number")
-				assert.Equal(t, float64(-1), page)
-			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
 		},
 		{
-			name:        "non-numeric limit becomes zero",
+			name:        "non-numeric page returns 400",
+			queryParams: "?page=abc",
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
+		},
+		{
+			name:        "non-numeric limit returns 400",
 			queryParams: "?limit=abc",
 			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
-				holderRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, gomock.Cond(func(x any) bool {
-						params, ok := x.(http.QueryHeader)
-						return ok && params.Limit == 0
-					}), false).
-					Return([]*mmodel.Holder{}, nil).
-					Times(1)
 			},
-			expectedStatus: 200,
-			validateBody: func(t *testing.T, body []byte) {
-				var result map[string]any
-				err := json.Unmarshal(body, &result)
-				require.NoError(t, err)
-
-				limit, ok := result["limit"].(float64)
-				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(0), limit)
-			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
 		},
 	}
 

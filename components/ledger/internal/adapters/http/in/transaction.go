@@ -291,6 +291,14 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate query parameters", libLog.Err(err))
+
+		return http.WithError(c, err)
+	}
+
 	if wbTran, wbErr := handler.Query.GetWriteBehindTransaction(ctx, params.OrganizationID, params.LedgerID, params.TransactionID); wbErr == nil {
 		c.Set("X-Cache-Hit", "true")
 
@@ -314,14 +322,6 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 
 	ctxGetTransaction, spanGetTransaction := tracer.Start(ctx, "handler.get_transaction.get_operations")
 	defer spanGetTransaction.End()
-
-	headerParams, err := http.ValidateParameters(c.Queries())
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to validate query parameters", libLog.Err(err))
-
-		return http.WithError(c, err)
-	}
 
 	headerParams.Metadata = &bson.M{}
 

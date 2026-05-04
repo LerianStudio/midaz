@@ -459,6 +459,54 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 			},
 		},
 		{
+			name:        "zero limit returns 400",
+			queryParams: "?limit=0",
+			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
+		},
+		{
+			name:        "negative limit returns 400",
+			queryParams: "?limit=-1",
+			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
+		},
+		{
+			name:        "non-numeric limit returns 400",
+			queryParams: "?limit=abc",
+			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
+		},
+		{
+			name:        "zero page returns 400",
+			queryParams: "?page=0",
+			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
+		},
+		{
+			name:        "negative page returns 400",
+			queryParams: "?page=-1",
+			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
+		},
+		{
+			name:        "non-numeric page returns 400",
+			queryParams: "?page=abc",
+			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
+		},
+		{
 			name:        "repository error returns 500",
 			queryParams: "",
 			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
@@ -527,6 +575,18 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 			}
 		})
 	}
+}
+
+func assertInvalidQueryParameterResponse(t *testing.T, body []byte) {
+	t.Helper()
+
+	var errResp map[string]any
+	err := json.Unmarshal(body, &errResp)
+	require.NoError(t, err)
+
+	assert.Equal(t, cn.ErrInvalidQueryParameter.Error(), errResp["code"])
+	assert.Equal(t, "Invalid Query Parameter", errResp["title"])
+	assert.Contains(t, errResp["message"], "query parameters")
 }
 
 func TestAccountHandler_GetAccountByID(t *testing.T) {
