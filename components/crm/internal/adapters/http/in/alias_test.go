@@ -1109,6 +1109,54 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 				assert.Contains(t, errResp, "message", "error response should contain message")
 			},
 		},
+		{
+			name:        "zero limit returns 400",
+			queryParams: "?limit=0",
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string) {
+			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
+		},
+		{
+			name:        "negative limit returns 400",
+			queryParams: "?limit=-1",
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string) {
+			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
+		},
+		{
+			name:        "non-numeric limit returns 400",
+			queryParams: "?limit=abc",
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string) {
+			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
+		},
+		{
+			name:        "zero page returns 400",
+			queryParams: "?page=0",
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string) {
+			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
+		},
+		{
+			name:        "negative page returns 400",
+			queryParams: "?page=-1",
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string) {
+			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
+		},
+		{
+			name:        "non-numeric page returns 400",
+			queryParams: "?page=abc",
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string) {
+			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1149,4 +1197,16 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 			}
 		})
 	}
+}
+
+func assertInvalidQueryParameterResponse(t *testing.T, body []byte) {
+	t.Helper()
+
+	var errResp map[string]any
+	err := json.Unmarshal(body, &errResp)
+	require.NoError(t, err)
+
+	assert.Equal(t, cn.ErrInvalidQueryParameter.Error(), errResp["code"])
+	assert.Equal(t, "Invalid Query Parameter", errResp["title"])
+	assert.Contains(t, errResp["message"], "query parameters")
 }

@@ -16,6 +16,7 @@ import (
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -49,6 +50,41 @@ func TestValidateParameters_WithLimit(t *testing.T) {
 	assert.Equal(t, 50, result.Limit)
 }
 
+func TestValidateParameters_WithInvalidLimit(t *testing.T) {
+	tests := []struct {
+		name  string
+		limit string
+	}{
+		{
+			name:  "zero limit",
+			limit: "0",
+		},
+		{
+			name:  "negative limit",
+			limit: "-1",
+		},
+		{
+			name:  "non-numeric limit",
+			limit: "abc",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := map[string]string{
+				"limit": tt.limit,
+			}
+
+			result, err := ValidateParameters(params)
+
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), cn.ErrInvalidQueryParameter.Error())
+			assert.Contains(t, err.Error(), "limit")
+			assert.Nil(t, result)
+		})
+	}
+}
+
 func TestValidateParameters_WithPage(t *testing.T) {
 	params := map[string]string{
 		"page": "5",
@@ -58,6 +94,54 @@ func TestValidateParameters_WithPage(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 5, result.Page)
+}
+
+func TestValidateParameters_WithInvalidPage(t *testing.T) {
+	tests := []struct {
+		name string
+		page string
+	}{
+		{
+			name: "zero page",
+			page: "0",
+		},
+		{
+			name: "negative page",
+			page: "-1",
+		},
+		{
+			name: "non-numeric page",
+			page: "abc",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := map[string]string{
+				"page": tt.page,
+			}
+
+			result, err := ValidateParameters(params)
+
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), cn.ErrInvalidQueryParameter.Error())
+			assert.Contains(t, err.Error(), "page")
+			assert.Nil(t, result)
+		})
+	}
+}
+
+func TestValidateParameters_IgnoresNonPaginationKeysContainingPaginationTerms(t *testing.T) {
+	params := map[string]string{
+		"homepage":   "abc",
+		"rate_limit": "abc",
+	}
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	assert.Equal(t, 10, result.Limit)
+	assert.Equal(t, 1, result.Page)
 }
 
 func TestValidateParameters_WithCursor(t *testing.T) {
@@ -354,6 +438,30 @@ func TestValidatePagination_LimitExceeded(t *testing.T) {
 	_, err := validatePagination("", "asc", 150)
 
 	assert.Error(t, err)
+}
+
+func TestValidatePagination_InvalidLimit(t *testing.T) {
+	tests := []struct {
+		name  string
+		limit int
+	}{
+		{
+			name:  "zero limit",
+			limit: 0,
+		},
+		{
+			name:  "negative limit",
+			limit: -1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := validatePagination("", "asc", tt.limit)
+
+			assert.Error(t, err)
+		})
+	}
 }
 
 func TestValidatePagination_InvalidCursor(t *testing.T) {
