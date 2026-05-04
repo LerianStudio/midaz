@@ -294,7 +294,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to validate query parameters", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate query parameters", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
