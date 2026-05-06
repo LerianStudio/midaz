@@ -745,7 +745,7 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 // this mapping must be updated accordingly.
 //
 // Lua error codes emitted by balance_atomic_operation.lua:
-//   - "0018" → ErrInsufficientFunds (negative available on non-external, or positive on external CREDIT)
+//   - "0018" → ErrInsufficientFunds (negative available on non-external credit-direction balance without overdraft fall-through)
 //   - "0098" → ErrOnHoldExternalAccount (external account used in pending source)
 //   - "0139" → ErrTransactionBackupCacheRetrievalFailed (balance key vanished mid-script)
 //   - "0167" → ErrOverdraftLimitExceeded (transaction would push usage past the configured limit)
