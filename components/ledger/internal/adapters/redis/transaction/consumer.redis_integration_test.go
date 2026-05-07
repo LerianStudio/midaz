@@ -903,9 +903,20 @@ func TestIntegration_Chaos_Redis_GracefulDegradation(t *testing.T) {
 // INTEGRATION TESTS - EXTERNAL ACCOUNT VALIDATION
 // =============================================================================
 
-// TestIntegration_Redis_ExternalAccountCreditValidation tests that external accounts
-// cannot have positive balance after credit operations.
-// This validates error code 0018 for external destinations in the Lua script.
+// TestIntegration_Redis_ExternalAccountCreditValidation tests the symmetry of
+// CREDIT and DEBIT operations on external accounts: external accounts may
+// hold any sign on Available. The destination-side guard that previously
+// rejected `external + CREDIT → positive result` was removed because the
+// introduction of direction=debit balances made that invariant incompatible
+// with valid customer use cases (notably outflows from a fresh ledger to
+// @external/{asset}).
+//
+// Each sub-test exercises one CREDIT/DEBIT × sign-of-result combination and
+// asserts the Lua script's response. The historical name is preserved for
+// continuity, but the subject under test has shifted from "validating the
+// external-positive guard" to "validating the absence of that guard plus the
+// remaining external-account carve-outs (negative-side debits, internal
+// account positivity, etc.)".
 func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -918,13 +929,18 @@ func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
 	// The Lua script uses SET NX (set if not exists), so sharing keys between tests
 	// would cause the first test's balance to be reused by subsequent tests.
 
-	t.Run("external account with zero balance cannot receive credit", func(t *testing.T) {
+	t.Run("external account with zero balance can receive credit (now goes positive)", func(t *testing.T) {
 		orgID := uuid.New()
 		ledgerID := uuid.New()
 		transactionID := uuid.New()
 
 		// External account with Available = 0
-		// Attempting to credit should fail because result would be positive
+		// Crediting 100 succeeds and the result is +100. Under the previous
+		// rule (removed in 2026-05) this would have failed with 0018; the
+		// destination-side external-positive guard at balance_atomic_operation.lua
+		// line 573-576 was removed because direction=debit balances make a
+		// positive external balance a legitimate state (the ledger has sent
+		// more to the external world than it has received).
 		balanceOps := []mmodel.BalanceOperation{
 			redistestutil.CreateBalanceOperationWithAvailable(
 				orgID, ledgerID, "@external-zero", "USD",
@@ -934,11 +950,16 @@ func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
 			),
 		}
 
-		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
 
-		// Should fail with error 0018 (insufficient funds / invalid balance state)
-		redistestutil.AssertInsufficientFundsError(t, err)
-		t.Log("External account credit validation passed: zero balance credit blocked")
+		require.NoError(t, err, "credit to external account from zero balance must succeed under the new rules")
+		require.NotNil(t, balances, "should return balances")
+		require.Len(t, balances.After, 1, "should return exactly one post-mutation balance")
+		require.True(t, balances.After[0].Available.Equal(decimal.NewFromInt(100)),
+			"external account Available must equal +100 after CREDIT 100 from 0; got %s",
+			balances.After[0].Available.String())
+
+		t.Log("External account zero-balance credit verified: external can now go positive (Available=+100)")
 	})
 
 	t.Run("external account with negative balance can receive limited credit", func(t *testing.T) {
@@ -965,13 +986,17 @@ func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
 		t.Log("External account partial credit validation passed")
 	})
 
-	t.Run("external account credit that would result in positive balance fails", func(t *testing.T) {
+	t.Run("external account credit can cross zero (now allowed)", func(t *testing.T) {
 		orgID := uuid.New()
 		ledgerID := uuid.New()
 		transactionID := uuid.New()
 
 		// External account with Available = -50
-		// Crediting 100 should fail because result would be +50 (positive)
+		// Crediting 100 succeeds and the result is +50. Under the previous
+		// rule (removed in 2026-05) this would have failed with 0018 because
+		// the result crossed zero into positive territory; the destination-side
+		// external-positive guard no longer applies, so the result is
+		// computed straight through: -50 + 100 = +50.
 		balanceOps := []mmodel.BalanceOperation{
 			redistestutil.CreateBalanceOperationWithAvailable(
 				orgID, ledgerID, "@external-overflow", "USD",
@@ -981,11 +1006,16 @@ func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
 			),
 		}
 
-		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
 
-		// Should fail with error 0018
-		redistestutil.AssertInsufficientFundsError(t, err)
-		t.Log("External account overflow validation passed: positive result blocked")
+		require.NoError(t, err, "credit to external account that crosses zero must succeed under the new rules")
+		require.NotNil(t, balances, "should return balances")
+		require.Len(t, balances.After, 1, "should return exactly one post-mutation balance")
+		require.True(t, balances.After[0].Available.Equal(decimal.NewFromInt(50)),
+			"external account Available must equal +50 after CREDIT 100 from -50; got %s",
+			balances.After[0].Available.String())
+
+		t.Log("External account zero-crossing credit verified: -50 + CREDIT 100 = +50 (no longer blocked)")
 	})
 
 	t.Run("internal account can have positive balance", func(t *testing.T) {
@@ -1035,7 +1065,8 @@ func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
 		t.Log("External account debit validation passed - balance became more negative")
 	})
 
-	t.Log("Integration test passed: external account credit validation verified")
+	t.Log("Integration test passed: external account CREDIT/DEBIT symmetry verified " +
+		"(positive results allowed; negative-side debit carve-out preserved; internal accounts unaffected)")
 }
 
 // =============================================================================
