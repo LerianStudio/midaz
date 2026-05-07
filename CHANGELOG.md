@@ -1,5 +1,19 @@
 # Midaz Changelog
 
+## [3.7.1](https://github.com/LerianStudio/midaz/releases/tag/v3.7.1)
+
+- **Fixes:**
+  - Allow external accounts to hold positive balance :bug:
+
+- **Improvements:**
+  - Update CHANGELOGs for midaz:v3.7.0
+
+Contributors: @ClaraTersi, @gandalf-at-lerian, @lerian-studio,
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.7.0...v3.7.1)
+
+---
+
 ## [3.7.0](https://github.com/LerianStudio/midaz/releases/tag/v3.7.0)
 
 - **Features:**
