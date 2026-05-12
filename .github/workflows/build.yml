@@ -66,7 +66,7 @@ jobs:
   upload-onboarding-migrations:
     needs: [build]
     if: needs.build.result == 'success'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.27.5
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.28.9
     with:
       s3_bucket: "lerian-migration-files"
       file_pattern: "components/ledger/migrations/onboarding/*.sql"
@@ -79,7 +79,7 @@ jobs:
   upload-transaction-migrations:
     needs: [build]
     if: needs.build.result == 'success'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.27.5
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.28.9
     with:
       s3_bucket: "lerian-migration-files"
       file_pattern: "components/ledger/migrations/transaction/*.sql"
