@@ -63,7 +63,15 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	var portfolioUUID uuid.UUID
 
 	if libCommons.IsNilOrEmpty(cai.EntityID) && !libCommons.IsNilOrEmpty(cai.PortfolioID) {
-		portfolioUUID = uuid.MustParse(*cai.PortfolioID)
+		parsed, parseErr := uuid.Parse(*cai.PortfolioID)
+		if parseErr != nil {
+			err := pkg.ValidateBusinessError(constant.ErrInvalidRequestBody, constant.EntityAccount)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid portfolio ID", err)
+
+			return nil, err
+		}
+
+		portfolioUUID = parsed
 
 		portfolio, err := uc.PortfolioRepo.Find(ctx, organizationID, ledgerID, portfolioUUID)
 		if err != nil {
@@ -77,7 +85,15 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	}
 
 	if !libCommons.IsNilOrEmpty(cai.ParentAccountID) {
-		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(*cai.ParentAccountID))
+		parentID, parseErr := uuid.Parse(*cai.ParentAccountID)
+		if parseErr != nil {
+			err := pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, constant.EntityAccount)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid parent account ID", err)
+
+			return nil, err
+		}
+
+		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, &portfolioUUID, parentID)
 		if err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, constant.EntityAccount)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find parent account", err)
