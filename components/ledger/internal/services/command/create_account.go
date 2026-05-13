@@ -82,6 +82,9 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		}
 
 		cai.EntityID = &portfolio.EntityID
+
+		logger.Log(ctx, libLog.LevelDebug, "Resolved entity ID from portfolio",
+			libLog.String("portfolio_id", portfolioUUID.String()))
 	}
 
 	if !libCommons.IsNilOrEmpty(cai.ParentAccountID) {
@@ -176,14 +179,10 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 			logger.Log(ctx, libLog.LevelError, "Failed to delete account during compensation", libLog.Err(delErr))
 		}
 
-		if isAuthorizationError(err) {
-			return nil, err
-		}
-
 		return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, constant.EntityAccount)
 	}
 
-	uc.emitAccountCreated(ctx, span, logger, acc)
+	uc.emitAccountCreatedEvent(ctx, span, logger, acc)
 
 	metadataDoc, err := uc.CreateOnboardingMetadata(ctx, constant.EntityAccount, acc.ID, cai.Metadata)
 	if err != nil {
@@ -195,12 +194,10 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	acc.Metadata = metadataDoc
 
-	logger.Log(ctx, libLog.LevelInfo, "Account created synchronously with default balance")
-
 	return acc, nil
 }
 
-// emitAccountCreated publishes the account.created event for a
+// emitAccountCreatedEvent publishes the account.created event for a
 // successfully persisted account. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
 // Durability of the event is owned by PG and (follow-up task) the
@@ -213,7 +210,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 // Wire-format mapping lives in pkg/streaming/events/account_created.go;
 // changes to the payload contract belong there, not here. This function
 // stays a thin emit-and-log adapter.
-func (uc *UseCase) emitAccountCreated(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account) {
+func (uc *UseCase) emitAccountCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account) {
 	if uc.Streaming == nil {
 		return
 	}
@@ -234,16 +231,6 @@ func (uc *UseCase) emitAccountCreated(ctx context.Context, span trace.Span, logg
 		libOpentelemetry.HandleSpanError(span, "Failed to emit account.created", emitErr)
 		logger.Log(ctx, libLog.LevelWarn, "Streaming emit failed for account.created", libLog.Err(emitErr))
 	}
-}
-
-// isAuthorizationError checks if the error is an authorization-related error.
-func isAuthorizationError(err error) bool {
-	var (
-		unauthorized pkg.UnauthorizedError
-		forbidden    pkg.ForbiddenError
-	)
-
-	return errors.As(err, &unauthorized) || errors.As(err, &forbidden)
 }
 
 // resolveAccountAlias resolves and validates the account alias.
