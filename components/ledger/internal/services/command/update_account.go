@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
@@ -17,7 +19,10 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // UpdateAccount updates an account from the repository by the given ID.
@@ -72,6 +77,11 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
+	// AccountRepo.Update returns an input-derived record with bogus
+	// identity fields; mirror the SQL merge in-memory instead.
+	// Follow-up: fix the repo to RETURNING * so this dance is unneeded.
+	uc.emitAccountUpdatedEvent(ctx, span, logger, mergePatchAccount(accFound, account, accountUpdated.UpdatedAt))
+
 	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), id.String(), uai.Metadata)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating metadata: %v", err))
@@ -84,4 +94,85 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	accountUpdated.Metadata = metadataUpdated
 
 	return accountUpdated, nil
+}
+
+// mergePatchAccount builds the post-update view of an account in-memory
+// by applying the PATCH-style mutation rules SQL-side from the repo
+// Update (see account.postgresql.go: Update + applyNullableFields).
+// Mirrors RFC 7396 semantics: a non-empty input field overrides, an
+// empty input field with the key in NullFields nulls the row, otherwise
+// the pre-update value is preserved. Caller passes the persisted
+// UpdatedAt from the repo so the event carries the same timestamp the
+// row now has.
+func mergePatchAccount(pre, in *mmodel.Account, updatedAt time.Time) *mmodel.Account {
+	out := *pre
+	out.UpdatedAt = updatedAt
+
+	if in.Name != "" {
+		out.Name = in.Name
+	}
+
+	if !in.Status.IsEmpty() {
+		out.Status = in.Status
+	}
+
+	if in.Blocked != nil {
+		out.Blocked = in.Blocked
+	}
+
+	if !libCommons.IsNilOrEmpty(in.SegmentID) {
+		out.SegmentID = in.SegmentID
+	} else if slices.Contains(in.NullFields, "segmentId") {
+		out.SegmentID = nil
+	}
+
+	if !libCommons.IsNilOrEmpty(in.EntityID) {
+		out.EntityID = in.EntityID
+	} else if slices.Contains(in.NullFields, "entityId") {
+		out.EntityID = nil
+	}
+
+	if !libCommons.IsNilOrEmpty(in.PortfolioID) {
+		out.PortfolioID = in.PortfolioID
+	} else if slices.Contains(in.NullFields, "portfolioId") {
+		out.PortfolioID = nil
+	}
+
+	return &out
+}
+
+// emitAccountUpdatedEvent publishes the account.updated event for a
+// successfully persisted update. IMPORTANT posture: build and emit
+// failures are span-recorded and logged at Warn, never returned.
+// Durability of the event is owned by PG and (follow-up task) the
+// outbox subsystem + DLQ, not by the synchronous Emit call.
+//
+// Anchor: invoked between the AccountRepo.Update success branch and the
+// metadata-write call in UpdateAccount, so a downstream Mongo failure
+// cannot mask the event and an update rollback cannot leak it.
+//
+// Wire-format mapping lives in pkg/streaming/events/account_updated.go;
+// changes to the payload contract belong there, not here. This function
+// stays a thin emit-and-log adapter.
+func (uc *UseCase) emitAccountUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account) {
+	if uc.Streaming == nil {
+		return
+	}
+
+	event, buildErr := events.NewAccountUpdated(acc).ToEvent(
+		pkgStreaming.ResolveTenantID(ctx),
+		uc.StreamingSource,
+		acc.UpdatedAt,
+	)
+	if buildErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build account.updated event", buildErr)
+		logger.Log(ctx, libLog.LevelWarn, "Skipping account.updated emit; build failed", libLog.Err(buildErr))
+
+		return
+	}
+
+	if emitErr := uc.Streaming.Emit(ctx, event); emitErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to emit account.updated", emitErr)
+		logger.Log(ctx, libLog.LevelWarn, "Streaming emit failed for account.updated", libLog.Err(emitErr))
+	}
 }

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
@@ -17,7 +18,10 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // DeleteAccountByID deletes an account from the repository by IDs.
@@ -91,5 +95,46 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		return err
 	}
 
+	uc.emitAccountDeletedEvent(ctx, span, logger, accFound, time.Now())
+
 	return nil
+}
+
+// emitAccountDeletedEvent publishes the account.deleted event for a
+// successfully soft-deleted account. IMPORTANT posture: build and emit
+// failures are span-recorded and logged at Warn, never returned.
+// Durability of the event is owned by PG and (follow-up task) the
+// outbox subsystem + DLQ, not by the synchronous Emit call.
+//
+// Anchor: invoked immediately after AccountRepo.Delete succeeds.
+// AccountRepo.Delete does not return the post-delete record, so the
+// payload sources identity + portfolio scope from the pre-delete record
+// (accFound) and stamps deletedAt with the wall-clock instant captured
+// by the caller. The PG deleted_at column is set by the same wall clock
+// at row-update time, so the values are effectively identical up to
+// clock skew.
+//
+// Wire-format mapping lives in pkg/streaming/events/account_deleted.go;
+// changes to the payload contract belong there, not here.
+func (uc *UseCase) emitAccountDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account, deletedAt time.Time) {
+	if uc.Streaming == nil {
+		return
+	}
+
+	event, buildErr := events.NewAccountDeleted(acc, deletedAt).ToEvent(
+		pkgStreaming.ResolveTenantID(ctx),
+		uc.StreamingSource,
+		deletedAt,
+	)
+	if buildErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build account.deleted event", buildErr)
+		logger.Log(ctx, libLog.LevelWarn, "Skipping account.deleted emit; build failed", libLog.Err(buildErr))
+
+		return
+	}
+
+	if emitErr := uc.Streaming.Emit(ctx, event); emitErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to emit account.deleted", emitErr)
+		logger.Log(ctx, libLog.LevelWarn, "Streaming emit failed for account.deleted", libLog.Err(emitErr))
+	}
 }
