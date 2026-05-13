@@ -155,6 +155,63 @@ spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 - Async transaction processing is controlled by `RABBITMQ_TRANSACTION_ASYNC`.
 - Balance fields: `Available`, `OnHold`, `Scale`, `Version`.
 
+## Streaming (lib-streaming events)
+
+Producer is `github.com/LerianStudio/lib-streaming`. Wire format: CloudEvents 1.0 binary mode on Kafka. Topic: `lerian.streaming.<resource>.<event>`. ce-type is auto-prefixed by lib-streaming as `studio.lerian.<resource>.<event>`. The canonical wire contract lives in code under `pkg/streaming/events/`; the JSONShape unit test in that package locks it against drift.
+
+### Producer conventions
+
+- Import aliases: `libStreaming` for `github.com/LerianStudio/lib-streaming`; `pkgStreaming` for `github.com/LerianStudio/midaz/v3/pkg/streaming`. Keep both distinct.
+- Build config via `libStreaming.LoadConfig()` (reads `STREAMING_*` env with correct franz-go defaults). NEVER construct `libStreaming.Config{}` manually. Master flag stays in midaz `Config.StreamingEnabled`.
+- `CloudEventsSource` is validated but NOT auto-applied. Every `libStreaming.Event` must set `Source` explicitly. Hold the value on `UseCase.StreamingSource`, populate at bootstrap, read at each emit.
+- Tenant value from `pkgStreaming.ResolveTenantID(ctx)` — returns the multi-tenant context value or `pkgStreaming.DefaultTenantID` (literal `"default"`). Reference the constant, not the literal. NEVER hardcode tenants or call `tmcore.GetTenantIDContext` at emit sites.
+- Service code depends on `libStreaming.Emitter` INTERFACE, never `*libStreaming.Producer`. Nil emitter means "disabled" — guard with `if uc.Streaming != nil`. When `STREAMING_ENABLED=false`, bootstrap injects `libStreaming.NewNoopEmitter()`.
+- IMPORTANT-posture emit failures MUST NOT fail the request: log Warn, span-record, return success. Durability is the outbox's job. CRITICAL events use outbox-only (atomic with DB), no direct emit.
+- Emit POST-COMMIT and PRE-METADATA-WRITE — never at HTTP handlers. `ce-subject` is the aggregate ID, passed as `libStreaming.Event.Subject`.
+- Register the producer's `Close()` as `libCommons.RunApp("Streaming Producer", ...)` so it drains on SIGTERM (mirror `eventListenerRunnable`).
+- v1.1.0 module-proxy distribution does NOT export Catalog/policy constants (GitHub HEAD differs). Use `libStreaming.Event` directly; pass `WithOutboxRepository(repo)` to `libStreaming.New` when outbox lands.
+
+### Event modeling (`pkg/streaming/events`)
+
+One file per event. Use cases NEVER build payload maps inline. Required shape per file:
+
+1. **Definition var** — `<Event>Definition = events.Definition{ResourceType, EventType, SchemaVersion}`.
+2. **Payload struct** — wire JSON fields, typed INDEPENDENTLY of `mmodel.*` (mirror nested types explicitly so domain evolution doesn't leak onto the wire).
+3. **Constructor** — `New<Event>(domain *mmodel.X) <Event>Payload`. Place for PII redaction, derived fields, contract-locked defaults.
+4. **ToEvent method** — `(p <Event>Payload) ToEvent(tenantID, source string, ts time.Time) (libStreaming.Event, error)`. Marshals payload + assembles routing constants. Wrapped `json.Marshal` errors so caller picks Warn (IMPORTANT) vs fail (CRITICAL).
+
+Required unit tests: Definition key lock, minimal-domain mapping, all-optional-fields mapping, ToEvent assembly, JSON shape lock (top-level key set + field count).
+
+### Emission helper pattern
+
+The use-case body MUST NOT inline the build-emit-log block. Delegate to a private `emit<Event>` method on the same UseCase:
+
+```go
+// in CreateAccount, at the emission anchor:
+uc.emitAccountCreated(ctx, span, logger, acc)
+
+// helper alongside other private UseCase methods:
+func (uc *UseCase) emitAccountCreated(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account) {
+    if uc.Streaming == nil {
+        return
+    }
+    event, buildErr := events.NewAccountCreated(acc).ToEvent(
+        pkgStreaming.ResolveTenantID(ctx), uc.StreamingSource, acc.CreatedAt,
+    )
+    // log+swallow buildErr; otherwise Emit + log+swallow emitErr.
+}
+```
+
+Naming: `emit<Event>` (unexported). Signature: `(ctx, span, logger, <domain>)` — pass span and logger so the helper records into the SAME span the use case opened. Return type: none (IMPORTANT posture never propagates).
+
+Drift discipline: wire-contract change updates (a) Payload struct, (b) constructor, (c) JSONShape test field count — all in the same PR.
+
+### Local testing
+
+- Run any Kafka-compatible broker (Redpanda recommended). Bind host port `19092`; join `infra-network` so it's reachable from both host (`localhost:19092`) and containers (`<container>:9092`).
+- Pre-provision topics explicitly. Don't rely on auto-create — typos become silent ghost topics.
+- Local debug: `STREAMING_ENABLED=true`, `STREAMING_BROKERS=localhost:19092`, `STREAMING_CLOUDEVENTS_SOURCE=lerian.midaz.<component>`.
+
 ## Multi-Tenancy
 
 - Enabled via `MULTI_TENANT_ENABLED=true`; auth must also be enabled.
@@ -187,3 +244,12 @@ spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 - Do not overwrite parent `ctx` with child spans.
 - Do not use non-request span attributes for input data.
 - Do not log SQL args, payload values, secrets, balances, financial values, or PII.
+- Do not build `libStreaming.Config{}` manually; call `libStreaming.LoadConfig()` so franz-go defaults are applied.
+- Do not hardcode tenant IDs or call `tmcore.GetTenantIDContext` at streaming emit sites; use `pkgStreaming.ResolveTenantID(ctx)`.
+- Do not emit streaming events at HTTP handlers; emit at the post-commit, pre-metadata-write slot inside the command UseCase.
+- Do not inline the build-emit-log block in the use-case body; delegate to a dedicated `uc.emit<Event>(ctx, span, logger, domain)` helper on the same UseCase.
+- Do not fail HTTP requests on streaming emit errors for IMPORTANT-posture events; log Warn and continue.
+- Do not depend on `*libStreaming.Producer` in service code; depend on `libStreaming.Emitter` interface.
+- Do not build payload maps or call `json.Marshal` inline in use cases; route every payload through `pkg/streaming/events/<event>.go` (`New<Event>(...).ToEvent(...)`).
+- Do not embed `mmodel.*` types directly in event Payload structs; mirror the shape explicitly so domain evolution does not leak onto the wire.
+- Do not import `github.com/LerianStudio/lib-streaming` without the `libStreaming` alias, and do not import `github.com/LerianStudio/midaz/v3/pkg/streaming` without the `pkgStreaming` alias.

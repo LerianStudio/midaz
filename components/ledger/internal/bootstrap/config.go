@@ -203,6 +203,19 @@ type Config struct {
 	BalanceSyncBatchSize      int `env:"BALANCE_SYNC_BATCH_SIZE"`
 	BalanceSyncFlushTimeoutMs int `env:"BALANCE_SYNC_FLUSH_TIMEOUT_MS"`
 	BalanceSyncPollIntervalMs int `env:"BALANCE_SYNC_POLL_INTERVAL_MS"`
+
+	// --- Streaming (lib-streaming producer) ---
+	// Default for all streaming knobs is OFF — a service with
+	// STREAMING_ENABLED=false (or unset) injects a NoopEmitter and never
+	// initialises franz-go. The pilot ships disabled-by-default so that
+	// existing deployments are not broken by the new dependency.
+	StreamingEnabled           bool   `env:"STREAMING_ENABLED"`
+	StreamingBrokers           string `env:"STREAMING_BROKERS"`
+	StreamingClientID          string `env:"STREAMING_CLIENT_ID"`
+	StreamingCloudEventsSource string `env:"STREAMING_CLOUDEVENTS_SOURCE"`
+	StreamingCompression       string `env:"STREAMING_COMPRESSION"`
+	StreamingRequiredAcks      string `env:"STREAMING_REQUIRED_ACKS"`
+	StreamingBatchLingerMs     int    `env:"STREAMING_BATCH_LINGER_MS"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -580,6 +593,23 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		}
 	}
 
+	// === Streaming producer (lib-streaming) ===
+	// Built before the UseCase so the Emitter is available for injection.
+	// When STREAMING_ENABLED=false (the documented default for this pilot)
+	// the helper returns a NoopEmitter and a no-op closer, preserving full
+	// backward compatibility with existing deployments.
+
+	streamingEmitter, streamingClose, err := BuildStreamingEmitter(context.Background(), cfg, logger, telemetry)
+	if err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to initialize streaming emitter: %w", err)
+	}
+
+	if streamingClose != nil {
+		addCleanup(func() { _ = streamingClose() })
+	}
+
 	// === Use cases ===
 
 	commandUseCase := &command.UseCase{
@@ -603,6 +633,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMetadataRepo: txnMgo.metadataRepo,
 		RabbitMQRepo:            rmq.producerRepo,
 		TransactionRedisRepo:    txnRedisRepo,
+		// Streaming
+		Streaming:       streamingEmitter,
+		StreamingSource: cfg.StreamingCloudEventsSource,
 	}
 
 	queryUseCase := &query.UseCase{
@@ -752,6 +785,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Logger:                   logger,
 		Telemetry:                telemetry,
 		metricsFactory:           rmq.metricsFactory,
+		StreamingClose:           streamingClose,
+		StreamingEnabled:         cfg.StreamingEnabled,
 	}, nil
 }
 

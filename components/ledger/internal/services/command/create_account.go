@@ -19,7 +19,10 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // CreateAccount creates an account and metadata, then synchronously creates the default balance.
@@ -162,6 +165,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
+	uc.emitAccountCreated(ctx, span, logger, acc)
+
 	metadataDoc, err := uc.CreateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), acc.ID, cai.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create account metadata", err)
@@ -176,6 +181,42 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	logger.Log(ctx, libLog.LevelInfo, "Account created synchronously with default balance")
 
 	return acc, nil
+}
+
+// emitAccountCreated publishes the account.created event for a
+// successfully persisted account. IMPORTANT posture: build and emit
+// failures are span-recorded and logged at Warn, never returned.
+// Durability of the event is owned by PG and (follow-up task) the
+// outbox subsystem + DLQ, not by the synchronous Emit call.
+//
+// Anchor: invoked between the default-balance success branch and the
+// metadata-write call in CreateAccount, so a downstream Mongo failure
+// cannot mask the event and a balance-create rollback cannot leak it.
+//
+// Wire-format mapping lives in pkg/streaming/events/account_created.go;
+// changes to the payload contract belong there, not here. This function
+// stays a thin emit-and-log adapter.
+func (uc *UseCase) emitAccountCreated(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account) {
+	if uc.Streaming == nil {
+		return
+	}
+
+	event, buildErr := events.NewAccountCreated(acc).ToEvent(
+		pkgStreaming.ResolveTenantID(ctx),
+		uc.StreamingSource,
+		acc.CreatedAt,
+	)
+	if buildErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build account.created event", buildErr)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Skipping account.created emit; build failed: %v", buildErr))
+
+		return
+	}
+
+	if emitErr := uc.Streaming.Emit(ctx, event); emitErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to emit account.created", emitErr)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Streaming emit failed for account.created: %v", emitErr))
+	}
 }
 
 // isAuthorizationError checks if the error is an authorization-related error.
