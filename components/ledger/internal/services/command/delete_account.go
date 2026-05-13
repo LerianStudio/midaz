@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
@@ -21,6 +19,7 @@ import (
 	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -32,29 +31,32 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 	ctx, span := tracer.Start(ctx, "command.delete_account_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Remove account for id: %s", id.String()))
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_id", id.String()),
+	)
 
 	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find account by id", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error finding account by id: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to find account by id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to find account by id", libLog.Err(err))
 
 		return err
 	}
 
 	if accFound != nil && accFound.ID == id.String() && accFound.Type == "external" {
-		return pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
+		return pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, constant.EntityAccount)
 	}
 
 	if accFound == nil {
-		return pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		return pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, constant.EntityAccount)
 	}
 
 	accountID, err := uuid.Parse(accFound.ID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse account id", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to parse account id from repository data")
+		logger.Log(ctx, libLog.LevelError, "Failed to parse account id from repository data", libLog.Err(err))
 
 		return err
 	}
@@ -62,8 +64,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 	err = uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete all balances by account id", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete all balances by account id: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to delete all balances by account id", libLog.Err(err))
 
 		var (
 			unauthorized pkg.UnauthorizedError
@@ -74,23 +75,21 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 			return err
 		}
 
-		return pkg.ValidateBusinessError(constant.ErrAccountBalanceDeletion, reflect.TypeOf(mmodel.Account{}).Name())
+		return pkg.ValidateBusinessError(constant.ErrAccountBalanceDeletion, constant.EntityAccount)
 	}
 
 	if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, constant.EntityAccount)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Account ID not found: %s", id.String()))
-
+			logger.Log(ctx, libLog.LevelWarn, "Account ID not found on delete", libLog.String("account_id", id.String()))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete account on repo by id", err)
 
 			return err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete account on repo by id", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error deleting account: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to delete account on repo by id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to delete account on repo by id", libLog.Err(err))
 
 		return err
 	}

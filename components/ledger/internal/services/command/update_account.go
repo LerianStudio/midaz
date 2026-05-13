@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 	"slices"
 	"time"
 
@@ -22,6 +20,7 @@ import (
 	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -32,19 +31,22 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	ctx, span := tracer.Start(ctx, "command.update_account")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update account %s", id.String()))
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_id", id.String()),
+	)
 
 	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error finding account by id: %v", err))
-
 		libOpentelemetry.HandleSpanError(span, "Failed to find account by id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to find account by id", libLog.Err(err))
 
 		return nil, err
 	}
 
 	if accFound != nil && accFound.ID == id.String() && accFound.Type == "external" {
-		return nil, pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
+		return nil, pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, constant.EntityAccount)
 	}
 
 	account := &mmodel.Account{
@@ -60,19 +62,17 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 	accountUpdated, err := uc.AccountRepo.Update(ctx, organizationID, ledgerID, portfolioID, id, account)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating account on repo by id: %v", err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, constant.EntityAccount)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Account ID not found: %s", id.String()))
-
+			logger.Log(ctx, libLog.LevelWarn, "Account ID not found on update", libLog.String("account_id", id.String()))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account on repo by id", err)
 
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to update account on repo by id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to update account on repo by id", libLog.Err(err))
 
 		return nil, err
 	}
@@ -82,11 +82,10 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	// Follow-up: fix the repo to RETURNING * so this dance is unneeded.
 	uc.emitAccountUpdatedEvent(ctx, span, logger, mergePatchAccount(accFound, account, accountUpdated.UpdatedAt))
 
-	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), id.String(), uai.Metadata)
+	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityAccount, id.String(), uai.Metadata)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating metadata: %v", err))
-
 		libOpentelemetry.HandleSpanError(span, "Failed to update metadata", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to update metadata", libLog.Err(err))
 
 		return nil, err
 	}
@@ -104,6 +103,11 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 // the pre-update value is preserved. Caller passes the persisted
 // UpdatedAt from the repo so the event carries the same timestamp the
 // row now has.
+//
+// Uses libCommons.IsNilOrEmpty for *string fields to match the repo's
+// applyNullableFields; PROJECT_RULES prefers `!= nil` for PATCH inputs,
+// but the emission contract must reflect what was actually persisted —
+// so this helper stays consistent with the SQL until the repo migrates.
 func mergePatchAccount(pre, in *mmodel.Account, updatedAt time.Time) *mmodel.Account {
 	out := *pre
 	out.UpdatedAt = updatedAt
