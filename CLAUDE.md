@@ -184,25 +184,40 @@ Required unit tests: Definition key lock, minimal-domain mapping, all-optional-f
 
 ### Emission helper pattern
 
-The use-case body MUST NOT inline the build-emit-log block. Delegate to a private `emit<Event>` method on the same UseCase:
+The use-case body MUST NOT inline the build-emit-log block. Delegate to a private `emit<Event>Event` method on the same UseCase:
 
 ```go
 // in CreateAccount, at the emission anchor:
-uc.emitAccountCreated(ctx, span, logger, acc)
+uc.emitAccountCreatedEvent(ctx, span, logger, acc)
 
 // helper alongside other private UseCase methods:
-func (uc *UseCase) emitAccountCreated(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account) {
+func (uc *UseCase) emitAccountCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account) {
     if uc.Streaming == nil {
         return
     }
+
     event, buildErr := events.NewAccountCreated(acc).ToEvent(
-        pkgStreaming.ResolveTenantID(ctx), uc.StreamingSource, acc.CreatedAt,
+        pkgStreaming.ResolveTenantID(ctx),
+        uc.StreamingSource,
+        acc.CreatedAt,
     )
-    // log+swallow buildErr; otherwise Emit + log+swallow emitErr.
+    if buildErr != nil {
+        libOpentelemetry.HandleSpanError(span, "Failed to build account.created event", buildErr)
+        logger.Log(ctx, libLog.LevelWarn, "Skipping account.created emit; build failed", libLog.Err(buildErr))
+
+        return
+    }
+
+    if emitErr := uc.Streaming.Emit(ctx, event); emitErr != nil {
+        libOpentelemetry.HandleSpanError(span, "Failed to emit account.created", emitErr)
+        logger.Log(ctx, libLog.LevelWarn, "Streaming emit failed for account.created", libLog.Err(emitErr))
+    }
 }
 ```
 
-Naming: `emit<Event>` (unexported). Signature: `(ctx, span, logger, <domain>)` — pass span and logger so the helper records into the SAME span the use case opened. Return type: none (IMPORTANT posture never propagates).
+Error handling rules captured in the example: use `libOpentelemetry.HandleSpanError` (not `HandleSpanBusinessErrorEvent` — these are infra/serialization failures, not business validation), log at `Warn` (IMPORTANT posture never escalates to Error), pass `libLog.Err(err)` structured, and `return` after the build failure (don't try to Emit a nil/malformed event).
+
+Naming: `emit<Event>Event` (unexported) — the trailing `Event` disambiguates from emitting the domain object itself. Signature: `(ctx, span, logger, <domain>)` — pass span and logger so the helper records into the SAME span the use case opened. Return type: none (IMPORTANT posture never propagates).
 
 Drift discipline: wire-contract change updates (a) Payload struct, (b) constructor, (c) JSONShape test field count — all in the same PR.
 
@@ -247,7 +262,7 @@ Drift discipline: wire-contract change updates (a) Payload struct, (b) construct
 - Do not build `libStreaming.Config{}` manually; call `libStreaming.LoadConfig()` so franz-go defaults are applied.
 - Do not hardcode tenant IDs or call `tmcore.GetTenantIDContext` at streaming emit sites; use `pkgStreaming.ResolveTenantID(ctx)`.
 - Do not emit streaming events at HTTP handlers; emit at the post-commit, pre-metadata-write slot inside the command UseCase.
-- Do not inline the build-emit-log block in the use-case body; delegate to a dedicated `uc.emit<Event>(ctx, span, logger, domain)` helper on the same UseCase.
+- Do not inline the build-emit-log block in the use-case body; delegate to a dedicated `uc.emit<Event>Event(ctx, span, logger, domain)` helper on the same UseCase.
 - Do not fail HTTP requests on streaming emit errors for IMPORTANT-posture events; log Warn and continue.
 - Do not depend on `*libStreaming.Producer` in service code; depend on `libStreaming.Emitter` interface.
 - Do not build payload maps or call `json.Marshal` inline in use cases; route every payload through `pkg/streaming/events/<event>.go` (`New<Event>(...).ToEvent(...)`).
