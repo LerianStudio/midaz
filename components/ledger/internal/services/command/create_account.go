@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -22,6 +20,7 @@ import (
 	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -33,12 +32,16 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	ctx, span := tracer.Start(ctx, "command.create_account")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create account organizationID=%s ledgerID=%s type=%s", organizationID.String(), ledgerID.String(), cai.Type))
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_type", cai.Type),
+		attribute.String("app.request.asset_code", cai.AssetCode),
+	)
 
 	if err := uc.applyAccountingValidations(ctx, organizationID, ledgerID, cai.Type); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting validations failed", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Accounting validations failed: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Accounting validations failed", libLog.Err(err))
 
 		return nil, err
 	}
@@ -51,7 +54,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	isAsset, _ := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, "", cai.AssetCode)
 	if !isAsset {
-		err := pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, constant.EntityAccount)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find asset", err)
 
 		return nil, err
@@ -65,7 +68,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		portfolio, err := uc.PortfolioRepo.Find(ctx, organizationID, ledgerID, portfolioUUID)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find portfolio", err)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error find portfolio to get Entity ID: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Error finding portfolio to resolve entity ID", libLog.Err(err))
 
 			return nil, err
 		}
@@ -76,14 +79,14 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	if !libCommons.IsNilOrEmpty(cai.ParentAccountID) {
 		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(*cai.ParentAccountID))
 		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, constant.EntityAccount)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find parent account", err)
 
 			return nil, err
 		}
 
 		if acc.AssetCode != cai.AssetCode {
-			err := pkg.ValidateBusinessError(constant.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrMismatchedAssetCode, constant.EntityAccount)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate parent account", err)
 
 			return nil, err
@@ -93,14 +96,12 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	accountID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to generate account ID", err)
-		logger.Log(ctx, libLog.LevelError, "Error generating account ID")
+		logger.Log(ctx, libLog.LevelError, "Error generating account ID", libLog.Err(err))
 
 		return nil, err
 	}
 
-	ID := accountID.String()
-
-	alias, err := uc.resolveAccountAlias(ctx, organizationID, ledgerID, cai, ID)
+	alias, err := uc.resolveAccountAlias(ctx, organizationID, ledgerID, cai, accountID.String())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find account by alias", err)
 		return nil, err
@@ -108,8 +109,10 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	blocked := cai.Blocked != nil && *cai.Blocked
 
+	now := time.Now()
+
 	account := &mmodel.Account{
-		ID:              ID,
+		ID:              accountID.String(),
 		AssetCode:       cai.AssetCode,
 		Alias:           alias,
 		Name:            cai.Name,
@@ -122,15 +125,14 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		LedgerID:        ledgerID.String(),
 		EntityID:        cai.EntityID,
 		Status:          status,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 
 	acc, err := uc.AccountRepo.Create(ctx, account)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create account", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating account: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error creating account", libLog.Err(err))
 
 		return nil, err
 	}
@@ -139,7 +141,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		RequestID:      requestID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
-		AccountID:      uuid.MustParse(acc.ID),
+		AccountID:      accountID,
 		Alias:          *alias,
 		Key:            constant.DefaultBalanceKey,
 		AssetCode:      cai.AssetCode,
@@ -151,27 +153,26 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	_, err = uc.CreateBalanceSync(ctx, balanceInput)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create default balance", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create default balance: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create default balance", libLog.Err(err))
 
-		delErr := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(acc.ID))
+		delErr := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, &portfolioUUID, accountID)
 		if delErr != nil {
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete account during compensation: %v", delErr))
+			logger.Log(ctx, libLog.LevelError, "Failed to delete account during compensation", libLog.Err(delErr))
 		}
 
 		if isAuthorizationError(err) {
 			return nil, err
 		}
 
-		return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name())
+		return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, constant.EntityAccount)
 	}
 
 	uc.emitAccountCreated(ctx, span, logger, acc)
 
-	metadataDoc, err := uc.CreateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), acc.ID, cai.Metadata)
+	metadataDoc, err := uc.CreateOnboardingMetadata(ctx, constant.EntityAccount, acc.ID, cai.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create account metadata", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating account metadata: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error creating account metadata", libLog.Err(err))
 
 		return nil, err
 	}
@@ -208,14 +209,14 @@ func (uc *UseCase) emitAccountCreated(ctx context.Context, span trace.Span, logg
 	)
 	if buildErr != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build account.created event", buildErr)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Skipping account.created emit; build failed: %v", buildErr))
+		logger.Log(ctx, libLog.LevelWarn, "Skipping account.created emit; build failed", libLog.Err(buildErr))
 
 		return
 	}
 
 	if emitErr := uc.Streaming.Emit(ctx, event); emitErr != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to emit account.created", emitErr)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Streaming emit failed for account.created: %v", emitErr))
+		logger.Log(ctx, libLog.LevelWarn, "Streaming emit failed for account.created", libLog.Err(emitErr))
 	}
 }
 
@@ -298,7 +299,7 @@ func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationI
 	_, err = uc.AccountTypeRepo.FindByKey(ctx, organizationID, ledgerID, accountType)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountType, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountType, constant.EntityAccountType)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account type not registered", err)
 			logger.Log(ctx, libLog.LevelWarn, "Account type not found in registered types",
