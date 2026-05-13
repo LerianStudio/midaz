@@ -169,7 +169,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		AllowReceiving: true,
 	}
 
-	_, err = uc.CreateBalanceSync(ctx, balanceInput)
+	_, err = uc.CreateDefaultBalance(ctx, balanceInput)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create default balance", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to create default balance", libLog.Err(err))
