@@ -13,6 +13,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -159,24 +160,8 @@ func mergePatchAccount(pre, in *mmodel.Account, updatedAt time.Time) *mmodel.Acc
 // changes to the payload contract belong there, not here. This function
 // stays a thin emit-and-log adapter.
 func (uc *UseCase) emitAccountUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account) {
-	if uc.Streaming == nil {
-		return
-	}
-
-	event, buildErr := events.NewAccountUpdated(acc).ToEvent(
-		pkgStreaming.ResolveTenantID(ctx),
-		uc.StreamingSource,
-		acc.UpdatedAt,
-	)
-	if buildErr != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to build account.updated event", buildErr)
-		logger.Log(ctx, libLog.LevelWarn, "Skipping account.updated emit; build failed", libLog.Err(buildErr))
-
-		return
-	}
-
-	if emitErr := uc.Streaming.Emit(ctx, event); emitErr != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to emit account.updated", emitErr)
-		logger.Log(ctx, libLog.LevelWarn, "Streaming emit failed for account.updated", libLog.Err(emitErr))
-	}
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, uc.StreamingSource, events.AccountUpdatedDefinition.Key(),
+		func(tenantID, source string) (libStreaming.Event, error) {
+			return events.NewAccountUpdated(acc).ToEvent(tenantID, source, acc.UpdatedAt)
+		})
 }

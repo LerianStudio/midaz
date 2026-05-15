@@ -11,6 +11,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -90,24 +91,8 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 // successfully persisted organization. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
 func (uc *UseCase) emitOrganizationCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, org *mmodel.Organization) {
-	if uc.Streaming == nil {
-		return
-	}
-
-	event, buildErr := events.NewOrganizationCreated(org).ToEvent(
-		pkgStreaming.ResolveTenantID(ctx),
-		uc.StreamingSource,
-		org.CreatedAt,
-	)
-	if buildErr != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to build organization.created event", buildErr)
-		logger.Log(ctx, libLog.LevelWarn, "Skipping organization.created emit; build failed", libLog.Err(buildErr))
-
-		return
-	}
-
-	if emitErr := uc.Streaming.Emit(ctx, event); emitErr != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to emit organization.created", emitErr)
-		logger.Log(ctx, libLog.LevelWarn, "Streaming emit failed for organization.created", libLog.Err(emitErr))
-	}
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, uc.StreamingSource, events.OrganizationCreatedDefinition.Key(),
+		func(tenantID, source string) (libStreaming.Event, error) {
+			return events.NewOrganizationCreated(org).ToEvent(tenantID, source, org.CreatedAt)
+		})
 }

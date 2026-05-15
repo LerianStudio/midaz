@@ -164,9 +164,9 @@ Producer is `github.com/LerianStudio/lib-streaming`. Wire format: CloudEvents 1.
 - Import aliases: `libStreaming` for `github.com/LerianStudio/lib-streaming`; `pkgStreaming` for `github.com/LerianStudio/midaz/v3/pkg/streaming`. Keep both distinct.
 - Build config via `libStreaming.LoadConfig()` (reads `STREAMING_*` env with correct franz-go defaults). NEVER construct `libStreaming.Config{}` manually. Master flag stays in midaz `Config.StreamingEnabled`.
 - `CloudEventsSource` is validated but NOT auto-applied. Every `libStreaming.Event` must set `Source` explicitly. Hold the value on `UseCase.StreamingSource`, populate at bootstrap, read at each emit.
-- Tenant value from `pkgStreaming.ResolveTenantID(ctx)` — returns the multi-tenant context value or `pkgStreaming.DefaultTenantID` (literal `"default"`). Reference the constant, not the literal. NEVER hardcode tenants or call `tmcore.GetTenantIDContext` at emit sites.
+- Tenant value from `pkgStreaming.ResolveTenantID(ctx)` — returns the multi-tenant context value or `pkgStreaming.DefaultTenantID` (literal `"default"`). Reference the constant, not the literal. NEVER hardcode tenants or call `tmcore.GetTenantIDContext` at emit sites. For IMPORTANT events, `pkgStreaming.EmitImportant` resolves the tenant internally and passes it to the typed event builder closure.
 - Service code depends on `libStreaming.Emitter` INTERFACE, never `*libStreaming.Producer`. Nil emitter means "disabled" — guard with `if uc.Streaming != nil`. When `STREAMING_ENABLED=false`, bootstrap injects `libStreaming.NewNoopEmitter()`.
-- IMPORTANT-posture emit failures MUST NOT fail the request: log Warn, span-record, return success. Durability is the outbox's job. CRITICAL events use outbox-only (atomic with DB), no direct emit.
+- IMPORTANT-posture direct emits MUST go through `pkgStreaming.EmitImportant`. Build/emit failures MUST NOT fail the request: log Warn, span-record, return success. `EmitImportant` bounds direct emit latency with `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS` (default 5s) so broker issues cannot hold HTTP responses until client timeout. Durability is the outbox's job. CRITICAL events use outbox-only (atomic with DB), no direct emit.
 - Emit POST-COMMIT and PRE-METADATA-WRITE — never at HTTP handlers. `ce-subject` is the aggregate ID, passed as `libStreaming.Event.Subject`.
 - Register the producer's `Close()` as `libCommons.RunApp("Streaming Producer", ...)` so it drains on SIGTERM (mirror `eventListenerRunnable`).
 - v1.1.0 module-proxy distribution does NOT export Catalog/policy constants (GitHub HEAD differs). Use `libStreaming.Event` directly; pass `WithOutboxRepository(repo)` to `libStreaming.New` when outbox lands.
@@ -182,9 +182,9 @@ One file per event. Use cases NEVER build payload maps inline. Required shape pe
 
 Required unit tests: Definition key lock, minimal-domain mapping, all-optional-fields mapping, ToEvent assembly, JSON shape lock (top-level key set + field count).
 
-### Emission helper pattern
+### IMPORTANT emission helper pattern
 
-The use-case body MUST NOT inline the build-emit-log block. Delegate to a private `emit<Event>Event` method on the same UseCase:
+The use-case body MUST NOT inline emission mechanics. Delegate to a private `emit<Event>Event` method on the same UseCase; that method MUST call `pkgStreaming.EmitImportant` for IMPORTANT-posture events:
 
 ```go
 // in CreateAccount, at the emission anchor:
@@ -192,32 +192,16 @@ uc.emitAccountCreatedEvent(ctx, span, logger, acc)
 
 // helper alongside other private UseCase methods:
 func (uc *UseCase) emitAccountCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account) {
-    if uc.Streaming == nil {
-        return
-    }
-
-    event, buildErr := events.NewAccountCreated(acc).ToEvent(
-        pkgStreaming.ResolveTenantID(ctx),
-        uc.StreamingSource,
-        acc.CreatedAt,
-    )
-    if buildErr != nil {
-        libOpentelemetry.HandleSpanError(span, "Failed to build account.created event", buildErr)
-        logger.Log(ctx, libLog.LevelWarn, "Skipping account.created emit; build failed", libLog.Err(buildErr))
-
-        return
-    }
-
-    if emitErr := uc.Streaming.Emit(ctx, event); emitErr != nil {
-        libOpentelemetry.HandleSpanError(span, "Failed to emit account.created", emitErr)
-        logger.Log(ctx, libLog.LevelWarn, "Streaming emit failed for account.created", libLog.Err(emitErr))
-    }
+    pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, uc.StreamingSource, events.AccountCreatedDefinition.Key(),
+        func(tenantID, source string) (libStreaming.Event, error) {
+            return events.NewAccountCreated(acc).ToEvent(tenantID, source, acc.CreatedAt)
+        })
 }
 ```
 
-Error handling rules captured in the example: use `libOpentelemetry.HandleSpanError` (not `HandleSpanBusinessErrorEvent` — these are infra/serialization failures, not business validation), log at `Warn` (IMPORTANT posture never escalates to Error), pass `libLog.Err(err)` structured, and `return` after the build failure (don't try to Emit a nil/malformed event).
+`EmitImportant` owns the common IMPORTANT-posture mechanics: nil-emitter guard, tenant resolution, bounded emit context, `libOpentelemetry.HandleSpanError` (not `HandleSpanBusinessErrorEvent`), Warn logging with `libLog.Err(err)`, and non-propagation of build/emit failures. Use-case helpers remain explicit only about the typed payload constructor, event definition key, source, subject, and timestamp.
 
-Naming: `emit<Event>Event` (unexported) — the trailing `Event` disambiguates from emitting the domain object itself. Signature: `(ctx, span, logger, <domain>)` — pass span and logger so the helper records into the SAME span the use case opened. Return type: none (IMPORTANT posture never propagates).
+Naming: `emit<Event>Event` (unexported) — the trailing `Event` disambiguates from emitting the domain object itself. Signature: `(ctx, span, logger, <domain>)` — pass span and logger so `EmitImportant` records into the SAME span the use case opened. Return type: none (IMPORTANT posture never propagates).
 
 Drift discipline: wire-contract change updates (a) Payload struct, (b) constructor, (c) JSONShape test field count — all in the same PR.
 
@@ -225,7 +209,7 @@ Drift discipline: wire-contract change updates (a) Payload struct, (b) construct
 
 - Run any Kafka-compatible broker (Redpanda recommended). Bind host port `19092`; join `infra-network` so it's reachable from both host (`localhost:19092`) and containers (`<container>:9092`).
 - Pre-provision topics explicitly. Don't rely on auto-create — typos become silent ghost topics.
-- Local debug: `STREAMING_ENABLED=true`, `STREAMING_BROKERS=localhost:19092`, `STREAMING_CLOUDEVENTS_SOURCE=lerian.midaz.<component>`.
+- Local debug: `STREAMING_ENABLED=true`, `STREAMING_BROKERS=localhost:19092`, `STREAMING_CLOUDEVENTS_SOURCE=lerian.midaz.<component>`. If local broker startup is slow, tune `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS`; keep it below the HTTP client timeout.
 
 ## Multi-Tenancy
 
@@ -260,9 +244,9 @@ Drift discipline: wire-contract change updates (a) Payload struct, (b) construct
 - Do not use non-request span attributes for input data.
 - Do not log SQL args, payload values, secrets, balances, financial values, or PII.
 - Do not build `libStreaming.Config{}` manually; call `libStreaming.LoadConfig()` so franz-go defaults are applied.
-- Do not hardcode tenant IDs or call `tmcore.GetTenantIDContext` at streaming emit sites; use `pkgStreaming.ResolveTenantID(ctx)`.
+- Do not hardcode tenant IDs or call `tmcore.GetTenantIDContext` at streaming emit sites; use `pkgStreaming.EmitImportant` for IMPORTANT events or `pkgStreaming.ResolveTenantID(ctx)` inside non-IMPORTANT streaming infrastructure.
 - Do not emit streaming events at HTTP handlers; emit at the post-commit, pre-metadata-write slot inside the command UseCase.
-- Do not inline the build-emit-log block in the use-case body; delegate to a dedicated `uc.emit<Event>Event(ctx, span, logger, domain)` helper on the same UseCase.
+- Do not inline the build-emit-log block in the use-case body; delegate to a dedicated `uc.emit<Event>Event(ctx, span, logger, domain)` helper on the same UseCase, and have that helper call `pkgStreaming.EmitImportant` for IMPORTANT events.
 - Do not fail HTTP requests on streaming emit errors for IMPORTANT-posture events; log Warn and continue.
 - Do not depend on `*libStreaming.Producer` in service code; depend on `libStreaming.Emitter` interface.
 - Do not build payload maps or call `json.Marshal` inline in use cases; route every payload through `pkg/streaming/events/<event>.go` (`New<Event>(...).ToEvent(...)`).

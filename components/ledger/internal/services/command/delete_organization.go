@@ -12,6 +12,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -58,24 +59,8 @@ func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) err
 // successfully soft-deleted organization. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
 func (uc *UseCase) emitOrganizationDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id string, deletedAt time.Time) {
-	if uc.Streaming == nil {
-		return
-	}
-
-	event, buildErr := events.NewOrganizationDeleted(id, deletedAt).ToEvent(
-		pkgStreaming.ResolveTenantID(ctx),
-		uc.StreamingSource,
-		deletedAt,
-	)
-	if buildErr != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to build organization.deleted event", buildErr)
-		logger.Log(ctx, libLog.LevelWarn, "Skipping organization.deleted emit; build failed", libLog.Err(buildErr))
-
-		return
-	}
-
-	if emitErr := uc.Streaming.Emit(ctx, event); emitErr != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to emit organization.deleted", emitErr)
-		logger.Log(ctx, libLog.LevelWarn, "Streaming emit failed for organization.deleted", libLog.Err(emitErr))
-	}
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, uc.StreamingSource, events.OrganizationDeletedDefinition.Key(),
+		func(tenantID, source string) (libStreaming.Event, error) {
+			return events.NewOrganizationDeleted(id, deletedAt).ToEvent(tenantID, source, deletedAt)
+		})
 }

@@ -12,6 +12,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -116,24 +117,8 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 // Wire-format mapping lives in pkg/streaming/events/account_deleted.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitAccountDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account, deletedAt time.Time) {
-	if uc.Streaming == nil {
-		return
-	}
-
-	event, buildErr := events.NewAccountDeleted(acc, deletedAt).ToEvent(
-		pkgStreaming.ResolveTenantID(ctx),
-		uc.StreamingSource,
-		deletedAt,
-	)
-	if buildErr != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to build account.deleted event", buildErr)
-		logger.Log(ctx, libLog.LevelWarn, "Skipping account.deleted emit; build failed", libLog.Err(buildErr))
-
-		return
-	}
-
-	if emitErr := uc.Streaming.Emit(ctx, event); emitErr != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to emit account.deleted", emitErr)
-		logger.Log(ctx, libLog.LevelWarn, "Streaming emit failed for account.deleted", libLog.Err(emitErr))
-	}
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, uc.StreamingSource, events.AccountDeletedDefinition.Key(),
+		func(tenantID, source string) (libStreaming.Event, error) {
+			return events.NewAccountDeleted(acc, deletedAt).ToEvent(tenantID, source, deletedAt)
+		})
 }
