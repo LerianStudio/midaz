@@ -14,7 +14,10 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // CreateOrganization creates a new organization and persists it in the repository.
@@ -63,6 +66,8 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		return nil, err
 	}
 
+	uc.emitOrganizationCreatedEvent(ctx, span, logger, org)
+
 	// NOTE: The organization is already persisted at this point. If metadata creation
 	// fails, the org exists in PostgreSQL without its metadata in MongoDB. This is a
 	// known consistency gap that affects all entity creates. A proper fix requires
@@ -79,4 +84,30 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	org.Metadata = metadata
 
 	return org, nil
+}
+
+// emitOrganizationCreatedEvent publishes the organization.created event for a
+// successfully persisted organization. IMPORTANT posture: build and emit
+// failures are span-recorded and logged at Warn, never returned.
+func (uc *UseCase) emitOrganizationCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, org *mmodel.Organization) {
+	if uc.Streaming == nil {
+		return
+	}
+
+	event, buildErr := events.NewOrganizationCreated(org).ToEvent(
+		pkgStreaming.ResolveTenantID(ctx),
+		uc.StreamingSource,
+		org.CreatedAt,
+	)
+	if buildErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build organization.created event", buildErr)
+		logger.Log(ctx, libLog.LevelWarn, "Skipping organization.created emit; build failed", libLog.Err(buildErr))
+
+		return
+	}
+
+	if emitErr := uc.Streaming.Emit(ctx, event); emitErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to emit organization.created", emitErr)
+		logger.Log(ctx, libLog.LevelWarn, "Streaming emit failed for organization.created", libLog.Err(emitErr))
+	}
 }

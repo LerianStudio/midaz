@@ -15,8 +15,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // UpdateOrganizationByID applies a partial update to the organization identified by id.
@@ -75,6 +78,8 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 		return nil, err
 	}
 
+	uc.emitOrganizationUpdatedEvent(ctx, span, logger, organizationUpdated)
+
 	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityOrganization, id.String(), uoi.Metadata)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Failed to update organization metadata", libLog.Err(err))
@@ -86,4 +91,30 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 	organizationUpdated.Metadata = metadataUpdated
 
 	return organizationUpdated, nil
+}
+
+// emitOrganizationUpdatedEvent publishes the organization.updated event for a
+// successfully persisted update. IMPORTANT posture: build and emit failures are
+// span-recorded and logged at Warn, never returned.
+func (uc *UseCase) emitOrganizationUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, org *mmodel.Organization) {
+	if uc.Streaming == nil {
+		return
+	}
+
+	event, buildErr := events.NewOrganizationUpdated(org).ToEvent(
+		pkgStreaming.ResolveTenantID(ctx),
+		uc.StreamingSource,
+		org.UpdatedAt,
+	)
+	if buildErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build organization.updated event", buildErr)
+		logger.Log(ctx, libLog.LevelWarn, "Skipping organization.updated emit; build failed", libLog.Err(buildErr))
+
+		return
+	}
+
+	if emitErr := uc.Streaming.Emit(ctx, event); emitErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to emit organization.updated", emitErr)
+		logger.Log(ctx, libLog.LevelWarn, "Streaming emit failed for organization.updated", libLog.Err(emitErr))
+	}
 }
