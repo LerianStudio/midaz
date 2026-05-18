@@ -13,8 +13,12 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // CreatePortfolio creates a new portfolio and persists it in the repository.
@@ -65,6 +69,8 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 		return nil, err
 	}
 
+	uc.emitPortfolioCreatedEvent(ctx, span, logger, port)
+
 	metadata, err := uc.CreateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), port.ID, cpi.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create portfolio metadata", err)
@@ -77,4 +83,23 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	port.Metadata = metadata
 
 	return port, nil
+}
+
+// emitPortfolioCreatedEvent publishes the portfolio.created event for a
+// successfully persisted portfolio. IMPORTANT posture: build and emit
+// failures are span-recorded and logged at Warn, never returned.
+// Durability of the event is owned by PG and (follow-up task) the
+// outbox subsystem + DLQ, not by the synchronous Emit call.
+//
+// Anchor: invoked immediately after PortfolioRepo.Create succeeds and
+// before CreateOnboardingMetadata runs, so a downstream Mongo failure
+// cannot mask the event.
+//
+// Wire-format mapping lives in pkg/streaming/events/portfolio_created.go;
+// changes to the payload contract belong there, not here.
+func (uc *UseCase) emitPortfolioCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, p *mmodel.Portfolio) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.PortfolioCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewPortfolioCreated(p).ToEmitRequest(tenantID, p.CreatedAt)
+		})
 }

@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -125,8 +124,13 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 	record.FromEntity(portfolio)
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
+	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, `INSERT INTO portfolio VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+	insertQuery := `INSERT INTO portfolio VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING ` + strings.Join(portfolioColumnList, ", ")
+
+	inserted := &PortfolioPostgreSQLModel{}
+
+	row := db.QueryRowContext(ctx, insertQuery,
 		record.ID,
 		record.Name,
 		record.EntityID,
@@ -138,47 +142,37 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 		record.UpdatedAt,
 		record.DeletedAt,
 	)
-	if err != nil {
+	if err := row.Scan(
+		&inserted.ID,
+		&inserted.Name,
+		&inserted.EntityID,
+		&inserted.LedgerID,
+		&inserted.OrganizationID,
+		&inserted.Status,
+		&inserted.StatusDescription,
+		&inserted.CreatedAt,
+		&inserted.UpdatedAt,
+		&inserted.DeletedAt,
+	); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute insert query", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to execute update query: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to execute insert query: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute insert query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute update query: %v", err))
-
-		return nil, err
-	}
-
-	spanExec.End()
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute insert query: %v", err))
 
 		return nil, err
 	}
 
-	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create Portfolio. Rows affected is 0", err)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to create Portfolio. Rows affected is 0: %v", err))
-
-		return nil, err
-	}
-
-	return record.ToEntity(), nil
+	return inserted.ToEntity(), nil
 }
 
 // FindByIDEntity find portfolio from the database using the Entity id.
@@ -519,44 +513,66 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	record := &PortfolioPostgreSQLModel{}
 	record.FromEntity(portfolio)
 
-	var updates []string
+	record.UpdatedAt = time.Now()
 
-	var args []any
+	builder := squirrel.Update(r.tableName).
+		Set("updated_at", record.UpdatedAt).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
 
 	if portfolio.EntityID != "" {
-		updates = append(updates, "entity_id = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.EntityID)
+		builder = builder.Set("entity_id", record.EntityID)
 	}
 
 	if portfolio.Name != "" {
-		updates = append(updates, "name = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.Name)
+		builder = builder.Set("name", record.Name)
 	}
 
 	if !portfolio.Status.IsEmpty() {
-		updates = append(updates, "status = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.Status)
-
-		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.StatusDescription)
+		builder = builder.Set("status", record.Status).
+			Set("status_description", record.StatusDescription)
 	}
 
-	record.UpdatedAt = time.Now()
+	builder = builder.Suffix("RETURNING " + strings.Join(portfolioColumnList, ", "))
 
-	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+	query, args, err := builder.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build update query", err)
 
-	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build update query: %v", err))
 
-	query := `UPDATE portfolio SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
-		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
-		` AND id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL`
+		return nil, err
+	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
+	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, query, args...)
-	if err != nil {
+	updated := &PortfolioPostgreSQLModel{}
+
+	row := db.QueryRowContext(ctx, query, args...)
+	if err := row.Scan(
+		&updated.ID,
+		&updated.Name,
+		&updated.EntityID,
+		&updated.LedgerID,
+		&updated.OrganizationID,
+		&updated.Status,
+		&updated.StatusDescription,
+		&updated.CreatedAt,
+		&updated.UpdatedAt,
+		&updated.DeletedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update portfolio. Rows affected is 0", err)
+
+			return nil, err
+		}
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
@@ -575,26 +591,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 		return nil, err
 	}
 
-	spanExec.End()
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
-
-		return nil, err
-	}
-
-	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Portfolio. Rows affected is 0", err)
-
-		return nil, err
-	}
-
-	return record.ToEntity(), nil
+	return updated.ToEntity(), nil
 }
 
 // Delete removes a Portfolio entity from the database using the provided IDs.

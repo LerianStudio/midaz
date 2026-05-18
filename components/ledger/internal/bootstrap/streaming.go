@@ -152,6 +152,9 @@ func midazEventDefinitions() []events.Definition {
 		events.AssetCreatedDefinition,
 		events.AssetUpdatedDefinition,
 		events.AssetDeletedDefinition,
+		events.PortfolioCreatedDefinition,
+		events.PortfolioUpdatedDefinition,
+		events.PortfolioDeletedDefinition,
 	}
 }
 
