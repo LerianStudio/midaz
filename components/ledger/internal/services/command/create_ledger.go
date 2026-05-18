@@ -13,8 +13,12 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // CreateLedger creates a new ledger and persists it in the repository.
@@ -82,6 +86,8 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		return nil, err
 	}
 
+	uc.emitLedgerCreatedEvent(ctx, span, logger, led)
+
 	takeName := reflect.TypeOf(mmodel.Ledger{}).Name()
 
 	metadata, err := uc.CreateOnboardingMetadata(ctx, takeName, led.ID, cli.Metadata)
@@ -103,4 +109,14 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 	}
 
 	return led, nil
+}
+
+// emitLedgerCreatedEvent publishes the ledger.created event for a
+// successfully persisted ledger. IMPORTANT posture: build and emit
+// failures are span-recorded and logged at Warn, never returned.
+func (uc *UseCase) emitLedgerCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, led *mmodel.Ledger) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, uc.StreamingSource, events.LedgerCreatedDefinition.Key(),
+		func(tenantID, source string) (libStreaming.Event, error) {
+			return events.NewLedgerCreated(led).ToEvent(tenantID, source, led.CreatedAt)
+		})
 }
