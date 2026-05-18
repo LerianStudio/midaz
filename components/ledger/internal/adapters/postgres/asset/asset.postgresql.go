@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -126,8 +125,13 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 	record.FromEntity(asset)
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
+	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, `INSERT INTO asset VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+	insertQuery := `INSERT INTO asset VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING ` + strings.Join(assetColumnList, ", ")
+
+	inserted := &AssetPostgreSQLModel{}
+
+	row := db.QueryRowContext(ctx, insertQuery,
 		record.ID,
 		record.Name,
 		record.Type,
@@ -140,7 +144,19 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 		record.UpdatedAt,
 		record.DeletedAt,
 	)
-	if err != nil {
+	if err := row.Scan(
+		&inserted.ID,
+		&inserted.Name,
+		&inserted.Type,
+		&inserted.Code,
+		&inserted.Status,
+		&inserted.StatusDescription,
+		&inserted.LedgerID,
+		&inserted.OrganizationID,
+		&inserted.CreatedAt,
+		&inserted.UpdatedAt,
+		&inserted.DeletedAt,
+	); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Asset{}).Name())
@@ -155,26 +171,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 		return nil, err
 	}
 
-	spanExec.End()
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
-
-		return nil, err
-	}
-
-	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset. Rows affected is 0", err)
-
-		return nil, err
-	}
-
-	return record.ToEntity(), nil
+	return inserted.ToEntity(), nil
 }
 
 // FindByNameOrCode retrieves Asset entities by name or code from the database.
@@ -468,39 +465,63 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 	record := &AssetPostgreSQLModel{}
 	record.FromEntity(asset)
 
-	var updates []string
+	record.UpdatedAt = time.Now()
 
-	var args []any
+	builder := squirrel.Update(r.tableName).
+		Set("updated_at", record.UpdatedAt).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
 
 	if asset.Name != "" {
-		updates = append(updates, "name = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.Name)
+		builder = builder.Set("name", record.Name)
 	}
 
 	if !asset.Status.IsEmpty() {
-		updates = append(updates, "status = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.Status)
-
-		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.StatusDescription)
+		builder = builder.Set("status", record.Status).
+			Set("status_description", record.StatusDescription)
 	}
 
-	record.UpdatedAt = time.Now()
+	builder = builder.Suffix("RETURNING " + strings.Join(assetColumnList, ", "))
 
-	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+	query, args, err := builder.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build update query", err)
 
-	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build update query: %v", err))
 
-	query := `UPDATE asset SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
-		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
-		` AND id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL`
+		return nil, err
+	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
+	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, query, args...)
-	if err != nil {
+	updated := &AssetPostgreSQLModel{}
+
+	row := db.QueryRowContext(ctx, query, args...)
+	if err := row.Scan(
+		&updated.ID,
+		&updated.Name,
+		&updated.Type,
+		&updated.Code,
+		&updated.Status,
+		&updated.StatusDescription,
+		&updated.LedgerID,
+		&updated.OrganizationID,
+		&updated.CreatedAt,
+		&updated.UpdatedAt,
+		&updated.DeletedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update asset. Rows affected is 0", err)
+
+			return nil, err
+		}
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Asset{}).Name())
@@ -519,26 +540,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	spanExec.End()
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
-
-		return nil, err
-	}
-
-	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update asset. Rows affected is 0", err)
-
-		return nil, err
-	}
-
-	return record.ToEntity(), nil
+	return updated.ToEntity(), nil
 }
 
 // Delete removes an Asset entity from the database using the provided IDs.

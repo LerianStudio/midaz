@@ -283,19 +283,11 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 	recordSafePayloadAttributes(span, payload)
 
-	if _, err := handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload); err != nil {
+	ledger, err := handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload)
+	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger on command", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Ledger with ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
-	}
-
-	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve ledger on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}

@@ -69,6 +69,8 @@ Documentation rules:
 - Put repository/service method comments on the interface contract.
 - Do not duplicate interface method comments on implementations unless implementation-specific behavior needs explanation.
 - Keep comments short and behavioral; avoid comments that restate obvious code.
+- Do not narrate refactor history ("X now returns Y via the foo refactor", "we used to re-fetch but now..."). Once the referenced change lands the comment becomes outdated noise. Code tells the present truth; the git log carries the past.
+- Do not describe the call graph of dependencies in comments ("UpdateOnboardingMetadata is called with nil, which short-circuits FindByEntity and writes an empty map"). When the called code changes, every such comment lies silently. Let readers follow the call site if they need that detail.
 
 ## SQL And Repositories
 
@@ -252,3 +254,4 @@ Drift discipline: wire-contract change updates (a) Payload struct, (b) construct
 - Do not build payload maps or call `json.Marshal` inline in use cases; route every payload through `pkg/streaming/events/<event>.go` (`New<Event>(...).ToEvent(...)`).
 - Do not embed `mmodel.*` types directly in event Payload structs; mirror the shape explicitly so domain evolution does not leak onto the wire.
 - Do not import `github.com/LerianStudio/lib-streaming` without the `libStreaming` alias, and do not import `github.com/LerianStudio/midaz/v3/pkg/streaming` without the `pkgStreaming` alias.
+- Do not add comments that narrate refactor history or describe the behavior of code being called (e.g. "X now does Y", "the Z call short-circuits W"). They rot when the referenced code changes. Comment WHAT the code does and WHY it has to be that way — let the referenced code speak for itself.

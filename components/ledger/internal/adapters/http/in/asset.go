@@ -296,19 +296,11 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 
 	recordSafePayloadAttributes(span, payload)
 
-	if _, err := handler.Command.UpdateAssetByID(ctx, organizationID, ledgerID, id, payload); err != nil {
+	asset, err := handler.Command.UpdateAssetByID(ctx, organizationID, ledgerID, id, payload)
+	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Asset on command", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Asset with ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
-	}
-
-	asset, err := handler.Query.GetAssetByID(ctx, organizationID, ledgerID, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get update Asset on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get update Asset with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}

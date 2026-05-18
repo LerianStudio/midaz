@@ -149,6 +149,9 @@ func midazEventDefinitions() []events.Definition {
 		events.AccountCreatedDefinition,
 		events.AccountUpdatedDefinition,
 		events.AccountDeletedDefinition,
+		events.AssetCreatedDefinition,
+		events.AssetUpdatedDefinition,
+		events.AssetDeletedDefinition,
 	}
 }
 
