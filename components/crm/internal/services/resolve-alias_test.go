@@ -211,6 +211,64 @@ func TestResolveAccountRejectsZeroUUID(t *testing.T) {
 	assert.Nil(t, result)
 }
 
+func TestResolveAccountRejectsNilInput(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	repo := alias.NewMockRepository(ctrl)
+	uc := &UseCase{AliasRepo: repo}
+
+	result, err := uc.ResolveAccount(context.Background(), nil)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestBackfillBankAccountIndexReturnsReport(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	repo := alias.NewMockRepository(ctrl)
+	uc := &UseCase{AliasRepo: repo}
+	expected := &mmodel.BankAccountIndexBackfillReport{DryRun: true, CollectionsScanned: 1}
+	repo.EXPECT().BackfillBankAccountIndex(gomock.Any(), true).Return(expected, nil)
+
+	result, err := uc.BackfillBankAccountIndex(context.Background(), true)
+
+	require.NoError(t, err)
+	assert.Equal(t, expected, result)
+}
+
+func TestBackfillBankAccountIndexPropagatesError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	repo := alias.NewMockRepository(ctrl)
+	uc := &UseCase{AliasRepo: repo}
+	expectedErr := errors.New("backfill failed")
+	repo.EXPECT().BackfillBankAccountIndex(gomock.Any(), false).Return(nil, expectedErr)
+
+	result, err := uc.BackfillBankAccountIndex(context.Background(), false)
+
+	require.ErrorIs(t, err, expectedErr)
+	assert.Nil(t, result)
+}
+
+func TestBackfillBankAccountIndexHonorsCanceledContext(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	repo := alias.NewMockRepository(ctrl)
+	uc := &UseCase{AliasRepo: repo}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result, err := uc.BackfillBankAccountIndex(ctx, false)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, result)
+}
+
 func TestResolveBankAccountRejectsNilInput(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

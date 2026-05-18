@@ -100,6 +100,102 @@ func TestBankAccountIndexModelToAliasRejectsZeroUUIDRoutingFields(t *testing.T) 
 	assert.Nil(t, result)
 }
 
+func TestBankAccountIndexModelToAliasReturnsTypedRoutingFields(t *testing.T) {
+	t.Parallel()
+
+	crypto := testutils.SetupCrypto(t)
+	aliasID := uuid.New()
+	holderID := uuid.New()
+	organizationID := uuid.New()
+	ledgerID := uuid.New().String()
+	accountID := uuid.New().String()
+	document := "12345678901"
+	createdAt := time.Date(2026, time.January, 2, 15, 0, 0, 0, time.UTC)
+	updatedAt := createdAt.Add(time.Hour)
+
+	model, err := bankAccountIndexModelFromAlias(organizationID.String(), &mmodel.Alias{
+		ID:        &aliasID,
+		Document:  &document,
+		LedgerID:  &ledgerID,
+		AccountID: &accountID,
+		HolderID:  &holderID,
+		CreatedAt: createdAt,
+		UpdatedAt: updatedAt,
+	}, crypto)
+	require.NoError(t, err)
+
+	result, err := model.ToAlias(crypto)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, aliasID, *result.ID)
+	assert.Equal(t, organizationID, *result.OrganizationID)
+	assert.Equal(t, ledgerID, *result.LedgerID)
+	assert.Equal(t, accountID, *result.AccountID)
+	assert.Equal(t, holderID, *result.HolderID)
+	assert.Equal(t, document, *result.Document)
+	assert.Equal(t, createdAt, result.CreatedAt)
+	assert.Equal(t, updatedAt, result.UpdatedAt)
+}
+
+func TestBankAccountIndexModelToAliasRejectsInvalidOrganizationID(t *testing.T) {
+	t.Parallel()
+
+	crypto := testutils.SetupCrypto(t)
+	aliasID := uuid.New()
+	holderID := uuid.New()
+	organizationID := "not-a-uuid"
+	ledgerID := uuid.New().String()
+	accountID := uuid.New().String()
+	now := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	model := &BankAccountIndexModel{
+		AliasID:        &aliasID,
+		OrganizationID: &organizationID,
+		LedgerID:       &ledgerID,
+		AccountID:      &accountID,
+		HolderID:       &holderID,
+		CreatedAt:      &now,
+		UpdatedAt:      &now,
+	}
+
+	result, err := model.ToAlias(crypto)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestBankAccountIndexRoutingUUIDHelpers(t *testing.T) {
+	t.Parallel()
+
+	id := uuid.New()
+	idText := id.String()
+	zeroText := uuid.Nil.String()
+	invalidText := "not-a-uuid"
+
+	parsed, err := parseRequiredUUIDString(&idText)
+	require.NoError(t, err)
+	assert.Equal(t, id, parsed)
+	assert.True(t, isZeroUUIDString(&zeroText))
+	assert.False(t, isZeroUUIDString(&invalidText))
+	assert.False(t, isZeroUUIDString(nil))
+
+	_, err = parseRequiredUUIDString(nil)
+	require.Error(t, err)
+	_, err = parseRequiredUUIDString(&zeroText)
+	require.Error(t, err)
+}
+
+func TestHasAnyBankAccountIdentity(t *testing.T) {
+	t.Parallel()
+
+	bankID := "12345678"
+	blank := " "
+
+	assert.False(t, hasAnyBankAccountIdentity(nil))
+	assert.False(t, hasAnyBankAccountIdentity(&mmodel.BankingDetails{BankID: &blank}))
+	assert.True(t, hasAnyBankAccountIdentity(&mmodel.BankingDetails{BankID: &bankID}))
+}
+
 func TestBankAccountIndexModelFromAlias_StoresBaseRowWithoutBankingDetails(t *testing.T) {
 	t.Parallel()
 

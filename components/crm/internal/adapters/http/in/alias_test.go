@@ -506,6 +506,41 @@ func TestAliasHandler_BackfillBankAccountIndexReturnsNoPIIReport(t *testing.T) {
 	assert.NotContains(t, string(body), "1234567")
 }
 
+func TestIsBusinessErrorClassifiesResolverErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "validation error",
+			err:      pkg.ValidateBusinessError(cn.ErrMissingFieldsInRequest, cn.EntityAlias, "accountId"),
+			expected: true,
+		},
+		{
+			name:     "not found error",
+			err:      pkg.ValidateBusinessError(cn.ErrAliasNotFound, cn.EntityAlias),
+			expected: true,
+		},
+		{
+			name:     "conflict error",
+			err:      pkg.ValidateBusinessError(cn.ErrAccountAlreadyAssociated, cn.EntityAlias),
+			expected: true,
+		},
+		{
+			name:     "non business error",
+			err:      cn.ErrInternalServer,
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, isBusinessError(tc.err))
+		})
+	}
+}
+
 func TestAliasHandler_GetAliasByID(t *testing.T) {
 	tests := []struct {
 		name           string
