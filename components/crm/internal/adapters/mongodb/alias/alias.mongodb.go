@@ -582,13 +582,57 @@ func mergeAliasForBankAccountIndex(existingAlias, patch *mmodel.Alias, fieldsToR
 	}
 
 	for _, field := range fieldsToRemove {
-		switch field {
-		case "bankingDetails", "banking_details":
-			merged.BankingDetails = nil
-		}
+		clearRemovedBankAccountIndexField(&merged, field)
 	}
 
 	return &merged
+}
+
+func clearRemovedBankAccountIndexField(alias *mmodel.Alias, field string) {
+	if alias == nil {
+		return
+	}
+
+	switch strings.TrimSpace(field) {
+	case "document":
+		alias.Document = nil
+	case "type":
+		alias.Type = nil
+	case "ledgerID", "ledgerId", "ledger_id":
+		alias.LedgerID = nil
+	case "accountID", "accountId", "account_id":
+		alias.AccountID = nil
+	case "holderID", "holderId", "holder_id":
+		alias.HolderID = nil
+	case "bankingDetails", "banking_details":
+		alias.BankingDetails = nil
+	case "bankingDetails.bankId", "banking_details.bank_id":
+		clearBankingDetailsFieldForBankAccountIndex(alias, func(bankingDetails *mmodel.BankingDetails) {
+			bankingDetails.BankID = nil
+		})
+	case "bankingDetails.branch", "banking_details.branch":
+		clearBankingDetailsFieldForBankAccountIndex(alias, func(bankingDetails *mmodel.BankingDetails) {
+			bankingDetails.Branch = nil
+		})
+	case "bankingDetails.account", "banking_details.account":
+		clearBankingDetailsFieldForBankAccountIndex(alias, func(bankingDetails *mmodel.BankingDetails) {
+			bankingDetails.Account = nil
+		})
+	case "bankingDetails.type", "banking_details.type":
+		clearBankingDetailsFieldForBankAccountIndex(alias, func(bankingDetails *mmodel.BankingDetails) {
+			bankingDetails.Type = nil
+		})
+	}
+}
+
+func clearBankingDetailsFieldForBankAccountIndex(alias *mmodel.Alias, clearField func(*mmodel.BankingDetails)) {
+	if alias.BankingDetails == nil {
+		return
+	}
+
+	bankingDetails := *alias.BankingDetails
+	clearField(&bankingDetails)
+	alias.BankingDetails = &bankingDetails
 }
 
 func mergeBankingDetailsForBankAccountIndex(existing, patch *mmodel.BankingDetails) *mmodel.BankingDetails {

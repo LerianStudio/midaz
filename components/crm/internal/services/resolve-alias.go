@@ -53,7 +53,7 @@ func (uc *UseCase) ResolveBankAccount(ctx context.Context, input *mmodel.Resolve
 		return nil, err
 	}
 
-	return resolveOneAlias(ctx, span, aliases, true)
+	return resolveOneAlias(span, aliases, true)
 }
 
 func (uc *UseCase) ResolveAccount(ctx context.Context, input *mmodel.ResolveAccountInput) (*mmodel.ResolveAliasResponse, error) {
@@ -94,10 +94,10 @@ func (uc *UseCase) ResolveAccount(ctx context.Context, input *mmodel.ResolveAcco
 		return nil, err
 	}
 
-	return resolveOneAlias(ctx, span, aliases, false)
+	return resolveOneAlias(span, aliases, false)
 }
 
-func resolveOneAlias(ctx context.Context, span trace.Span, aliases []*mmodel.Alias, requireBankingProof bool) (*mmodel.ResolveAliasResponse, error) {
+func resolveOneAlias(span trace.Span, aliases []*mmodel.Alias, requireBankingProof bool) (*mmodel.ResolveAliasResponse, error) {
 	switch len(aliases) {
 	case 0:
 		err := pkg.ValidateBusinessError(cn.ErrAliasNotFound, cn.EntityAlias)
@@ -115,10 +115,7 @@ func resolveOneAlias(ctx context.Context, span trace.Span, aliases []*mmodel.Ali
 		return response, nil
 	default:
 		err := pkg.ValidateBusinessError(cn.ErrAccountAlreadyAssociated, cn.EntityAlias)
-		_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-		_, duplicateSpan := tracer.Start(ctx, "service.resolve_alias.duplicate_active_matches")
-		libOpenTelemetry.HandleSpanBusinessErrorEvent(duplicateSpan, "Duplicate active alias resolver matches", err)
-		duplicateSpan.End()
+		libOpenTelemetry.HandleSpanBusinessErrorEvent(span, "Duplicate active alias resolver matches", err)
 
 		return nil, err
 	}

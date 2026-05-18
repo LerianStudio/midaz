@@ -164,6 +164,64 @@ func TestBankAccountIndexModelToAliasRejectsInvalidOrganizationID(t *testing.T) 
 	assert.Nil(t, result)
 }
 
+func TestBankAccountIndexModelToAliasRejectsInvalidLedgerAndAccountIDs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		mutate  func(*BankAccountIndexModel)
+		wantErr string
+	}{
+		{
+			name: "invalid ledger id",
+			mutate: func(model *BankAccountIndexModel) {
+				invalid := "not-a-uuid"
+				model.LedgerID = &invalid
+			},
+			wantErr: "invalid ledger_id",
+		},
+		{
+			name: "invalid account id",
+			mutate: func(model *BankAccountIndexModel) {
+				invalid := "not-a-uuid"
+				model.AccountID = &invalid
+			},
+			wantErr: "invalid account_id",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			crypto := testutils.SetupCrypto(t)
+			aliasID := uuid.New()
+			holderID := uuid.New()
+			organizationID := uuid.New().String()
+			ledgerID := uuid.New().String()
+			accountID := uuid.New().String()
+			now := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+			model := &BankAccountIndexModel{
+				AliasID:        &aliasID,
+				OrganizationID: &organizationID,
+				LedgerID:       &ledgerID,
+				AccountID:      &accountID,
+				HolderID:       &holderID,
+				CreatedAt:      &now,
+				UpdatedAt:      &now,
+			}
+
+			tt.mutate(model)
+
+			result, err := model.ToAlias(crypto)
+
+			require.Error(t, err)
+			assert.ErrorContains(t, err, tt.wantErr)
+			assert.Nil(t, result)
+		})
+	}
+}
+
 func TestBankAccountIndexRoutingUUIDHelpers(t *testing.T) {
 	t.Parallel()
 

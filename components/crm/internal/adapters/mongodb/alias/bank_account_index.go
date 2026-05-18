@@ -136,6 +136,14 @@ func (model *BankAccountIndexModel) ToAlias(ds *libCrypto.Crypto) (*mmodel.Alias
 		return nil, errors.New("malformed bank account index row: invalid organization_id")
 	}
 
+	if _, err := parseRequiredUUIDString(model.LedgerID); err != nil {
+		return nil, errors.New("malformed bank account index row: invalid ledger_id")
+	}
+
+	if _, err := parseRequiredUUIDString(model.AccountID); err != nil {
+		return nil, errors.New("malformed bank account index row: invalid account_id")
+	}
+
 	document, err := decryptOptional(ds, model.Document)
 	if err != nil {
 		return nil, err
