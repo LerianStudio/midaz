@@ -78,7 +78,7 @@ type UpdateAliasInput struct {
 // @Description AliasResponse payload
 type Alias struct {
 	ID               *uuid.UUID        `json:"id,omitempty" example:"00000000-0000-0000-0000-000000000000"`
-	OrganizationID   *string           `json:"organizationId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	OrganizationID   *uuid.UUID        `json:"organizationId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
 	Document         *string           `json:"document,omitempty" example:"91315026015"`
 	Type             *string           `json:"type,omitempty" example:"LEGAL_PERSON"`
 	LedgerID         *string           `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
@@ -118,7 +118,7 @@ type ResolveBankAccountBankingDetailsInput struct {
 // swagger:model ResolveAccountInput
 // @Description ResolveAccountRequest payload
 type ResolveAccountInput struct {
-	AccountID string `json:"accountId" validate:"required,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	AccountID uuid.UUID `json:"accountId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
 } // @name ResolveAccountRequest
 
 // ResolveAliasResponse is the minimal deterministic alias resolver response.
@@ -126,11 +126,11 @@ type ResolveAccountInput struct {
 // swagger:model ResolveAliasResponse
 // @Description ResolveAliasResponse payload
 type ResolveAliasResponse struct {
-	ID             string                             `json:"id" example:"00000000-0000-0000-0000-000000000000"`
-	OrganizationID string                             `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
-	LedgerID       string                             `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
-	AccountID      string                             `json:"accountId" example:"00000000-0000-0000-0000-000000000000"`
-	HolderID       string                             `json:"holderId" example:"00000000-0000-0000-0000-000000000000"`
+	ID             uuid.UUID                          `json:"id" example:"00000000-0000-0000-0000-000000000000"`
+	OrganizationID uuid.UUID                          `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
+	LedgerID       uuid.UUID                          `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
+	AccountID      uuid.UUID                          `json:"accountId" example:"00000000-0000-0000-0000-000000000000"`
+	HolderID       uuid.UUID                          `json:"holderId" example:"00000000-0000-0000-0000-000000000000"`
 	HolderDocument string                             `json:"holderDocument" example:"12345678901"`
 	BankingDetails ResolveAliasBankingDetailsResponse `json:"bankingDetails"`
 } // @name ResolveAliasResponse
@@ -148,16 +148,16 @@ type ResolveAliasBankingDetailsResponse struct {
 
 // BankAccountIndexBackfillReport summarizes a resolver-index repair run without PII.
 type BankAccountIndexBackfillReport struct {
-	DryRun                      bool     `json:"dryRun"`
-	CollectionsScanned          int      `json:"collectionsScanned"`
-	AliasesScanned              int      `json:"aliasesScanned"`
-	Upserted                    int      `json:"upserted"`
-	Incomplete                  int      `json:"incomplete"`
-	Duplicates                  int      `json:"duplicates"`
-	IncompleteAliasIDs          []string `json:"incompleteAliasIds,omitempty"`
-	DuplicateAliasIDs           []string `json:"duplicateAliasIds,omitempty"`
-	IncompleteAliasIDsTruncated bool     `json:"incompleteAliasIdsTruncated,omitempty"`
-	DuplicateAliasIDsTruncated  bool     `json:"duplicateAliasIdsTruncated,omitempty"`
+	DryRun                      bool        `json:"dryRun"`
+	CollectionsScanned          int         `json:"collectionsScanned"`
+	AliasesScanned              int         `json:"aliasesScanned"`
+	Upserted                    int         `json:"upserted"`
+	Incomplete                  int         `json:"incomplete"`
+	Duplicates                  int         `json:"duplicates"`
+	IncompleteAliasIDs          []uuid.UUID `json:"incompleteAliasIds,omitempty"`
+	DuplicateAliasIDs           []uuid.UUID `json:"duplicateAliasIds,omitempty"`
+	IncompleteAliasIDsTruncated bool        `json:"incompleteAliasIdsTruncated,omitempty"`
+	DuplicateAliasIDsTruncated  bool        `json:"duplicateAliasIdsTruncated,omitempty"`
 }
 
 // BackfillBankAccountIndexInput is the resolver-index repair request payload.

@@ -83,7 +83,7 @@ func TestBankAccountIndexModelToAliasRejectsZeroUUIDRoutingFields(t *testing.T) 
 	organizationID := uuid.Nil.String()
 	ledgerID := uuid.New().String()
 	accountID := uuid.New().String()
-	now := time.Now()
+	now := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
 	model := &BankAccountIndexModel{
 		AliasID:        &zeroID,
 		OrganizationID: &organizationID,

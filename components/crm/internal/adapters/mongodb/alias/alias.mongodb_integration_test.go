@@ -301,7 +301,7 @@ func TestIntegration_AliasRepo_ResolveBankAccount_ReturnsProofFields(t *testing.
 
 	require.NoError(t, err)
 	require.Len(t, results, 1)
-	assert.Equal(t, organizationID, *results[0].OrganizationID)
+	assert.Equal(t, uuid.MustParse(organizationID), *results[0].OrganizationID)
 	assert.Equal(t, "12345678901", *results[0].Document)
 	assert.Equal(t, "0001", *results[0].BankingDetails.Branch)
 	assert.Equal(t, "123456", *results[0].BankingDetails.Account)
@@ -368,7 +368,8 @@ func TestIntegration_AliasRepo_Update_NonIdentityBankingPatchPreservesResolverId
 	alias := mongotestutil.CreateTestAliasWithBanking(t, holderID, uuid.New().String(), "12345678901")
 	require.NoError(t, mustCreateAlias(repo, ctx, organizationID, alias))
 
-	closingDate := mmodel.Date{Time: time.Now().UTC().Add(24 * time.Hour)}
+	fixedNow := time.Date(2026, time.January, 2, 15, 0, 0, 0, time.UTC)
+	closingDate := mmodel.Date{Time: fixedNow.Add(24 * time.Hour)}
 	_, err := repo.Update(ctx, organizationID, holderID, *alias.ID, &mmodel.Alias{
 		BankingDetails: &mmodel.BankingDetails{ClosingDate: &closingDate},
 	}, nil)
@@ -402,7 +403,7 @@ func TestIntegration_AliasRepo_ResolveAccount_ReturnsOrganizationID(t *testing.T
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	require.NotNil(t, results[0].OrganizationID)
-	assert.Equal(t, organizationID, *results[0].OrganizationID)
+	assert.Equal(t, uuid.MustParse(organizationID), *results[0].OrganizationID)
 }
 
 func TestIntegration_AliasRepo_BackfillBankAccountIndex_DryRunReportsCountsWithoutPII(t *testing.T) {
@@ -433,7 +434,7 @@ func TestIntegration_AliasRepo_BackfillBankAccountIndex_DryRunReportsCountsWitho
 	assert.Equal(t, 2, report.AliasesScanned)
 	assert.Equal(t, 1, report.Incomplete)
 	assert.Equal(t, 0, report.Upserted)
-	assert.NotContains(t, strings.Join(report.IncompleteAliasIDs, " "), "98765432100")
+	assert.NotContains(t, fmt.Sprint(report.IncompleteAliasIDs), "98765432100")
 	assert.Equal(t, int64(0), mongotestutil.CountDocuments(t, container.Database, bankAccountIndexCollection, bson.M{}))
 }
 
@@ -471,8 +472,8 @@ func TestIntegration_AliasRepo_BackfillBankAccountIndex_DryRunReportsDuplicateAl
 	require.NoError(t, err)
 	require.NotNil(t, report)
 	assert.Equal(t, 2, report.Duplicates)
-	assert.ElementsMatch(t, []string{aliasA.ID.String(), aliasB.ID.String()}, report.DuplicateAliasIDs)
-	joined := strings.Join(report.DuplicateAliasIDs, " ")
+	assert.ElementsMatch(t, []uuid.UUID{*aliasA.ID, *aliasB.ID}, report.DuplicateAliasIDs)
+	joined := fmt.Sprint(report.DuplicateAliasIDs)
 	assert.NotContains(t, joined, document)
 	assert.NotContains(t, joined, banking.Account)
 }

@@ -131,6 +131,11 @@ func (model *BankAccountIndexModel) ToAlias(ds *libCrypto.Crypto) (*mmodel.Alias
 		return nil, errors.New("malformed bank account index row: zero UUID routing fields")
 	}
 
+	organizationID, err := parseRequiredUUIDString(model.OrganizationID)
+	if err != nil {
+		return nil, errors.New("malformed bank account index row: invalid organization_id")
+	}
+
 	document, err := decryptOptional(ds, model.Document)
 	if err != nil {
 		return nil, err
@@ -138,7 +143,7 @@ func (model *BankAccountIndexModel) ToAlias(ds *libCrypto.Crypto) (*mmodel.Alias
 
 	alias := &mmodel.Alias{
 		ID:             model.AliasID,
-		OrganizationID: model.OrganizationID,
+		OrganizationID: &organizationID,
 		Document:       document,
 		Type:           model.Type,
 		LedgerID:       model.LedgerID,
@@ -190,4 +195,17 @@ func isZeroUUIDString(value *string) bool {
 	id, err := uuid.Parse(*value)
 
 	return err == nil && id == uuid.Nil
+}
+
+func parseRequiredUUIDString(value *string) (uuid.UUID, error) {
+	if value == nil {
+		return uuid.Nil, errors.New("missing UUID")
+	}
+
+	id, err := uuid.Parse(*value)
+	if err != nil || id == uuid.Nil {
+		return uuid.Nil, errors.New("invalid UUID")
+	}
+
+	return id, nil
 }

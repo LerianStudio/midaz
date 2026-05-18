@@ -37,7 +37,7 @@ func TestResolveBankAccountReturnsDeterministicProofFields(t *testing.T) {
 	accountType := "CACC"
 	ledgerID := uuid.New().String()
 	accountID := uuid.New().String()
-	organizationID := uuid.New().String()
+	organizationID := uuid.New()
 
 	input := &mmodel.ResolveBankAccountInput{
 		Document: document,
@@ -68,11 +68,11 @@ func TestResolveBankAccountReturnsDeterministicProofFields(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, aliasID.String(), result.ID)
+	assert.Equal(t, aliasID, result.ID)
 	assert.Equal(t, organizationID, result.OrganizationID)
-	assert.Equal(t, ledgerID, result.LedgerID)
-	assert.Equal(t, accountID, result.AccountID)
-	assert.Equal(t, holderID.String(), result.HolderID)
+	assert.Equal(t, uuid.MustParse(ledgerID), result.LedgerID)
+	assert.Equal(t, uuid.MustParse(accountID), result.AccountID)
+	assert.Equal(t, holderID, result.HolderID)
 	assert.Equal(t, document, result.HolderDocument)
 	assert.Equal(t, bankID, result.BankingDetails.BankID)
 	assert.Equal(t, branch, result.BankingDetails.Branch)
@@ -137,7 +137,7 @@ func TestResolveAccountReturnsOrganizationID(t *testing.T) {
 	aliasID := uuid.New()
 	holderID := uuid.New()
 	accountUUID := uuid.New()
-	organizationID := uuid.New().String()
+	organizationID := uuid.New()
 	ledgerID := uuid.New().String()
 	document := "12345678901"
 	bankID := "12345678"
@@ -156,12 +156,12 @@ func TestResolveAccountReturnsOrganizationID(t *testing.T) {
 		BankingDetails: &mmodel.BankingDetails{BankID: &bankID, Branch: &branch, Account: &account, Type: &accountType},
 	}}, nil)
 
-	result, err := uc.ResolveAccount(context.Background(), &mmodel.ResolveAccountInput{AccountID: accountUUID.String()})
+	result, err := uc.ResolveAccount(context.Background(), &mmodel.ResolveAccountInput{AccountID: accountUUID})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, organizationID, result.OrganizationID)
-	assert.Equal(t, accountUUID.String(), result.AccountID)
+	assert.Equal(t, accountUUID, result.AccountID)
 }
 
 func TestResolveAccountNoMatchReturnsAliasNotFound(t *testing.T) {
@@ -173,7 +173,7 @@ func TestResolveAccountNoMatchReturnsAliasNotFound(t *testing.T) {
 	accountID := uuid.New()
 	repo.EXPECT().ResolveAccount(gomock.Any(), accountID).Return(nil, nil)
 
-	result, err := uc.ResolveAccount(context.Background(), &mmodel.ResolveAccountInput{AccountID: accountID.String()})
+	result, err := uc.ResolveAccount(context.Background(), &mmodel.ResolveAccountInput{AccountID: accountID})
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -190,7 +190,7 @@ func TestResolveAccountDuplicateMatchesReturnConflict(t *testing.T) {
 	accountID := uuid.New()
 	repo.EXPECT().ResolveAccount(gomock.Any(), accountID).Return([]*mmodel.Alias{{ID: ptrUUID(uuid.New())}, {ID: ptrUUID(uuid.New())}}, nil)
 
-	result, err := uc.ResolveAccount(context.Background(), &mmodel.ResolveAccountInput{AccountID: accountID.String()})
+	result, err := uc.ResolveAccount(context.Background(), &mmodel.ResolveAccountInput{AccountID: accountID})
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -205,7 +205,7 @@ func TestResolveAccountRejectsZeroUUID(t *testing.T) {
 	repo := alias.NewMockRepository(ctrl)
 	uc := &UseCase{AliasRepo: repo}
 
-	result, err := uc.ResolveAccount(context.Background(), &mmodel.ResolveAccountInput{AccountID: uuid.Nil.String()})
+	result, err := uc.ResolveAccount(context.Background(), &mmodel.ResolveAccountInput{AccountID: uuid.Nil})
 
 	require.Error(t, err)
 	assert.Nil(t, result)

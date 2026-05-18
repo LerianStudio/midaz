@@ -353,7 +353,7 @@ func TestAliasHandler_ResolveBankAccountDoesNotRequireOrganizationHeader(t *test
 
 	aliasID := uuid.New()
 	holderID := uuid.New()
-	organizationID := uuid.New().String()
+	organizationID := uuid.New()
 	ledgerID := uuid.New().String()
 	accountID := uuid.New().String()
 	document := "12345678901"
@@ -388,7 +388,7 @@ func TestAliasHandler_ResolveBankAccountDoesNotRequireOrganizationHeader(t *test
 	var result map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &result))
 	assert.Equal(t, aliasID.String(), result["id"])
-	assert.Equal(t, organizationID, result["organizationId"])
+	assert.Equal(t, organizationID.String(), result["organizationId"])
 	assert.Equal(t, ledgerID, result["ledgerId"])
 	assert.Equal(t, accountID, result["accountId"])
 	assert.Equal(t, holderID.String(), result["holderId"])
@@ -432,7 +432,7 @@ func TestAliasHandler_ResolveAccountDoesNotRequireOrganizationHeader(t *testing.
 	aliasID := uuid.New()
 	holderID := uuid.New()
 	accountUUID := uuid.New()
-	organizationID := uuid.New().String()
+	organizationID := uuid.New()
 	ledgerID := uuid.New().String()
 	document := "12345678901"
 	bankID := "12345678"
@@ -467,7 +467,7 @@ func TestAliasHandler_ResolveAccountDoesNotRequireOrganizationHeader(t *testing.
 	var result map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &result))
 	assert.Equal(t, aliasID.String(), result["id"])
-	assert.Equal(t, organizationID, result["organizationId"])
+	assert.Equal(t, organizationID.String(), result["organizationId"])
 	assert.Equal(t, accountID, result["accountId"])
 	assert.NotContains(t, result, "holderName")
 }
@@ -479,14 +479,14 @@ func TestAliasHandler_BackfillBankAccountIndexReturnsNoPIIReport(t *testing.T) {
 	repo := alias.NewMockRepository(ctrl)
 	uc := &services.UseCase{AliasRepo: repo}
 	handler := &AliasHandler{Service: uc}
-	aliasID := uuid.New().String()
+	aliasID := uuid.New()
 
 	repo.EXPECT().BackfillBankAccountIndex(gomock.Any(), true).Return(&mmodel.BankAccountIndexBackfillReport{
 		DryRun:             true,
 		CollectionsScanned: 1,
 		AliasesScanned:     2,
 		Incomplete:         1,
-		IncompleteAliasIDs: []string{aliasID},
+		IncompleteAliasIDs: []uuid.UUID{aliasID},
 	}, nil).Times(1)
 
 	app := fiber.New()
@@ -501,7 +501,7 @@ func TestAliasHandler_BackfillBankAccountIndexReturnsNoPIIReport(t *testing.T) {
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	assert.Contains(t, string(body), aliasID)
+	assert.Contains(t, string(body), aliasID.String())
 	assert.NotContains(t, string(body), "12345678901")
 	assert.NotContains(t, string(body), "1234567")
 }

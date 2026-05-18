@@ -320,9 +320,17 @@ func (am *MongoDBRepository) BackfillBankAccountIndex(ctx context.Context, dryRu
 
 	span.SetAttributes(attribute.String("app.request.request_id", reqID), attribute.Bool("app.request.dry_run", dryRun))
 
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	db, err := am.getDatabase(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
+		return nil, err
+	}
+
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
@@ -334,12 +342,16 @@ func (am *MongoDBRepository) BackfillBankAccountIndex(ctx context.Context, dryRu
 
 	report := &mmodel.BankAccountIndexBackfillReport{DryRun: dryRun, CollectionsScanned: len(collections)}
 
-	var seen map[string][]string
+	var seen map[string][]uuid.UUID
 	if dryRun {
-		seen = make(map[string][]string)
+		seen = make(map[string][]uuid.UUID)
 	}
 
 	for _, collectionName := range collections {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		if err := am.backfillAliasCollection(ctx, db.Collection(collectionName), strings.TrimPrefix(collectionName, "aliases_"), dryRun, report, seen, logger); err != nil {
 			libOpenTelemetry.HandleSpanError(span, "Failed to backfill alias collection", err)
 			return nil, err
@@ -347,6 +359,10 @@ func (am *MongoDBRepository) BackfillBankAccountIndex(ctx context.Context, dryRu
 	}
 
 	for _, aliasIDs := range seen {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		if len(aliasIDs) > 1 {
 			report.Duplicates += len(aliasIDs)
 			appendDuplicateAliasIDs(report, aliasIDs...)
@@ -357,7 +373,11 @@ func (am *MongoDBRepository) BackfillBankAccountIndex(ctx context.Context, dryRu
 }
 
 //nolint:gocognit,gocyclo // Backfill keeps scan/report/write flow together to preserve resumable accounting semantics.
-func (am *MongoDBRepository) backfillAliasCollection(ctx context.Context, coll *mongo.Collection, organizationID string, dryRun bool, report *mmodel.BankAccountIndexBackfillReport, seen map[string][]string, logger libLog.Logger) error {
+func (am *MongoDBRepository) backfillAliasCollection(ctx context.Context, coll *mongo.Collection, organizationID string, dryRun bool, report *mmodel.BankAccountIndexBackfillReport, seen map[string][]uuid.UUID, logger libLog.Logger) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	cursor, err := coll.Find(ctx, bson.M{"deleted_at": nil}, options.Find().SetBatchSize(100))
 	if err != nil {
 		return err
@@ -370,6 +390,10 @@ func (am *MongoDBRepository) backfillAliasCollection(ctx context.Context, coll *
 	}()
 
 	for cursor.Next(ctx) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		var record MongoDBModel
 		if err := cursor.Decode(&record); err != nil {
 			return err
@@ -381,7 +405,7 @@ func (am *MongoDBRepository) backfillAliasCollection(ctx context.Context, coll *
 		if err != nil {
 			report.Incomplete++
 			if record.ID != nil {
-				appendIncompleteAliasID(report, record.ID.String())
+				appendIncompleteAliasID(report, *record.ID)
 			}
 
 			logger.Log(ctx, libLog.LevelWarn, "Skipping malformed alias during bank account index backfill", libLog.Err(err))
@@ -393,7 +417,7 @@ func (am *MongoDBRepository) backfillAliasCollection(ctx context.Context, coll *
 		if err != nil {
 			report.Incomplete++
 			if entity != nil && entity.ID != nil {
-				appendIncompleteAliasID(report, entity.ID.String())
+				appendIncompleteAliasID(report, *entity.ID)
 			}
 
 			logger.Log(ctx, libLog.LevelWarn, "Skipping malformed alias during bank account index backfill", libLog.Err(err))
@@ -404,23 +428,23 @@ func (am *MongoDBRepository) backfillAliasCollection(ctx context.Context, coll *
 		if entity != nil && hasAnyBankAccountIdentity(entity.BankingDetails) && !hasCompleteBankAccountIdentity(entity.BankingDetails) {
 			report.Incomplete++
 			if entity.ID != nil {
-				appendIncompleteAliasID(report, entity.ID.String())
+				appendIncompleteAliasID(report, *entity.ID)
 			}
 		}
 
 		if model == nil {
 			report.Incomplete++
 			if entity != nil && entity.ID != nil {
-				appendIncompleteAliasID(report, entity.ID.String())
+				appendIncompleteAliasID(report, *entity.ID)
 			}
 
 			continue
 		}
 
-		if seen != nil && model.BankingDetails != nil && model.Search != nil && model.Search.Document != nil && model.Search.BankingDetailsAccount != nil {
+		if seen != nil && entity.ID != nil && model.BankingDetails != nil && model.Search != nil && model.Search.Document != nil && model.Search.BankingDetailsAccount != nil {
 			identity := fmt.Sprintf("%s:%s:%s:%s:%s", bankIndexStringValue(model.Search.Document), bankIndexStringValue(model.BankingDetails.BankID), bankIndexStringValue(model.BankingDetails.BranchCanonical), bankIndexStringValue(model.Search.BankingDetailsAccount), bankIndexStringValue(model.BankingDetails.Type))
 			if _, ok := seen[identity]; ok || len(seen) < bankAccountIndexDryRunIdentityLimit {
-				seen[identity] = append(seen[identity], entity.ID.String())
+				seen[identity] = append(seen[identity], *entity.ID)
 			} else {
 				report.DuplicateAliasIDsTruncated = true
 			}
@@ -430,10 +454,16 @@ func (am *MongoDBRepository) backfillAliasCollection(ctx context.Context, coll *
 			continue
 		}
 
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		if err := am.upsertBankAccountIndex(ctx, organizationID, entity); err != nil {
 			if mongo.IsDuplicateKeyError(err) || errors.As(err, new(pkg.EntityConflictError)) {
 				report.Duplicates++
-				appendDuplicateAliasIDs(report, entity.ID.String())
+				if entity.ID != nil {
+					appendDuplicateAliasIDs(report, *entity.ID)
+				}
 
 				continue
 			}
@@ -455,7 +485,7 @@ func bankIndexStringValue(value *string) string {
 	return *value
 }
 
-func appendIncompleteAliasID(report *mmodel.BankAccountIndexBackfillReport, aliasID string) {
+func appendIncompleteAliasID(report *mmodel.BankAccountIndexBackfillReport, aliasID uuid.UUID) {
 	if len(report.IncompleteAliasIDs) >= bankAccountIndexReportAliasIDLimit {
 		report.IncompleteAliasIDsTruncated = true
 		return
@@ -464,7 +494,7 @@ func appendIncompleteAliasID(report *mmodel.BankAccountIndexBackfillReport, alia
 	report.IncompleteAliasIDs = append(report.IncompleteAliasIDs, aliasID)
 }
 
-func appendDuplicateAliasIDs(report *mmodel.BankAccountIndexBackfillReport, aliasIDs ...string) {
+func appendDuplicateAliasIDs(report *mmodel.BankAccountIndexBackfillReport, aliasIDs ...uuid.UUID) {
 	for _, aliasID := range aliasIDs {
 		if len(report.DuplicateAliasIDs) >= bankAccountIndexReportAliasIDLimit {
 			report.DuplicateAliasIDsTruncated = true

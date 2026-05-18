@@ -87,6 +87,10 @@ func (am *MongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, 
 }
 
 func (am *MongoDBRepository) withTransaction(ctx context.Context, db *mongo.Database, fn func(mongo.SessionContext) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	session, err := db.Client().StartSession()
 	if err != nil {
 		return err

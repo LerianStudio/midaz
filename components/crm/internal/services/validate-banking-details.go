@@ -10,7 +10,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -63,12 +62,9 @@ func validateBankingIdentityPatch(ctx context.Context, bankingDetails *mmodel.Ba
 
 func missingBankingIdentityFieldsError(ctx context.Context, missingFields []string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "service.validate_complete_banking_identity")
-	defer span.End()
+	_ = tracer
 
 	err := pkg.ValidateBusinessError(cn.ErrMissingFieldsInRequest, cn.EntityAlias, strings.Join(missingFields, ", "))
-	libOpenTelemetry.HandleSpanBusinessErrorEvent(span, "Incomplete banking identity", err)
 	logger.Log(ctx, libLog.LevelWarn, "Incomplete banking identity", libLog.Err(err))
 
 	return err

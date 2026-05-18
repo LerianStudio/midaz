@@ -30,6 +30,10 @@ func (uc *UseCase) ResolveBankAccount(ctx context.Context, input *mmodel.Resolve
 		attribute.Bool("app.request.has_banking_details", input != nil),
 	)
 
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	if input == nil || input.Document == "" || input.BankingDetails.BankID == "" || input.BankingDetails.Branch == "" || input.BankingDetails.Account == "" || input.BankingDetails.Type == "" {
 		err := pkg.ValidateBusinessError(cn.ErrMissingFieldsInRequest, cn.EntityAlias, "document, bankingDetails.bankId, bankingDetails.branch, bankingDetails.account, bankingDetails.type")
 		libOpenTelemetry.HandleSpanBusinessErrorEvent(span, "Invalid bank account resolver input", err)
@@ -45,6 +49,10 @@ func (uc *UseCase) ResolveBankAccount(ctx context.Context, input *mmodel.Resolve
 		return nil, err
 	}
 
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	return resolveOneAlias(ctx, span, aliases, true)
 }
 
@@ -56,26 +64,33 @@ func (uc *UseCase) ResolveAccount(ctx context.Context, input *mmodel.ResolveAcco
 
 	span.SetAttributes(attribute.String("app.request.request_id", reqID))
 
-	if input == nil || input.AccountID == "" {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	if input == nil {
 		err := pkg.ValidateBusinessError(cn.ErrMissingFieldsInRequest, cn.EntityAlias, "accountId")
 		libOpenTelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account resolver input", err)
 
 		return nil, err
 	}
 
-	accountID, err := uuid.Parse(input.AccountID)
-	if err != nil || accountID == uuid.Nil {
-		validationErr := pkg.ValidateBusinessError(cn.ErrInvalidQueryParameter, cn.EntityAlias, "accountId")
-		libOpenTelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account id", validationErr)
+	if input.AccountID == uuid.Nil {
+		err := pkg.ValidateBusinessError(cn.ErrInvalidQueryParameter, cn.EntityAlias, "accountId")
+		libOpenTelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account id", err)
 
-		return nil, validationErr
+		return nil, err
 	}
 
-	aliases, err := uc.AliasRepo.ResolveAccount(ctx, accountID)
+	aliases, err := uc.AliasRepo.ResolveAccount(ctx, input.AccountID)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to resolve account", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to resolve account", libLog.Err(err))
 
+		return nil, err
+	}
+
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
@@ -110,7 +125,7 @@ func resolveOneAlias(ctx context.Context, span trace.Span, aliases []*mmodel.Ali
 }
 
 func validateResolveAliasResponse(response *mmodel.ResolveAliasResponse, requireBankingProof bool) error {
-	if response == nil || response.ID == "" || response.OrganizationID == "" || response.LedgerID == "" || response.AccountID == "" || response.HolderID == "" || response.HolderDocument == "" {
+	if response == nil || response.ID == uuid.Nil || response.OrganizationID == uuid.Nil || response.LedgerID == uuid.Nil || response.AccountID == uuid.Nil || response.HolderID == uuid.Nil || response.HolderDocument == "" {
 		return pkg.ValidateBusinessError(cn.ErrInternalServer, cn.EntityAlias)
 	}
 
@@ -127,11 +142,11 @@ func aliasToResolveResponse(alias *mmodel.Alias) *mmodel.ResolveAliasResponse {
 	}
 
 	response := &mmodel.ResolveAliasResponse{
-		ID:             stringValueFromUUID(alias.ID),
-		OrganizationID: stringValue(alias.OrganizationID),
-		LedgerID:       stringValue(alias.LedgerID),
-		AccountID:      stringValue(alias.AccountID),
-		HolderID:       stringValueFromUUID(alias.HolderID),
+		ID:             uuidValueFromUUID(alias.ID),
+		OrganizationID: uuidValueFromUUID(alias.OrganizationID),
+		LedgerID:       uuidValueFromString(alias.LedgerID),
+		AccountID:      uuidValueFromString(alias.AccountID),
+		HolderID:       uuidValueFromUUID(alias.HolderID),
 		HolderDocument: stringValue(alias.Document),
 	}
 
@@ -155,12 +170,25 @@ func stringValue(value *string) string {
 	return *value
 }
 
-func stringValueFromUUID(value *uuid.UUID) string {
+func uuidValueFromUUID(value *uuid.UUID) uuid.UUID {
 	if value == nil {
-		return ""
+		return uuid.Nil
 	}
 
-	return value.String()
+	return *value
+}
+
+func uuidValueFromString(value *string) uuid.UUID {
+	if value == nil {
+		return uuid.Nil
+	}
+
+	id, err := uuid.Parse(*value)
+	if err != nil {
+		return uuid.Nil
+	}
+
+	return id
 }
 
 func (uc *UseCase) BackfillBankAccountIndex(ctx context.Context, dryRun bool) (*mmodel.BankAccountIndexBackfillReport, error) {
@@ -173,6 +201,10 @@ func (uc *UseCase) BackfillBankAccountIndex(ctx context.Context, dryRun bool) (*
 		attribute.String("app.request.request_id", reqID),
 		attribute.Bool("app.request.dry_run", dryRun),
 	)
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	report, err := uc.AliasRepo.BackfillBankAccountIndex(ctx, dryRun)
 	if err != nil {
