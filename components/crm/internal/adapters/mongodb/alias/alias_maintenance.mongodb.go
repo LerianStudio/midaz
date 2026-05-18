@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
@@ -23,6 +24,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
 )
+
+var aliasCollectionIndexEnsureCache sync.Map
 
 // DeleteRelatedParty removes a related party from an alias by ID (hard delete)
 func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizationID string, holderID, aliasID, relatedPartyID uuid.UUID) error {
@@ -88,6 +91,11 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 
 // createIndexes creates indexes for specific fields, if it not exists.
 func createIndexes(ctx context.Context, collection *mongo.Collection) error {
+	cacheKey := fmt.Sprintf("%p.%s.%s", collection.Database().Client(), collection.Database().Name(), collection.Name())
+	if _, ok := aliasCollectionIndexEnsureCache.Load(cacheKey); ok {
+		return nil
+	}
+
 	indexModels := []mongo.IndexModel{
 		{
 			Keys: bson.D{
@@ -132,6 +140,16 @@ func createIndexes(ctx context.Context, collection *mongo.Collection) error {
 				SetPartialFilterExpression(bson.D{{Key: "deleted_at", Value: nil}}),
 		},
 		{
+			Keys: bson.D{{Key: "banking_details.bank_id", Value: 1}},
+			Options: options.Index().
+				SetPartialFilterExpression(bson.D{{Key: "deleted_at", Value: nil}}),
+		},
+		{
+			Keys: bson.D{{Key: "banking_details.type", Value: 1}},
+			Options: options.Index().
+				SetPartialFilterExpression(bson.D{{Key: "deleted_at", Value: nil}}),
+		},
+		{
 			Keys: bson.D{
 				{Key: "ledger_id", Value: 1},
 				{Key: "account_id", Value: 1},
@@ -161,6 +179,11 @@ func createIndexes(ctx context.Context, collection *mongo.Collection) error {
 	defer cancel()
 
 	_, err := collection.Indexes().CreateMany(ctx, indexModels)
+	if err != nil {
+		return err
+	}
 
-	return err
+	aliasCollectionIndexEnsureCache.Store(cacheKey, struct{}{})
+
+	return nil
 }

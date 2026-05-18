@@ -119,6 +119,18 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "description": "Filter alias by banking details bank ID",
+                        "name": "banking_details_bank_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter alias by banking details type",
+                        "name": "banking_details_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
                         "description": "Filter alias by regulatory fields participant document",
                         "name": "regulatory_fields_participant_document",
                         "in": "query"
@@ -166,6 +178,186 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/aliases/backfill-bank-account-index": {
+            "post": {
+                "description": "Scans tenant alias collections and rebuilds alias_bank_account_index rows. Report contains counts and alias IDs only; no document, account, or bank identity values.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Aliases"
+                ],
+                "summary": "Backfill Alias Bank Account Resolver Index",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer access_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Backfill Input",
+                        "name": "backfill",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/BackfillBankAccountIndexRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/mmodel.BankAccountIndexBackfillReport"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/aliases/resolve-account": {
+            "post": {
+                "description": "Resolves an active alias across the current tenant by account ID. Does not require X-Organization-Id.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Aliases"
+                ],
+                "summary": "Resolve Alias by Account ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer access_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Account Resolver Input",
+                        "name": "resolver",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ResolveAccountRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ResolveAliasResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/aliases/resolve-bank-account": {
+            "post": {
+                "description": "Resolves an active alias across the current tenant by holder document and exact bank-account identity. Does not require X-Organization-Id.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Aliases"
+                ],
+                "summary": "Resolve Alias by Bank Account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer access_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Bank Account Resolver Input",
+                        "name": "resolver",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ResolveBankAccountRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ResolveAliasResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/pkg.HTTPError"
                         }
@@ -1012,6 +1204,10 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {}
                 },
+                "organizationId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
                 "regulatoryFields": {
                     "$ref": "#/definitions/RegulatoryFields"
                 },
@@ -1028,6 +1224,16 @@ const docTemplate = `{
                 "updatedAt": {
                     "type": "string",
                     "example": "2025-01-01T00:00:00Z"
+                }
+            }
+        },
+        "BackfillBankAccountIndexRequest": {
+            "description": "BackfillBankAccountIndexRequest payload",
+            "type": "object",
+            "properties": {
+                "dryRun": {
+                    "type": "boolean",
+                    "example": true
                 }
             }
         },
@@ -1460,6 +1666,119 @@ const docTemplate = `{
                 }
             }
         },
+        "ResolveAccountRequest": {
+            "description": "ResolveAccountRequest payload",
+            "type": "object",
+            "required": [
+                "accountId"
+            ],
+            "properties": {
+                "accountId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                }
+            }
+        },
+        "ResolveAliasBankingDetailsResponse": {
+            "description": "ResolveAliasBankingDetailsResponse object",
+            "type": "object",
+            "properties": {
+                "account": {
+                    "type": "string",
+                    "example": "1234567"
+                },
+                "bankId": {
+                    "type": "string",
+                    "example": "12345678"
+                },
+                "branch": {
+                    "type": "string",
+                    "example": "0001"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "CACC"
+                }
+            }
+        },
+        "ResolveAliasResponse": {
+            "description": "ResolveAliasResponse payload",
+            "type": "object",
+            "properties": {
+                "accountId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "bankingDetails": {
+                    "$ref": "#/definitions/ResolveAliasBankingDetailsResponse"
+                },
+                "holderDocument": {
+                    "type": "string",
+                    "example": "12345678901"
+                },
+                "holderId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "organizationId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                }
+            }
+        },
+        "ResolveBankAccountBankingDetailsRequest": {
+            "description": "ResolveBankAccountBankingDetails object",
+            "type": "object",
+            "required": [
+                "account",
+                "bankId",
+                "branch",
+                "type"
+            ],
+            "properties": {
+                "account": {
+                    "type": "string",
+                    "example": "1234567"
+                },
+                "bankId": {
+                    "type": "string",
+                    "example": "12345678"
+                },
+                "branch": {
+                    "type": "string",
+                    "example": "0001"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "CACC"
+                }
+            }
+        },
+        "ResolveBankAccountRequest": {
+            "description": "ResolveBankAccountRequest payload",
+            "type": "object",
+            "required": [
+                "bankingDetails",
+                "document"
+            ],
+            "properties": {
+                "bankingDetails": {
+                    "$ref": "#/definitions/ResolveBankAccountBankingDetailsRequest"
+                },
+                "document": {
+                    "type": "string",
+                    "example": "12345678901"
+                }
+            }
+        },
         "UpdateAliasRequest": {
             "description": "UpdateAliasRequest payload",
             "type": "object",
@@ -1562,6 +1881,47 @@ const docTemplate = `{
                 },
                 "prev_cursor": {
                     "type": "string"
+                }
+            }
+        },
+        "mmodel.BankAccountIndexBackfillReport": {
+            "type": "object",
+            "properties": {
+                "aliasesScanned": {
+                    "type": "integer"
+                },
+                "collectionsScanned": {
+                    "type": "integer"
+                },
+                "dryRun": {
+                    "type": "boolean"
+                },
+                "duplicateAliasIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "duplicateAliasIdsTruncated": {
+                    "type": "boolean"
+                },
+                "duplicates": {
+                    "type": "integer"
+                },
+                "incomplete": {
+                    "type": "integer"
+                },
+                "incompleteAliasIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "incompleteAliasIdsTruncated": {
+                    "type": "boolean"
+                },
+                "upserted": {
+                    "type": "integer"
                 }
             }
         },

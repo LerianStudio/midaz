@@ -342,6 +342,170 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 	}
 }
 
+func TestAliasHandler_ResolveBankAccountDoesNotRequireOrganizationHeader(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	repo := alias.NewMockRepository(ctrl)
+	holderRepo := holder.NewMockRepository(ctrl)
+	uc := &services.UseCase{AliasRepo: repo, HolderRepo: holderRepo}
+	handler := &AliasHandler{Service: uc}
+
+	aliasID := uuid.New()
+	holderID := uuid.New()
+	organizationID := uuid.New().String()
+	ledgerID := uuid.New().String()
+	accountID := uuid.New().String()
+	document := "12345678901"
+	bankID := "12345678"
+	branch := "0001"
+	account := "1234567"
+	accountType := "CACC"
+
+	repo.EXPECT().ResolveBankAccount(gomock.Any(), gomock.Any()).Return([]*mmodel.Alias{{
+		ID:             &aliasID,
+		OrganizationID: &organizationID,
+		Document:       &document,
+		LedgerID:       &ledgerID,
+		AccountID:      &accountID,
+		HolderID:       &holderID,
+		BankingDetails: &mmodel.BankingDetails{BankID: &bankID, Branch: &branch, Account: &account, Type: &accountType},
+	}}, nil).Times(1)
+
+	app := fiber.New()
+	app.Post("/v1/aliases/resolve-bank-account", http.WithBody(new(mmodel.ResolveBankAccountInput), handler.ResolveBankAccount))
+
+	body := `{"document":"12345678901","bankingDetails":{"bankId":"12345678","branch":"0001","account":"1234567","type":"CACC"}}`
+	req := httptest.NewRequest("POST", "/v1/aliases/resolve-bank-account", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &result))
+	assert.Equal(t, aliasID.String(), result["id"])
+	assert.Equal(t, organizationID, result["organizationId"])
+	assert.Equal(t, ledgerID, result["ledgerId"])
+	assert.Equal(t, accountID, result["accountId"])
+	assert.Equal(t, holderID.String(), result["holderId"])
+	assert.Equal(t, document, result["holderDocument"])
+	assert.NotContains(t, result, "holderName")
+	bankingDetails, ok := result["bankingDetails"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, bankID, bankingDetails["bankId"])
+	assert.Equal(t, branch, bankingDetails["branch"])
+	assert.Equal(t, account, bankingDetails["account"])
+	assert.Equal(t, accountType, bankingDetails["type"])
+}
+
+func TestAliasHandler_ResolveBankAccountRejectsUnknownFields(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	repo := alias.NewMockRepository(ctrl)
+	uc := &services.UseCase{AliasRepo: repo}
+	handler := &AliasHandler{Service: uc}
+	app := fiber.New()
+	app.Post("/v1/aliases/resolve-bank-account", http.WithBody(new(mmodel.ResolveBankAccountInput), handler.ResolveBankAccount))
+
+	body := `{"document":"12345678901","organizationId":"` + uuid.New().String() + `","bankingDetails":{"bankId":"12345678","branch":"0001","account":"1234567","type":"CACC"}}`
+	req := httptest.NewRequest("POST", "/v1/aliases/resolve-bank-account", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 400, resp.StatusCode)
+}
+
+func TestAliasHandler_ResolveAccountDoesNotRequireOrganizationHeader(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	repo := alias.NewMockRepository(ctrl)
+	uc := &services.UseCase{AliasRepo: repo}
+	handler := &AliasHandler{Service: uc}
+
+	aliasID := uuid.New()
+	holderID := uuid.New()
+	accountUUID := uuid.New()
+	organizationID := uuid.New().String()
+	ledgerID := uuid.New().String()
+	document := "12345678901"
+	bankID := "12345678"
+	branch := "0001"
+	account := "1234567"
+	accountType := "CACC"
+	accountID := accountUUID.String()
+
+	repo.EXPECT().ResolveAccount(gomock.Any(), accountUUID).Return([]*mmodel.Alias{{
+		ID:             &aliasID,
+		OrganizationID: &organizationID,
+		Document:       &document,
+		LedgerID:       &ledgerID,
+		AccountID:      &accountID,
+		HolderID:       &holderID,
+		BankingDetails: &mmodel.BankingDetails{BankID: &bankID, Branch: &branch, Account: &account, Type: &accountType},
+	}}, nil).Times(1)
+
+	app := fiber.New()
+	app.Post("/v1/aliases/resolve-account", http.WithBody(new(mmodel.ResolveAccountInput), handler.ResolveAccount))
+
+	body := `{"accountId":"` + accountUUID.String() + `"}`
+	req := httptest.NewRequest("POST", "/v1/aliases/resolve-account", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &result))
+	assert.Equal(t, aliasID.String(), result["id"])
+	assert.Equal(t, organizationID, result["organizationId"])
+	assert.Equal(t, accountID, result["accountId"])
+	assert.NotContains(t, result, "holderName")
+}
+
+func TestAliasHandler_BackfillBankAccountIndexReturnsNoPIIReport(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	repo := alias.NewMockRepository(ctrl)
+	uc := &services.UseCase{AliasRepo: repo}
+	handler := &AliasHandler{Service: uc}
+	aliasID := uuid.New().String()
+
+	repo.EXPECT().BackfillBankAccountIndex(gomock.Any(), true).Return(&mmodel.BankAccountIndexBackfillReport{
+		DryRun:             true,
+		CollectionsScanned: 1,
+		AliasesScanned:     2,
+		Incomplete:         1,
+		IncompleteAliasIDs: []string{aliasID},
+	}, nil).Times(1)
+
+	app := fiber.New()
+	app.Post("/v1/aliases/backfill-bank-account-index", http.WithBody(new(mmodel.BackfillBankAccountIndexInput), handler.BackfillBankAccountIndex))
+
+	req := httptest.NewRequest("POST", "/v1/aliases/backfill-bank-account-index", bytes.NewBufferString(`{"dryRun":true}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), aliasID)
+	assert.NotContains(t, string(body), "12345678901")
+	assert.NotContains(t, string(body), "1234567")
+}
+
 func TestAliasHandler_GetAliasByID(t *testing.T) {
 	tests := []struct {
 		name           string

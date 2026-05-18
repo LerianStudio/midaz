@@ -119,6 +119,17 @@ func TestMongoDBRepository_buildAliasFilter(t *testing.T) {
 			wantErr:        false,
 		},
 		{
+			name: "filter by banking details bank ID and type",
+			query: http.QueryHeader{
+				BankingDetailsBankID: testutils.Ptr("12345678"),
+				BankingDetailsType:   testutils.Ptr("CACC"),
+			},
+			holderID:       holderID,
+			includeDeleted: false,
+			wantKeys:       []string{"holder_id", "deleted_at", "banking_details.bank_id", "banking_details.type"},
+			wantErr:        false,
+		},
+		{
 			name: "filter with metadata",
 			query: http.QueryHeader{
 				Metadata: &bson.M{

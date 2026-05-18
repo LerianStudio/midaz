@@ -72,6 +72,9 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 
 	// Aliases
 	f.Get("/v1/aliases", auth.Authorize(ApplicationName, "aliases", "get"), ah.GetAllAliases)
+	f.Post("/v1/aliases/resolve-bank-account", auth.Authorize(ApplicationName, "aliases", "resolve"), http.WithBody(new(mmodel.ResolveBankAccountInput), ah.ResolveBankAccount))
+	f.Post("/v1/aliases/resolve-account", auth.Authorize(ApplicationName, "aliases", "resolve"), http.WithBody(new(mmodel.ResolveAccountInput), ah.ResolveAccount))
+	f.Post("/v1/aliases/backfill-bank-account-index", auth.Authorize(ApplicationName, "aliases", "backfill"), http.WithBody(new(mmodel.BackfillBankAccountIndexInput), ah.BackfillBankAccountIndex))
 	f.Post("/v1/holders/:holder_id/aliases", auth.Authorize(ApplicationName, "aliases", "post"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.CreateAliasInput), ah.CreateAlias))
 	f.Get("/v1/holders/:holder_id/aliases/:alias_id", auth.Authorize(ApplicationName, "aliases", "get"), http.ParseUUIDPathParameters("aliases"), ah.GetAliasByID)
 	f.Patch("/v1/holders/:holder_id/aliases/:alias_id", auth.Authorize(ApplicationName, "aliases", "patch"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.UpdateAliasInput), ah.UpdateAlias))

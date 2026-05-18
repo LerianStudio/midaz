@@ -10,6 +10,7 @@ const (
 	EntityAccount          = "Account"
 	EntityAccountRule      = "AccountRule"
 	EntityAccountType      = "AccountType"
+	EntityAlias            = "Alias"
 	EntityAsset            = "Asset"
 	EntityAssetRate        = "AssetRate"
 	EntityBalance          = "Balance"

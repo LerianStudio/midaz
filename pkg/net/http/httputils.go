@@ -52,6 +52,8 @@ type QueryHeader struct {
 	BankingDetailsBranch                *string
 	BankingDetailsAccount               *string
 	BankingDetailsIban                  *string
+	BankingDetailsBankID                *string
+	BankingDetailsType                  *string
 	EntityName                          *string
 	RegulatoryFieldsParticipantDocument *string
 	RelatedPartyDocument                *string
@@ -130,6 +132,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		bankingDetailsBranch                *string
 		bankingDetailsAccount               *string
 		bankingDetailsIban                  *string
+		bankingDetailsBankID                *string
+		bankingDetailsType                  *string
 		entityName                          *string
 		regulatoryFieldsParticipantDocument *string
 		relatedPartyDocument                *string
@@ -189,11 +193,6 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			portfolioID = value
 		case strings.Contains(key, "segment_id"):
 			segmentID = value
-		case strings.Contains(strings.ToLower(key), "type"):
-			operationType = strings.ToUpper(value)
-			// Also populate Type field for account filtering (lowercase to match DB normalization)
-			lowercaseType := strings.ToLower(value)
-			filterType = &lowercaseType
 		case key == "direction":
 			v := strings.ToLower(value)
 			direction = &v
@@ -221,6 +220,15 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			bankingDetailsAccount = &value
 		case strings.Contains(key, "banking_details_iban"):
 			bankingDetailsIban = &value
+		case strings.Contains(key, "banking_details_bank_id"):
+			bankingDetailsBankID = &value
+		case strings.Contains(key, "banking_details_type"):
+			bankingDetailsType = &value
+		case strings.Contains(strings.ToLower(key), "type"):
+			operationType = strings.ToUpper(value)
+			// Also populate Type field for account filtering (lowercase to match DB normalization)
+			lowercaseType := strings.ToLower(value)
+			filterType = &lowercaseType
 		case strings.Contains(key, "entity_name"):
 			entityName = &value
 		case strings.Contains(key, "regulatory_fields_participant_document"):
@@ -340,6 +348,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		BankingDetailsBranch:                bankingDetailsBranch,
 		BankingDetailsAccount:               bankingDetailsAccount,
 		BankingDetailsIban:                  bankingDetailsIban,
+		BankingDetailsBankID:                bankingDetailsBankID,
+		BankingDetailsType:                  bankingDetailsType,
 		EntityName:                          entityName,
 		RegulatoryFieldsParticipantDocument: regulatoryFieldsParticipantDocument,
 		RelatedPartyDocument:                relatedPartyDocument,

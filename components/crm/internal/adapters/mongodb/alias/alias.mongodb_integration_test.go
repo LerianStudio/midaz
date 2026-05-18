@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -103,6 +104,407 @@ func TestIntegration_AliasRepo_Create_EncryptsData(t *testing.T) {
 	search, ok := rawDoc["search"].(bson.M)
 	require.True(t, ok, "search map should exist")
 	assert.NotEmpty(t, search["document"], "document hash should be generated")
+}
+
+func TestIntegration_AliasRepo_Create_UpsertsBankAccountIndexWithCanonicalBranch(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := "org-index-" + uuid.New().String()[:8]
+	holderID := uuid.New()
+	originalDocument := "12345678901"
+	originalAccount := "001234567"
+
+	banking := mongotestutil.DefaultBankingDetailsParams()
+	banking.Branch = "0001"
+	banking.Account = originalAccount
+	banking.BankID = "12345678"
+	banking.Type = "CACC"
+	alias := mongotestutil.CreateTestAliasSimple(t, holderID, "account-index-1", originalDocument)
+	alias.BankingDetails = mongotestutil.CreateBankingDetails(banking)
+
+	_, err := repo.Create(ctx, organizationID, alias)
+	require.NoError(t, err)
+
+	var rawDoc bson.M
+	err = container.Database.Collection(bankAccountIndexCollection).FindOne(ctx, bson.M{"alias_id": alias.ID}).Decode(&rawDoc)
+	require.NoError(t, err)
+
+	bankingDoc, ok := rawDoc["banking_details"].(bson.M)
+	require.True(t, ok)
+	assert.Equal(t, "1", bankingDoc["branch_canonical"])
+	assert.Equal(t, "0001", bankingDoc["branch"])
+	assert.NotEqual(t, originalAccount, bankingDoc["account"])
+	assert.NotEqual(t, originalDocument, rawDoc["document"])
+}
+
+func TestIntegration_AliasRepo_Create_DuplicateActiveBankIdentityConflicts(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := "org-dup-bank-" + uuid.New().String()[:8]
+	document := "12345678901"
+	banking := mongotestutil.DefaultBankingDetailsParams()
+	banking.BankID = "12345678"
+	banking.Branch = "0001"
+	banking.Account = "001234567"
+	banking.Type = "CACC"
+
+	alias1 := mongotestutil.CreateTestAliasSimple(t, uuid.New(), "account-bank-1", document)
+	alias1.BankingDetails = mongotestutil.CreateBankingDetails(banking)
+	require.NoError(t, mustCreateAlias(repo, ctx, organizationID, alias1))
+
+	alias2 := mongotestutil.CreateTestAliasSimple(t, uuid.New(), "account-bank-2", document)
+	alias2.BankingDetails = mongotestutil.CreateBankingDetails(banking)
+
+	_, err := repo.Create(ctx, organizationID, alias2)
+	require.Error(t, err)
+	var conflictErr pkg.EntityConflictError
+	require.ErrorAs(t, err, &conflictErr)
+	assert.Equal(t, int64(0), mongotestutil.CountDocuments(t, container.Database, strings.ToLower("aliases_"+organizationID), bson.M{"_id": alias2.ID}))
+}
+
+func TestIntegration_AliasRepo_Create_CrossOrganizationDuplicateBankIdentityConflicts(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	document := "12345678901"
+	banking := mongotestutil.DefaultBankingDetailsParams()
+	banking.BankID = "12345678"
+	banking.Branch = "0001"
+	banking.Account = "001234567"
+	banking.Type = "CACC"
+
+	alias1 := mongotestutil.CreateTestAliasSimple(t, uuid.New(), "account-bank-cross-1", document)
+	alias1.BankingDetails = mongotestutil.CreateBankingDetails(banking)
+	require.NoError(t, mustCreateAlias(repo, ctx, "org-cross-a", alias1))
+
+	alias2 := mongotestutil.CreateTestAliasSimple(t, uuid.New(), "account-bank-cross-2", document)
+	alias2.BankingDetails = mongotestutil.CreateBankingDetails(banking)
+
+	_, err := repo.Create(ctx, "org-cross-b", alias2)
+	require.Error(t, err)
+	var conflictErr pkg.EntityConflictError
+	require.ErrorAs(t, err, &conflictErr)
+}
+
+func TestIntegration_AliasRepo_Create_WithoutBankingDetailsIsResolvableByAccount(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := uuid.New().String()
+	holderID := uuid.New()
+	accountID := uuid.New()
+	alias := mongotestutil.CreateTestAliasSimple(t, holderID, accountID.String(), "12345678901")
+
+	require.NoError(t, mustCreateAlias(repo, ctx, organizationID, alias))
+
+	results, err := repo.ResolveAccount(ctx, accountID)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, accountID.String(), *results[0].AccountID)
+	assert.Nil(t, results[0].BankingDetails)
+}
+
+func TestIntegration_AliasRepo_ResolveBankAccount_IgnoresIncompleteBankingRows(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := uuid.New().String()
+	holderID := uuid.New()
+	accountID := uuid.New()
+	document := "12345678901"
+	bankID := "12345678"
+	branch := "0001"
+	alias := mongotestutil.CreateTestAliasSimple(t, holderID, accountID.String(), document)
+	alias.BankingDetails = &mmodel.BankingDetails{BankID: &bankID, Branch: &branch}
+
+	require.NoError(t, mustCreateAlias(repo, ctx, organizationID, alias))
+
+	results, err := repo.ResolveBankAccount(ctx, &mmodel.ResolveBankAccountInput{
+		Document: document,
+		BankingDetails: mmodel.ResolveBankAccountBankingDetailsInput{
+			BankID: bankID, Branch: branch, Account: "123456", Type: "CACC",
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, results)
+}
+
+func TestIntegration_AliasRepo_ResolveBankAccount_ExcludesDeletedIndexRows(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := "org-resolve-del-" + uuid.New().String()[:8]
+	holderID := uuid.New()
+	alias := mongotestutil.CreateTestAliasWithBanking(t, holderID, "account-resolve-del", "12345678901")
+	require.NoError(t, mustCreateAlias(repo, ctx, organizationID, alias))
+	require.NoError(t, repo.Delete(ctx, organizationID, holderID, *alias.ID, false))
+
+	results, err := repo.ResolveBankAccount(ctx, &mmodel.ResolveBankAccountInput{
+		Document: "12345678901",
+		BankingDetails: mmodel.ResolveBankAccountBankingDetailsInput{
+			BankID: "001", Branch: "1", Account: "123456", Type: "CACC",
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, results)
+}
+
+func TestIntegration_AliasRepo_ResolveBankAccount_ExcludesHardDeletedIndexRows(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := "org-resolve-hard-del-" + uuid.New().String()[:8]
+	holderID := uuid.New()
+	alias := mongotestutil.CreateTestAliasWithBanking(t, holderID, "account-resolve-hard-del", "12345678901")
+	require.NoError(t, mustCreateAlias(repo, ctx, organizationID, alias))
+	require.NoError(t, repo.Delete(ctx, organizationID, holderID, *alias.ID, true))
+
+	results, err := repo.ResolveBankAccount(ctx, &mmodel.ResolveBankAccountInput{
+		Document: "12345678901",
+		BankingDetails: mmodel.ResolveBankAccountBankingDetailsInput{
+			BankID: "001", Branch: "1", Account: "123456", Type: "CACC",
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, results)
+	assert.Equal(t, int64(0), mongotestutil.CountDocuments(t, container.Database, bankAccountIndexCollection, bson.M{"alias_id": alias.ID}))
+}
+
+func TestIntegration_AliasRepo_ResolveBankAccount_ReturnsProofFields(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := uuid.New().String()
+	holderID := uuid.New()
+	alias := mongotestutil.CreateTestAliasWithBanking(t, holderID, "account-resolve-proof", "12345678901")
+	require.NoError(t, mustCreateAlias(repo, ctx, organizationID, alias))
+
+	results, err := repo.ResolveBankAccount(ctx, &mmodel.ResolveBankAccountInput{
+		Document: "12345678901",
+		BankingDetails: mmodel.ResolveBankAccountBankingDetailsInput{
+			BankID: "001", Branch: "0001", Account: "123456", Type: "CACC",
+		},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, organizationID, *results[0].OrganizationID)
+	assert.Equal(t, "12345678901", *results[0].Document)
+	assert.Equal(t, "0001", *results[0].BankingDetails.Branch)
+	assert.Equal(t, "123456", *results[0].BankingDetails.Account)
+}
+
+func TestIntegration_AliasRepo_ResolveBankAccount_CanonicalBranchMatchesAndReturnsStoredBranch(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := uuid.New().String()
+	holderID := uuid.New()
+	alias := mongotestutil.CreateTestAliasWithBanking(t, holderID, "account-resolve-canonical", "12345678901")
+	require.NoError(t, mustCreateAlias(repo, ctx, organizationID, alias))
+
+	results, err := repo.ResolveBankAccount(ctx, &mmodel.ResolveBankAccountInput{
+		Document: "12345678901",
+		BankingDetails: mmodel.ResolveBankAccountBankingDetailsInput{
+			BankID: "001", Branch: "1", Account: "123456", Type: "CACC",
+		},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "0001", *results[0].BankingDetails.Branch)
+}
+
+func TestIntegration_AliasRepo_Update_RemoveBankingDetailsClearsIndexProofFields(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := uuid.New().String()
+	holderID := uuid.New()
+	accountID := uuid.New()
+	alias := mongotestutil.CreateTestAliasWithBanking(t, holderID, accountID.String(), "12345678901")
+	require.NoError(t, mustCreateAlias(repo, ctx, organizationID, alias))
+
+	_, err := repo.Update(ctx, organizationID, holderID, *alias.ID, &mmodel.Alias{}, []string{"banking_details"})
+	require.NoError(t, err)
+
+	accountResults, err := repo.ResolveAccount(ctx, accountID)
+	require.NoError(t, err)
+	require.Len(t, accountResults, 1)
+	assert.Nil(t, accountResults[0].BankingDetails)
+
+	bankResults, err := repo.ResolveBankAccount(ctx, &mmodel.ResolveBankAccountInput{
+		Document: "12345678901",
+		BankingDetails: mmodel.ResolveBankAccountBankingDetailsInput{
+			BankID: "001", Branch: "1", Account: "123456", Type: "CACC",
+		},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, bankResults)
+}
+
+func TestIntegration_AliasRepo_Update_NonIdentityBankingPatchPreservesResolverIdentity(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := uuid.New().String()
+	holderID := uuid.New()
+	alias := mongotestutil.CreateTestAliasWithBanking(t, holderID, uuid.New().String(), "12345678901")
+	require.NoError(t, mustCreateAlias(repo, ctx, organizationID, alias))
+
+	closingDate := mmodel.Date{Time: time.Now().UTC().Add(24 * time.Hour)}
+	_, err := repo.Update(ctx, organizationID, holderID, *alias.ID, &mmodel.Alias{
+		BankingDetails: &mmodel.BankingDetails{ClosingDate: &closingDate},
+	}, nil)
+	require.NoError(t, err)
+
+	results, err := repo.ResolveBankAccount(ctx, &mmodel.ResolveBankAccountInput{
+		Document: "12345678901",
+		BankingDetails: mmodel.ResolveBankAccountBankingDetailsInput{
+			BankID: "001", Branch: "1", Account: "123456", Type: "CACC",
+		},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "0001", *results[0].BankingDetails.Branch)
+}
+
+func TestIntegration_AliasRepo_ResolveAccount_ReturnsOrganizationID(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := uuid.New().String()
+	holderID := uuid.New()
+	accountID := uuid.New()
+	alias := mongotestutil.CreateTestAliasWithBanking(t, holderID, accountID.String(), "12345678901")
+	require.NoError(t, mustCreateAlias(repo, ctx, organizationID, alias))
+
+	results, err := repo.ResolveAccount(ctx, accountID)
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.NotNil(t, results[0].OrganizationID)
+	assert.Equal(t, organizationID, *results[0].OrganizationID)
+}
+
+func TestIntegration_AliasRepo_BackfillBankAccountIndex_DryRunReportsCountsWithoutPII(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := "org-backfill-" + uuid.New().String()[:8]
+	holderID := uuid.New()
+	complete := mongotestutil.CreateTestAliasWithBanking(t, holderID, "account-backfill-1", "12345678901")
+	incomplete := mongotestutil.CreateTestAliasSimple(t, holderID, "account-backfill-2", "98765432100")
+	incomplete.BankingDetails = &mmodel.BankingDetails{BankID: testutils.Ptr("12345678"), Branch: testutils.Ptr("0001")}
+
+	completeModel := &MongoDBModel{}
+	require.NoError(t, completeModel.FromEntity(complete, repo.DataSecurity))
+	incompleteModel := &MongoDBModel{}
+	require.NoError(t, incompleteModel.FromEntity(incomplete, repo.DataSecurity))
+
+	_, err := container.Database.Collection(strings.ToLower("aliases_"+organizationID)).InsertMany(ctx, []any{completeModel, incompleteModel})
+	require.NoError(t, err)
+
+	report, err := repo.BackfillBankAccountIndex(ctx, true)
+
+	require.NoError(t, err)
+	require.NotNil(t, report)
+	assert.True(t, report.DryRun)
+	assert.Equal(t, 1, report.CollectionsScanned)
+	assert.Equal(t, 2, report.AliasesScanned)
+	assert.Equal(t, 1, report.Incomplete)
+	assert.Equal(t, 0, report.Upserted)
+	assert.NotContains(t, strings.Join(report.IncompleteAliasIDs, " "), "98765432100")
+	assert.Equal(t, int64(0), mongotestutil.CountDocuments(t, container.Database, bankAccountIndexCollection, bson.M{}))
+}
+
+func TestIntegration_AliasRepo_BackfillBankAccountIndex_DryRunReportsDuplicateAliasIDsWithoutPII(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationA := "org-backfill-dup-a"
+	organizationB := "org-backfill-dup-b"
+	document := "12345678901"
+	banking := mongotestutil.DefaultBankingDetailsParams()
+	banking.BankID = "12345678"
+	banking.Branch = "0001"
+	banking.Account = "001234567"
+	banking.Type = "CACC"
+
+	aliasA := mongotestutil.CreateTestAliasSimple(t, uuid.New(), "account-backfill-dup-a", document)
+	aliasA.BankingDetails = mongotestutil.CreateBankingDetails(banking)
+	modelA := &MongoDBModel{}
+	require.NoError(t, modelA.FromEntity(aliasA, repo.DataSecurity))
+
+	aliasB := mongotestutil.CreateTestAliasSimple(t, uuid.New(), "account-backfill-dup-b", document)
+	aliasB.BankingDetails = mongotestutil.CreateBankingDetails(banking)
+	modelB := &MongoDBModel{}
+	require.NoError(t, modelB.FromEntity(aliasB, repo.DataSecurity))
+
+	_, err := container.Database.Collection(strings.ToLower("aliases_"+organizationA)).InsertOne(ctx, modelA)
+	require.NoError(t, err)
+	_, err = container.Database.Collection(strings.ToLower("aliases_"+organizationB)).InsertOne(ctx, modelB)
+	require.NoError(t, err)
+
+	report, err := repo.BackfillBankAccountIndex(ctx, true)
+
+	require.NoError(t, err)
+	require.NotNil(t, report)
+	assert.Equal(t, 2, report.Duplicates)
+	assert.ElementsMatch(t, []string{aliasA.ID.String(), aliasB.ID.String()}, report.DuplicateAliasIDs)
+	joined := strings.Join(report.DuplicateAliasIDs, " ")
+	assert.NotContains(t, joined, document)
+	assert.NotContains(t, joined, banking.Account)
+}
+
+func TestIntegration_AliasRepo_BackfillBankAccountIndex_NonDryRunWritesRowsWithoutPIIReport(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := "org-backfill-write-" + uuid.New().String()[:8]
+	holderID := uuid.New()
+	alias := mongotestutil.CreateTestAliasWithBanking(t, holderID, uuid.New().String(), "12345678901")
+	model := &MongoDBModel{}
+	require.NoError(t, model.FromEntity(alias, repo.DataSecurity))
+
+	_, err := container.Database.Collection(strings.ToLower("aliases_"+organizationID)).InsertOne(ctx, model)
+	require.NoError(t, err)
+
+	report, err := repo.BackfillBankAccountIndex(ctx, false)
+
+	require.NoError(t, err)
+	require.NotNil(t, report)
+	assert.False(t, report.DryRun)
+	assert.Equal(t, 1, report.Upserted)
+	assert.Empty(t, report.DuplicateAliasIDs)
+	assert.Empty(t, report.IncompleteAliasIDs)
+	assert.Equal(t, int64(1), mongotestutil.CountDocuments(t, container.Database, bankAccountIndexCollection, bson.M{"alias_id": alias.ID}))
+}
+
+func mustCreateAlias(repo *MongoDBRepository, ctx context.Context, organizationID string, alias *mmodel.Alias) error {
+	_, err := repo.Create(ctx, organizationID, alias)
+	return err
 }
 
 func TestIntegration_AliasRepo_Create_DuplicateAccount(t *testing.T) {
@@ -373,6 +775,40 @@ func TestIntegration_AliasRepo_FindAll_FilterByAccountID(t *testing.T) {
 	assert.Equal(t, targetAccountID, *results[0].AccountID)
 }
 
+func TestIntegration_AliasRepo_FindAll_FilterByBankIDAndType(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := "org-filterbank-" + uuid.New().String()[:8]
+	holderID := uuid.New()
+	banking := mongotestutil.DefaultBankingDetailsParams()
+	banking.BankID = "12345678"
+	banking.Type = "CACC"
+	alias1 := mongotestutil.CreateTestAliasSimple(t, holderID, uuid.New().String(), "11122233344")
+	alias1.BankingDetails = mongotestutil.CreateBankingDetails(banking)
+	require.NoError(t, mustCreateAlias(repo, ctx, organizationID, alias1))
+
+	otherBanking := mongotestutil.DefaultBankingDetailsParams()
+	otherBanking.BankID = "87654321"
+	otherBanking.Type = "SVGS"
+	alias2 := mongotestutil.CreateTestAliasSimple(t, holderID, uuid.New().String(), "55566677788")
+	alias2.BankingDetails = mongotestutil.CreateBankingDetails(otherBanking)
+	require.NoError(t, mustCreateAlias(repo, ctx, organizationID, alias2))
+
+	results, err := repo.FindAll(ctx, organizationID, holderID, http.QueryHeader{
+		Limit:                10,
+		Page:                 1,
+		BankingDetailsBankID: testutils.Ptr("12345678"),
+		BankingDetailsType:   testutils.Ptr("CACC"),
+	}, false)
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "12345678", *results[0].BankingDetails.BankID)
+	assert.Equal(t, "CACC", *results[0].BankingDetails.Type)
+}
+
 func TestIntegration_AliasRepo_FindAll_ReturnsEmpty(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
@@ -464,6 +900,51 @@ func TestIntegration_AliasRepo_Update_FieldsToRemove(t *testing.T) {
 	require.NotNil(t, result)
 	_, hasKey1 := result.Metadata["key1"]
 	assert.False(t, hasKey1, "key1 should be removed")
+}
+
+func TestIntegration_AliasRepo_Update_DuplicateBankIdentityReturnsConflictAndDoesNotMutateSource(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := "org-update-dup-" + uuid.New().String()[:8]
+	holderA := uuid.New()
+	holderB := uuid.New()
+	document := "12345678901"
+
+	bankingA := mongotestutil.DefaultBankingDetailsParams()
+	bankingA.BankID = "12345678"
+	bankingA.Branch = "0001"
+	bankingA.Account = "001234567"
+	bankingA.Type = "CACC"
+
+	aliasA := mongotestutil.CreateTestAliasSimple(t, holderA, "account-update-dup-a", document)
+	aliasA.BankingDetails = mongotestutil.CreateBankingDetails(bankingA)
+	require.NoError(t, mustCreateAlias(repo, ctx, organizationID, aliasA))
+
+	bankingB := mongotestutil.DefaultBankingDetailsParams()
+	bankingB.BankID = "87654321"
+	bankingB.Branch = "0002"
+	bankingB.Account = "765432100"
+	bankingB.Type = "CACC"
+	aliasB := mongotestutil.CreateTestAliasSimple(t, holderB, "account-update-dup-b", document)
+	aliasB.BankingDetails = mongotestutil.CreateBankingDetails(bankingB)
+	require.NoError(t, mustCreateAlias(repo, ctx, organizationID, aliasB))
+
+	_, err := repo.Update(ctx, organizationID, holderB, *aliasB.ID, &mmodel.Alias{
+		Document:       &document,
+		BankingDetails: mongotestutil.CreateBankingDetails(bankingA),
+	}, nil)
+
+	require.Error(t, err)
+	var conflictErr pkg.EntityConflictError
+	require.ErrorAs(t, err, &conflictErr)
+
+	unchanged, findErr := repo.Find(ctx, organizationID, holderB, *aliasB.ID, false)
+	require.NoError(t, findErr)
+	assert.Equal(t, bankingB.BankID, *unchanged.BankingDetails.BankID)
+	assert.Equal(t, bankingB.Branch, *unchanged.BankingDetails.Branch)
+	assert.Equal(t, bankingB.Account, *unchanged.BankingDetails.Account)
 }
 
 // ============================================================================

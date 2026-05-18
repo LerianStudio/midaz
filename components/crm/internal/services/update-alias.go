@@ -32,6 +32,11 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update alias: %v", id.String()))
 
+	if err := validateBankingIdentityPatch(ctx, uai.BankingDetails, fieldsToRemove); err != nil {
+		libOpenTelemetry.HandleSpanBusinessErrorEvent(span, "Invalid banking identity", err)
+		return nil, err
+	}
+
 	if len(uai.RelatedParties) > 0 {
 		err := uc.ValidateRelatedParties(ctx, uai.RelatedParties)
 		if err != nil {

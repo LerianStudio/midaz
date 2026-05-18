@@ -9,6 +9,8 @@ package mongodb
 import (
 	"context"
 	"fmt"
+	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,6 +75,7 @@ func SetupContainerWithConfig(tb testing.TB, cfg ContainerConfig) *ContainerResu
 
 	req := testcontainers.ContainerRequest{
 		Image:        cfg.Image,
+		Cmd:          []string{"--replSet", "rs0", "--bind_ip_all"},
 		ExposedPorts: []string{"27017/tcp"},
 		WaitingFor: wait.ForAll(
 			wait.ForLog("Waiting for connections"),
@@ -91,7 +94,8 @@ func SetupContainerWithConfig(tb testing.TB, cfg ContainerConfig) *ContainerResu
 	port, err := ctr.MappedPort(ctx, "27017")
 	require.NoError(tb, err, "failed to get MongoDB container port")
 
-	uri := fmt.Sprintf("mongodb://%s:%s", host, port.Port())
+	initializeReplicaSet(tb, ctx, ctr)
+	uri := fmt.Sprintf("mongodb://%s:%s/?directConnection=true&replicaSet=rs0", host, port.Port())
 
 	clientOpts := options.Client().ApplyURI(uri)
 	client, err := mongo.Connect(ctx, clientOpts)
@@ -118,6 +122,34 @@ func SetupContainerWithConfig(tb testing.TB, cfg ContainerConfig) *ContainerResu
 		URI:       uri,
 		DBName:    cfg.DBName,
 	}
+}
+
+func initializeReplicaSet(tb testing.TB, ctx context.Context, ctr testcontainers.Container) {
+	tb.Helper()
+
+	initCommand := `rs.initiate({_id:"rs0",members:[{_id:0,host:"127.0.0.1:27017"}]})`
+
+	_, reader, err := ctr.Exec(ctx, []string{"mongosh", "--quiet", "--eval", initCommand})
+	require.NoError(tb, err, "failed to initiate MongoDB replica set")
+
+	output := new(strings.Builder)
+	_, _ = io.Copy(output, reader)
+
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		_, reader, err = ctr.Exec(ctx, []string{"mongosh", "--quiet", "--eval", `db.hello().isWritablePrimary`})
+		if err == nil {
+			status := new(strings.Builder)
+			_, _ = io.Copy(status, reader)
+			if strings.Contains(status.String(), "true") {
+				return
+			}
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	require.Failf(tb, "MongoDB replica set did not become primary", "init output: %s", output.String())
 }
 
 func startMongoContainerWithRetry(tb testing.TB, ctx context.Context, req testcontainers.ContainerRequest, failureMessage string) testcontainers.Container {
