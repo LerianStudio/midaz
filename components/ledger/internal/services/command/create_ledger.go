@@ -102,8 +102,8 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 // successfully persisted ledger. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
 func (uc *UseCase) emitLedgerCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, led *mmodel.Ledger) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, uc.StreamingSource, events.LedgerCreatedDefinition.Key(),
-		func(tenantID, source string) (libStreaming.Event, error) {
-			return events.NewLedgerCreated(led).ToEvent(tenantID, source, led.CreatedAt)
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.LedgerCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewLedgerCreated(led).ToEmitRequest(tenantID, led.CreatedAt)
 		})
 }

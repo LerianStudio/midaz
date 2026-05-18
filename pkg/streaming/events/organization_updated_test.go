@@ -72,22 +72,19 @@ func TestNewOrganizationUpdated_MapsAllOptionalFields(t *testing.T) {
 	assert.Equal(t, statusDesc, *payload.Status.Description)
 }
 
-func TestOrganizationUpdatedPayload_ToEvent_AssemblesStreamingEvent(t *testing.T) {
+func TestOrganizationUpdatedPayload_ToEmitRequest_AssemblesStreamingEvent(t *testing.T) {
 	payload := events.NewOrganizationUpdated(minimalOrganization())
 
-	evt, err := payload.ToEvent("tenant-1", "lerian.midaz.ledger", fixedTime)
+	req, err := payload.ToEmitRequest("tenant-1", fixedTime)
 	require.NoError(t, err)
 
-	assert.Equal(t, events.OrganizationUpdatedDefinition.ResourceType, evt.ResourceType)
-	assert.Equal(t, events.OrganizationUpdatedDefinition.EventType, evt.EventType)
-	assert.Equal(t, events.OrganizationUpdatedDefinition.SchemaVersion, evt.SchemaVersion)
-	assert.Equal(t, "tenant-1", evt.TenantID)
-	assert.Equal(t, "lerian.midaz.ledger", evt.Source)
-	assert.Equal(t, payload.ID, evt.Subject)
-	assert.Equal(t, fixedTime, evt.Timestamp)
+	assert.Equal(t, events.OrganizationUpdatedDefinition.Key(), req.DefinitionKey)
+	assert.Equal(t, "tenant-1", req.TenantID)
+	assert.Equal(t, payload.ID, req.Subject)
+	assert.Equal(t, fixedTime, req.Timestamp)
 
 	var roundTrip events.OrganizationUpdatedPayload
-	require.NoError(t, json.Unmarshal(evt.Payload, &roundTrip))
+	require.NoError(t, json.Unmarshal(req.Payload, &roundTrip))
 	assert.Equal(t, payload, roundTrip)
 }
 

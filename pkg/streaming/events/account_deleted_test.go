@@ -76,29 +76,27 @@ func TestNewAccountDeleted_MapsAccountWithPortfolio(t *testing.T) {
 	assert.Equal(t, portfolioID, *payload.PortfolioID)
 }
 
-// TestAccountDeletedPayload_ToEvent_AssemblesStreamingEvent verifies the
-// ToEvent helper composes a fully-populated streaming.Event matching the
-// definition constants and the supplied tenantID/source/timestamp.
-func TestAccountDeletedPayload_ToEvent_AssemblesStreamingEvent(t *testing.T) {
+// TestAccountDeletedPayload_ToEmitRequest_AssemblesStreamingEvent verifies
+// the ToEmitRequest helper composes a fully-populated EmitRequest. Catalog
+// fields (Source/ResourceType/EventType/SchemaVersion) are not on the
+// request and intentionally not asserted here.
+func TestAccountDeletedPayload_ToEmitRequest_AssemblesStreamingEvent(t *testing.T) {
 	payload := events.NewAccountDeleted(minimalDeletedAccount(), fixedTime)
 
-	evt, err := payload.ToEvent("tenant-1", "lerian.midaz.ledger", fixedTime)
+	req, err := payload.ToEmitRequest("tenant-1", fixedTime)
 	require.NoError(t, err)
 
-	// Routing — sourced from the package-level Definition.
-	assert.Equal(t, events.AccountDeletedDefinition.ResourceType, evt.ResourceType)
-	assert.Equal(t, events.AccountDeletedDefinition.EventType, evt.EventType)
-	assert.Equal(t, events.AccountDeletedDefinition.SchemaVersion, evt.SchemaVersion)
+	// Catalog routing key.
+	assert.Equal(t, events.AccountDeletedDefinition.Key(), req.DefinitionKey)
 
 	// Per-emit fields.
-	assert.Equal(t, "tenant-1", evt.TenantID)
-	assert.Equal(t, "lerian.midaz.ledger", evt.Source)
-	assert.Equal(t, payload.ID, evt.Subject)
-	assert.Equal(t, fixedTime, evt.Timestamp)
+	assert.Equal(t, "tenant-1", req.TenantID)
+	assert.Equal(t, payload.ID, req.Subject)
+	assert.Equal(t, fixedTime, req.Timestamp)
 
 	// Payload round-trips back to the same struct.
 	var roundTrip events.AccountDeletedPayload
-	require.NoError(t, json.Unmarshal(evt.Payload, &roundTrip))
+	require.NoError(t, json.Unmarshal(req.Payload, &roundTrip))
 	assert.Equal(t, payload, roundTrip)
 }
 

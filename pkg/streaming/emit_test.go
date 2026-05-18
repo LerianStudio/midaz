@@ -31,7 +31,7 @@ type deadlineCapturingEmitter struct {
 	ok       bool
 }
 
-func (e *deadlineCapturingEmitter) Emit(ctx context.Context, _ libStreaming.Event) error {
+func (e *deadlineCapturingEmitter) Emit(ctx context.Context, _ libStreaming.EmitRequest) error {
 	e.deadline, e.ok = ctx.Deadline()
 
 	return nil
@@ -46,7 +46,7 @@ type blockingEmitter struct {
 	err error
 }
 
-func (e *blockingEmitter) Emit(ctx context.Context, _ libStreaming.Event) error {
+func (e *blockingEmitter) Emit(ctx context.Context, _ libStreaming.EmitRequest) error {
 	<-ctx.Done()
 
 	e.mu.Lock()
@@ -68,73 +68,70 @@ func (e *blockingEmitter) lastErr() error {
 	return e.err
 }
 
+// sampleEmitRequest returns a minimal valid EmitRequest. tenant/payload are
+// realistic so log assertions stay legible.
+func sampleEmitRequest(tenantID string) libStreaming.EmitRequest {
+	return libStreaming.EmitRequest{
+		DefinitionKey: "account.created",
+		TenantID:      tenantID,
+		Subject:       "account-123",
+		Timestamp:     time.Date(2026, time.May, 15, 12, 0, 0, 0, time.UTC),
+		Payload:       []byte(`{"id":"account-123"}`),
+	}
+}
+
 func TestEmitImportant_NilEmitterDoesNotCallBuilder(t *testing.T) {
 	called := false
 
-	EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, nil, "lerian.midaz.test", "account.created",
-		func(_, _ string) (libStreaming.Event, error) {
+	EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, nil, "account.created",
+		func(_ string) (libStreaming.EmitRequest, error) {
 			called = true
-			return libStreaming.Event{}, nil
+			return libStreaming.EmitRequest{}, nil
 		})
 
 	assert.False(t, called, "nil emitter must skip building the event")
 }
 
-func TestEmitImportant_SuccessfulEmitUsesDefaultTenantAndSource(t *testing.T) {
-	mockEmitter := libStreaming.NewMockEmitter()
-	source := "lerian.midaz.ledger.test"
+func TestEmitImportant_SuccessfulEmitUsesDefaultTenant(t *testing.T) {
+	mockEmitter := NewMockEmitter()
 
-	EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, mockEmitter, source, "account.created",
-		func(tenantID, gotSource string) (libStreaming.Event, error) {
-			return libStreaming.Event{
-				TenantID:      tenantID,
-				Source:        gotSource,
-				ResourceType:  "account",
-				EventType:     "created",
-				SchemaVersion: "1.0.0",
-				Subject:       "account-123",
-				Timestamp:     time.Date(2026, time.May, 15, 12, 0, 0, 0, time.UTC),
-				Payload:       []byte(`{"id":"account-123"}`),
-			}, nil
+	EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, mockEmitter, "account.created",
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return sampleEmitRequest(tenantID), nil
 		})
 
 	events := mockEmitter.Events()
 	require.Len(t, events, 1)
 	assert.Equal(t, DefaultTenantID, events[0].TenantID)
-	assert.Equal(t, source, events[0].Source)
+	assert.Equal(t, "account.created", events[0].DefinitionKey)
 }
 
 func TestEmitImportant_BuildErrorDoesNotEmit(t *testing.T) {
-	mockEmitter := libStreaming.NewMockEmitter()
+	mockEmitter := NewMockEmitter()
 	buildErr := errors.New("build failed")
 
-	EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, mockEmitter, "lerian.midaz.test", "account.created",
-		func(_, _ string) (libStreaming.Event, error) {
-			return libStreaming.Event{}, buildErr
+	EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, mockEmitter, "account.created",
+		func(_ string) (libStreaming.EmitRequest, error) {
+			return libStreaming.EmitRequest{}, buildErr
 		})
 
 	assert.Empty(t, mockEmitter.Events())
 }
 
 func TestEmitImportant_EmitErrorDoesNotPanic(t *testing.T) {
-	mockEmitter := libStreaming.NewMockEmitter()
-	mockEmitter.SetError(errors.New("emit failed"))
+	mockEmitter := NewMockEmitter()
+	mockEmitter.EmitErr = errors.New("emit failed")
 
 	require.NotPanics(t, func() {
-		EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, mockEmitter, "lerian.midaz.test", "account.created",
-			func(tenantID, source string) (libStreaming.Event, error) {
-				return libStreaming.Event{
-					TenantID:      tenantID,
-					Source:        source,
-					ResourceType:  "account",
-					EventType:     "created",
-					SchemaVersion: "1.0.0",
-					Subject:       "account-123",
-					Timestamp:     time.Date(2026, time.May, 15, 12, 0, 0, 0, time.UTC),
-					Payload:       []byte(`{"id":"account-123"}`),
-				}, nil
+		EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, mockEmitter, "account.created",
+			func(tenantID string) (libStreaming.EmitRequest, error) {
+				return sampleEmitRequest(tenantID), nil
 			})
 	})
+
+	// EmitErr is captured BEFORE the request is appended, mirroring the
+	// upstream MockEmitter contract: a publish-failure path captures
+	// nothing for later inspection.
 	assert.Empty(t, mockEmitter.Events())
 }
 
@@ -144,18 +141,9 @@ func TestEmitImportant_PassesBoundedDeadlineToEmitter(t *testing.T) {
 	emitter := &deadlineCapturingEmitter{}
 	startedAt := time.Now()
 
-	EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, emitter, "lerian.midaz.test", "account.created",
-		func(tenantID, source string) (libStreaming.Event, error) {
-			return libStreaming.Event{
-				TenantID:      tenantID,
-				Source:        source,
-				ResourceType:  "account",
-				EventType:     "created",
-				SchemaVersion: "1.0.0",
-				Subject:       "account-123",
-				Timestamp:     time.Date(2026, time.May, 15, 12, 0, 0, 0, time.UTC),
-				Payload:       []byte(`{"id":"account-123"}`),
-			}, nil
+	EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, emitter, "account.created",
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return sampleEmitRequest(tenantID), nil
 		})
 
 	require.True(t, emitter.ok, "important emits must call emitter with a deadline")
@@ -170,18 +158,9 @@ func TestEmitImportant_BlockingEmitterReturnsAfterConfiguredTimeout(t *testing.T
 	startedAt := time.Now()
 
 	require.NotPanics(t, func() {
-		EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, emitter, "lerian.midaz.test", "account.created",
-			func(tenantID, source string) (libStreaming.Event, error) {
-				return libStreaming.Event{
-					TenantID:      tenantID,
-					Source:        source,
-					ResourceType:  "account",
-					EventType:     "created",
-					SchemaVersion: "1.0.0",
-					Subject:       "account-123",
-					Timestamp:     time.Date(2026, time.May, 15, 12, 0, 0, 0, time.UTC),
-					Payload:       []byte(`{"id":"account-123"}`),
-				}, nil
+		EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, emitter, "account.created",
+			func(tenantID string) (libStreaming.EmitRequest, error) {
+				return sampleEmitRequest(tenantID), nil
 			})
 	})
 

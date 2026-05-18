@@ -59,8 +59,8 @@ func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) err
 // successfully soft-deleted organization. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
 func (uc *UseCase) emitOrganizationDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id string, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, uc.StreamingSource, events.OrganizationDeletedDefinition.Key(),
-		func(tenantID, source string) (libStreaming.Event, error) {
-			return events.NewOrganizationDeleted(id, deletedAt).ToEvent(tenantID, source, deletedAt)
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.OrganizationDeletedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewOrganizationDeleted(id, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})
 }

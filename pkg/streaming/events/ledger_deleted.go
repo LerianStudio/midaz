@@ -40,19 +40,18 @@ func NewLedgerDeleted(id, organizationID string, deletedAt time.Time) LedgerDele
 	}
 }
 
-// ToEvent assembles a libStreaming.Event ready for the Emitter.
-func (p LedgerDeletedPayload) ToEvent(tenantID, source string, ts time.Time) (libStreaming.Event, error) {
+// ToEmitRequest assembles a libStreaming.EmitRequest ready for the
+// Emitter. Source, ResourceType, EventType, and SchemaVersion live in
+// the Catalog under DefinitionKey.
+func (p LedgerDeletedPayload) ToEmitRequest(tenantID string, ts time.Time) (libStreaming.EmitRequest, error) {
 	data, err := json.Marshal(p)
 	if err != nil {
-		return libStreaming.Event{}, fmt.Errorf("marshal %s payload: %w", LedgerDeletedDefinition.Key(), err)
+		return libStreaming.EmitRequest{}, fmt.Errorf("marshal %s payload: %w", LedgerDeletedDefinition.Key(), err)
 	}
 
-	return libStreaming.Event{
+	return libStreaming.EmitRequest{
+		DefinitionKey: LedgerDeletedDefinition.Key(),
 		TenantID:      tenantID,
-		Source:        source,
-		ResourceType:  LedgerDeletedDefinition.ResourceType,
-		EventType:     LedgerDeletedDefinition.EventType,
-		SchemaVersion: LedgerDeletedDefinition.SchemaVersion,
 		Subject:       p.ID,
 		Timestamp:     ts,
 		Payload:       data,

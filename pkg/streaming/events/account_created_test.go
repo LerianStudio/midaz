@@ -129,29 +129,30 @@ func TestNewAccountCreated_MapsAllOptionalFields(t *testing.T) {
 	assert.False(t, *payload.Blocked)
 }
 
-// TestAccountCreatedPayload_ToEvent_AssemblesStreamingEvent verifies the
-// ToEvent helper composes a fully-populated streaming.Event matching the
-// definition constants and the supplied tenantID/source/timestamp.
-func TestAccountCreatedPayload_ToEvent_AssemblesStreamingEvent(t *testing.T) {
+// TestAccountCreatedPayload_ToEmitRequest_AssemblesStreamingEvent verifies
+// the ToEmitRequest helper composes a fully-populated EmitRequest with the
+// correct DefinitionKey, tenant ID, subject, timestamp, and payload.
+//
+// Source/ResourceType/EventType/SchemaVersion are not asserted here —
+// they resolve from the Catalog at emit time via DefinitionKey, not from
+// EmitRequest.
+func TestAccountCreatedPayload_ToEmitRequest_AssemblesStreamingEvent(t *testing.T) {
 	payload := events.NewAccountCreated(minimalAccount())
 
-	evt, err := payload.ToEvent("tenant-1", "lerian.midaz.ledger", fixedTime)
+	req, err := payload.ToEmitRequest("tenant-1", fixedTime)
 	require.NoError(t, err)
 
-	// Routing — sourced from the package-level Definition.
-	assert.Equal(t, events.AccountCreatedDefinition.ResourceType, evt.ResourceType)
-	assert.Equal(t, events.AccountCreatedDefinition.EventType, evt.EventType)
-	assert.Equal(t, events.AccountCreatedDefinition.SchemaVersion, evt.SchemaVersion)
+	// Catalog routing key.
+	assert.Equal(t, events.AccountCreatedDefinition.Key(), req.DefinitionKey)
 
 	// Per-emit fields.
-	assert.Equal(t, "tenant-1", evt.TenantID)
-	assert.Equal(t, "lerian.midaz.ledger", evt.Source)
-	assert.Equal(t, payload.ID, evt.Subject)
-	assert.Equal(t, fixedTime, evt.Timestamp)
+	assert.Equal(t, "tenant-1", req.TenantID)
+	assert.Equal(t, payload.ID, req.Subject)
+	assert.Equal(t, fixedTime, req.Timestamp)
 
 	// Payload round-trips back to the same struct.
 	var roundTrip events.AccountCreatedPayload
-	require.NoError(t, json.Unmarshal(evt.Payload, &roundTrip))
+	require.NoError(t, json.Unmarshal(req.Payload, &roundTrip))
 	assert.Equal(t, payload, roundTrip)
 }
 

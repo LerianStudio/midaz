@@ -96,19 +96,12 @@ type UseCase struct {
 	// --- Streaming ---
 
 	// Streaming is the lib-streaming Emitter used to publish past-tense
-	// domain events (e.g. account.created) to external consumers via the
-	// CloudEvents-on-Kafka bus. The field accepts the Emitter interface,
-	// never *libStreaming.Producer directly, so unit tests can substitute
-	// libStreaming.NewMockEmitter() or libStreaming.NewNoopEmitter()
+	// domain events (e.g. account.created) to external consumers as
+	// CloudEvents. The field accepts the Emitter interface, never
+	// *libStreaming.Producer directly, so unit tests can substitute
+	// pkgStreaming.NewMockEmitter() or libStreaming.NewNoopEmitter()
 	// without pulling in a broker. A nil value is treated as "streaming
 	// disabled" by every call site — never required for the request to
 	// succeed.
 	Streaming libStreaming.Emitter
-
-	// StreamingSource is the CloudEvents `ce-source` attribute stamped on
-	// every Event emitted by this UseCase. lib-streaming validates
-	// Config.CloudEventsSource but does NOT auto-apply it to events, so
-	// each emit site reads this field instead of hardcoding the value.
-	// Empty when streaming is disabled.
-	StreamingSource string
 }

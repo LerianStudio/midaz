@@ -212,9 +212,9 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 // changes to the payload contract belong there, not here. This function
 // stays a thin emit-and-log adapter.
 func (uc *UseCase) emitAccountCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, uc.StreamingSource, events.AccountCreatedDefinition.Key(),
-		func(tenantID, source string) (libStreaming.Event, error) {
-			return events.NewAccountCreated(acc).ToEvent(tenantID, source, acc.CreatedAt)
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AccountCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewAccountCreated(acc).ToEmitRequest(tenantID, acc.CreatedAt)
 		})
 }
 

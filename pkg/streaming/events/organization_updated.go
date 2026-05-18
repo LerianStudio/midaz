@@ -47,19 +47,18 @@ func NewOrganizationUpdated(org *mmodel.Organization) OrganizationUpdatedPayload
 	}
 }
 
-// ToEvent assembles a libStreaming.Event ready for the Emitter.
-func (p OrganizationUpdatedPayload) ToEvent(tenantID, source string, ts time.Time) (libStreaming.Event, error) {
+// ToEmitRequest assembles a libStreaming.EmitRequest ready for the
+// Emitter. Source, ResourceType, EventType, and SchemaVersion live in
+// the Catalog under DefinitionKey.
+func (p OrganizationUpdatedPayload) ToEmitRequest(tenantID string, ts time.Time) (libStreaming.EmitRequest, error) {
 	data, err := json.Marshal(p)
 	if err != nil {
-		return libStreaming.Event{}, fmt.Errorf("marshal %s payload: %w", OrganizationUpdatedDefinition.Key(), err)
+		return libStreaming.EmitRequest{}, fmt.Errorf("marshal %s payload: %w", OrganizationUpdatedDefinition.Key(), err)
 	}
 
-	return libStreaming.Event{
+	return libStreaming.EmitRequest{
+		DefinitionKey: OrganizationUpdatedDefinition.Key(),
 		TenantID:      tenantID,
-		Source:        source,
-		ResourceType:  OrganizationUpdatedDefinition.ResourceType,
-		EventType:     OrganizationUpdatedDefinition.EventType,
-		SchemaVersion: OrganizationUpdatedDefinition.SchemaVersion,
 		Subject:       p.ID,
 		Timestamp:     ts,
 		Payload:       data,

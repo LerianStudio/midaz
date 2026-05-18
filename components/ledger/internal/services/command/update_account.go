@@ -160,8 +160,8 @@ func mergePatchAccount(pre, in *mmodel.Account, updatedAt time.Time) *mmodel.Acc
 // changes to the payload contract belong there, not here. This function
 // stays a thin emit-and-log adapter.
 func (uc *UseCase) emitAccountUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, uc.StreamingSource, events.AccountUpdatedDefinition.Key(),
-		func(tenantID, source string) (libStreaming.Event, error) {
-			return events.NewAccountUpdated(acc).ToEvent(tenantID, source, acc.UpdatedAt)
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AccountUpdatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewAccountUpdated(acc).ToEmitRequest(tenantID, acc.UpdatedAt)
 		})
 }

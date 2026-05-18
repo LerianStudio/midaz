@@ -1,6 +1,6 @@
 module github.com/LerianStudio/midaz/v3
 
-go 1.25.9
+go 1.26.2
 
 toolchain go1.26.3
 
@@ -26,7 +26,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.43.0
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.28.0 // indirect
-	google.golang.org/grpc v1.80.0 // indirect
+	google.golang.org/grpc v1.81.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
@@ -100,8 +100,8 @@ require (
 )
 
 require (
-	github.com/LerianStudio/lib-commons/v5 v5.1.0
-	github.com/LerianStudio/lib-streaming v1.1.0
+	github.com/LerianStudio/lib-commons/v5 v5.2.0-beta.11
+	github.com/LerianStudio/lib-streaming v1.2.0
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/docker/go-connections v0.7.0
 	github.com/moby/moby/api v1.54.1
@@ -113,6 +113,7 @@ require (
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
+	github.com/LerianStudio/lib-observability v1.0.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
@@ -144,12 +145,12 @@ require (
 	github.com/montanaflynn/stats v0.9.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/pierrec/lz4/v4 v4.1.25 // indirect
+	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.3 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
-	github.com/twmb/franz-go v1.20.7 // indirect
-	github.com/twmb/franz-go/pkg/kmsg v1.12.0 // indirect
+	github.com/twmb/franz-go v1.21.0 // indirect
+	github.com/twmb/franz-go/pkg/kmsg v1.13.1 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect

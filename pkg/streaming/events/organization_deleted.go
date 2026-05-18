@@ -36,19 +36,18 @@ func NewOrganizationDeleted(id string, deletedAt time.Time) OrganizationDeletedP
 	}
 }
 
-// ToEvent assembles a libStreaming.Event ready for the Emitter.
-func (p OrganizationDeletedPayload) ToEvent(tenantID, source string, ts time.Time) (libStreaming.Event, error) {
+// ToEmitRequest assembles a libStreaming.EmitRequest ready for the
+// Emitter. Source, ResourceType, EventType, and SchemaVersion live in
+// the Catalog under DefinitionKey.
+func (p OrganizationDeletedPayload) ToEmitRequest(tenantID string, ts time.Time) (libStreaming.EmitRequest, error) {
 	data, err := json.Marshal(p)
 	if err != nil {
-		return libStreaming.Event{}, fmt.Errorf("marshal %s payload: %w", OrganizationDeletedDefinition.Key(), err)
+		return libStreaming.EmitRequest{}, fmt.Errorf("marshal %s payload: %w", OrganizationDeletedDefinition.Key(), err)
 	}
 
-	return libStreaming.Event{
+	return libStreaming.EmitRequest{
+		DefinitionKey: OrganizationDeletedDefinition.Key(),
 		TenantID:      tenantID,
-		Source:        source,
-		ResourceType:  OrganizationDeletedDefinition.ResourceType,
-		EventType:     OrganizationDeletedDefinition.EventType,
-		SchemaVersion: OrganizationDeletedDefinition.SchemaVersion,
 		Subject:       p.ID,
 		Timestamp:     ts,
 		Payload:       data,

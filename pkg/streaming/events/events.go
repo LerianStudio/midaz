@@ -14,8 +14,12 @@
 //   - a constructor New<Event>(domain) <Event>Payload that maps the
 //     persisted domain object into the wire payload (the place for PII
 //     redaction, derived fields, and contract-locked defaults);
-//   - a ToEvent method that assembles a fully-populated streaming.Event
-//     ready for Emit.
+//   - a ToEmitRequest method that assembles a fully-populated
+//     streaming.EmitRequest ready for Emit. CloudEvents envelope fields
+//     (Source, ResourceType, EventType, SchemaVersion) are NOT carried on
+//     the request — Source flows from the Builder at construction time;
+//     the other three resolve from the Catalog by DefinitionKey at emit
+//     time.
 //
 // Design intent: the wire contract is INTENTIONALLY decoupled from the
 // domain model. mmodel.Account can evolve freely; the AccountCreatedPayload

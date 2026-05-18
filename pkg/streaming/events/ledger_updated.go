@@ -47,19 +47,18 @@ func NewLedgerUpdated(led *mmodel.Ledger) LedgerUpdatedPayload {
 	}
 }
 
-// ToEvent assembles a libStreaming.Event ready for the Emitter.
-func (p LedgerUpdatedPayload) ToEvent(tenantID, source string, ts time.Time) (libStreaming.Event, error) {
+// ToEmitRequest assembles a libStreaming.EmitRequest ready for the
+// Emitter. Source, ResourceType, EventType, and SchemaVersion live in
+// the Catalog under DefinitionKey.
+func (p LedgerUpdatedPayload) ToEmitRequest(tenantID string, ts time.Time) (libStreaming.EmitRequest, error) {
 	data, err := json.Marshal(p)
 	if err != nil {
-		return libStreaming.Event{}, fmt.Errorf("marshal %s payload: %w", LedgerUpdatedDefinition.Key(), err)
+		return libStreaming.EmitRequest{}, fmt.Errorf("marshal %s payload: %w", LedgerUpdatedDefinition.Key(), err)
 	}
 
-	return libStreaming.Event{
+	return libStreaming.EmitRequest{
+		DefinitionKey: LedgerUpdatedDefinition.Key(),
 		TenantID:      tenantID,
-		Source:        source,
-		ResourceType:  LedgerUpdatedDefinition.ResourceType,
-		EventType:     LedgerUpdatedDefinition.EventType,
-		SchemaVersion: LedgerUpdatedDefinition.SchemaVersion,
 		Subject:       p.ID,
 		Timestamp:     ts,
 		Payload:       data,

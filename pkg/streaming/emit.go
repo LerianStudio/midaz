@@ -21,19 +21,31 @@ const (
 	defaultImportantEmitTimeout = 5 * time.Second
 )
 
-// EventBuilder builds a typed lib-streaming event using the resolved tenant ID
-// and the caller's configured CloudEvents source.
-type EventBuilder func(tenantID, source string) (libStreaming.Event, error)
+// EmitRequestBuilder builds a typed lib-streaming EmitRequest using the
+// resolved tenant ID.
+//
+// CloudEvents `source` is owned by the Builder at producer construction
+// time. Catalog-bound fields (ResourceType, EventType, SchemaVersion)
+// resolve from the Catalog at emit time via the DefinitionKey on the
+// EmitRequest. The closure therefore takes only the request-scoped
+// tenant ID.
+type EmitRequestBuilder func(tenantID string) (libStreaming.EmitRequest, error)
 
 // EmitImportant centralizes IMPORTANT-posture direct emission mechanics.
-// Build and emit failures are recorded on the provided span and logged at Warn,
-// but never returned to the caller.
-func EmitImportant(ctx context.Context, span trace.Span, logger libLog.Logger, emitter libStreaming.Emitter, source string, eventKey string, build EventBuilder) {
+// Build and emit failures are recorded on the provided span and logged at
+// Warn, but never returned to the caller — durability of IMPORTANT events
+// is owned by PG + (follow-up task) the outbox subsystem, not by the
+// synchronous Emit call.
+//
+// eventKey is the catalog DefinitionKey (e.g. "account.created"); it is
+// used purely as a log/span attribution string so operators can correlate
+// emit-site logs with the underlying lib-streaming request.
+func EmitImportant(ctx context.Context, span trace.Span, logger libLog.Logger, emitter libStreaming.Emitter, eventKey string, build EmitRequestBuilder) {
 	if emitter == nil {
 		return
 	}
 
-	event, buildErr := build(ResolveTenantID(ctx), source)
+	request, buildErr := build(ResolveTenantID(ctx))
 	if buildErr != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build "+eventKey+" event", buildErr)
 		logger.Log(ctx, libLog.LevelWarn, "Skipping "+eventKey+" emit; build failed", libLog.Err(buildErr))
@@ -44,7 +56,7 @@ func EmitImportant(ctx context.Context, span trace.Span, logger libLog.Logger, e
 	emitCtx, cancel := context.WithTimeout(ctx, importantEmitTimeout())
 	defer cancel()
 
-	if emitErr := emitter.Emit(emitCtx, event); emitErr != nil {
+	if emitErr := emitter.Emit(emitCtx, request); emitErr != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to emit "+eventKey, emitErr)
 		logger.Log(ctx, libLog.LevelWarn, "Streaming emit failed for "+eventKey, libLog.Err(emitErr))
 	}

@@ -55,8 +55,8 @@ func (uc *UseCase) DeleteLedgerByID(ctx context.Context, organizationID, id uuid
 // successfully soft-deleted ledger. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
 func (uc *UseCase) emitLedgerDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, organizationID string, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, uc.StreamingSource, events.LedgerDeletedDefinition.Key(),
-		func(tenantID, source string) (libStreaming.Event, error) {
-			return events.NewLedgerDeleted(id, organizationID, deletedAt).ToEvent(tenantID, source, deletedAt)
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.LedgerDeletedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewLedgerDeleted(id, organizationID, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})
 }

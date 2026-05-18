@@ -90,26 +90,27 @@ func NewAccountUpdated(acc *mmodel.Account) AccountUpdatedPayload {
 	}
 }
 
-// ToEvent assembles a libStreaming.Event ready for the Emitter. tenantID
-// comes from pkgStreaming.ResolveTenantID(ctx); source is the per-component
-// CloudEvents ce-source attribute; ts is the timestamp lib-streaming
-// stamps on the ce-time header — typically the persisted UpdatedAt for
-// "updated" events.
+// ToEmitRequest assembles a libStreaming.EmitRequest ready for the
+// Emitter. tenantID comes from pkgStreaming.ResolveTenantID(ctx); ts is
+// the timestamp lib-streaming stamps on the ce-time header — typically
+// the persisted UpdatedAt for "updated" events.
+//
+// Source, ResourceType, EventType, and SchemaVersion are NOT carried on
+// the request. Source flows from the Builder at construction time; the
+// other three resolve from the Catalog by
+// DefinitionKey at emit time.
 //
 // Returns a wrapped json.Marshal error so callers can decide whether to
 // log Warn (IMPORTANT posture) or fail the request (CRITICAL posture).
-func (p AccountUpdatedPayload) ToEvent(tenantID, source string, ts time.Time) (libStreaming.Event, error) {
+func (p AccountUpdatedPayload) ToEmitRequest(tenantID string, ts time.Time) (libStreaming.EmitRequest, error) {
 	data, err := json.Marshal(p)
 	if err != nil {
-		return libStreaming.Event{}, fmt.Errorf("marshal %s payload: %w", AccountUpdatedDefinition.Key(), err)
+		return libStreaming.EmitRequest{}, fmt.Errorf("marshal %s payload: %w", AccountUpdatedDefinition.Key(), err)
 	}
 
-	return libStreaming.Event{
+	return libStreaming.EmitRequest{
+		DefinitionKey: AccountUpdatedDefinition.Key(),
 		TenantID:      tenantID,
-		Source:        source,
-		ResourceType:  AccountUpdatedDefinition.ResourceType,
-		EventType:     AccountUpdatedDefinition.EventType,
-		SchemaVersion: AccountUpdatedDefinition.SchemaVersion,
 		Subject:       p.ID,
 		Timestamp:     ts,
 		Payload:       data,

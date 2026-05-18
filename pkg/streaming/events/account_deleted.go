@@ -72,26 +72,28 @@ func NewAccountDeleted(acc *mmodel.Account, deletedAt time.Time) AccountDeletedP
 	}
 }
 
-// ToEvent assembles a libStreaming.Event ready for the Emitter. tenantID
-// comes from pkgStreaming.ResolveTenantID(ctx); source is the per-component
-// CloudEvents ce-source attribute; ts is the timestamp lib-streaming
-// stamps on the ce-time header — typically the same wall-clock instant
-// that was passed into NewAccountDeleted as deletedAt.
+// ToEmitRequest assembles a libStreaming.EmitRequest ready for the
+// Emitter. tenantID comes from pkgStreaming.ResolveTenantID(ctx); ts is
+// the timestamp lib-streaming stamps on the ce-time header — typically
+// the same wall-clock instant that was passed into NewAccountDeleted as
+// deletedAt.
+//
+// Source, ResourceType, EventType, and SchemaVersion are NOT carried on
+// the request. Source flows from the Builder at construction time; the
+// other three resolve from the Catalog by
+// DefinitionKey at emit time.
 //
 // Returns a wrapped json.Marshal error so callers can decide whether to
 // log Warn (IMPORTANT posture) or fail the request (CRITICAL posture).
-func (p AccountDeletedPayload) ToEvent(tenantID, source string, ts time.Time) (libStreaming.Event, error) {
+func (p AccountDeletedPayload) ToEmitRequest(tenantID string, ts time.Time) (libStreaming.EmitRequest, error) {
 	data, err := json.Marshal(p)
 	if err != nil {
-		return libStreaming.Event{}, fmt.Errorf("marshal %s payload: %w", AccountDeletedDefinition.Key(), err)
+		return libStreaming.EmitRequest{}, fmt.Errorf("marshal %s payload: %w", AccountDeletedDefinition.Key(), err)
 	}
 
-	return libStreaming.Event{
+	return libStreaming.EmitRequest{
+		DefinitionKey: AccountDeletedDefinition.Key(),
 		TenantID:      tenantID,
-		Source:        source,
-		ResourceType:  AccountDeletedDefinition.ResourceType,
-		EventType:     AccountDeletedDefinition.EventType,
-		SchemaVersion: AccountDeletedDefinition.SchemaVersion,
 		Subject:       p.ID,
 		Timestamp:     ts,
 		Payload:       data,

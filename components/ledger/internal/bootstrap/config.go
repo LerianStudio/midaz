@@ -207,8 +207,9 @@ type Config struct {
 	// --- Streaming (lib-streaming producer) ---
 	// Default for all streaming knobs is OFF — a service with
 	// STREAMING_ENABLED=false (or unset) injects a NoopEmitter and never
-	// initialises franz-go. The pilot ships disabled-by-default so that
-	// existing deployments are not broken by the new dependency.
+	// initialises the underlying transport. The pilot ships disabled-by-
+	// default so that existing deployments are not broken by the new
+	// dependency.
 	StreamingEnabled           bool   `env:"STREAMING_ENABLED"`
 	StreamingBrokers           string `env:"STREAMING_BROKERS"`
 	StreamingClientID          string `env:"STREAMING_CLIENT_ID"`
@@ -634,8 +635,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		RabbitMQRepo:            rmq.producerRepo,
 		TransactionRedisRepo:    txnRedisRepo,
 		// Streaming
-		Streaming:       streamingEmitter,
-		StreamingSource: cfg.StreamingCloudEventsSource,
+		Streaming: streamingEmitter,
 	}
 
 	queryUseCase := &query.UseCase{

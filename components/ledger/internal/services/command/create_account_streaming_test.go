@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,7 @@ import (
 // failures do not fail the underlying request.
 type streamingFailingEmitter struct{}
 
-func (streamingFailingEmitter) Emit(_ context.Context, _ libStreaming.Event) error {
+func (streamingFailingEmitter) Emit(_ context.Context, _ libStreaming.EmitRequest) error {
 	return errors.New("simulated streaming failure")
 }
 
@@ -92,11 +93,6 @@ func newStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitter libS
 		BalanceRepo:            mockBalanceRepo,
 		LedgerRepo:             mockLedgerRepo,
 		Streaming:              emitter,
-		// StreamingSource matches the value bootstrap supplies in
-		// production (STREAMING_CLOUDEVENTS_SOURCE). Set here so the
-		// emit-site assertion can lock Source flow without re-running
-		// the bootstrap.
-		StreamingSource: "lerian.midaz.ledger.test",
 	}
 }
 
@@ -107,7 +103,7 @@ func TestCreateAccount_EmitsAccountCreatedEvent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockEmitter := libStreaming.NewMockEmitter()
+	mockEmitter := pkgStreaming.NewMockEmitter()
 	uc := newStreamingTestUseCase(t, ctrl, mockEmitter)
 
 	ctx := context.Background()
@@ -127,14 +123,11 @@ func TestCreateAccount_EmitsAccountCreatedEvent(t *testing.T) {
 	events := mockEmitter.Events()
 	require.Len(t, events, 1, "expected exactly one Emit call")
 
-	libStreaming.AssertEventEmitted(t, mockEmitter, "account", "created")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "account", "created")
 
 	evt := events[0]
-	assert.Equal(t, "account", evt.ResourceType, "ResourceType must match the catalog contract")
-	assert.Equal(t, "created", evt.EventType, "EventType must match the catalog contract")
-	assert.Equal(t, "1.0.0", evt.SchemaVersion, "SchemaVersion must match the catalog contract")
+	assert.Equal(t, "account.created", evt.DefinitionKey, "DefinitionKey must match the catalog key")
 	assert.Equal(t, "default", evt.TenantID, "TenantID must come from ResolveTenantID (default fallback when no multi-tenant context)")
-	assert.Equal(t, "lerian.midaz.ledger.test", evt.Source, "Source must thread through from UseCase.StreamingSource")
 	assert.Equal(t, acc.ID, evt.Subject, "Subject must be the new account ID")
 
 	// Payload is json.RawMessage — decode and inspect required fields.

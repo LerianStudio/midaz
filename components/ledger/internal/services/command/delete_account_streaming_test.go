@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,8 +62,6 @@ func newDeleteStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitte
 		AccountRepo: mockAccountRepo,
 		BalanceRepo: mockBalanceRepo,
 		Streaming:   emitter,
-		// Matches the value bootstrap supplies in production.
-		StreamingSource: "lerian.midaz.ledger.test",
 	}
 }
 
@@ -76,7 +75,7 @@ func TestDeleteAccountByID_EmitsAccountDeletedEvent(t *testing.T) {
 
 	accountID := uuid.New()
 	portfolioOnAccount := uuid.New().String()
-	mockEmitter := libStreaming.NewMockEmitter()
+	mockEmitter := pkgStreaming.NewMockEmitter()
 	uc := newDeleteStreamingTestUseCase(t, ctrl, mockEmitter, accountID, &portfolioOnAccount)
 
 	ctx := context.Background()
@@ -91,14 +90,11 @@ func TestDeleteAccountByID_EmitsAccountDeletedEvent(t *testing.T) {
 	events := mockEmitter.Events()
 	require.Len(t, events, 1, "expected exactly one Emit call")
 
-	libStreaming.AssertEventEmitted(t, mockEmitter, "account", "deleted")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "account", "deleted")
 
 	evt := events[0]
-	assert.Equal(t, "account", evt.ResourceType, "ResourceType must match the catalog contract")
-	assert.Equal(t, "deleted", evt.EventType, "EventType must match the catalog contract")
-	assert.Equal(t, "1.0.0", evt.SchemaVersion, "SchemaVersion must match the catalog contract")
+	assert.Equal(t, "account.deleted", evt.DefinitionKey, "DefinitionKey must match the catalog key")
 	assert.Equal(t, "default", evt.TenantID, "TenantID must come from ResolveTenantID (default fallback when no multi-tenant context)")
-	assert.Equal(t, "lerian.midaz.ledger.test", evt.Source, "Source must thread through from UseCase.StreamingSource")
 	assert.Equal(t, accountID.String(), evt.Subject, "Subject must be the deleted account ID")
 
 	// Timestamp must be the wall-clock instant captured at the emit
@@ -125,7 +121,7 @@ func TestDeleteAccountByID_EmitsWithoutPortfolio(t *testing.T) {
 	defer ctrl.Finish()
 
 	accountID := uuid.New()
-	mockEmitter := libStreaming.NewMockEmitter()
+	mockEmitter := pkgStreaming.NewMockEmitter()
 	uc := newDeleteStreamingTestUseCase(t, ctrl, mockEmitter, accountID, nil)
 
 	err := uc.DeleteAccountByID(context.Background(), uuid.New(), uuid.New(), nil, accountID, "Bearer test")

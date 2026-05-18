@@ -117,8 +117,8 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 // Wire-format mapping lives in pkg/streaming/events/account_deleted.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitAccountDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, uc.StreamingSource, events.AccountDeletedDefinition.Key(),
-		func(tenantID, source string) (libStreaming.Event, error) {
-			return events.NewAccountDeleted(acc, deletedAt).ToEvent(tenantID, source, deletedAt)
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AccountDeletedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewAccountDeleted(acc, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})
 }

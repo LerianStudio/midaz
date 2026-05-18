@@ -14,6 +14,7 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,7 +45,6 @@ func newUpdateOrganizationStreamingTestUseCase(t *testing.T, ctrl *gomock.Contro
 		OrganizationRepo:       mockOrganizationRepo,
 		OnboardingMetadataRepo: mockMetadataRepo,
 		Streaming:              emitter,
-		StreamingSource:        "lerian.midaz.ledger.test",
 	}
 }
 
@@ -53,7 +53,7 @@ func TestUpdateOrganizationByID_EmitsOrganizationUpdatedEvent(t *testing.T) {
 	defer ctrl.Finish()
 
 	fixedUpdatedAt := time.Date(2026, 5, 13, 12, 34, 56, 0, time.UTC)
-	mockEmitter := libStreaming.NewMockEmitter()
+	mockEmitter := pkgStreaming.NewMockEmitter()
 	uc := newUpdateOrganizationStreamingTestUseCase(t, ctrl, mockEmitter, fixedUpdatedAt)
 
 	orgID := uuid.New()
@@ -67,14 +67,11 @@ func TestUpdateOrganizationByID_EmitsOrganizationUpdatedEvent(t *testing.T) {
 
 	events := mockEmitter.Events()
 	require.Len(t, events, 1, "expected exactly one Emit call")
-	libStreaming.AssertEventEmitted(t, mockEmitter, "organization", "updated")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "organization", "updated")
 
 	evt := events[0]
-	assert.Equal(t, "organization", evt.ResourceType)
-	assert.Equal(t, "updated", evt.EventType)
-	assert.Equal(t, "1.0.0", evt.SchemaVersion)
+	assert.Equal(t, "organization.updated", evt.DefinitionKey)
 	assert.Equal(t, "default", evt.TenantID)
-	assert.Equal(t, "lerian.midaz.ledger.test", evt.Source)
 	assert.Equal(t, orgID.String(), evt.Subject)
 	assert.Equal(t, fixedUpdatedAt, evt.Timestamp)
 

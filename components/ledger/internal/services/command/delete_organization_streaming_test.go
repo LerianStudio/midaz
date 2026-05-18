@@ -12,6 +12,7 @@ import (
 
 	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/organization"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,6 @@ func newDeleteOrganizationStreamingTestUseCase(t *testing.T, ctrl *gomock.Contro
 	return &UseCase{
 		OrganizationRepo: mockOrganizationRepo,
 		Streaming:        emitter,
-		StreamingSource:  "lerian.midaz.ledger.test",
 	}
 }
 
@@ -37,7 +37,7 @@ func TestDeleteOrganizationByID_EmitsOrganizationDeletedEvent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockEmitter := libStreaming.NewMockEmitter()
+	mockEmitter := pkgStreaming.NewMockEmitter()
 	uc := newDeleteOrganizationStreamingTestUseCase(t, ctrl, mockEmitter)
 	orgID := uuid.New()
 
@@ -48,14 +48,11 @@ func TestDeleteOrganizationByID_EmitsOrganizationDeletedEvent(t *testing.T) {
 
 	events := mockEmitter.Events()
 	require.Len(t, events, 1, "expected exactly one Emit call")
-	libStreaming.AssertEventEmitted(t, mockEmitter, "organization", "deleted")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "organization", "deleted")
 
 	evt := events[0]
-	assert.Equal(t, "organization", evt.ResourceType)
-	assert.Equal(t, "deleted", evt.EventType)
-	assert.Equal(t, "1.0.0", evt.SchemaVersion)
+	assert.Equal(t, "organization.deleted", evt.DefinitionKey)
 	assert.Equal(t, "default", evt.TenantID)
-	assert.Equal(t, "lerian.midaz.ledger.test", evt.Source)
 	assert.Equal(t, orgID.String(), evt.Subject)
 	assert.False(t, evt.Timestamp.Before(before.Add(-time.Second)), "Timestamp earlier than before window")
 	assert.False(t, evt.Timestamp.After(after.Add(time.Second)), "Timestamp later than after window")

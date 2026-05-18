@@ -13,6 +13,7 @@ import (
 	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,6 @@ func newCreateOrganizationStreamingTestUseCase(t *testing.T, ctrl *gomock.Contro
 	return &UseCase{
 		OrganizationRepo: mockOrganizationRepo,
 		Streaming:        emitter,
-		StreamingSource:  "lerian.midaz.ledger.test",
 	}
 }
 
@@ -46,7 +46,7 @@ func TestCreateOrganization_EmitsOrganizationCreatedEvent(t *testing.T) {
 	defer ctrl.Finish()
 
 	fixedCreatedAt := time.Date(2026, 5, 13, 12, 34, 56, 0, time.UTC)
-	mockEmitter := libStreaming.NewMockEmitter()
+	mockEmitter := pkgStreaming.NewMockEmitter()
 	uc := newCreateOrganizationStreamingTestUseCase(t, ctrl, mockEmitter, fixedCreatedAt)
 
 	dba := "Lerian FS"
@@ -61,14 +61,11 @@ func TestCreateOrganization_EmitsOrganizationCreatedEvent(t *testing.T) {
 
 	events := mockEmitter.Events()
 	require.Len(t, events, 1, "expected exactly one Emit call")
-	libStreaming.AssertEventEmitted(t, mockEmitter, "organization", "created")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "organization", "created")
 
 	evt := events[0]
-	assert.Equal(t, "organization", evt.ResourceType)
-	assert.Equal(t, "created", evt.EventType)
-	assert.Equal(t, "1.0.0", evt.SchemaVersion)
+	assert.Equal(t, "organization.created", evt.DefinitionKey)
 	assert.Equal(t, "default", evt.TenantID)
-	assert.Equal(t, "lerian.midaz.ledger.test", evt.Source)
 	assert.Equal(t, org.ID, evt.Subject)
 	assert.Equal(t, fixedCreatedAt, evt.Timestamp)
 

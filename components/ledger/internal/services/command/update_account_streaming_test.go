@@ -14,6 +14,7 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,8 +68,6 @@ func newUpdateStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitte
 		AccountRepo:            mockAccountRepo,
 		OnboardingMetadataRepo: mockMetadataRepo,
 		Streaming:              emitter,
-		// Matches the value bootstrap supplies in production.
-		StreamingSource: "lerian.midaz.ledger.test",
 	}
 }
 
@@ -80,7 +79,7 @@ func TestUpdateAccount_EmitsAccountUpdatedEvent(t *testing.T) {
 	defer ctrl.Finish()
 
 	fixedUpdatedAt := time.Date(2026, 5, 13, 12, 34, 56, 0, time.UTC)
-	mockEmitter := libStreaming.NewMockEmitter()
+	mockEmitter := pkgStreaming.NewMockEmitter()
 	uc := newUpdateStreamingTestUseCase(t, ctrl, mockEmitter, fixedUpdatedAt)
 
 	ctx := context.Background()
@@ -100,14 +99,11 @@ func TestUpdateAccount_EmitsAccountUpdatedEvent(t *testing.T) {
 	events := mockEmitter.Events()
 	require.Len(t, events, 1, "expected exactly one Emit call")
 
-	libStreaming.AssertEventEmitted(t, mockEmitter, "account", "updated")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "account", "updated")
 
 	evt := events[0]
-	assert.Equal(t, "account", evt.ResourceType, "ResourceType must match the catalog contract")
-	assert.Equal(t, "updated", evt.EventType, "EventType must match the catalog contract")
-	assert.Equal(t, "1.0.0", evt.SchemaVersion, "SchemaVersion must match the catalog contract")
+	assert.Equal(t, "account.updated", evt.DefinitionKey, "DefinitionKey must match the catalog key")
 	assert.Equal(t, "default", evt.TenantID, "TenantID must come from ResolveTenantID (default fallback when no multi-tenant context)")
-	assert.Equal(t, "lerian.midaz.ledger.test", evt.Source, "Source must thread through from UseCase.StreamingSource")
 	// Subject and identity fields come from the post-update re-fetch
 	// (AccountRepo.Find), NOT from AccountRepo.Update's buggy input-derived
 	// return value. See big comment in update_account.go for context.
