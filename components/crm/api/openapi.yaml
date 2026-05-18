@@ -93,6 +93,16 @@ paths:
         name: banking_details_iban
         schema:
           type: string
+      - description: Filter alias by banking details bank ID
+        in: query
+        name: banking_details_bank_id
+        schema:
+          type: string
+      - description: Filter alias by banking details type
+        in: query
+        name: banking_details_type
+        schema:
+          type: string
       - description: Filter alias by regulatory fields participant document
         in: query
         name: regulatory_fields_participant_document
@@ -136,6 +146,154 @@ paths:
       summary: List Aliases
       tags:
       - Aliases
+  /v1/aliases/backfill-bank-account-index:
+    post:
+      description: Scans tenant alias collections and rebuilds alias_bank_account_index
+        rows. Report contains counts and alias IDs only; no document, account, or
+        bank identity values.
+      parameters:
+      - description: The authorization token in the 'Bearer access_token' format.
+          Only required when auth plugin is enabled.
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackfillBankAccountIndexRequest'
+        description: Backfill Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/mmodel.BankAccountIndexBackfillReport'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      summary: Backfill Alias Bank Account Resolver Index
+      tags:
+      - Aliases
+      x-codegen-request-body-name: backfill
+  /v1/aliases/resolve-account:
+    post:
+      description: Resolves an active alias across the current tenant by account ID.
+        Does not require X-Organization-Id.
+      parameters:
+      - description: The authorization token in the 'Bearer access_token' format.
+          Only required when auth plugin is enabled.
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveAccountRequest'
+        description: Account Resolver Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolveAliasResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      summary: Resolve Alias by Account ID
+      tags:
+      - Aliases
+      x-codegen-request-body-name: resolver
+  /v1/aliases/resolve-bank-account:
+    post:
+      description: Resolves an active alias across the current tenant by holder document
+        and exact bank-account identity. Does not require X-Organization-Id.
+      parameters:
+      - description: The authorization token in the 'Bearer access_token' format.
+          Only required when auth plugin is enabled.
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveBankAccountRequest'
+        description: Bank Account Resolver Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolveAliasResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      summary: Resolve Alias by Bank Account
+      tags:
+      - Aliases
+      x-codegen-request-body-name: resolver
   /v1/holders:
     get:
       description: List all Holders. CRM listing endpoints support pagination using
@@ -878,6 +1036,7 @@ components:
         type: LEGAL_PERSON
         holderId: 00000000-0000-0000-0000-000000000000
         ledgerId: 00000000-0000-0000-0000-000000000000
+        organizationId: 00000000-0000-0000-0000-000000000000
         accountId: 00000000-0000-0000-0000-000000000000
         createdAt: 2025-01-01T00:00:00Z
         deletedAt: 2025-01-01T00:00:00Z
@@ -933,6 +1092,9 @@ components:
           additionalProperties:
             type: object
           type: object
+        organizationId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
         regulatoryFields:
           $ref: '#/components/schemas/RegulatoryFields'
         relatedParties:
@@ -945,6 +1107,15 @@ components:
         updatedAt:
           example: 2025-01-01T00:00:00Z
           type: string
+      type: object
+    BackfillBankAccountIndexRequest:
+      description: BackfillBankAccountIndexRequest payload
+      example:
+        dryRun: true
+      properties:
+        dryRun:
+          example: true
+          type: boolean
       type: object
     BankingDetails:
       description: BankingDetails object
@@ -1416,6 +1587,119 @@ components:
           example: CFO
           type: string
       type: object
+    ResolveAccountRequest:
+      description: ResolveAccountRequest payload
+      example:
+        accountId: 00000000-0000-0000-0000-000000000000
+      properties:
+        accountId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+      required:
+      - accountId
+      type: object
+    ResolveAliasBankingDetailsResponse:
+      description: ResolveAliasBankingDetailsResponse object
+      example:
+        bankId: "12345678"
+        type: CACC
+        branch: "0001"
+        account: "1234567"
+      properties:
+        account:
+          example: "1234567"
+          type: string
+        bankId:
+          example: "12345678"
+          type: string
+        branch:
+          example: "0001"
+          type: string
+        type:
+          example: CACC
+          type: string
+      type: object
+    ResolveAliasResponse:
+      description: ResolveAliasResponse payload
+      example:
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        organizationId: 00000000-0000-0000-0000-000000000000
+        accountId: 00000000-0000-0000-0000-000000000000
+        bankingDetails:
+          bankId: "12345678"
+          type: CACC
+          branch: "0001"
+          account: "1234567"
+        id: 00000000-0000-0000-0000-000000000000
+        holderDocument: "12345678901"
+        holderId: 00000000-0000-0000-0000-000000000000
+      properties:
+        accountId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        bankingDetails:
+          $ref: '#/components/schemas/ResolveAliasBankingDetailsResponse'
+        holderDocument:
+          example: "12345678901"
+          type: string
+        holderId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        organizationId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+      type: object
+    ResolveBankAccountBankingDetailsRequest:
+      description: ResolveBankAccountBankingDetails object
+      example:
+        bankId: "12345678"
+        type: CACC
+        branch: "0001"
+        account: "1234567"
+      properties:
+        account:
+          example: "1234567"
+          type: string
+        bankId:
+          example: "12345678"
+          type: string
+        branch:
+          example: "0001"
+          type: string
+        type:
+          example: CACC
+          type: string
+      required:
+      - account
+      - bankId
+      - branch
+      - type
+      type: object
+    ResolveBankAccountRequest:
+      description: ResolveBankAccountRequest payload
+      example:
+        bankingDetails:
+          bankId: "12345678"
+          type: CACC
+          branch: "0001"
+          account: "1234567"
+        document: "12345678901"
+      properties:
+        bankingDetails:
+          $ref: '#/components/schemas/ResolveBankAccountBankingDetailsRequest'
+        document:
+          example: "12345678901"
+          type: string
+      required:
+      - bankingDetails
+      - document
+      type: object
     UpdateAliasRequest:
       description: UpdateAliasRequest payload
       example:
@@ -1526,6 +1810,48 @@ components:
         prev_cursor:
           type: string
       type: object
+    mmodel.BankAccountIndexBackfillReport:
+      example:
+        collectionsScanned: 6
+        duplicates: 1
+        incomplete: 5
+        dryRun: true
+        duplicateAliasIdsTruncated: true
+        duplicateAliasIds:
+        - duplicateAliasIds
+        - duplicateAliasIds
+        aliasesScanned: 0
+        upserted: 5
+        incompleteAliasIds:
+        - incompleteAliasIds
+        - incompleteAliasIds
+        incompleteAliasIdsTruncated: true
+      properties:
+        aliasesScanned:
+          type: integer
+        collectionsScanned:
+          type: integer
+        dryRun:
+          type: boolean
+        duplicateAliasIds:
+          items:
+            type: string
+          type: array
+        duplicateAliasIdsTruncated:
+          type: boolean
+        duplicates:
+          type: integer
+        incomplete:
+          type: integer
+        incompleteAliasIds:
+          items:
+            type: string
+          type: array
+        incompleteAliasIdsTruncated:
+          type: boolean
+        upserted:
+          type: integer
+      type: object
     pkg.HTTPError:
       properties:
         code:
@@ -1556,6 +1882,7 @@ components:
           type: LEGAL_PERSON
           holderId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2025-01-01T00:00:00Z
           deletedAt: 2025-01-01T00:00:00Z
@@ -1591,6 +1918,7 @@ components:
           type: LEGAL_PERSON
           holderId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2025-01-01T00:00:00Z
           deletedAt: 2025-01-01T00:00:00Z

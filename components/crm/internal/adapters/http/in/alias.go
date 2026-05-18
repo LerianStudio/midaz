@@ -5,9 +5,12 @@
 package in
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -18,6 +21,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type AliasHandler struct {
@@ -292,6 +296,8 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 //	@Param			banking_details_branch					query		string	false	"Filter alias by banking details branch"
 //	@Param			banking_details_account					query		string	false	"Filter alias by banking details account"
 //	@Param			banking_details_iban					query		string	false	"Filter alias by banking details iban"
+//	@Param			banking_details_bank_id					query		string	false	"Filter alias by banking details bank ID"
+//	@Param			banking_details_type					query		string	false	"Filter alias by banking details type"
 //	@Param			regulatory_fields_participant_document	query		string	false	"Filter alias by regulatory fields participant document"
 //	@Param			related_party_document					query		string	false	"Filter alias by related party document"
 //	@Param			related_party_role						query		string	false	"Filter alias by related party role"
@@ -426,4 +432,42 @@ func (handler *AliasHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 	}
 
 	return http.NoContent(c)
+}
+
+func handleAliasResolverHandlerError(ctx context.Context, span trace.Span, logger libLog.Logger, message string, err error) {
+	if isBusinessError(err) {
+		libOpenTelemetry.HandleSpanBusinessErrorEvent(span, message, err)
+		logger.Log(ctx, libLog.LevelWarn, message, libLog.Err(err))
+
+		return
+	}
+
+	libOpenTelemetry.HandleSpanError(span, message, err)
+	logger.Log(ctx, libLog.LevelError, message, libLog.Err(err))
+}
+
+func isBusinessError(err error) bool {
+	var validationErr pkg.ValidationError
+	if errors.As(err, &validationErr) {
+		return true
+	}
+
+	var knownValidationErr pkg.ValidationKnownFieldsError
+	if errors.As(err, &knownValidationErr) {
+		return true
+	}
+
+	var unknownValidationErr pkg.ValidationUnknownFieldsError
+	if errors.As(err, &unknownValidationErr) {
+		return true
+	}
+
+	var notFoundErr pkg.EntityNotFoundError
+	if errors.As(err, &notFoundErr) {
+		return true
+	}
+
+	var conflictErr pkg.EntityConflictError
+
+	return errors.As(err, &conflictErr)
 }

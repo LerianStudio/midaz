@@ -23,6 +23,7 @@ import (
 type MockRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockRepositoryMockRecorder
+	isgomock struct{}
 }
 
 // MockRepositoryMockRecorder is the mock recorder for MockRepository.
@@ -42,105 +43,150 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 	return m.recorder
 }
 
-// Count mocks base method.
-func (m *MockRepository) Count(arg0 context.Context, arg1 string, arg2 uuid.UUID) (int64, error) {
+// BackfillBankAccountIndex mocks base method.
+func (m *MockRepository) BackfillBankAccountIndex(ctx context.Context, dryRun bool) (*mmodel.BankAccountIndexBackfillReport, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Count", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "BackfillBankAccountIndex", ctx, dryRun)
+	ret0, _ := ret[0].(*mmodel.BankAccountIndexBackfillReport)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BackfillBankAccountIndex indicates an expected call of BackfillBankAccountIndex.
+func (mr *MockRepositoryMockRecorder) BackfillBankAccountIndex(ctx, dryRun any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackfillBankAccountIndex", reflect.TypeOf((*MockRepository)(nil).BackfillBankAccountIndex), ctx, dryRun)
+}
+
+// Count mocks base method.
+func (m *MockRepository) Count(ctx context.Context, organizationID string, holderID uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Count", ctx, organizationID, holderID)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Count indicates an expected call of Count.
-func (mr *MockRepositoryMockRecorder) Count(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Count(ctx, organizationID, holderID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Count", reflect.TypeOf((*MockRepository)(nil).Count), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Count", reflect.TypeOf((*MockRepository)(nil).Count), ctx, organizationID, holderID)
 }
 
 // Create mocks base method.
-func (m *MockRepository) Create(arg0 context.Context, arg1 string, arg2 *mmodel.Alias) (*mmodel.Alias, error) {
+func (m *MockRepository) Create(ctx context.Context, organizationID string, input *mmodel.Alias) (*mmodel.Alias, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "Create", ctx, organizationID, input)
 	ret0, _ := ret[0].(*mmodel.Alias)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockRepositoryMockRecorder) Create(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Create(ctx, organizationID, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), ctx, organizationID, input)
 }
 
 // Delete mocks base method.
-func (m *MockRepository) Delete(arg0 context.Context, arg1 string, arg2, arg3 uuid.UUID, arg4 bool) error {
+func (m *MockRepository) Delete(ctx context.Context, organizationID string, holderID, id uuid.UUID, hardDelete bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", arg0, arg1, arg2, arg3, arg4)
+	ret := m.ctrl.Call(m, "Delete", ctx, organizationID, holderID, id, hardDelete)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *MockRepositoryMockRecorder) Delete(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Delete(ctx, organizationID, holderID, id, hardDelete any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRepository)(nil).Delete), arg0, arg1, arg2, arg3, arg4)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRepository)(nil).Delete), ctx, organizationID, holderID, id, hardDelete)
 }
 
 // DeleteRelatedParty mocks base method.
-func (m *MockRepository) DeleteRelatedParty(arg0 context.Context, arg1 string, arg2, arg3, arg4 uuid.UUID) error {
+func (m *MockRepository) DeleteRelatedParty(ctx context.Context, organizationID string, holderID, aliasID, relatedPartyID uuid.UUID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteRelatedParty", arg0, arg1, arg2, arg3, arg4)
+	ret := m.ctrl.Call(m, "DeleteRelatedParty", ctx, organizationID, holderID, aliasID, relatedPartyID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteRelatedParty indicates an expected call of DeleteRelatedParty.
-func (mr *MockRepositoryMockRecorder) DeleteRelatedParty(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) DeleteRelatedParty(ctx, organizationID, holderID, aliasID, relatedPartyID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRelatedParty", reflect.TypeOf((*MockRepository)(nil).DeleteRelatedParty), arg0, arg1, arg2, arg3, arg4)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRelatedParty", reflect.TypeOf((*MockRepository)(nil).DeleteRelatedParty), ctx, organizationID, holderID, aliasID, relatedPartyID)
 }
 
 // Find mocks base method.
-func (m *MockRepository) Find(arg0 context.Context, arg1 string, arg2, arg3 uuid.UUID, arg4 bool) (*mmodel.Alias, error) {
+func (m *MockRepository) Find(ctx context.Context, organizationID string, holderID, id uuid.UUID, includeDeleted bool) (*mmodel.Alias, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Find", arg0, arg1, arg2, arg3, arg4)
+	ret := m.ctrl.Call(m, "Find", ctx, organizationID, holderID, id, includeDeleted)
 	ret0, _ := ret[0].(*mmodel.Alias)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Find indicates an expected call of Find.
-func (mr *MockRepositoryMockRecorder) Find(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Find(ctx, organizationID, holderID, id, includeDeleted any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockRepository)(nil).Find), arg0, arg1, arg2, arg3, arg4)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockRepository)(nil).Find), ctx, organizationID, holderID, id, includeDeleted)
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(arg0 context.Context, arg1 string, arg2 uuid.UUID, arg3 http.QueryHeader, arg4 bool) ([]*mmodel.Alias, error) {
+func (m *MockRepository) FindAll(ctx context.Context, organizationID string, holderID uuid.UUID, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.Alias, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindAll", arg0, arg1, arg2, arg3, arg4)
+	ret := m.ctrl.Call(m, "FindAll", ctx, organizationID, holderID, filter, includeDeleted)
 	ret0, _ := ret[0].([]*mmodel.Alias)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindAll indicates an expected call of FindAll.
-func (mr *MockRepositoryMockRecorder) FindAll(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, holderID, filter, includeDeleted any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), arg0, arg1, arg2, arg3, arg4)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), ctx, organizationID, holderID, filter, includeDeleted)
+}
+
+// ResolveAccount mocks base method.
+func (m *MockRepository) ResolveAccount(ctx context.Context, accountID uuid.UUID) ([]*mmodel.Alias, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResolveAccount", ctx, accountID)
+	ret0, _ := ret[0].([]*mmodel.Alias)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResolveAccount indicates an expected call of ResolveAccount.
+func (mr *MockRepositoryMockRecorder) ResolveAccount(ctx, accountID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveAccount", reflect.TypeOf((*MockRepository)(nil).ResolveAccount), ctx, accountID)
+}
+
+// ResolveBankAccount mocks base method.
+func (m *MockRepository) ResolveBankAccount(ctx context.Context, input *mmodel.ResolveBankAccountInput) ([]*mmodel.Alias, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResolveBankAccount", ctx, input)
+	ret0, _ := ret[0].([]*mmodel.Alias)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResolveBankAccount indicates an expected call of ResolveBankAccount.
+func (mr *MockRepositoryMockRecorder) ResolveBankAccount(ctx, input any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveBankAccount", reflect.TypeOf((*MockRepository)(nil).ResolveBankAccount), ctx, input)
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(arg0 context.Context, arg1 string, arg2, arg3 uuid.UUID, arg4 *mmodel.Alias, arg5 []string) (*mmodel.Alias, error) {
+func (m *MockRepository) Update(ctx context.Context, organizationID string, holderID, id uuid.UUID, input *mmodel.Alias, fieldsToRemove []string) (*mmodel.Alias, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", arg0, arg1, arg2, arg3, arg4, arg5)
+	ret := m.ctrl.Call(m, "Update", ctx, organizationID, holderID, id, input, fieldsToRemove)
 	ret0, _ := ret[0].(*mmodel.Alias)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockRepositoryMockRecorder) Update(arg0, arg1, arg2, arg3, arg4, arg5 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Update(ctx, organizationID, holderID, id, input, fieldsToRemove any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), arg0, arg1, arg2, arg3, arg4, arg5)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, organizationID, holderID, id, input, fieldsToRemove)
 }

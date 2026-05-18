@@ -61,7 +61,7 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 		attribute.Bool("app.request.query.has_ledger_id", query.LedgerID != nil),
 		attribute.Bool("app.request.query.has_document", query.Document != nil),
 		attribute.Bool("app.request.query.has_related_party_filters", query.RelatedPartyDocument != nil || query.RelatedPartyRole != nil),
-		attribute.Bool("app.request.query.has_banking_details_filters", query.BankingDetailsBranch != nil || query.BankingDetailsAccount != nil || query.BankingDetailsIban != nil),
+		attribute.Bool("app.request.query.has_banking_details_filters", query.BankingDetailsBranch != nil || query.BankingDetailsAccount != nil || query.BankingDetailsIban != nil || query.BankingDetailsBankID != nil || query.BankingDetailsType != nil),
 	)
 
 	filter, err := am.buildAliasFilter(query, holderID, includeDeleted)
@@ -151,6 +151,14 @@ func (am *MongoDBRepository) buildAliasFilter(query http.QueryHeader, holderID u
 
 	if !libCommons.IsNilOrEmpty(query.BankingDetailsBranch) {
 		filter = append(filter, bson.E{Key: "banking_details.branch", Value: *query.BankingDetailsBranch})
+	}
+
+	if !libCommons.IsNilOrEmpty(query.BankingDetailsBankID) {
+		filter = append(filter, bson.E{Key: "banking_details.bank_id", Value: *query.BankingDetailsBankID})
+	}
+
+	if !libCommons.IsNilOrEmpty(query.BankingDetailsType) {
+		filter = append(filter, bson.E{Key: "banking_details.type", Value: *query.BankingDetailsType})
 	}
 
 	if !libCommons.IsNilOrEmpty(query.RegulatoryFieldsParticipantDocument) {

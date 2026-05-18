@@ -33,6 +33,9 @@ func TestCreateAlias(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	holderDocument := "90217469051"
 	participantDoc := "12345678912345"
+	bankID := "12345678"
+	branch := "0001"
+	account := "1234567"
 
 	uc := &UseCase{
 		HolderRepo: mockHolderRepo,
@@ -119,6 +122,22 @@ func TestCreateAlias(t *testing.T) {
 					ParticipantDocument: &participantDoc,
 				},
 			},
+		},
+		{
+			name:     "Error when partial banking identity is provided",
+			holderID: holderID,
+			input: &mmodel.CreateAliasInput{
+				LedgerID:  ledgerID,
+				AccountID: accountID,
+				BankingDetails: &mmodel.BankingDetails{
+					BankID:  &bankID,
+					Branch:  &branch,
+					Account: &account,
+				},
+			},
+			mockSetup:      func() {},
+			expectedErr:    cn.ErrMissingFieldsInRequest,
+			expectedResult: nil,
 		},
 		{
 			name:     "Error when holder not found for alias creation",

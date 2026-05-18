@@ -78,6 +78,7 @@ type UpdateAliasInput struct {
 // @Description AliasResponse payload
 type Alias struct {
 	ID               *uuid.UUID        `json:"id,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	OrganizationID   *uuid.UUID        `json:"organizationId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
 	Document         *string           `json:"document,omitempty" example:"91315026015"`
 	Type             *string           `json:"type,omitempty" example:"LEGAL_PERSON"`
 	LedgerID         *string           `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
@@ -91,6 +92,81 @@ type Alias struct {
 	UpdatedAt        time.Time         `json:"updatedAt" example:"2025-01-01T00:00:00Z"`
 	DeletedAt        *time.Time        `json:"deletedAt" example:"2025-01-01T00:00:00Z"`
 } // @name AliasResponse
+
+// ResolveBankAccountInput is the tenant-wide alias resolver request payload.
+//
+// swagger:model ResolveBankAccountInput
+// @Description ResolveBankAccountRequest payload
+type ResolveBankAccountInput struct {
+	Document       string                                `json:"document" validate:"required" example:"12345678901"`
+	BankingDetails ResolveBankAccountBankingDetailsInput `json:"bankingDetails" validate:"required"`
+} // @name ResolveBankAccountRequest
+
+// ResolveBankAccountBankingDetailsInput contains exact bank-account identity fields.
+//
+// swagger:model ResolveBankAccountBankingDetailsInput
+// @Description ResolveBankAccountBankingDetails object
+type ResolveBankAccountBankingDetailsInput struct {
+	BankID  string `json:"bankId" validate:"required" example:"12345678"`
+	Branch  string `json:"branch" validate:"required" example:"0001"`
+	Account string `json:"account" validate:"required" example:"1234567"`
+	Type    string `json:"type" validate:"required" example:"CACC"`
+} // @name ResolveBankAccountBankingDetailsRequest
+
+// ResolveAccountInput is the tenant-wide account ID resolver request payload.
+//
+// swagger:model ResolveAccountInput
+// @Description ResolveAccountRequest payload
+type ResolveAccountInput struct {
+	AccountID uuid.UUID `json:"accountId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
+} // @name ResolveAccountRequest
+
+// ResolveAliasResponse is the minimal deterministic alias resolver response.
+//
+// swagger:model ResolveAliasResponse
+// @Description ResolveAliasResponse payload
+type ResolveAliasResponse struct {
+	ID             uuid.UUID                          `json:"id" example:"00000000-0000-0000-0000-000000000000"`
+	OrganizationID uuid.UUID                          `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
+	LedgerID       uuid.UUID                          `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
+	AccountID      uuid.UUID                          `json:"accountId" example:"00000000-0000-0000-0000-000000000000"`
+	HolderID       uuid.UUID                          `json:"holderId" example:"00000000-0000-0000-0000-000000000000"`
+	HolderDocument string                             `json:"holderDocument" example:"12345678901"`
+	BankingDetails ResolveAliasBankingDetailsResponse `json:"bankingDetails"`
+} // @name ResolveAliasResponse
+
+// ResolveAliasBankingDetailsResponse contains proof fields returned by alias resolvers.
+//
+// swagger:model ResolveAliasBankingDetailsResponse
+// @Description ResolveAliasBankingDetailsResponse object
+type ResolveAliasBankingDetailsResponse struct {
+	BankID  string `json:"bankId" example:"12345678"`
+	Branch  string `json:"branch" example:"0001"`
+	Account string `json:"account" example:"1234567"`
+	Type    string `json:"type" example:"CACC"`
+} // @name ResolveAliasBankingDetailsResponse
+
+// BankAccountIndexBackfillReport summarizes a resolver-index repair run without PII.
+type BankAccountIndexBackfillReport struct {
+	DryRun                      bool        `json:"dryRun"`
+	CollectionsScanned          int         `json:"collectionsScanned"`
+	AliasesScanned              int         `json:"aliasesScanned"`
+	Upserted                    int         `json:"upserted"`
+	Incomplete                  int         `json:"incomplete"`
+	Duplicates                  int         `json:"duplicates"`
+	IncompleteAliasIDs          []uuid.UUID `json:"incompleteAliasIds,omitempty"`
+	DuplicateAliasIDs           []uuid.UUID `json:"duplicateAliasIds,omitempty"`
+	IncompleteAliasIDsTruncated bool        `json:"incompleteAliasIdsTruncated,omitempty"`
+	DuplicateAliasIDsTruncated  bool        `json:"duplicateAliasIdsTruncated,omitempty"`
+}
+
+// BackfillBankAccountIndexInput is the resolver-index repair request payload.
+//
+// swagger:model BackfillBankAccountIndexInput
+// @Description BackfillBankAccountIndexRequest payload
+type BackfillBankAccountIndexInput struct {
+	DryRun bool `json:"dryRun" example:"true"`
+} // @name BackfillBankAccountIndexRequest
 
 // BankingDetails is a struct designed to store account banking details data.
 //

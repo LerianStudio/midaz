@@ -34,6 +34,9 @@ func TestUpdateAliasByID(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	holderDocument := "90217469051"
 	branch := "0001"
+	bankID := "12345678"
+	account := "1234567"
+	bankingType := "CACC"
 	participantDoc := "12345678912345"
 
 	uc := &UseCase{
@@ -51,12 +54,15 @@ func TestUpdateAliasByID(t *testing.T) {
 		expectedResult *mmodel.Alias
 	}{
 		{
-			name:     "Success with single field provided",
+			name:     "Success with complete banking identity provided",
 			id:       id,
 			holderID: holderID,
 			input: &mmodel.UpdateAliasInput{
 				BankingDetails: &mmodel.BankingDetails{
-					Branch: &branch,
+					BankID:  &bankID,
+					Branch:  &branch,
+					Account: &account,
+					Type:    &bankingType,
 				},
 			},
 			mockSetup: func() {
@@ -69,7 +75,10 @@ func TestUpdateAliasByID(t *testing.T) {
 						HolderID:  &holderID,
 						AccountID: &accountID,
 						BankingDetails: &mmodel.BankingDetails{
-							Branch: &branch,
+							BankID:  &bankID,
+							Branch:  &branch,
+							Account: &account,
+							Type:    &bankingType,
 						},
 					}, nil)
 			},
@@ -81,7 +90,10 @@ func TestUpdateAliasByID(t *testing.T) {
 				HolderID:  &holderID,
 				AccountID: &accountID,
 				BankingDetails: &mmodel.BankingDetails{
-					Branch: &branch,
+					BankID:  &bankID,
+					Branch:  &branch,
+					Account: &account,
+					Type:    &bankingType,
 				},
 			},
 		},
@@ -139,12 +151,30 @@ func TestUpdateAliasByID(t *testing.T) {
 			},
 		},
 		{
+			name:     "Error when partial banking identity is provided",
+			id:       id,
+			holderID: holderID,
+			input: &mmodel.UpdateAliasInput{
+				BankingDetails: &mmodel.BankingDetails{
+					BankID:  &bankID,
+					Branch:  &branch,
+					Account: &account,
+				},
+			},
+			mockSetup:      func() {},
+			expectedErr:    cn.ErrMissingFieldsInRequest,
+			expectedResult: nil,
+		},
+		{
 			name:     "Error when alias not found by ID",
 			id:       id,
 			holderID: holderID,
 			input: &mmodel.UpdateAliasInput{
 				BankingDetails: &mmodel.BankingDetails{
-					Branch: &branch,
+					BankID:  &bankID,
+					Branch:  &branch,
+					Account: &account,
+					Type:    &bankingType,
 				},
 			},
 			mockSetup: func() {
@@ -255,7 +285,10 @@ func TestUpdateAliasByID(t *testing.T) {
 			holderID: holderID,
 			input: &mmodel.UpdateAliasInput{
 				BankingDetails: &mmodel.BankingDetails{
+					BankID:      &bankID,
 					Branch:      &branch,
+					Account:     &account,
+					Type:        &bankingType,
 					ClosingDate: &mmodel.Date{Time: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)},
 				},
 			},
@@ -300,4 +333,29 @@ func TestUpdateAliasByID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpdateAliasByIDRejectsNestedBankingIdentityRemoval(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	uc := &UseCase{
+		HolderRepo: holder.NewMockRepository(ctrl),
+		AliasRepo:  alias.NewMockRepository(ctrl),
+	}
+
+	result, err := uc.UpdateAliasByID(
+		context.Background(),
+		uuid.New().String(),
+		uuid.New(),
+		uuid.New(),
+		&mmodel.UpdateAliasInput{BankingDetails: &mmodel.BankingDetails{}},
+		[]string{"bankingDetails.type"},
+	)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	var validationErr pkg.ValidationError
+	assert.True(t, errors.As(err, &validationErr))
+	assert.Equal(t, cn.ErrMissingFieldsInRequest.Error(), validationErr.Code)
 }

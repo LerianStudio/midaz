@@ -7,6 +7,7 @@ package alias
 import (
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
@@ -116,6 +117,17 @@ func TestMongoDBRepository_buildAliasFilter(t *testing.T) {
 			holderID:       holderID,
 			includeDeleted: false,
 			wantKeys:       []string{"holder_id", "deleted_at", "banking_details.branch"},
+			wantErr:        false,
+		},
+		{
+			name: "filter by banking details bank ID and type",
+			query: http.QueryHeader{
+				BankingDetailsBankID: testutils.Ptr("12345678"),
+				BankingDetailsType:   testutils.Ptr("CACC"),
+			},
+			holderID:       holderID,
+			includeDeleted: false,
+			wantKeys:       []string{"holder_id", "deleted_at", "banking_details.bank_id", "banking_details.type"},
 			wantErr:        false,
 		},
 		{
@@ -257,4 +269,53 @@ func TestMongoDBRepository_buildAliasFilter_BankingDetailsHashes(t *testing.T) {
 
 	assert.Equal(t, expectedAccountHash, foundAccountHash, "account hash should match")
 	assert.Equal(t, expectedIbanHash, foundIbanHash, "IBAN hash should match")
+}
+
+func TestMergeAliasForBankAccountIndexClearsRemovedIdentityFields(t *testing.T) {
+	t.Parallel()
+
+	document := "12345678901"
+	aliasType := "LEGAL_PERSON"
+	ledgerID := uuid.New().String()
+	accountID := uuid.New().String()
+	holderID := uuid.New()
+	bankID := "001"
+	branch := "0001"
+	bankAccount := "123456"
+	bankType := "CACC"
+
+	existing := &mmodel.Alias{
+		Document:  &document,
+		Type:      &aliasType,
+		LedgerID:  &ledgerID,
+		AccountID: &accountID,
+		HolderID:  &holderID,
+		BankingDetails: &mmodel.BankingDetails{
+			BankID:  &bankID,
+			Branch:  &branch,
+			Account: &bankAccount,
+			Type:    &bankType,
+		},
+	}
+
+	merged := mergeAliasForBankAccountIndex(existing, &mmodel.Alias{}, []string{
+		"document",
+		"accountId",
+		"banking_details.bank_id",
+		"bankingDetails.account",
+	})
+
+	require.NotNil(t, merged)
+	assert.Nil(t, merged.Document)
+	assert.Nil(t, merged.AccountID)
+	assert.NotNil(t, merged.LedgerID)
+	require.NotNil(t, merged.BankingDetails)
+	assert.Nil(t, merged.BankingDetails.BankID)
+	assert.Nil(t, merged.BankingDetails.Account)
+	assert.NotNil(t, merged.BankingDetails.Branch)
+	assert.NotNil(t, merged.BankingDetails.Type)
+
+	require.NotNil(t, existing.BankingDetails)
+	assert.NotNil(t, existing.BankingDetails.BankID)
+	assert.NotNil(t, existing.BankingDetails.Account)
 }

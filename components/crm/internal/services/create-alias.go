@@ -29,6 +29,11 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		attribute.String("app.request.holder_id", holderID.String()),
 	)
 
+	if err := validateCompleteBankingIdentity(ctx, cai.BankingDetails); err != nil {
+		libOpenTelemetry.HandleSpanBusinessErrorEvent(span, "Invalid banking identity", err)
+		return nil, err
+	}
+
 	aliasID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to generate alias id", err)

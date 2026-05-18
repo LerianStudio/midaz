@@ -103,6 +103,9 @@ definitions:
       metadata:
         additionalProperties: {}
         type: object
+      organizationId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
       regulatoryFields:
         $ref: '#/definitions/RegulatoryFields'
       relatedParties:
@@ -115,6 +118,13 @@ definitions:
       updatedAt:
         example: "2025-01-01T00:00:00Z"
         type: string
+    type: object
+  BackfillBankAccountIndexRequest:
+    description: BackfillBankAccountIndexRequest payload
+    properties:
+      dryRun:
+        example: true
+        type: boolean
     type: object
   BankingDetails:
     description: BankingDetails object
@@ -445,6 +455,88 @@ definitions:
         example: CFO
         type: string
     type: object
+  ResolveAccountRequest:
+    description: ResolveAccountRequest payload
+    properties:
+      accountId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+    required:
+    - accountId
+    type: object
+  ResolveAliasBankingDetailsResponse:
+    description: ResolveAliasBankingDetailsResponse object
+    properties:
+      account:
+        example: "1234567"
+        type: string
+      bankId:
+        example: "12345678"
+        type: string
+      branch:
+        example: "0001"
+        type: string
+      type:
+        example: CACC
+        type: string
+    type: object
+  ResolveAliasResponse:
+    description: ResolveAliasResponse payload
+    properties:
+      accountId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      bankingDetails:
+        $ref: '#/definitions/ResolveAliasBankingDetailsResponse'
+      holderDocument:
+        example: "12345678901"
+        type: string
+      holderId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      ledgerId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      organizationId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+    type: object
+  ResolveBankAccountBankingDetailsRequest:
+    description: ResolveBankAccountBankingDetails object
+    properties:
+      account:
+        example: "1234567"
+        type: string
+      bankId:
+        example: "12345678"
+        type: string
+      branch:
+        example: "0001"
+        type: string
+      type:
+        example: CACC
+        type: string
+    required:
+    - account
+    - bankId
+    - branch
+    - type
+    type: object
+  ResolveBankAccountRequest:
+    description: ResolveBankAccountRequest payload
+    properties:
+      bankingDetails:
+        $ref: '#/definitions/ResolveBankAccountBankingDetailsRequest'
+      document:
+        example: "12345678901"
+        type: string
+    required:
+    - bankingDetails
+    - document
+    type: object
   UpdateAliasRequest:
     description: UpdateAliasRequest payload
     properties:
@@ -512,6 +604,33 @@ definitions:
         type: integer
       prev_cursor:
         type: string
+    type: object
+  mmodel.BankAccountIndexBackfillReport:
+    properties:
+      aliasesScanned:
+        type: integer
+      collectionsScanned:
+        type: integer
+      dryRun:
+        type: boolean
+      duplicateAliasIds:
+        items:
+          type: string
+        type: array
+      duplicateAliasIdsTruncated:
+        type: boolean
+      duplicates:
+        type: integer
+      incomplete:
+        type: integer
+      incompleteAliasIds:
+        items:
+          type: string
+        type: array
+      incompleteAliasIdsTruncated:
+        type: boolean
+      upserted:
+        type: integer
     type: object
   pkg.HTTPError:
     properties:
@@ -604,6 +723,14 @@ paths:
         in: query
         name: banking_details_iban
         type: string
+      - description: Filter alias by banking details bank ID
+        in: query
+        name: banking_details_bank_id
+        type: string
+      - description: Filter alias by banking details type
+        in: query
+        name: banking_details_type
+        type: string
       - description: Filter alias by regulatory fields participant document
         in: query
         name: regulatory_fields_participant_document
@@ -643,6 +770,131 @@ paths:
           schema:
             $ref: '#/definitions/pkg.HTTPError'
       summary: List Aliases
+      tags:
+      - Aliases
+  /v1/aliases/backfill-bank-account-index:
+    post:
+      consumes:
+      - application/json
+      description: Scans tenant alias collections and rebuilds alias_bank_account_index
+        rows. Report contains counts and alias IDs only; no document, account, or
+        bank identity values.
+      parameters:
+      - description: The authorization token in the 'Bearer access_token' format.
+          Only required when auth plugin is enabled.
+        in: header
+        name: Authorization
+        type: string
+      - description: Backfill Input
+        in: body
+        name: backfill
+        required: true
+        schema:
+          $ref: '#/definitions/BackfillBankAccountIndexRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.BankAccountIndexBackfillReport'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      summary: Backfill Alias Bank Account Resolver Index
+      tags:
+      - Aliases
+  /v1/aliases/resolve-account:
+    post:
+      consumes:
+      - application/json
+      description: Resolves an active alias across the current tenant by account ID.
+        Does not require X-Organization-Id.
+      parameters:
+      - description: The authorization token in the 'Bearer access_token' format.
+          Only required when auth plugin is enabled.
+        in: header
+        name: Authorization
+        type: string
+      - description: Account Resolver Input
+        in: body
+        name: resolver
+        required: true
+        schema:
+          $ref: '#/definitions/ResolveAccountRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ResolveAliasResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      summary: Resolve Alias by Account ID
+      tags:
+      - Aliases
+  /v1/aliases/resolve-bank-account:
+    post:
+      consumes:
+      - application/json
+      description: Resolves an active alias across the current tenant by holder document
+        and exact bank-account identity. Does not require X-Organization-Id.
+      parameters:
+      - description: The authorization token in the 'Bearer access_token' format.
+          Only required when auth plugin is enabled.
+        in: header
+        name: Authorization
+        type: string
+      - description: Bank Account Resolver Input
+        in: body
+        name: resolver
+        required: true
+        schema:
+          $ref: '#/definitions/ResolveBankAccountRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ResolveAliasResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      summary: Resolve Alias by Bank Account
       tags:
       - Aliases
   /v1/holders:
