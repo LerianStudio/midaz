@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
@@ -31,48 +29,33 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 	ctx, span := tracer.Start(ctx, "command.update_ledger_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update ledger %s", id.String()))
-
 	ledger := &mmodel.Ledger{
-		Name:           uli.Name,
-		OrganizationID: organizationID.String(),
-		Status:         uli.Status,
+		Name:   uli.Name,
+		Status: uli.Status,
 	}
 
 	ledgerUpdated, err := uc.LedgerRepo.Update(ctx, organizationID, id, ledger)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating ledger on repo by id: %v", err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, constant.EntityLedger)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Ledger ID not found: %s", id.String()))
-
+			logger.Log(ctx, libLog.LevelWarn, "Ledger ID not found", libLog.String("ledger_id", id.String()))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger on repo by id", err)
 
 			return nil, err
 		}
 
+		logger.Log(ctx, libLog.LevelError, "Failed to update ledger", libLog.Err(err))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger on repo by id", err)
 
 		return nil, err
 	}
 
-	// LedgerRepo.Update returns a ledger built from the input via
-	// FromEntity which regenerates the ID (intended for Create). Override
-	// the identity fields with the function's known-good parameters so the
-	// emitted event references the actual row. The HTTP handler avoids this
-	// by calling GetLedgerByID afterwards; the streaming emit must do the
-	// same defensively.
-	ledgerUpdated.ID = id.String()
-	ledgerUpdated.OrganizationID = organizationID.String()
-
 	uc.emitLedgerUpdatedEvent(ctx, span, logger, ledgerUpdated)
 
-	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), id.String(), uli.Metadata)
+	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityLedger, id.String(), uli.Metadata)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating metadata: %v", err))
-
+		logger.Log(ctx, libLog.LevelError, "Failed to update ledger metadata", libLog.Err(err))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo", err)
 
 		return nil, err

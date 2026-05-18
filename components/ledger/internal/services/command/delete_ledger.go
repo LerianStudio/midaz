@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
@@ -18,7 +16,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
@@ -32,22 +29,18 @@ func (uc *UseCase) DeleteLedgerByID(ctx context.Context, organizationID, id uuid
 	ctx, span := tracer.Start(ctx, "command.delete_ledger_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Remove ledger for id: %s", id.String()))
-
 	if err := uc.LedgerRepo.Delete(ctx, organizationID, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, constant.EntityLedger)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Ledger ID not found: %s", id.String()))
-
+			logger.Log(ctx, libLog.LevelWarn, "Ledger ID not found", libLog.String("ledger_id", id.String()))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete ledger on repo by id", err)
 
 			return err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete ledger on repo by id", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error deleting ledger: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to delete ledger", libLog.Err(err))
 
 		return err
 	}

@@ -6,14 +6,13 @@ package command
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	libStreaming "github.com/LerianStudio/lib-streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
@@ -28,24 +27,15 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 	ctx, span := tracer.Start(ctx, "command.create_ledger")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create ledger organizationID=%s name=%s", organizationID.String(), cli.Name))
-
-	var status mmodel.Status
-	if cli.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cli.Status.Code) {
-		status = mmodel.Status{
-			Code: "ACTIVE",
-		}
-	} else {
-		status = cli.Status
+	status := cli.Status
+	if status.Code == "" {
+		status.Code = "ACTIVE"
 	}
-
-	status.Description = cli.Status.Description
 
 	_, err := uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find ledger by name", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating ledger: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to find ledger by name", libLog.Err(err))
 
 		return nil, err
 	}
@@ -58,8 +48,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 		if err := mmodel.ValidateSettings(settingsMap); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Settings validation failed", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Settings validation failed: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Settings validation failed", libLog.Err(err))
 
 			return nil, err
 		}
@@ -68,33 +57,31 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		settingsToPersist = &parsed
 	}
 
+	now := time.Now()
+
 	ledger := &mmodel.Ledger{
 		OrganizationID: organizationID.String(),
 		Name:           cli.Name,
 		Status:         status,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      now,
+		UpdatedAt:      now,
 		Settings:       settingsToPersist,
 	}
 
 	led, err := uc.LedgerRepo.Create(ctx, ledger)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create ledger", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating ledger: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create ledger", libLog.Err(err))
 
 		return nil, err
 	}
 
 	uc.emitLedgerCreatedEvent(ctx, span, logger, led)
 
-	takeName := reflect.TypeOf(mmodel.Ledger{}).Name()
-
-	metadata, err := uc.CreateOnboardingMetadata(ctx, takeName, led.ID, cli.Metadata)
+	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityLedger, led.ID, cli.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create ledger metadata", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating ledger metadata: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create ledger metadata", libLog.Err(err))
 
 		return nil, err
 	}
