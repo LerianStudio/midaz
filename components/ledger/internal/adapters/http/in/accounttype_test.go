@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 	"time"
 
@@ -77,7 +76,7 @@ func TestHandler_CreateAccountType(t *testing.T) {
 			setupMocks: func(accountTypeRepo *accounttype.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				accountTypeRepo.EXPECT().
 					Create(gomock.Any(), orgID, ledgerID, gomock.Any()).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrDuplicateAccountTypeKeyValue, reflect.TypeOf(mmodel.AccountType{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrDuplicateAccountTypeKeyValue, cn.EntityAccountType)).
 					Times(1)
 			},
 			expectedStatus: 409,
@@ -201,26 +200,6 @@ func TestHandler_UpdateAccountType(t *testing.T) {
 					Update(gomock.Any(), "AccountType", accountTypeID.String(), gomock.Any()).
 					Return(nil).
 					Times(1)
-
-				// Retrieval after update
-				accountTypeRepo.EXPECT().
-					FindByID(gomock.Any(), orgID, ledgerID, accountTypeID).
-					Return(&mmodel.AccountType{
-						ID:             accountTypeID,
-						OrganizationID: orgID,
-						LedgerID:       ledgerID,
-						Name:           "Updated Account Type Name",
-						KeyValue:       "test_key",
-						CreatedAt:      time.Now(),
-						UpdatedAt:      time.Now(),
-					}, nil).
-					Times(1)
-
-				// GetAccountTypeByID also fetches metadata
-				metadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), "AccountType", accountTypeID.String()).
-					Return(nil, nil).
-					Times(1)
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
@@ -241,7 +220,7 @@ func TestHandler_UpdateAccountType(t *testing.T) {
 			setupMocks: func(accountTypeRepo *accounttype.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, accountTypeID uuid.UUID) {
 				accountTypeRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, accountTypeID, gomock.Any()).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountTypeNotFound, cn.EntityAccountType)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -252,39 +231,6 @@ func TestHandler_UpdateAccountType(t *testing.T) {
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
 				assert.Equal(t, cn.ErrAccountTypeNotFound.Error(), errResp["code"])
-			},
-		},
-		{
-			name: "not found on retrieval returns 404",
-			payload: &mmodel.UpdateAccountTypeInput{
-				Name: "Updated Name",
-			},
-			setupMocks: func(accountTypeRepo *accounttype.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, accountTypeID uuid.UUID) {
-				// Update succeeds
-				accountTypeRepo.EXPECT().
-					Update(gomock.Any(), orgID, ledgerID, accountTypeID, gomock.Any()).
-					Return(&mmodel.AccountType{ID: accountTypeID}, nil).
-					Times(1)
-
-				// UpdateMetadata succeeds
-				metadataRepo.EXPECT().
-					Update(gomock.Any(), "AccountType", accountTypeID.String(), gomock.Any()).
-					Return(nil).
-					Times(1)
-
-				// Retrieval fails
-				accountTypeRepo.EXPECT().
-					FindByID(gomock.Any(), orgID, ledgerID, accountTypeID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())).
-					Times(1)
-			},
-			expectedStatus: 404,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
 			},
 		},
 		{
@@ -418,7 +364,7 @@ func TestHandler_GetAccountTypeByID(t *testing.T) {
 			setupMocks: func(accountTypeRepo *accounttype.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, accountTypeID uuid.UUID) {
 				accountTypeRepo.EXPECT().
 					FindByID(gomock.Any(), orgID, ledgerID, accountTypeID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountTypeNotFound, cn.EntityAccountType)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -692,7 +638,7 @@ func TestHandler_GetAllAccountTypes(t *testing.T) {
 			setupMocks: func(accountTypeRepo *accounttype.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				accountTypeRepo.EXPECT().
 					FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
-					Return(nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(cn.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())).
+					Return(nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(cn.ErrNoAccountTypesFound, cn.EntityAccountType)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -799,7 +745,7 @@ func TestHandler_DeleteAccountTypeByID(t *testing.T) {
 			setupMocks: func(accountTypeRepo *accounttype.MockRepository, orgID, ledgerID, accountTypeID uuid.UUID) {
 				accountTypeRepo.EXPECT().
 					Delete(gomock.Any(), orgID, ledgerID, accountTypeID).
-					Return(pkg.ValidateBusinessError(cn.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())).
+					Return(pkg.ValidateBusinessError(cn.ErrAccountTypeNotFound, cn.EntityAccountType)).
 					Times(1)
 			},
 			expectedStatus: 404,

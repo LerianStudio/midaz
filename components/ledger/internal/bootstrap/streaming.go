@@ -158,6 +158,9 @@ func midazEventDefinitions() []events.Definition {
 		events.SegmentCreatedDefinition,
 		events.SegmentUpdatedDefinition,
 		events.SegmentDeletedDefinition,
+		events.AccountTypeCreatedDefinition,
+		events.AccountTypeUpdatedDefinition,
+		events.AccountTypeDeletedDefinition,
 	}
 }
 

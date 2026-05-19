@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -31,7 +30,7 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving account types by metadata")
 
-	metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), filter)
+	metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, constant.EntityAccountType, filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get metadata on repo", err)
 
@@ -41,7 +40,7 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 	}
 
 	if len(metadata) == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, constant.EntityAccountType)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No account type metadata found", err)
 
@@ -61,7 +60,7 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 	accountTypes, _, err := uc.AccountTypeRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, constant.EntityAccountType)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get account types on repo", err)
 

@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
@@ -35,7 +34,7 @@ func (uc *UseCase) GetAllAccountType(ctx context.Context, organizationID, ledger
 	accountTypes, cur, err := uc.AccountTypeRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, constant.EntityAccountType)
 
 			logger.Log(ctx, libLog.LevelWarn, "No account types found")
 
@@ -57,9 +56,9 @@ func (uc *UseCase) GetAllAccountType(ctx context.Context, organizationID, ledger
 			metadataFilter.Metadata = &bson.M{}
 		}
 
-		metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), metadataFilter)
+		metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, constant.EntityAccountType, metadataFilter)
 		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccountType)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb account type", err)
 

@@ -7,17 +7,19 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // UpdateAccountType updates an account type by its ID.
@@ -28,8 +30,6 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 	ctx, span := tracer.Start(ctx, "command.update_account_type")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update account type %s", id.String()))
-
 	accountType := &mmodel.AccountType{
 		Name:        input.Name,
 		Description: input.Description,
@@ -38,25 +38,27 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 	accountTypeUpdated, err := uc.AccountTypeRepo.Update(ctx, organizationID, ledgerID, id, accountType)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, constant.EntityAccountType)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Account type ID not found: %s", id.String()))
+			logger.Log(ctx, libLog.LevelWarn, "Account type ID not found", libLog.Err(err), libLog.String("account_type_id", id.String()))
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account type on repo by id", err)
 
 			return nil, err
 		}
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating account type on repo by id: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to update account type on repo by id", libLog.Err(err), libLog.String("account_type_id", id.String()))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account type on repo by id", err)
 
 		return nil, err
 	}
 
-	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), id.String(), input.Metadata)
+	uc.emitAccountTypeUpdatedEvent(ctx, span, logger, accountTypeUpdated)
+
+	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityAccountType, id.String(), input.Metadata)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating metadata: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to update account type metadata", libLog.Err(err), libLog.String("account_type_id", id.String()))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata", err)
 
@@ -65,7 +67,29 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 
 	accountTypeUpdated.Metadata = metadataUpdated
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated account type with ID: %s", accountTypeUpdated.ID))
-
 	return accountTypeUpdated, nil
+}
+
+// emitAccountTypeUpdatedEvent publishes the account-type.updated event
+// for a successfully persisted update. IMPORTANT posture: build and
+// emit failures are span-recorded and logged at Warn, never returned.
+// Durability of the event is owned by PG and (follow-up task) the
+// outbox subsystem + DLQ, not by the synchronous Emit call.
+//
+// Anchor: invoked between the AccountTypeRepo.Update success branch and
+// the metadata-write call in UpdateAccountType, so a downstream Mongo
+// failure cannot mask the event.
+//
+// Caller invariant: a must be the value returned by AccountTypeRepo.Update
+// (post-commit), not the input struct. Specifically a.ID, a.UpdatedAt,
+// a.KeyValue and the persisted Name/Description must reflect the row
+// state.
+//
+// Wire-format mapping lives in pkg/streaming/events/account_type_updated.go;
+// changes to the payload contract belong there, not here.
+func (uc *UseCase) emitAccountTypeUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, a *mmodel.AccountType) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AccountTypeUpdatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewAccountTypeUpdated(a).ToEmitRequest(tenantID, a.UpdatedAt)
+		})
 }

@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
@@ -98,7 +97,7 @@ func TestGetAllAccountTypeSuccess(t *testing.T) {
 	expectedMetadataFilter.Metadata = &bson.M{}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), expectedMetadataFilter).
+		FindList(gomock.Any(), constant.EntityAccountType, expectedMetadataFilter).
 		Return(expectedMetadata, nil).
 		Times(1)
 
@@ -164,7 +163,7 @@ func TestGetAllAccountTypeSuccessWithoutMetadata(t *testing.T) {
 	expectedMetadataFilter.Metadata = &bson.M{}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), expectedMetadataFilter).
+		FindList(gomock.Any(), constant.EntityAccountType, expectedMetadataFilter).
 		Return([]*mongodb.Metadata{}, nil).
 		Times(1)
 
@@ -191,7 +190,7 @@ func TestGetAllAccountTypeNotFound(t *testing.T) {
 	}
 
 	expectedError := services.ErrDatabaseItemNotFound
-	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, constant.EntityAccountType)
 
 	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
 	uc := &UseCase{
@@ -273,7 +272,7 @@ func TestGetAllAccountTypeMetadataError(t *testing.T) {
 	}
 
 	metadataError := errors.New("metadata service error")
-	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccountType)
 
 	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -292,7 +291,7 @@ func TestGetAllAccountTypeMetadataError(t *testing.T) {
 	expectedMetadataFilter.Metadata = &bson.M{}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), expectedMetadataFilter).
+		FindList(gomock.Any(), constant.EntityAccountType, expectedMetadataFilter).
 		Return(nil, metadataError).
 		Times(1)
 
@@ -337,7 +336,7 @@ func TestGetAllAccountTypeEmpty(t *testing.T) {
 	expectedMetadataFilter.Metadata = &bson.M{}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), expectedMetadataFilter).
+		FindList(gomock.Any(), constant.EntityAccountType, expectedMetadataFilter).
 		Return([]*mongodb.Metadata{}, nil).
 		Times(1)
 
@@ -406,7 +405,7 @@ func TestGetAllAccountTypeWithDifferentPagination(t *testing.T) {
 	expectedMetadataFilter.Metadata = &bson.M{}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), expectedMetadataFilter).
+		FindList(gomock.Any(), constant.EntityAccountType, expectedMetadataFilter).
 		Return(expectedMetadata, nil).
 		Times(1)
 
@@ -478,7 +477,7 @@ func TestGetAllAccountTypeWithMetadataFilter(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), filter).
+		FindList(gomock.Any(), constant.EntityAccountType, filter).
 		Return(expectedMetadata, nil).
 		Times(1)
 

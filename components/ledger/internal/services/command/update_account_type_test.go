@@ -7,7 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 
@@ -78,7 +77,7 @@ func TestUpdateAccountTypeSuccess(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), accountTypeID.String()).
+		FindByEntity(gomock.Any(), constant.EntityAccountType, accountTypeID.String()).
 		Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil).
 		Times(1)
 
@@ -141,7 +140,7 @@ func TestUpdateAccountTypeSuccessWithoutMetadata(t *testing.T) {
 
 	// UpdateMetadata is always called, even with empty metadata
 	mockMetadataRepo.EXPECT().
-		Update(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), accountTypeID.String(), map[string]any{}).
+		Update(gomock.Any(), constant.EntityAccountType, accountTypeID.String(), map[string]any{}).
 		Return(nil).
 		Times(1)
 
@@ -217,7 +216,7 @@ func TestUpdateAccountTypeNotFound(t *testing.T) {
 		Return(nil, services.ErrDatabaseItemNotFound).
 		Times(1)
 
-	expectedErr := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+	expectedErr := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, constant.EntityAccountType)
 
 	result, err := uc.UpdateAccountType(context.Background(), organizationID, ledgerID, accountTypeID, payload)
 
@@ -267,7 +266,7 @@ func TestUpdateAccountTypeMetadataError(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), accountTypeID.String()).
+		FindByEntity(gomock.Any(), constant.EntityAccountType, accountTypeID.String()).
 		Return(&mongodb.Metadata{Data: map[string]any{"existing": "data"}}, nil).
 		Times(1)
 
@@ -349,7 +348,7 @@ func TestUpdateAccountTypePartialUpdate(t *testing.T) {
 				Times(1)
 
 			mockMetadataRepo.EXPECT().
-				Update(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), accountTypeID.String(), map[string]any{}).
+				Update(gomock.Any(), constant.EntityAccountType, accountTypeID.String(), map[string]any{}).
 				Return(nil).
 				Times(1)
 
@@ -405,7 +404,7 @@ func TestUpdateAccountTypeEmptyInput(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		Update(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), accountTypeID.String(), map[string]any{}).
+		Update(gomock.Any(), constant.EntityAccountType, accountTypeID.String(), map[string]any{}).
 		Return(nil).
 		Times(1)
 

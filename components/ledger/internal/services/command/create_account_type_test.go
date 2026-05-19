@@ -7,7 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 
@@ -186,7 +185,7 @@ func TestCreateAccountTypeDuplicateKeyValue(t *testing.T) {
 		AccountTypeRepo: mockAccountTypeRepo,
 	}
 
-	expectedErr := pkg.ValidateBusinessError(constant.ErrDuplicateAccountTypeKeyValue, reflect.TypeOf(mmodel.AccountType{}).Name())
+	expectedErr := pkg.ValidateBusinessError(constant.ErrDuplicateAccountTypeKeyValue, constant.EntityAccountType)
 
 	mockAccountTypeRepo.EXPECT().
 		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
@@ -250,7 +249,7 @@ func TestCreateAccountTypeWithMetadata(t *testing.T) {
 	mockMetadataRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, entityType string, meta *mongodb.Metadata) error {
-			assert.Equal(t, reflect.TypeOf(mmodel.AccountType{}).Name(), entityType)
+			assert.Equal(t, constant.EntityAccountType, entityType)
 			assert.Equal(t, expectedAccountType.ID.String(), meta.EntityID)
 			assert.Equal(t, expectedMetadata["category"], meta.Data["category"])
 			assert.Equal(t, expectedMetadata["order"], meta.Data["order"])
