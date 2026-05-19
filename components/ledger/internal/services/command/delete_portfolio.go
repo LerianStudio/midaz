@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
@@ -18,7 +16,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
@@ -32,13 +29,11 @@ func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledg
 	ctx, span := tracer.Start(ctx, "command.delete_portfolio_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Remove portfolio for id: %s", id.String()))
-
 	if err := uc.PortfolioRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, constant.EntityPortfolio)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Portfolio ID not found: %s", id.String()))
+			logger.Log(ctx, libLog.LevelWarn, "Portfolio ID not found", libLog.String("portfolio_id", id.String()))
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete portfolio on repo by id", err)
 
@@ -47,7 +42,7 @@ func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledg
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete portfolio on repo by id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error deleting portfolio: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to delete portfolio", libLog.Err(err))
 
 		return err
 	}

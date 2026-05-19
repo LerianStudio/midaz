@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
@@ -31,8 +29,6 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 	ctx, span := tracer.Start(ctx, "command.update_portfolio_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update portfolio %s", id.String()))
-
 	portfolio := &mmodel.Portfolio{
 		EntityID: upi.EntityID,
 		Name:     upi.Name,
@@ -41,12 +37,10 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 
 	portfolioUpdated, err := uc.PortfolioRepo.Update(ctx, organizationID, ledgerID, id, portfolio)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating portfolio on repo by id: %v", err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, constant.EntityPortfolio)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Portfolio ID not found: %s", id.String()))
+			logger.Log(ctx, libLog.LevelWarn, "Portfolio ID not found", libLog.String("portfolio_id", id.String()))
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update portfolio on repo by id", err)
 
@@ -54,15 +48,16 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update portfolio on repo by id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to update portfolio on repo by id", libLog.Err(err))
 
 		return nil, err
 	}
 
 	uc.emitPortfolioUpdatedEvent(ctx, span, logger, portfolioUpdated)
 
-	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), id.String(), upi.Metadata)
+	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityPortfolio, id.String(), upi.Metadata)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating metadata: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to update portfolio metadata", libLog.Err(err))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo by id", err)
 
@@ -84,11 +79,9 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 // the metadata-write call in UpdatePortfolioByID, so a downstream Mongo
 // failure cannot mask the event.
 //
-// Caller invariant: portfolioUpdated must be the post-commit value
-// returned by PortfolioRepo.Update — i.e. the row state scanned from
-// the RETURNING clause. The repo guarantees identity (ID, OrganizationID,
-// LedgerID) and the persisted UpdatedAt reflect the row state, so this
-// function does not merge against the pre-update record.
+// Caller invariant: p must be the value returned by PortfolioRepo.Update
+// (post-commit), not the input struct. Specifically p.ID, p.UpdatedAt
+// and the persisted EntityID/Name/Status must reflect the row state.
 //
 // Wire-format mapping lives in pkg/streaming/events/portfolio_updated.go;
 // changes to the payload contract belong there, not here.

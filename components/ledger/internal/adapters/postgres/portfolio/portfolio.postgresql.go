@@ -9,7 +9,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -115,7 +114,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return nil, err
 	}
@@ -123,7 +122,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 	record := &PortfolioPostgreSQLModel{}
 	record.FromEntity(portfolio)
 
-	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
+	_, spanExec := tracer.Start(ctx, "postgres.create.exec")
 	defer spanExec.End()
 
 	insertQuery := `INSERT INTO portfolio VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING ` + strings.Join(portfolioColumnList, ", ")
@@ -156,18 +155,18 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 	); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err := services.ValidatePGError(pgErr, constant.EntityPortfolio)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute insert query", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to execute insert query: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to execute insert query", libLog.Err(err))
 
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute insert query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute insert query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to execute insert query", libLog.Err(err))
 
 		return nil, err
 	}
@@ -186,14 +185,14 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return nil, err
 	}
 
 	portfolio := &PortfolioPostgreSQLModel{}
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_id_entity.query")
+	_, spanQuery := tracer.Start(ctx, "postgres.find_by_id_entity.query")
 
 	query, args, err := squirrel.Select(portfolioColumnList...).
 		From("portfolio").
@@ -207,7 +206,7 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to build query", libLog.Err(err))
 
 		spanQuery.End()
 
@@ -231,10 +230,10 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 		&portfolio.DeletedAt); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to execute query", libLog.Err(err))
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPortfolio)
 		}
 
 		return nil, err
@@ -254,7 +253,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return nil, err
 	}
@@ -292,20 +291,20 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to build query", libLog.Err(err))
 
 		return nil, err
 	}
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
+	_, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to execute query", libLog.Err(err))
 
-		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPortfolio)
 	}
 	defer rows.Close()
 
@@ -326,7 +325,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&portfolio.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan rows: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to scan rows", libLog.Err(err))
 
 			return nil, err
 		}
@@ -354,14 +353,14 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return nil, err
 	}
 
 	portfolio := &PortfolioPostgreSQLModel{}
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
+	_, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
 	query, args, err := squirrel.Select(portfolioColumnList...).
 		From("portfolio").
@@ -375,7 +374,7 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to build query", libLog.Err(err))
 
 		spanQuery.End()
 
@@ -399,10 +398,10 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&portfolio.DeletedAt); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to execute query", libLog.Err(err))
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPortfolio)
 		}
 
 		return nil, err
@@ -422,14 +421,14 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return nil, err
 	}
 
 	var portfolios []*mmodel.Portfolio
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.list_portfolios_by_ids.query")
+	_, spanQuery := tracer.Start(ctx, "postgres.list_portfolios_by_ids.query")
 
 	query, args, err := squirrel.Select(portfolioColumnList...).
 		From("portfolio").
@@ -443,7 +442,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to build query", libLog.Err(err))
 
 		spanQuery.End()
 
@@ -454,7 +453,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to execute query", libLog.Err(err))
 
 		return nil, err
 	}
@@ -477,7 +476,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&portfolio.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan rows: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to scan rows", libLog.Err(err))
 
 			return nil, err
 		}
@@ -505,7 +504,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return nil, err
 	}
@@ -542,12 +541,12 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build update query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build update query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to build update query", libLog.Err(err))
 
 		return nil, err
 	}
 
-	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
+	_, spanExec := tracer.Start(ctx, "postgres.update.exec")
 	defer spanExec.End()
 
 	updated := &PortfolioPostgreSQLModel{}
@@ -566,7 +565,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 		&updated.DeletedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPortfolio)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update portfolio. Rows affected is 0", err)
 
@@ -575,18 +574,18 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err := services.ValidatePGError(pgErr, constant.EntityPortfolio)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to execute update query: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to execute update query", libLog.Err(err))
 
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute update query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to execute update query", libLog.Err(err))
 
 		return nil, err
 	}
@@ -605,19 +604,19 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return err
 	}
 
-	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
+	_, spanExec := tracer.Start(ctx, "postgres.delete.exec")
 
 	result, err := db.ExecContext(ctx, `UPDATE portfolio SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
 		organizationID, ledgerID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute delete query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute delete query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to execute delete query", libLog.Err(err))
 
 		return err
 	}
@@ -628,13 +627,13 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get rows affected", libLog.Err(err))
 
 		return err
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPortfolio)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete Portfolio. Rows affected is 0", err)
 
@@ -657,19 +656,19 @@ func (r *PortfolioPostgreSQLRepository) Count(ctx context.Context, organizationI
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return count, err
 	}
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
+	_, spanQuery := tracer.Start(ctx, "postgres.count.query")
 	defer spanQuery.End()
 
 	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND deleted_at IS NULL", organizationID, ledgerID).Scan(&count)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to execute query", libLog.Err(err))
 
 		return count, err
 	}

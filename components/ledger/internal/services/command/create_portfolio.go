@@ -6,14 +6,13 @@ package command
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	libStreaming "github.com/LerianStudio/lib-streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
@@ -27,8 +26,6 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	ctx, span := tracer.Start(ctx, "command.create_portfolio")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create portfolio organizationID=%s ledgerID=%s entityID=%s", organizationID.String(), ledgerID.String(), cpi.EntityID))
 
 	var status mmodel.Status
 	if cpi.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cpi.Status.Code) {
@@ -44,11 +41,12 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	portfolioID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to generate portfolio ID", err)
-		logger.Log(ctx, libLog.LevelError, "Error generating portfolio ID")
+		logger.Log(ctx, libLog.LevelError, "Failed to generate portfolio ID", libLog.Err(err))
 
 		return nil, err
 	}
 
+	now := time.Now()
 	portfolio := &mmodel.Portfolio{
 		ID:             portfolioID.String(),
 		EntityID:       cpi.EntityID,
@@ -56,26 +54,26 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 		OrganizationID: organizationID.String(),
 		Name:           cpi.Name,
 		Status:         status,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
 	port, err := uc.PortfolioRepo.Create(ctx, portfolio)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create portfolio", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating portfolio: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create portfolio", libLog.Err(err))
 
 		return nil, err
 	}
 
 	uc.emitPortfolioCreatedEvent(ctx, span, logger, port)
 
-	metadata, err := uc.CreateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), port.ID, cpi.Metadata)
+	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityPortfolio, port.ID, cpi.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create portfolio metadata", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating portfolio metadata: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create portfolio metadata", libLog.Err(err))
 
 		return nil, err
 	}
