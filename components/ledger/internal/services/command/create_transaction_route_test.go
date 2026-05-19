@@ -179,7 +179,7 @@ func TestCreateTransactionRouteErrorOperationRoutesNotFound(t *testing.T) {
 		OperationRouteRepo: mockOperationRouteRepo,
 	}
 
-	expectedError := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+	expectedError := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)
 
 	mockOperationRouteRepo.EXPECT().
 		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).

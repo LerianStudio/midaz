@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
@@ -96,7 +96,7 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), metadataFilter).
+		FindList(gomock.Any(), constant.EntityOperationRoute, metadataFilter).
 		Return(expectedMetadata, nil).
 		Times(1)
 
@@ -214,7 +214,7 @@ func TestGetAllOperationRoutesEmpty(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), metadataFilter).
+		FindList(gomock.Any(), constant.EntityOperationRoute, metadataFilter).
 		Return([]*mongodb.Metadata{}, nil).
 		Times(1)
 
@@ -276,7 +276,7 @@ func TestGetAllOperationRoutesMetadataError(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), metadataFilter).
+		FindList(gomock.Any(), constant.EntityOperationRoute, metadataFilter).
 		Return(nil, metadataError).
 		Times(1)
 
@@ -338,7 +338,7 @@ func TestGetAllOperationRoutesWithDifferentPagination(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), metadataFilter).
+		FindList(gomock.Any(), constant.EntityOperationRoute, metadataFilter).
 		Return([]*mongodb.Metadata{}, nil).
 		Times(1)
 
@@ -404,7 +404,7 @@ func TestGetAllOperationRoutesWithDateRange(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), metadataFilter).
+		FindList(gomock.Any(), constant.EntityOperationRoute, metadataFilter).
 		Return([]*mongodb.Metadata{}, nil).
 		Times(1)
 
@@ -470,7 +470,7 @@ func TestGetAllOperationRoutesWithMetadataFilter(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), filter).
+		FindList(gomock.Any(), constant.EntityOperationRoute, filter).
 		Return(expectedMetadata, nil).
 		Times(1)
 

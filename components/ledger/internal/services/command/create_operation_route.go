@@ -6,20 +6,22 @@ package command
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-
-	// CreateOperationRoute creates a new operation route.
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libStreaming "github.com/LerianStudio/lib-streaming"
+	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
+// CreateOperationRoute creates a new operation route.
 func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateOperationRouteInput) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -45,25 +47,25 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 	createdOperationRoute, err := uc.OperationRouteRepo.Create(ctx, organizationID, ledgerID, operationRoute)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create operation route", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create operation route: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create operation route", libLog.Err(err))
 
 		return nil, err
 	}
 
+	uc.emitOperationRouteCreatedEvent(ctx, span, logger, createdOperationRoute)
+
 	if payload.Metadata != nil {
 		meta := mongodb.Metadata{
 			EntityID:   createdOperationRoute.ID.String(),
-			EntityName: reflect.TypeOf(mmodel.OperationRoute{}).Name(),
+			EntityName: constant.EntityOperationRoute,
 			Data:       payload.Metadata,
 			CreatedAt:  now,
 			UpdatedAt:  now,
 		}
 
-		if err := uc.TransactionMetadataRepo.Create(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), &meta); err != nil {
+		if err := uc.TransactionMetadataRepo.Create(ctx, constant.EntityOperationRoute, &meta); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create operation route metadata", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create operation route metadata: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to create operation route metadata", libLog.Err(err))
 
 			return nil, err
 		}
@@ -72,4 +74,24 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 	}
 
 	return createdOperationRoute, nil
+}
+
+// emitOperationRouteCreatedEvent publishes the operation-route.created
+// event for a successfully persisted operation route. IMPORTANT
+// posture: build and emit failures are span-recorded and logged at
+// Warn, never returned. Durability of the event is owned by PG and
+// (follow-up task) the outbox subsystem + DLQ, not by the synchronous
+// Emit call.
+//
+// Anchor: invoked immediately after OperationRouteRepo.Create succeeds
+// and before the metadata-write call in CreateOperationRoute, so a
+// downstream Mongo failure cannot mask the event.
+//
+// Wire-format mapping lives in pkg/streaming/events/operation_route_created.go;
+// changes to the payload contract belong there, not here.
+func (uc *UseCase) emitOperationRouteCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, o *mmodel.OperationRoute) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.OperationRouteCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewOperationRouteCreated(o).ToEmitRequest(tenantID, o.CreatedAt)
+		})
 }

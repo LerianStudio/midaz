@@ -34,6 +34,60 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 )
 
+// operationRouteReturningColumns is the SELECT expression used in the
+// RETURNING clause on Create/Update. It mirrors the canonical column
+// order Scan'd by scanOperationRoute, but wraps the nullable string
+// columns (account_rule_type, account_rule_valid_if) in
+// COALESCE(..., '') because the OperationRoutePostgreSQLModel scans
+// them into plain `string` fields. Rows inserted by external test
+// helpers (or future migrations) that leave these columns NULL would
+// otherwise fail Scan with "converting NULL to string is unsupported".
+const operationRouteReturningColumns = "id, organization_id, ledger_id, title, description, code, operation_type, " +
+	"COALESCE(account_rule_type, '') AS account_rule_type, " +
+	"COALESCE(account_rule_valid_if, '') AS account_rule_valid_if, " +
+	"accounting_entries, created_at, updated_at, deleted_at"
+
+// operationRouteInsertColumnList is the subset of columns written by
+// Create. deleted_at is server-defaulted to NULL, so excluding it from
+// the INSERT keeps the squirrel Values() call aligned with the model
+// fields we actually populate.
+var operationRouteInsertColumnList = []string{
+	"id",
+	"organization_id",
+	"ledger_id",
+	"title",
+	"description",
+	"code",
+	"operation_type",
+	"account_rule_type",
+	"account_rule_valid_if",
+	"accounting_entries",
+	"created_at",
+	"updated_at",
+}
+
+// scanOperationRoute reads one row into the given model using the
+// canonical column order from operationRouteReturningColumns. Kept as
+// a helper so Create/Update can share the Scan layout without
+// duplicating 13-field call sites.
+func scanOperationRoute(row interface{ Scan(...any) error }, m *OperationRoutePostgreSQLModel) error {
+	return row.Scan(
+		&m.ID,
+		&m.OrganizationID,
+		&m.LedgerID,
+		&m.Title,
+		&m.Description,
+		&m.Code,
+		&m.OperationType,
+		&m.AccountRuleType,
+		&m.AccountRuleValidIf,
+		&m.AccountingEntries,
+		&m.CreatedAt,
+		&m.UpdatedAt,
+		&m.DeletedAt,
+	)
+}
+
 // Repository provides the persistence contract for operation routes and their transaction-route links.
 //
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=operationroute.postgresql_mock.go --package=operationroute . Repository
@@ -137,8 +191,9 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 	record.FromEntity(operationRoute)
 
 	query, args, err := squirrel.Insert(r.tableName).
-		Columns("id", "organization_id", "ledger_id", "title", "description", "code", "operation_type", "account_rule_type", "account_rule_valid_if", "accounting_entries", "created_at", "updated_at").
+		Columns(operationRouteInsertColumnList...).
 		Values(record.ID, record.OrganizationID, record.LedgerID, record.Title, record.Description, record.Code, record.OperationType, record.AccountRuleType, record.AccountRuleValidIf, record.AccountingEntries, record.CreatedAt, record.UpdatedAt).
+		Suffix("RETURNING " + operationRouteReturningColumns).
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 	if err != nil {
@@ -157,8 +212,10 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 	_, spanExec := tracer.Start(ctx, "postgres.create.exec")
 	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, query, args...)
-	if err != nil {
+	inserted := &OperationRoutePostgreSQLModel{}
+
+	row := db.QueryRowContext(ctx, query, args...)
+	if err := scanOperationRoute(row, inserted); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, constant.EntityOperationRoute)
@@ -183,35 +240,7 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 		return nil, err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to get rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to get rows affected",
-			libLog.Err(err),
-			libLog.String("operation_route_id", record.ID.String()),
-		)
-
-		return nil, err
-	}
-
-	spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
-
-	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityOperationRoute)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to create operation route. Rows affected is 0", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Operation route not created",
-			libLog.Err(err),
-			libLog.String("operation_route_id", record.ID.String()),
-			libLog.Any("rows_affected", rowsAffected),
-		)
-
-		return nil, err
-	}
-
-	return record.ToEntity(), nil
+	return inserted.ToEntity(), nil
 }
 
 func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.OperationRoute, error) {
@@ -509,6 +538,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 	record.UpdatedAt = time.Now()
 	qb = qb.Set("updated_at", record.UpdatedAt).
 		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "id": id, "deleted_at": nil}).
+		Suffix("RETURNING " + operationRouteReturningColumns).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := qb.ToSql()
@@ -528,8 +558,20 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 	_, spanExec := tracer.Start(ctx, "postgres.update.exec")
 	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, query, args...)
-	if err != nil {
+	updated := &OperationRoutePostgreSQLModel{}
+
+	row := db.QueryRowContext(ctx, query, args...)
+	if err := scanOperationRoute(row, updated); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update operation route. Rows affected is 0", services.ErrDatabaseItemNotFound)
+
+			logger.Log(ctx, libLog.LevelWarn, "Operation route not found for update",
+				libLog.String("operation_route_id", id.String()),
+			)
+
+			return nil, services.ErrDatabaseItemNotFound
+		}
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, constant.EntityOperationRoute)
@@ -554,35 +596,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 		return nil, err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to get rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to get rows affected",
-			libLog.Err(err),
-			libLog.String("operation_route_id", id.String()),
-		)
-
-		return nil, err
-	}
-
-	spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
-
-	if rowsAffected == 0 {
-		err := services.ErrDatabaseItemNotFound
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update operation route. Rows affected is 0", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Operation route not found for update",
-			libLog.Err(err),
-			libLog.String("operation_route_id", id.String()),
-			libLog.Any("rows_affected", rowsAffected),
-		)
-
-		return nil, err
-	}
-
-	return record.ToEntity(), nil
+	return updated.ToEntity(), nil
 }
 
 func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {

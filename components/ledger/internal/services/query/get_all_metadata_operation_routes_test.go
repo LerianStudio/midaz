@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -15,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
@@ -91,7 +91,7 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 		}
 
 		mockMetadataRepo.EXPECT().
-			FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), gomock.Any()).
+			FindList(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).
 			Return(expectedMetadata, nil)
 
 		mockOperationRouteRepo.EXPECT().
@@ -121,7 +121,7 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 		}
 
 		mockMetadataRepo.EXPECT().
-			FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), gomock.Any()).
+			FindList(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).
 			Return(nil, errors.New("metadata repository error"))
 
 		result, cursor, err := uc.GetAllMetadataOperationRoutes(context.Background(), organizationID, ledgerID, filter)
@@ -146,7 +146,7 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 		}
 
 		mockMetadataRepo.EXPECT().
-			FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), gomock.Any()).
+			FindList(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).
 			Return(nil, nil)
 
 		result, cursor, err := uc.GetAllMetadataOperationRoutes(context.Background(), organizationID, ledgerID, filter)
@@ -179,7 +179,7 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 		}
 
 		mockMetadataRepo.EXPECT().
-			FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), gomock.Any()).
+			FindList(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).
 			Return(expectedMetadata, nil)
 
 		mockOperationRouteRepo.EXPECT().
@@ -214,7 +214,7 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 		}
 
 		mockMetadataRepo.EXPECT().
-			FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), gomock.Any()).
+			FindList(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).
 			Return(expectedMetadata, nil)
 
 		mockOperationRouteRepo.EXPECT().
