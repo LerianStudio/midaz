@@ -155,6 +155,9 @@ func midazEventDefinitions() []events.Definition {
 		events.PortfolioCreatedDefinition,
 		events.PortfolioUpdatedDefinition,
 		events.PortfolioDeletedDefinition,
+		events.SegmentCreatedDefinition,
+		events.SegmentUpdatedDefinition,
+		events.SegmentDeletedDefinition,
 	}
 }
 
