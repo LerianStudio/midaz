@@ -158,9 +158,9 @@ func midazEventDefinitions() []events.Definition {
 		events.SegmentCreatedDefinition,
 		events.SegmentUpdatedDefinition,
 		events.SegmentDeletedDefinition,
-		events.AccountTypeCreatedDefinition,
-		events.AccountTypeUpdatedDefinition,
-		events.AccountTypeDeletedDefinition,
+		// account_type.* events are intentionally NOT registered:
+		// internal validation config, the type label flows through
+		// account.* events as a string field.
 		events.OperationRouteCreatedDefinition,
 		events.OperationRouteUpdatedDefinition,
 		events.OperationRouteDeletedDefinition,

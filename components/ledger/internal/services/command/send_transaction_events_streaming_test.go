@@ -167,6 +167,46 @@ func TestSendTransactionEvents_PhaseUpdatedCanceledEmitsCanceled(t *testing.T) {
 	pkgStreaming.AssertEventEmitted(t, mockEmitter, "transaction", "canceled")
 }
 
+// TestSendTransactionEvents_PhaseCreatedPendingSkipsLibStreaming locks
+// the scope-fence contract: PENDING transactions on the fresh-insert
+// path do NOT emit transaction.posted. PENDING is a pre-commit state;
+// the broadcast happens later via transaction.committed or
+// transaction.canceled.
+func TestSendTransactionEvents_PhaseCreatedPendingSkipsLibStreaming(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockEmitter := pkgStreaming.NewMockEmitter()
+	uc := newSendTransactionEventsTestUseCase(t, ctrl, mockEmitter)
+
+	tran := transactionLifecycleFixture(nil, constant.PENDING)
+	uc.SendTransactionEvents(context.Background(), tran, TransactionLifecyclePhaseCreated)
+
+	assert.Empty(t, mockEmitter.Events(),
+		"PENDING transactions on fresh-insert path must not emit transaction.posted; "+
+			"the broadcast fires later via transaction.committed or transaction.canceled")
+}
+
+// TestSendTransactionEvents_PhaseCreatedNotedSkipsLibStreaming locks
+// the scope contract for NOTED transactions. NOTED is annotation-only
+// (no balance impact, no operations) and is not a broadcastable
+// business fact. The fresh-insert path must skip emission entirely for
+// NOTED status.
+func TestSendTransactionEvents_PhaseCreatedNotedSkipsLibStreaming(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockEmitter := pkgStreaming.NewMockEmitter()
+	uc := newSendTransactionEventsTestUseCase(t, ctrl, mockEmitter)
+
+	tran := transactionLifecycleFixture(nil, constant.NOTED)
+	uc.SendTransactionEvents(context.Background(), tran, TransactionLifecyclePhaseCreated)
+
+	assert.Empty(t, mockEmitter.Events(),
+		"NOTED transactions must not emit transaction.posted; "+
+			"the catalog scope fence excludes annotation-only facts")
+}
+
 // TestSendTransactionEvents_PhaseNoopSkipsLibStreaming locks the
 // noop-phase contract: when CreateOrUpdateTransaction observed no state
 // change (e.g. ineligible unique violation), lib-streaming emits

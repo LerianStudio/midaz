@@ -143,13 +143,30 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 //	┌────────────────┬─────────────────┬──────────────┬───────────────────────┐
 //	│ phase          │ ParentTxID      │ Status.Code  │ Definition            │
 //	├────────────────┼─────────────────┼──────────────┼───────────────────────┤
-//	│ created        │ nil             │ any          │ transaction.posted    │
-//	│ created        │ non-nil         │ any          │ transaction.reverted  │
+//	│ created        │ nil             │ APPROVED     │ transaction.posted    │
+//	│ created        │ non-nil         │ APPROVED     │ transaction.reverted  │
+//	│ created        │ ignored         │ PENDING      │ skipped (pre-commit)  │
+//	│ created        │ ignored         │ NOTED        │ skipped (annotation)  │
+//	│ created        │ ignored         │ other        │ skipped (defensive)   │
 //	│ updated        │ ignored         │ APPROVED     │ transaction.committed │
 //	│ updated        │ ignored         │ CANCELED     │ transaction.canceled  │
 //	│ updated        │ ignored         │ other        │ skipped (defensive)   │
 //	│ noop / unknown │ ignored         │ ignored      │ skipped               │
 //	└────────────────┴─────────────────┴──────────────┴───────────────────────┘
+//
+// Status-gate rationale (created phase):
+//   - APPROVED is the only status broadcast on fresh insert. The
+//     CREATED-input branch promotes to APPROVED at L181-188 of
+//     CreateOrUpdateTransaction — that's the canonical posted path.
+//     The revert flow also creates a child transaction in APPROVED.
+//   - PENDING is a pre-commit state. No business fact has occurred yet
+//     (no balance movement, no settlement) — the broadcast happens later
+//     via transaction.committed or transaction.canceled.
+//   - NOTED is annotation-only (no balance impact, no operations); not
+//     a broadcastable business fact.
+//   - Other statuses (CANCELED on a fresh insert, etc.) are defensive
+//     skips — they shouldn't occur on the fresh-insert path but if they
+//     do, we don't fabricate a posted/reverted event for them.
 //
 // Wire-format mapping lives in pkg/streaming/events/transaction_lifecycle.go;
 // changes to the payload contract belong there, not here.
@@ -175,6 +192,13 @@ func (uc *UseCase) emitTransactionLifecycleEvent(ctx context.Context, span trace
 
 	switch phase {
 	case TransactionLifecyclePhaseCreated:
+		// Gate on status=APPROVED. PENDING transactions await /commit
+		// or /cancel before broadcasting; NOTED is excluded by scope
+		// fence (see docstring above).
+		if tran.Status.Code != constant.APPROVED {
+			return
+		}
+
 		if tran.ParentTransactionID != nil && *tran.ParentTransactionID != "" {
 			definitionKey = events.TransactionRevertedDefinition.Key()
 			buildFn = func(tenantID string) (libStreaming.EmitRequest, error) {
