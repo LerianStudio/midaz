@@ -8,12 +8,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"testing"
 
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/repository"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -637,11 +637,11 @@ func TestCollectMetadataFromPayloads_Success(t *testing.T) {
 	require.Len(t, entries, 5)
 
 	// Verify transaction entries
-	txEntries := filterEntriesByCollection(entries, reflect.TypeOf(transaction.Transaction{}).Name())
+	txEntries := filterEntriesByCollection(entries, constant.EntityTransaction)
 	require.Len(t, txEntries, 2)
 
 	// Verify operation entries
-	opEntries := filterEntriesByCollection(entries, reflect.TypeOf(operation.Operation{}).Name())
+	opEntries := filterEntriesByCollection(entries, constant.EntityOperation)
 	require.Len(t, opEntries, 3)
 }
 
@@ -690,8 +690,8 @@ func TestCollectMetadataFromPayloads_SkipsDuplicateTxMetadata(t *testing.T) {
 
 	entries := collectMetadataFromPayloads(payloads, insertedTxIDs)
 
-	transactionTypeName := reflect.TypeOf(transaction.Transaction{}).Name()
-	operationTypeName := reflect.TypeOf(operation.Operation{}).Name()
+	transactionTypeName := constant.EntityTransaction
+	operationTypeName := constant.EntityOperation
 
 	// tx-level metadata: only tx1 (1 entry). tx2's metadata is skipped.
 	txEntries := filterEntriesByCollection(entries, transactionTypeName)
@@ -748,8 +748,8 @@ func TestCollectMetadataFromPayloads_MixedInsertAndStatusTransition(t *testing.T
 
 	entries := collectMetadataFromPayloads(payloads, insertedTxIDs)
 
-	transactionTypeName := reflect.TypeOf(transaction.Transaction{}).Name()
-	operationTypeName := reflect.TypeOf(operation.Operation{}).Name()
+	transactionTypeName := constant.EntityTransaction
+	operationTypeName := constant.EntityOperation
 
 	// Transaction metadata: only tx1 (newly inserted), NOT tx2 (status-transition)
 	txEntries := filterEntriesByCollection(entries, transactionTypeName)

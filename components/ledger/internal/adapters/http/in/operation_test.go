@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 	"time"
 
@@ -365,7 +364,7 @@ func TestOperationHandler_GetOperationByAccount(t *testing.T) {
 			setupMocks: func(operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, accountID, operationID uuid.UUID) {
 				operationRepo.EXPECT().
 					FindByAccount(gomock.Any(), orgID, ledgerID, accountID, operationID).
-					Return(nil, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -561,7 +560,7 @@ func TestOperationHandler_UpdateOperation(t *testing.T) {
 			setupMocks: func(operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, transactionID, operationID uuid.UUID) {
 				operationRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, transactionID, operationID, gomock.Any()).
-					Return(nil, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)).
 					Times(1)
 			},
 			expectedStatus: 404,

@@ -173,6 +173,10 @@ func midazEventDefinitions() []events.Definition {
 		events.BalanceOverdraftDrawnDefinition,
 		events.BalanceOverdraftRepaidDefinition,
 		events.BalanceOverdraftClearedDefinition,
+		events.TransactionPostedDefinition,
+		events.TransactionCommittedDefinition,
+		events.TransactionCanceledDefinition,
+		events.TransactionRevertedDefinition,
 	}
 }
 

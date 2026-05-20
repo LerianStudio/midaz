@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
@@ -33,7 +32,7 @@ func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, le
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting operation on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation on repo by account", err)
 
@@ -48,7 +47,7 @@ func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, le
 	}
 
 	if op != nil {
-		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String())
+		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityOperation, operationID.String())
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb operation", err)
 

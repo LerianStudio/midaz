@@ -7,11 +7,11 @@ package query
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 
 	// GetTransactionByID gets data in the repository.
@@ -36,7 +36,7 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 	}
 
 	if tran != nil {
-		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionID.String())
+		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityTransaction, transactionID.String())
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb account", err)
 
@@ -72,7 +72,7 @@ func (uc *UseCase) GetTransactionWithOperationsByID(ctx context.Context, organiz
 	}
 
 	if tran != nil {
-		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionID.String())
+		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityTransaction, transactionID.String())
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb account", err)
 
