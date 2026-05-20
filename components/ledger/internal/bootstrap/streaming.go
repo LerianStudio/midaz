@@ -167,6 +167,12 @@ func midazEventDefinitions() []events.Definition {
 		events.TransactionRouteCreatedDefinition,
 		events.TransactionRouteUpdatedDefinition,
 		events.TransactionRouteDeletedDefinition,
+		events.BalanceCreatedDefinition,
+		events.BalanceConfigChangedDefinition,
+		events.BalanceDeletedDefinition,
+		events.BalanceOverdraftDrawnDefinition,
+		events.BalanceOverdraftRepaidDefinition,
+		events.BalanceOverdraftClearedDefinition,
 	}
 }
 

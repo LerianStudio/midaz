@@ -12,14 +12,18 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate mtransaction.Responses, balances []*mmodel.Balance, balancesAfter []*mmodel.Balance) error {
@@ -181,10 +185,21 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	// mutated — this keeps the pair (parent.AllowOverdraft, overdraft
 	// balance) consistent on failure. Guarded so the path only runs when
 	// the caller actually provided new settings.
+	//
+	// When this call materializes a fresh companion balance (rather than
+	// finding an existing one or losing the concurrent-insert race) it
+	// returns the persisted companion so we can publish
+	// balance.config_changed{changeType=overdraft_enabled} for that row.
+	// That event substitutes for the suppressed balance.created on the
+	// companion (companions are system-managed).
+	var companion *mmodel.Balance
 	if update.Settings != nil {
-		if err := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, current, update.Settings); err != nil {
+		c, err := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, current, update.Settings)
+		if err != nil {
 			return nil, err
 		}
+
+		companion = c
 	}
 
 	balance, err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
@@ -194,6 +209,18 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 
 		return nil, err
 	}
+
+	// Publish events for both branches in order: the companion's
+	// config_changed{overdraft_enabled} (when ensureOverdraftBalance
+	// materialized a fresh row), then the parent's
+	// config_changed{settings_updated}. A single PATCH that flips
+	// AllowOverdraft false->true therefore produces two events; an
+	// ordinary settings PATCH produces only the parent's.
+	if companion != nil {
+		uc.emitBalanceConfigChangedEvent(ctx, span, logger, companion, events.BalanceConfigChangeTypeOverdraftEnabled)
+	}
+
+	uc.emitBalanceConfigChangedEvent(ctx, span, logger, balance, events.BalanceConfigChangeTypeSettingsUpdated)
 
 	// Overlay amounts from Redis cache when available to ensure freshest values
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balance.Alias+"#"+balance.Key)
@@ -247,4 +274,31 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	}
 
 	return balance, nil
+}
+
+// emitBalanceConfigChangedEvent publishes the balance.config_changed
+// event for a successfully persisted balance configuration mutation.
+// IMPORTANT posture: build and emit failures are span-recorded and
+// logged at Warn, never returned. Durability of the event is owned by
+// PG and (follow-up task) the outbox subsystem + DLQ, not by the
+// synchronous Emit call.
+//
+// Anchor (two callers):
+//   - UseCase.Update at the post-Update success branch, with the
+//     parent balance and changeType=settings_updated.
+//   - UseCase.Update at the post-ensureOverdraftBalance success branch,
+//     with the COMPANION balance and changeType=overdraft_enabled.
+//
+// Caller invariant: b must be the value returned by BalanceRepo.Update
+// (settings_updated branch) or by BalanceRepo.Create via
+// ensureOverdraftBalance (overdraft_enabled branch). In both cases
+// b.UpdatedAt must reflect the persisted row.
+//
+// Wire-format mapping lives in pkg/streaming/events/balance_config_changed.go;
+// changes to the payload contract belong there, not here.
+func (uc *UseCase) emitBalanceConfigChangedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, b *mmodel.Balance, changeType string) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.BalanceConfigChangedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewBalanceConfigChanged(b, changeType).ToEmitRequest(tenantID, b.UpdatedAt)
+		})
 }

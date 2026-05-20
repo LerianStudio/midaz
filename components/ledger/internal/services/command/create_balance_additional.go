@@ -13,15 +13,17 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
-
-	// CreateAdditionalBalance creates a new additional balance.
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -87,8 +89,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		var notFound pkg.EntityNotFoundError
 		if !errors.As(err, &notFound) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check if additional balance already exists", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to check if additional balance already exists: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to check if additional balance already exists", libLog.Err(err))
 
 			return nil, err
 		}
@@ -96,8 +97,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 	if existingBalance != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Additional balance already exists", nil)
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Additional balance already exists: %v", cbi.Key))
+		logger.Log(ctx, libLog.LevelInfo, "Additional balance already exists", libLog.String("key", cbi.Key))
 
 		return nil, pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, constant.EntityBalance, cbi.Key)
 	}
@@ -105,8 +105,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	defaultBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.DefaultBalanceKey)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get default balance", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get default balance: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get default balance", libLog.Err(err))
 
 		return nil, err
 	}
@@ -163,10 +162,12 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 			return nil, err
 		}
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating additional balance on repo: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error creating additional balance on repo", libLog.Err(err))
 
 		return nil, err
 	}
+
+	uc.emitBalanceCreatedEvent(ctx, span, logger, created)
 
 	return created, nil
 }
@@ -183,4 +184,27 @@ func isBalanceKeyUniqueViolation(err error) bool {
 func isPostgresUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr != nil && pgErr.Code == constant.UniqueViolationCode
+}
+
+// emitBalanceCreatedEvent publishes the balance.created event for a
+// balance materialized via CreateAdditionalBalance. IMPORTANT posture:
+// build and emit failures are span-recorded and logged at Warn, never
+// returned. Durability of the event is owned by PG and (follow-up task)
+// the outbox subsystem + DLQ, not by the synchronous Emit call.
+//
+// Anchor: invoked immediately after BalanceRepo.Create succeeds on the
+// public POST .../accounts/:account_id/balances endpoint. The other
+// callers of BalanceRepo.Create — CreateDefaultBalance (auto-default
+// path from CreateAccount/CreateAsset) and ensureOverdraftBalance
+// (system-managed overdraft companion) — intentionally do NOT emit
+// balance.created. The first folds into account.created/asset.created;
+// the second into balance.config_changed{changeType=overdraft_enabled}.
+//
+// Wire-format mapping lives in pkg/streaming/events/balance_created.go;
+// changes to the payload contract belong there, not here.
+func (uc *UseCase) emitBalanceCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, b *mmodel.Balance) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.BalanceCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewBalanceCreated(b).ToEmitRequest(tenantID, b.CreatedAt)
+		})
 }

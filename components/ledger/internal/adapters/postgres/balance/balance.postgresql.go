@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -1043,7 +1042,7 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&balance.Settings,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
@@ -1116,7 +1115,7 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 		&balance.Settings,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
@@ -1233,7 +1232,7 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+		err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete balance. Rows affected is 0", err)
 
@@ -1318,7 +1317,7 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 	}
 
 	if rowsAffected != int64(len(ids)) {
-		err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+		err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete balances. Rows affected mismatch", err)
 
@@ -1349,6 +1348,10 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 // The use-case layer is responsible for validating the settings payload and
 // enforcing overdraft transition invariants before calling Update — the
 // repository trusts the inbound value.
+//
+// Uses squirrel + RETURNING with conditional .Set() per field so callers can
+// PATCH any subset of {allow_sending, allow_receiving, settings} without the
+// repo emitting placeholder strings for fields the request omits.
 func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -1358,27 +1361,19 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return nil, err
 	}
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.update.query")
-	defer spanQuery.End()
-
-	var updates []string
-
-	var args []any
+	qb := squirrel.Update(r.tableName)
 
 	if balance.AllowSending != nil {
-		updates = append(updates, "allow_sending = $"+strconv.Itoa(len(args)+1))
-		args = append(args, balance.AllowSending)
+		qb = qb.Set("allow_sending", *balance.AllowSending)
 	}
 
 	if balance.AllowReceiving != nil {
-		updates = append(updates, "allow_receiving = $"+strconv.Itoa(len(args)+1))
-		args = append(args, balance.AllowReceiving)
+		qb = qb.Set("allow_receiving", *balance.AllowReceiving)
 	}
 
 	if balance.Settings != nil {
@@ -1389,28 +1384,33 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 		settingsJSON, marshalErr := json.Marshal(balance.Settings)
 		if marshalErr != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to marshal balance settings", marshalErr)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to marshal balance settings: %v", marshalErr))
+			logger.Log(ctx, libLog.LevelError, "Failed to marshal balance settings", libLog.Err(marshalErr))
 
 			return nil, marshalErr
 		}
 
-		updates = append(updates, "settings = $"+strconv.Itoa(len(args)+1)+"::jsonb")
-		args = append(args, settingsJSON)
+		qb = qb.Set("settings", squirrel.Expr("?::jsonb", settingsJSON))
 	}
 
-	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-	args = append(args, time.Now(), organizationID, ledgerID, id)
+	qb = qb.Set("updated_at", time.Now()).
+		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "id": id, "deleted_at": nil}).
+		Suffix("RETURNING " + strings.Join(balanceColumnList, ", ")).
+		PlaceholderFormat(squirrel.Dollar)
 
-	queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
-		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
-		` AND id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL` +
-		` RETURNING ` + strings.Join(balanceColumnList, ", ")
+	query, args, err := qb.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build update query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build update query", libLog.Err(err))
+
+		return nil, err
+	}
+
+	_, spanExec := tracer.Start(ctx, "postgres.update.exec")
+	defer spanExec.End()
 
 	record := &BalancePostgreSQLModel{}
 
-	row := db.QueryRowContext(ctx, queryUpdate, args...)
+	row := db.QueryRowContext(ctx, query, args...)
 	if err = row.Scan(
 		&record.ID,
 		&record.OrganizationID,
@@ -1433,18 +1433,16 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 		&record.Settings,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance not found", err)
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Balance not found: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Balance not found for update", libLog.Err(err))
 
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to update balance", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balance: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to update balance", libLog.Err(err))
 
 		return nil, err
 	}
@@ -1657,7 +1655,7 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update balances. Rows affected is 0", err)
 

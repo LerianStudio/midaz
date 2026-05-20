@@ -181,6 +181,7 @@ func TestIntegration_BalanceRepository_Create_Success(t *testing.T) {
 		AccountType:    "savings",
 		AllowSending:   true,
 		AllowReceiving: false,
+		Direction:      constant.DirectionCredit,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
