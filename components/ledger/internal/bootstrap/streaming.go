@@ -164,6 +164,9 @@ func midazEventDefinitions() []events.Definition {
 		events.OperationRouteCreatedDefinition,
 		events.OperationRouteUpdatedDefinition,
 		events.OperationRouteDeletedDefinition,
+		events.TransactionRouteCreatedDefinition,
+		events.TransactionRouteUpdatedDefinition,
+		events.TransactionRouteDeletedDefinition,
 	}
 }
 

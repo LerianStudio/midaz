@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -38,7 +37,7 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting transaction routes on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, constant.EntityTransactionRoute)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction routes on repo", err)
 
@@ -60,9 +59,9 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, 
 			metadataFilter.Metadata = &bson.M{}
 		}
 
-		metadata, err := uc.TransactionMetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), metadataFilter)
+		metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityTransactionRoute, metadataFilter)
 		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransactionRoute)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb transaction route", err)
 
