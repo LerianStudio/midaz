@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -96,7 +97,7 @@ func TestCreateAdditionalBalance(t *testing.T) {
 	t.Run("failed to get default balance", func(t *testing.T) {
 		allowSending := true
 		allowReceiving := true
-		key := "test-key"
+		key := "TEST-KEY"
 
 		cbi := &mmodel.CreateAdditionalBalance{
 			Key:            key,
@@ -145,6 +146,77 @@ func TestCreateAdditionalBalance(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "An account alias with the specified key value already exists")
+	})
+
+	t.Run("unique violation creating additional balance returns duplicate key error", func(t *testing.T) {
+		allowSending := true
+		allowReceiving := true
+		key := "test-key"
+
+		cbi := &mmodel.CreateAdditionalBalance{
+			Key:            key,
+			AllowSending:   &allowSending,
+			AllowReceiving: &allowReceiving,
+		}
+
+		mockBalanceRepo.EXPECT().
+			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "test-key").
+			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+			Times(1)
+
+		mockBalanceRepo.EXPECT().
+			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "default").
+			Return(defaultBalance, nil).
+			Times(1)
+
+		mockBalanceRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(&pgconn.PgError{Code: constant.UniqueViolationCode, ConstraintName: balanceAccountKeyUniqueIndex}).
+			Times(1)
+
+		result, err := uc.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, cbi)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+
+		var conflictErr pkg.EntityConflictError
+		assert.True(t, errors.As(err, &conflictErr))
+		assert.Equal(t, "Balance", conflictErr.EntityType)
+		assert.Equal(t, constant.ErrDuplicatedAliasKeyValue.Error(), conflictErr.Code)
+	})
+
+	t.Run("other unique violation creating additional balance returns original error", func(t *testing.T) {
+		allowSending := true
+		allowReceiving := true
+		key := "test-key"
+
+		cbi := &mmodel.CreateAdditionalBalance{
+			Key:            key,
+			AllowSending:   &allowSending,
+			AllowReceiving: &allowReceiving,
+		}
+
+		mockBalanceRepo.EXPECT().
+			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "test-key").
+			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+			Times(1)
+
+		mockBalanceRepo.EXPECT().
+			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "default").
+			Return(defaultBalance, nil).
+			Times(1)
+
+		pgErr := &pgconn.PgError{Code: constant.UniqueViolationCode, ConstraintName: "other_constraint"}
+		mockBalanceRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(pgErr).
+			Times(1)
+
+		result, err := uc.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, cbi)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Equal(t, pgErr, err)
 	})
 
 	t.Run("error creating additional balance", func(t *testing.T) {

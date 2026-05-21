@@ -22,7 +22,9 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "command.create_additional_balance")
 	defer span.End()
 
-	existingBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, strings.ToLower(cbi.Key))
+	normalizedKey := strings.ToLower(cbi.Key)
+
+	existingBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, normalizedKey)
 	if err != nil {
 		var notFound pkg.EntityNotFoundError
 		if !errors.As(err, &notFound) {
@@ -60,7 +62,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	additionalBalance := &mmodel.Balance{
 		ID:             libCommons.GenerateUUIDv7().String(),
 		Alias:          defaultBalance.Alias,
-		Key:            strings.ToLower(cbi.Key),
+		Key:            normalizedKey,
 		OrganizationID: defaultBalance.OrganizationID,
 		LedgerID:       defaultBalance.LedgerID,
 		AccountID:      defaultBalance.AccountID,
@@ -74,6 +76,24 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 	err = uc.BalanceRepo.Create(ctx, additionalBalance)
 	if err != nil {
+		// Migration 032 adds a unique balance key index. If another pod wins the
+		// race after the precheck, return the same business error as the precheck.
+		if isBalanceKeyUniqueViolation(err) {
+			berr := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), normalizedKey)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Additional balance already exists", berr)
+
+			logger.Warnf("Additional balance already exists: %v", berr)
+
+			return nil, berr
+		}
+		if isPostgresUniqueViolation(err) {
+			libOpentelemetry.HandleSpanEvent(&span, "Additional balance unique constraint violation")
+
+			logger.Warnf("Additional balance unique constraint violation")
+
+			return nil, err
+		}
+
 		logger.Errorf("Error creating additional balance on repo: %v", err)
 
 		return nil, err

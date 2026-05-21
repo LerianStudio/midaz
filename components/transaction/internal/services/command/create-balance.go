@@ -16,6 +16,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+const (
+	balanceAccountKeyUniqueIndex = "idx_unique_balance_account_key"
+	balanceAliasKeyUniqueIndex   = "idx_unique_balance_alias_key"
+)
+
 func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -52,9 +57,12 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 
 		err = uc.BalanceRepo.Create(ctx, balance)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			if isBalanceKeyUniqueViolation(err) {
 				logger.Infof("Balance already exists: %v", balance.ID)
+			} else if isPostgresUniqueViolation(err) {
+				logger.Warnf("Balance unique constraint violation")
+
+				return err
 			} else {
 				logger.Errorf("Error creating balance on repo: %v", err)
 
@@ -146,6 +154,24 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 	}
 
 	if err := uc.BalanceRepo.Create(ctx, newBalance); err != nil {
+		// Migration 032 adds a unique balance key index. If another pod wins the
+		// race after the precheck, return the same business error as the precheck.
+		if isBalanceKeyUniqueViolation(err) {
+			berr := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), normalizedKey)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance key already exists", berr)
+
+			logger.Warnf("Balance key already exists: %v", berr)
+
+			return nil, berr
+		}
+		if isPostgresUniqueViolation(err) {
+			libOpentelemetry.HandleSpanEvent(&span, "Balance unique constraint violation")
+
+			logger.Warnf("Balance unique constraint violation")
+
+			return nil, err
+		}
+
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create balance on repo", err)
 
 		logger.Errorf("Failed to create balance on repo: %v", err)
@@ -154,4 +180,18 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 	}
 
 	return newBalance, nil
+}
+
+func isBalanceKeyUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr == nil || pgErr.Code != constant.UniqueViolationCode {
+		return false
+	}
+
+	return pgErr.ConstraintName == balanceAccountKeyUniqueIndex || pgErr.ConstraintName == balanceAliasKeyUniqueIndex
+}
+
+func isPostgresUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr != nil && pgErr.Code == constant.UniqueViolationCode
 }

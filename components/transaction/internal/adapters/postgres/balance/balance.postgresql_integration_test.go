@@ -208,6 +208,52 @@ func TestIntegration_BalanceRepository_Create_Success(t *testing.T) {
 	assert.False(t, found.AllowReceiving, "allow_receiving should be false")
 }
 
+func TestIntegration_BalanceRepository_Create_ForwardCompat_NewColumns(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	_, err := container.DB.ExecContext(ctx, `
+		ALTER TABLE balance
+			ADD COLUMN IF NOT EXISTS direction VARCHAR(16) NOT NULL DEFAULT 'credit',
+			ADD COLUMN IF NOT EXISTS overdraft_used DECIMAL NOT NULL DEFAULT 0,
+			ADD COLUMN IF NOT EXISTS settings JSONB
+	`)
+	require.NoError(t, err, "failed to widen balance table for forward-compat test")
+
+	now := time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := createTestAccountID()
+	balanceID := libCommons.GenerateUUIDv7()
+
+	balance := &mmodel.Balance{
+		ID:             balanceID.String(),
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		AccountID:      accountID.String(),
+		Alias:          "@fwd-compat",
+		Key:            "default",
+		AssetCode:      "USD",
+		Available:      decimal.NewFromInt(100),
+		OnHold:         decimal.Zero,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	err = repo.Create(ctx, balance)
+	require.NoError(t, err, "INSERT must not fail when balance table has extra columns")
+
+	var direction string
+	err = container.DB.QueryRowContext(ctx, `SELECT direction FROM balance WHERE id = $1`, balance.ID).Scan(&direction)
+	require.NoError(t, err)
+	assert.Equal(t, "credit", direction)
+}
+
 // ============================================================================
 // Schema Default Values Tests
 // ============================================================================
