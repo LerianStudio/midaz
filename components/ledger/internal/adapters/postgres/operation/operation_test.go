@@ -139,7 +139,7 @@ func TestOperationPostgreSQLModel_ToEntity(t *testing.T) {
 		assert.Nil(t, entity.Status.Description)
 		assert.Empty(t, entity.Route)
 		assert.False(t, entity.BalanceAffected)
-		assert.Empty(t, entity.Direction)
+		assert.Equal(t, "credit", entity.Direction)
 		assert.Nil(t, entity.RouteID)
 		assert.Nil(t, entity.DeletedAt)
 	})

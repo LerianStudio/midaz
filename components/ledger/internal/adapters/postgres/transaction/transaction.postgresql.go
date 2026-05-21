@@ -1296,7 +1296,10 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 		tran := &TransactionPostgreSQLModel{}
 		op := operation.OperationPostgreSQLModel{}
 
-		var body *string
+		var (
+			body        *string
+			opDirection sql.NullString
+		)
 
 		if err := rows.Scan(
 			&tran.ID,
@@ -1341,7 +1344,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			&op.BalanceKey,
 			&op.VersionBalance,
 			&op.VersionBalanceAfter,
-			&op.Direction,
+			&opDirection,
 			&op.RouteID,
 			&op.RouteCode,
 			&op.RouteDescription,
@@ -1353,6 +1356,8 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 
 			return nil, err
 		}
+
+		op.Direction = opDirection.String
 
 		if !libCommons.IsNilOrEmpty(body) {
 			err = json.Unmarshal([]byte(*body), &tran.Body)
@@ -1366,6 +1371,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 		}
 
 		newTransaction = tran.ToEntity()
+
 		operations = append(operations, op.ToEntity())
 	}
 
