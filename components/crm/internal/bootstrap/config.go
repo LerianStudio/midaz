@@ -66,6 +66,11 @@ type Config struct {
 	ApplicationName                        string `env:"APPLICATION_NAME"`
 	DeploymentMode                         string `env:"DEPLOYMENT_MODE"`
 	Version                                string `env:"VERSION"`
+	KMSVendor                              string `env:"KMS_VENDOR"`
+	VaultAddr                              string `env:"KMS_VAULT_ADDR"`
+	VaultRoleID                            string `env:"KMS_VAULT_ROLE_ID"`
+	VaultSecretID                          string `env:"KMS_VAULT_SECRET_ID"`
+	VaultMountPath                         string `env:"KMS_VAULT_MOUNT_PATH"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -106,6 +111,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger.Log(context.Background(), libLog.LevelInfo, "Multi-tenant mode ENABLED")
 	} else {
 		logger.Log(context.Background(), libLog.LevelInfo, "Running in SINGLE-TENANT MODE")
+	}
+
+	// Initialize KMS (encryption mode and optional Vault client)
+	kms, err := initKMS(context.Background(), cfg, logger)
+	if err != nil {
+		return nil, err
 	}
 
 	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {
@@ -194,9 +205,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry, readyzHandler)
 
 	return &Service{
-		Server:        serverAPI,
-		EventListener: eventListener,
-		Logger:        logger,
+		Server:         serverAPI,
+		EventListener:  eventListener,
+		EncryptionMode: kms.Mode,
+		VaultClient:    kms.VaultClient,
+		Logger:         logger,
 	}, nil
 }
 
