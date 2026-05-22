@@ -86,11 +86,18 @@ func (w *KeysetWrapper) MountPath() string {
 
 // KeysetBundle contains a generated keyset with its wrapped form and metadata.
 // This is returned by generation methods and can be stored by the caller.
+//
+// SECURITY: This struct contains cleartext key material in RawKeyset.
+// Callers MUST NOT persist RawKeyset to disk, logs, or any storage.
+// Use RawKeyset only for immediate in-memory cryptographic operations,
+// then discard it. For storage, use only the Wrapped field.
 type KeysetBundle struct {
 	// Wrapped contains the KMS-encrypted keyset and its metadata.
+	// This is the ONLY field safe to persist.
 	Wrapped WrappedKeyset
-	// RawKeyset contains the serialized keyset bytes (cleartext).
-	// This should only be held in memory temporarily and never persisted.
+	// RawKeyset contains the serialized keyset bytes (CLEARTEXT KEY MATERIAL).
+	// WARNING: Never persist, log, or transmit this field.
+	// Intended only for immediate use after generation, then discard.
 	RawKeyset []byte
 }
 

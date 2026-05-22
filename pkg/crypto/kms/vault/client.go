@@ -46,11 +46,12 @@ func NewClient(cfg Config) (*Client, error) {
 }
 
 // Login authenticates to Vault using the configured auth method.
-// For AppRole: performs login with role_id and secret_id.
-// For Token: sets the provided token directly.
+// For AppRole: performs login API call with role_id and secret_id - validates credentials immediately.
+// For Token: sets the provided token directly - NO validation occurs until first operation.
 //
-// This method is called automatically when needed, but can be called
-// explicitly to verify credentials at startup.
+// This method is called automatically when needed. For AppRole, calling explicitly
+// at startup validates credentials early. For Token auth, validation is deferred
+// to the first Encrypt/Decrypt call.
 func (c *Client) Login(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -95,8 +96,10 @@ func (c *Client) loginAppRole(ctx context.Context) error {
 	return nil
 }
 
-// loginToken sets the provided token directly.
-// Token auth does not perform a login call - it assumes the token is valid.
+// loginToken sets the provided token directly without validation.
+// Unlike AppRole auth, token auth does not make a Vault API call here.
+// The token is only validated on the first actual Vault operation (e.g., Encrypt/Decrypt).
+// Invalid or expired tokens will cause errors at operation time, not at login time.
 func (c *Client) loginToken() error {
 	c.vaultAPI.SetToken(c.config.Token)
 	c.isLoggedIn = true

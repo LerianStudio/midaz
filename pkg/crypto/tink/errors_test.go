@@ -90,6 +90,16 @@ func TestClassifyError(t *testing.T) {
 			expected: ErrorCategoryKMS,
 		},
 		{
+			name:     "KMS uppercase error string",
+			err:      fmt.Errorf("KMS unavailable"),
+			expected: ErrorCategoryKMS,
+		},
+		{
+			name:     "Vault uppercase error string",
+			err:      fmt.Errorf("VAULT connection failed"),
+			expected: ErrorCategoryKMS,
+		},
+		{
 			name:     "decryption failed sentinel",
 			err:      ErrDecryptionFailed,
 			expected: ErrorCategoryCrypto,
@@ -132,6 +142,11 @@ func TestClassifyError(t *testing.T) {
 		{
 			name:     "keyset error string",
 			err:      fmt.Errorf("keyset parsing failed"),
+			expected: ErrorCategoryCrypto,
+		},
+		{
+			name:     "DECRYPT uppercase error string",
+			err:      fmt.Errorf("DECRYPT operation failed"),
 			expected: ErrorCategoryCrypto,
 		},
 		{

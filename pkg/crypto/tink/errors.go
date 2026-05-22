@@ -105,25 +105,29 @@ func classifyBySentinel(err error) ErrorCategory {
 }
 
 // classifyByString categorizes errors based on string patterns.
+// Matching is case-insensitive to handle variations like "KMS unavailable".
 func classifyByString(errStr string) ErrorCategory {
 	kmsPatterns := []string{"kms", "vault", "transit"}
 	cryptoPatterns := []string{"decrypt", "encrypt", "mac", "keyset"}
 	inputPatterns := []string{"invalid", "empty"}
 	configPatterns := []string{"config", "missing"}
 
-	if containsAny(errStr, kmsPatterns) {
+	// Normalize to lowercase for case-insensitive matching
+	errStrLower := strings.ToLower(errStr)
+
+	if containsAny(errStrLower, kmsPatterns) {
 		return ErrorCategoryKMS
 	}
 
-	if containsAny(errStr, cryptoPatterns) {
+	if containsAny(errStrLower, cryptoPatterns) {
 		return ErrorCategoryCrypto
 	}
 
-	if containsAny(errStr, inputPatterns) {
+	if containsAny(errStrLower, inputPatterns) {
 		return ErrorCategoryInput
 	}
 
-	if containsAny(errStr, configPatterns) {
+	if containsAny(errStrLower, configPatterns) {
 		return ErrorCategoryConfiguration
 	}
 
