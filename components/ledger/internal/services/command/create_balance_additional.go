@@ -99,6 +99,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 			return nil, berr
 		}
+
 		if isPostgresUniqueViolation(err) {
 			libOpentelemetry.HandleSpanEvent(span, "Additional balance unique constraint violation")
 

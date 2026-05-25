@@ -293,6 +293,7 @@ func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(ctx context.Context, 
 			expectedStatus,
 			queue.TransactionStatus,
 		))
+
 		return
 	}
 

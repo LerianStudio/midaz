@@ -114,6 +114,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 			return nil, berr
 		}
+
 		if isPostgresUniqueViolation(err) {
 			libOpentelemetry.HandleSpanEvent(span, "Balance unique constraint violation")
 
