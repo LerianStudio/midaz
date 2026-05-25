@@ -587,7 +587,11 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 	spanQuery.End()
 
 	for rows.Next() {
-		var operation OperationPostgreSQLModel
+		var (
+			operation OperationPostgreSQLModel
+			direction sql.NullString
+		)
+
 		if err := rows.Scan(
 			&operation.ID,
 			&operation.TransactionID,
@@ -615,7 +619,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.BalanceKey,
 			&operation.VersionBalance,
 			&operation.VersionBalanceAfter,
-			&operation.Direction,
+			&direction,
 			&operation.RouteID,
 			&operation.RouteCode,
 			&operation.RouteDescription,
@@ -627,6 +631,8 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
+
+		operation.Direction = direction.String
 
 		operations = append(operations, operation.ToEntity())
 	}
@@ -710,7 +716,11 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 	spanQuery.End()
 
 	for rows.Next() {
-		var operation OperationPostgreSQLModel
+		var (
+			operation OperationPostgreSQLModel
+			direction sql.NullString
+		)
+
 		if err := rows.Scan(
 			&operation.ID,
 			&operation.TransactionID,
@@ -738,7 +748,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&operation.BalanceKey,
 			&operation.VersionBalance,
 			&operation.VersionBalanceAfter,
-			&operation.Direction,
+			&direction,
 			&operation.RouteID,
 			&operation.RouteCode,
 			&operation.RouteDescription,
@@ -750,6 +760,8 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 			return nil, err
 		}
+
+		operation.Direction = direction.String
 
 		operations = append(operations, operation.ToEntity())
 	}
@@ -801,6 +813,8 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 
 	operation := &OperationPostgreSQLModel{}
 
+	var direction sql.NullString
+
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -834,7 +848,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.BalanceKey,
 		&operation.VersionBalance,
 		&operation.VersionBalanceAfter,
-		&operation.Direction,
+		&direction,
 		&operation.RouteID,
 		&operation.RouteCode,
 		&operation.RouteDescription,
@@ -856,6 +870,8 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 
 		return nil, err
 	}
+
+	operation.Direction = direction.String
 
 	return operation.ToEntity(), nil
 }
@@ -896,6 +912,8 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 
 	operation := &OperationPostgreSQLModel{}
 
+	var direction sql.NullString
+
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all_by_account.query")
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -929,7 +947,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		&operation.BalanceKey,
 		&operation.VersionBalance,
 		&operation.VersionBalanceAfter,
-		&operation.Direction,
+		&direction,
 		&operation.RouteID,
 		&operation.RouteCode,
 		&operation.RouteDescription,
@@ -951,6 +969,8 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 
 		return nil, err
 	}
+
+	operation.Direction = direction.String
 
 	return operation.ToEntity(), nil
 }
@@ -1097,6 +1117,27 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 	return nil
 }
 
+func applyDirectionFallbackFilter(findAll squirrel.SelectBuilder, direction string) squirrel.SelectBuilder {
+	switch strings.ToLower(direction) {
+	case constant.DirectionDebit:
+		return findAll.Where(squirrel.Expr(
+			"(direction = ? OR ((direction IS NULL OR direction = '') AND UPPER(type) IN (?, ?)))",
+			constant.DirectionDebit,
+			constant.DEBIT,
+			constant.ONHOLD,
+		))
+	case constant.DirectionCredit:
+		return findAll.Where(squirrel.Expr(
+			"(direction = ? OR ((direction IS NULL OR direction = '') AND UPPER(type) IN (?, ?)))",
+			constant.DirectionCredit,
+			constant.CREDIT,
+			constant.RELEASE,
+		))
+	default:
+		return findAll.Where(squirrel.Expr("direction = ?", direction))
+	}
+}
+
 // FindAllByAccount retrieves Operations entities from the database using the provided account ID.
 func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, opFilter OperationFilter, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -1144,7 +1185,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 	}
 
 	if !libCommons.IsNilOrEmpty(opFilter.Direction) {
-		findAll = findAll.Where(squirrel.Expr("direction = ?", *opFilter.Direction))
+		findAll = applyDirectionFallbackFilter(findAll, *opFilter.Direction)
 	}
 
 	if !libCommons.IsNilOrEmpty(opFilter.RouteID) {
@@ -1186,7 +1227,11 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 	spanQuery.End()
 
 	for rows.Next() {
-		var operation OperationPostgreSQLModel
+		var (
+			operation OperationPostgreSQLModel
+			direction sql.NullString
+		)
+
 		if err := rows.Scan(
 			&operation.ID,
 			&operation.TransactionID,
@@ -1214,7 +1259,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 			&operation.BalanceKey,
 			&operation.VersionBalance,
 			&operation.VersionBalanceAfter,
-			&operation.Direction,
+			&direction,
 			&operation.RouteID,
 			&operation.RouteCode,
 			&operation.RouteDescription,
@@ -1226,6 +1271,8 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
+
+		operation.Direction = direction.String
 
 		operations = append(operations, operation.ToEntity())
 	}

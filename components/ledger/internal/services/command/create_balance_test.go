@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -280,6 +281,39 @@ func TestCreateBalanceSync(t *testing.T) {
 		assert.Equal(t, constant.ErrDuplicatedAliasKeyValue.Error(), conflictErr.Code)
 	})
 
+	t.Run("other unique violation creating balance returns original error", func(t *testing.T) {
+		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
+
+		input := mmodel.CreateBalanceInput{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			AccountID:      accountID,
+			Alias:          "test-alias",
+			Key:            "default",
+			AssetCode:      "USD",
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+		}
+
+		mockBalanceRepo.EXPECT().
+			ExistsByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "default").
+			Return(false, nil).
+			Times(1)
+
+		pgErr := &pgconn.PgError{Code: constant.UniqueViolationCode, ConstraintName: "other_constraint"}
+		mockBalanceRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(nil, pgErr).
+			Times(1)
+
+		result, err := uc.CreateBalanceSync(ctx, input)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Equal(t, pgErr, err)
+	})
+
 	t.Run("creates non-default balance", func(t *testing.T) {
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 
@@ -361,6 +395,82 @@ func TestCreateBalanceSync(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, expectedErr, err)
+	})
+
+	t.Run("unique violation creating balance returns duplicate key error", func(t *testing.T) {
+		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
+
+		input := mmodel.CreateBalanceInput{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			AccountID:      accountID,
+			Alias:          "test-alias",
+			Key:            "default",
+			AssetCode:      "USD",
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+		}
+
+		mockBalanceRepo.EXPECT().
+			ExistsByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "default").
+			Return(false, nil).
+			Times(1)
+
+		mockBalanceRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(nil, &pgconn.PgError{Code: constant.UniqueViolationCode, ConstraintName: balanceAccountKeyUniqueIndex}).
+			Times(1)
+
+		result, err := uc.CreateBalanceSync(ctx, input)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+
+		var conflictErr midazpkg.EntityConflictError
+		assert.True(t, errors.As(err, &conflictErr))
+		assert.Equal(t, constant.ErrDuplicatedAliasKeyValue.Error(), conflictErr.Code)
+	})
+
+	t.Run("unique violation creating non-default balance returns duplicate key error", func(t *testing.T) {
+		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
+
+		input := mmodel.CreateBalanceInput{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			AccountID:      accountID,
+			Alias:          "test-alias",
+			Key:            " custom-key ",
+			AssetCode:      "USD",
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+		}
+
+		mockBalanceRepo.EXPECT().
+			ExistsByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, constant.DefaultBalanceKey).
+			Return(true, nil).
+			Times(1)
+
+		mockBalanceRepo.EXPECT().
+			ExistsByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "custom-key").
+			Return(false, nil).
+			Times(1)
+
+		mockBalanceRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(nil, &pgconn.PgError{Code: constant.UniqueViolationCode, ConstraintName: balanceAccountKeyUniqueIndex}).
+			Times(1)
+
+		result, err := uc.CreateBalanceSync(ctx, input)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+
+		var conflictErr midazpkg.EntityConflictError
+		assert.True(t, errors.As(err, &conflictErr))
+		assert.Equal(t, "Balance", conflictErr.EntityType)
+		assert.Equal(t, constant.ErrDuplicatedAliasKeyValue.Error(), conflictErr.Code)
 	})
 
 	t.Run("verifies balance properties on creation", func(t *testing.T) {

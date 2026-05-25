@@ -1,7 +1,6 @@
 # syntax=docker/dockerfile:1.4
-# ci: force rebuild crm image - 2026-04-01
 
-FROM --platform=$BUILDPLATFORM golang:1.26.2-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.3-alpine AS builder
 
 WORKDIR /crm-app
 
