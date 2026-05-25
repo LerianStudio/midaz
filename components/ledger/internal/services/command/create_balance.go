@@ -24,6 +24,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// CreateBalanceSync creates a new balance synchronously using the request-supplied properties.
+// If key != "default", it validates that the default balance exists and that the account type allows additional balances.
+
 func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -101,6 +104,24 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 	created, err := uc.BalanceRepo.Create(ctx, newBalance)
 	if err != nil {
+		// Migration 032 adds a unique balance key index. If another pod wins the
+		// race after the precheck, return the same business error as the precheck.
+		if isBalanceKeyUniqueViolation(err) {
+			berr := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), normalizedKey)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance key already exists", berr)
+
+			logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Balance key already exists: %v", berr))
+
+			return nil, berr
+		}
+		if isPostgresUniqueViolation(err) {
+			libOpentelemetry.HandleSpanEvent(span, "Balance unique constraint violation")
+
+			logger.Log(ctx, libLog.LevelWarn, "Balance unique constraint violation")
+
+			return nil, err
+		}
+
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create balance on repo", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create balance on repo: %v", err))

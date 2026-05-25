@@ -12,6 +12,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	"github.com/google/uuid"
@@ -1210,4 +1211,37 @@ func TestIntegration_LedgerRepository_UpdateSettings_LargeNestedStructure(t *tes
 	key0, ok := result["key_a_0"].(map[string]any)
 	require.True(t, ok, "key_a_0 should be a map")
 	assert.Equal(t, float64(0), key0["value"]) // JSON numbers come back as float64
+}
+
+// TestIntegration_LedgerRepository_Create_ForwardCompat_NewColumns verifies that
+// Create still works after a hypothetical future migration adds a column the
+// repository code does not know about. Backported from v3.5.4 hotfix #2111.
+func TestIntegration_LedgerRepository_Create_ForwardCompat_NewColumns(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	_, err := container.DB.ExecContext(ctx, `ALTER TABLE ledger ADD COLUMN IF NOT EXISTS fwd_compat_marker TEXT NOT NULL DEFAULT 'sentinel'`)
+	require.NoError(t, err, "failed to widen ledger table for forward-compat test")
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	now := time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)
+	ledger := &mmodel.Ledger{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		OrganizationID: orgID.String(),
+		Name:           "Fwd-Compat Ledger",
+		Status:         mmodel.Status{Code: "ACTIVE"},
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	created, err := repo.Create(ctx, ledger)
+	require.NoError(t, err, "INSERT must not fail when ledger table has extra columns")
+	require.NotNil(t, created)
+
+	var marker string
+	err = container.DB.QueryRowContext(ctx, `SELECT fwd_compat_marker FROM ledger WHERE id = $1`, created.ID).Scan(&marker)
+	require.NoError(t, err)
+	assert.Equal(t, "sentinel", marker)
 }
