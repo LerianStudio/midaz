@@ -13,12 +13,16 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto/kms/vault"
 )
 
 // Service is the application glue where we put all top level components to be used.
 type Service struct {
 	*Server
-	EventListener *tmevent.TenantEventListener
+	EventListener  *tmevent.TenantEventListener
+	EncryptionMode crypto.EncryptionMode
+	VaultClient    *vault.Client
 	libLog.Logger
 }
 
