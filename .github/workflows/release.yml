@@ -6,6 +6,7 @@ on:
       - develop
       - release-candidate
       - main
+      - maintenance/v3.5.x
     paths-ignore:
       - '.gitignore'
       - '**/*.env'   # Ignores all .env files
