@@ -3,9 +3,7 @@ name: Release
 on:
   push:
     branches:
-      - develop
-      - release-candidate
-      - main
+      - 'maintenance/v3.6.*'
     paths-ignore:
       - '.gitignore'
       - '**/*.env'   # Ignores all .env files
