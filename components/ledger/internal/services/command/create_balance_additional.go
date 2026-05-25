@@ -18,9 +18,15 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	// CreateAdditionalBalance creates a new additional balance.
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+)
+
+const (
+	balanceAccountKeyUniqueIndex = "idx_unique_balance_account_key"
+	balanceAliasKeyUniqueIndex   = "idx_unique_balance_alias_key"
 )
 
 func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, cbi *mmodel.CreateAdditionalBalance) (*mmodel.Balance, error) {
@@ -29,7 +35,9 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "command.create_additional_balance")
 	defer span.End()
 
-	existingBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, strings.ToLower(cbi.Key))
+	normalizedKey := strings.ToLower(cbi.Key)
+
+	existingBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, normalizedKey)
 	if err != nil {
 		var notFound pkg.EntityNotFoundError
 		if !errors.As(err, &notFound) {
@@ -67,7 +75,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	additionalBalance := &mmodel.Balance{
 		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Alias:          defaultBalance.Alias,
-		Key:            strings.ToLower(cbi.Key),
+		Key:            normalizedKey,
 		OrganizationID: defaultBalance.OrganizationID,
 		LedgerID:       defaultBalance.LedgerID,
 		AccountID:      defaultBalance.AccountID,
@@ -81,10 +89,43 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 	created, err := uc.BalanceRepo.Create(ctx, additionalBalance)
 	if err != nil {
+		// Migration 032 adds a unique balance key index. If another pod wins the
+		// race after the precheck, return the same business error as the precheck.
+		if isBalanceKeyUniqueViolation(err) {
+			berr := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), normalizedKey)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Additional balance already exists", berr)
+
+			logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Additional balance already exists: %v", berr))
+
+			return nil, berr
+		}
+
+		if isPostgresUniqueViolation(err) {
+			libOpentelemetry.HandleSpanEvent(span, "Additional balance unique constraint violation")
+
+			logger.Log(ctx, libLog.LevelWarn, "Additional balance unique constraint violation")
+
+			return nil, err
+		}
+
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating additional balance on repo: %v", err))
 
 		return nil, err
 	}
 
 	return created, nil
+}
+
+func isBalanceKeyUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr == nil || pgErr.Code != constant.UniqueViolationCode {
+		return false
+	}
+
+	return pgErr.ConstraintName == balanceAccountKeyUniqueIndex || pgErr.ConstraintName == balanceAliasKeyUniqueIndex
+}
+
+func isPostgresUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr != nil && pgErr.Code == constant.UniqueViolationCode
 }
