@@ -236,7 +236,7 @@ func (infra *integrationTestInfra) createTestTransaction(t *testing.T, descripti
 	t.Helper()
 
 	tx := &Transaction{
-		ID:             uuid.New().String(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Description:    description,
 		Status:         Status{Code: "ACTIVE"},
 		Amount:         decimalPtr(1000),
@@ -255,7 +255,7 @@ func (infra *chaosTestInfra) createTestTransaction(t *testing.T, description str
 	t.Helper()
 
 	tx := &Transaction{
-		ID:             uuid.New().String(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Description:    description,
 		Status:         Status{Code: "ACTIVE"},
 		Amount:         decimalPtr(1000),
@@ -319,6 +319,32 @@ func TestIntegration_Transaction_Create(t *testing.T) {
 	assert.Equal(t, "ACTIVE", created.Status.Code)
 
 	t.Log("Integration test passed: transaction creation verified")
+}
+
+func TestIntegration_TransactionRepository_Create_ForwardCompat_NewColumns(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupIntegrationInfra(t)
+	ctx := context.Background()
+
+	_, err := infra.pgContainer.DB.ExecContext(ctx, `ALTER TABLE "transaction" ADD COLUMN IF NOT EXISTS route_id UUID`)
+	require.NoError(t, err, "failed to widen transaction table for forward-compat test")
+
+	tx := &Transaction{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		Description:    "Forward-compatible transaction",
+		Status:         Status{Code: "ACTIVE"},
+		Amount:         decimalPtr(1000),
+		AssetCode:      "USD",
+		LedgerID:       infra.ledgerID.String(),
+		OrganizationID: infra.orgID.String(),
+	}
+
+	created, err := infra.repo.Create(ctx, tx)
+	require.NoError(t, err, "INSERT must not fail when transaction table has extra columns")
+	assert.Equal(t, tx.ID, created.ID)
 }
 
 // TestIntegration_Transaction_Find tests finding a transaction by ID.
