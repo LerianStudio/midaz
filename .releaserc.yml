@@ -48,3 +48,6 @@ branches:
     prerelease: beta
   - name: release-candidate
     prerelease: rc
+  - name: maintenance/v3.5.x
+    range: 3.5.x
+    channel: 3.5.x

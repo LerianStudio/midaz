@@ -20,6 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
 
@@ -106,7 +107,9 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	result, err := db.ExecContext(ctx, `INSERT INTO balance VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+	// NOTE (v3.5.4): explicit columns keep this INSERT working when future
+	// migrations add columns to balance. Do not collapse this to table-wide VALUES.
+	result, err := db.ExecContext(ctx, `INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at, deleted_at, key) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id, organization_id, ledger_id, account_id, alias, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at, deleted_at, key`,
 		record.ID,
 		record.OrganizationID,
 		record.LedgerID,
@@ -125,6 +128,15 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 		record.Key,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr != nil && pgErr.Code == constant.UniqueViolationCode {
+			libOpentelemetry.HandleSpanEvent(&spanExec, "Balance unique constraint violation")
+
+			logger.Warnf("Balance unique constraint violation")
+
+			return err
+		}
+
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
 		logger.Errorf("Failed to execute query: %v", err)

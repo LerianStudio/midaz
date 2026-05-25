@@ -123,7 +123,9 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+	// NOTE (v3.5.4): explicit columns keep this INSERT working when future
+	// migrations add columns to transaction. Do not collapse this to table-wide VALUES.
+	result, err := db.ExecContext(ctx, `INSERT INTO transaction (id, parent_transaction_id, description, status, status_description, amount, asset_code, chart_of_accounts_group_name, ledger_id, organization_id, body, created_at, updated_at, deleted_at, route) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, parent_transaction_id, description, status, status_description, amount, asset_code, chart_of_accounts_group_name, ledger_id, organization_id, body, created_at, updated_at, deleted_at, route`,
 		record.ID,
 		record.ParentTransactionID,
 		record.Description,
@@ -142,7 +144,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
+		if errors.As(err, &pgErr) && pgErr != nil && pgErr.Code == constant.UniqueViolationCode && pgErr.ConstraintName == "transaction_pkey" {
 			libOpentelemetry.HandleSpanEvent(&spanExec, "Transaction already exists, skipping duplicate insert (idempotent retry)")
 
 			logger.Infof("Transaction already exists, skipping duplicate insert (idempotent retry)")

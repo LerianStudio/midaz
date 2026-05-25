@@ -90,7 +90,9 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	result, err := db.ExecContext(ctx, `INSERT INTO ledger VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+	// NOTE (v3.5.4): explicit columns keep this INSERT working when future
+	// migrations add columns to ledger. Do not collapse this to table-wide VALUES.
+	result, err := db.ExecContext(ctx, `INSERT INTO ledger (id, name, organization_id, status, status_description, created_at, updated_at, deleted_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, organization_id, status, status_description, created_at, updated_at, deleted_at`,
 		record.ID,
 		record.Name,
 		record.OrganizationID,
@@ -102,7 +104,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
+		if errors.As(err, &pgErr) && pgErr != nil {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Ledger{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)

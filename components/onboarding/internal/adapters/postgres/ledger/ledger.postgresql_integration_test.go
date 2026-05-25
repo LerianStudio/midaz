@@ -10,6 +10,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -199,4 +200,34 @@ func TestIntegration_LedgerRepository_ListByIDs_EdgeCases(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIntegration_LedgerRepository_Create_ForwardCompat_NewColumns(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	_, err := container.DB.ExecContext(ctx, `ALTER TABLE ledger ADD COLUMN IF NOT EXISTS settings JSONB NOT NULL DEFAULT '{}'`)
+	require.NoError(t, err, "failed to widen ledger table for forward-compat test")
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	now := time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)
+	ledger := &mmodel.Ledger{
+		ID:             libCommons.GenerateUUIDv7().String(),
+		OrganizationID: orgID.String(),
+		Name:           "Fwd-Compat Ledger",
+		Status:         mmodel.Status{Code: "ACTIVE"},
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	created, err := repo.Create(ctx, ledger)
+	require.NoError(t, err, "INSERT must not fail when ledger table has extra columns")
+	require.NotNil(t, created)
+
+	var settings string
+	err = container.DB.QueryRowContext(ctx, `SELECT settings::text FROM ledger WHERE id = $1`, created.ID).Scan(&settings)
+	require.NoError(t, err)
+	assert.Equal(t, "{}", settings)
 }
