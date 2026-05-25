@@ -1,5 +1,20 @@
 # Midaz Changelog
 
+## [3.7.2](https://github.com/LerianStudio/midaz/releases/tag/v3.7.2)
+
+- **Fixes:**
+  - Add missing line breaks in balance creation and transaction removal functions for improved readability.
+  - Implement legacy direction handling for operations and transactions.
+
+- **Improvements:**
+  - Update Go toolchain to version 1.26.3.
+
+Contributors: @ClaraTersi, @bedatty, @lerian-studio
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.7.1...v3.7.2)
+
+---
+
 ## [3.7.1](https://github.com/LerianStudio/midaz/releases/tag/v3.7.1)
 
 - **Fixes:**
