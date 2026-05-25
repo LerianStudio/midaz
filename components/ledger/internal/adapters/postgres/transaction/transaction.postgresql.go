@@ -197,7 +197,14 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+	// NOTE (v3.5.4 backport): explicit columns keep this INSERT working when future
+	// migrations add columns to transaction. Do not collapse this to table-wide VALUES.
+	insertQuery := fmt.Sprintf(
+		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING %s`,
+		transactionColumns, transactionColumns,
+	)
+
+	result, err := db.ExecContext(ctx, insertQuery,
 		record.ID,
 		record.ParentTransactionID,
 		record.Description,
@@ -217,7 +224,9 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
+		// Only PK violations are treated as idempotent retries. Other unique
+		// violations (e.g. business indexes) must surface as errors. (v3.5.4 backport)
+		if errors.As(err, &pgErr) && pgErr != nil && pgErr.Code == constant.UniqueViolationCode && pgErr.ConstraintName == "transaction_pkey" {
 			libOpentelemetry.HandleSpanEvent(spanExec, "Transaction already exists, skipping duplicate insert (idempotent retry)")
 
 			logger.Log(ctx, libLog.LevelInfo, "Transaction already exists, skipping duplicate insert (idempotent retry)")
@@ -1296,7 +1305,10 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 		tran := &TransactionPostgreSQLModel{}
 		op := operation.OperationPostgreSQLModel{}
 
-		var body *string
+		var (
+			body        *string
+			opDirection sql.NullString
+		)
 
 		if err := rows.Scan(
 			&tran.ID,
@@ -1341,7 +1353,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			&op.BalanceKey,
 			&op.VersionBalance,
 			&op.VersionBalanceAfter,
-			&op.Direction,
+			&opDirection,
 			&op.RouteID,
 			&op.RouteCode,
 			&op.RouteDescription,
@@ -1353,6 +1365,8 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 
 			return nil, err
 		}
+
+		op.Direction = opDirection.String
 
 		if !libCommons.IsNilOrEmpty(body) {
 			err = json.Unmarshal([]byte(*body), &tran.Body)
@@ -1366,6 +1380,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 		}
 
 		newTransaction = tran.ToEntity()
+
 		operations = append(operations, op.ToEntity())
 	}
 

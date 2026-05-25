@@ -14,7 +14,7 @@ on:
       - '*.md'       # Ignores .md files in the root directory
       - '**/*.txt'   # Ignores all .env files
       - '*.txt'      # Ignores .env files in the root directory
-      - '.github/workflows/**' # Ignores all GitHub Actions workflows
+      - '.github/**' # Ignores all GitHub config (workflows, templates, dependabot, labeler, etc.)
     tags-ignore: ['**']
 
 permissions:
