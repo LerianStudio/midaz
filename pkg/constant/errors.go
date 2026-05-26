@@ -250,3 +250,14 @@ var (
 	ErrRelatedPartyStartDateRequired   = errors.New("CRM-0028")
 	ErrRelatedPartyEndDateInvalid      = errors.New("CRM-0029")
 )
+
+// Encryption and keyset management errors.
+var (
+	ErrKeysetNotFound            = errors.New("ENC-0001")
+	ErrKeysetAlreadyExists       = errors.New("ENC-0002")
+	ErrKeysetRevisionConflict    = errors.New("ENC-0003")
+	ErrRegistryNotFound          = errors.New("ENC-0004")
+	ErrRegistryAlreadyExists     = errors.New("ENC-0005")
+	ErrRegistryRevisionConflict  = errors.New("ENC-0006")
+	ErrRegistryInvalidTransition = errors.New("ENC-0007")
+)
