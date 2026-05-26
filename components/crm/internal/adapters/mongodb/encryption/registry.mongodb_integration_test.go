@@ -23,8 +23,13 @@ import (
 // ============================================================================
 
 // createRegistryRepository creates a RegistryMongoDBRepository for integration testing.
+// Resets the global index tracker for this database to ensure a fresh state,
+// since each test runs with a new MongoDB container.
 func createRegistryRepository(t *testing.T, container *mongotestutil.ContainerResult) *RegistryMongoDBRepository {
 	t.Helper()
+
+	// Reset index tracker state for this database — each test has a fresh container
+	globalIndexTracker.reset(container.DBName + ":" + registryCollection)
 
 	conn := mongotestutil.CreateConnection(t, container.URI, container.DBName)
 

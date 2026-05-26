@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
@@ -34,8 +33,7 @@ type KeysetRepository interface {
 
 // KeysetMongoDBRepository is a MongoDB-specific implementation of KeysetRepository.
 type KeysetMongoDBRepository struct {
-	connection  *libMongo.Client
-	indexesOnce sync.Once
+	connection *libMongo.Client
 }
 
 // NewKeysetMongoDBRepository returns a new instance of KeysetMongoDBRepository using the given MongoDB connection.
@@ -207,15 +205,15 @@ func (r *KeysetMongoDBRepository) collection(ctx context.Context) (*mongo.Collec
 	return db.Collection(keysetCollection), nil
 }
 
-// ensureIndexes ensures indexes exist for the keyset collection, called only once per repository instance.
+// ensureIndexes ensures indexes exist for the keyset collection.
+// Uses per-database tracking to handle multi-tenant mode correctly.
+// Retries on failure — indexes are only marked as done after successful creation.
 func (r *KeysetMongoDBRepository) ensureIndexes(ctx context.Context, collection *mongo.Collection) error {
-	var indexErr error
+	key := collection.Database().Name() + ":" + keysetCollection
 
-	r.indexesOnce.Do(func() {
-		indexErr = r.createIndexes(ctx, collection)
+	return globalIndexTracker.ensureOnce(key, func() error {
+		return r.createIndexes(ctx, collection)
 	})
-
-	return indexErr
 }
 
 // createIndexes ensures indexes exist for the keyset collection.

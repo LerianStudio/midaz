@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
@@ -34,8 +33,7 @@ type RegistryRepository interface {
 
 // RegistryMongoDBRepository is a MongoDB-specific implementation of RegistryRepository.
 type RegistryMongoDBRepository struct {
-	connection  *libMongo.Client
-	indexesOnce sync.Once
+	connection *libMongo.Client
 }
 
 // NewRegistryMongoDBRepository returns a new instance of RegistryMongoDBRepository using the given MongoDB connection.
@@ -193,15 +191,15 @@ func (r *RegistryMongoDBRepository) collection(ctx context.Context) (*mongo.Coll
 	return db.Collection(registryCollection), nil
 }
 
-// ensureIndexes ensures indexes exist for the registry collection, called only once per repository instance.
+// ensureIndexes ensures indexes exist for the registry collection.
+// Uses per-database tracking to handle multi-tenant mode correctly.
+// Retries on failure — indexes are only marked as done after successful creation.
 func (r *RegistryMongoDBRepository) ensureIndexes(ctx context.Context, collection *mongo.Collection) error {
-	var indexErr error
+	key := collection.Database().Name() + ":" + registryCollection
 
-	r.indexesOnce.Do(func() {
-		indexErr = r.createIndexes(ctx, collection)
+	return globalIndexTracker.ensureOnce(key, func() error {
+		return r.createIndexes(ctx, collection)
 	})
-
-	return indexErr
 }
 
 // createIndexes ensures indexes exist for the registry collection.
