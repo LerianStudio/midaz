@@ -21,7 +21,7 @@ services:
   # HashiCorp Vault for KMS/Transit secrets engine (OPTIONAL - only for envelope encryption)
   # Required when: KMS_VENDOR=hashicorp-vault
   # Not required when: KMS_VENDOR=none or empty (legacy mode, default)
-  # For production, use a managed Vault instance with AppRole auth
+  # For saas/byoc, use a managed Vault instance with AppRole auth
   vault:
     container_name: midaz-crm-vault
     image: hashicorp/vault:1.15

@@ -164,7 +164,7 @@ generate-keys:
 	$(call inject_crypto_key,LCRYPTO_ENCRYPT_SECRET_KEY,my-encrypt-secret-key)
 	@echo ""
 	@echo "$(YELLOW)  ⚠️  WARNING: Generated keys are for LOCAL/TEST use only.$(NC)"
-	@echo "$(YELLOW)     For production, generate keys securely and store in a secrets manager.$(NC)"
+	@echo "$(YELLOW)     For saas/byoc, generate keys securely and store in a secrets manager.$(NC)"
 	@echo ""
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Crypto keys generated successfully$(GREEN) ✔️$(NC)"
 
