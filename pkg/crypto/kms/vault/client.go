@@ -177,6 +177,22 @@ func (c *Client) AuthMethod() AuthMethod {
 	return c.config.EffectiveAuthMethod()
 }
 
+// IsAuthenticated returns true if the client has successfully authenticated.
+// This is a fast, local check without any network calls.
+// For Token auth, this returns true after Login() is called (token set).
+// For AppRole auth, this returns true after successful AppRole login.
+func (c *Client) IsAuthenticated() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.isLoggedIn
+}
+
+// Address returns the configured Vault server address.
+func (c *Client) Address() string {
+	return c.config.Addr
+}
+
 // logical returns the Vault logical client for Transit operations.
 func (c *Client) logical() *api.Logical {
 	return c.vaultAPI.Logical()

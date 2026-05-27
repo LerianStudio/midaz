@@ -62,6 +62,7 @@ help:
 	@echo "  make restart                     - Restart all containers"
 	@echo "  make logs                        - Show logs for all services"
 	@echo "  make logs-api                    - Show logs for CRM service"
+	@echo "  make logs-vault                  - Show logs for Vault service (KMS)"
 	@echo "  make ps                          - List container status"
 	@echo "  make rebuild-up                  - Rebuild and restart services during development"
 	@echo "  make clean-docker                - Clean all Docker resources (containers, networks, volumes)"
@@ -333,6 +334,11 @@ logs:
 logs-api:
 	$(call title1,"Showing logs for CRM service")
 	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f crm
+
+.PHONY: logs-vault
+logs-vault:
+	$(call title1,"Showing logs for Vault service")
+	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f vault
 
 .PHONY: ps
 ps:

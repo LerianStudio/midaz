@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
@@ -111,14 +112,61 @@ func validateVaultConfig(mode crypto.EncryptionMode, cfg *Config) error {
 	return nil
 }
 
+// DefaultVaultDevToken is the hardcoded token for local/development environments.
+// This matches the Vault dev container's default root token.
+const DefaultVaultDevToken = "root-token"
+
 // buildVaultConfig creates a vault.Config from the bootstrap Config.
+// Auth method selection based on deployment mode:
+//
+// For local/development environments (DEPLOYMENT_MODE=local or empty):
+//   - Uses Token auth with hardcoded root token (DefaultVaultDevToken)
+//   - AppRole credentials are ignored in local mode for simplicity
+//
+// For production environments (DEPLOYMENT_MODE=saas, byoc):
+//   - Uses AppRole auth exclusively (more secure)
+//   - Token auth is not available in production mode
+//
+// Whitespace-only values are treated as empty.
 func buildVaultConfig(cfg *Config) vault.Config {
+	roleID := strings.TrimSpace(cfg.VaultRoleID)
+	secretID := strings.TrimSpace(cfg.VaultSecretID)
+	hasAppRole := roleID != "" && secretID != ""
+
+	// Determine auth method and token based on deployment mode
+	authMethod, token := resolveVaultAuth(cfg.DeploymentMode, hasAppRole)
+
 	return vault.Config{
-		Addr:      cfg.VaultAddr,
-		RoleID:    cfg.VaultRoleID,
-		SecretID:  cfg.VaultSecretID,
-		MountPath: cfg.VaultMountPath,
+		Addr:       cfg.VaultAddr,
+		RoleID:     cfg.VaultRoleID,
+		SecretID:   cfg.VaultSecretID,
+		MountPath:  cfg.VaultMountPath,
+		Token:      token,
+		AuthMethod: authMethod,
 	}
+}
+
+// resolveVaultAuth determines the Vault auth method and token based on deployment mode.
+// Local/development: uses hardcoded root token for simplicity.
+// Production (saas/byoc): requires AppRole credentials.
+func resolveVaultAuth(deploymentMode string, hasAppRole bool) (vault.AuthMethod, string) {
+	mode := strings.ToLower(strings.TrimSpace(deploymentMode))
+
+	// Check if production environment (saas or byoc)
+	isProduction := mode == DeploymentModeSaaS || mode == DeploymentModeBYOC
+
+	if isProduction {
+		// Production: AppRole only
+		if hasAppRole {
+			return vault.AuthMethodAppRole, ""
+		}
+
+		// No valid auth in production without AppRole
+		return "", ""
+	}
+
+	// Local/development: always use hardcoded root token
+	return vault.AuthMethodToken, DefaultVaultDevToken
 }
 
 // buildTransitKeyName constructs the transit key name for an organization.

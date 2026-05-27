@@ -124,3 +124,78 @@ func (c *NAChecker) Check(_ context.Context) DependencyCheck {
 		Reason: c.reason,
 	}
 }
+
+// VaultAuthChecker is the interface for checking Vault authentication status.
+// This allows testing without a real vault.Client.
+type VaultAuthChecker interface {
+	IsAuthenticated() bool
+}
+
+// VaultChecker probes a Vault client's authentication status.
+// This is a simple flag check without network calls per probe.
+type VaultChecker struct {
+	name       string
+	client     VaultAuthChecker
+	addr       string
+	tlsEnabled bool
+}
+
+// NewVaultChecker creates a new Vault health checker using a real vault.Client.
+// The addr parameter is used for TLS detection.
+func NewVaultChecker(name string, client VaultAuthChecker, addr string) *VaultChecker {
+	return &VaultChecker{
+		name:       name,
+		client:     client,
+		addr:       addr,
+		tlsEnabled: detectVaultTLS(addr),
+	}
+}
+
+// NewVaultCheckerWithClient creates a new Vault health checker with a custom auth checker.
+// This is useful for testing.
+func NewVaultCheckerWithClient(name string, client VaultAuthChecker, addr string) *VaultChecker {
+	return NewVaultChecker(name, client, addr)
+}
+
+// Name returns the checker identifier.
+func (c *VaultChecker) Name() string {
+	return c.name
+}
+
+// TLSEnabled returns whether TLS is enabled for this connection.
+func (c *VaultChecker) TLSEnabled() bool {
+	return c.tlsEnabled
+}
+
+// Check probes the Vault client's authentication status.
+// This is a simple flag check without network calls.
+func (c *VaultChecker) Check(_ context.Context) DependencyCheck {
+	if c.client == nil {
+		return DependencyCheck{
+			Status: StatusSkipped,
+			Reason: "Vault client not configured",
+		}
+	}
+
+	if !c.client.IsAuthenticated() {
+		return DependencyCheck{
+			Status: StatusDown,
+			Error:  "Vault client not authenticated",
+		}
+	}
+
+	// No latency reported because this is a local flag check, not a network call
+	return DependencyCheck{
+		Status: StatusUp,
+	}
+}
+
+// detectVaultTLS determines if the Vault address uses TLS.
+func detectVaultTLS(addr string) bool {
+	if addr == "" {
+		return false
+	}
+
+	// Check for https scheme (case-insensitive)
+	return len(addr) >= 8 && (addr[:8] == "https://" || addr[:8] == "HTTPS://")
+}

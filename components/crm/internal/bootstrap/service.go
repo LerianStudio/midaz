@@ -13,6 +13,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/kms/vault"
 )
@@ -23,6 +24,11 @@ type Service struct {
 	EventListener  *tmevent.TenantEventListener
 	EncryptionMode crypto.EncryptionMode
 	VaultClient    *vault.Client
+	// Encryption repositories - only populated in envelope encryption mode.
+	// These are nil in legacy mode (KMS_VENDOR=none or empty).
+	KeysetRepo   encryption.KeysetRepository
+	RegistryRepo encryption.RegistryRepository
+
 	libLog.Logger
 }
 
