@@ -11,10 +11,14 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // CreateOrganization creates a new organization and persists it in the repository.
@@ -63,6 +67,8 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		return nil, err
 	}
 
+	uc.emitOrganizationCreatedEvent(ctx, span, logger, org)
+
 	// NOTE: The organization is already persisted at this point. If metadata creation
 	// fails, the org exists in PostgreSQL without its metadata in MongoDB. This is a
 	// known consistency gap that affects all entity creates. A proper fix requires
@@ -79,4 +85,14 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	org.Metadata = metadata
 
 	return org, nil
+}
+
+// emitOrganizationCreatedEvent publishes the organization.created event for a
+// successfully persisted organization. IMPORTANT posture: build and emit
+// failures are span-recorded and logged at Warn, never returned.
+func (uc *UseCase) emitOrganizationCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, org *mmodel.Organization) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.OrganizationCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewOrganizationCreated(org).ToEmitRequest(tenantID, org.CreatedAt)
+		})
 }

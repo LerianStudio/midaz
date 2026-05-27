@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
@@ -16,39 +14,37 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
 // DeleteAccountTypeByID deletes an account type by its ID.
 // It returns an error if the operation fails or if the account type is not found.
+//
+// Streaming note: account_type.* events are intentionally NOT emitted —
+// see CreateAccountType for the rationale.
 func (uc *UseCase) DeleteAccountTypeByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_account_type_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating deletion of Account Type with Account Type ID: %s", id.String()))
-
 	if err := uc.AccountTypeRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, constant.EntityAccountType)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Account Type ID not found: %s", id.String()))
+			logger.Log(ctx, libLog.LevelWarn, "Account type ID not found", libLog.Err(err), libLog.String("account_type_id", id.String()))
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete Account Type on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete account type on repo", err)
 
 			return err
 		}
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete Account Type with Account Type ID: %s", id.String()))
+		logger.Log(ctx, libLog.LevelError, "Failed to delete account type", libLog.Err(err), libLog.String("account_type_id", id.String()))
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete Account Type on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete account type on repo", err)
 
 		return err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully deleted Account Type with Account Type ID: %s", id.String()))
 
 	return nil
 }

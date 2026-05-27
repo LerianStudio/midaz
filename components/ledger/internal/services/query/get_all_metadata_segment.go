@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
@@ -29,7 +28,7 @@ func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, l
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving segments")
 
-	metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), filter)
+	metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, constant.EntitySegment, filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get metadata on repo by query params", err)
 		logger.Log(ctx, libLog.LevelError, "Error getting metadata on repo")
@@ -38,7 +37,7 @@ func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, l
 	}
 
 	if len(metadata) == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, constant.EntitySegment)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No metadata found", err)
 
@@ -58,7 +57,7 @@ func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, l
 	segments, err := uc.SegmentRepo.FindByIDs(ctx, organizationID, ledgerID, uuids)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, constant.EntitySegment)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get segments on repo by query params", err)
 

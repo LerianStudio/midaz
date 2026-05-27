@@ -64,7 +64,7 @@ func TestCreateAdditionalBalance(t *testing.T) {
 		// First lookup for existing additional balance should return EntityNotFound to continue flow
 		mockBalanceRepo.EXPECT().
 			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "asset-freeze").
-			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)).
 			Times(1)
 
 		mockBalanceRepo.EXPECT().
@@ -112,7 +112,7 @@ func TestCreateAdditionalBalance(t *testing.T) {
 		// First lookup for existing additional balance should return EntityNotFound to continue flow
 		mockBalanceRepo.EXPECT().
 			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "test-key").
-			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)).
 			Times(1)
 
 		mockBalanceRepo.EXPECT().
@@ -237,7 +237,7 @@ func TestCreateAdditionalBalance(t *testing.T) {
 		// First lookup for existing additional balance should return EntityNotFound to continue flow
 		mockBalanceRepo.EXPECT().
 			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "test-key").
-			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)).
 			Times(1)
 
 		mockBalanceRepo.EXPECT().
@@ -271,7 +271,7 @@ func TestCreateAdditionalBalance(t *testing.T) {
 		// First lookup for existing additional balance should return EntityNotFound to continue flow
 		mockBalanceRepo.EXPECT().
 			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "upper-case-key").
-			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)).
 			Times(1)
 
 		mockBalanceRepo.EXPECT().
@@ -321,7 +321,7 @@ func TestCreateAdditionalBalance(t *testing.T) {
 		// First lookup for existing additional balance should return EntityNotFound to continue flow
 		mockBalanceRepo.EXPECT().
 			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "test-key").
-			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)).
 			Times(1)
 
 		mockBalanceRepo.EXPECT().

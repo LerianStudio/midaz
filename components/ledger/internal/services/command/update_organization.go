@@ -11,12 +11,16 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // UpdateOrganizationByID applies a partial update to the organization identified by id.
@@ -75,6 +79,8 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 		return nil, err
 	}
 
+	uc.emitOrganizationUpdatedEvent(ctx, span, logger, organizationUpdated)
+
 	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityOrganization, id.String(), uoi.Metadata)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Failed to update organization metadata", libLog.Err(err))
@@ -86,4 +92,14 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 	organizationUpdated.Metadata = metadataUpdated
 
 	return organizationUpdated, nil
+}
+
+// emitOrganizationUpdatedEvent publishes the organization.updated event for a
+// successfully persisted update. IMPORTANT posture: build and emit failures are
+// span-recorded and logged at Warn, never returned.
+func (uc *UseCase) emitOrganizationUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, org *mmodel.Organization) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.OrganizationUpdatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewOrganizationUpdated(org).ToEmitRequest(tenantID, org.UpdatedAt)
+		})
 }

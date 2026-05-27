@@ -7,13 +7,13 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
@@ -71,7 +71,7 @@ func TestGetAllMetadataTransactionRoutes_OperationRoutesPopulated(t *testing.T) 
 	cursor := libHTTP.CursorPagination{Next: "next", Prev: "prev"}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+		FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return(expectedMetadata, nil)
 
 	mockTRRepo.EXPECT().
@@ -150,7 +150,7 @@ func TestGetAllMetadataTransactionRoutes_JunctionQueryError(t *testing.T) {
 	cursor := libHTTP.CursorPagination{Next: "next", Prev: "prev"}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+		FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return(expectedMetadata, nil)
 
 	mockTRRepo.EXPECT().
@@ -214,7 +214,7 @@ func TestGetAllMetadataTransactionRoutes_EmptyOperationRoutesNotNil(t *testing.T
 	cursor := libHTTP.CursorPagination{Next: "next", Prev: "prev"}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+		FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return(expectedMetadata, nil)
 
 	mockTRRepo.EXPECT().

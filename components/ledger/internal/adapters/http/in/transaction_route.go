@@ -5,8 +5,6 @@
 package in
 
 import (
-	"fmt"
-
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
@@ -72,12 +70,9 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Successfully created transaction route")
-
 	if err := handler.Command.CreateAccountingRouteCache(ctx, transactionRoute); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create transaction route cache", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create transaction route cache: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create transaction route cache", libLog.Err(err), libLog.String("transaction_route_id", transactionRoute.ID.String()))
 	}
 
 	if err := metricFactory.RecordTransactionRouteCreated(
@@ -133,16 +128,13 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to get transaction route with ID: %s", id.String()))
-
 	transactionRoute, err := handler.Query.GetTransactionRouteByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction route", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get transaction route", libLog.Err(err), libLog.String("transaction_route_id", id.String()))
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved transaction route with ID: %s", id.String()))
 
 	return http.OK(c, transactionRoute)
 }
@@ -189,37 +181,24 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update transaction route with ID: %s", id.String()))
-
 	payload := i.(*mmodel.UpdateTransactionRouteInput)
 
 	recordSafePayloadAttributes(span, payload)
 	logSafePayload(ctx, logger, "Request to update a transaction route", payload)
 
-	_, err = handler.Command.UpdateTransactionRoute(ctx, organizationID, ledgerID, id, payload)
+	transactionRoute, err := handler.Command.UpdateTransactionRoute(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction route", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update transaction route with ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
-	}
-
-	transactionRoute, err := handler.Query.GetTransactionRouteByID(ctx, organizationID, ledgerID, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction route", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get transaction route with ID: %s, Error: %s", id.String(), err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to update transaction route", libLog.Err(err), libLog.String("transaction_route_id", id.String()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated transaction route with ID: %s", id.String()))
+	logger.Log(ctx, libLog.LevelInfo, "Successfully updated transaction route", libLog.String("transaction_route_id", id.String()))
 
 	if err := handler.Command.CreateAccountingRouteCache(ctx, transactionRoute); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create transaction route cache", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create transaction route cache: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create transaction route cache", libLog.Err(err), libLog.String("transaction_route_id", id.String()))
 	}
 
 	return http.OK(c, transactionRoute)
@@ -267,21 +246,19 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to delete transaction route with ID: %s", id.String()))
-
 	err = handler.Command.DeleteTransactionRouteByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete transaction route", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to delete transaction route", libLog.Err(err), libLog.String("transaction_route_id", id.String()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully deleted transaction route with ID: %s", id.String()))
+	logger.Log(ctx, libLog.LevelInfo, "Successfully deleted transaction route", libLog.String("transaction_route_id", id.String()))
 
 	if err := handler.Command.DeleteTransactionRouteCache(ctx, organizationID, ledgerID, id); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete transaction route cache", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete transaction route cache: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to delete transaction route cache", libLog.Err(err), libLog.String("transaction_route_id", id.String()))
 	}
 
 	return http.NoContent(c)
@@ -330,8 +307,7 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to validate query parameters", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
@@ -346,18 +322,13 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 	}
 
 	if headerParams.Metadata != nil {
-		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Transaction Routes by metadata")
-
 		transactionRoutes, cur, err := handler.Query.GetAllMetadataTransactionRoutes(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Transaction Routes by metadata", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Transaction Routes, Error: %s", err.Error()))
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all transaction routes by metadata", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to retrieve all transaction routes by metadata", libLog.Err(err))
 
 			return http.WithError(c, err)
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Transaction Routes by metadata")
 
 		pagination.SetItems(transactionRoutes)
 		pagination.SetCursor(cur.Next, cur.Prev)
@@ -365,22 +336,17 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 		return http.OK(c, pagination)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Transaction Routes")
-
 	headerParams.Metadata = &bson.M{}
 
 	recordSafeQueryAttributes(span, headerParams)
 
 	transactionRoutes, cur, err := handler.Query.GetAllTransactionRoutes(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Transaction Routes", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Transaction Routes, Error: %s", err.Error()))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all transaction routes", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to retrieve all transaction routes", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Transaction Routes")
 
 	pagination.SetItems(transactionRoutes)
 	pagination.SetCursor(cur.Next, cur.Prev)

@@ -7,7 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
@@ -127,7 +126,7 @@ func TestUpdateSegmentByID(t *testing.T) {
 					Return(&mmodel.Segment{ID: "123", Name: "Original Segment"}, nil)
 				mockSegmentRepo.EXPECT().
 					ExistsByName(gomock.Any(), gomock.Any(), gomock.Any(), "Existing Segment").
-					Return(true, pkg.ValidateBusinessError(constant.ErrDuplicateSegmentName, reflect.TypeOf(mmodel.Segment{}).Name(), "Existing Segment", uuid.New()))
+					Return(true, pkg.ValidateBusinessError(constant.ErrDuplicateSegmentName, constant.EntitySegment, "Existing Segment", uuid.New()))
 			},
 			expectErr: true,
 		},

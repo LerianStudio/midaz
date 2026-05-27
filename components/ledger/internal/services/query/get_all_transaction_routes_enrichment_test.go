@@ -7,13 +7,13 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
@@ -69,7 +69,7 @@ func TestGetAllTransactionRoutes_OperationRoutesPopulated(t *testing.T) {
 
 	// Metadata lookup
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+		FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return([]*mongodb.Metadata{}, nil)
 
 	// Junction table query: trID1 -> [orID1, orID2], trID2 -> [orID3]
@@ -146,7 +146,7 @@ func TestGetAllTransactionRoutes_EmptyOperationRoutesNotNil(t *testing.T) {
 		Return(transactionRoutes, cursor, nil)
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+		FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return([]*mongodb.Metadata{}, nil)
 
 	// Junction returns empty map — this route has no linked operation routes
@@ -243,7 +243,7 @@ func TestGetAllTransactionRoutes_JunctionQueryError(t *testing.T) {
 		Return(transactionRoutes, cursor, nil)
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+		FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return([]*mongodb.Metadata{}, nil)
 
 	// Junction table query returns error
@@ -300,7 +300,7 @@ func TestGetAllTransactionRoutes_FindByIDsError(t *testing.T) {
 		Return(transactionRoutes, cursor, nil)
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+		FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return([]*mongodb.Metadata{}, nil)
 
 	// Junction returns a valid mapping
@@ -370,7 +370,7 @@ func TestGetAllTransactionRoutes_MixedLinksAndNoLinks(t *testing.T) {
 		Return(transactionRoutes, cursor, nil)
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+		FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return([]*mongodb.Metadata{}, nil)
 
 	// Junction: trID1 -> [orID1], trID2 not in map, trID3 -> empty slice
@@ -443,7 +443,7 @@ func TestGetAllTransactionRoutes_EmptyTransactionRoutesSlice(t *testing.T) {
 		Return(emptySlice, cursor, nil)
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+		FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return([]*mongodb.Metadata{}, nil)
 
 	// No calls to FindOperationRouteIDsByTransactionRouteIDs or FindByIDs expected

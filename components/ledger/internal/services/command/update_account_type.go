@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
@@ -22,13 +20,14 @@ import (
 
 // UpdateAccountType updates an account type by its ID.
 // It returns the updated account type and an error if the operation fails.
+//
+// Streaming note: account_type.* events are intentionally NOT emitted —
+// see CreateAccountType for the rationale.
 func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, input *mmodel.UpdateAccountTypeInput) (*mmodel.AccountType, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_account_type")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update account type %s", id.String()))
 
 	accountType := &mmodel.AccountType{
 		Name:        input.Name,
@@ -38,25 +37,25 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 	accountTypeUpdated, err := uc.AccountTypeRepo.Update(ctx, organizationID, ledgerID, id, accountType)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, constant.EntityAccountType)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Account type ID not found: %s", id.String()))
+			logger.Log(ctx, libLog.LevelWarn, "Account type ID not found", libLog.Err(err), libLog.String("account_type_id", id.String()))
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account type on repo by id", err)
 
 			return nil, err
 		}
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating account type on repo by id: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to update account type on repo by id", libLog.Err(err), libLog.String("account_type_id", id.String()))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account type on repo by id", err)
 
 		return nil, err
 	}
 
-	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), id.String(), input.Metadata)
+	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityAccountType, id.String(), input.Metadata)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating metadata: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to update account type metadata", libLog.Err(err), libLog.String("account_type_id", id.String()))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata", err)
 
@@ -64,8 +63,6 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 	}
 
 	accountTypeUpdated.Metadata = metadataUpdated
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated account type with ID: %s", accountTypeUpdated.ID))
 
 	return accountTypeUpdated, nil
 }

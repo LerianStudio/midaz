@@ -547,14 +547,39 @@ func (uc *UseCase) processMetadataAndEvents(
 			}
 		}
 
+		// Determine the lifecycle phase for this payload. The bulk
+		// consumer dispatches BOTH freshly-inserted transactions (the
+		// "created" phase consumed by transaction.posted /
+		// transaction.reverted) AND status-update payloads queued by
+		// /commit and /cancel HTTP handlers (the "updated" phase
+		// consumed by transaction.committed / transaction.canceled).
+		//
+		// Discrimination:
+		//   - insertedTxIDs is populated: the INSERT ... ON CONFLICT
+		//     bulk path ran. tx.ID present in the map means a fresh
+		//     insert; absent means it was a duplicate (already
+		//     handled by the L541 skip above) — so reaching here with
+		//     populated insertedTxIDs means phase=created.
+		//   - insertedTxIDs is empty: status-update or fallback
+		//     scenario. The sync UpdateTransactionStatus at the
+		//     handler already mutated PG; we're emitting the
+		//     post-commit notification → phase=updated.
+		phase := TransactionLifecyclePhaseUpdated
+
+		if len(insertedTxIDs) > 0 {
+			if _, wasInserted := insertedTxIDs[tx.ID]; wasInserted {
+				phase = TransactionLifecyclePhaseCreated
+			}
+		}
+
 		// Send events asynchronously with context that preserves trace but survives parent cancellation
-		go func() {
+		go func(phase string) {
 			opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
 			defer cancel()
 
-			uc.SendTransactionEvents(opCtx, tx)
+			uc.SendTransactionEvents(opCtx, tx, phase)
 			uc.SendOverdraftEvents(opCtx, tx)
-		}()
+		}(phase)
 	}
 }
 

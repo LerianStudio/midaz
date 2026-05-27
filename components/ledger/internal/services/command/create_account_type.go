@@ -6,20 +6,22 @@ package command
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-
-	// CreateAccountType creates a new account type.
-	// It returns the created account type and an error if the operation fails.
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 )
 
+// CreateAccountType creates a new account type.
+// It returns the created account type and an error if the operation fails.
+//
+// Streaming note: account_type.* events are intentionally NOT emitted —
+// internal validation config; the type label is broadcast as a string
+// field on account.* events.
 func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateAccountTypeInput) (*mmodel.AccountType, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -42,24 +44,20 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 	createdAccountType, err := uc.AccountTypeRepo.Create(ctx, organizationID, ledgerID, accountType)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create account type", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create account type: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create account type", libLog.Err(err))
 
 		return nil, err
 	}
 
-	metadata, err := uc.CreateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), createdAccountType.ID.String(), payload.Metadata)
+	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityAccountType, createdAccountType.ID.String(), payload.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create metadata", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create metadata: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create account type metadata", libLog.Err(err))
 
 		return nil, err
 	}
 
 	createdAccountType.Metadata = metadata
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully created account type with key value: %s", createdAccountType.KeyValue))
 
 	return createdAccountType, nil
 }

@@ -7,7 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
@@ -88,7 +87,7 @@ func TestCreateTransactionRouteSuccess(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		Create(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+		Create(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return(nil).
 		Times(1)
 
@@ -179,7 +178,7 @@ func TestCreateTransactionRouteErrorOperationRoutesNotFound(t *testing.T) {
 		OperationRouteRepo: mockOperationRouteRepo,
 	}
 
-	expectedError := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+	expectedError := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)
 
 	mockOperationRouteRepo.EXPECT().
 		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
@@ -229,7 +228,7 @@ func TestCreateTransactionRouteErrorMissingDebitRoute(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	expectedError := pkg.ValidateBusinessError(constant.ErrNoSourceForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), "")
+	expectedError := pkg.ValidateBusinessError(constant.ErrNoSourceForAction, constant.EntityTransactionRoute, "")
 	assert.Equal(t, expectedError, err)
 }
 
@@ -269,7 +268,7 @@ func TestCreateTransactionRouteErrorMissingCreditRoute(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	expectedError := pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), "")
+	expectedError := pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, constant.EntityTransactionRoute, "")
 	assert.Equal(t, expectedError, err)
 }
 
@@ -380,7 +379,7 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 
 	expectedError := errors.New("failed to create metadata")
 	mockMetadataRepo.EXPECT().
-		Create(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+		Create(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return(expectedError).
 		Times(1)
 
@@ -432,7 +431,7 @@ func TestValidateOperationRouteTypesMissingDebit(t *testing.T) {
 
 	err := validateOperationRouteTypes(operationRoutes)
 	assert.Error(t, err)
-	expectedError := pkg.ValidateBusinessError(constant.ErrNoSourceForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), "")
+	expectedError := pkg.ValidateBusinessError(constant.ErrNoSourceForAction, constant.EntityTransactionRoute, "")
 	assert.Equal(t, expectedError, err)
 }
 
@@ -445,7 +444,7 @@ func TestValidateOperationRouteTypesMissingCredit(t *testing.T) {
 
 	err := validateOperationRouteTypes(operationRoutes)
 	assert.Error(t, err)
-	expectedError := pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), "")
+	expectedError := pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, constant.EntityTransactionRoute, "")
 	assert.Equal(t, expectedError, err)
 }
 

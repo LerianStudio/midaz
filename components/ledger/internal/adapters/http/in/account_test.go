@@ -69,7 +69,7 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 					}).
 					Times(1)
 
-				// CreateBalanceSync uses BalanceRepo internally
+				// CreateDefaultBalance uses BalanceRepo internally
 				balanceRepo.EXPECT().
 					ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(false, nil).AnyTimes()

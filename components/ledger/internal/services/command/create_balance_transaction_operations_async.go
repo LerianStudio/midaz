@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 	"time"
 
@@ -86,7 +85,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	ctxProcessTransaction, spanUpdateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanUpdateTransaction.End()
 
-	tran, err := uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
+	tran, phase, err := uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdateTransaction, "Failed to create or update transaction", err)
 
@@ -98,7 +97,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	ctxProcessMetadata, spanCreateMetadata := tracer.Start(ctx, "command.create_balance_transaction_operations.create_metadata")
 	defer spanCreateMetadata.End()
 
-	err = uc.CreateMetadataAsync(ctxProcessMetadata, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name())
+	err = uc.CreateMetadataAsync(ctxProcessMetadata, logger, tran.Metadata, tran.ID, constant.EntityTransaction)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateMetadata, "Failed to create metadata on transaction", err)
 
@@ -137,7 +136,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 			}
 		}
 
-		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name())
+		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, constant.EntityOperation)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateOperation, "Failed to create metadata on operation", err)
 
@@ -147,7 +146,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	go uc.SendTransactionEvents(ctx, tran)
+	go uc.SendTransactionEvents(ctx, tran, phase)
 	go uc.SendOverdraftEvents(ctx, tran)
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: cleaning up transaction %s after successful processing", tran.ID))
@@ -168,7 +167,29 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 }
 
 // CreateOrUpdateTransaction func that is responsible to create or update a transaction.
-func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, t transaction.TransactionProcessingPayload) (*transaction.Transaction, error) {
+//
+// The string return value carries the lifecycle phase the call resolved
+// to, used by SendTransactionEvents to pick the corresponding
+// lib-streaming event_type:
+//
+//   - TransactionLifecyclePhaseCreated — fresh insert via
+//     TransactionRepo.Create (L193 success). Emits transaction.posted
+//     when ParentTransactionID is nil, transaction.reverted otherwise.
+//   - TransactionLifecyclePhaseUpdated — status transition via the
+//     unique-violation idempotency branch
+//     (UpdateTransactionStatus, L198 success). Emits
+//     transaction.committed when Status.Code is APPROVED,
+//     transaction.canceled when CANCELED.
+//   - TransactionLifecyclePhaseNoop — no state change occurred (e.g.
+//     unique violation with no status transition). Callers must NOT
+//     emit a lifecycle event in this phase.
+//
+// Tracking the phase explicitly inside this function — rather than
+// inferring it from CreatedAt vs UpdatedAt downstream — keeps the
+// branch decision pinned to the actual code path that ran. Inference
+// would be fragile because both timestamps may be touched by DB
+// triggers or msgpack roundtrips before SendTransactionEvents runs.
+func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, t transaction.TransactionProcessingPayload) (*transaction.Transaction, string, error) {
 	_, spanCreateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanCreateTransaction.End()
 
@@ -201,21 +222,32 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 
 					logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to update transaction with STATUS: %v by ID: %v", tran.Status.Code, tran.ID))
 
-					return nil, err
+					return nil, TransactionLifecyclePhaseNoop, err
 				}
+
+				// Status transition succeeded via the idempotency branch.
+				logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("skipping to create transaction, transaction already exists: %v", tran.ID))
+
+				return tran, TransactionLifecyclePhaseUpdated, nil
 			}
 
+			// Unique violation with no eligible status transition.
+			// Caller should NOT emit a lifecycle event for this path
+			// (no state change observed on this attempt).
 			logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("skipping to create transaction, transaction already exists: %v", tran.ID))
-		} else {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateTransaction, "Failed to create transaction on repo", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create transaction on repo: %v", err.Error()))
-
-			return nil, err
+			return tran, TransactionLifecyclePhaseNoop, nil
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateTransaction, "Failed to create transaction on repo", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create transaction on repo: %v", err.Error()))
+
+		return nil, TransactionLifecyclePhaseNoop, err
 	}
 
-	return tran, nil
+	// Fresh insert succeeded.
+	return tran, TransactionLifecyclePhaseCreated, nil
 }
 
 // CreateMetadataAsync func that create metadata into operations

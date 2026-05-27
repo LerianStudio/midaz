@@ -5,7 +5,6 @@
 package command
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -27,7 +26,7 @@ func TestValidateOperationRouteTypes_SourceDestinationCoverage(t *testing.T) {
 	extraSourceID := uuid.New()
 	extraDestID := uuid.New()
 
-	entityType := reflect.TypeOf(mmodel.TransactionRoute{}).Name()
+	entityType := constant.EntityTransactionRoute
 
 	tests := []struct {
 		name          string
