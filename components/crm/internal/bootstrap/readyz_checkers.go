@@ -125,24 +125,26 @@ func (c *NAChecker) Check(_ context.Context) DependencyCheck {
 	}
 }
 
-// VaultAuthChecker is the interface for checking Vault authentication status.
+// VaultHealthChecker is the interface for checking Vault health status.
 // This allows testing without a real vault.Client.
-type VaultAuthChecker interface {
-	IsAuthenticated() bool
+type VaultHealthChecker interface {
+	// HealthCheck verifies Vault server availability via sys/health endpoint.
+	// Returns nil if Vault is healthy, error otherwise.
+	HealthCheck(ctx context.Context) error
 }
 
-// VaultChecker probes a Vault client's authentication status.
-// This is a simple flag check without network calls per probe.
+// VaultChecker probes Vault availability using the sys/health endpoint.
+// This is consistent with other checkers (Mongo, Postgres, Redis) that make network calls.
 type VaultChecker struct {
 	name       string
-	client     VaultAuthChecker
+	client     VaultHealthChecker
 	addr       string
 	tlsEnabled bool
 }
 
 // NewVaultChecker creates a new Vault health checker using a real vault.Client.
 // The addr parameter is used for TLS detection.
-func NewVaultChecker(name string, client VaultAuthChecker, addr string) *VaultChecker {
+func NewVaultChecker(name string, client VaultHealthChecker, addr string) *VaultChecker {
 	return &VaultChecker{
 		name:       name,
 		client:     client,
@@ -151,9 +153,9 @@ func NewVaultChecker(name string, client VaultAuthChecker, addr string) *VaultCh
 	}
 }
 
-// NewVaultCheckerWithClient creates a new Vault health checker with a custom auth checker.
+// NewVaultCheckerWithClient creates a new Vault health checker with a custom health checker.
 // This is useful for testing.
-func NewVaultCheckerWithClient(name string, client VaultAuthChecker, addr string) *VaultChecker {
+func NewVaultCheckerWithClient(name string, client VaultHealthChecker, addr string) *VaultChecker {
 	return NewVaultChecker(name, client, addr)
 }
 
@@ -167,9 +169,9 @@ func (c *VaultChecker) TLSEnabled() bool {
 	return c.tlsEnabled
 }
 
-// Check probes the Vault client's authentication status.
-// This is a simple flag check without network calls.
-func (c *VaultChecker) Check(_ context.Context) DependencyCheck {
+// Check probes Vault availability via the sys/health endpoint.
+// This is consistent with other checkers (Mongo, Postgres, Redis) that make network calls.
+func (c *VaultChecker) Check(ctx context.Context) DependencyCheck {
 	if c.client == nil {
 		return DependencyCheck{
 			Status: StatusSkipped,
@@ -177,16 +179,22 @@ func (c *VaultChecker) Check(_ context.Context) DependencyCheck {
 		}
 	}
 
-	if !c.client.IsAuthenticated() {
+	start := time.Now()
+
+	err := c.client.HealthCheck(ctx)
+	latencyMs := time.Since(start).Milliseconds()
+
+	if err != nil {
 		return DependencyCheck{
-			Status: StatusDown,
-			Error:  "Vault client not authenticated",
+			Status:    StatusDown,
+			LatencyMs: &latencyMs,
+			Error:     fmt.Sprintf("health check failed: %v", err),
 		}
 	}
 
-	// No latency reported because this is a local flag check, not a network call
 	return DependencyCheck{
-		Status: StatusUp,
+		Status:    StatusUp,
+		LatencyMs: &latencyMs,
 	}
 }
 

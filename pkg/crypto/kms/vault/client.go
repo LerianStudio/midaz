@@ -193,6 +193,26 @@ func (c *Client) Address() string {
 	return c.config.Addr
 }
 
+// HealthCheck verifies Vault server availability by calling the sys/health endpoint.
+// This is an unauthenticated endpoint that returns the health status of the Vault server.
+// Returns nil if Vault is healthy (initialized and unsealed), error otherwise.
+func (c *Client) HealthCheck(ctx context.Context) error {
+	health, err := c.vaultAPI.Sys().HealthWithContext(ctx)
+	if err != nil {
+		return fmt.Errorf("vault health check failed: %w", err)
+	}
+
+	if !health.Initialized {
+		return fmt.Errorf("vault is not initialized")
+	}
+
+	if health.Sealed {
+		return fmt.Errorf("vault is sealed")
+	}
+
+	return nil
+}
+
 // logical returns the Vault logical client for Transit operations.
 func (c *Client) logical() *api.Logical {
 	return c.vaultAPI.Logical()

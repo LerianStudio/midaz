@@ -55,7 +55,7 @@ help:
 	@echo "  make sec                         - Run security checks using gosec"
 	@echo ""
 	@echo "$(BOLD)Docker Commands:$(NC)"
-	@echo "  make up                          - Start services with Docker Compose"
+	@echo "  make up                          - Start services (auto-detects if Vault is needed from KMS_VENDOR)"
 	@echo "  make down                        - Stop services with Docker Compose"
 	@echo "  make start                       - Start existing containers"
 	@echo "  make stop                        - Stop running containers"
@@ -265,9 +265,20 @@ build-docker:
 
 .PHONY: up
 up:
-	$(call title1,"Starting all services in detached mode")
-	@$(DOCKER_CMD) -f docker-compose.yml up $(c) -d
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services started successfully$(GREEN) ✔️$(NC)"
+	$(call title1,"Starting services in detached mode")
+	@KMS_VENDOR_VALUE=$$(grep -E "^KMS_VENDOR=" .env 2>/dev/null | cut -d'=' -f2 | tr -d ' "'"'"''); \
+	if [ "$$KMS_VENDOR_VALUE" = "hashicorp-vault" ]; then \
+		echo "$(CYAN)KMS_VENDOR=hashicorp-vault detected, starting Vault stack...$(NC)"; \
+		$(DOCKER_CMD) -f docker-compose.yml up vault -d; \
+		echo "$(CYAN)Initializing Vault (enabling Transit secrets engine)...$(NC)"; \
+		$(DOCKER_CMD) -f docker-compose.yml up vault-init; \
+		$(DOCKER_CMD) -f docker-compose.yml up crm -d; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM + Vault services started successfully$(GREEN) ✔️$(NC)"; \
+	else \
+		echo "$(CYAN)KMS_VENDOR=$$KMS_VENDOR_VALUE (legacy mode), starting CRM only...$(NC)"; \
+		$(DOCKER_CMD) -f docker-compose.yml up crm -d; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM service started successfully$(GREEN) ✔️$(NC)"; \
+	fi
 
 .PHONY: start
 start:
@@ -302,8 +313,19 @@ rebuild-up:
 	$(call title1,"Rebuilding and restarting services")
 	@$(DOCKER_CMD) -f docker-compose.yml down
 	@$(DOCKER_CMD) -f docker-compose.yml build
-	@$(DOCKER_CMD) -f docker-compose.yml up -d
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services rebuilt and restarted successfully$(GREEN) ✔️$(NC)"
+	@KMS_VENDOR_VALUE=$$(grep -E "^KMS_VENDOR=" .env 2>/dev/null | cut -d'=' -f2 | tr -d ' "'"'"''); \
+	if [ "$$KMS_VENDOR_VALUE" = "hashicorp-vault" ]; then \
+		echo "$(CYAN)KMS_VENDOR=hashicorp-vault detected, starting Vault stack...$(NC)"; \
+		$(DOCKER_CMD) -f docker-compose.yml up vault -d; \
+		echo "$(CYAN)Initializing Vault (enabling Transit secrets engine)...$(NC)"; \
+		$(DOCKER_CMD) -f docker-compose.yml up vault-init; \
+		$(DOCKER_CMD) -f docker-compose.yml up crm -d; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM + Vault services rebuilt and restarted successfully$(GREEN) ✔️$(NC)"; \
+	else \
+		echo "$(CYAN)KMS_VENDOR=$$KMS_VENDOR_VALUE (legacy mode), starting CRM only...$(NC)"; \
+		$(DOCKER_CMD) -f docker-compose.yml up crm -d; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM service rebuilt and restarted successfully$(GREEN) ✔️$(NC)"; \
+	fi
 
 .PHONY: clean-docker
 clean-docker:

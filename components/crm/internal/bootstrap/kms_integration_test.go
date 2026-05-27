@@ -408,8 +408,8 @@ func TestIntegration_VaultChecker_WithRealClient(t *testing.T) {
 	check := checker.Check(ctx)
 
 	// Assert
-	assert.Equal(t, StatusUp, check.Status, "checker should return up for authenticated client")
-	assert.Nil(t, check.LatencyMs, "no latency for flag check")
+	assert.Equal(t, StatusUp, check.Status, "checker should return up for healthy Vault")
+	assert.NotNil(t, check.LatencyMs, "latency should be measured for health check")
 }
 
 func TestIntegration_VaultChecker_TLSDetection_HTTP(t *testing.T) {

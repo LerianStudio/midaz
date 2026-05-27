@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -666,33 +667,35 @@ func TestVaultChecker_Check_NilClient(t *testing.T) {
 func TestVaultChecker_Check_ClientAuthenticated(t *testing.T) {
 	t.Parallel()
 
-	// Create a mock client that reports as authenticated
-	mockClient := &mockVaultClient{authenticated: true}
+	// Create a mock client that reports as healthy
+	mockClient := &mockVaultClient{healthy: true}
 	checker := NewVaultCheckerWithClient("vault", mockClient, "https://vault.example.com:8200")
 
 	ctx := context.Background()
 	check := checker.Check(ctx)
 
 	assert.Equal(t, StatusUp, check.Status,
-		"VaultChecker must return StatusUp when client is authenticated")
-	assert.Nil(t, check.LatencyMs,
-		"LatencyMs must be nil for simple flag check (no network call)")
+		"VaultChecker must return StatusUp when Vault is healthy")
+	assert.NotNil(t, check.LatencyMs,
+		"LatencyMs must be set for network health check")
 }
 
 func TestVaultChecker_Check_ClientNotAuthenticated(t *testing.T) {
 	t.Parallel()
 
-	// Create a mock client that reports as NOT authenticated
-	mockClient := &mockVaultClient{authenticated: false}
+	// Create a mock client that reports as unhealthy
+	mockClient := &mockVaultClient{healthy: false}
 	checker := NewVaultCheckerWithClient("vault", mockClient, "https://vault.example.com:8200")
 
 	ctx := context.Background()
 	check := checker.Check(ctx)
 
 	assert.Equal(t, StatusDown, check.Status,
-		"VaultChecker must return StatusDown when client is not authenticated")
-	assert.Contains(t, check.Error, "not authenticated",
-		"Error must indicate authentication failure")
+		"VaultChecker must return StatusDown when Vault is unhealthy")
+	assert.Contains(t, check.Error, "health check failed",
+		"Error must indicate health check failure")
+	assert.NotNil(t, check.LatencyMs,
+		"LatencyMs must be set even on failure")
 }
 
 func TestVaultChecker_TLSDetection(t *testing.T) {
@@ -742,11 +745,20 @@ func TestVaultChecker_TLSDetection(t *testing.T) {
 	}
 }
 
-// mockVaultClient is a test double for vault authentication checking.
+// mockVaultClient is a test double for vault health checking.
 type mockVaultClient struct {
-	authenticated bool
+	healthy bool
+	err     error
 }
 
-func (m *mockVaultClient) IsAuthenticated() bool {
-	return m.authenticated
+func (m *mockVaultClient) HealthCheck(_ context.Context) error {
+	if m.err != nil {
+		return m.err
+	}
+
+	if !m.healthy {
+		return fmt.Errorf("vault is unhealthy")
+	}
+
+	return nil
 }
