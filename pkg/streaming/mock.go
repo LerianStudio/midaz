@@ -108,8 +108,8 @@ func AssertEventEmitted(t *testing.T, m *MockEmitter, resourceType, eventType st
 // tests can substitute a stub for the no-match path without driving a
 // real subtest. Unexported on purpose — the public API takes *testing.T
 // for symmetry with the rest of midaz's test helpers.
-func assertEventEmittedTB(t testing.TB, m *MockEmitter, resourceType, eventType string) {
-	t.Helper()
+func assertEventEmittedTB(tb testing.TB, m *MockEmitter, resourceType, eventType string) {
+	tb.Helper()
 
 	key := resourceType + "." + eventType
 
@@ -119,6 +119,6 @@ func assertEventEmittedTB(t testing.TB, m *MockEmitter, resourceType, eventType 
 		}
 	}
 
-	t.Fatalf("expected emitted event with definition key %q, got %d events: %v",
+	tb.Fatalf("expected emitted event with definition key %q, got %d events: %v",
 		key, len(m.Events()), m.Events())
 }

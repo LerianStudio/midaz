@@ -65,7 +65,7 @@ func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 		// JSON-safe primitives (string, bool, *string). We intentionally
 		// discard the error and leave b.Settings as nil on the (impossible)
 		// failure path, matching the existing behavior for a nil Settings.
-		b.Settings, _ = json.Marshal(balance.Settings)
+		b.Settings, _ = json.Marshal(balance.Settings) //nolint:errchkjson // see comment above
 	}
 
 	if libCommons.IsNilOrEmpty(&balance.Key) {

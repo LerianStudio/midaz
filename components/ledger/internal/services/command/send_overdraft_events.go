@@ -203,7 +203,7 @@ func buildOverdraftEvents(tran *transaction.Transaction) []overdraftEventItem {
 		return nil
 	}
 
-	var items []overdraftEventItem
+	items := make([]overdraftEventItem, 0, len(tran.Operations))
 
 	for _, op := range tran.Operations {
 		if op == nil || op.BalanceKey != constant.OverdraftBalanceKey {
