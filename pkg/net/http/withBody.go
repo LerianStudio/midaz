@@ -15,7 +15,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"

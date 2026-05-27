@@ -13,7 +13,7 @@ import (
 	"time"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"

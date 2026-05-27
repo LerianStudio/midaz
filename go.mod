@@ -1,11 +1,9 @@
 module github.com/LerianStudio/midaz/v3
 
-go 1.26.2
-
-toolchain go1.26.3
+go 1.26.3
 
 require (
-	github.com/LerianStudio/lib-auth/v2 v2.7.0
+	github.com/LerianStudio/lib-auth/v2 v2.8.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/go-playground/locales v0.14.1
@@ -100,8 +98,9 @@ require (
 )
 
 require (
-	github.com/LerianStudio/lib-commons/v5 v5.2.0-beta.11
-	github.com/LerianStudio/lib-streaming v1.2.0
+	github.com/LerianStudio/lib-commons/v5 v5.2.0-beta.12
+	github.com/LerianStudio/lib-observability v1.0.0
+	github.com/LerianStudio/lib-streaming v1.3.1
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/docker/go-connections v0.7.0
 	github.com/moby/moby/api v1.54.1
@@ -114,7 +113,6 @@ require (
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/LerianStudio/lib-observability v1.0.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect

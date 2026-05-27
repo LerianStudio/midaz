@@ -8,8 +8,8 @@ import (
 	"context"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
@@ -17,7 +17,7 @@ import (
 	// DeleteWriteBehindTransaction removes the transaction from the write-behind cache.
 	// Called by the consumer after successfully persisting the transaction to Postgres.
 	// Errors are logged but do not block the consumer flow.
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 func (uc *UseCase) DeleteWriteBehindTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string) {

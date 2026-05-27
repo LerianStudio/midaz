@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 )
 

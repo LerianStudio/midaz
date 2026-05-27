@@ -12,9 +12,9 @@ import (
 	"time"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
-	"github.com/LerianStudio/lib-commons/v5/commons/opentelemetry/metrics"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	"github.com/LerianStudio/lib-observability/metrics"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"

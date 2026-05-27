@@ -14,8 +14,9 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
@@ -31,7 +32,7 @@ import (
 	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 // operationRouteReturningColumns is the SELECT expression used in the
@@ -156,7 +157,7 @@ func (r *OperationRoutePostgreSQLRepository) getDB(ctx context.Context) (dbresol
 }
 
 func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organizationID, ledgerID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	operationRouteID := uuid.Nil
 	if operationRoute != nil {
@@ -244,7 +245,7 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 }
 
 func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.OperationRoute, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_operation_route")
 	defer span.End()
@@ -337,7 +338,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 }
 
 func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.OperationRoute, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_operation_routes_by_ids")
 	defer span.End()
@@ -467,7 +468,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 }
 
 func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_operation_route")
 	defer span.End()
@@ -600,7 +601,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 }
 
 func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_operation_route")
 	defer span.End()
@@ -695,7 +696,7 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 }
 
 func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operation_routes")
 	defer span.End()
@@ -834,7 +835,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 }
 
 func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx context.Context, organizationID, ledgerID, operationRouteID uuid.UUID) (bool, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.has_transaction_route_links")
 	defer span.End()
@@ -913,7 +914,7 @@ func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx contex
 }
 
 func (r *OperationRoutePostgreSQLRepository) FindTransactionRouteIDs(ctx context.Context, operationRouteID uuid.UUID) ([]uuid.UUID, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_route_ids")
 	defer span.End()

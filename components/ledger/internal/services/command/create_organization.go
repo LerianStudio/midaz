@@ -9,8 +9,9 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -23,7 +24,7 @@ import (
 
 // CreateOrganization creates a new organization and persists it in the repository.
 func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_organization")
 	defer span.End()

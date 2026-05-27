@@ -9,8 +9,8 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -19,7 +19,7 @@ import (
 
 	// GetTransactionRouteByID retrieves a transaction route by its ID.
 	// It returns the transaction route if found, otherwise it returns an error.
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error) {

@@ -11,8 +11,8 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -21,7 +21,7 @@ import (
 	"github.com/google/uuid"
 
 	// GetAllMetadataTransactions fetch all Transactions from the repository
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {

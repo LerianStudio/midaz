@@ -15,9 +15,10 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
@@ -248,7 +249,7 @@ func podIdentifier() string {
 }
 
 func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
 
 	ctx, span := tracer.Start(ctx, "redis.consumer.read_messages_from_queue")
 	defer span.End()
@@ -320,15 +321,15 @@ Outer:
 // Duplicate-processing prevention is handled at the cycle level by acquireCycleLock;
 // only the leader pod reaches this method.
 func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m mmodel.TransactionRedisQueue) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
 
 	msgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	logger := r.Logger.With(libLog.String(libConstants.HeaderID, m.HeaderID))
 
-	ctxWithLogger := libCommons.ContextWithLogger(
-		libCommons.ContextWithHeaderID(msgCtx, m.HeaderID),
+	ctxWithLogger := libObservability.ContextWithLogger(
+		libObservability.ContextWithHeaderID(msgCtx, m.HeaderID),
 		logger,
 	)
 

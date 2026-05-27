@@ -30,7 +30,7 @@ import (
 	"time"
 
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
+	libZap "github.com/LerianStudio/lib-observability/zap"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	"github.com/stretchr/testify/assert"

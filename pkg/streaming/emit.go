@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
 	"go.opentelemetry.io/otel/trace"
 )

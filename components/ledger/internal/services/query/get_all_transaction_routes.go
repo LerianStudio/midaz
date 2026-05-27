@@ -9,9 +9,9 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libCommons "github.com/LerianStudio/lib-observability"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -21,7 +21,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 
 	// GetAllTransactionRoutes fetch all Transaction Routes from the repository
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error) {

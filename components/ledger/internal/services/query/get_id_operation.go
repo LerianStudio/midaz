@@ -8,14 +8,14 @@ import (
 	"context"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 
 	// GetOperationByID gets data in the repository.
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID) (*operation.Operation, error) {

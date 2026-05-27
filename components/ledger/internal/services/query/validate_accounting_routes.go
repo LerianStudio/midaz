@@ -10,8 +10,9 @@ import (
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -60,7 +61,7 @@ import (
 // route entries. Before reaching this point, the handler (RevertTransaction) pre-validates
 // that all operation routes are bidirectional — a requirement for reversals.
 func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *mtransaction.Responses, action string) (*mmodel.TransactionRouteCache, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
 	defer span.End()
@@ -290,7 +291,7 @@ func resolveTransactionRouteID(validate *mtransaction.Responses) (uuid.UUID, err
 // Route existence, direction matching, and account rules (alias/account_type) are
 // always enforced when validateRoutes is active.
 func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, bidirectionalRoutes map[string]mmodel.OperationRouteCache, validate *mtransaction.Responses, operations []mmodel.BalanceOperation) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "usecase.validate_account_rules")
 	defer span.End()
