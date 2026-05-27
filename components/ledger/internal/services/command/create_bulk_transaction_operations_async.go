@@ -565,6 +565,7 @@ func (uc *UseCase) processMetadataAndEvents(
 		//     handler already mutated PG; we're emitting the
 		//     post-commit notification → phase=updated.
 		phase := TransactionLifecyclePhaseUpdated
+
 		if len(insertedTxIDs) > 0 {
 			if _, wasInserted := insertedTxIDs[tx.ID]; wasInserted {
 				phase = TransactionLifecyclePhaseCreated

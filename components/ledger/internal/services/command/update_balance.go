@@ -193,6 +193,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	// That event substitutes for the suppressed balance.created on the
 	// companion (companions are system-managed).
 	var companion *mmodel.Balance
+
 	if update.Settings != nil {
 		c, err := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, current, update.Settings)
 		if err != nil {
