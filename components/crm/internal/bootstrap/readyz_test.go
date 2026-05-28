@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -617,4 +618,143 @@ func TestNAChecker_TLSDisabled(t *testing.T) {
 
 	assert.Equal(t, StatusNA, check.Status)
 	assert.Equal(t, "some reason", check.Reason)
+}
+
+func TestVaultChecker_Name(t *testing.T) {
+	t.Parallel()
+
+	checker := NewVaultChecker("vault", nil, "https://vault.example.com:8200")
+
+	assert.Equal(t, "vault", checker.Name())
+}
+
+func TestVaultChecker_TLSEnabled_HTTPS(t *testing.T) {
+	t.Parallel()
+
+	checker := NewVaultChecker("vault", nil, "https://vault.example.com:8200")
+
+	assert.True(t, checker.TLSEnabled(),
+		"VaultChecker must return TLSEnabled=true for HTTPS address")
+}
+
+func TestVaultChecker_TLSEnabled_HTTP(t *testing.T) {
+	t.Parallel()
+
+	checker := NewVaultChecker("vault", nil, "http://vault.example.com:8200")
+
+	assert.False(t, checker.TLSEnabled(),
+		"VaultChecker must return TLSEnabled=false for HTTP address")
+}
+
+func TestVaultChecker_Check_NilClient(t *testing.T) {
+	t.Parallel()
+
+	checker := NewVaultChecker("vault", nil, "https://vault.example.com:8200")
+
+	ctx := context.Background()
+	check := checker.Check(ctx)
+
+	assert.Equal(t, StatusSkipped, check.Status,
+		"VaultChecker must return StatusSkipped when client is nil")
+	assert.Contains(t, check.Reason, "not configured",
+		"Reason must indicate client not configured")
+}
+
+func TestVaultChecker_Check_ClientAuthenticated(t *testing.T) {
+	t.Parallel()
+
+	// Create a mock client that reports as healthy
+	mockClient := &mockVaultClient{healthy: true}
+	checker := NewVaultCheckerWithClient("vault", mockClient, "https://vault.example.com:8200")
+
+	ctx := context.Background()
+	check := checker.Check(ctx)
+
+	assert.Equal(t, StatusUp, check.Status,
+		"VaultChecker must return StatusUp when Vault is healthy")
+	assert.NotNil(t, check.LatencyMs,
+		"LatencyMs must be set for network health check")
+}
+
+func TestVaultChecker_Check_ClientNotAuthenticated(t *testing.T) {
+	t.Parallel()
+
+	// Create a mock client that reports as unhealthy
+	mockClient := &mockVaultClient{healthy: false}
+	checker := NewVaultCheckerWithClient("vault", mockClient, "https://vault.example.com:8200")
+
+	ctx := context.Background()
+	check := checker.Check(ctx)
+
+	assert.Equal(t, StatusDown, check.Status,
+		"VaultChecker must return StatusDown when Vault is unhealthy")
+	assert.Contains(t, check.Error, "health check failed",
+		"Error must indicate health check failure")
+	assert.NotNil(t, check.LatencyMs,
+		"LatencyMs must be set even on failure")
+}
+
+func TestVaultChecker_TLSDetection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		addr    string
+		wantTLS bool
+	}{
+		{
+			name:    "https scheme",
+			addr:    "https://vault.example.com:8200",
+			wantTLS: true,
+		},
+		{
+			name:    "http scheme",
+			addr:    "http://vault.example.com:8200",
+			wantTLS: false,
+		},
+		{
+			name:    "HTTPS uppercase",
+			addr:    "HTTPS://vault.example.com:8200",
+			wantTLS: true,
+		},
+		{
+			name:    "no scheme defaults to false",
+			addr:    "vault.example.com:8200",
+			wantTLS: false,
+		},
+		{
+			name:    "empty address",
+			addr:    "",
+			wantTLS: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			checker := NewVaultChecker("vault", nil, tt.addr)
+
+			assert.Equal(t, tt.wantTLS, checker.TLSEnabled(),
+				"TLSEnabled() must match expected value for address: %s", tt.addr)
+		})
+	}
+}
+
+// mockVaultClient is a test double for vault health checking.
+type mockVaultClient struct {
+	healthy bool
+	err     error
+}
+
+func (m *mockVaultClient) HealthCheck(_ context.Context) error {
+	if m.err != nil {
+		return m.err
+	}
+
+	if !m.healthy {
+		return fmt.Errorf("vault is unhealthy")
+	}
+
+	return nil
 }

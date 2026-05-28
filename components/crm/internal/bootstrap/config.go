@@ -20,6 +20,7 @@ import (
 	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
@@ -195,8 +196,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		metricsFactory = telemetry.MetricsFactory
 	}
 
-	// Build readyz handler with MongoDB checker
-	readyzHandler, err := buildReadyzHandler(cfg, logger, mongoConnection, metricsFactory)
+	// Build readyz handler with MongoDB and Vault checkers
+	readyzHandler, err := buildReadyzHandler(cfg, logger, mongoConnection, kms, metricsFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize readyz handler: %w", err)
 	}
@@ -204,11 +205,33 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, readyzHandler, holderHandler, aliasHandler)
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry, readyzHandler)
 
+	// Initialize encryption repositories for envelope mode only.
+	// In legacy mode, these remain nil (not needed for legacy encryption).
+	var keysetRepo encryption.KeysetRepository
+
+	var registryRepo encryption.RegistryRepository
+
+	if kms.Mode.IsEnvelope() {
+		keysetRepo, err = encryption.NewKeysetMongoDBRepository(mongoConnection)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize keyset repository: %w", err)
+		}
+
+		registryRepo, err = encryption.NewRegistryMongoDBRepository(mongoConnection)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize registry repository: %w", err)
+		}
+
+		logger.Log(context.Background(), libLog.LevelInfo, "Encryption repositories initialized for envelope mode")
+	}
+
 	return &Service{
 		Server:         serverAPI,
 		EventListener:  eventListener,
 		EncryptionMode: kms.Mode,
 		VaultClient:    kms.VaultClient,
+		KeysetRepo:     keysetRepo,
+		RegistryRepo:   registryRepo,
 		Logger:         logger,
 	}, nil
 }
@@ -309,10 +332,12 @@ func resolveLoggerEnvironment(env string) libZap.Environment {
 // buildReadyzHandler creates the ReadyzHandler with appropriate checkers based on configuration.
 // In single-tenant mode, the MongoDB checker returns actual status.
 // In multi-tenant mode (future), database checkers would return "n/a" globally.
+// For envelope encryption mode, VaultChecker is added to monitor KMS availability.
 func buildReadyzHandler(
 	cfg *Config,
 	logger libLog.Logger,
 	mongoConnection *libMongo.Client,
+	kms *KMSResult,
 	metricsFactory *metrics.MetricsFactory,
 ) (*ReadyzHandler, error) {
 	// Build Mongo URI for TLS detection
@@ -343,6 +368,19 @@ func buildReadyzHandler(
 		// If no connection, add a skipped checker (excluded from TLS validation)
 		tlsEnabled, _ := detectMongoTLS(mongoURI)
 		checkers = append(checkers, NewNAChecker("mongo", "MongoDB client not configured", tlsEnabled))
+	}
+
+	// Vault checker - returns actual status in envelope encryption mode
+	if kms != nil && kms.Mode.IsEnvelope() && kms.VaultClient != nil {
+		vaultChecker := NewVaultChecker("vault", kms.VaultClient, cfg.VaultAddr)
+		checkers = append(checkers, vaultChecker)
+		tlsRelevantCheckers = append(tlsRelevantCheckers, vaultChecker)
+	} else if kms != nil && kms.Mode.IsEnvelope() {
+		// Envelope mode but no client - should not happen in production
+		checkers = append(checkers, NewNAChecker("vault", "Vault client not configured", detectVaultTLS(cfg.VaultAddr)))
+	} else {
+		// Legacy mode - Vault is not applicable
+		checkers = append(checkers, NewNAChecker("vault", "Legacy encryption mode (Vault not used)", false))
 	}
 
 	// Build TLS validation results from real dependency checkers only

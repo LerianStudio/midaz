@@ -444,3 +444,345 @@ func TestBuildTransitKeyName_KeyNameConvention(t *testing.T) {
 		assert.Contains(t, keyName, orgID.String())
 	})
 }
+
+func TestDefaultVaultDevToken(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DefaultVaultDevToken constant is defined", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, "root", DefaultVaultDevToken,
+			"DefaultVaultDevToken must be 'root' to match Vault dev container")
+	})
+}
+
+func TestBuildVaultConfig_DeploymentMode(t *testing.T) {
+	t.Parallel()
+
+	t.Run("local mode uses hardcoded token auth", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			VaultAddr:      "https://vault.example.com:8200",
+			VaultMountPath: "transit",
+			DeploymentMode: "local",
+		}
+
+		vaultCfg := buildVaultConfig(cfg)
+
+		assert.Equal(t, vault.AuthMethodToken, vaultCfg.AuthMethod,
+			"Local mode must use token auth")
+		assert.Equal(t, DefaultVaultDevToken, vaultCfg.Token,
+			"Local mode must use DefaultVaultDevToken")
+	})
+
+	t.Run("empty DeploymentMode defaults to local behavior with hardcoded token", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			VaultAddr:      "https://vault.example.com:8200",
+			VaultMountPath: "transit",
+			DeploymentMode: "", // Empty defaults to local
+		}
+
+		vaultCfg := buildVaultConfig(cfg)
+
+		assert.Equal(t, vault.AuthMethodToken, vaultCfg.AuthMethod,
+			"Empty DeploymentMode must default to local behavior (token auth)")
+		assert.Equal(t, DefaultVaultDevToken, vaultCfg.Token,
+			"Empty DeploymentMode must use DefaultVaultDevToken")
+	})
+
+	t.Run("local mode ignores AppRole credentials", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			VaultAddr:      "https://vault.example.com:8200",
+			VaultRoleID:    "role-123",
+			VaultSecretID:  "secret-456",
+			VaultMountPath: "transit",
+			DeploymentMode: "local",
+		}
+
+		vaultCfg := buildVaultConfig(cfg)
+
+		assert.Equal(t, vault.AuthMethodToken, vaultCfg.AuthMethod,
+			"Local mode must use token auth even when AppRole credentials are provided")
+		assert.Equal(t, DefaultVaultDevToken, vaultCfg.Token,
+			"Local mode must use DefaultVaultDevToken even when AppRole credentials are provided")
+	})
+
+	t.Run("saas mode uses AppRole when credentials provided", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			VaultAddr:      "https://vault.example.com:8200",
+			VaultRoleID:    "role-123",
+			VaultSecretID:  "secret-456",
+			VaultMountPath: "transit",
+			DeploymentMode: "saas",
+		}
+
+		vaultCfg := buildVaultConfig(cfg)
+
+		assert.Equal(t, vault.AuthMethodAppRole, vaultCfg.AuthMethod,
+			"SaaS mode must use AppRole auth when credentials are provided")
+		assert.Empty(t, vaultCfg.Token,
+			"SaaS mode must not set token when using AppRole")
+	})
+
+	t.Run("byoc mode uses AppRole when credentials provided", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			VaultAddr:      "https://vault.example.com:8200",
+			VaultRoleID:    "role-123",
+			VaultSecretID:  "secret-456",
+			VaultMountPath: "transit",
+			DeploymentMode: "byoc",
+		}
+
+		vaultCfg := buildVaultConfig(cfg)
+
+		assert.Equal(t, vault.AuthMethodAppRole, vaultCfg.AuthMethod,
+			"BYOC mode must use AppRole auth when credentials are provided")
+		assert.Empty(t, vaultCfg.Token,
+			"BYOC mode must not set token when using AppRole")
+	})
+
+	t.Run("saas mode returns empty auth when AppRole credentials missing", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			VaultAddr:      "https://vault.example.com:8200",
+			VaultMountPath: "transit",
+			DeploymentMode: "saas",
+			// No AppRole credentials
+		}
+
+		vaultCfg := buildVaultConfig(cfg)
+
+		assert.Empty(t, vaultCfg.AuthMethod,
+			"SaaS mode must return empty auth method when AppRole credentials are missing")
+		assert.Empty(t, vaultCfg.Token,
+			"SaaS mode must not set token when AppRole credentials are missing")
+	})
+
+	t.Run("byoc mode returns empty auth when AppRole credentials missing", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			VaultAddr:      "https://vault.example.com:8200",
+			VaultMountPath: "transit",
+			DeploymentMode: "byoc",
+			// No AppRole credentials
+		}
+
+		vaultCfg := buildVaultConfig(cfg)
+
+		assert.Empty(t, vaultCfg.AuthMethod,
+			"BYOC mode must return empty auth method when AppRole credentials are missing")
+	})
+
+	t.Run("production mode requires both RoleID and SecretID for AppRole", func(t *testing.T) {
+		t.Parallel()
+
+		// Only RoleID provided
+		cfg := &Config{
+			VaultAddr:      "https://vault.example.com:8200",
+			VaultRoleID:    "role-123",
+			VaultMountPath: "transit",
+			DeploymentMode: "saas",
+		}
+
+		vaultCfg := buildVaultConfig(cfg)
+
+		assert.Empty(t, vaultCfg.AuthMethod,
+			"Production mode must return empty auth when only RoleID is provided")
+	})
+
+	t.Run("whitespace-only RoleID is treated as empty", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			VaultAddr:      "https://vault.example.com:8200",
+			VaultRoleID:    "   ",
+			VaultSecretID:  "secret-456",
+			VaultMountPath: "transit",
+			DeploymentMode: "saas",
+		}
+
+		vaultCfg := buildVaultConfig(cfg)
+
+		assert.Empty(t, vaultCfg.AuthMethod,
+			"Whitespace-only RoleID must be treated as empty")
+	})
+
+	t.Run("whitespace-only SecretID is treated as empty", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			VaultAddr:      "https://vault.example.com:8200",
+			VaultRoleID:    "role-123",
+			VaultSecretID:  "   ",
+			VaultMountPath: "transit",
+			DeploymentMode: "saas",
+		}
+
+		vaultCfg := buildVaultConfig(cfg)
+
+		assert.Empty(t, vaultCfg.AuthMethod,
+			"Whitespace-only SecretID must be treated as empty")
+	})
+}
+
+func TestResolveVaultAuth(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		deploymentMode string
+		hasAppRole     bool
+		expectedMethod vault.AuthMethod
+		expectedToken  string
+	}{
+		// Local/development mode tests - always uses hardcoded token
+		{
+			name:           "local mode always uses hardcoded token",
+			deploymentMode: "local",
+			hasAppRole:     false,
+			expectedMethod: vault.AuthMethodToken,
+			expectedToken:  DefaultVaultDevToken,
+		},
+		{
+			name:           "local mode ignores AppRole credentials",
+			deploymentMode: "local",
+			hasAppRole:     true,
+			expectedMethod: vault.AuthMethodToken,
+			expectedToken:  DefaultVaultDevToken,
+		},
+		{
+			name:           "empty mode defaults to local behavior",
+			deploymentMode: "",
+			hasAppRole:     true,
+			expectedMethod: vault.AuthMethodToken,
+			expectedToken:  DefaultVaultDevToken,
+		},
+		// Production mode tests (saas) - AppRole only
+		{
+			name:           "saas mode uses AppRole when credentials provided",
+			deploymentMode: "saas",
+			hasAppRole:     true,
+			expectedMethod: vault.AuthMethodAppRole,
+			expectedToken:  "",
+		},
+		{
+			name:           "saas mode returns empty when no AppRole credentials",
+			deploymentMode: "saas",
+			hasAppRole:     false,
+			expectedMethod: "",
+			expectedToken:  "",
+		},
+		// Production mode tests (byoc) - AppRole only
+		{
+			name:           "byoc mode uses AppRole when credentials provided",
+			deploymentMode: "byoc",
+			hasAppRole:     true,
+			expectedMethod: vault.AuthMethodAppRole,
+			expectedToken:  "",
+		},
+		{
+			name:           "byoc mode returns empty when no AppRole credentials",
+			deploymentMode: "byoc",
+			hasAppRole:     false,
+			expectedMethod: "",
+			expectedToken:  "",
+		},
+		// Case insensitivity tests
+		{
+			name:           "SAAS uppercase uses AppRole",
+			deploymentMode: "SAAS",
+			hasAppRole:     true,
+			expectedMethod: vault.AuthMethodAppRole,
+			expectedToken:  "",
+		},
+		{
+			name:           "BYOC uppercase uses AppRole",
+			deploymentMode: "BYOC",
+			hasAppRole:     true,
+			expectedMethod: vault.AuthMethodAppRole,
+			expectedToken:  "",
+		},
+		{
+			name:           "Local mixed case uses token",
+			deploymentMode: "Local",
+			hasAppRole:     true,
+			expectedMethod: vault.AuthMethodToken,
+			expectedToken:  DefaultVaultDevToken,
+		},
+		// Whitespace handling
+		{
+			name:           "whitespace-padded local mode uses token",
+			deploymentMode: "  local  ",
+			hasAppRole:     false,
+			expectedMethod: vault.AuthMethodToken,
+			expectedToken:  DefaultVaultDevToken,
+		},
+		{
+			name:           "whitespace-padded saas mode uses AppRole",
+			deploymentMode: "  saas  ",
+			hasAppRole:     true,
+			expectedMethod: vault.AuthMethodAppRole,
+			expectedToken:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			method, token := resolveVaultAuth(tt.deploymentMode, tt.hasAppRole)
+
+			assert.Equal(t, tt.expectedMethod, method,
+				"AuthMethod must match expected value")
+			assert.Equal(t, tt.expectedToken, token,
+				"Token must match expected value")
+		})
+	}
+}
+
+func TestValidateVaultConfig_AuthMethods(t *testing.T) {
+	t.Parallel()
+
+	t.Run("accepts AppRole auth credentials for envelope mode", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			VaultAddr:      "https://vault.example.com:8200",
+			VaultRoleID:    "role-123",
+			VaultSecretID:  "secret-456",
+			VaultMountPath: "transit",
+		}
+
+		err := validateVaultConfig(crypto.EncryptionModeEnvelope, cfg)
+
+		require.NoError(t, err,
+			"validateVaultConfig must accept AppRole auth credentials for envelope mode")
+	})
+
+	t.Run("accepts local mode config without AppRole (uses hardcoded token)", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			VaultAddr:      "https://vault.example.com:8200",
+			VaultMountPath: "transit",
+			DeploymentMode: "local",
+			// No AppRole credentials - local mode uses hardcoded token
+		}
+
+		err := validateVaultConfig(crypto.EncryptionModeEnvelope, cfg)
+
+		require.NoError(t, err,
+			"validateVaultConfig must accept local mode without AppRole credentials")
+	})
+}
