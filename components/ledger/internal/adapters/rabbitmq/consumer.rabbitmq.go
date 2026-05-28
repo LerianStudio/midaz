@@ -301,12 +301,11 @@ func (cr *ConsumerRoutes) startWorker(channelCtx context.Context, workerID int, 
 			libLog.String(libConstants.HeaderID, midazID),
 		)
 
+		// Derive from channelCtx so channel closure cancels in-flight handlers.
 		ctx := libObservability.ContextWithLogger(
-			libObservability.ContextWithHeaderID(context.Background(), midazID),
+			libObservability.ContextWithHeaderID(channelCtx, midazID),
 			log,
 		)
-
-		ctx = libObservability.ContextWithHeaderID(ctx, midazID)
 		ctx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctx, msg.Headers)
 
 		logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)

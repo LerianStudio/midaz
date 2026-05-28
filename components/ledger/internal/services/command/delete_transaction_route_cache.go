@@ -6,24 +6,23 @@ package command
 
 import (
 	"context"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
-
-	// DeleteTransactionRouteCache deletes the cache for a transaction route.
-	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
+// DeleteTransactionRouteCache deletes the cache for a transaction route.
 func (uc *UseCase) DeleteTransactionRouteCache(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_transaction_route_cache")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Deleting transaction route cache for transaction route with id: %s", transactionRouteID))
+	logger.Log(ctx, libLog.LevelInfo, "Deleting transaction route cache",
+		libLog.String("transaction_route_id", transactionRouteID.String()))
 
 	internalKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
@@ -31,12 +30,15 @@ func (uc *UseCase) DeleteTransactionRouteCache(ctx context.Context, organization
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to delete transaction route cache", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete transaction route cache: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to delete transaction route cache",
+			libLog.String("transaction_route_id", transactionRouteID.String()),
+			libLog.Err(err))
 
 		return err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully deleted transaction route cache for transaction route with id: %s", transactionRouteID))
+	logger.Log(ctx, libLog.LevelInfo, "Successfully deleted transaction route cache",
+		libLog.String("transaction_route_id", transactionRouteID.String()))
 
 	return nil
 }

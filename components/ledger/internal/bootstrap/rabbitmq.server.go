@@ -72,6 +72,11 @@ func handlerBTO(ctx context.Context, body []byte, useCase *command.UseCase) erro
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update")
 	defer span.End()
 
+	if err := ctx.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Context cancelled before processing", err)
+		return err
+	}
+
 	logger.Log(ctx, libLog.LevelInfo, "Processing message from balance_retry_queue_fifo")
 
 	var message mmodel.Queue
@@ -113,6 +118,11 @@ func handlerBTOBulk(ctx context.Context, messages []amqp.Delivery, useCase *comm
 
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update_bulk")
 	defer span.End()
+
+	if err := ctx.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Context cancelled before processing", err)
+		return nil, err
+	}
 
 	startTime := time.Now()
 
