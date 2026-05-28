@@ -26,7 +26,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-const moduleName = "crm"
+const moduleName = "crm-api"
 
 // initTenantMiddleware creates the tenant middleware for multi-tenant mode.
 // Returns (nil, nil, nil) when multi-tenant is disabled or the URL is not configured.
