@@ -13,6 +13,17 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	"github.com/twmb/franz-go/pkg/sasl"
+	"github.com/twmb/franz-go/pkg/sasl/plain"
+	"github.com/twmb/franz-go/pkg/sasl/scram"
+)
+
+// SASL mechanism names accepted by STREAMING_SASL_MECHANISM. Compared
+// case-insensitively at parse time so operators can write any casing.
+const (
+	saslMechanismPlain    = "PLAIN"
+	saslMechanismScram256 = "SCRAM-SHA-256"
+	saslMechanismScram512 = "SCRAM-SHA-512"
 )
 
 // streamingPrimaryTargetName is the canonical name for midaz's single
@@ -107,7 +118,7 @@ func BuildStreamingEmitter(
 		return nil, noopStreamingCloser, fmt.Errorf("failed to build streaming routes: %w", err)
 	}
 
-	emitter, err := libStreaming.NewBuilder().
+	builder := libStreaming.NewBuilder().
 		Source(streamingCfg.CloudEventsSource).
 		Catalog(catalog).
 		Routes(routes...).
@@ -115,23 +126,105 @@ func BuildStreamingEmitter(
 			Name:    streamingPrimaryTargetName,
 			Kind:    libStreaming.TransportKafkaLike,
 			Brokers: streamingCfg.Brokers,
-		}).
-		Build(ctx)
+		})
+
+	// Apply SASL/TLS auth knobs from cfg. resolveSASLMechanism returns a
+	// nil mechanism (and an empty mechanism name) when SASL is disabled,
+	// in which case the Builder is left untouched and the producer dials
+	// the broker without authentication — matching the historical local/dev
+	// behaviour. When SASL is enabled but TLS is not, lib-streaming
+	// rejects construction with ErrPlaintextSASLNotAllowed unless the
+	// caller also opts into AllowPlaintextSASL — gated behind
+	// STREAMING_ALLOW_PLAINTEXT_SASL=true for dev brokers.
+	mechanism, mechanismName, err := resolveSASLMechanism(cfg)
+	if err != nil {
+		return nil, noopStreamingCloser, fmt.Errorf("failed to resolve streaming SASL mechanism: %w", err)
+	}
+
+	if mechanism != nil {
+		builder = builder.SASL(mechanism)
+
+		if cfg.StreamingAllowPlaintextSASL {
+			builder = builder.AllowPlaintextSASL()
+		}
+	}
+
+	emitter, err := builder.Build(ctx)
 	if err != nil {
 		return nil, noopStreamingCloser, fmt.Errorf("failed to construct streaming emitter: %w", err)
 	}
 
 	if logger != nil {
+		// NOTE: only mechanism name is logged. Username and password are
+		// NEVER logged, even at debug level.
+		authMode := "none"
+		if mechanismName != "" {
+			authMode = mechanismName
+			if cfg.StreamingAllowPlaintextSASL {
+				authMode += " (plaintext)"
+			}
+		}
+
 		logger.Log(ctx, libLog.LevelInfo, "Streaming emitter constructed",
 			libLog.String("brokers", strings.Join(streamingCfg.Brokers, ",")),
 			libLog.String("client_id", streamingCfg.ClientID),
 			libLog.String("ce_source", streamingCfg.CloudEventsSource),
+			libLog.String("auth", authMode),
 			libLog.Int("catalog_size", catalog.Len()),
 			libLog.Int("routes", len(routes)),
 		)
 	}
 
 	return emitter, emitter.Close, nil
+}
+
+// resolveSASLMechanism inspects the streaming SASL knobs on cfg and
+// returns the matching franz-go sasl.Mechanism plus its canonical name.
+//
+// Behaviour:
+//   - StreamingSASLMechanism empty (after trimming) → returns (nil, "", nil).
+//     The Builder stays unauthenticated, matching the existing local/dev
+//     default.
+//   - StreamingSASLMechanism set but USERNAME or PASSWORD empty → returns
+//     a config error. SASL with empty credentials would either be rejected
+//     by the broker after I/O (PLAIN) or panic inside franz-go's SCRAM
+//     handshake; failing closed at bootstrap is the safer contract.
+//   - StreamingSASLMechanism unrecognised → returns a config error
+//     enumerating the accepted values.
+//
+// The mechanism name returned is the canonical upper-case form
+// ("PLAIN", "SCRAM-SHA-256", "SCRAM-SHA-512") — used for the bootstrap
+// log line. Username and password are NEVER returned to the caller and
+// never logged.
+func resolveSASLMechanism(cfg *Config) (sasl.Mechanism, string, error) {
+	raw := strings.TrimSpace(cfg.StreamingSASLMechanism)
+	if raw == "" {
+		return nil, "", nil
+	}
+
+	mechanism := strings.ToUpper(raw)
+
+	user := cfg.StreamingSASLUsername
+	pass := cfg.StreamingSASLPassword
+
+	if user == "" || pass == "" {
+		return nil, "", fmt.Errorf(
+			"STREAMING_SASL_MECHANISM=%q requires STREAMING_SASL_USERNAME and STREAMING_SASL_PASSWORD",
+			mechanism)
+	}
+
+	switch mechanism {
+	case saslMechanismPlain:
+		return plain.Auth{User: user, Pass: pass}.AsMechanism(), saslMechanismPlain, nil
+	case saslMechanismScram256:
+		return scram.Auth{User: user, Pass: pass}.AsSha256Mechanism(), saslMechanismScram256, nil
+	case saslMechanismScram512:
+		return scram.Auth{User: user, Pass: pass}.AsSha512Mechanism(), saslMechanismScram512, nil
+	default:
+		return nil, "", fmt.Errorf(
+			"STREAMING_SASL_MECHANISM=%q is not supported (accepted: %s, %s, %s)",
+			raw, saslMechanismPlain, saslMechanismScram256, saslMechanismScram512)
+	}
 }
 
 // midazEventDefinitions returns the canonical, ordered list of midaz
