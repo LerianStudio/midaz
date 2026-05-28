@@ -178,6 +178,59 @@ services:
     networks:
       - infra-network
 
+  # HashiCorp Vault for KMS/Transit secrets engine (OPTIONAL)
+  # Used by components that need envelope encryption (e.g., CRM with KMS_VENDOR=hashicorp-vault)
+  # Start with: docker compose up midaz-hc-vault midaz-hc-vault-init -d
+  midaz-hc-vault:
+    container_name: midaz-hc-vault
+    image: hashicorp/vault:1.15
+    restart: unless-stopped
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_TOKEN:-root}
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+      VAULT_ADDR: "http://127.0.0.1:8200"
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - infra-network
+
+  # Vault initialization service - enables Transit secrets engine
+  # Runs once after Vault is healthy, then exits
+  midaz-hc-vault-init:
+    container_name: midaz-hc-vault-init
+    image: hashicorp/vault:1.15
+    depends_on:
+      midaz-hc-vault:
+        condition: service_healthy
+    environment:
+      VAULT_ADDR: "http://midaz-hc-vault:8200"
+      VAULT_TOKEN: ${VAULT_DEV_TOKEN:-root}
+      TRANSIT_MOUNT_PATH: ${VAULT_TRANSIT_MOUNT_PATH:-transit}
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        echo "Checking if Transit is already enabled at $${TRANSIT_MOUNT_PATH}..."
+        if vault secrets list | grep -q "^$${TRANSIT_MOUNT_PATH}/"; then
+          echo "Transit already enabled at $${TRANSIT_MOUNT_PATH}"
+        else
+          echo "Enabling Transit secrets engine at $${TRANSIT_MOUNT_PATH}..."
+          vault secrets enable -path="$${TRANSIT_MOUNT_PATH}" transit
+          echo "Transit enabled successfully"
+        fi
+        echo "Vault initialization complete"
+    networks:
+      - infra-network
+    restart: "no"
+
 volumes:
   postgres-data:
   postgres-replica-data:

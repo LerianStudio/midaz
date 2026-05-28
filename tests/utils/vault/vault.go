@@ -17,7 +17,7 @@ import (
 )
 
 // DefaultRootToken is the root token for the Vault dev container.
-const DefaultRootToken = "root-token"
+const DefaultRootToken = "root"
 
 // ContainerResult contains the Vault container connection information.
 type ContainerResult struct {

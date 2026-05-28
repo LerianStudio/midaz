@@ -114,7 +114,7 @@ func validateVaultConfig(mode crypto.EncryptionMode, cfg *Config) error {
 
 // DefaultVaultDevToken is the hardcoded token for local/development environments.
 // This matches the Vault dev container's default root token.
-const DefaultVaultDevToken = "root-token"
+const DefaultVaultDevToken = "root"
 
 // buildVaultConfig creates a vault.Config from the bootstrap Config.
 // Auth method selection based on deployment mode:

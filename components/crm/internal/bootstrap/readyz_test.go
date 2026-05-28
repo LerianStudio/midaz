@@ -620,10 +620,6 @@ func TestNAChecker_TLSDisabled(t *testing.T) {
 	assert.Equal(t, "some reason", check.Reason)
 }
 
-// ============================================================================
-// VaultChecker Tests (ST-003-02)
-// ============================================================================
-
 func TestVaultChecker_Name(t *testing.T) {
 	t.Parallel()
 

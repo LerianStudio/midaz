@@ -62,7 +62,6 @@ help:
 	@echo "  make restart                     - Restart all containers"
 	@echo "  make logs                        - Show logs for all services"
 	@echo "  make logs-api                    - Show logs for CRM service"
-	@echo "  make logs-vault                  - Show logs for Vault service (KMS)"
 	@echo "  make ps                          - List container status"
 	@echo "  make rebuild-up                  - Rebuild and restart services during development"
 	@echo "  make clean-docker                - Clean all Docker resources (containers, networks, volumes)"
@@ -268,16 +267,15 @@ up:
 	$(call title1,"Starting services in detached mode")
 	@KMS_VENDOR_VALUE=$$(grep -E "^KMS_VENDOR=" .env 2>/dev/null | cut -d'=' -f2 | tr -d ' "'"'"''); \
 	if [ "$$KMS_VENDOR_VALUE" = "hashicorp-vault" ]; then \
-		echo "$(CYAN)KMS_VENDOR=hashicorp-vault detected, starting Vault stack...$(NC)"; \
-		$(DOCKER_CMD) -f docker-compose.yml up vault -d; \
-		echo "$(CYAN)Initializing Vault (enabling Transit secrets engine)...$(NC)"; \
-		$(DOCKER_CMD) -f docker-compose.yml up vault-init; \
+		echo "$(CYAN)KMS_VENDOR=hashicorp-vault detected (envelope mode)$(NC)"; \
+		echo "$(YELLOW)NOTE: Ensure Vault is running from infra:$(NC)"; \
+		echo "$(YELLOW)  cd ../infra && docker compose up midaz-hc-vault midaz-hc-vault-init -d$(NC)"; \
 		$(DOCKER_CMD) -f docker-compose.yml up crm -d; \
-		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM + Vault services started successfully$(GREEN) ✔️$(NC)"; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM service started (envelope mode)$(GREEN) ✔️$(NC)"; \
 	else \
-		echo "$(CYAN)KMS_VENDOR=$$KMS_VENDOR_VALUE (legacy mode), starting CRM only...$(NC)"; \
+		echo "$(CYAN)KMS_VENDOR=$$KMS_VENDOR_VALUE (legacy mode)$(NC)"; \
 		$(DOCKER_CMD) -f docker-compose.yml up crm -d; \
-		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM service started successfully$(GREEN) ✔️$(NC)"; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM service started (legacy mode)$(GREEN) ✔️$(NC)"; \
 	fi
 
 .PHONY: start
@@ -288,7 +286,7 @@ start:
 
 .PHONY: down
 down:
-	$(call title1,"Stopping and removing containers|networks|volumes")
+	$(call title1,"Stopping services and cleaning up")
 	@if [ -f "docker-compose.yml" ]; then \
 		$(DOCKER_CMD) -f docker-compose.yml down $(c); \
 	else \
@@ -315,16 +313,15 @@ rebuild-up:
 	@$(DOCKER_CMD) -f docker-compose.yml build
 	@KMS_VENDOR_VALUE=$$(grep -E "^KMS_VENDOR=" .env 2>/dev/null | cut -d'=' -f2 | tr -d ' "'"'"''); \
 	if [ "$$KMS_VENDOR_VALUE" = "hashicorp-vault" ]; then \
-		echo "$(CYAN)KMS_VENDOR=hashicorp-vault detected, starting Vault stack...$(NC)"; \
-		$(DOCKER_CMD) -f docker-compose.yml up vault -d; \
-		echo "$(CYAN)Initializing Vault (enabling Transit secrets engine)...$(NC)"; \
-		$(DOCKER_CMD) -f docker-compose.yml up vault-init; \
+		echo "$(CYAN)KMS_VENDOR=hashicorp-vault detected (envelope mode)$(NC)"; \
+		echo "$(YELLOW)NOTE: Ensure Vault is running from infra:$(NC)"; \
+		echo "$(YELLOW)  cd ../infra && docker compose up midaz-hc-vault midaz-hc-vault-init -d$(NC)"; \
 		$(DOCKER_CMD) -f docker-compose.yml up crm -d; \
-		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM + Vault services rebuilt and restarted successfully$(GREEN) ✔️$(NC)"; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM service rebuilt and restarted (envelope mode)$(GREEN) ✔️$(NC)"; \
 	else \
-		echo "$(CYAN)KMS_VENDOR=$$KMS_VENDOR_VALUE (legacy mode), starting CRM only...$(NC)"; \
+		echo "$(CYAN)KMS_VENDOR=$$KMS_VENDOR_VALUE (legacy mode)$(NC)"; \
 		$(DOCKER_CMD) -f docker-compose.yml up crm -d; \
-		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM service rebuilt and restarted successfully$(GREEN) ✔️$(NC)"; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM service rebuilt and restarted (legacy mode)$(GREEN) ✔️$(NC)"; \
 	fi
 
 .PHONY: clean-docker
@@ -356,11 +353,6 @@ logs:
 logs-api:
 	$(call title1,"Showing logs for CRM service")
 	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f crm
-
-.PHONY: logs-vault
-logs-vault:
-	$(call title1,"Showing logs for Vault service")
-	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f vault
 
 .PHONY: ps
 ps:

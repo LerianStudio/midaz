@@ -445,19 +445,14 @@ func TestBuildTransitKeyName_KeyNameConvention(t *testing.T) {
 	})
 }
 
-// ============================================================================
-// Token Auth Support Tests (ST-003-01)
-// Local/dev mode uses hardcoded root token. Production uses AppRole only.
-// ============================================================================
-
 func TestDefaultVaultDevToken(t *testing.T) {
 	t.Parallel()
 
 	t.Run("DefaultVaultDevToken constant is defined", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, "root-token", DefaultVaultDevToken,
-			"DefaultVaultDevToken must be 'root-token' to match Vault dev container")
+		assert.Equal(t, "root", DefaultVaultDevToken,
+			"DefaultVaultDevToken must be 'root' to match Vault dev container")
 	})
 }
 
