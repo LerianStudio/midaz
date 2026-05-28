@@ -1,5 +1,16 @@
 # Midaz Changelog
 
+## [3.7.3](https://github.com/LerianStudio/midaz/releases/tag/v3.7.3)
+
+- Fixes:
+  - Align tenant-manager module name with provisioning (crm → crm-api) :bug:
+
+Contributors: @ClaraTersi, @jeffersonrodrigues92, @lerian-studio
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.7.2...v3.7.3)
+
+---
+
 ## [3.7.2](https://github.com/LerianStudio/midaz/releases/tag/v3.7.2)
 
 - **Fixes:**
