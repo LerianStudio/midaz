@@ -506,7 +506,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 		qb = qb.Set("description", record.Description)
 	}
 
-	if operationRoute.Code != "" {
+	if operationRoute.Code != "" { //nolint:staticcheck // legacy Code field persisted for backward compatibility
 		qb = qb.Set("code", record.Code)
 	}
 

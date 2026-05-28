@@ -32,6 +32,7 @@ const (
 	balanceAliasKeyUniqueIndex   = "idx_unique_balance_alias_key"
 )
 
+//nolint:gocyclo // Validation + parent lookup + uniqueness + creation; refactor candidate.
 func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, cbi *mmodel.CreateAdditionalBalance) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

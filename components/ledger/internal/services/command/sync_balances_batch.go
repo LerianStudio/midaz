@@ -42,6 +42,8 @@ type SyncBalancesBatchResult struct {
 //   - Missing keys (already expired): skipped in aggregation
 //   - Version conflicts: optimistic locking in DB update
 //   - Partial failures: keys only removed after successful DB write
+//
+//nolint:gocognit,gocyclo // Will be refactored into smaller helpers; tracked separately.
 func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []redisTransaction.SyncKey) (*SyncBalancesBatchResult, error) {
 	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
 

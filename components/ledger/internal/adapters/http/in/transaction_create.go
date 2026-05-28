@@ -31,7 +31,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-//nolint:gocognit // Will be refactored into smaller functions.
+//nolint:gocognit,gocyclo // Will be refactored into smaller functions.
 func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
 	balances []*mmodel.Balance,
@@ -632,7 +632,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -682,7 +682,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -765,7 +765,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -817,7 +817,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -945,7 +945,7 @@ func (handler *TransactionHandler) buildStandardOp(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -965,6 +965,7 @@ func (handler *TransactionHandler) createRevertTransaction(c *fiber.Ctx, transac
 	return handler.executeCreateTransaction(c, transactionInput, transactionStatus, true)
 }
 
+//nolint:gocyclo // Orchestration step with conditional branches per transaction type; refactor candidate.
 func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool) error {
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -1197,7 +1198,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		ChartOfAccountsGroupName: transactionInput.ChartOfAccountsGroupName,
 		CreatedAt:                transactionDate,
 		UpdatedAt:                time.Now(),
-		Route:                    transactionInput.Route,
+		Route:                    transactionInput.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:                  transactionInput.RouteID,
 		Metadata:                 transactionInput.Metadata,
 		Status: transaction.Status{

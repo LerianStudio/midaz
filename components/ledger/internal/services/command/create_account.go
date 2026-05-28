@@ -28,6 +28,8 @@ import (
 
 // CreateAccount creates an account and metadata, then synchronously creates the default balance.
 // The balance is created via the BalancePort interface.
+//
+//nolint:gocyclo // Validation + creation + metadata + balance orchestration; refactor candidate.
 func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
 	logger, tracer, requestID, _ := libObservability.NewTrackingFromContext(ctx)
 

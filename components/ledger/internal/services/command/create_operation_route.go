@@ -37,7 +37,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 		LedgerID:          ledgerID,
 		Title:             payload.Title,
 		Description:       payload.Description,
-		Code:              payload.Code,
+		Code:              payload.Code, //nolint:staticcheck // legacy Code field persisted for backward compatibility
 		OperationType:     payload.OperationType,
 		Account:           payload.Account,
 		AccountingEntries: payload.AccountingEntries,

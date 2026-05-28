@@ -233,6 +233,8 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 }
 
 // FindAll retrieves an Account entities from the database (including soft-deleted ones) with pagination.
+//
+//nolint:gocyclo // Query builder with optional filters per parameter; refactor candidate.
 func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader) ([]*mmodel.Account, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

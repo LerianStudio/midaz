@@ -320,6 +320,8 @@ Outer:
 // and operations, and writes the transaction via the async path.
 // Duplicate-processing prevention is handled at the cycle level by acquireCycleLock;
 // only the leader pod reaches this method.
+//
+//nolint:gocognit,gocyclo // Will be refactored into smaller helpers; tracked separately.
 func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m mmodel.TransactionRedisQueue) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
 
@@ -419,7 +421,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 		ChartOfAccountsGroupName: m.TransactionInput.ChartOfAccountsGroupName,
 		CreatedAt:                m.TransactionDate,
 		UpdatedAt:                time.Now(),
-		Route:                    m.TransactionInput.Route,
+		Route:                    m.TransactionInput.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:                  m.TransactionInput.RouteID,
 		Metadata:                 m.TransactionInput.Metadata,
 		Status: postgreTransaction.Status{

@@ -339,7 +339,7 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
-				Route:           op.Route,
+				Route:           op.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 				RouteID:         op.RouteID,
 			})
 			fromByAlias[op.AccountAlias] = len(froms) - 1
@@ -361,7 +361,7 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
-				Route:           op.Route,
+				Route:           op.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 				RouteID:         op.RouteID,
 			})
 			toByAlias[op.AccountAlias] = len(tos) - 1

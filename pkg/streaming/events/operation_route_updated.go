@@ -63,7 +63,7 @@ func NewOperationRouteUpdated(o *mmodel.OperationRoute) OperationRouteUpdatedPay
 		LedgerID:          o.LedgerID.String(),
 		Title:             o.Title,
 		Description:       o.Description,
-		Code:              o.Code,
+		Code:              o.Code, //nolint:staticcheck // legacy Code field emitted for backward compatibility
 		OperationType:     o.OperationType,
 		Account:           o.Account,
 		AccountingEntries: o.AccountingEntries,

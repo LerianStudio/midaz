@@ -290,7 +290,7 @@ func buildTransactionEventSource(tran *transaction.Transaction) (events.Transact
 		Description:              tran.Description,
 		Source:                   tran.Source,
 		Destination:              tran.Destination,
-		Route:                    tran.Route,
+		Route:                    tran.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:                  tran.RouteID,
 		Operations:               operationsRaw,
 		Metadata:                 tran.Metadata,

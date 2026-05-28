@@ -32,7 +32,7 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 	operationRoute := &mmodel.OperationRoute{
 		Title:                input.Title,
 		Description:          input.Description,
-		Code:                 input.Code,
+		Code:                 input.Code, //nolint:staticcheck // legacy Code field persisted for backward compatibility
 		Account:              input.Account,
 		AccountingEntries:    input.AccountingEntries,
 		AccountingEntriesRaw: input.AccountingEntriesRaw,
