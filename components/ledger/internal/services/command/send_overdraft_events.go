@@ -203,7 +203,8 @@ func buildOverdraftEvents(tran *transaction.Transaction) []overdraftEventItem {
 		return nil
 	}
 
-	items := make([]overdraftEventItem, 0, len(tran.Operations))
+	//nolint:prealloc // contract: return nil (not empty slice) when no operation qualifies; tests assert nil.
+	var items []overdraftEventItem
 
 	for _, op := range tran.Operations {
 		if op == nil || op.BalanceKey != constant.OverdraftBalanceKey {
