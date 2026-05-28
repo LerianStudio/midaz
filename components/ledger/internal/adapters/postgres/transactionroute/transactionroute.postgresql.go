@@ -13,9 +13,10 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
@@ -137,7 +138,7 @@ func (r *TransactionRoutePostgreSQLRepository) getDB(ctx context.Context) (dbres
 // It returns the created transaction route and an error if the operation fails.
 // Uses database transactions to ensure atomicity - if any operation route relation fails, the entire operation is rolled back.
 func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_transaction_route")
 	defer span.End()
@@ -272,7 +273,7 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 // FindByID retrieves a transaction route by its ID including its operation routes.
 // It returns the transaction route if found, otherwise it returns an error.
 func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_route_by_id")
 	defer span.End()
@@ -438,7 +439,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 // It returns the updated transaction route and an error if the operation fails.
 // If the transaction route has operation routes, it will update the relationships atomically.
 func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_transaction_route")
 	defer span.End()
@@ -557,7 +558,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 // It returns an error if the operation fails.
 // If the transaction route has operation routes, it will delete the relationships atomically.
 func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID, toRemove []uuid.UUID) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_transaction_route")
 	defer span.End()
@@ -626,7 +627,7 @@ func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organ
 // It returns a list of transaction routes, a cursor pagination object, and an error if the operation fails.
 // The function supports filtering by date range and pagination.
 func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_transaction_routes")
 	defer span.End()
@@ -747,7 +748,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 // a mapping of transaction route IDs to their linked operation route IDs.
 // Returns an empty map (not nil) when no links are found or input is empty.
 func (r *TransactionRoutePostgreSQLRepository) FindOperationRouteIDsByTransactionRouteIDs(ctx context.Context, transactionRouteIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_operation_route_ids_by_transaction_route_ids")
 	defer span.End()
@@ -828,7 +829,7 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }, transactionRouteID uuid.UUID, toAdd, toRemove []uuid.UUID,
 ) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctxSpan, span := tracer.Start(ctx, "postgres.update_operation_route_relationships")
 	defer span.End()

@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
@@ -203,6 +203,7 @@ func buildOverdraftEvents(tran *transaction.Transaction) []overdraftEventItem {
 		return nil
 	}
 
+	//nolint:prealloc // contract: return nil (not empty slice) when no operation qualifies; tests assert nil.
 	var items []overdraftEventItem
 
 	for _, op := range tran.Operations {

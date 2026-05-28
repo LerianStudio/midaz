@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

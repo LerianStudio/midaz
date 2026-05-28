@@ -102,10 +102,10 @@ func (m *OperationRoutePostgreSQLModel) FromEntity(e *mmodel.OperationRoute) {
 	m.Title = e.Title
 	m.Description = e.Description
 
-	if strings.TrimSpace(e.Code) == "" {
+	if strings.TrimSpace(e.Code) == "" { //nolint:staticcheck // legacy Code field persisted for backward compatibility
 		m.Code = sql.NullString{}
 	} else {
-		m.Code = sql.NullString{String: e.Code, Valid: true}
+		m.Code = sql.NullString{String: e.Code, Valid: true} //nolint:staticcheck // legacy Code field persisted for backward compatibility
 	}
 
 	m.OperationType = strings.ToLower(e.OperationType)

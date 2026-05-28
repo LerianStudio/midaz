@@ -8,9 +8,9 @@ import (
 	"context"
 	"errors"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -32,7 +32,7 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 	operationRoute := &mmodel.OperationRoute{
 		Title:                input.Title,
 		Description:          input.Description,
-		Code:                 input.Code,
+		Code:                 input.Code, //nolint:staticcheck // legacy Code field persisted for backward compatibility
 		Account:              input.Account,
 		AccountingEntries:    input.AccountingEntries,
 		AccountingEntriesRaw: input.AccountingEntriesRaw,

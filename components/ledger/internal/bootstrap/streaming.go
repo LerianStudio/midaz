@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"strings"
 
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/twmb/franz-go/pkg/sasl"
@@ -113,10 +113,7 @@ func BuildStreamingEmitter(
 
 	// Build the route table. One required route per event keyed to the
 	// canonical "lerian.streaming.<resource>.<event>" topic name.
-	routes, err := buildRoutes(streamingPrimaryTargetName)
-	if err != nil {
-		return nil, noopStreamingCloser, fmt.Errorf("failed to build streaming routes: %w", err)
-	}
+	routes := buildRoutes(streamingPrimaryTargetName)
 
 	builder := libStreaming.NewBuilder().
 		Source(streamingCfg.CloudEventsSource).
@@ -302,7 +299,7 @@ func buildCatalog() (libStreaming.Catalog, error) {
 // dot-delimited pattern, and the target-name suffix guarantees uniqueness
 // when the same event is later routed to multiple targets (e.g. a parallel
 // shadow route).
-func buildRoutes(targetName string) ([]libStreaming.RouteDefinition, error) {
+func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 	defs := midazEventDefinitions()
 	routes := make([]libStreaming.RouteDefinition, 0, len(defs))
 
@@ -317,5 +314,5 @@ func buildRoutes(targetName string) ([]libStreaming.RouteDefinition, error) {
 		})
 	}
 
-	return routes, nil
+	return routes
 }

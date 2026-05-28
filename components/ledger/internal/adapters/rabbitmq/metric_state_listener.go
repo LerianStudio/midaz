@@ -9,7 +9,7 @@ import (
 	"errors"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
-	"github.com/LerianStudio/lib-commons/v5/commons/opentelemetry/metrics"
+	"github.com/LerianStudio/lib-observability/metrics"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"go.opentelemetry.io/otel/attribute"
 )

@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libCommons "github.com/LerianStudio/lib-observability"
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
@@ -119,6 +119,8 @@ func rejectInternalScopeBalances(ctx context.Context, balances []*mmodel.Balance
 //     (balances × fromTo) generates a persisted Operation for each companion.
 //     Without this, the balance tables converge correctly but the audit trail
 //     is missing the overdraft leg (TRD PRD §1 "Enriched Transaction Flow").
+//
+//nolint:gocyclo // Multi-stage enrichment with branching by overdraft variant; refactor candidate.
 func enrichOverdraftOperations(
 	ctx context.Context,
 	organizationID, ledgerID uuid.UUID,
@@ -691,7 +693,7 @@ func buildCompanionFromTo(primary mmodel.BalanceOperation, companionOp mmodel.Ba
 	// the 0117 guard in validateAccountRules.
 	if primaryRouteID != "" {
 		routeID := primaryRouteID
-		ft.Route = routeID
+		ft.Route = routeID //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		ft.RouteID = &routeID
 	}
 
@@ -767,6 +769,7 @@ func accountAliasFromOperationAlias(alias string) string {
 	return bare[:idx]
 }
 
+//nolint:gocyclo // Aggregation with conditional skip rules per operation type; refactor candidate.
 func pendingOverdraftUsageByAlias(ops []*operation.Operation) map[string]decimal.Decimal {
 	usage := make(map[string]decimal.Decimal)
 
