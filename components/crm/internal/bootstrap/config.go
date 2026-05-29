@@ -160,6 +160,45 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize cipher: %w", err)
 	}
 
+	// Initialize encryption repositories for envelope mode only.
+	// In legacy mode, these remain nil (not needed for legacy encryption).
+	var keysetRepo encryption.KeysetRepository
+
+	var registryRepo encryption.RegistryRepository
+
+	if kms.Mode.IsEnvelope() {
+		keysetRepo, err = encryption.NewKeysetMongoDBRepository(mongoConnection)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize keyset repository: %w", err)
+		}
+
+		registryRepo, err = encryption.NewRegistryMongoDBRepository(mongoConnection)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize registry repository: %w", err)
+		}
+
+		logger.Log(context.Background(), libLog.LevelInfo, "Encryption repositories initialized for envelope mode")
+	}
+
+	// Wire encryption services (ProtectionStateResolver, KeysetManager, EncryptionService, ProvisioningService).
+	// In legacy mode, all services are nil. In envelope mode, services are wired with real dependencies.
+	encryptionResult := wireEncryptionServices(wireEncryptionServicesInput{
+		mode:                 kms.Mode.String(),
+		vaultClient:          kms.VaultClient,
+		keysetRepo:           keysetRepo,
+		registryRepo:         registryRepo,
+		legacyCrypto:         dataSecurity,
+		vaultMountPath:       cfg.VaultMountPath,
+		allowGracefulDegrade: false, // Fail hard if envelope mode requested but dependencies unavailable
+	})
+	if encryptionResult.err != nil {
+		return nil, fmt.Errorf("failed to wire encryption services: %w", encryptionResult.err)
+	}
+
+	if encryptionResult.degradedToLegacy {
+		logger.Log(context.Background(), libLog.LevelWarn, "Envelope encryption unavailable; degraded to legacy-only mode")
+	}
+
 	holderMongoDBRepository, err := holder.NewMongoDBRepository(mongoConnection, dataSecurity)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize holder repository: %w", err)
@@ -205,34 +244,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, readyzHandler, holderHandler, aliasHandler)
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry, readyzHandler)
 
-	// Initialize encryption repositories for envelope mode only.
-	// In legacy mode, these remain nil (not needed for legacy encryption).
-	var keysetRepo encryption.KeysetRepository
-
-	var registryRepo encryption.RegistryRepository
-
-	if kms.Mode.IsEnvelope() {
-		keysetRepo, err = encryption.NewKeysetMongoDBRepository(mongoConnection)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize keyset repository: %w", err)
-		}
-
-		registryRepo, err = encryption.NewRegistryMongoDBRepository(mongoConnection)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize registry repository: %w", err)
-		}
-
-		logger.Log(context.Background(), libLog.LevelInfo, "Encryption repositories initialized for envelope mode")
-	}
-
 	return &Service{
-		Server:         serverAPI,
-		EventListener:  eventListener,
-		EncryptionMode: kms.Mode,
-		VaultClient:    kms.VaultClient,
-		KeysetRepo:     keysetRepo,
-		RegistryRepo:   registryRepo,
-		Logger:         logger,
+		Server:                  serverAPI,
+		EventListener:           eventListener,
+		EncryptionMode:          kms.Mode,
+		VaultClient:             kms.VaultClient,
+		KeysetRepo:              keysetRepo,
+		RegistryRepo:            registryRepo,
+		EncryptionService:       encryptionResult.encryptionService,
+		ProvisioningService:     encryptionResult.provisioningService,
+		ProtectionStateResolver: encryptionResult.protectionStateResolver,
+		KeysetManager:           encryptionResult.keysetManager,
+		Logger:                  logger,
 	}, nil
 }
 
