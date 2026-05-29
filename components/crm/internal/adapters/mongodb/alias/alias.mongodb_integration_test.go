@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -35,10 +36,13 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult) *M
 	conn := mongotestutil.CreateConnection(t, container.URI, container.DBName)
 	crypto := testutils.SetupCrypto(t)
 
-	return &MongoDBRepository{
-		connection:   conn,
-		DataSecurity: crypto,
-	}
+	// Use LegacyFieldEncryptor for integration tests
+	fe := encryption.NewLegacyFieldEncryptor(crypto)
+
+	repo, err := NewMongoDBRepository(conn, fe)
+	require.NoError(t, err)
+
+	return repo
 }
 
 // ============================================================================

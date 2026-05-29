@@ -5,8 +5,10 @@
 package holder
 
 import (
+	"context"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/stretchr/testify/assert"
@@ -22,8 +24,9 @@ func TestBuildHolderFilter_ExcludeDeleted(t *testing.T) {
 	t.Parallel()
 
 	crypto := testutils.SetupCrypto(t)
+	fe := encryption.NewLegacyFieldEncryptor(crypto)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	tests := []struct {
@@ -46,11 +49,14 @@ func TestBuildHolderFilter_ExcludeDeleted(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
+	orgID := "test-org-123"
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filter, err := repo.buildHolderFilter(tt.query, tt.includeDeleted)
+			filter, err := repo.buildHolderFilter(ctx, orgID, tt.query, tt.includeDeleted)
 
 			require.NoError(t, err)
 			require.NotNil(t, filter)
@@ -73,8 +79,9 @@ func TestBuildHolderFilter_WithExternalID(t *testing.T) {
 	t.Parallel()
 
 	crypto := testutils.SetupCrypto(t)
+	fe := encryption.NewLegacyFieldEncryptor(crypto)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	externalID := "EXT-12345"
@@ -115,11 +122,14 @@ func TestBuildHolderFilter_WithExternalID(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
+	orgID := "test-org-123"
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filter, err := repo.buildHolderFilter(tt.query, false)
+			filter, err := repo.buildHolderFilter(ctx, orgID, tt.query, false)
 
 			require.NoError(t, err)
 			require.NotNil(t, filter)
@@ -143,8 +153,9 @@ func TestBuildHolderFilter_WithDocument(t *testing.T) {
 	t.Parallel()
 
 	crypto := testutils.SetupCrypto(t)
+	fe := encryption.NewLegacyFieldEncryptor(crypto)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	document := "12345678901"
@@ -183,11 +194,14 @@ func TestBuildHolderFilter_WithDocument(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
+	orgID := "test-org-123"
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filter, err := repo.buildHolderFilter(tt.query, false)
+			filter, err := repo.buildHolderFilter(ctx, orgID, tt.query, false)
 
 			require.NoError(t, err)
 			require.NotNil(t, filter)
@@ -196,9 +210,9 @@ func TestBuildHolderFilter_WithDocument(t *testing.T) {
 			for _, elem := range filter {
 				if elem.Key == "search.document" {
 					hasDocument = true
-					// Value should be a hash, not the original document
+					// Value should be a token/hash, not the original document
 					assert.NotEqual(t, document, elem.Value,
-						"document should be hashed, not plaintext")
+						"document should be tokenized, not plaintext")
 				}
 			}
 
@@ -212,8 +226,9 @@ func TestBuildHolderFilter_WithMetadata(t *testing.T) {
 	t.Parallel()
 
 	crypto := testutils.SetupCrypto(t)
+	fe := encryption.NewLegacyFieldEncryptor(crypto)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	tests := []struct {
@@ -259,6 +274,9 @@ func TestBuildHolderFilter_WithMetadata(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
+	orgID := "test-org-123"
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -269,7 +287,7 @@ func TestBuildHolderFilter_WithMetadata(t *testing.T) {
 				Metadata: tt.metadata,
 			}
 
-			filter, err := repo.buildHolderFilter(query, false)
+			filter, err := repo.buildHolderFilter(ctx, orgID, query, false)
 
 			require.NoError(t, err)
 			require.NotNil(t, filter)
@@ -304,8 +322,9 @@ func TestBuildHolderFilter_InvalidMetadata(t *testing.T) {
 	t.Parallel()
 
 	crypto := testutils.SetupCrypto(t)
+	fe := encryption.NewLegacyFieldEncryptor(crypto)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	tests := []struct {
@@ -329,6 +348,9 @@ func TestBuildHolderFilter_InvalidMetadata(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
+	orgID := "test-org-123"
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -339,7 +361,7 @@ func TestBuildHolderFilter_InvalidMetadata(t *testing.T) {
 				Metadata: tt.metadata,
 			}
 
-			filter, err := repo.buildHolderFilter(query, false)
+			filter, err := repo.buildHolderFilter(ctx, orgID, query, false)
 
 			require.Error(t, err, "should return error for invalid metadata")
 			assert.Nil(t, filter)
@@ -353,8 +375,9 @@ func TestBuildHolderFilter_CombinedFilters(t *testing.T) {
 	t.Parallel()
 
 	crypto := testutils.SetupCrypto(t)
+	fe := encryption.NewLegacyFieldEncryptor(crypto)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	externalID := "EXT-COMBINED"
@@ -370,7 +393,10 @@ func TestBuildHolderFilter_CombinedFilters(t *testing.T) {
 		},
 	}
 
-	filter, err := repo.buildHolderFilter(query, false)
+	ctx := context.Background()
+	orgID := "test-org-123"
+
+	filter, err := repo.buildHolderFilter(ctx, orgID, query, false)
 
 	require.NoError(t, err)
 	require.NotNil(t, filter)
@@ -401,8 +427,9 @@ func TestBuildHolderFilter_HashGeneration(t *testing.T) {
 	t.Parallel()
 
 	crypto := testutils.SetupCrypto(t)
+	fe := encryption.NewLegacyFieldEncryptor(crypto)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	// Test that document hash is generated consistently
@@ -415,7 +442,10 @@ func TestBuildHolderFilter_HashGeneration(t *testing.T) {
 		Document: &document,
 	}
 
-	filter, err := repo.buildHolderFilter(query, false)
+	ctx := context.Background()
+	orgID := "test-org-123"
+
+	filter, err := repo.buildHolderFilter(ctx, orgID, query, false)
 	require.NoError(t, err)
 
 	// Find the document hash in the filter
@@ -430,7 +460,7 @@ func TestBuildHolderFilter_HashGeneration(t *testing.T) {
 	assert.Equal(t, expectedHash, foundHash, "document hash should match expected")
 
 	// Verify hash is deterministic - same input produces same hash
-	filter2, err := repo.buildHolderFilter(query, false)
+	filter2, err := repo.buildHolderFilter(ctx, orgID, query, false)
 	require.NoError(t, err)
 
 	var foundHash2 string
@@ -448,8 +478,9 @@ func TestBuildHolderFilter_EmptyQuery(t *testing.T) {
 	t.Parallel()
 
 	crypto := testutils.SetupCrypto(t)
+	fe := encryption.NewLegacyFieldEncryptor(crypto)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	query := http.QueryHeader{
@@ -457,7 +488,10 @@ func TestBuildHolderFilter_EmptyQuery(t *testing.T) {
 		Page:  1,
 	}
 
-	filter, err := repo.buildHolderFilter(query, false)
+	ctx := context.Background()
+	orgID := "test-org-123"
+
+	filter, err := repo.buildHolderFilter(ctx, orgID, query, false)
 
 	require.NoError(t, err)
 	require.NotNil(t, filter)

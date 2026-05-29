@@ -8,10 +8,12 @@ import (
 	"context"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
@@ -59,7 +61,7 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 		attribute.Bool("app.request.query.has_document", query.Document != nil),
 	)
 
-	filter, err := hm.buildHolderFilter(query, includeDeleted)
+	filter, err := hm.buildHolderFilter(ctx, organizationID, query, includeDeleted)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(spanFind, "Invalid metadata value", err)
 		return nil, err
@@ -97,9 +99,19 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 		return nil, err
 	}
 
+	// Extract tenant ID once for all holders
+	tenantID := encryption.ExtractTenantID(ctx)
+
 	results := make([]*mmodel.Holder, len(holders))
 	for i, holder := range holders {
-		results[i], err = holder.ToEntity(hm.DataSecurity)
+		// Build encryption context for each holder
+		encryptionCtx := encryption.EncryptionContext{
+			TenantID:       tenantID,
+			OrganizationID: organizationID,
+			RecordID:       holder.ID.String(),
+		}
+
+		results[i], err = holder.ToEntity(ctx, hm.FieldEncryptor, encryptionCtx)
 		if err != nil {
 			libOpenTelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
@@ -110,7 +122,7 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	return results, nil
 }
 
-func (hm *MongoDBRepository) buildHolderFilter(query http.QueryHeader, includeDeleted bool) (bson.D, error) {
+func (hm *MongoDBRepository) buildHolderFilter(ctx context.Context, organizationID string, query http.QueryHeader, includeDeleted bool) (bson.D, error) {
 	filter := bson.D{}
 
 	if !includeDeleted {
@@ -122,8 +134,19 @@ func (hm *MongoDBRepository) buildHolderFilter(query http.QueryHeader, includeDe
 	}
 
 	if query.Document != nil && *query.Document != "" {
-		documentHash := hm.DataSecurity.GenerateHash(query.Document)
-		filter = append(filter, bson.E{Key: "search.document", Value: documentHash})
+		// Use FieldEncryptor to generate search token for document lookup
+		searchCtx := encryption.SearchTokenContext{
+			TenantID:       encryption.ExtractTenantID(ctx),
+			OrganizationID: organizationID,
+			FieldName:      "document",
+		}
+
+		documentToken, err := hm.FieldEncryptor.GenerateSearchToken(ctx, searchCtx, *query.Document)
+		if err != nil {
+			return nil, err
+		}
+
+		filter = append(filter, bson.E{Key: "search.document", Value: documentToken})
 	}
 
 	if query.Metadata != nil {

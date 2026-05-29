@@ -5,10 +5,12 @@
 package alias
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
@@ -16,8 +18,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMongoDBModel_FromEntity(t *testing.T) {
+// setupTestFieldEncryptor creates a FieldEncryptor using legacy crypto for testing.
+func setupTestFieldEncryptor(t *testing.T) encryption.FieldEncryptor {
+	t.Helper()
+
 	crypto := testutils.SetupCrypto(t)
+
+	return encryption.NewLegacyFieldEncryptor(crypto)
+}
+
+// testEncryptionContext returns a standard encryption context for tests.
+func testEncryptionContext(aliasID uuid.UUID) encryption.EncryptionContext {
+	return encryption.EncryptionContext{
+		TenantID:       "default",
+		OrganizationID: "test-org",
+		RecordID:       aliasID.String(),
+	}
+}
+
+func TestMongoDBModel_FromEntity(t *testing.T) {
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
 	holderID := uuid.New()
@@ -213,8 +234,10 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			encryptionCtx := testEncryptionContext(*tt.alias.ID)
+
 			var model MongoDBModel
-			err := model.FromEntity(tt.alias, crypto)
+			err := model.FromEntity(ctx, tt.alias, fe, encryptionCtx)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -305,7 +328,8 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 }
 
 func TestMongoDBModel_ToEntity(t *testing.T) {
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
 	holderID := uuid.New()
@@ -348,12 +372,14 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 		UpdatedAt: now,
 	}
 
+	encryptionCtx := testEncryptionContext(aliasID)
+
 	var model MongoDBModel
-	err := model.FromEntity(originalAlias, crypto)
+	err := model.FromEntity(ctx, originalAlias, fe, encryptionCtx)
 	require.NoError(t, err)
 
 	// Now convert back to entity
-	resultAlias, err := model.ToEntity(crypto)
+	resultAlias, err := model.ToEntity(ctx, fe, encryptionCtx)
 	require.NoError(t, err)
 
 	// Verify all fields match
@@ -392,7 +418,8 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 }
 
 func TestMongoDBModel_ToEntity_NilBankingDetails(t *testing.T) {
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
 
@@ -407,11 +434,13 @@ func TestMongoDBModel_ToEntity_NilBankingDetails(t *testing.T) {
 		UpdatedAt:      now,
 	}
 
+	encryptionCtx := testEncryptionContext(aliasID)
+
 	var model MongoDBModel
-	err := model.FromEntity(originalAlias, crypto)
+	err := model.FromEntity(ctx, originalAlias, fe, encryptionCtx)
 	require.NoError(t, err)
 
-	resultAlias, err := model.ToEntity(crypto)
+	resultAlias, err := model.ToEntity(ctx, fe, encryptionCtx)
 	require.NoError(t, err)
 
 	assert.Equal(t, *originalAlias.Document, *resultAlias.Document)
@@ -419,7 +448,8 @@ func TestMongoDBModel_ToEntity_NilBankingDetails(t *testing.T) {
 }
 
 func TestMongoDBModel_ToEntity_WithDeletedAt(t *testing.T) {
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
 
@@ -434,11 +464,13 @@ func TestMongoDBModel_ToEntity_WithDeletedAt(t *testing.T) {
 		DeletedAt: &now,
 	}
 
+	encryptionCtx := testEncryptionContext(aliasID)
+
 	var model MongoDBModel
-	err := model.FromEntity(originalAlias, crypto)
+	err := model.FromEntity(ctx, originalAlias, fe, encryptionCtx)
 	require.NoError(t, err)
 
-	resultAlias, err := model.ToEntity(crypto)
+	resultAlias, err := model.ToEntity(ctx, fe, encryptionCtx)
 	require.NoError(t, err)
 
 	require.NotNil(t, resultAlias.DeletedAt)
@@ -448,7 +480,8 @@ func TestMongoDBModel_ToEntity_WithDeletedAt(t *testing.T) {
 func TestMongoDBModel_ToEntity_NilRegulatoryFieldsAndRelatedParties(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
 
@@ -464,11 +497,13 @@ func TestMongoDBModel_ToEntity_NilRegulatoryFieldsAndRelatedParties(t *testing.T
 		UpdatedAt:        now,
 	}
 
+	encryptionCtx := testEncryptionContext(aliasID)
+
 	var model MongoDBModel
-	err := model.FromEntity(originalAlias, crypto)
+	err := model.FromEntity(ctx, originalAlias, fe, encryptionCtx)
 	require.NoError(t, err)
 
-	resultAlias, err := model.ToEntity(crypto)
+	resultAlias, err := model.ToEntity(ctx, fe, encryptionCtx)
 	require.NoError(t, err)
 
 	assert.Equal(t, *originalAlias.Document, *resultAlias.Document)
@@ -479,7 +514,8 @@ func TestMongoDBModel_ToEntity_NilRegulatoryFieldsAndRelatedParties(t *testing.T
 func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
 	holderID := uuid.New()
@@ -501,8 +537,10 @@ func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing
 		UpdatedAt:        now,
 	}
 
+	encryptionCtx := testEncryptionContext(aliasID)
+
 	var model MongoDBModel
-	err := model.FromEntity(originalAlias, crypto)
+	err := model.FromEntity(ctx, originalAlias, fe, encryptionCtx)
 	require.NoError(t, err)
 
 	require.NotNil(t, model.BankingDetails)
@@ -515,7 +553,7 @@ func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing
 	assert.Nil(t, model.Search.BankingDetailsIBAN)
 	assert.Nil(t, model.Search.RegulatoryFieldsParticipantDocument)
 
-	resultAlias, err := model.ToEntity(crypto)
+	resultAlias, err := model.ToEntity(ctx, fe, encryptionCtx)
 	require.NoError(t, err)
 
 	require.NotNil(t, resultAlias.BankingDetails)
@@ -528,25 +566,34 @@ func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing
 func TestMongoDBModel_ToEntity_InvalidOptionalCiphertextReturnsError(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 	aliasID := uuid.New()
+
+	// Manually build a model with valid encrypted document but invalid banking details ciphertext
+	crypto := testutils.SetupCrypto(t)
+	encryptedDoc := mustEncrypt(t, crypto, "12345678901")
 
 	model := &MongoDBModel{
 		ID:       &aliasID,
-		Document: mustEncrypt(t, crypto, "12345678901"),
+		Document: encryptedDoc,
 		BankingDetails: &BankingMongoDBModel{
 			Account: testutils.Ptr("not-a-valid-ciphertext"),
 		},
 	}
 
-	_, err := model.ToEntity(crypto)
+	encryptionCtx := testEncryptionContext(aliasID)
+	_, err := model.ToEntity(ctx, fe, encryptionCtx)
 	require.Error(t, err)
 }
 
 func TestMongoDBModel_FromEntity_EncryptOptionalFailureReturnsError(t *testing.T) {
 	t.Parallel()
 
-	crypto := &libCrypto.Crypto{}
+	// Use uninitialized crypto to trigger encryption failure
+	uninitializedCrypto := &libCrypto.Crypto{}
+	fe := encryption.NewLegacyFieldEncryptor(uninitializedCrypto)
+	ctx := context.Background()
 	aliasID := uuid.New()
 	now := time.Now().UTC().Truncate(time.Second)
 
@@ -563,8 +610,10 @@ func TestMongoDBModel_FromEntity_EncryptOptionalFailureReturnsError(t *testing.T
 		UpdatedAt: now,
 	}
 
+	encryptionCtx := testEncryptionContext(aliasID)
+
 	var model MongoDBModel
-	err := model.FromEntity(alias, crypto)
+	err := model.FromEntity(ctx, alias, fe, encryptionCtx)
 	require.Error(t, err)
 }
 

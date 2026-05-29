@@ -5,8 +5,10 @@
 package alias
 
 import (
+	"context"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
@@ -18,11 +20,13 @@ import (
 func TestMongoDBRepository_buildAliasFilter(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 	holderID := uuid.New()
+	organizationID := "test-org"
 
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	tests := []struct {
@@ -160,7 +164,7 @@ func TestMongoDBRepository_buildAliasFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filter, err := repo.buildAliasFilter(tt.query, tt.holderID, tt.includeDeleted)
+			filter, err := repo.buildAliasFilter(ctx, organizationID, tt.query, tt.holderID, tt.includeDeleted)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -192,10 +196,13 @@ func TestMongoDBRepository_buildAliasFilter_HashGeneration(t *testing.T) {
 	t.Parallel()
 
 	crypto := testutils.SetupCrypto(t)
+	fe := encryption.NewLegacyFieldEncryptor(crypto)
+	ctx := context.Background()
 	holderID := uuid.New()
+	organizationID := "test-org"
 
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	// Test that document hash is generated consistently
@@ -206,7 +213,7 @@ func TestMongoDBRepository_buildAliasFilter_HashGeneration(t *testing.T) {
 		Document: &document,
 	}
 
-	filter, err := repo.buildAliasFilter(query, holderID, false)
+	filter, err := repo.buildAliasFilter(ctx, organizationID, query, holderID, false)
 	require.NoError(t, err)
 
 	// Find the document hash in the filter
@@ -225,10 +232,13 @@ func TestMongoDBRepository_buildAliasFilter_BankingDetailsHashes(t *testing.T) {
 	t.Parallel()
 
 	crypto := testutils.SetupCrypto(t)
+	fe := encryption.NewLegacyFieldEncryptor(crypto)
+	ctx := context.Background()
 	holderID := uuid.New()
+	organizationID := "test-org"
 
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	account := "123456"
@@ -242,7 +252,7 @@ func TestMongoDBRepository_buildAliasFilter_BankingDetailsHashes(t *testing.T) {
 		BankingDetailsIban:    &iban,
 	}
 
-	filter, err := repo.buildAliasFilter(query, holderID, false)
+	filter, err := repo.buildAliasFilter(ctx, organizationID, query, holderID, false)
 	require.NoError(t, err)
 
 	var foundAccountHash, foundIbanHash string
