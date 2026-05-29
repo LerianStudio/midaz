@@ -35,7 +35,7 @@ type wireEncryptionServicesOutput struct {
 	protectionStateResolver *encryption.ProtectionStateResolver
 	keysetManager           *encryption.KeysetManager
 	encryptionService       encryption.EncryptionService
-	provisioningService     *encryption.ProvisioningService
+	provisioningService     encryption.ProvisioningService
 	degradedToLegacy        bool
 	err                     error
 }

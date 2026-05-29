@@ -758,8 +758,180 @@ paths:
       tags:
       - Holders
       x-codegen-request-body-name: holder
+  /v1/organizations/{organization_id}/encryption/activate:
+    post:
+      description: Activates envelope encryption for an organization that has been
+        provisioned.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivateEncryptionRequest'
+        description: Activate Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivateEncryptionResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      summary: Activate Envelope Encryption for an Organization
+      tags:
+      - Encryption
+      x-codegen-request-body-name: input
+  /v1/organizations/{organization_id}/encryption/provision:
+    post:
+      description: Provisions an organization for envelope encryption by generating
+        keysets and registering the organization.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisionEncryptionRequest'
+        description: Provision Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisionEncryptionResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      summary: Provision an Organization for Envelope Encryption
+      tags:
+      - Encryption
+      x-codegen-request-body-name: input
+  /v1/organizations/{organization_id}/encryption/status:
+    get:
+      description: Retrieves the current provisioning status for an organization's
+        envelope encryption.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisioningStatusResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      summary: Get Provisioning Status
+      tags:
+      - Encryption
 components:
   schemas:
+    ActivateEncryptionRequest:
+      description: ActivateEncryptionRequest payload
+      example:
+        actor: admin@example.com
+        reason: Ready for production
+      properties:
+        actor:
+          description: The actor performing the activation operation.
+          example: admin@example.com
+          type: string
+        reason:
+          description: The reason for activating the organization's encryption.
+          example: Ready for production
+          type: string
+      required:
+      - actor
+      - reason
+      type: object
+    ActivateEncryptionResponse:
+      description: ActivateEncryptionResponse payload
+      example:
+        organization_id: 00000000-0000-0000-0000-000000000000
+        status: active
+      properties:
+        organization_id:
+          description: The unique identifier of the organization.
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        status:
+          description: The current provisioning status.
+          example: active
+          type: string
+      type: object
     Address:
       description: Structured address information following standard postal address
         format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country
@@ -1336,6 +1508,75 @@ components:
         status:
           description: The current status of the individual.
           example: Active
+          type: string
+      type: object
+    ProvisionEncryptionRequest:
+      description: ProvisionEncryptionRequest payload
+      example:
+        actor: admin@example.com
+        reason: Initial encryption setup
+      properties:
+        actor:
+          description: The actor performing the provisioning operation.
+          example: admin@example.com
+          type: string
+        reason:
+          description: The reason for provisioning the organization.
+          example: Initial encryption setup
+          type: string
+      required:
+      - actor
+      - reason
+      type: object
+    ProvisionEncryptionResponse:
+      description: ProvisionEncryptionResponse payload
+      example:
+        organization_id: 00000000-0000-0000-0000-000000000000
+        aead_primary_key_id: 1
+        kek_path: transit/keys/org-00000000-0000-0000-0000-000000000000
+        mac_primary_key_id: 1
+        status: pending_migration
+      properties:
+        aead_primary_key_id:
+          description: The primary key ID for AEAD encryption.
+          example: 1
+          type: integer
+        kek_path:
+          description: The path to the Key Encryption Key in Vault.
+          example: transit/keys/org-00000000-0000-0000-0000-000000000000
+          type: string
+        mac_primary_key_id:
+          description: The primary key ID for MAC operations.
+          example: 1
+          type: integer
+        organization_id:
+          description: The unique identifier of the organization.
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        status:
+          description: The current provisioning status.
+          example: pending_migration
+          type: string
+      type: object
+    ProvisioningStatusResponse:
+      description: ProvisioningStatusResponse payload
+      example:
+        provisioned: true
+        organization_id: 00000000-0000-0000-0000-000000000000
+        status: active
+      properties:
+        organization_id:
+          description: The unique identifier of the organization.
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        provisioned:
+          description: Whether the organization has been provisioned for envelope
+            encryption.
+          example: true
+          type: boolean
+        status:
+          description: The current provisioning status.
+          example: active
           type: string
       type: object
     RegulatoryFields:

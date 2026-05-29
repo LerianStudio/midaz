@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
@@ -215,12 +216,12 @@ func TestProvisionRequest_Validate(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		req     ProvisionRequest
+		req     ProvisionInput
 		wantErr bool
 	}{
 		{
 			name: "valid request",
-			req: ProvisionRequest{
+			req: ProvisionInput{
 				TenantID:       "tenant-123",
 				OrganizationID: "org-456",
 				Actor:          "admin@example.com",
@@ -230,7 +231,7 @@ func TestProvisionRequest_Validate(t *testing.T) {
 		},
 		{
 			name: "missing tenant_id",
-			req: ProvisionRequest{
+			req: ProvisionInput{
 				TenantID:       "",
 				OrganizationID: "org-456",
 				Actor:          "admin@example.com",
@@ -240,7 +241,7 @@ func TestProvisionRequest_Validate(t *testing.T) {
 		},
 		{
 			name: "missing organization_id",
-			req: ProvisionRequest{
+			req: ProvisionInput{
 				TenantID:       "tenant-123",
 				OrganizationID: "",
 				Actor:          "admin@example.com",
@@ -250,7 +251,7 @@ func TestProvisionRequest_Validate(t *testing.T) {
 		},
 		{
 			name: "missing actor",
-			req: ProvisionRequest{
+			req: ProvisionInput{
 				TenantID:       "tenant-123",
 				OrganizationID: "org-456",
 				Actor:          "",
@@ -260,7 +261,7 @@ func TestProvisionRequest_Validate(t *testing.T) {
 		},
 		{
 			name: "missing reason",
-			req: ProvisionRequest{
+			req: ProvisionInput{
 				TenantID:       "tenant-123",
 				OrganizationID: "org-456",
 				Actor:          "admin@example.com",
@@ -293,12 +294,12 @@ func TestActivateRequest_Validate(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		req     ActivateRequest
+		req     ActivateInput
 		wantErr bool
 	}{
 		{
 			name: "valid request",
-			req: ActivateRequest{
+			req: ActivateInput{
 				OrganizationID: "org-456",
 				Actor:          "admin@example.com",
 				Reason:         "Activation after migration",
@@ -307,7 +308,7 @@ func TestActivateRequest_Validate(t *testing.T) {
 		},
 		{
 			name: "missing organization_id",
-			req: ActivateRequest{
+			req: ActivateInput{
 				OrganizationID: "",
 				Actor:          "admin@example.com",
 				Reason:         "Activation after migration",
@@ -316,7 +317,7 @@ func TestActivateRequest_Validate(t *testing.T) {
 		},
 		{
 			name: "missing actor",
-			req: ActivateRequest{
+			req: ActivateInput{
 				OrganizationID: "org-456",
 				Actor:          "",
 				Reason:         "Activation after migration",
@@ -325,7 +326,7 @@ func TestActivateRequest_Validate(t *testing.T) {
 		},
 		{
 			name: "missing reason",
-			req: ActivateRequest{
+			req: ActivateInput{
 				OrganizationID: "org-456",
 				Actor:          "admin@example.com",
 				Reason:         "",
@@ -362,7 +363,7 @@ func TestProvisioningService_Provision_Success(t *testing.T) {
 
 	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
-	req := ProvisionRequest{
+	req := ProvisionInput{
 		TenantID:       "tenant-123",
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
@@ -416,7 +417,7 @@ func TestProvisioningService_Provision_AlreadyProvisioned(t *testing.T) {
 
 	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
-	req := ProvisionRequest{
+	req := ProvisionInput{
 		TenantID:       "tenant-123",
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
@@ -425,7 +426,9 @@ func TestProvisioningService_Provision_AlreadyProvisioned(t *testing.T) {
 
 	_, err := svc.Provision(ctx, req)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrOrganizationAlreadyProvisioned)
+
+	var conflictErr pkg.EntityConflictError
+	assert.ErrorAs(t, err, &conflictErr)
 }
 
 func TestProvisioningService_Provision_InvalidRequest(t *testing.T) {
@@ -434,7 +437,7 @@ func TestProvisioningService_Provision_InvalidRequest(t *testing.T) {
 	ctx := context.Background()
 	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig())
 
-	req := ProvisionRequest{
+	req := ProvisionInput{
 		TenantID:       "",
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
@@ -457,7 +460,7 @@ func TestProvisioningService_Provision_AEADGenerationFailed(t *testing.T) {
 
 	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
-	req := ProvisionRequest{
+	req := ProvisionInput{
 		TenantID:       "tenant-123",
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
@@ -466,7 +469,9 @@ func TestProvisioningService_Provision_AEADGenerationFailed(t *testing.T) {
 
 	_, err := svc.Provision(ctx, req)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrProvisioningFailed)
+
+	var internalErr pkg.InternalServerError
+	assert.ErrorAs(t, err, &internalErr)
 }
 
 func TestProvisioningService_Provision_MACGenerationFailed(t *testing.T) {
@@ -480,7 +485,7 @@ func TestProvisioningService_Provision_MACGenerationFailed(t *testing.T) {
 
 	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
-	req := ProvisionRequest{
+	req := ProvisionInput{
 		TenantID:       "tenant-123",
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
@@ -489,7 +494,9 @@ func TestProvisioningService_Provision_MACGenerationFailed(t *testing.T) {
 
 	_, err := svc.Provision(ctx, req)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrProvisioningFailed)
+
+	var internalErr pkg.InternalServerError
+	assert.ErrorAs(t, err, &internalErr)
 }
 
 func TestProvisioningService_Provision_KeysetSaveFailed(t *testing.T) {
@@ -503,7 +510,7 @@ func TestProvisioningService_Provision_KeysetSaveFailed(t *testing.T) {
 
 	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
-	req := ProvisionRequest{
+	req := ProvisionInput{
 		TenantID:       "tenant-123",
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
@@ -512,7 +519,9 @@ func TestProvisioningService_Provision_KeysetSaveFailed(t *testing.T) {
 
 	_, err := svc.Provision(ctx, req)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrProvisioningFailed)
+
+	var internalErr pkg.InternalServerError
+	assert.ErrorAs(t, err, &internalErr)
 }
 
 func TestProvisioningService_Provision_RegistrySaveFailed(t *testing.T) {
@@ -526,7 +535,7 @@ func TestProvisioningService_Provision_RegistrySaveFailed(t *testing.T) {
 
 	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
-	req := ProvisionRequest{
+	req := ProvisionInput{
 		TenantID:       "tenant-123",
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
@@ -535,7 +544,9 @@ func TestProvisioningService_Provision_RegistrySaveFailed(t *testing.T) {
 
 	_, err := svc.Provision(ctx, req)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrProvisioningFailed)
+
+	var internalErr pkg.InternalServerError
+	assert.ErrorAs(t, err, &internalErr)
 }
 
 func TestProvisioningService_Provision_ContextCanceled(t *testing.T) {
@@ -546,7 +557,7 @@ func TestProvisioningService_Provision_ContextCanceled(t *testing.T) {
 
 	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig())
 
-	req := ProvisionRequest{
+	req := ProvisionInput{
 		TenantID:       "tenant-123",
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
@@ -573,7 +584,7 @@ func TestProvisioningService_Activate_Success(t *testing.T) {
 	// First provision the organization
 	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
-	provisionReq := ProvisionRequest{
+	provisionReq := ProvisionInput{
 		TenantID:       "tenant-123",
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
@@ -584,7 +595,7 @@ func TestProvisioningService_Activate_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	// Now activate
-	activateReq := ActivateRequest{
+	activateReq := ActivateInput{
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
 		Reason:         "Migration complete",
@@ -610,7 +621,7 @@ func TestProvisioningService_Activate_NotProvisioned(t *testing.T) {
 
 	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
-	req := ActivateRequest{
+	req := ActivateInput{
 		OrganizationID: "org-not-provisioned",
 		Actor:          "admin@example.com",
 		Reason:         "Activation attempt",
@@ -618,7 +629,9 @@ func TestProvisioningService_Activate_NotProvisioned(t *testing.T) {
 
 	err := svc.Activate(ctx, req)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrOrganizationNotProvisioned)
+
+	var notFoundErr pkg.EntityNotFoundError
+	assert.ErrorAs(t, err, &notFoundErr)
 }
 
 func TestProvisioningService_Activate_InvalidRequest(t *testing.T) {
@@ -627,7 +640,7 @@ func TestProvisioningService_Activate_InvalidRequest(t *testing.T) {
 	ctx := context.Background()
 	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig())
 
-	req := ActivateRequest{
+	req := ActivateInput{
 		OrganizationID: "",
 		Actor:          "admin@example.com",
 		Reason:         "Activation attempt",
@@ -656,7 +669,7 @@ func TestProvisioningService_Activate_AlreadyActive(t *testing.T) {
 
 	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
-	req := ActivateRequest{
+	req := ActivateInput{
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
 		Reason:         "Re-activation attempt",
@@ -664,7 +677,9 @@ func TestProvisioningService_Activate_AlreadyActive(t *testing.T) {
 
 	err := svc.Activate(ctx, req)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrActivationFailed)
+
+	var internalErr pkg.InternalServerError
+	assert.ErrorAs(t, err, &internalErr)
 }
 
 func TestProvisioningService_Activate_ConcurrentModification(t *testing.T) {
@@ -686,7 +701,7 @@ func TestProvisioningService_Activate_ConcurrentModification(t *testing.T) {
 
 	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
-	req := ActivateRequest{
+	req := ActivateInput{
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
 		Reason:         "Activation attempt",
@@ -694,8 +709,9 @@ func TestProvisioningService_Activate_ConcurrentModification(t *testing.T) {
 
 	err := svc.Activate(ctx, req)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrActivationFailed)
-	assert.Contains(t, err.Error(), "concurrent modification")
+
+	var internalErr pkg.InternalServerError
+	assert.ErrorAs(t, err, &internalErr)
 }
 
 func TestProvisioningService_Activate_ContextCanceled(t *testing.T) {
@@ -706,7 +722,7 @@ func TestProvisioningService_Activate_ContextCanceled(t *testing.T) {
 
 	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig())
 
-	req := ActivateRequest{
+	req := ActivateInput{
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
 		Reason:         "Activation attempt",
@@ -911,8 +927,12 @@ func TestNewProvisioningService_DefaultMountPath(t *testing.T) {
 
 	svc := NewProvisioningService(nil, nil, nil, ProvisioningConfig{})
 
+	// Type assert to access internal method for testing
+	concreteSvc, ok := svc.(*provisioningService)
+	require.True(t, ok, "NewProvisioningService must return *provisioningService")
+
 	// Verify default mount path is used
-	kekPath := svc.buildKEKPath("org-123")
+	kekPath := concreteSvc.buildKEKPath("org-123")
 	assert.Equal(t, "transit/keys/org-org-123", kekPath)
 }
 
@@ -924,8 +944,12 @@ func TestNewProvisioningService_CustomMountPath(t *testing.T) {
 	}
 	svc := NewProvisioningService(nil, nil, nil, config)
 
+	// Type assert to access internal method for testing
+	concreteSvc, ok := svc.(*provisioningService)
+	require.True(t, ok, "NewProvisioningService must return *provisioningService")
+
 	// Verify custom mount path is used
-	kekPath := svc.buildKEKPath("org-123")
+	kekPath := concreteSvc.buildKEKPath("org-123")
 	assert.Equal(t, "custom-transit/keys/org-org-123", kekPath)
 }
 
@@ -955,7 +979,7 @@ func TestProvisioningService_Provision_RegistryAlreadyExists(t *testing.T) {
 
 	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
-	req := ProvisionRequest{
+	req := ProvisionInput{
 		TenantID:       "tenant-123",
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
@@ -964,7 +988,9 @@ func TestProvisioningService_Provision_RegistryAlreadyExists(t *testing.T) {
 
 	_, err := svc.Provision(ctx, req)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrOrganizationAlreadyProvisioned)
+
+	var conflictErr pkg.EntityConflictError
+	assert.ErrorAs(t, err, &conflictErr)
 }
 
 func TestProvisioningService_Activate_GetRegistryFailed(t *testing.T) {
@@ -978,7 +1004,7 @@ func TestProvisioningService_Activate_GetRegistryFailed(t *testing.T) {
 
 	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
-	req := ActivateRequest{
+	req := ActivateInput{
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
 		Reason:         "Activation attempt",
@@ -986,7 +1012,9 @@ func TestProvisioningService_Activate_GetRegistryFailed(t *testing.T) {
 
 	err := svc.Activate(ctx, req)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrActivationFailed)
+
+	var internalErr pkg.InternalServerError
+	assert.ErrorAs(t, err, &internalErr)
 }
 
 func TestProvisioningService_GetProvisioningStatus_DatabaseError(t *testing.T) {
@@ -1019,7 +1047,7 @@ func TestProvisioningService_Provision_ConstantPackageErrors(t *testing.T) {
 
 	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
-	req := ProvisionRequest{
+	req := ProvisionInput{
 		TenantID:       "tenant-123",
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
@@ -1028,5 +1056,7 @@ func TestProvisioningService_Provision_ConstantPackageErrors(t *testing.T) {
 
 	_, err := svc.Provision(ctx, req)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrOrganizationAlreadyProvisioned)
+
+	var conflictErr pkg.EntityConflictError
+	assert.ErrorAs(t, err, &conflictErr)
 }

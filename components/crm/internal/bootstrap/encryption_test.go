@@ -85,8 +85,8 @@ func TestService_HasProvisioningServiceField(t *testing.T) {
 	field, found := serviceType.FieldByName("ProvisioningService")
 
 	require.True(t, found, "Service struct must have ProvisioningService field")
-	assert.Equal(t, "*encryption.ProvisioningService", field.Type.String(),
-		"ProvisioningService field must be of type *encryption.ProvisioningService")
+	assert.Equal(t, "encryption.ProvisioningService", field.Type.String(),
+		"ProvisioningService field must be of type encryption.ProvisioningService (interface)")
 }
 
 func TestService_HasProtectionStateResolverField(t *testing.T) {
@@ -285,9 +285,9 @@ func TestWireEncryptionServices_WiresProvisioningServiceWithDependencies(t *test
 	require.NotNil(t, result.provisioningService,
 		"ProvisioningService must be wired in envelope mode")
 
-	// Verify the provisioning service was created
-	assert.IsType(t, &encryption.ProvisioningService{}, result.provisioningService,
-		"ProvisioningService must be of correct type")
+	// Verify the provisioning service implements the interface
+	assert.Implements(t, (*encryption.ProvisioningService)(nil), result.provisioningService,
+		"ProvisioningService must implement encryption.ProvisioningService interface")
 }
 
 func TestWireEncryptionServices_UsesVaultMountPathFromConfig(t *testing.T) {

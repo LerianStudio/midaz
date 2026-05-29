@@ -10,26 +10,13 @@ import (
 	"fmt"
 	"time"
 
+	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// Package-level errors for provisioning operations.
-var (
-	// ErrOrganizationAlreadyProvisioned is returned when attempting to provision
-	// an organization that already has a keyset.
-	ErrOrganizationAlreadyProvisioned = errors.New("organization already provisioned for envelope encryption")
-
-	// ErrOrganizationNotProvisioned is returned when attempting to activate
-	// an organization that has not been provisioned.
-	ErrOrganizationNotProvisioned = errors.New("organization not provisioned for envelope encryption")
-
-	// ErrProvisioningFailed is returned when keyset generation or storage fails.
-	ErrProvisioningFailed = errors.New("provisioning failed")
-
-	// ErrActivationFailed is returned when registry activation fails.
-	ErrActivationFailed = errors.New("activation failed")
-)
+// EntityOrganizationEncryption is the entity type for encryption-related errors.
+const EntityOrganizationEncryption = "OrganizationEncryption"
 
 // KeysetWriter defines the interface for persisting organization keysets.
 // Compatible with the KeysetRepository in the MongoDB adapter.
@@ -95,9 +82,17 @@ func DefaultProvisioningConfig() ProvisioningConfig {
 	}
 }
 
-// ProvisioningService handles organization encryption provisioning and activation.
+type ProvisioningService interface {
+	Provision(ctx context.Context, req ProvisionInput) (ProvisionResult, error)
+	Activate(ctx context.Context, req ActivateInput) error
+	GetProvisioningStatus(ctx context.Context, organizationID string) (*mmodel.RegistryStatus, error)
+	IsProvisioned(ctx context.Context, organizationID string) (bool, error)
+	IsActive(ctx context.Context, organizationID string) (bool, error)
+}
+
+// provisioningService handles organization encryption provisioning and activation.
 // It coordinates keyset generation, KMS wrapping, and registry state management.
-type ProvisioningService struct {
+type provisioningService struct {
 	keysetWriter    KeysetWriter
 	registryWriter  RegistryWriter
 	keysetGenerator KeysetGenerator
@@ -110,13 +105,13 @@ func NewProvisioningService(
 	registryWriter RegistryWriter,
 	keysetGenerator KeysetGenerator,
 	config ProvisioningConfig,
-) *ProvisioningService {
+) ProvisioningService {
 	mountPath := config.KEKMountPath
 	if mountPath == "" {
 		mountPath = "transit"
 	}
 
-	return &ProvisioningService{
+	return &provisioningService{
 		keysetWriter:    keysetWriter,
 		registryWriter:  registryWriter,
 		keysetGenerator: keysetGenerator,
@@ -124,8 +119,8 @@ func NewProvisioningService(
 	}
 }
 
-// ProvisionRequest contains the parameters for provisioning an organization.
-type ProvisionRequest struct {
+// ProvisionInput contains the parameters for provisioning an organization.
+type ProvisionInput struct {
 	TenantID       string
 	OrganizationID string
 	Actor          string // Who initiated the provisioning
@@ -133,7 +128,7 @@ type ProvisionRequest struct {
 }
 
 // Validate validates the provision request.
-func (r ProvisionRequest) Validate() error {
+func (r ProvisionInput) Validate() error {
 	if r.TenantID == "" {
 		return fmt.Errorf("tenant_id is required")
 	}
@@ -172,7 +167,7 @@ type ProvisionResult struct {
 //  4. Creates registry record in pending_migration status
 //
 // Returns ErrOrganizationAlreadyProvisioned if the organization already has a keyset.
-func (s *ProvisioningService) Provision(ctx context.Context, req ProvisionRequest) (ProvisionResult, error) {
+func (s *provisioningService) Provision(ctx context.Context, req ProvisionInput) (ProvisionResult, error) {
 	// Check context before any work
 	if err := ctx.Err(); err != nil {
 		return ProvisionResult{}, err
@@ -189,7 +184,7 @@ func (s *ProvisioningService) Provision(ctx context.Context, req ProvisionReques
 	// Generate AEAD keyset
 	aeadBundle, err := s.keysetGenerator.GenerateAEADKeyset(ctx, kekPath)
 	if err != nil {
-		return ProvisionResult{}, fmt.Errorf("%w: failed to generate AEAD keyset: %v", ErrProvisioningFailed, err)
+		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
 	}
 
 	// Check context before generating MAC keyset
@@ -200,7 +195,7 @@ func (s *ProvisioningService) Provision(ctx context.Context, req ProvisionReques
 	// Generate MAC keyset
 	macBundle, err := s.keysetGenerator.GenerateMACKeyset(ctx, kekPath)
 	if err != nil {
-		return ProvisionResult{}, fmt.Errorf("%w: failed to generate MAC keyset: %v", ErrProvisioningFailed, err)
+		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
 	}
 
 	// Build organization keyset
@@ -221,16 +216,16 @@ func (s *ProvisioningService) Provision(ctx context.Context, req ProvisionReques
 	// Save keyset
 	if err := s.keysetWriter.Save(ctx, keyset); err != nil {
 		if errors.Is(err, constant.ErrKeysetAlreadyExists) || errors.Is(err, mmodel.ErrKeysetAlreadyExists) {
-			return ProvisionResult{}, ErrOrganizationAlreadyProvisioned
+			return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrRegistryAlreadyExists, EntityOrganizationEncryption)
 		}
 
-		return ProvisionResult{}, fmt.Errorf("%w: failed to save keyset: %v", ErrProvisioningFailed, err)
+		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
 	}
 
 	// Create registry record in pending_migration status
 	registry, err := mmodel.NewOrganizationRegistryRecord(req.TenantID, req.OrganizationID, req.Actor, req.Reason)
 	if err != nil {
-		return ProvisionResult{}, fmt.Errorf("%w: failed to create registry record: %v", ErrProvisioningFailed, err)
+		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
 	}
 
 	// Save registry record
@@ -238,10 +233,10 @@ func (s *ProvisioningService) Provision(ctx context.Context, req ProvisionReques
 		// Registry save failed - keyset is orphaned but that's acceptable
 		// (keyset without registry = organization still in legacy mode)
 		if errors.Is(err, constant.ErrRegistryAlreadyExists) || errors.Is(err, mmodel.ErrRegistryAlreadyExists) {
-			return ProvisionResult{}, ErrOrganizationAlreadyProvisioned
+			return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrRegistryAlreadyExists, EntityOrganizationEncryption)
 		}
 
-		return ProvisionResult{}, fmt.Errorf("%w: failed to save registry: %v", ErrProvisioningFailed, err)
+		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
 	}
 
 	return ProvisionResult{
@@ -253,15 +248,15 @@ func (s *ProvisioningService) Provision(ctx context.Context, req ProvisionReques
 	}, nil
 }
 
-// ActivateRequest contains the parameters for activating an organization.
-type ActivateRequest struct {
+// ActivateInput contains the parameters for activating an organization.
+type ActivateInput struct {
 	OrganizationID string
 	Actor          string // Who initiated the activation
 	Reason         string // Why activation was requested
 }
 
 // Validate validates the activate request.
-func (r ActivateRequest) Validate() error {
+func (r ActivateInput) Validate() error {
 	if r.OrganizationID == "" {
 		return fmt.Errorf("organization_id is required")
 	}
@@ -282,7 +277,7 @@ func (r ActivateRequest) Validate() error {
 //
 // Returns ErrOrganizationNotProvisioned if the organization has no registry record.
 // Returns ErrActivationFailed if the transition is not allowed.
-func (s *ProvisioningService) Activate(ctx context.Context, req ActivateRequest) error {
+func (s *provisioningService) Activate(ctx context.Context, req ActivateInput) error {
 	// Check context before any work
 	if err := ctx.Err(); err != nil {
 		return err
@@ -297,10 +292,10 @@ func (s *ProvisioningService) Activate(ctx context.Context, req ActivateRequest)
 	registry, err := s.registryWriter.Get(ctx, req.OrganizationID)
 	if err != nil {
 		if errors.Is(err, constant.ErrRegistryNotFound) || errors.Is(err, mmodel.ErrRegistryNotFound) {
-			return ErrOrganizationNotProvisioned
+			return pkg.ValidateBusinessError(constant.ErrRegistryNotFound, EntityOrganizationEncryption)
 		}
 
-		return fmt.Errorf("%w: failed to get registry: %v", ErrActivationFailed, err)
+		return pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
 	}
 
 	// Store current revision for optimistic locking
@@ -308,16 +303,16 @@ func (s *ProvisioningService) Activate(ctx context.Context, req ActivateRequest)
 
 	// Attempt to activate
 	if err := registry.Activate(currentRevision, req.Actor, req.Reason); err != nil {
-		return fmt.Errorf("%w: %v", ErrActivationFailed, err)
+		return pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
 	}
 
 	// Update registry
 	if err := s.registryWriter.Update(ctx, registry, currentRevision); err != nil {
 		if errors.Is(err, constant.ErrRegistryRevisionConflict) || errors.Is(err, mmodel.ErrRegistryRevisionConflict) {
-			return fmt.Errorf("%w: concurrent modification detected", ErrActivationFailed)
+			return pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
 		}
 
-		return fmt.Errorf("%w: failed to update registry: %v", ErrActivationFailed, err)
+		return pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
 	}
 
 	return nil
@@ -325,7 +320,7 @@ func (s *ProvisioningService) Activate(ctx context.Context, req ActivateRequest)
 
 // GetProvisioningStatus returns the current provisioning status for an organization.
 // Returns nil status if the organization has not been provisioned.
-func (s *ProvisioningService) GetProvisioningStatus(ctx context.Context, organizationID string) (*mmodel.RegistryStatus, error) {
+func (s *provisioningService) GetProvisioningStatus(ctx context.Context, organizationID string) (*mmodel.RegistryStatus, error) {
 	// Check context before any work
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -348,7 +343,7 @@ func (s *ProvisioningService) GetProvisioningStatus(ctx context.Context, organiz
 }
 
 // IsProvisioned returns true if the organization has been provisioned for envelope encryption.
-func (s *ProvisioningService) IsProvisioned(ctx context.Context, organizationID string) (bool, error) {
+func (s *provisioningService) IsProvisioned(ctx context.Context, organizationID string) (bool, error) {
 	status, err := s.GetProvisioningStatus(ctx, organizationID)
 	if err != nil {
 		return false, err
@@ -358,7 +353,7 @@ func (s *ProvisioningService) IsProvisioned(ctx context.Context, organizationID 
 }
 
 // IsActive returns true if the organization is fully active with envelope encryption.
-func (s *ProvisioningService) IsActive(ctx context.Context, organizationID string) (bool, error) {
+func (s *provisioningService) IsActive(ctx context.Context, organizationID string) (bool, error) {
 	status, err := s.GetProvisioningStatus(ctx, organizationID)
 	if err != nil {
 		return false, err
@@ -376,7 +371,7 @@ func (s *ProvisioningService) IsActive(ctx context.Context, organizationID strin
 // buildKEKPath constructs the KEK path for an organization.
 // Format: {mount}/keys/org-{org-id}
 // This follows Vault Transit conventions where /keys/ is the standard path segment.
-func (s *ProvisioningService) buildKEKPath(organizationID string) string {
+func (s *provisioningService) buildKEKPath(organizationID string) string {
 	return fmt.Sprintf("%s/keys/org-%s", s.kekMountPath, organizationID)
 }
 

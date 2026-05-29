@@ -238,6 +238,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Service: useCases,
 	}
 
+	// Create encryption handler only when provisioning service is available (envelope mode)
+	var encryptionHandler *in.EncryptionHandler
+	if encryptionResult.provisioningService != nil {
+		encryptionHandler = &in.EncryptionHandler{
+			ProvisioningService: encryptionResult.provisioningService,
+		}
+
+		logger.Log(context.Background(), libLog.LevelInfo, "Encryption provisioning endpoints enabled")
+	}
+
 	auth := middleware.NewAuthClient(cfg.AuthAddress, cfg.AuthEnabled, nil)
 
 	tenantMiddleware, eventListener, err := initTenantMiddleware(cfg, logger, telemetry)
@@ -257,7 +267,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize readyz handler: %w", err)
 	}
 
-	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, readyzHandler, holderHandler, aliasHandler)
+	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, readyzHandler, holderHandler, aliasHandler, encryptionHandler)
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry, readyzHandler)
 
 	return &Service{

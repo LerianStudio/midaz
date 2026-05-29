@@ -33,7 +33,7 @@ type Service struct {
 	// Encryption services - only populated in envelope encryption mode.
 	// These are nil in legacy mode (KMS_VENDOR=none or empty).
 	EncryptionService       encryption.EncryptionService
-	ProvisioningService     *encryption.ProvisioningService
+	ProvisioningService     encryption.ProvisioningService
 	ProtectionStateResolver *encryption.ProtectionStateResolver
 	KeysetManager           *encryption.KeysetManager
 
