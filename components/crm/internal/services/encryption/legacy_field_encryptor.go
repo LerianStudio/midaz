@@ -34,6 +34,10 @@ func (l *legacyFieldEncryptor) EncryptField(_ context.Context, _ FieldContext, p
 		return "", err
 	}
 
+	if result == nil {
+		return "", nil
+	}
+
 	return *result, nil
 }
 
@@ -43,6 +47,10 @@ func (l *legacyFieldEncryptor) DecryptField(_ context.Context, _ FieldContext, c
 	result, err := l.crypto.Decrypt(&ciphertext)
 	if err != nil {
 		return "", err
+	}
+
+	if result == nil {
+		return "", nil
 	}
 
 	return *result, nil
