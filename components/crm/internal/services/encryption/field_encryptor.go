@@ -43,14 +43,6 @@ type FieldEncryptor interface {
 	// GenerateSearchToken generates a deterministic search token for a normalized value.
 	// Search tokens enable encrypted field searching without exposing plaintext.
 	GenerateSearchToken(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, error)
-
-	// EncryptOptional encrypts an optional field value, returning nil if input is nil.
-	// This is a convenience method for handling nullable fields in repositories.
-	EncryptOptional(ctx context.Context, fieldCtx FieldContext, value *string) (*string, error)
-
-	// DecryptOptional decrypts an optional field value, returning nil if input is nil.
-	// This is a convenience method for handling nullable fields in repositories.
-	DecryptOptional(ctx context.Context, fieldCtx FieldContext, value *string) (*string, error)
 }
 
 // fieldEncryptorAdapter implements FieldEncryptor using EncryptionService.
@@ -81,32 +73,4 @@ func (a *fieldEncryptorAdapter) DecryptField(ctx context.Context, fieldCtx Field
 // GenerateSearchToken generates a deterministic search token for a normalized value.
 func (a *fieldEncryptorAdapter) GenerateSearchToken(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, error) {
 	return a.encryptionService.GenerateSearchToken(ctx, searchCtx, normalizedValue)
-}
-
-// EncryptOptional encrypts an optional field value, returning nil if input is nil.
-func (a *fieldEncryptorAdapter) EncryptOptional(ctx context.Context, fieldCtx FieldContext, value *string) (*string, error) {
-	if value == nil {
-		return nil, nil
-	}
-
-	encrypted, err := a.encryptionService.Encrypt(ctx, fieldCtx, *value)
-	if err != nil {
-		return nil, err
-	}
-
-	return &encrypted, nil
-}
-
-// DecryptOptional decrypts an optional field value, returning nil if input is nil.
-func (a *fieldEncryptorAdapter) DecryptOptional(ctx context.Context, fieldCtx FieldContext, value *string) (*string, error) {
-	if value == nil {
-		return nil, nil
-	}
-
-	decrypted, err := a.encryptionService.Decrypt(ctx, fieldCtx, *value)
-	if err != nil {
-		return nil, err
-	}
-
-	return &decrypted, nil
 }

@@ -123,25 +123,6 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	return results, nil
 }
 
-// filterBuilderContext holds context for building alias filters.
-type filterBuilderContext struct {
-	ctx            context.Context
-	organizationID string
-	tenantID       string
-	fe             encryption.FieldEncryptor
-}
-
-// generateSearchHash creates a search token hash for a given field.
-func (fbc *filterBuilderContext) generateSearchHash(fieldName string, value string) (string, error) {
-	searchCtx := encryption.SearchTokenContext{
-		TenantID:       fbc.tenantID,
-		OrganizationID: fbc.organizationID,
-		FieldName:      fieldName,
-	}
-
-	return fbc.fe.GenerateSearchToken(fbc.ctx, searchCtx, value)
-}
-
 func (am *MongoDBRepository) buildAliasFilter(ctx context.Context, organizationID string, query http.QueryHeader, holderID uuid.UUID, includeDeleted bool) (bson.D, error) {
 	filter := bson.D{}
 
@@ -155,14 +136,12 @@ func (am *MongoDBRepository) buildAliasFilter(ctx context.Context, organizationI
 
 	filter = am.appendBasicFilters(filter, query)
 
-	fbc := &filterBuilderContext{
-		ctx:            ctx,
-		organizationID: organizationID,
-		tenantID:       encryption.ExtractTenantID(ctx),
-		fe:             am.FieldEncryptor,
+	searchCtx := encryption.SearchTokenContext{
+		TenantID:       encryption.ExtractTenantID(ctx),
+		OrganizationID: organizationID,
 	}
 
-	encryptedFilter, err := am.appendEncryptedFilters(filter, query, fbc)
+	encryptedFilter, err := am.appendEncryptedFilters(ctx, filter, query, searchCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -192,9 +171,11 @@ func (am *MongoDBRepository) appendBasicFilters(filter bson.D, query http.QueryH
 }
 
 // appendEncryptedFilters adds encrypted field search filters to the filter.
-func (am *MongoDBRepository) appendEncryptedFilters(filter bson.D, query http.QueryHeader, fbc *filterBuilderContext) (bson.D, error) {
+func (am *MongoDBRepository) appendEncryptedFilters(ctx context.Context, filter bson.D, query http.QueryHeader, searchCtx encryption.SearchTokenContext) (bson.D, error) {
 	if !libCommons.IsNilOrEmpty(query.Document) {
-		hash, err := fbc.generateSearchHash("document", *query.Document)
+		searchCtx.FieldName = "document"
+
+		hash, err := am.FieldEncryptor.GenerateSearchToken(ctx, searchCtx, *query.Document)
 		if err != nil {
 			return nil, err
 		}
@@ -203,7 +184,9 @@ func (am *MongoDBRepository) appendEncryptedFilters(filter bson.D, query http.Qu
 	}
 
 	if !libCommons.IsNilOrEmpty(query.BankingDetailsAccount) {
-		hash, err := fbc.generateSearchHash("banking_details.account", *query.BankingDetailsAccount)
+		searchCtx.FieldName = "banking_details.account"
+
+		hash, err := am.FieldEncryptor.GenerateSearchToken(ctx, searchCtx, *query.BankingDetailsAccount)
 		if err != nil {
 			return nil, err
 		}
@@ -212,7 +195,9 @@ func (am *MongoDBRepository) appendEncryptedFilters(filter bson.D, query http.Qu
 	}
 
 	if !libCommons.IsNilOrEmpty(query.BankingDetailsIban) {
-		hash, err := fbc.generateSearchHash("banking_details.iban", *query.BankingDetailsIban)
+		searchCtx.FieldName = "banking_details.iban"
+
+		hash, err := am.FieldEncryptor.GenerateSearchToken(ctx, searchCtx, *query.BankingDetailsIban)
 		if err != nil {
 			return nil, err
 		}
@@ -221,7 +206,9 @@ func (am *MongoDBRepository) appendEncryptedFilters(filter bson.D, query http.Qu
 	}
 
 	if !libCommons.IsNilOrEmpty(query.RegulatoryFieldsParticipantDocument) {
-		hash, err := fbc.generateSearchHash("regulatory_fields.participant_document", *query.RegulatoryFieldsParticipantDocument)
+		searchCtx.FieldName = "regulatory_fields.participant_document"
+
+		hash, err := am.FieldEncryptor.GenerateSearchToken(ctx, searchCtx, *query.RegulatoryFieldsParticipantDocument)
 		if err != nil {
 			return nil, err
 		}
@@ -230,7 +217,9 @@ func (am *MongoDBRepository) appendEncryptedFilters(filter bson.D, query http.Qu
 	}
 
 	if !libCommons.IsNilOrEmpty(query.RelatedPartyDocument) {
-		hash, err := fbc.generateSearchHash("related_parties.document", *query.RelatedPartyDocument)
+		searchCtx.FieldName = "related_parties.document"
+
+		hash, err := am.FieldEncryptor.GenerateSearchToken(ctx, searchCtx, *query.RelatedPartyDocument)
 		if err != nil {
 			return nil, err
 		}

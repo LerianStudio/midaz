@@ -87,39 +87,41 @@ type RepresentativeMongoDBModel struct {
 // FromEntity maps a holder entity to a MongoDB Holder model.
 // It uses FieldEncryptor for encrypting sensitive fields with the provided EncryptionContext.
 func (hmm *MongoDBModel) FromEntity(ctx context.Context, h *mmodel.Holder, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext) error {
-	nameFieldCtx := encryption.FieldContext{
+	fieldCtx := encryption.FieldContext{
 		TenantID:       encryptionCtx.TenantID,
 		OrganizationID: encryptionCtx.OrganizationID,
 		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "name",
-	}
-
-	name, err := fe.EncryptOptional(ctx, nameFieldCtx, h.Name)
-	if err != nil {
-		return err
-	}
-
-	documentFieldCtx := encryption.FieldContext{
-		TenantID:       encryptionCtx.TenantID,
-		OrganizationID: encryptionCtx.OrganizationID,
-		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "document",
-	}
-
-	document, err := fe.EncryptOptional(ctx, documentFieldCtx, h.Document)
-	if err != nil {
-		return err
 	}
 
 	*hmm = MongoDBModel{
 		ID:         h.ID,
 		ExternalID: h.ExternalID,
 		Type:       h.Type,
-		Name:       name,
-		Document:   document,
 		CreatedAt:  &h.CreatedAt,
 		UpdatedAt:  &h.UpdatedAt,
 		DeletedAt:  h.DeletedAt,
+	}
+
+	if h.Name != nil {
+		fieldCtx.FieldName = "name"
+
+		encrypted, err := fe.EncryptField(ctx, fieldCtx, *h.Name)
+		if err != nil {
+			return err
+		}
+
+		hmm.Name = &encrypted
+	}
+
+	if h.Document != nil {
+		fieldCtx.FieldName = "document"
+
+		encrypted, err := fe.EncryptField(ctx, fieldCtx, *h.Document)
+		if err != nil {
+			return err
+		}
+
+		hmm.Document = &encrypted
 	}
 
 	if h.Addresses != nil {
@@ -127,24 +129,30 @@ func (hmm *MongoDBModel) FromEntity(ctx context.Context, h *mmodel.Holder, fe en
 	}
 
 	if h.Contact != nil {
-		hmm.Contact, err = mapContactFromEntity(ctx, fe, encryptionCtx, h.Contact)
+		contact, err := mapContactFromEntity(ctx, fe, encryptionCtx, h.Contact)
 		if err != nil {
 			return err
 		}
+
+		hmm.Contact = contact
 	}
 
 	if h.NaturalPerson != nil {
-		hmm.NaturalPerson, err = mapNaturalPersonFromEntity(ctx, fe, encryptionCtx, h.NaturalPerson)
+		naturalPerson, err := mapNaturalPersonFromEntity(ctx, fe, encryptionCtx, h.NaturalPerson)
 		if err != nil {
 			return err
 		}
+
+		hmm.NaturalPerson = naturalPerson
 	}
 
 	if h.LegalPerson != nil {
-		hmm.LegalPerson, err = mapLegalPersonFromEntity(ctx, fe, encryptionCtx, h.LegalPerson)
+		legalPerson, err := mapLegalPersonFromEntity(ctx, fe, encryptionCtx, h.LegalPerson)
 		if err != nil {
 			return err
 		}
+
+		hmm.LegalPerson = legalPerson
 	}
 
 	// Generate search token for document field
@@ -185,99 +193,102 @@ func mapAddressesFromEntity(a *mmodel.Addresses) *AddressesMongoDBModel {
 
 // mapContactFromEntity maps contact entity to MongoDB model with field encryption
 func mapContactFromEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, c *mmodel.Contact) (*ContactMongoDBModel, error) {
-	primaryEmailCtx := encryption.FieldContext{
+	fieldCtx := encryption.FieldContext{
 		TenantID:       encryptionCtx.TenantID,
 		OrganizationID: encryptionCtx.OrganizationID,
 		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "contact.primary_email",
 	}
 
-	primaryEmail, err := fe.EncryptOptional(ctx, primaryEmailCtx, c.PrimaryEmail)
-	if err != nil {
-		return nil, err
+	contact := &ContactMongoDBModel{}
+
+	if c.PrimaryEmail != nil {
+		fieldCtx.FieldName = "contact.primary_email"
+
+		encrypted, err := fe.EncryptField(ctx, fieldCtx, *c.PrimaryEmail)
+		if err != nil {
+			return nil, err
+		}
+
+		contact.PrimaryEmail = &encrypted
 	}
 
-	secondaryEmailCtx := encryption.FieldContext{
-		TenantID:       encryptionCtx.TenantID,
-		OrganizationID: encryptionCtx.OrganizationID,
-		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "contact.secondary_email",
+	if c.SecondaryEmail != nil {
+		fieldCtx.FieldName = "contact.secondary_email"
+
+		encrypted, err := fe.EncryptField(ctx, fieldCtx, *c.SecondaryEmail)
+		if err != nil {
+			return nil, err
+		}
+
+		contact.SecondaryEmail = &encrypted
 	}
 
-	secondaryEmail, err := fe.EncryptOptional(ctx, secondaryEmailCtx, c.SecondaryEmail)
-	if err != nil {
-		return nil, err
+	if c.MobilePhone != nil {
+		fieldCtx.FieldName = "contact.mobile_phone"
+
+		encrypted, err := fe.EncryptField(ctx, fieldCtx, *c.MobilePhone)
+		if err != nil {
+			return nil, err
+		}
+
+		contact.MobilePhone = &encrypted
 	}
 
-	mobilePhoneCtx := encryption.FieldContext{
-		TenantID:       encryptionCtx.TenantID,
-		OrganizationID: encryptionCtx.OrganizationID,
-		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "contact.mobile_phone",
+	if c.OtherPhone != nil {
+		fieldCtx.FieldName = "contact.other_phone"
+
+		encrypted, err := fe.EncryptField(ctx, fieldCtx, *c.OtherPhone)
+		if err != nil {
+			return nil, err
+		}
+
+		contact.OtherPhone = &encrypted
 	}
 
-	mobilePhone, err := fe.EncryptOptional(ctx, mobilePhoneCtx, c.MobilePhone)
-	if err != nil {
-		return nil, err
-	}
-
-	otherPhoneCtx := encryption.FieldContext{
-		TenantID:       encryptionCtx.TenantID,
-		OrganizationID: encryptionCtx.OrganizationID,
-		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "contact.other_phone",
-	}
-
-	otherPhone, err := fe.EncryptOptional(ctx, otherPhoneCtx, c.OtherPhone)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ContactMongoDBModel{
-		PrimaryEmail:   primaryEmail,
-		SecondaryEmail: secondaryEmail,
-		MobilePhone:    mobilePhone,
-		OtherPhone:     otherPhone,
-	}, nil
+	return contact, nil
 }
 
 // mapNaturalPersonFromEntity maps natural person entity to MongoDB model with field encryption
 func mapNaturalPersonFromEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, np *mmodel.NaturalPerson) (*NaturalPersonMongoDBModel, error) {
-	motherNameCtx := encryption.FieldContext{
+	fieldCtx := encryption.FieldContext{
 		TenantID:       encryptionCtx.TenantID,
 		OrganizationID: encryptionCtx.OrganizationID,
 		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "natural_person.mother_name",
 	}
 
-	motherName, err := fe.EncryptOptional(ctx, motherNameCtx, np.MotherName)
-	if err != nil {
-		return nil, err
-	}
-
-	fatherNameCtx := encryption.FieldContext{
-		TenantID:       encryptionCtx.TenantID,
-		OrganizationID: encryptionCtx.OrganizationID,
-		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "natural_person.father_name",
-	}
-
-	fatherName, err := fe.EncryptOptional(ctx, fatherNameCtx, np.FatherName)
-	if err != nil {
-		return nil, err
-	}
-
-	return &NaturalPersonMongoDBModel{
+	result := &NaturalPersonMongoDBModel{
 		FavoriteName: np.FavoriteName,
 		SocialName:   np.SocialName,
 		Gender:       np.Gender,
 		BirthDate:    np.BirthDate,
 		CivilStatus:  np.CivilStatus,
 		Nationality:  np.Nationality,
-		MotherName:   motherName,
-		FatherName:   fatherName,
 		Status:       np.Status,
-	}, nil
+	}
+
+	if np.MotherName != nil {
+		fieldCtx.FieldName = "natural_person.mother_name"
+
+		encrypted, err := fe.EncryptField(ctx, fieldCtx, *np.MotherName)
+		if err != nil {
+			return nil, err
+		}
+
+		result.MotherName = &encrypted
+	}
+
+	if np.FatherName != nil {
+		fieldCtx.FieldName = "natural_person.father_name"
+
+		encrypted, err := fe.EncryptField(ctx, fieldCtx, *np.FatherName)
+		if err != nil {
+			return nil, err
+		}
+
+		result.FatherName = &encrypted
+	}
+
+	return result, nil
 }
 
 // mapLegalPersonFromEntity maps legal person entity to MongoDB model with field encryption
@@ -303,48 +314,50 @@ func mapLegalPersonFromEntity(ctx context.Context, fe encryption.FieldEncryptor,
 	}
 
 	if lp.Representative != nil {
-		repNameCtx := encryption.FieldContext{
+		fieldCtx := encryption.FieldContext{
 			TenantID:       encryptionCtx.TenantID,
 			OrganizationID: encryptionCtx.OrganizationID,
 			RecordID:       encryptionCtx.RecordID,
-			FieldName:      "legal_person.representative.name",
 		}
 
-		repName, err := fe.EncryptOptional(ctx, repNameCtx, lp.Representative.Name)
-		if err != nil {
-			return nil, err
+		rep := &RepresentativeMongoDBModel{
+			Role: lp.Representative.Role,
 		}
 
-		repDocumentCtx := encryption.FieldContext{
-			TenantID:       encryptionCtx.TenantID,
-			OrganizationID: encryptionCtx.OrganizationID,
-			RecordID:       encryptionCtx.RecordID,
-			FieldName:      "legal_person.representative.document",
+		if lp.Representative.Name != nil {
+			fieldCtx.FieldName = "legal_person.representative.name"
+
+			encrypted, err := fe.EncryptField(ctx, fieldCtx, *lp.Representative.Name)
+			if err != nil {
+				return nil, err
+			}
+
+			rep.Name = &encrypted
 		}
 
-		repDocument, err := fe.EncryptOptional(ctx, repDocumentCtx, lp.Representative.Document)
-		if err != nil {
-			return nil, err
+		if lp.Representative.Document != nil {
+			fieldCtx.FieldName = "legal_person.representative.document"
+
+			encrypted, err := fe.EncryptField(ctx, fieldCtx, *lp.Representative.Document)
+			if err != nil {
+				return nil, err
+			}
+
+			rep.Document = &encrypted
 		}
 
-		repEmailCtx := encryption.FieldContext{
-			TenantID:       encryptionCtx.TenantID,
-			OrganizationID: encryptionCtx.OrganizationID,
-			RecordID:       encryptionCtx.RecordID,
-			FieldName:      "legal_person.representative.email",
+		if lp.Representative.Email != nil {
+			fieldCtx.FieldName = "legal_person.representative.email"
+
+			encrypted, err := fe.EncryptField(ctx, fieldCtx, *lp.Representative.Email)
+			if err != nil {
+				return nil, err
+			}
+
+			rep.Email = &encrypted
 		}
 
-		repEmail, err := fe.EncryptOptional(ctx, repEmailCtx, lp.Representative.Email)
-		if err != nil {
-			return nil, err
-		}
-
-		mongoLP.Representative = &RepresentativeMongoDBModel{
-			Name:     repName,
-			Document: repDocument,
-			Email:    repEmail,
-			Role:     lp.Representative.Role,
-		}
+		mongoLP.Representative = rep
 	}
 
 	return mongoLP, nil
@@ -370,40 +383,42 @@ func mapAddressFromEntity(a *mmodel.Address) *AddressMongoDBModel {
 // ToEntity maps a MongoDB model to a Holder entity.
 // It uses FieldEncryptor for decrypting sensitive fields with the provided EncryptionContext.
 func (hmm *MongoDBModel) ToEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext) (*mmodel.Holder, error) {
-	nameFieldCtx := encryption.FieldContext{
+	fieldCtx := encryption.FieldContext{
 		TenantID:       encryptionCtx.TenantID,
 		OrganizationID: encryptionCtx.OrganizationID,
 		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "name",
-	}
-
-	name, err := fe.DecryptOptional(ctx, nameFieldCtx, hmm.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	documentFieldCtx := encryption.FieldContext{
-		TenantID:       encryptionCtx.TenantID,
-		OrganizationID: encryptionCtx.OrganizationID,
-		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "document",
-	}
-
-	document, err := fe.DecryptOptional(ctx, documentFieldCtx, hmm.Document)
-	if err != nil {
-		return nil, err
 	}
 
 	holder := &mmodel.Holder{
 		ID:         hmm.ID,
 		ExternalID: hmm.ExternalID,
 		Type:       hmm.Type,
-		Name:       name,
-		Document:   document,
 		Metadata:   hmm.Metadata,
 		CreatedAt:  utils.SafeTimePtr(hmm.CreatedAt),
 		UpdatedAt:  utils.SafeTimePtr(hmm.UpdatedAt),
 		DeletedAt:  hmm.DeletedAt,
+	}
+
+	if hmm.Name != nil {
+		fieldCtx.FieldName = "name"
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, *hmm.Name)
+		if err != nil {
+			return nil, err
+		}
+
+		holder.Name = &decrypted
+	}
+
+	if hmm.Document != nil {
+		fieldCtx.FieldName = "document"
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, *hmm.Document)
+		if err != nil {
+			return nil, err
+		}
+
+		holder.Document = &decrypted
 	}
 
 	if hmm.Addresses != nil {
@@ -451,99 +466,102 @@ func mapAddressesToEntity(a *AddressesMongoDBModel) *mmodel.Addresses {
 
 // mapContactToEntity maps a MongoDB model to a Contact entity with field decryption
 func mapContactToEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, c *ContactMongoDBModel) (*mmodel.Contact, error) {
-	primaryEmailCtx := encryption.FieldContext{
+	fieldCtx := encryption.FieldContext{
 		TenantID:       encryptionCtx.TenantID,
 		OrganizationID: encryptionCtx.OrganizationID,
 		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "contact.primary_email",
 	}
 
-	primaryEmail, err := fe.DecryptOptional(ctx, primaryEmailCtx, c.PrimaryEmail)
-	if err != nil {
-		return nil, err
+	contact := &mmodel.Contact{}
+
+	if c.PrimaryEmail != nil {
+		fieldCtx.FieldName = "contact.primary_email"
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, *c.PrimaryEmail)
+		if err != nil {
+			return nil, err
+		}
+
+		contact.PrimaryEmail = &decrypted
 	}
 
-	secondaryEmailCtx := encryption.FieldContext{
-		TenantID:       encryptionCtx.TenantID,
-		OrganizationID: encryptionCtx.OrganizationID,
-		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "contact.secondary_email",
+	if c.SecondaryEmail != nil {
+		fieldCtx.FieldName = "contact.secondary_email"
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, *c.SecondaryEmail)
+		if err != nil {
+			return nil, err
+		}
+
+		contact.SecondaryEmail = &decrypted
 	}
 
-	secondaryEmail, err := fe.DecryptOptional(ctx, secondaryEmailCtx, c.SecondaryEmail)
-	if err != nil {
-		return nil, err
+	if c.MobilePhone != nil {
+		fieldCtx.FieldName = "contact.mobile_phone"
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, *c.MobilePhone)
+		if err != nil {
+			return nil, err
+		}
+
+		contact.MobilePhone = &decrypted
 	}
 
-	mobilePhoneCtx := encryption.FieldContext{
-		TenantID:       encryptionCtx.TenantID,
-		OrganizationID: encryptionCtx.OrganizationID,
-		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "contact.mobile_phone",
+	if c.OtherPhone != nil {
+		fieldCtx.FieldName = "contact.other_phone"
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, *c.OtherPhone)
+		if err != nil {
+			return nil, err
+		}
+
+		contact.OtherPhone = &decrypted
 	}
 
-	mobilePhone, err := fe.DecryptOptional(ctx, mobilePhoneCtx, c.MobilePhone)
-	if err != nil {
-		return nil, err
-	}
-
-	otherPhoneCtx := encryption.FieldContext{
-		TenantID:       encryptionCtx.TenantID,
-		OrganizationID: encryptionCtx.OrganizationID,
-		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "contact.other_phone",
-	}
-
-	otherPhone, err := fe.DecryptOptional(ctx, otherPhoneCtx, c.OtherPhone)
-	if err != nil {
-		return nil, err
-	}
-
-	return &mmodel.Contact{
-		PrimaryEmail:   primaryEmail,
-		SecondaryEmail: secondaryEmail,
-		MobilePhone:    mobilePhone,
-		OtherPhone:     otherPhone,
-	}, nil
+	return contact, nil
 }
 
 // mapNaturalPersonToEntity maps a MongoDB model to a NaturalPerson entity with field decryption
 func mapNaturalPersonToEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, np *NaturalPersonMongoDBModel) (*mmodel.NaturalPerson, error) {
-	motherNameCtx := encryption.FieldContext{
+	fieldCtx := encryption.FieldContext{
 		TenantID:       encryptionCtx.TenantID,
 		OrganizationID: encryptionCtx.OrganizationID,
 		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "natural_person.mother_name",
 	}
 
-	motherName, err := fe.DecryptOptional(ctx, motherNameCtx, np.MotherName)
-	if err != nil {
-		return nil, err
-	}
-
-	fatherNameCtx := encryption.FieldContext{
-		TenantID:       encryptionCtx.TenantID,
-		OrganizationID: encryptionCtx.OrganizationID,
-		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "natural_person.father_name",
-	}
-
-	fatherName, err := fe.DecryptOptional(ctx, fatherNameCtx, np.FatherName)
-	if err != nil {
-		return nil, err
-	}
-
-	return &mmodel.NaturalPerson{
+	result := &mmodel.NaturalPerson{
 		FavoriteName: np.FavoriteName,
 		SocialName:   np.SocialName,
 		Gender:       np.Gender,
 		BirthDate:    np.BirthDate,
 		CivilStatus:  np.CivilStatus,
 		Nationality:  np.Nationality,
-		MotherName:   motherName,
-		FatherName:   fatherName,
 		Status:       np.Status,
-	}, nil
+	}
+
+	if np.MotherName != nil {
+		fieldCtx.FieldName = "natural_person.mother_name"
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, *np.MotherName)
+		if err != nil {
+			return nil, err
+		}
+
+		result.MotherName = &decrypted
+	}
+
+	if np.FatherName != nil {
+		fieldCtx.FieldName = "natural_person.father_name"
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, *np.FatherName)
+		if err != nil {
+			return nil, err
+		}
+
+		result.FatherName = &decrypted
+	}
+
+	return result, nil
 }
 
 // mapLegalPersonToEntity maps a MongoDB model to a LegalPerson entity with field decryption
@@ -578,48 +596,50 @@ func mapLegalPersonToEntity(ctx context.Context, fe encryption.FieldEncryptor, e
 
 // mapRepresentativeToEntity maps a MongoDB model to a Representative entity with field decryption
 func mapRepresentativeToEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, rep *RepresentativeMongoDBModel) (*mmodel.Representative, error) {
-	repNameCtx := encryption.FieldContext{
+	fieldCtx := encryption.FieldContext{
 		TenantID:       encryptionCtx.TenantID,
 		OrganizationID: encryptionCtx.OrganizationID,
 		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "legal_person.representative.name",
 	}
 
-	representativeName, err := fe.DecryptOptional(ctx, repNameCtx, rep.Name)
-	if err != nil {
-		return nil, err
+	result := &mmodel.Representative{
+		Role: rep.Role,
 	}
 
-	repDocumentCtx := encryption.FieldContext{
-		TenantID:       encryptionCtx.TenantID,
-		OrganizationID: encryptionCtx.OrganizationID,
-		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "legal_person.representative.document",
+	if rep.Name != nil {
+		fieldCtx.FieldName = "legal_person.representative.name"
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, *rep.Name)
+		if err != nil {
+			return nil, err
+		}
+
+		result.Name = &decrypted
 	}
 
-	representativeDocument, err := fe.DecryptOptional(ctx, repDocumentCtx, rep.Document)
-	if err != nil {
-		return nil, err
+	if rep.Document != nil {
+		fieldCtx.FieldName = "legal_person.representative.document"
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, *rep.Document)
+		if err != nil {
+			return nil, err
+		}
+
+		result.Document = &decrypted
 	}
 
-	repEmailCtx := encryption.FieldContext{
-		TenantID:       encryptionCtx.TenantID,
-		OrganizationID: encryptionCtx.OrganizationID,
-		RecordID:       encryptionCtx.RecordID,
-		FieldName:      "legal_person.representative.email",
+	if rep.Email != nil {
+		fieldCtx.FieldName = "legal_person.representative.email"
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, *rep.Email)
+		if err != nil {
+			return nil, err
+		}
+
+		result.Email = &decrypted
 	}
 
-	email, err := fe.DecryptOptional(ctx, repEmailCtx, rep.Email)
-	if err != nil {
-		return nil, err
-	}
-
-	return &mmodel.Representative{
-		Name:     representativeName,
-		Document: representativeDocument,
-		Email:    email,
-		Role:     rep.Role,
-	}, nil
+	return result, nil
 }
 
 // mapAddressToEntity maps a MongoDB model to an Address entity

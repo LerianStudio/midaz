@@ -53,21 +53,3 @@ func (l *legacyFieldEncryptor) DecryptField(_ context.Context, _ FieldContext, c
 func (l *legacyFieldEncryptor) GenerateSearchToken(_ context.Context, _ SearchTokenContext, normalizedValue string) (string, error) {
 	return l.crypto.GenerateHash(&normalizedValue), nil
 }
-
-// EncryptOptional encrypts an optional field value, returning nil if input is nil.
-func (l *legacyFieldEncryptor) EncryptOptional(_ context.Context, _ FieldContext, value *string) (*string, error) {
-	if value == nil {
-		return nil, nil
-	}
-
-	return l.crypto.Encrypt(value)
-}
-
-// DecryptOptional decrypts an optional field value, returning nil if input is nil.
-func (l *legacyFieldEncryptor) DecryptOptional(_ context.Context, _ FieldContext, value *string) (*string, error) {
-	if value == nil {
-		return nil, nil
-	}
-
-	return l.crypto.Decrypt(value)
-}
