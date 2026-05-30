@@ -100,7 +100,7 @@ require (
 )
 
 require (
-	github.com/LerianStudio/lib-commons/v5 v5.1.0
+	github.com/LerianStudio/lib-commons/v5 v5.1.2
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/docker/go-connections v0.7.0
 	github.com/moby/moby/api v1.54.1
