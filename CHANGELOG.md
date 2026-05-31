@@ -1,5 +1,16 @@
 # Midaz Changelog
 
+## [3.7.5](https://github.com/LerianStudio/midaz/releases/tag/v3.7.5)
+
+- Fixes:
+  - Bumped lib-commons to v5.1.3 to address issues with the HTTP/1.1 tmclient transport.
+
+Contributors: @jeffersonrodrigues92
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.7.4...v3.7.5)
+
+---
+
 ## [3.7.2](https://github.com/LerianStudio/midaz/releases/tag/v3.7.2)
 
 - **Fixes:**
