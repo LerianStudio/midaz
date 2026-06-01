@@ -505,6 +505,14 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		}
 	}
 
+	// Type assert keyset repo to KeysetReaderForProvisioning
+	keysetReaderForProv, ok := input.keysetRepo.(encryption.KeysetReaderForProvisioning)
+	if !ok {
+		return wireEncryptionServicesOutput{
+			err: fmt.Errorf("keyset repository must implement KeysetReaderForProvisioning"),
+		}
+	}
+
 	// Type assert registry repo to RegistryWriter
 	registryWriter, ok := input.registryRepo.(encryption.RegistryWriter)
 	if !ok {
@@ -528,6 +536,7 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 	// Wire ProvisioningService with mock dependencies
 	provisioningService := encryption.NewProvisioningService(
 		keysetWriter,
+		keysetReaderForProv,
 		registryWriter,
 		mockGenerator,
 		encryption.ProvisioningConfig{KEKMountPath: vaultMountPath},

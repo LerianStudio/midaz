@@ -120,7 +120,9 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 	keysetFactory := tink.NewKeysetFactory(input.vaultClient)
 
 	// Wire ProvisioningService with all dependencies
+	// keysetRepo implements both KeysetWriter and KeysetReaderForProvisioning interfaces
 	provisioningService := encryption.NewProvisioningService(
+		input.keysetRepo,
 		input.keysetRepo,
 		input.registryRepo,
 		&keysetGeneratorAdapter{factory: keysetFactory},

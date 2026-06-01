@@ -1429,6 +1429,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Encryption Blocked",
 			Message:    "Encryption operations are blocked for this organization.",
 		},
+		constant.ErrProvisioningFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrProvisioningFailed.Error(),
+			Title:      "Provisioning Failed",
+			Message:    "The provisioning operation failed. Please try again later.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

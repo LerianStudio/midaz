@@ -259,7 +259,7 @@ func mapRelatedPartiesFromEntity(ctx context.Context, fe encryption.FieldEncrypt
 			TenantID:       encryptionCtx.TenantID,
 			OrganizationID: encryptionCtx.OrganizationID,
 			RecordID:       encryptionCtx.RecordID,
-			FieldName:      fmt.Sprintf("related_parties.%d.document", i),
+			FieldName:      fmt.Sprintf("related_parties.%s.document", rp.ID),
 		}
 
 		encryptedDoc, err := fe.EncryptField(ctx, docFieldCtx, rp.Document)
@@ -310,7 +310,7 @@ func mapRelatedPartiesToEntity(ctx context.Context, fe encryption.FieldEncryptor
 				TenantID:       encryptionCtx.TenantID,
 				OrganizationID: encryptionCtx.OrganizationID,
 				RecordID:       encryptionCtx.RecordID,
-				FieldName:      fmt.Sprintf("related_parties.%d.document", i),
+				FieldName:      fmt.Sprintf("related_parties.%s.document", rp.ID),
 			}
 
 			decrypted, err := fe.DecryptField(ctx, fieldCtx, *rp.Document)

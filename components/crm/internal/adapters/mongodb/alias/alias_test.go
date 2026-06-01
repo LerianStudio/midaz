@@ -628,3 +628,132 @@ func mustEncrypt(t *testing.T, crypto interface {
 
 	return encrypted
 }
+
+// ---------------------------------------------------------------------------
+// Related Party AAD Binding Tests (ID-based, not index-based)
+// ---------------------------------------------------------------------------
+
+// TestRelatedPartyAAD_UsesIDNotIndex verifies that related party encryption
+// binds AAD to the related party ID, not its array index. This ensures that
+// deleting a related party (which shifts array indexes) does not break
+// decryption of remaining related parties.
+func TestRelatedPartyAAD_UsesIDNotIndex(t *testing.T) {
+	t.Parallel()
+
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	aliasID := uuid.New()
+
+	// Create three related parties with distinct IDs
+	rpID1 := uuid.New()
+	rpID2 := uuid.New()
+	rpID3 := uuid.New()
+
+	parties := []*mmodel.RelatedParty{
+		{
+			ID:        &rpID1,
+			Document:  "11111111111",
+			Name:      "Party One",
+			Role:      "PRIMARY_HOLDER",
+			StartDate: mmodel.Date{Time: now},
+		},
+		{
+			ID:        &rpID2,
+			Document:  "22222222222",
+			Name:      "Party Two",
+			Role:      "LEGAL_REPRESENTATIVE",
+			StartDate: mmodel.Date{Time: now},
+		},
+		{
+			ID:        &rpID3,
+			Document:  "33333333333",
+			Name:      "Party Three",
+			Role:      "RESPONSIBLE_PARTY",
+			StartDate: mmodel.Date{Time: now},
+		},
+	}
+
+	encryptionCtx := encryption.EncryptionContext{
+		TenantID:       "default",
+		OrganizationID: "test-org",
+		RecordID:       aliasID.String(),
+	}
+
+	// Encrypt all three related parties
+	encryptedModels, _, err := mapRelatedPartiesFromEntity(ctx, fe, encryptionCtx, parties)
+	require.NoError(t, err)
+	require.Len(t, encryptedModels, 3)
+
+	// Verify each encrypted document is different (unique AAD per party)
+	assert.NotEqual(t, *encryptedModels[0].Document, *encryptedModels[1].Document)
+	assert.NotEqual(t, *encryptedModels[1].Document, *encryptedModels[2].Document)
+
+	// SIMULATE DELETE: Remove the middle related party (index 1)
+	// This is what happens when MongoDB $pull removes an element
+	remainingModels := []*RelatedPartyMongoDBModel{
+		encryptedModels[0], // Was index 0, stays index 0
+		encryptedModels[2], // Was index 2, NOW index 1 (shifted!)
+	}
+
+	// Decrypt remaining parties - should succeed because AAD uses ID, not index
+	decryptedParties, err := mapRelatedPartiesToEntity(ctx, fe, encryptionCtx, remainingModels)
+	require.NoError(t, err, "decryption should succeed despite index shift because AAD is bound to ID")
+	require.Len(t, decryptedParties, 2)
+
+	// Verify decrypted values match originals
+	assert.Equal(t, "11111111111", decryptedParties[0].Document, "Party One should decrypt correctly")
+	assert.Equal(t, "Party One", decryptedParties[0].Name)
+
+	assert.Equal(t, "33333333333", decryptedParties[1].Document, "Party Three should decrypt correctly despite index shift")
+	assert.Equal(t, "Party Three", decryptedParties[1].Name)
+}
+
+// TestRelatedPartyAAD_DifferentIDsProduceDifferentCiphertexts verifies that
+// related parties with the same document but different IDs produce different
+// ciphertexts due to ID-based AAD binding.
+func TestRelatedPartyAAD_DifferentIDsProduceDifferentCiphertexts(t *testing.T) {
+	t.Parallel()
+
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	aliasID := uuid.New()
+
+	// Two related parties with SAME document but DIFFERENT IDs
+	rpID1 := uuid.New()
+	rpID2 := uuid.New()
+	sameDocument := "99999999999"
+
+	parties := []*mmodel.RelatedParty{
+		{
+			ID:        &rpID1,
+			Document:  sameDocument,
+			Name:      "Party With ID 1",
+			Role:      "PRIMARY_HOLDER",
+			StartDate: mmodel.Date{Time: now},
+		},
+		{
+			ID:        &rpID2,
+			Document:  sameDocument, // Same document value
+			Name:      "Party With ID 2",
+			Role:      "LEGAL_REPRESENTATIVE",
+			StartDate: mmodel.Date{Time: now},
+		},
+	}
+
+	encryptionCtx := encryption.EncryptionContext{
+		TenantID:       "default",
+		OrganizationID: "test-org",
+		RecordID:       aliasID.String(),
+	}
+
+	encryptedModels, _, err := mapRelatedPartiesFromEntity(ctx, fe, encryptionCtx, parties)
+	require.NoError(t, err)
+	require.Len(t, encryptedModels, 2)
+
+	// Even though document values are identical, ciphertexts should differ
+	// because AAD includes the related party ID
+	assert.NotEqual(t, *encryptedModels[0].Document, *encryptedModels[1].Document,
+		"same plaintext with different IDs should produce different ciphertexts due to ID-based AAD")
+}

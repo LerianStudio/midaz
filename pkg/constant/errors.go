@@ -262,4 +262,5 @@ var (
 	ErrRegistryInvalidTransition     = errors.New("ENC-0007")
 	ErrOrganizationEncryptionFailed  = errors.New("ENC-0008")
 	ErrOrganizationEncryptionBlocked = errors.New("ENC-0009")
+	ErrProvisioningFailed            = errors.New("ENC-0010")
 )

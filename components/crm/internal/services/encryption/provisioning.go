@@ -25,6 +25,12 @@ type KeysetWriter interface {
 	Save(ctx context.Context, keyset *mmodel.OrganizationKeyset) error
 }
 
+// KeysetReaderForProvisioning defines the interface for reading organization keysets.
+// Used to support idempotent provisioning when recovering from partial failures.
+type KeysetReaderForProvisioning interface {
+	Get(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error)
+}
+
 // RegistryWriter defines the interface for persisting organization registry records.
 // Compatible with the RegistryRepository in the MongoDB adapter.
 type RegistryWriter interface {
@@ -75,6 +81,7 @@ type ProvisioningService interface {
 // It coordinates keyset generation, KMS wrapping, and registry state management.
 type provisioningService struct {
 	keysetWriter    KeysetWriter
+	keysetReader    KeysetReaderForProvisioning
 	registryWriter  RegistryWriter
 	keysetGenerator KeysetGenerator
 	kekMountPath    string
@@ -83,6 +90,7 @@ type provisioningService struct {
 // NewProvisioningService creates a new provisioning service with the given dependencies.
 func NewProvisioningService(
 	keysetWriter KeysetWriter,
+	keysetReader KeysetReaderForProvisioning,
 	registryWriter RegistryWriter,
 	keysetGenerator KeysetGenerator,
 	config ProvisioningConfig,
@@ -94,6 +102,7 @@ func NewProvisioningService(
 
 	return &provisioningService{
 		keysetWriter:    keysetWriter,
+		keysetReader:    keysetReader,
 		registryWriter:  registryWriter,
 		keysetGenerator: keysetGenerator,
 		kekMountPath:    mountPath,
@@ -165,7 +174,7 @@ func (s *provisioningService) Provision(ctx context.Context, req ProvisionInput)
 	// Generate AEAD keyset
 	aeadBundle, err := s.keysetGenerator.GenerateAEADKeyset(ctx, kekPath)
 	if err != nil {
-		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
+		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 	}
 
 	// Check context before generating MAC keyset
@@ -176,7 +185,7 @@ func (s *provisioningService) Provision(ctx context.Context, req ProvisionInput)
 	// Generate MAC keyset
 	macBundle, err := s.keysetGenerator.GenerateMACKeyset(ctx, kekPath)
 	if err != nil {
-		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
+		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 	}
 
 	// Build organization keyset
@@ -197,34 +206,71 @@ func (s *provisioningService) Provision(ctx context.Context, req ProvisionInput)
 	// Save keyset
 	if err := s.keysetWriter.Save(ctx, keyset); err != nil {
 		if errors.Is(err, constant.ErrKeysetAlreadyExists) || errors.Is(err, mmodel.ErrKeysetAlreadyExists) {
-			return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrRegistryAlreadyExists, EntityOrganizationEncryption)
+			// Keyset already exists - check if this is a recovery from partial failure
+			// or a true duplicate provisioning attempt
+			return s.handleExistingKeyset(ctx, req)
 		}
 
-		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
+		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 	}
 
+	// Create and save registry record
+	return s.createAndSaveRegistry(ctx, req, kekPath, aeadBundle.Wrapped.Info.PrimaryKeyID, macBundle.Wrapped.Info.PrimaryKeyID)
+}
+
+// handleExistingKeyset handles the case where a keyset already exists.
+// If registry also exists, this is a true duplicate (return conflict).
+// If registry doesn't exist, this is recovery from a partial failure (complete provisioning).
+func (s *provisioningService) handleExistingKeyset(ctx context.Context, req ProvisionInput) (ProvisionResult, error) {
+	// Check if registry exists
+	existingRegistry, err := s.registryWriter.Get(ctx, req.OrganizationID)
+	if err != nil && !errors.Is(err, constant.ErrRegistryNotFound) && !errors.Is(err, mmodel.ErrRegistryNotFound) {
+		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
+	}
+
+	if existingRegistry != nil {
+		// Both keyset and registry exist - truly already provisioned
+		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrRegistryAlreadyExists, EntityOrganizationEncryption)
+	}
+
+	// Keyset exists but registry doesn't - recover from partial failure
+	// Read the existing keyset to get key IDs
+	existingKeyset, err := s.keysetReader.Get(ctx, req.OrganizationID)
+	if err != nil {
+		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
+	}
+
+	if existingKeyset == nil {
+		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
+	}
+
+	// Complete provisioning by creating the registry
+	return s.createAndSaveRegistry(ctx, req, existingKeyset.KEKPath,
+		existingKeyset.KeysetInfo.PrimaryKeyID, existingKeyset.HMACKeysetInfo.PrimaryKeyID)
+}
+
+// createAndSaveRegistry creates a registry record and saves it.
+func (s *provisioningService) createAndSaveRegistry(ctx context.Context, req ProvisionInput, kekPath string, aeadKeyID, macKeyID uint32) (ProvisionResult, error) {
 	// Create registry record in pending_migration status
 	registry, err := mmodel.NewOrganizationRegistryRecord(req.TenantID, req.OrganizationID, req.Actor, req.Reason)
 	if err != nil {
-		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
+		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 	}
 
 	// Save registry record
 	if err := s.registryWriter.Save(ctx, registry); err != nil {
-		// Registry save failed - keyset is orphaned but that's acceptable
-		// (keyset without registry = organization still in legacy mode)
 		if errors.Is(err, constant.ErrRegistryAlreadyExists) || errors.Is(err, mmodel.ErrRegistryAlreadyExists) {
 			return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrRegistryAlreadyExists, EntityOrganizationEncryption)
 		}
 
-		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
+		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 	}
 
 	return ProvisionResult{
 		OrganizationID:   req.OrganizationID,
 		KEKPath:          kekPath,
-		AEADPrimaryKeyID: aeadBundle.Wrapped.Info.PrimaryKeyID,
-		MACPrimaryKeyID:  macBundle.Wrapped.Info.PrimaryKeyID,
+		AEADPrimaryKeyID: aeadKeyID,
+		MACPrimaryKeyID:  macKeyID,
 		RegistryStatus:   mmodel.RegistryStatusPendingMigration,
 	}, nil
 }

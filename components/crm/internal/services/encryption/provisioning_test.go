@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
@@ -48,6 +47,15 @@ func (f *fakeKeysetWriter) Save(_ context.Context, keyset *mmodel.OrganizationKe
 	f.keysets[keyset.OrganizationID] = keyset
 
 	return nil
+}
+
+func (f *fakeKeysetWriter) Get(_ context.Context, organizationID string) (*mmodel.OrganizationKeyset, error) {
+	keyset, ok := f.keysets[organizationID]
+	if !ok {
+		return nil, mmodel.ErrKeysetNotFound
+	}
+
+	return keyset, nil
 }
 
 // fakeRegistryWriter implements RegistryWriter for tests.
@@ -362,7 +370,7 @@ func TestProvisioningService_Provision_Success(t *testing.T) {
 	registryWriter := newFakeRegistryWriter()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -411,12 +419,19 @@ func TestProvisioningService_Provision_AlreadyProvisioned(t *testing.T) {
 	registryWriter := newFakeRegistryWriter()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	// Pre-populate with existing keyset
+	// Pre-populate with existing keyset AND registry (truly already provisioned)
 	keysetWriter.keysets["org-456"] = &mmodel.OrganizationKeyset{
 		OrganizationID: "org-456",
+		KEKPath:        "org-org-456",
+		KeysetInfo:     mmodel.KeysetInfo{PrimaryKeyID: 12345},
+		HMACKeysetInfo: mmodel.KeysetInfo{PrimaryKeyID: 67890},
+	}
+	registryWriter.records["org-456"] = &mmodel.OrganizationRegistryRecord{
+		OrganizationID: "org-456",
+		Status:         mmodel.RegistryStatusPendingMigration,
 	}
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -432,11 +447,54 @@ func TestProvisioningService_Provision_AlreadyProvisioned(t *testing.T) {
 	assert.ErrorAs(t, err, &conflictErr)
 }
 
+func TestProvisioningService_Provision_RecoveryFromPartialFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	keysetWriter := newFakeKeysetWriter()
+	registryWriter := newFakeRegistryWriter()
+	keysetGenerator := newFakeKeysetGenerator()
+
+	// Pre-populate with existing keyset but NO registry (partial failure scenario)
+	keysetWriter.keysets["org-456"] = &mmodel.OrganizationKeyset{
+		TenantID:       "tenant-123",
+		OrganizationID: "org-456",
+		KEKPath:        "org-org-456",
+		KeysetInfo:     mmodel.KeysetInfo{PrimaryKeyID: 12345},
+		HMACKeysetInfo: mmodel.KeysetInfo{PrimaryKeyID: 67890},
+	}
+
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+
+	req := ProvisionInput{
+		TenantID:       "tenant-123",
+		OrganizationID: "org-456",
+		Actor:          "admin@example.com",
+		Reason:         "Recovery from partial failure",
+	}
+
+	// Should succeed by completing the interrupted provisioning
+	result, err := svc.Provision(ctx, req)
+	require.NoError(t, err)
+
+	// Verify result uses existing keyset's key IDs
+	assert.Equal(t, "org-456", result.OrganizationID)
+	assert.Equal(t, "org-org-456", result.KEKPath)
+	assert.Equal(t, uint32(12345), result.AEADPrimaryKeyID)
+	assert.Equal(t, uint32(67890), result.MACPrimaryKeyID)
+	assert.Equal(t, mmodel.RegistryStatusPendingMigration, result.RegistryStatus)
+
+	// Verify registry was created
+	savedRegistry := registryWriter.records["org-456"]
+	require.NotNil(t, savedRegistry)
+	assert.Equal(t, mmodel.RegistryStatusPendingMigration, savedRegistry.Status)
+}
+
 func TestProvisioningService_Provision_InvalidRequest(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig())
+	svc := NewProvisioningService(nil, nil, nil, nil, DefaultProvisioningConfig())
 
 	req := ProvisionInput{
 		TenantID:       "",
@@ -459,7 +517,7 @@ func TestProvisioningService_Provision_AEADGenerationFailed(t *testing.T) {
 	keysetGenerator := newFakeKeysetGenerator()
 	keysetGenerator.aeadErr = errors.New("KMS unavailable")
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -484,7 +542,7 @@ func TestProvisioningService_Provision_MACGenerationFailed(t *testing.T) {
 	keysetGenerator := newFakeKeysetGenerator()
 	keysetGenerator.macErr = errors.New("KMS unavailable")
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -509,7 +567,7 @@ func TestProvisioningService_Provision_KeysetSaveFailed(t *testing.T) {
 	registryWriter := newFakeRegistryWriter()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -534,7 +592,7 @@ func TestProvisioningService_Provision_RegistrySaveFailed(t *testing.T) {
 	registryWriter.saveErr = errors.New("database error")
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -556,7 +614,7 @@ func TestProvisioningService_Provision_ContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig())
+	svc := NewProvisioningService(nil, nil, nil, nil, DefaultProvisioningConfig())
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -583,7 +641,7 @@ func TestProvisioningService_Activate_Success(t *testing.T) {
 	keysetGenerator := newFakeKeysetGenerator()
 
 	// First provision the organization
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	provisionReq := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -620,7 +678,7 @@ func TestProvisioningService_Activate_NotProvisioned(t *testing.T) {
 	registryWriter := newFakeRegistryWriter()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	req := ActivateInput{
 		OrganizationID: "org-not-provisioned",
@@ -639,7 +697,7 @@ func TestProvisioningService_Activate_InvalidRequest(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig())
+	svc := NewProvisioningService(nil, nil, nil, nil, DefaultProvisioningConfig())
 
 	req := ActivateInput{
 		OrganizationID: "",
@@ -668,7 +726,7 @@ func TestProvisioningService_Activate_AlreadyActive(t *testing.T) {
 		Revision:        2,
 	}
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	req := ActivateInput{
 		OrganizationID: "org-456",
@@ -700,7 +758,7 @@ func TestProvisioningService_Activate_ConcurrentModification(t *testing.T) {
 		Revision:        1,
 	}
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	req := ActivateInput{
 		OrganizationID: "org-456",
@@ -721,7 +779,7 @@ func TestProvisioningService_Activate_ContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig())
+	svc := NewProvisioningService(nil, nil, nil, nil, DefaultProvisioningConfig())
 
 	req := ActivateInput{
 		OrganizationID: "org-456",
@@ -752,7 +810,7 @@ func TestProvisioningService_GetProvisioningStatus_Provisioned(t *testing.T) {
 		Status:         mmodel.RegistryStatusActive,
 	}
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	status, err := svc.GetProvisioningStatus(ctx, "org-456")
 	require.NoError(t, err)
@@ -768,7 +826,7 @@ func TestProvisioningService_GetProvisioningStatus_NotProvisioned(t *testing.T) 
 	registryWriter := newFakeRegistryWriter()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	status, err := svc.GetProvisioningStatus(ctx, "org-not-provisioned")
 	require.NoError(t, err)
@@ -779,7 +837,7 @@ func TestProvisioningService_GetProvisioningStatus_EmptyOrgID(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig())
+	svc := NewProvisioningService(nil, nil, nil, nil, DefaultProvisioningConfig())
 
 	_, err := svc.GetProvisioningStatus(ctx, "")
 	require.Error(t, err)
@@ -791,7 +849,7 @@ func TestProvisioningService_GetProvisioningStatus_ContextCanceled(t *testing.T)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig())
+	svc := NewProvisioningService(nil, nil, nil, nil, DefaultProvisioningConfig())
 
 	_, err := svc.GetProvisioningStatus(ctx, "org-456")
 	require.Error(t, err)
@@ -815,7 +873,7 @@ func TestProvisioningService_IsProvisioned_True(t *testing.T) {
 		Status:         mmodel.RegistryStatusPendingMigration,
 	}
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	provisioned, err := svc.IsProvisioned(ctx, "org-456")
 	require.NoError(t, err)
@@ -830,7 +888,7 @@ func TestProvisioningService_IsProvisioned_False(t *testing.T) {
 	registryWriter := newFakeRegistryWriter()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	provisioned, err := svc.IsProvisioned(ctx, "org-not-provisioned")
 	require.NoError(t, err)
@@ -895,7 +953,7 @@ func TestProvisioningService_IsActive(t *testing.T) {
 				Status:         tt.status,
 			}
 
-			svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+			svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 			active, err := svc.IsActive(ctx, "org-456")
 			require.NoError(t, err)
@@ -912,7 +970,7 @@ func TestProvisioningService_IsActive_NotProvisioned(t *testing.T) {
 	registryWriter := newFakeRegistryWriter()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	active, err := svc.IsActive(ctx, "org-not-provisioned")
 	require.NoError(t, err)
@@ -926,7 +984,7 @@ func TestProvisioningService_IsActive_NotProvisioned(t *testing.T) {
 func TestNewProvisioningService_DefaultMountPath(t *testing.T) {
 	t.Parallel()
 
-	svc := NewProvisioningService(nil, nil, nil, ProvisioningConfig{})
+	svc := NewProvisioningService(nil, nil, nil, nil, ProvisioningConfig{})
 
 	// Type assert to access internal method for testing
 	concreteSvc, ok := svc.(*provisioningService)
@@ -943,7 +1001,7 @@ func TestNewProvisioningService_CustomMountPath(t *testing.T) {
 	config := ProvisioningConfig{
 		KEKMountPath: "custom-transit",
 	}
-	svc := NewProvisioningService(nil, nil, nil, config)
+	svc := NewProvisioningService(nil, nil, nil, nil, config)
 
 	// Type assert to access internal method for testing
 	concreteSvc, ok := svc.(*provisioningService)
@@ -978,7 +1036,7 @@ func TestProvisioningService_Provision_RegistryAlreadyExists(t *testing.T) {
 		OrganizationID: "org-456",
 	}
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -1003,7 +1061,7 @@ func TestProvisioningService_Activate_GetRegistryFailed(t *testing.T) {
 	registryWriter.getErr = errors.New("database error")
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	req := ActivateInput{
 		OrganizationID: "org-456",
@@ -1027,7 +1085,7 @@ func TestProvisioningService_GetProvisioningStatus_DatabaseError(t *testing.T) {
 	registryWriter.getErr = errors.New("database error")
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	_, err := svc.GetProvisioningStatus(ctx, "org-456")
 	require.Error(t, err)
@@ -1042,11 +1100,20 @@ func TestProvisioningService_Provision_ConstantPackageErrors(t *testing.T) {
 
 	ctx := context.Background()
 	keysetWriter := newFakeKeysetWriter()
-	keysetWriter.saveErr = constant.ErrKeysetAlreadyExists
 	registryWriter := newFakeRegistryWriter()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+	// Pre-populate with existing keyset AND registry to test constant.ErrKeysetAlreadyExists handling
+	keysetWriter.keysets["org-456"] = &mmodel.OrganizationKeyset{
+		OrganizationID: "org-456",
+		KEKPath:        "org-org-456",
+	}
+	registryWriter.records["org-456"] = &mmodel.OrganizationRegistryRecord{
+		OrganizationID: "org-456",
+		Status:         mmodel.RegistryStatusPendingMigration,
+	}
+
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -1057,6 +1124,75 @@ func TestProvisioningService_Provision_ConstantPackageErrors(t *testing.T) {
 
 	_, err := svc.Provision(ctx, req)
 	require.Error(t, err)
+
+	var conflictErr pkg.EntityConflictError
+	assert.ErrorAs(t, err, &conflictErr)
+}
+
+// ---------------------------------------------------------------------------
+// Registry Save Failure + Retry Recovery Tests
+// ---------------------------------------------------------------------------
+
+func TestProvisioningService_Provision_RegistrySaveFailure_ThenRetryRecovers(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	keysetWriter := newFakeKeysetWriter()
+	registryWriter := newFakeRegistryWriter()
+	keysetGenerator := newFakeKeysetGenerator()
+
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+
+	req := ProvisionInput{
+		TenantID:       "tenant-123",
+		OrganizationID: "org-456",
+		Actor:          "admin@example.com",
+		Reason:         "Initial provisioning",
+	}
+
+	// STEP 1: First attempt - keyset saves successfully, registry save fails
+	registryWriter.saveErr = errors.New("transient database error")
+
+	_, err := svc.Provision(ctx, req)
+	require.Error(t, err)
+
+	// Verify keyset was saved (this is the partial failure state)
+	assert.Equal(t, 1, keysetWriter.saveCalled)
+	savedKeyset := keysetWriter.keysets["org-456"]
+	require.NotNil(t, savedKeyset, "keyset should be persisted despite registry failure")
+	assert.Equal(t, "tenant-123", savedKeyset.TenantID)
+	assert.Equal(t, "org-456", savedKeyset.OrganizationID)
+
+	// Verify registry was NOT saved
+	assert.Equal(t, 1, registryWriter.saveCalled)
+	_, registryExists := registryWriter.records["org-456"]
+	assert.False(t, registryExists, "registry should NOT exist after failed save")
+
+	// STEP 2: Second attempt (retry) - should recover by detecting existing keyset
+	registryWriter.saveErr = nil // Clear the error for retry
+
+	result, err := svc.Provision(ctx, req)
+	require.NoError(t, err, "retry should succeed by recovering from partial failure")
+
+	// Verify result uses existing keyset's key IDs
+	assert.Equal(t, "org-456", result.OrganizationID)
+	assert.Equal(t, "org-org-456", result.KEKPath)
+	assert.Equal(t, savedKeyset.KeysetInfo.PrimaryKeyID, result.AEADPrimaryKeyID)
+	assert.Equal(t, savedKeyset.HMACKeysetInfo.PrimaryKeyID, result.MACPrimaryKeyID)
+	assert.Equal(t, mmodel.RegistryStatusPendingMigration, result.RegistryStatus)
+
+	// Verify keyset was NOT regenerated (save called only once more for the existing check)
+	assert.Equal(t, 2, keysetWriter.saveCalled, "keyset save should be called again (hitting already exists)")
+
+	// Verify registry was created on retry
+	assert.Equal(t, 2, registryWriter.saveCalled)
+	savedRegistry := registryWriter.records["org-456"]
+	require.NotNil(t, savedRegistry, "registry should be created on retry")
+	assert.Equal(t, mmodel.RegistryStatusPendingMigration, savedRegistry.Status)
+
+	// STEP 3: Third attempt should fail with conflict (fully provisioned)
+	_, err = svc.Provision(ctx, req)
+	require.Error(t, err, "third attempt should fail - already fully provisioned")
 
 	var conflictErr pkg.EntityConflictError
 	assert.ErrorAs(t, err, &conflictErr)

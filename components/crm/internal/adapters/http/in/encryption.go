@@ -179,6 +179,7 @@ func (handler *EncryptionHandler) Activate(p any, c *fiber.Ctx) error {
 //	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Success		200					{object}	mmodel.ProvisioningStatusResponse
+//	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
 //	@Router			/v1/organizations/{organization_id}/encryption/status [get]
 func (handler *EncryptionHandler) GetProvisioningStatus(c *fiber.Ctx) error {

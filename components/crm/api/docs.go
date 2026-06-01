@@ -1069,6 +1069,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/ProvisioningStatusResponse"
                         }
                     },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
