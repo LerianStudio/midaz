@@ -104,7 +104,7 @@ func TestKeysetManager_GetPrimitives_CacheMiss_Success(t *testing.T) {
 	reader := &fakeKeysetReader{
 		keyset: &mmodel.OrganizationKeyset{
 			OrganizationID:    "org-123",
-			KEKPath:           "transit/keys/org-org-123",
+			KEKPath:           "org-org-123",
 			WrappedKeyset:     "wrapped-aead",
 			WrappedHMACKeyset: "wrapped-mac",
 		},
@@ -147,7 +147,7 @@ func TestKeysetManager_GetPrimitives_CacheHit_ReturnsCached(t *testing.T) {
 	reader := &fakeKeysetReader{
 		keyset: &mmodel.OrganizationKeyset{
 			OrganizationID:    "org-456",
-			KEKPath:           "transit/keys/org-org-456",
+			KEKPath:           "org-org-456",
 			WrappedKeyset:     "wrapped-aead",
 			WrappedHMACKeyset: "wrapped-mac",
 		},
@@ -200,7 +200,7 @@ func TestKeysetManager_GetPrimitives_CacheExpired_Refetches(t *testing.T) {
 	reader := &fakeKeysetReader{
 		keyset: &mmodel.OrganizationKeyset{
 			OrganizationID:    "org-789",
-			KEKPath:           "transit/keys/org-org-789",
+			KEKPath:           "org-org-789",
 			WrappedKeyset:     "wrapped-aead",
 			WrappedHMACKeyset: "wrapped-mac",
 		},
@@ -276,7 +276,7 @@ func TestKeysetManager_GetPrimitives_UnwrapError_Propagated(t *testing.T) {
 	reader := &fakeKeysetReader{
 		keyset: &mmodel.OrganizationKeyset{
 			OrganizationID:    "org-unwrap-fail",
-			KEKPath:           "transit/keys/org-org-unwrap-fail",
+			KEKPath:           "org-org-unwrap-fail",
 			WrappedKeyset:     "wrapped-aead",
 			WrappedHMACKeyset: "wrapped-mac",
 		},
@@ -305,7 +305,7 @@ func TestKeysetManager_GetPrimitives_ParseError_Propagated(t *testing.T) {
 	reader := &fakeKeysetReader{
 		keyset: &mmodel.OrganizationKeyset{
 			OrganizationID:    "org-parse-fail",
-			KEKPath:           "transit/keys/org-org-parse-fail",
+			KEKPath:           "org-org-parse-fail",
 			WrappedKeyset:     "wrapped-aead",
 			WrappedHMACKeyset: "wrapped-mac",
 		},
@@ -333,7 +333,7 @@ func TestKeysetManager_GetPrimitives_ConcurrentAccess_Safe(t *testing.T) {
 	reader := &fakeKeysetReader{
 		keyset: &mmodel.OrganizationKeyset{
 			OrganizationID:    "org-concurrent",
-			KEKPath:           "transit/keys/org-org-concurrent",
+			KEKPath:           "org-org-concurrent",
 			WrappedKeyset:     "wrapped-aead",
 			WrappedHMACKeyset: "wrapped-mac",
 		},
@@ -384,7 +384,7 @@ func TestKeysetManager_GetPrimitives_ContextCancelled(t *testing.T) {
 	reader := &fakeKeysetReader{
 		keyset: &mmodel.OrganizationKeyset{
 			OrganizationID:    "org-ctx-cancel",
-			KEKPath:           "transit/keys/org-org-ctx-cancel",
+			KEKPath:           "org-org-ctx-cancel",
 			WrappedKeyset:     "wrapped-aead",
 			WrappedHMACKeyset: "wrapped-mac",
 		},
@@ -415,7 +415,7 @@ func TestKeysetManager_InvalidateCache_RemovesEntry(t *testing.T) {
 	reader := &fakeKeysetReader{
 		keyset: &mmodel.OrganizationKeyset{
 			OrganizationID:    "org-invalidate",
-			KEKPath:           "transit/keys/org-org-invalidate",
+			KEKPath:           "org-org-invalidate",
 			WrappedKeyset:     "wrapped-aead",
 			WrappedHMACKeyset: "wrapped-mac",
 		},
@@ -457,7 +457,7 @@ func TestKeysetManager_ClearCache_RemovesAllEntries(t *testing.T) {
 	reader := &fakeKeysetReader{
 		keyset: &mmodel.OrganizationKeyset{
 			OrganizationID:    "org-clear",
-			KEKPath:           "transit/keys/org-org-clear",
+			KEKPath:           "org-org-clear",
 			WrappedKeyset:     "wrapped-aead",
 			WrappedHMACKeyset: "wrapped-mac",
 		},
@@ -570,7 +570,7 @@ func TestKeysetManager_GetPrimitives_MultipleOrganizations(t *testing.T) {
 	// Test with org-1
 	reader.keyset = &mmodel.OrganizationKeyset{
 		OrganizationID:    "org-1",
-		KEKPath:           "transit/keys/org-org-1",
+		KEKPath:           "org-org-1",
 		WrappedKeyset:     "wrapped-aead",
 		WrappedHMACKeyset: "wrapped-mac",
 	}
@@ -583,7 +583,7 @@ func TestKeysetManager_GetPrimitives_MultipleOrganizations(t *testing.T) {
 	// Test with org-2
 	reader.keyset = &mmodel.OrganizationKeyset{
 		OrganizationID:    "org-2",
-		KEKPath:           "transit/keys/org-org-2",
+		KEKPath:           "org-org-2",
 		WrappedKeyset:     "wrapped-aead",
 		WrappedHMACKeyset: "wrapped-mac",
 	}
@@ -652,7 +652,7 @@ func TestKeysetManager_GetPrimitives_PerOrgMutex_DeduplicatesConcurrentFetches(t
 	reader := &slowKeysetReader{
 		keyset: &mmodel.OrganizationKeyset{
 			OrganizationID:    "org-dedup",
-			KEKPath:           "transit/keys/org-org-dedup",
+			KEKPath:           "org-org-dedup",
 			WrappedKeyset:     "wrapped-aead",
 			WrappedHMACKeyset: "wrapped-mac",
 		},

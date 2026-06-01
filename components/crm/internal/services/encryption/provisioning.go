@@ -354,11 +354,12 @@ func (s *provisioningService) IsActive(ctx context.Context, organizationID strin
 		*status == mmodel.RegistryStatusMigrationComplete, nil
 }
 
-// buildKEKPath constructs the KEK path for an organization.
-// Format: {mount}/keys/org-{org-id}
-// This follows Vault Transit conventions where /keys/ is the standard path segment.
+// buildKEKPath constructs the KEK key name for an organization.
+// Format: org-{org-id}
+// This is the key name used by Vault Transit for encrypt/decrypt operations.
+// The mount path (e.g., "transit") is handled separately by the Vault client.
 func (s *provisioningService) buildKEKPath(organizationID string) string {
-	return fmt.Sprintf("%s/keys/org-%s", s.kekMountPath, organizationID)
+	return fmt.Sprintf("org-%s", organizationID)
 }
 
 // convertKeysetInfo converts tink.KeysetInfo to mmodel.KeysetInfo for persistence.

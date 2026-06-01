@@ -376,7 +376,7 @@ func TestProvisioningService_Provision_Success(t *testing.T) {
 
 	// Verify result
 	assert.Equal(t, "org-456", result.OrganizationID)
-	assert.Equal(t, "transit/keys/org-org-456", result.KEKPath)
+	assert.Equal(t, "org-org-456", result.KEKPath)
 	assert.NotZero(t, result.AEADPrimaryKeyID)
 	assert.NotZero(t, result.MACPrimaryKeyID)
 	assert.Equal(t, mmodel.RegistryStatusPendingMigration, result.RegistryStatus)
@@ -932,9 +932,9 @@ func TestNewProvisioningService_DefaultMountPath(t *testing.T) {
 	concreteSvc, ok := svc.(*provisioningService)
 	require.True(t, ok, "NewProvisioningService must return *provisioningService")
 
-	// Verify default mount path is used
+	// Verify key name format
 	kekPath := concreteSvc.buildKEKPath("org-123")
-	assert.Equal(t, "transit/keys/org-org-123", kekPath)
+	assert.Equal(t, "org-org-123", kekPath)
 }
 
 func TestNewProvisioningService_CustomMountPath(t *testing.T) {
@@ -949,9 +949,9 @@ func TestNewProvisioningService_CustomMountPath(t *testing.T) {
 	concreteSvc, ok := svc.(*provisioningService)
 	require.True(t, ok, "NewProvisioningService must return *provisioningService")
 
-	// Verify custom mount path is used
+	// Verify key name format (mount path is used internally by Vault client, not in key name)
 	kekPath := concreteSvc.buildKEKPath("org-123")
-	assert.Equal(t, "custom-transit/keys/org-org-123", kekPath)
+	assert.Equal(t, "org-org-123", kekPath)
 }
 
 func TestDefaultProvisioningConfig(t *testing.T) {
