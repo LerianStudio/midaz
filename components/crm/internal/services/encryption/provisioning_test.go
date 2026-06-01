@@ -60,11 +60,12 @@ func (f *fakeKeysetWriter) Get(_ context.Context, organizationID string) (*mmode
 
 // fakeRegistryWriter implements RegistryWriter for tests.
 type fakeRegistryWriter struct {
-	records    map[string]*mmodel.OrganizationRegistryRecord
-	saveErr    error
-	getErr     error
-	updateErr  error
-	saveCalled int
+	records      map[string]*mmodel.OrganizationRegistryRecord
+	saveErr      error
+	getErr       error
+	updateErr    error
+	saveCalled   int
+	returnNilNil bool // When true, Get returns (nil, nil) to simulate edge case
 }
 
 func newFakeRegistryWriter() *fakeRegistryWriter {
@@ -92,6 +93,11 @@ func (f *fakeRegistryWriter) Save(_ context.Context, record *mmodel.Organization
 func (f *fakeRegistryWriter) Get(_ context.Context, organizationID string) (*mmodel.OrganizationRegistryRecord, error) {
 	if f.getErr != nil {
 		return nil, f.getErr
+	}
+
+	// Simulate edge case where repository returns (nil, nil)
+	if f.returnNilNil {
+		return nil, nil
 	}
 
 	record, ok := f.records[organizationID]
@@ -1089,6 +1095,23 @@ func TestProvisioningService_GetProvisioningStatus_DatabaseError(t *testing.T) {
 
 	_, err := svc.GetProvisioningStatus(ctx, "org-456")
 	require.Error(t, err)
+}
+
+func TestProvisioningService_GetProvisioningStatus_NilNilFromRepository(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	keysetWriter := newFakeKeysetWriter()
+	registryWriter := newFakeRegistryWriter()
+	registryWriter.returnNilNil = true // Simulate edge case: repository returns (nil, nil)
+	keysetGenerator := newFakeKeysetGenerator()
+
+	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
+
+	// Should handle (nil, nil) gracefully without panic
+	status, err := svc.GetProvisioningStatus(ctx, "org-456")
+	require.NoError(t, err)
+	assert.Nil(t, status, "nil registry should be treated as not provisioned")
 }
 
 // ---------------------------------------------------------------------------

@@ -371,6 +371,11 @@ func (s *provisioningService) GetProvisioningStatus(ctx context.Context, organiz
 		return nil, fmt.Errorf("failed to get registry: %w", err)
 	}
 
+	// Guard against repository returning (nil, nil)
+	if registry == nil {
+		return nil, nil // Not provisioned
+	}
+
 	return &registry.Status, nil
 }
 
