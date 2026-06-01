@@ -12,6 +12,7 @@ import (
 
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -35,38 +36,8 @@ type RegistryWriter interface {
 // KeysetGenerator defines the interface for generating and wrapping keysets.
 // Compatible with pkg/crypto/tink.KeysetFactory.
 type KeysetGenerator interface {
-	GenerateAEADKeyset(ctx context.Context, keyName string) (KeysetBundle, error)
-	GenerateMACKeyset(ctx context.Context, keyName string) (KeysetBundle, error)
-}
-
-// KeysetBundle contains a generated keyset with its wrapped form and metadata.
-// Mirrors pkg/crypto/tink.KeysetBundle.
-type KeysetBundle struct {
-	Wrapped   WrappedKeyset
-	RawKeyset []byte
-}
-
-// WrappedKeyset represents a keyset wrapped by KMS.
-// Mirrors pkg/crypto/tink.WrappedKeyset.
-type WrappedKeyset struct {
-	WrappedData       string
-	Info              KeysetInfo
-	LegacyKeyImported bool
-}
-
-// KeysetInfo contains keyset metadata without key material.
-// Mirrors pkg/crypto/tink.KeysetInfo.
-type KeysetInfo struct {
-	PrimaryKeyID uint32
-	Keys         []KeyInfoEntry
-}
-
-// KeyInfoEntry describes a single key in the keyset.
-type KeyInfoEntry struct {
-	KeyID     uint32
-	Status    string
-	Type      string
-	IsPrimary bool
+	GenerateAEADKeyset(ctx context.Context, keyName string) (tink.KeysetBundle, error)
+	GenerateMACKeyset(ctx context.Context, keyName string) (tink.KeysetBundle, error)
 }
 
 // ProvisioningConfig holds configuration for the ProvisioningService.
@@ -82,6 +53,16 @@ func DefaultProvisioningConfig() ProvisioningConfig {
 	}
 }
 
+// ProvisioningService defines the contract for encryption lifecycle management.
+//
+// Lifecycle operations (exposed via HTTP handlers):
+//   - Provision: creates keysets and registry for an organization
+//   - Activate: transitions organization from pending_migration to active
+//   - GetProvisioningStatus: returns current status for an organization
+//
+// Convenience operations (for admin tooling and conditional logic):
+//   - IsProvisioned: quick check if organization has been provisioned
+//   - IsActive: quick check if organization uses envelope encryption
 type ProvisioningService interface {
 	Provision(ctx context.Context, req ProvisionInput) (ProvisionResult, error)
 	Activate(ctx context.Context, req ActivateInput) error
@@ -298,6 +279,11 @@ func (s *provisioningService) Activate(ctx context.Context, req ActivateInput) e
 		return pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
 	}
 
+	// Guard against nil registry (repository returned nil without error)
+	if registry == nil {
+		return pkg.ValidateBusinessError(constant.ErrRegistryNotFound, EntityOrganizationEncryption)
+	}
+
 	// Store current revision for optimistic locking
 	currentRevision := registry.Revision
 
@@ -375,14 +361,14 @@ func (s *provisioningService) buildKEKPath(organizationID string) string {
 	return fmt.Sprintf("%s/keys/org-%s", s.kekMountPath, organizationID)
 }
 
-// convertKeysetInfo converts local KeysetInfo to mmodel.KeysetInfo.
-func convertKeysetInfo(info KeysetInfo) mmodel.KeysetInfo {
+// convertKeysetInfo converts tink.KeysetInfo to mmodel.KeysetInfo for persistence.
+func convertKeysetInfo(info tink.KeysetInfo) mmodel.KeysetInfo {
 	keys := make([]mmodel.KeyInfo, len(info.Keys))
 	for i, k := range info.Keys {
 		keys[i] = mmodel.KeyInfo{
 			KeyID:     k.KeyID,
-			Status:    k.Status,
-			Type:      k.Type,
+			Status:    string(k.Status),
+			Type:      string(k.Type),
 			IsPrimary: k.IsPrimary,
 		}
 	}

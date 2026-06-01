@@ -136,54 +136,18 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 }
 
 // keysetGeneratorAdapter adapts tink.KeysetFactory to encryption.KeysetGenerator.
+// Since encryption.KeysetGenerator now uses tink types directly, this adapter
+// simply delegates to the underlying factory.
 type keysetGeneratorAdapter struct {
 	factory *tink.KeysetFactory
 }
 
 // GenerateAEADKeyset generates a new AEAD keyset and wraps it with the KMS.
-func (a *keysetGeneratorAdapter) GenerateAEADKeyset(ctx context.Context, keyName string) (encryption.KeysetBundle, error) {
-	bundle, err := a.factory.GenerateAEADKeyset(ctx, keyName)
-	if err != nil {
-		return encryption.KeysetBundle{}, err
-	}
-
-	return encryption.KeysetBundle{
-		Wrapped:   convertWrappedKeyset(bundle.Wrapped),
-		RawKeyset: bundle.RawKeyset,
-	}, nil
+func (a *keysetGeneratorAdapter) GenerateAEADKeyset(ctx context.Context, keyName string) (tink.KeysetBundle, error) {
+	return a.factory.GenerateAEADKeyset(ctx, keyName)
 }
 
 // GenerateMACKeyset generates a new MAC keyset and wraps it with the KMS.
-func (a *keysetGeneratorAdapter) GenerateMACKeyset(ctx context.Context, keyName string) (encryption.KeysetBundle, error) {
-	bundle, err := a.factory.GenerateMACKeyset(ctx, keyName)
-	if err != nil {
-		return encryption.KeysetBundle{}, err
-	}
-
-	return encryption.KeysetBundle{
-		Wrapped:   convertWrappedKeyset(bundle.Wrapped),
-		RawKeyset: bundle.RawKeyset,
-	}, nil
-}
-
-// convertWrappedKeyset converts tink.WrappedKeyset to encryption.WrappedKeyset.
-func convertWrappedKeyset(wrapped tink.WrappedKeyset) encryption.WrappedKeyset {
-	keys := make([]encryption.KeyInfoEntry, len(wrapped.Info.Keys))
-	for i, k := range wrapped.Info.Keys {
-		keys[i] = encryption.KeyInfoEntry{
-			KeyID:     k.KeyID,
-			Status:    string(k.Status),
-			Type:      string(k.Type),
-			IsPrimary: k.IsPrimary,
-		}
-	}
-
-	return encryption.WrappedKeyset{
-		WrappedData:       wrapped.WrappedData,
-		LegacyKeyImported: wrapped.LegacyKeyImported,
-		Info: encryption.KeysetInfo{
-			PrimaryKeyID: wrapped.Info.PrimaryKeyID,
-			Keys:         keys,
-		},
-	}
+func (a *keysetGeneratorAdapter) GenerateMACKeyset(ctx context.Context, keyName string) (tink.KeysetBundle, error) {
+	return a.factory.GenerateMACKeyset(ctx, keyName)
 }

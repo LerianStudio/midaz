@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -555,14 +556,14 @@ func (m *mockEncryptionVaultClient) UnwrapKeyset(_ context.Context, _ string, _ 
 }
 
 // GenerateAEADKeyset satisfies the encryption.KeysetGenerator interface.
-func (m *mockEncryptionVaultClient) GenerateAEADKeyset(_ context.Context, _ string) (encryption.KeysetBundle, error) {
-	return encryption.KeysetBundle{
-		Wrapped: encryption.WrappedKeyset{
+func (m *mockEncryptionVaultClient) GenerateAEADKeyset(_ context.Context, _ string) (tink.KeysetBundle, error) {
+	return tink.KeysetBundle{
+		Wrapped: tink.WrappedKeyset{
 			WrappedData: "mock-wrapped-aead",
-			Info: encryption.KeysetInfo{
+			Info: tink.KeysetInfo{
 				PrimaryKeyID: 12345,
-				Keys: []encryption.KeyInfoEntry{
-					{KeyID: 12345, Status: "ENABLED", Type: "AES256_GCM", IsPrimary: true},
+				Keys: []tink.KeyInfo{
+					{KeyID: 12345, Status: tink.KeyStatusEnabled, Type: tink.KeyTypeAES256GCM, IsPrimary: true},
 				},
 			},
 		},
@@ -571,14 +572,14 @@ func (m *mockEncryptionVaultClient) GenerateAEADKeyset(_ context.Context, _ stri
 }
 
 // GenerateMACKeyset satisfies the encryption.KeysetGenerator interface.
-func (m *mockEncryptionVaultClient) GenerateMACKeyset(_ context.Context, _ string) (encryption.KeysetBundle, error) {
-	return encryption.KeysetBundle{
-		Wrapped: encryption.WrappedKeyset{
+func (m *mockEncryptionVaultClient) GenerateMACKeyset(_ context.Context, _ string) (tink.KeysetBundle, error) {
+	return tink.KeysetBundle{
+		Wrapped: tink.WrappedKeyset{
 			WrappedData: "mock-wrapped-mac",
-			Info: encryption.KeysetInfo{
+			Info: tink.KeysetInfo{
 				PrimaryKeyID: 67890,
-				Keys: []encryption.KeyInfoEntry{
-					{KeyID: 67890, Status: "ENABLED", Type: "HMAC_SHA256", IsPrimary: true},
+				Keys: []tink.KeyInfo{
+					{KeyID: 67890, Status: tink.KeyStatusEnabled, Type: tink.KeyTypeHMACSHA256, IsPrimary: true},
 				},
 			},
 		},

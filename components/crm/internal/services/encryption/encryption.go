@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -38,6 +39,16 @@ type LegacyCrypto interface {
 }
 
 // EncryptionService defines the contract for encryption operations.
+//
+// Core operations (used by repositories):
+//   - Encrypt: encrypts plaintext for storage
+//   - Decrypt: decrypts ciphertext for retrieval
+//   - GenerateSearchToken: creates deterministic tokens for encrypted field search
+//
+// Inspection operations (for admin tooling and diagnostics):
+//   - MustUseEnvelope: checks if organization requires envelope encryption
+//   - GetProtectionState: returns full protection state for an organization
+//   - GetKeysetInfo: returns keyset metadata (key IDs, status) without key material
 type EncryptionService interface {
 	Encrypt(ctx context.Context, fieldCtx FieldContext, plaintext string) (string, error)
 	Decrypt(ctx context.Context, fieldCtx FieldContext, ciphertext string) (string, error)
@@ -106,7 +117,7 @@ func (s *encryptionService) Encrypt(ctx context.Context, fieldCtx FieldContext, 
 		return s.encryptEnvelope(ctx, fieldCtx, plaintext)
 	}
 
-	return s.encryptLegacy(plaintext)
+	return s.encryptLegacy(ctx, plaintext)
 }
 
 // encryptEnvelope performs envelope encryption using Tink AEAD.
@@ -121,6 +132,11 @@ func (s *encryptionService) encryptEnvelope(ctx context.Context, fieldCtx FieldC
 	keyset, err := s.keysetReader.Get(ctx, fieldCtx.OrganizationID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get keyset info: %w", err)
+	}
+
+	// Guard against nil keyset (repository returned nil without error)
+	if keyset == nil {
+		return "", fmt.Errorf("failed to get keyset info: %w", constant.ErrKeysetNotFound)
 	}
 
 	// Encrypt with canonical AAD
@@ -138,7 +154,12 @@ func (s *encryptionService) encryptEnvelope(ctx context.Context, fieldCtx FieldC
 }
 
 // encryptLegacy performs legacy encryption using libCommons crypto.
-func (s *encryptionService) encryptLegacy(plaintext string) (string, error) {
+func (s *encryptionService) encryptLegacy(ctx context.Context, plaintext string) (string, error) {
+	// Check context before crypto operation
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+
 	encrypted, err := s.legacyCrypto.Encrypt(&plaintext)
 	if err != nil {
 		return "", fmt.Errorf("legacy encryption failed: %w", err)
@@ -226,6 +247,11 @@ func (s *encryptionService) decryptLegacy(ctx context.Context, fieldCtx FieldCon
 
 	if !state.CanReadLegacy {
 		return "", fmt.Errorf("%w: organization %s", ErrLegacyReadNotAllowed, fieldCtx.OrganizationID)
+	}
+
+	// Check context before crypto operation
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
 
 	// Decrypt using legacy crypto
@@ -339,6 +365,11 @@ func (s *encryptionService) GetKeysetInfo(ctx context.Context, organizationID st
 	keyset, err := s.keysetReader.Get(ctx, organizationID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get keyset: %w", err)
+	}
+
+	// Guard against nil keyset (repository returned nil without error)
+	if keyset == nil {
+		return nil, constant.ErrKeysetNotFound
 	}
 
 	return &keyset.KeysetInfo, nil

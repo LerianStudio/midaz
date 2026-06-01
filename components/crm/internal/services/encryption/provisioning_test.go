@@ -11,6 +11,7 @@ import (
 
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -119,8 +120,8 @@ func (f *fakeRegistryWriter) Update(_ context.Context, record *mmodel.Organizati
 
 // fakeKeysetGenerator implements KeysetGenerator for tests.
 type fakeKeysetGenerator struct {
-	aeadBundle    KeysetBundle
-	macBundle     KeysetBundle
+	aeadBundle    tink.KeysetBundle
+	macBundle     tink.KeysetBundle
 	aeadErr       error
 	macErr        error
 	aeadCalled    int
@@ -135,12 +136,12 @@ func newFakeKeysetGenerator() *fakeKeysetGenerator {
 	}
 }
 
-func (f *fakeKeysetGenerator) GenerateAEADKeyset(_ context.Context, _ string) (KeysetBundle, error) {
+func (f *fakeKeysetGenerator) GenerateAEADKeyset(_ context.Context, _ string) (tink.KeysetBundle, error) {
 	f.aeadCalled++
 	f.callSequencer++
 
 	if f.aeadErr != nil {
-		return KeysetBundle{}, f.aeadErr
+		return tink.KeysetBundle{}, f.aeadErr
 	}
 
 	if f.aeadBundle.Wrapped.WrappedData != "" {
@@ -151,16 +152,16 @@ func (f *fakeKeysetGenerator) GenerateAEADKeyset(_ context.Context, _ string) (K
 	keyID := f.nextKeyID
 	f.nextKeyID++
 
-	return KeysetBundle{
-		Wrapped: WrappedKeyset{
+	return tink.KeysetBundle{
+		Wrapped: tink.WrappedKeyset{
 			WrappedData: "vault:v1:wrapped-aead-data",
-			Info: KeysetInfo{
+			Info: tink.KeysetInfo{
 				PrimaryKeyID: keyID,
-				Keys: []KeyInfoEntry{
+				Keys: []tink.KeyInfo{
 					{
 						KeyID:     keyID,
-						Status:    "ENABLED",
-						Type:      "AES256_GCM",
+						Status:    tink.KeyStatusEnabled,
+						Type:      tink.KeyTypeAES256GCM,
 						IsPrimary: true,
 					},
 				},
@@ -171,12 +172,12 @@ func (f *fakeKeysetGenerator) GenerateAEADKeyset(_ context.Context, _ string) (K
 	}, nil
 }
 
-func (f *fakeKeysetGenerator) GenerateMACKeyset(_ context.Context, _ string) (KeysetBundle, error) {
+func (f *fakeKeysetGenerator) GenerateMACKeyset(_ context.Context, _ string) (tink.KeysetBundle, error) {
 	f.macCalled++
 	f.callSequencer++
 
 	if f.macErr != nil {
-		return KeysetBundle{}, f.macErr
+		return tink.KeysetBundle{}, f.macErr
 	}
 
 	if f.macBundle.Wrapped.WrappedData != "" {
@@ -187,16 +188,16 @@ func (f *fakeKeysetGenerator) GenerateMACKeyset(_ context.Context, _ string) (Ke
 	keyID := f.nextKeyID
 	f.nextKeyID++
 
-	return KeysetBundle{
-		Wrapped: WrappedKeyset{
+	return tink.KeysetBundle{
+		Wrapped: tink.WrappedKeyset{
 			WrappedData: "vault:v1:wrapped-mac-data",
-			Info: KeysetInfo{
+			Info: tink.KeysetInfo{
 				PrimaryKeyID: keyID,
-				Keys: []KeyInfoEntry{
+				Keys: []tink.KeyInfo{
 					{
 						KeyID:     keyID,
-						Status:    "ENABLED",
-						Type:      "HMAC_SHA256",
+						Status:    tink.KeyStatusEnabled,
+						Type:      tink.KeyTypeHMACSHA256,
 						IsPrimary: true,
 					},
 				},

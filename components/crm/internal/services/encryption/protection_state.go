@@ -92,7 +92,19 @@ func (r *ProtectionStateResolver) Resolve(ctx context.Context, organizationID st
 }
 
 // resolveFromRecord maps a registry record to a ProtectionState.
+// Returns legacy state if record is nil (organization not provisioned).
 func (r *ProtectionStateResolver) resolveFromRecord(record *mmodel.OrganizationRegistryRecord) (ProtectionState, error) {
+	// Guard against nil record (repository returned nil without error)
+	if record == nil {
+		return ProtectionState{
+			Mode:                 crypto.EncryptionModeLegacy,
+			CanReadLegacy:        true,
+			CurrentKeysetVersion: 0,
+			OrganizationID:       "",
+			TenantID:             "",
+		}, nil
+	}
+
 	switch record.Status {
 	case mmodel.RegistryStatusLegacy, mmodel.RegistryStatusPendingMigration:
 		return ProtectionState{

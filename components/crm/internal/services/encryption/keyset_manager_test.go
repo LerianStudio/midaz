@@ -8,9 +8,11 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
@@ -603,5 +605,163 @@ func TestKeysetManager_GetPrimitives_MultipleOrganizations(t *testing.T) {
 	// Reader should be called twice (once for each org)
 	if reader.getCalls() != 2 {
 		t.Errorf("GetPrimitives() reader calls = %d, want 2", reader.getCalls())
+	}
+}
+
+// slowKeysetReader is a test double that introduces a delay to simulate slow KMS operations.
+// This allows testing per-org mutex deduplication by ensuring concurrent requests overlap.
+type slowKeysetReader struct {
+	mu         sync.Mutex
+	keyset     *mmodel.OrganizationKeyset
+	err        error
+	calls      int32 // Use atomic for concurrent access
+	delay      time.Duration
+	fetchStart chan struct{} // Signals when fetch starts
+}
+
+func (f *slowKeysetReader) Get(_ context.Context, _ string) (*mmodel.OrganizationKeyset, error) {
+	atomic.AddInt32(&f.calls, 1)
+
+	// Signal that fetch has started
+	if f.fetchStart != nil {
+		select {
+		case f.fetchStart <- struct{}{}:
+		default:
+		}
+	}
+
+	// Simulate slow KMS operation
+	time.Sleep(f.delay)
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.keyset, f.err
+}
+
+func (f *slowKeysetReader) getCalls() int {
+	return int(atomic.LoadInt32(&f.calls))
+}
+
+func TestKeysetManager_GetPrimitives_PerOrgMutex_DeduplicatesConcurrentFetches(t *testing.T) {
+	t.Parallel()
+
+	aeadBytes, macBytes := generateTestKeysets(t)
+
+	// Use a slow reader to ensure concurrent requests overlap
+	reader := &slowKeysetReader{
+		keyset: &mmodel.OrganizationKeyset{
+			OrganizationID:    "org-dedup",
+			KEKPath:           "transit/keys/org-org-dedup",
+			WrappedKeyset:     "wrapped-aead",
+			WrappedHMACKeyset: "wrapped-mac",
+		},
+		delay:      50 * time.Millisecond,
+		fetchStart: make(chan struct{}, 1),
+	}
+
+	unwrapper := &fakeKeysetUnwrapper{
+		aeadKeyset: aeadBytes,
+		macKeyset:  macBytes,
+	}
+
+	manager := NewKeysetManager(reader, unwrapper, DefaultKeysetManagerConfig())
+
+	const goroutines = 10
+
+	var wg sync.WaitGroup
+
+	wg.Add(goroutines)
+
+	errChan := make(chan error, goroutines)
+	resultChan := make(chan *tink.AEADPrimitive, goroutines)
+
+	// Launch all goroutines simultaneously
+	start := make(chan struct{})
+
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+
+			// Wait for start signal to ensure concurrent execution
+			<-start
+
+			aead, mac, err := manager.GetPrimitives(context.Background(), "org-dedup")
+			if err != nil {
+				errChan <- err
+				return
+			}
+
+			if aead == nil || mac == nil {
+				errChan <- errors.New("nil primitives returned")
+				return
+			}
+
+			resultChan <- aead
+		}()
+	}
+
+	// Start all goroutines at once
+	close(start)
+
+	wg.Wait()
+	close(errChan)
+	close(resultChan)
+
+	// Check for errors
+	for err := range errChan {
+		t.Errorf("GetPrimitives() concurrent error = %v", err)
+	}
+
+	// Verify per-org mutex behavior: reader should only be called ONCE
+	// despite multiple concurrent requests for the same organization
+	readerCalls := reader.getCalls()
+	if readerCalls != 1 {
+		t.Errorf("GetPrimitives() reader calls = %d, want 1 (per-org mutex should deduplicate)", readerCalls)
+	}
+
+	// Unwrapper should only be called twice (once for AEAD, once for MAC)
+	unwrapperCalls := unwrapper.getCalls()
+	if unwrapperCalls != 2 {
+		t.Errorf("GetPrimitives() unwrapper calls = %d, want 2", unwrapperCalls)
+	}
+
+	// All goroutines should receive the same AEAD primitive instance
+	var firstAEAD *tink.AEADPrimitive
+
+	for aead := range resultChan {
+		if firstAEAD == nil {
+			firstAEAD = aead
+		} else if aead != firstAEAD {
+			t.Error("GetPrimitives() all concurrent callers should receive the same primitive instance")
+		}
+	}
+}
+
+func TestKeysetManager_GetPrimitives_NilKeyset_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Reader returns nil without error (edge case)
+	reader := &fakeKeysetReader{
+		keyset: nil,
+		err:    nil,
+	}
+
+	unwrapper := &fakeKeysetUnwrapper{}
+
+	manager := NewKeysetManager(reader, unwrapper, DefaultKeysetManagerConfig())
+
+	_, _, err := manager.GetPrimitives(context.Background(), "org-nil-keyset")
+	if err == nil {
+		t.Fatal("GetPrimitives() expected error for nil keyset, got nil")
+	}
+
+	if !errors.Is(err, constant.ErrKeysetNotFound) {
+		t.Errorf("GetPrimitives() error = %v, want %v", err, constant.ErrKeysetNotFound)
+	}
+
+	// Unwrapper should not be called when keyset is nil
+	if unwrapper.getCalls() != 0 {
+		t.Errorf("GetPrimitives() unwrapper calls = %d, want 0", unwrapper.getCalls())
 	}
 }
