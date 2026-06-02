@@ -22,7 +22,7 @@ func TestKeysetFromEntity(t *testing.T) {
 	entity := &mmodel.OrganizationKeyset{
 		TenantID:       "tenant-a",
 		OrganizationID: "org-a",
-		KEKPath:        "transit/keys/org-a",
+		KEKPath:        "transit/keys/org-123",
 		WrappedKeyset:  "vault:v1:encrypted-dek",
 		KeysetInfo: mmodel.KeysetInfo{
 			PrimaryKeyID: 2,
@@ -74,7 +74,7 @@ func TestKeysetMongoDBModel_ToEntity(t *testing.T) {
 	model := &KeysetMongoDBModel{
 		TenantID:       "tenant-a",
 		OrganizationID: "org-a",
-		KEKPath:        "transit/keys/org-a",
+		KEKPath:        "transit/keys/org-123",
 		WrappedKeyset:  "vault:v1:encrypted-dek",
 		KeysetInfo: KeysetInfoModel{
 			PrimaryKeyID: 2,
@@ -127,7 +127,7 @@ func TestKeysetConversion_RoundTrip(t *testing.T) {
 	original := &mmodel.OrganizationKeyset{
 		TenantID:       "tenant-a",
 		OrganizationID: "org-a",
-		KEKPath:        "transit/keys/org-a",
+		KEKPath:        "transit/keys/org-123",
 		WrappedKeyset:  "vault:v1:encrypted-dek",
 		KeysetInfo: mmodel.KeysetInfo{
 			PrimaryKeyID: 2,

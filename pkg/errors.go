@@ -1404,6 +1404,37 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Accounting Entry Field Required",
 			Message:    fmt.Sprintf("A required field is missing in the accounting entry. %v", args...),
 		},
+		// Encryption and provisioning errors
+		constant.ErrRegistryNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrRegistryNotFound.Error(),
+			Title:      "Organization Not Provisioned",
+			Message:    "The organization has not been provisioned for envelope encryption. Please provision first.",
+		},
+		constant.ErrRegistryAlreadyExists: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrRegistryAlreadyExists.Error(),
+			Title:      "Organization Already Provisioned",
+			Message:    "The organization has already been provisioned for envelope encryption.",
+		},
+		constant.ErrOrganizationEncryptionFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrOrganizationEncryptionFailed.Error(),
+			Title:      "Encryption Operation Failed",
+			Message:    "The encryption operation failed. Please try again later.",
+		},
+		constant.ErrOrganizationEncryptionBlocked: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrOrganizationEncryptionBlocked.Error(),
+			Title:      "Encryption Blocked",
+			Message:    "Encryption operations are blocked for this organization.",
+		},
+		constant.ErrProvisioningFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrProvisioningFailed.Error(),
+			Title:      "Provisioning Failed",
+			Message:    "The provisioning operation failed. Please try again later.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

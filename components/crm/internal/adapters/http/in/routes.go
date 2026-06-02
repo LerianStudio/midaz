@@ -25,7 +25,7 @@ type ReadyzHandler interface {
 	HandleReadyz(c *fiber.Ctx) error
 }
 
-func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, readyzHandler ReadyzHandler, hh *HolderHandler, ah *AliasHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, readyzHandler ReadyzHandler, hh *HolderHandler, ah *AliasHandler, eh *EncryptionHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -77,6 +77,13 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	f.Patch("/v1/holders/:holder_id/aliases/:alias_id", auth.Authorize(ApplicationName, "aliases", "patch"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.UpdateAliasInput), ah.UpdateAlias))
 	f.Delete("/v1/holders/:holder_id/aliases/:alias_id", auth.Authorize(ApplicationName, "aliases", "delete"), http.ParseUUIDPathParameters("aliases"), ah.DeleteAliasByID)
 	f.Delete("/v1/holders/:holder_id/aliases/:alias_id/related-parties/:related_party_id", auth.Authorize(ApplicationName, "aliases", "delete"), http.ParseUUIDPathParameters("related-parties"), ah.DeleteRelatedParty)
+
+	// Encryption
+	if eh != nil {
+		f.Post("/v1/organizations/:organization_id/encryption/provision", auth.Authorize(ApplicationName, "encryption", "post"), http.ParseUUIDPathParameters("organization"), http.WithBody(new(mmodel.ProvisionEncryptionInput), eh.Provision))
+		f.Post("/v1/organizations/:organization_id/encryption/activate", auth.Authorize(ApplicationName, "encryption", "post"), http.ParseUUIDPathParameters("organization"), http.WithBody(new(mmodel.ActivateEncryptionInput), eh.Activate))
+		f.Get("/v1/organizations/:organization_id/encryption/status", auth.Authorize(ApplicationName, "encryption", "get"), http.ParseUUIDPathParameters("organization"), eh.GetProvisioningStatus)
+	}
 
 	f.Use(tlMid.EndTracingSpans)
 

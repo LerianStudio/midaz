@@ -7,7 +7,6 @@ package alias
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -16,7 +15,6 @@ import (
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -74,11 +72,11 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 	}
 
 	if result.MatchedCount == 0 {
-		return pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+		return pkg.ValidateBusinessError(cn.ErrAliasNotFound, cn.EntityAlias)
 	}
 
 	if result.ModifiedCount == 0 {
-		return pkg.ValidateBusinessError(cn.ErrRelatedPartyNotFound, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+		return pkg.ValidateBusinessError(cn.ErrRelatedPartyNotFound, cn.EntityRelatedParty)
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Deleted related party with id %s from alias %s", relatedPartyID.String(), aliasID.String()))

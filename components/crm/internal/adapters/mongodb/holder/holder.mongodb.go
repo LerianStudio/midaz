@@ -8,17 +8,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
@@ -44,15 +43,15 @@ type Repository interface {
 
 // MongoDBRepository is a MongoDB-specific implementation of Repository
 type MongoDBRepository struct {
-	connection   *libMongo.Client
-	DataSecurity *libCrypto.Crypto
+	connection     *libMongo.Client
+	FieldEncryptor encryption.FieldEncryptor
 }
 
 // NewMongoDBRepository returns a new instance of MongoDBRepository using the given MongoDB connection.
 // In multi-tenant mode, connection may be nil — the per-request tenant context provides the database.
-func NewMongoDBRepository(connection *libMongo.Client, dataSecurity *libCrypto.Crypto) (*MongoDBRepository, error) {
+func NewMongoDBRepository(connection *libMongo.Client, fieldEncryptor encryption.FieldEncryptor) (*MongoDBRepository, error) {
 	r := &MongoDBRepository{
-		DataSecurity: dataSecurity,
+		FieldEncryptor: fieldEncryptor,
 	}
 
 	if connection != nil {
@@ -116,9 +115,16 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
+	// Build encryption context for this holder
+	encryptionCtx := encryption.EncryptionContext{
+		TenantID:       encryption.ExtractTenantID(ctx),
+		OrganizationID: organizationID,
+		RecordID:       holder.ID.String(),
+	}
+
 	record := &MongoDBModel{}
 
-	if err := record.FromEntity(holder, hm.DataSecurity); err != nil {
+	if err := record.FromEntity(ctx, holder, hm.FieldEncryptor, encryptionCtx); err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
 		return nil, err
@@ -143,7 +149,7 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 		if mongo.IsDuplicateKeyError(err) {
 			if strings.Contains(err.Error(), "document") {
-				return nil, pkg.ValidateBusinessError(cn.ErrDocumentAssociationError, reflect.TypeOf(mmodel.Holder{}).Name())
+				return nil, pkg.ValidateBusinessError(cn.ErrDocumentAssociationError, cn.EntityHolder)
 			}
 		}
 
@@ -152,7 +158,7 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	spanInsert.End()
 
-	result, err := record.ToEntity(hm.DataSecurity)
+	result, err := record.ToEntity(ctx, hm.FieldEncryptor, encryptionCtx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
@@ -206,7 +212,7 @@ func (hm *MongoDBRepository) Find(ctx context.Context, organizationID string, id
 		libOpenTelemetry.HandleSpanError(span, "Failed to find holder", err)
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())
+			return nil, pkg.ValidateBusinessError(cn.ErrHolderNotFound, cn.EntityHolder)
 		}
 
 		return nil, err
@@ -214,7 +220,14 @@ func (hm *MongoDBRepository) Find(ctx context.Context, organizationID string, id
 
 	spanFind.End()
 
-	result, err := record.ToEntity(hm.DataSecurity)
+	// Build encryption context for this holder
+	encryptionCtx := encryption.EncryptionContext{
+		TenantID:       encryption.ExtractTenantID(ctx),
+		OrganizationID: organizationID,
+		RecordID:       id.String(),
+	}
+
+	result, err := record.ToEntity(ctx, hm.FieldEncryptor, encryptionCtx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
@@ -258,9 +271,16 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to convert holder to JSON string", err)
 	}
 
+	// Build encryption context for this holder
+	encryptionCtx := encryption.EncryptionContext{
+		TenantID:       encryption.ExtractTenantID(ctx),
+		OrganizationID: organizationID,
+		RecordID:       id.String(),
+	}
+
 	holderToUpdate := &MongoDBModel{}
 
-	if err := holderToUpdate.FromEntity(holder, hm.DataSecurity); err != nil {
+	if err := holderToUpdate.FromEntity(ctx, holder, hm.FieldEncryptor, encryptionCtx); err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
 		return nil, err
@@ -292,7 +312,7 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 	if updateResult.MatchedCount == 0 {
 		libOpenTelemetry.HandleSpanError(spanUpdate, "Holder not found", cn.ErrHolderNotFound)
 
-		return nil, pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())
+		return nil, pkg.ValidateBusinessError(cn.ErrHolderNotFound, cn.EntityHolder)
 	}
 
 	spanUpdate.End()
@@ -312,7 +332,7 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	spanFind.End()
 
-	result, err := record.ToEntity(hm.DataSecurity)
+	result, err := record.ToEntity(ctx, hm.FieldEncryptor, encryptionCtx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
@@ -370,7 +390,7 @@ func (hm *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 		spanDelete.End()
 
 		if deleted.DeletedCount == 0 {
-			return pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())
+			return pkg.ValidateBusinessError(cn.ErrHolderNotFound, cn.EntityHolder)
 		}
 	} else {
 		update := bson.D{
@@ -387,11 +407,11 @@ func (hm *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 		}
 
 		if updateResult.MatchedCount == 0 {
-			return pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())
+			return pkg.ValidateBusinessError(cn.ErrHolderNotFound, cn.EntityHolder)
 		}
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintln("Deleted a document with id: ", id.String()))
+	logger.Log(ctx, libLog.LevelInfo, "Deleted holder", libLog.String("holder_id", id.String()))
 
 	return nil
 }

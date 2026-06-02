@@ -253,11 +253,14 @@ var (
 
 // Encryption and keyset management errors.
 var (
-	ErrKeysetNotFound            = errors.New("ENC-0001")
-	ErrKeysetAlreadyExists       = errors.New("ENC-0002")
-	ErrKeysetRevisionConflict    = errors.New("ENC-0003")
-	ErrRegistryNotFound          = errors.New("ENC-0004")
-	ErrRegistryAlreadyExists     = errors.New("ENC-0005")
-	ErrRegistryRevisionConflict  = errors.New("ENC-0006")
-	ErrRegistryInvalidTransition = errors.New("ENC-0007")
+	ErrKeysetNotFound                = errors.New("ENC-0001")
+	ErrKeysetAlreadyExists           = errors.New("ENC-0002")
+	ErrKeysetRevisionConflict        = errors.New("ENC-0003")
+	ErrRegistryNotFound              = errors.New("ENC-0004")
+	ErrRegistryAlreadyExists         = errors.New("ENC-0005")
+	ErrRegistryRevisionConflict      = errors.New("ENC-0006")
+	ErrRegistryInvalidTransition     = errors.New("ENC-0007")
+	ErrOrganizationEncryptionFailed  = errors.New("ENC-0008")
+	ErrOrganizationEncryptionBlocked = errors.New("ENC-0009")
+	ErrProvisioningFailed            = errors.New("ENC-0010")
 )

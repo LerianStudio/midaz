@@ -13,7 +13,8 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
+	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/kms/vault"
 )
@@ -26,8 +27,15 @@ type Service struct {
 	VaultClient    *vault.Client
 	// Encryption repositories - only populated in envelope encryption mode.
 	// These are nil in legacy mode (KMS_VENDOR=none or empty).
-	KeysetRepo   encryption.KeysetRepository
-	RegistryRepo encryption.RegistryRepository
+	KeysetRepo   mongoEncryption.KeysetRepository
+	RegistryRepo mongoEncryption.RegistryRepository
+
+	// Encryption services - only populated in envelope encryption mode.
+	// These are nil in legacy mode (KMS_VENDOR=none or empty).
+	EncryptionService       encryption.EncryptionService
+	ProvisioningService     encryption.ProvisioningService
+	ProtectionStateResolver *encryption.ProtectionStateResolver
+	KeysetManager           *encryption.KeysetManager
 
 	libLog.Logger
 }

@@ -193,6 +193,7 @@ func TestNewRouter_ServesSwaggerUIAssets(t *testing.T) {
 		nil,
 		&HolderHandler{},
 		&AliasHandler{},
+		nil, // EncryptionHandler - nil is acceptable for this test
 	)
 
 	for _, path := range []string{
