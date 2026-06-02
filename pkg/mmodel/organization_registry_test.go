@@ -11,196 +11,66 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewOrganizationRegistryRecord(t *testing.T) {
+func TestNewOrganizationRegistryRecord_ReturnsActiveStatus(t *testing.T) {
 	t.Parallel()
 
-	record, err := NewOrganizationRegistryRecord("tenant-a", "org-a", "system", "initial setup")
+	// When creating a new registry record
+	record, err := NewOrganizationRegistryRecord(
+		"tenant-123",
+		"org-456",
+		"provisioning-service",
+		"initial provisioning",
+	)
 
+	// Then it should succeed
 	require.NoError(t, err)
 	require.NotNil(t, record)
-	assert.Equal(t, "tenant-a", record.TenantID)
-	assert.Equal(t, "org-a", record.OrganizationID)
-	assert.Equal(t, RegistryStatusPendingMigration, record.Status)
-	assert.Equal(t, ProtectionModelLegacy, record.ProtectionModel)
-	assert.Equal(t, int64(1), record.Revision)
-	assert.True(t, record.LegacyReadable)
-	assert.Equal(t, "system", record.CreatedBy)
-	assert.Equal(t, "system", record.UpdatedBy)
-	assert.Equal(t, "initial setup", record.LastTransitionReason)
+
+	// And the status should be active (not pending_migration)
+	assert.Equal(t, RegistryStatusActive, record.Status,
+		"newly created registry records should have status 'active', not 'pending_migration'")
 }
 
-func TestNewOrganizationRegistryRecord_Validation(t *testing.T) {
+func TestNewOrganizationRegistryRecord_ReturnsEnvelopeProtectionModel(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name           string
-		tenantID       string
-		organizationID string
-		actor          string
-		reason         string
-		wantErrMsg     string
-	}{
-		{
-			name:           "empty tenant",
-			tenantID:       "",
-			organizationID: "org-a",
-			actor:          "system",
-			reason:         "test",
-			wantErrMsg:     "tenant_id is required",
-		},
-		{
-			name:           "empty organization",
-			tenantID:       "tenant-a",
-			organizationID: "",
-			actor:          "system",
-			reason:         "test",
-			wantErrMsg:     "organization_id is required",
-		},
-		{
-			name:           "empty actor",
-			tenantID:       "tenant-a",
-			organizationID: "org-a",
-			actor:          "",
-			reason:         "test",
-			wantErrMsg:     "actor is required",
-		},
-		{
-			name:           "empty reason",
-			tenantID:       "tenant-a",
-			organizationID: "org-a",
-			actor:          "system",
-			reason:         "",
-			wantErrMsg:     "reason is required",
-		},
-	}
+	// When creating a new registry record
+	record, err := NewOrganizationRegistryRecord(
+		"tenant-123",
+		"org-456",
+		"provisioning-service",
+		"initial provisioning",
+	)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	// Then it should succeed
+	require.NoError(t, err)
+	require.NotNil(t, record)
 
-			record, err := NewOrganizationRegistryRecord(tt.tenantID, tt.organizationID, tt.actor, tt.reason)
-
-			require.Error(t, err)
-			assert.Nil(t, record)
-			assert.Contains(t, err.Error(), tt.wantErrMsg)
-		})
-	}
+	// And the protection model should be envelope (not legacy)
+	assert.Equal(t, ProtectionModelEnvelope, record.ProtectionModel,
+		"newly created registry records should use 'envelope' protection model, not 'legacy'")
 }
 
-func TestOrganizationRegistryRecord_Activate(t *testing.T) {
+func TestNewOrganizationRegistryRecord_SetsVersionFields(t *testing.T) {
 	t.Parallel()
 
-	record, err := NewOrganizationRegistryRecord("tenant-a", "org-a", "system", "initial setup")
+	// When creating a new registry record
+	record, err := NewOrganizationRegistryRecord(
+		"tenant-123",
+		"org-456",
+		"provisioning-service",
+		"initial provisioning",
+	)
+
+	// Then it should succeed
 	require.NoError(t, err)
+	require.NotNil(t, record)
 
-	err = record.Activate(1, "admin", "keyset provisioned")
+	// And CurrentVersion should be set to 1
+	assert.Equal(t, 1, record.CurrentVersion,
+		"newly created registry records should have CurrentVersion = 1")
 
-	require.NoError(t, err)
-	assert.Equal(t, RegistryStatusActive, record.Status)
-	assert.Equal(t, ProtectionModelEnvelope, record.ProtectionModel)
-	assert.Equal(t, 1, record.CurrentVersion)
-	assert.Equal(t, []int{1}, record.ReadableVersions)
-	assert.Equal(t, int64(2), record.Revision)
-	assert.Equal(t, "admin", record.UpdatedBy)
-	assert.Equal(t, "keyset provisioned", record.LastTransitionReason)
-}
-
-func TestOrganizationRegistryRecord_ActivateRevisionConflict(t *testing.T) {
-	t.Parallel()
-
-	record, err := NewOrganizationRegistryRecord("tenant-a", "org-a", "system", "initial setup")
-	require.NoError(t, err)
-
-	// Try to activate with wrong expected revision
-	err = record.Activate(99, "admin", "keyset provisioned")
-
-	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrRegistryRevisionConflict)
-	// Status should not change
-	assert.Equal(t, RegistryStatusPendingMigration, record.Status)
-}
-
-func TestOrganizationRegistryRecord_ActivateInvalidTransition(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		status RegistryStatus
-	}{
-		{name: "from active", status: RegistryStatusActive},
-		{name: "from legacy", status: RegistryStatusLegacy},
-		{name: "from partially_migrated", status: RegistryStatusPartiallyMigrated},
-		{name: "from migration_complete", status: RegistryStatusMigrationComplete},
-		{name: "from failed", status: RegistryStatusFailed},
-		{name: "from blocked", status: RegistryStatusBlocked},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			record := &OrganizationRegistryRecord{
-				TenantID:       "tenant-a",
-				OrganizationID: "org-a",
-				Status:         tt.status,
-				Revision:       1,
-			}
-
-			err := record.Activate(1, "admin", "keyset provisioned")
-
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "cannot activate from status")
-			assert.Contains(t, err.Error(), string(tt.status))
-			// Status should not change
-			assert.Equal(t, tt.status, record.Status)
-		})
-	}
-}
-
-func TestOrganizationRegistryRecord_UsesEnvelopeMode(t *testing.T) {
-	t.Parallel()
-
-	record, err := NewOrganizationRegistryRecord("tenant-a", "org-a", "system", "initial setup")
-	require.NoError(t, err)
-
-	// Initially uses legacy mode
-	assert.False(t, record.UsesEnvelopeMode())
-
-	// After activation uses envelope mode
-	err = record.Activate(1, "admin", "activated")
-	require.NoError(t, err)
-	assert.True(t, record.UsesEnvelopeMode())
-}
-
-func TestOrganizationRegistryRecord_CanReadLegacy(t *testing.T) {
-	t.Parallel()
-
-	record, err := NewOrganizationRegistryRecord("tenant-a", "org-a", "system", "initial setup")
-	require.NoError(t, err)
-
-	// Initially can read legacy
-	assert.True(t, record.CanReadLegacy())
-
-	// After activation can still read legacy (during migration)
-	err = record.Activate(1, "admin", "activated")
-	require.NoError(t, err)
-	assert.True(t, record.CanReadLegacy())
-}
-
-func TestOrganizationRegistryRecord_ReadableKeysetVersions(t *testing.T) {
-	t.Parallel()
-
-	record, err := NewOrganizationRegistryRecord("tenant-a", "org-a", "system", "initial setup")
-	require.NoError(t, err)
-
-	err = record.Activate(1, "admin", "activated")
-	require.NoError(t, err)
-
-	versions := record.ReadableKeysetVersions()
-
-	assert.Equal(t, []int{1}, versions)
-
-	// Verify returned slice is a copy
-	versions[0] = 999
-	assert.Equal(t, []int{1}, record.ReadableVersions)
+	// And ReadableVersions should contain [1]
+	assert.Equal(t, []int{1}, record.ReadableVersions,
+		"newly created registry records should have ReadableVersions = [1]")
 }

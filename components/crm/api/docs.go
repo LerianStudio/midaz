@@ -907,71 +907,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/organizations/{organization_id}/encryption/activate": {
-            "post": {
-                "description": "Activates envelope encryption for an organization that has been provisioned.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Encryption"
-                ],
-                "summary": "Activate Envelope Encryption for an Organization",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "The unique identifier of the Organization.",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Activate Input",
-                        "name": "input",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/ActivateEncryptionRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/ActivateEncryptionResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
-                        }
-                    }
-                }
-            }
-        },
         "/v1/organizations/{organization_id}/encryption/provision": {
             "post": {
                 "description": "Provisions an organization for envelope encryption by generating keysets and registering the organization.",
@@ -1086,42 +1021,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "ActivateEncryptionRequest": {
-            "description": "ActivateEncryptionRequest payload",
-            "type": "object",
-            "required": [
-                "actor",
-                "reason"
-            ],
-            "properties": {
-                "actor": {
-                    "description": "The actor performing the activation operation.",
-                    "type": "string",
-                    "example": "admin@example.com"
-                },
-                "reason": {
-                    "description": "The reason for activating the organization's encryption.",
-                    "type": "string",
-                    "example": "Ready for production"
-                }
-            }
-        },
-        "ActivateEncryptionResponse": {
-            "description": "ActivateEncryptionResponse payload",
-            "type": "object",
-            "properties": {
-                "organization_id": {
-                    "description": "The unique identifier of the organization.",
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "status": {
-                    "description": "The current provisioning status.",
-                    "type": "string",
-                    "example": "active"
-                }
-            }
-        },
         "Address": {
             "description": "Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes). Used for organization physical locations and other address needs.",
             "type": "object",

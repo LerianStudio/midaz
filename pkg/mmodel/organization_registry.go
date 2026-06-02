@@ -84,40 +84,18 @@ func NewOrganizationRegistryRecord(tenantID, organizationID, actor, reason strin
 	return &OrganizationRegistryRecord{
 		TenantID:             tenantID,
 		OrganizationID:       organizationID,
-		Status:               RegistryStatusPendingMigration,
-		ProtectionModel:      ProtectionModelLegacy,
+		Status:               RegistryStatusActive,
+		ProtectionModel:      ProtectionModelEnvelope,
+		CurrentVersion:       1,
+		ReadableVersions:     []int{1},
 		Revision:             1,
-		LegacyReadable:       true,
+		LegacyReadable:       false,
 		CreatedAt:            now,
 		UpdatedAt:            now,
 		CreatedBy:            actor,
 		UpdatedBy:            actor,
 		LastTransitionReason: reason,
 	}, nil
-}
-
-// Activate transitions the organization to envelope encryption mode.
-// Only records in pending_migration status can be activated.
-func (r *OrganizationRegistryRecord) Activate(expectedRevision int64, actor, reason string) error {
-	if r.Status != RegistryStatusPendingMigration {
-		return fmt.Errorf("%w: cannot activate from status %s, only pending_migration can be activated",
-			constant.ErrRegistryInvalidTransition, r.Status)
-	}
-
-	if r.Revision != expectedRevision {
-		return ErrRegistryRevisionConflict
-	}
-
-	r.Status = RegistryStatusActive
-	r.ProtectionModel = ProtectionModelEnvelope
-	r.CurrentVersion = 1
-	r.ReadableVersions = []int{1}
-	r.Revision++
-	r.UpdatedAt = time.Now().UTC()
-	r.UpdatedBy = strings.TrimSpace(actor)
-	r.LastTransitionReason = strings.TrimSpace(reason)
-
-	return nil
 }
 
 // UsesEnvelopeMode returns true if organization uses envelope encryption.

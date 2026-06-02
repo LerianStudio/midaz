@@ -301,70 +301,6 @@ func TestProvisionRequest_Validate(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// ActivateRequest Validation Tests
-// ---------------------------------------------------------------------------
-
-func TestActivateRequest_Validate(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		req     ActivateInput
-		wantErr bool
-	}{
-		{
-			name: "valid request",
-			req: ActivateInput{
-				OrganizationID: "org-456",
-				Actor:          "admin@example.com",
-				Reason:         "Activation after migration",
-			},
-			wantErr: false,
-		},
-		{
-			name: "missing organization_id",
-			req: ActivateInput{
-				OrganizationID: "",
-				Actor:          "admin@example.com",
-				Reason:         "Activation after migration",
-			},
-			wantErr: true,
-		},
-		{
-			name: "missing actor",
-			req: ActivateInput{
-				OrganizationID: "org-456",
-				Actor:          "",
-				Reason:         "Activation after migration",
-			},
-			wantErr: true,
-		},
-		{
-			name: "missing reason",
-			req: ActivateInput{
-				OrganizationID: "org-456",
-				Actor:          "admin@example.com",
-				Reason:         "",
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			err := tt.req.Validate()
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Provision Tests
 // ---------------------------------------------------------------------------
 
@@ -393,7 +329,7 @@ func TestProvisioningService_Provision_Success(t *testing.T) {
 	assert.Equal(t, "org-org-456", result.KEKPath)
 	assert.NotZero(t, result.AEADPrimaryKeyID)
 	assert.NotZero(t, result.MACPrimaryKeyID)
-	assert.Equal(t, mmodel.RegistryStatusPendingMigration, result.RegistryStatus)
+	assert.Equal(t, mmodel.RegistryStatusActive, result.RegistryStatus)
 
 	// Verify keyset was saved
 	assert.Equal(t, 1, keysetWriter.saveCalled)
@@ -410,7 +346,7 @@ func TestProvisioningService_Provision_Success(t *testing.T) {
 	require.NotNil(t, savedRegistry)
 	assert.Equal(t, "tenant-123", savedRegistry.TenantID)
 	assert.Equal(t, "org-456", savedRegistry.OrganizationID)
-	assert.Equal(t, mmodel.RegistryStatusPendingMigration, savedRegistry.Status)
+	assert.Equal(t, mmodel.RegistryStatusActive, savedRegistry.Status)
 
 	// Verify generators were called
 	assert.Equal(t, 1, keysetGenerator.aeadCalled)
@@ -488,12 +424,12 @@ func TestProvisioningService_Provision_RecoveryFromPartialFailure(t *testing.T) 
 	assert.Equal(t, "org-org-456", result.KEKPath)
 	assert.Equal(t, uint32(12345), result.AEADPrimaryKeyID)
 	assert.Equal(t, uint32(67890), result.MACPrimaryKeyID)
-	assert.Equal(t, mmodel.RegistryStatusPendingMigration, result.RegistryStatus)
+	assert.Equal(t, mmodel.RegistryStatusActive, result.RegistryStatus)
 
 	// Verify registry was created
 	savedRegistry := registryWriter.records["org-456"]
 	require.NotNil(t, savedRegistry)
-	assert.Equal(t, mmodel.RegistryStatusPendingMigration, savedRegistry.Status)
+	assert.Equal(t, mmodel.RegistryStatusActive, savedRegistry.Status)
 }
 
 func TestProvisioningService_Provision_InvalidRequest(t *testing.T) {
@@ -630,170 +566,6 @@ func TestProvisioningService_Provision_ContextCanceled(t *testing.T) {
 	}
 
 	_, err := svc.Provision(ctx, req)
-	require.Error(t, err)
-	assert.ErrorIs(t, err, context.Canceled)
-}
-
-// ---------------------------------------------------------------------------
-// Activate Tests
-// ---------------------------------------------------------------------------
-
-func TestProvisioningService_Activate_Success(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	keysetWriter := newFakeKeysetWriter()
-	registryWriter := newFakeRegistryWriter()
-	keysetGenerator := newFakeKeysetGenerator()
-
-	// First provision the organization
-	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
-
-	provisionReq := ProvisionInput{
-		TenantID:       "tenant-123",
-		OrganizationID: "org-456",
-		Actor:          "admin@example.com",
-		Reason:         "Initial provisioning",
-	}
-
-	_, err := svc.Provision(ctx, provisionReq)
-	require.NoError(t, err)
-
-	// Now activate
-	activateReq := ActivateInput{
-		OrganizationID: "org-456",
-		Actor:          "admin@example.com",
-		Reason:         "Migration complete",
-	}
-
-	err = svc.Activate(ctx, activateReq)
-	require.NoError(t, err)
-
-	// Verify registry was updated
-	registry := registryWriter.records["org-456"]
-	require.NotNil(t, registry)
-	assert.Equal(t, mmodel.RegistryStatusActive, registry.Status)
-	assert.Equal(t, mmodel.ProtectionModelEnvelope, registry.ProtectionModel)
-}
-
-func TestProvisioningService_Activate_NotProvisioned(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	keysetWriter := newFakeKeysetWriter()
-	registryWriter := newFakeRegistryWriter()
-	keysetGenerator := newFakeKeysetGenerator()
-
-	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
-
-	req := ActivateInput{
-		OrganizationID: "org-not-provisioned",
-		Actor:          "admin@example.com",
-		Reason:         "Activation attempt",
-	}
-
-	err := svc.Activate(ctx, req)
-	require.Error(t, err)
-
-	var notFoundErr pkg.EntityNotFoundError
-	assert.ErrorAs(t, err, &notFoundErr)
-}
-
-func TestProvisioningService_Activate_InvalidRequest(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	svc := NewProvisioningService(nil, nil, nil, nil, DefaultProvisioningConfig())
-
-	req := ActivateInput{
-		OrganizationID: "",
-		Actor:          "admin@example.com",
-		Reason:         "Activation attempt",
-	}
-
-	err := svc.Activate(ctx, req)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid activate request")
-}
-
-func TestProvisioningService_Activate_AlreadyActive(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	keysetWriter := newFakeKeysetWriter()
-	registryWriter := newFakeRegistryWriter()
-	keysetGenerator := newFakeKeysetGenerator()
-
-	// Pre-populate with already active registry
-	registryWriter.records["org-456"] = &mmodel.OrganizationRegistryRecord{
-		OrganizationID:  "org-456",
-		Status:          mmodel.RegistryStatusActive,
-		ProtectionModel: mmodel.ProtectionModelEnvelope,
-		Revision:        2,
-	}
-
-	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
-
-	req := ActivateInput{
-		OrganizationID: "org-456",
-		Actor:          "admin@example.com",
-		Reason:         "Re-activation attempt",
-	}
-
-	err := svc.Activate(ctx, req)
-	require.Error(t, err)
-
-	var internalErr pkg.InternalServerError
-	assert.ErrorAs(t, err, &internalErr)
-}
-
-func TestProvisioningService_Activate_ConcurrentModification(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	keysetWriter := newFakeKeysetWriter()
-	registryWriter := newFakeRegistryWriter()
-	registryWriter.updateErr = mmodel.ErrRegistryRevisionConflict
-	keysetGenerator := newFakeKeysetGenerator()
-
-	// Pre-populate with pending registry
-	registryWriter.records["org-456"] = &mmodel.OrganizationRegistryRecord{
-		OrganizationID:  "org-456",
-		Status:          mmodel.RegistryStatusPendingMigration,
-		ProtectionModel: mmodel.ProtectionModelLegacy,
-		Revision:        1,
-	}
-
-	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
-
-	req := ActivateInput{
-		OrganizationID: "org-456",
-		Actor:          "admin@example.com",
-		Reason:         "Activation attempt",
-	}
-
-	err := svc.Activate(ctx, req)
-	require.Error(t, err)
-
-	var internalErr pkg.InternalServerError
-	assert.ErrorAs(t, err, &internalErr)
-}
-
-func TestProvisioningService_Activate_ContextCanceled(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	svc := NewProvisioningService(nil, nil, nil, nil, DefaultProvisioningConfig())
-
-	req := ActivateInput{
-		OrganizationID: "org-456",
-		Actor:          "admin@example.com",
-		Reason:         "Activation attempt",
-	}
-
-	err := svc.Activate(ctx, req)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
 }
@@ -1058,30 +830,6 @@ func TestProvisioningService_Provision_RegistryAlreadyExists(t *testing.T) {
 	assert.ErrorAs(t, err, &conflictErr)
 }
 
-func TestProvisioningService_Activate_GetRegistryFailed(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	keysetWriter := newFakeKeysetWriter()
-	registryWriter := newFakeRegistryWriter()
-	registryWriter.getErr = errors.New("database error")
-	keysetGenerator := newFakeKeysetGenerator()
-
-	svc := NewProvisioningService(keysetWriter, keysetWriter, registryWriter, keysetGenerator, DefaultProvisioningConfig())
-
-	req := ActivateInput{
-		OrganizationID: "org-456",
-		Actor:          "admin@example.com",
-		Reason:         "Activation attempt",
-	}
-
-	err := svc.Activate(ctx, req)
-	require.Error(t, err)
-
-	var internalErr pkg.InternalServerError
-	assert.ErrorAs(t, err, &internalErr)
-}
-
 func TestProvisioningService_GetProvisioningStatus_DatabaseError(t *testing.T) {
 	t.Parallel()
 
@@ -1202,7 +950,7 @@ func TestProvisioningService_Provision_RegistrySaveFailure_ThenRetryRecovers(t *
 	assert.Equal(t, "org-org-456", result.KEKPath)
 	assert.Equal(t, savedKeyset.KeysetInfo.PrimaryKeyID, result.AEADPrimaryKeyID)
 	assert.Equal(t, savedKeyset.HMACKeysetInfo.PrimaryKeyID, result.MACPrimaryKeyID)
-	assert.Equal(t, mmodel.RegistryStatusPendingMigration, result.RegistryStatus)
+	assert.Equal(t, mmodel.RegistryStatusActive, result.RegistryStatus)
 
 	// Verify keyset was NOT regenerated (save called only once more for the existing check)
 	assert.Equal(t, 2, keysetWriter.saveCalled, "keyset save should be called again (hitting already exists)")
@@ -1211,7 +959,7 @@ func TestProvisioningService_Provision_RegistrySaveFailure_ThenRetryRecovers(t *
 	assert.Equal(t, 2, registryWriter.saveCalled)
 	savedRegistry := registryWriter.records["org-456"]
 	require.NotNil(t, savedRegistry, "registry should be created on retry")
-	assert.Equal(t, mmodel.RegistryStatusPendingMigration, savedRegistry.Status)
+	assert.Equal(t, mmodel.RegistryStatusActive, savedRegistry.Status)
 
 	// STEP 3: Third attempt should fail with conflict (fully provisioned)
 	_, err = svc.Provision(ctx, req)

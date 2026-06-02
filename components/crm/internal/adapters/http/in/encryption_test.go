@@ -59,7 +59,7 @@ func TestEncryption_Provision(t *testing.T) {
 						KEKPath:          "transit/keys/org-" + orgID,
 						AEADPrimaryKeyID: 123456,
 						MACPrimaryKeyID:  789012,
-						RegistryStatus:   mmodel.RegistryStatusPendingMigration,
+						RegistryStatus:   mmodel.RegistryStatusActive,
 					}, nil).
 					Times(1)
 			},
@@ -71,7 +71,7 @@ func TestEncryption_Provision(t *testing.T) {
 
 				assert.NotEmpty(t, result.OrganizationID, "response should contain organization_id")
 				assert.NotEmpty(t, result.KEKPath, "response should contain kek_path")
-				assert.Equal(t, string(mmodel.RegistryStatusPendingMigration), result.Status)
+				assert.Equal(t, string(mmodel.RegistryStatusActive), result.Status)
 			},
 		},
 		{
@@ -174,159 +174,6 @@ func TestEncryption_Provision(t *testing.T) {
 			)
 
 			req := httptest.NewRequest("POST", "/v1/organizations/"+tt.organizationID+"/encryption/provision", bytes.NewBufferString(tt.jsonBody))
-			req.Header.Set("Content-Type", "application/json")
-			resp, err := app.Test(req)
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
-
-			if tt.validateBody != nil {
-				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				tt.validateBody(t, body)
-			}
-		})
-	}
-}
-
-func TestEncryptionHandler_Activate(t *testing.T) {
-	tests := []struct {
-		name           string
-		organizationID string
-		jsonBody       string
-		setupMocks     func(mockService *MockProvisioningService, orgID string)
-		expectedStatus int
-		validateBody   func(t *testing.T, body []byte)
-	}{
-		{
-			name:           "success returns 200",
-			organizationID: uuid.New().String(),
-			jsonBody: `{
-				"actor": "admin@example.com",
-				"reason": "Activation after migration complete"
-			}`,
-			setupMocks: func(mockService *MockProvisioningService, orgID string) {
-				mockService.EXPECT().
-					Activate(gomock.Any(), gomock.Cond(func(x any) bool {
-						req, ok := x.(encryption.ActivateInput)
-						if !ok {
-							return false
-						}
-						return req.OrganizationID == orgID &&
-							req.Actor == "admin@example.com" &&
-							req.Reason == "Activation after migration complete"
-					})).
-					Return(nil).
-					Times(1)
-			},
-			expectedStatus: 200,
-			validateBody: func(t *testing.T, body []byte) {
-				var result mmodel.ActivateEncryptionResponse
-				err := json.Unmarshal(body, &result)
-				require.NoError(t, err)
-
-				assert.NotEmpty(t, result.OrganizationID, "response should contain organization_id")
-				assert.Equal(t, string(mmodel.RegistryStatusActive), result.Status)
-			},
-		},
-		{
-			name:           "missing actor returns 400",
-			organizationID: uuid.New().String(),
-			jsonBody: `{
-				"reason": "Activation after migration complete"
-			}`,
-			setupMocks: func(mockService *MockProvisioningService, orgID string) {
-				// No mock expectations - validation should fail before reaching service
-			},
-			expectedStatus: 400,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
-			},
-		},
-		{
-			name:           "missing reason returns 400",
-			organizationID: uuid.New().String(),
-			jsonBody: `{
-				"actor": "admin@example.com"
-			}`,
-			setupMocks: func(mockService *MockProvisioningService, orgID string) {
-				// No mock expectations - validation should fail before reaching service
-			},
-			expectedStatus: 400,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
-			},
-		},
-		{
-			name:           "organization not provisioned returns 404",
-			organizationID: uuid.New().String(),
-			jsonBody: `{
-				"actor": "admin@example.com",
-				"reason": "Activation after migration complete"
-			}`,
-			setupMocks: func(mockService *MockProvisioningService, orgID string) {
-				mockService.EXPECT().
-					Activate(gomock.Any(), gomock.Any()).
-					Return(pkg.ValidateBusinessError(constant.ErrRegistryNotFound, encryption.EntityOrganizationEncryption)).
-					Times(1)
-			},
-			expectedStatus: 404,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
-			},
-		},
-		{
-			name:           "activation failed returns 500",
-			organizationID: uuid.New().String(),
-			jsonBody: `{
-				"actor": "admin@example.com",
-				"reason": "Activation after migration complete"
-			}`,
-			setupMocks: func(mockService *MockProvisioningService, orgID string) {
-				mockService.EXPECT().
-					Activate(gomock.Any(), gomock.Any()).
-					Return(pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, encryption.EntityOrganizationEncryption)).
-					Times(1)
-			},
-			expectedStatus: 500,
-			validateBody:   nil, // Error format handled by http.WithError middleware
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			t.Cleanup(ctrl.Finish)
-
-			mockService := NewMockProvisioningService(ctrl)
-			tt.setupMocks(mockService, tt.organizationID)
-
-			handler := &EncryptionHandler{
-				ProvisioningService: mockService,
-			}
-
-			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/encryption/activate",
-				func(c *fiber.Ctx) error {
-					c.Locals("organization_id", uuid.MustParse(tt.organizationID))
-					return c.Next()
-				},
-				http.WithBody(new(mmodel.ActivateEncryptionInput), handler.Activate),
-			)
-
-			req := httptest.NewRequest("POST", "/v1/organizations/"+tt.organizationID+"/encryption/activate", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -501,15 +348,6 @@ func (m *MockProvisioningService) Provision(ctx context.Context, req encryption.
 
 func (mr *MockProvisioningServiceRecorder) Provision(ctx, req any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Provision", reflect.TypeOf((*MockProvisioningService)(nil).Provision), ctx, req)
-}
-
-func (m *MockProvisioningService) Activate(ctx context.Context, req encryption.ActivateInput) error {
-	ret := m.ctrl.Call(m, "Activate", ctx, req)
-	return errOrNil(ret[0])
-}
-
-func (mr *MockProvisioningServiceRecorder) Activate(ctx, req any) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Activate", reflect.TypeOf((*MockProvisioningService)(nil).Activate), ctx, req)
 }
 
 func (m *MockProvisioningService) GetProvisioningStatus(ctx context.Context, organizationID string) (*mmodel.RegistryStatus, error) {

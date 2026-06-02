@@ -81,7 +81,6 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	// Encryption
 	if eh != nil {
 		f.Post("/v1/organizations/:organization_id/encryption/provision", auth.Authorize(ApplicationName, "encryption", "post"), http.ParseUUIDPathParameters("organization"), http.WithBody(new(mmodel.ProvisionEncryptionInput), eh.Provision))
-		f.Post("/v1/organizations/:organization_id/encryption/activate", auth.Authorize(ApplicationName, "encryption", "post"), http.ParseUUIDPathParameters("organization"), http.WithBody(new(mmodel.ActivateEncryptionInput), eh.Activate))
 		f.Get("/v1/organizations/:organization_id/encryption/status", auth.Authorize(ApplicationName, "encryption", "get"), http.ParseUUIDPathParameters("organization"), eh.GetProvisioningStatus)
 	}
 

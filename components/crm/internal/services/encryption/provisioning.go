@@ -63,7 +63,6 @@ func DefaultProvisioningConfig() ProvisioningConfig {
 //
 // Lifecycle operations (exposed via HTTP handlers):
 //   - Provision: creates keysets and registry for an organization
-//   - Activate: transitions organization from pending_migration to active
 //   - GetProvisioningStatus: returns current status for an organization
 //
 // Convenience operations (for admin tooling and conditional logic):
@@ -71,7 +70,6 @@ func DefaultProvisioningConfig() ProvisioningConfig {
 //   - IsActive: quick check if organization uses envelope encryption
 type ProvisioningService interface {
 	Provision(ctx context.Context, req ProvisionInput) (ProvisionResult, error)
-	Activate(ctx context.Context, req ActivateInput) error
 	GetProvisioningStatus(ctx context.Context, organizationID string) (*mmodel.RegistryStatus, error)
 	IsProvisioned(ctx context.Context, organizationID string) (bool, error)
 	IsActive(ctx context.Context, organizationID string) (bool, error)
@@ -271,83 +269,8 @@ func (s *provisioningService) createAndSaveRegistry(ctx context.Context, req Pro
 		KEKPath:          kekPath,
 		AEADPrimaryKeyID: aeadKeyID,
 		MACPrimaryKeyID:  macKeyID,
-		RegistryStatus:   mmodel.RegistryStatusPendingMigration,
+		RegistryStatus:   mmodel.RegistryStatusActive,
 	}, nil
-}
-
-// ActivateInput contains the parameters for activating an organization.
-type ActivateInput struct {
-	OrganizationID string
-	Actor          string // Who initiated the activation
-	Reason         string // Why activation was requested
-}
-
-// Validate validates the activate request.
-func (r ActivateInput) Validate() error {
-	if r.OrganizationID == "" {
-		return fmt.Errorf("organization_id is required")
-	}
-
-	if r.Actor == "" {
-		return fmt.Errorf("actor is required")
-	}
-
-	if r.Reason == "" {
-		return fmt.Errorf("reason is required")
-	}
-
-	return nil
-}
-
-// Activate transitions an organization from pending_migration to active status.
-// After activation, the organization uses envelope encryption for all new writes.
-//
-// Returns ErrOrganizationNotProvisioned if the organization has no registry record.
-// Returns ErrActivationFailed if the transition is not allowed.
-func (s *provisioningService) Activate(ctx context.Context, req ActivateInput) error {
-	// Check context before any work
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	// Validate request
-	if err := req.Validate(); err != nil {
-		return fmt.Errorf("invalid activate request: %w", err)
-	}
-
-	// Get current registry record
-	registry, err := s.registryWriter.Get(ctx, req.OrganizationID)
-	if err != nil {
-		if errors.Is(err, constant.ErrRegistryNotFound) || errors.Is(err, mmodel.ErrRegistryNotFound) {
-			return pkg.ValidateBusinessError(constant.ErrRegistryNotFound, EntityOrganizationEncryption)
-		}
-
-		return pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
-	}
-
-	// Guard against nil registry (repository returned nil without error)
-	if registry == nil {
-		return pkg.ValidateBusinessError(constant.ErrRegistryNotFound, EntityOrganizationEncryption)
-	}
-
-	// Store current revision for optimistic locking
-	currentRevision := registry.Revision
-
-	// Attempt to activate
-	if err := registry.Activate(currentRevision, req.Actor, req.Reason); err != nil {
-		return pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
-	}
-
-	// Update registry
-	if err := s.registryWriter.Update(ctx, registry, currentRevision); err != nil {
-		if errors.Is(err, constant.ErrRegistryRevisionConflict) || errors.Is(err, mmodel.ErrRegistryRevisionConflict) {
-			return pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
-		}
-
-		return pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, EntityOrganizationEncryption)
-	}
-
-	return nil
 }
 
 // GetProvisioningStatus returns the current provisioning status for an organization.
