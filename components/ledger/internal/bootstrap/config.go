@@ -164,6 +164,25 @@ type Config struct {
 	TxnPrefixedMaxPoolSize       int    `env:"MONGO_TRANSACTION_MAX_POOL_SIZE"`
 	TxnPrefixedMongoTLSCACert    string `env:"MONGO_TRANSACTION_TLS_CA_CERT"`
 
+	// --- CRM MongoDB fields (MONGO_CRM_* env tags) ---
+	// CRM (holder/alias) collapsed into the unified ledger binary (P3).
+	CrmPrefixedMongoURI          string `env:"MONGO_CRM_URI"`
+	CrmPrefixedMongoDBHost       string `env:"MONGO_CRM_HOST"`
+	CrmPrefixedMongoDBName       string `env:"MONGO_CRM_NAME"`
+	CrmPrefixedMongoDBUser       string `env:"MONGO_CRM_USER"`
+	CrmPrefixedMongoDBPassword   string `env:"MONGO_CRM_PASSWORD"`
+	CrmPrefixedMongoDBPort       string `env:"MONGO_CRM_PORT"`
+	CrmPrefixedMongoDBParameters string `env:"MONGO_CRM_PARAMETERS"`
+	CrmPrefixedMaxPoolSize       int    `env:"MONGO_CRM_MAX_POOL_SIZE"`
+	CrmPrefixedMongoTLSCACert    string `env:"MONGO_CRM_TLS_CA_CERT"`
+
+	// --- CRM crypto keys (holder/alias PII at-rest encryption) ---
+	// These keep the BARE LCRYPTO_* env names (no CRM prefix) so the EXACT key
+	// VALUES used by the standalone CRM service carry over unchanged. Changing
+	// either value renders existing holder/alias PII undecryptable (R7).
+	CrmHashSecretKey    string `env:"LCRYPTO_HASH_SECRET_KEY"`
+	CrmEncryptSecretKey string `env:"LCRYPTO_ENCRYPT_SECRET_KEY"`
+
 	// --- RabbitMQ (transaction domain only) ---
 	RabbitURI                                string `env:"RABBITMQ_URI"`
 	RabbitMQHost                             string `env:"RABBITMQ_HOST"`

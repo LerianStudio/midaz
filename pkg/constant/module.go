@@ -9,4 +9,7 @@ const (
 	ModuleOnboarding = "onboarding"
 	// ModuleTransaction is the module name for transaction database schemas.
 	ModuleTransaction = "transaction"
+	// ModuleCRM is the tenant-manager module name for CRM (holder/alias) database
+	// schemas. The value MUST be "crm-api" to match tenant-manager provisioning.
+	ModuleCRM = "crm-api"
 )
