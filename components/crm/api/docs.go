@@ -1535,7 +1535,7 @@ const docTemplate = `{
                 "status": {
                     "description": "The current provisioning status.",
                     "type": "string",
-                    "example": "pending_migration"
+                    "example": "active"
                 }
             }
         },

@@ -219,26 +219,6 @@ func TestEncryptionHandler_GetProvisioningStatus(t *testing.T) {
 			},
 		},
 		{
-			name:           "success with pending_migration status returns 200",
-			organizationID: uuid.New().String(),
-			setupMocks: func(mockService *MockProvisioningService, orgID string) {
-				status := mmodel.RegistryStatusPendingMigration
-				mockService.EXPECT().
-					GetProvisioningStatus(gomock.Any(), orgID).
-					Return(&status, nil).
-					Times(1)
-			},
-			expectedStatus: 200,
-			validateBody: func(t *testing.T, body []byte) {
-				var result mmodel.ProvisioningStatusResponse
-				err := json.Unmarshal(body, &result)
-				require.NoError(t, err)
-
-				assert.Equal(t, string(mmodel.RegistryStatusPendingMigration), result.Status)
-				assert.True(t, result.Provisioned, "provisioned should be true")
-			},
-		},
-		{
 			name:           "not provisioned returns 200 with provisioned false",
 			organizationID: uuid.New().String(),
 			setupMocks: func(mockService *MockProvisioningService, orgID string) {

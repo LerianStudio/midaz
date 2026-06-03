@@ -44,7 +44,7 @@ type ProvisionEncryptionResponse struct {
 	// The primary key ID for MAC operations.
 	MACPrimaryKeyID uint32 `json:"mac_primary_key_id" example:"1"`
 	// The current provisioning status.
-	Status string `json:"status" example:"pending_migration"`
+	Status string `json:"status" example:"active"`
 } // @name ProvisionEncryptionResponse
 
 // ProvisioningStatusResponse represents the response for a provisioning status query.

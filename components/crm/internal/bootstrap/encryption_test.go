@@ -10,7 +10,9 @@ import (
 	"reflect"
 	"testing"
 
+	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
@@ -449,19 +451,19 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		}
 	}
 
-	// Type assert keyset repo to KeysetReader
-	keysetReader, ok := input.keysetRepo.(encryption.KeysetReader)
+	// Type assert keyset repo to KeysetRepository
+	keysetRepo, ok := input.keysetRepo.(mongoEncryption.KeysetRepository)
 	if !ok {
 		return wireEncryptionServicesOutput{
-			err: fmt.Errorf("keyset repository must implement KeysetReader"),
+			err: fmt.Errorf("keyset repository must implement KeysetRepository"),
 		}
 	}
 
-	// Type assert registry repo to RegistryReader
-	registryReader, ok := input.registryRepo.(encryption.RegistryReader)
+	// Type assert registry repo to RegistryRepository
+	registryRepo, ok := input.registryRepo.(mongoEncryption.RegistryRepository)
 	if !ok {
 		return wireEncryptionServicesOutput{
-			err: fmt.Errorf("registry repository must implement RegistryReader"),
+			err: fmt.Errorf("registry repository must implement RegistryRepository"),
 		}
 	}
 
@@ -471,8 +473,8 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		vaultMountPath = defaultKEKMountPath
 	}
 
-	// Wire ProtectionStateResolver with RegistryReader
-	protectionStateResolver := encryption.NewProtectionStateResolver(registryReader)
+	// Wire ProtectionStateResolver with RegistryRepository
+	protectionStateResolver := encryption.NewProtectionStateResolver(registryRepo)
 
 	// Type assert vault client to KeysetUnwrapper
 	mockUnwrapper, ok := input.vaultClient.(encryption.KeysetUnwrapper)
@@ -482,44 +484,23 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		}
 	}
 
-	// Wire KeysetManager with mock unwrapper
+	// Wire KeysetManager with mock unwrapper (no provisioner for test)
 	keysetManager := encryption.NewKeysetManager(
-		keysetReader,
+		keysetRepo,
 		mockUnwrapper,
+		nil,
 		encryption.DefaultKeysetManagerConfig(),
 	)
 
 	// Wire EncryptionService with mock dependencies
+	// Pass EncryptionModeEnvelope as globalMode to match production behavior
 	encryptionService := encryption.NewEncryptionService(
 		protectionStateResolver,
 		keysetManager,
-		keysetReader,
+		keysetRepo,
 		input.legacyCrypto,
+		crypto.EncryptionModeEnvelope,
 	)
-
-	// Type assert keyset repo to KeysetWriter
-	keysetWriter, ok := input.keysetRepo.(encryption.KeysetWriter)
-	if !ok {
-		return wireEncryptionServicesOutput{
-			err: fmt.Errorf("keyset repository must implement KeysetWriter"),
-		}
-	}
-
-	// Type assert keyset repo to KeysetReaderForProvisioning
-	keysetReaderForProv, ok := input.keysetRepo.(encryption.KeysetReaderForProvisioning)
-	if !ok {
-		return wireEncryptionServicesOutput{
-			err: fmt.Errorf("keyset repository must implement KeysetReaderForProvisioning"),
-		}
-	}
-
-	// Type assert registry repo to RegistryWriter
-	registryWriter, ok := input.registryRepo.(encryption.RegistryWriter)
-	if !ok {
-		return wireEncryptionServicesOutput{
-			err: fmt.Errorf("registry repository must implement RegistryWriter"),
-		}
-	}
 
 	// Type assert vault client to KeysetGenerator
 	mockGenerator, ok := input.vaultClient.(encryption.KeysetGenerator)
@@ -535,9 +516,8 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 
 	// Wire ProvisioningService with mock dependencies
 	provisioningService := encryption.NewProvisioningService(
-		keysetWriter,
-		keysetReaderForProv,
-		registryWriter,
+		keysetRepo,
+		registryRepo,
 		mockGenerator,
 		encryption.ProvisioningConfig{KEKMountPath: vaultMountPath},
 	)
@@ -596,10 +576,10 @@ func (m *mockEncryptionVaultClient) GenerateMACKeyset(_ context.Context, _ strin
 	}, nil
 }
 
-// mockKeysetRepo implements both KeysetReader and KeysetWriter for testing.
+// mockKeysetRepo implements mongoEncryption.KeysetRepository for testing.
 type mockKeysetRepo struct{}
 
-// Get satisfies the encryption.KeysetReader interface.
+// Get satisfies the mongoEncryption.KeysetRepository interface.
 func (m *mockKeysetRepo) Get(_ context.Context, _ string) (*mmodel.OrganizationKeyset, error) {
 	return &mmodel.OrganizationKeyset{
 		OrganizationID: "test-org",
@@ -611,15 +591,20 @@ func (m *mockKeysetRepo) Get(_ context.Context, _ string) (*mmodel.OrganizationK
 	}, nil
 }
 
-// Save satisfies the encryption.KeysetWriter interface.
+// Save satisfies the mongoEncryption.KeysetRepository interface.
 func (m *mockKeysetRepo) Save(_ context.Context, _ *mmodel.OrganizationKeyset) error {
 	return nil
 }
 
-// mockRegistryRepo implements both RegistryReader and RegistryWriter for testing.
+// Update satisfies the mongoEncryption.KeysetRepository interface.
+func (m *mockKeysetRepo) Update(_ context.Context, _ *mmodel.OrganizationKeyset, _ int64) error {
+	return nil
+}
+
+// mockRegistryRepo implements mongoEncryption.RegistryRepository for testing.
 type mockRegistryRepo struct{}
 
-// Get satisfies the encryption.RegistryReader interface.
+// Get satisfies the mongoEncryption.RegistryRepository interface.
 func (m *mockRegistryRepo) Get(_ context.Context, organizationID string) (*mmodel.OrganizationRegistryRecord, error) {
 	return &mmodel.OrganizationRegistryRecord{
 		OrganizationID: organizationID,
@@ -629,12 +614,12 @@ func (m *mockRegistryRepo) Get(_ context.Context, organizationID string) (*mmode
 	}, nil
 }
 
-// Save satisfies the encryption.RegistryWriter interface.
+// Save satisfies the mongoEncryption.RegistryRepository interface.
 func (m *mockRegistryRepo) Save(_ context.Context, _ *mmodel.OrganizationRegistryRecord) error {
 	return nil
 }
 
-// Update satisfies the encryption.RegistryWriter interface.
+// Update satisfies the mongoEncryption.RegistryRepository interface.
 func (m *mockRegistryRepo) Update(_ context.Context, _ *mmodel.OrganizationRegistryRecord, _ int64) error {
 	return nil
 }

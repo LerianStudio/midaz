@@ -1423,12 +1423,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Encryption Operation Failed",
 			Message:    "The encryption operation failed. Please try again later.",
 		},
-		constant.ErrOrganizationEncryptionBlocked: UnprocessableOperationError{
-			EntityType: entityType,
-			Code:       constant.ErrOrganizationEncryptionBlocked.Error(),
-			Title:      "Encryption Blocked",
-			Message:    "Encryption operations are blocked for this organization.",
-		},
 		constant.ErrProvisioningFailed: InternalServerError{
 			EntityType: entityType,
 			Code:       constant.ErrProvisioningFailed.Error(),

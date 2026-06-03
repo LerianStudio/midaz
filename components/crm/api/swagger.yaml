@@ -412,7 +412,7 @@ definitions:
         type: string
       status:
         description: The current provisioning status.
-        example: pending_migration
+        example: active
         type: string
     type: object
   ProvisioningStatusResponse:

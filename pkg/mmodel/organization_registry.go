@@ -17,13 +17,9 @@ type RegistryStatus string
 type ProtectionModel string
 
 const (
-	RegistryStatusLegacy            RegistryStatus = "legacy"
-	RegistryStatusPendingMigration  RegistryStatus = "pending_migration"
-	RegistryStatusActive            RegistryStatus = "active"
-	RegistryStatusPartiallyMigrated RegistryStatus = "partially_migrated"
-	RegistryStatusMigrationComplete RegistryStatus = "migration_complete"
-	RegistryStatusFailed            RegistryStatus = "failed"
-	RegistryStatusBlocked           RegistryStatus = "blocked"
+	// RegistryStatusActive indicates the organization is provisioned for envelope encryption.
+	// New encryptions use envelope mode. Old data may still be readable via LegacyReadable flag.
+	RegistryStatusActive RegistryStatus = "active"
 )
 
 const (
@@ -96,27 +92,4 @@ func NewOrganizationRegistryRecord(tenantID, organizationID, actor, reason strin
 		UpdatedBy:            actor,
 		LastTransitionReason: reason,
 	}, nil
-}
-
-// UsesEnvelopeMode returns true if organization uses envelope encryption.
-func (r *OrganizationRegistryRecord) UsesEnvelopeMode() bool {
-	return r.ProtectionModel == ProtectionModelEnvelope
-}
-
-// CanReadLegacy returns true if legacy-encrypted data can still be read.
-func (r *OrganizationRegistryRecord) CanReadLegacy() bool {
-	return r.LegacyReadable
-}
-
-// CurrentWriteKeysetVersion returns the keyset version for new encryptions.
-func (r *OrganizationRegistryRecord) CurrentWriteKeysetVersion() int {
-	return r.CurrentVersion
-}
-
-// ReadableKeysetVersions returns all keyset versions that can be decrypted.
-func (r *OrganizationRegistryRecord) ReadableKeysetVersions() []int {
-	versions := make([]int, len(r.ReadableVersions))
-	copy(versions, r.ReadableVersions)
-
-	return versions
 }

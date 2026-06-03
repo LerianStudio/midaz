@@ -9,6 +9,8 @@ import (
 	"errors"
 	"testing"
 
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -20,32 +22,40 @@ import (
 // Fakes and Helpers
 // ---------------------------------------------------------------------------
 
-// serviceTestRegistryReader implements RegistryReader for encryption service tests.
-type serviceTestRegistryReader struct {
+// serviceTestRegistryRepo implements mongoEncryption.RegistryRepository for encryption service tests.
+type serviceTestRegistryRepo struct {
 	records map[string]*mmodel.OrganizationRegistryRecord
 	err     error
 }
 
-func (f *serviceTestRegistryReader) Get(_ context.Context, organizationID string) (*mmodel.OrganizationRegistryRecord, error) {
+func (f *serviceTestRegistryRepo) Get(_ context.Context, organizationID string) (*mmodel.OrganizationRegistryRecord, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
 
 	record, ok := f.records[organizationID]
 	if !ok {
-		return nil, errors.New("registry not found")
+		return nil, constant.ErrRegistryNotFound
 	}
 
 	return record, nil
 }
 
-// serviceTestKeysetReader implements KeysetReader for encryption service tests.
-type serviceTestKeysetReader struct {
+func (f *serviceTestRegistryRepo) Save(_ context.Context, _ *mmodel.OrganizationRegistryRecord) error {
+	return nil
+}
+
+func (f *serviceTestRegistryRepo) Update(_ context.Context, _ *mmodel.OrganizationRegistryRecord, _ int64) error {
+	return nil
+}
+
+// serviceTestKeysetRepo implements mongoEncryption.KeysetRepository for encryption service tests.
+type serviceTestKeysetRepo struct {
 	keysets map[string]*mmodel.OrganizationKeyset
 	err     error
 }
 
-func (f *serviceTestKeysetReader) Get(_ context.Context, organizationID string) (*mmodel.OrganizationKeyset, error) {
+func (f *serviceTestKeysetRepo) Get(_ context.Context, organizationID string) (*mmodel.OrganizationKeyset, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -56,6 +66,14 @@ func (f *serviceTestKeysetReader) Get(_ context.Context, organizationID string) 
 	}
 
 	return keyset, nil
+}
+
+func (f *serviceTestKeysetRepo) Save(_ context.Context, _ *mmodel.OrganizationKeyset) error {
+	return nil
+}
+
+func (f *serviceTestKeysetRepo) Update(_ context.Context, _ *mmodel.OrganizationKeyset, _ int64) error {
+	return nil
 }
 
 // serviceTestKeysetUnwrapper implements KeysetUnwrapper for encryption service tests.
@@ -183,7 +201,7 @@ func createEncryptionTestService(t *testing.T, state ProtectionState, legacyCryp
 		},
 	}
 
-	keysetReader := &serviceTestKeysetReader{
+	keysetRepo := &serviceTestKeysetRepo{
 		keysets: map[string]*mmodel.OrganizationKeyset{
 			state.OrganizationID: keyset,
 		},
@@ -194,9 +212,9 @@ func createEncryptionTestService(t *testing.T, state ProtectionState, legacyCryp
 		macKeyset:  macBytes,
 	}
 
-	keysetManager := NewKeysetManager(keysetReader, unwrapper, DefaultKeysetManagerConfig())
+	keysetManager := NewKeysetManager(keysetRepo, unwrapper, nil, DefaultKeysetManagerConfig())
 
-	registryReader := &serviceTestRegistryReader{
+	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{
 			state.OrganizationID: {
 				TenantID:       state.TenantID,
@@ -208,9 +226,9 @@ func createEncryptionTestService(t *testing.T, state ProtectionState, legacyCryp
 		},
 	}
 
-	stateResolver := NewProtectionStateResolver(registryReader)
+	stateResolver := NewProtectionStateResolver(registryRepo)
 
-	svc := NewEncryptionService(stateResolver, keysetManager, keysetReader, legacyCrypto)
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyCrypto)
 
 	return svc, keyset
 }
@@ -260,29 +278,14 @@ func TestService_Encrypt_LegacyMode(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	state := ProtectionState{
-		Mode:                 crypto.EncryptionModeLegacy,
-		CanReadLegacy:        true,
-		CurrentKeysetVersion: 0,
-		OrganizationID:       "org-legacy",
-		TenantID:             "tenant-legacy",
-	}
 
 	legacyCrypto := newFakeLegacyCrypto()
 
-	// Create service with legacy-mode registry
-	registryReader := &serviceTestRegistryReader{
-		records: map[string]*mmodel.OrganizationRegistryRecord{
-			state.OrganizationID: {
-				TenantID:       state.TenantID,
-				OrganizationID: state.OrganizationID,
-				Status:         mmodel.RegistryStatusLegacy,
-				LegacyReadable: true,
-				CurrentVersion: 0,
-			},
-		},
+	// Create service with empty registry (no record = legacy mode)
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
-	stateResolver := NewProtectionStateResolver(registryReader)
+	stateResolver := NewProtectionStateResolver(registryRepo)
 
 	// KeysetManager and KeysetReader can be nil for legacy mode since they won't be used
 	svc := NewEncryptionService(stateResolver, nil, nil, legacyCrypto)
@@ -380,15 +383,15 @@ func TestService_Encrypt_KeysetManagerError(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a keyset reader that returns an error
-	keysetReader := &serviceTestKeysetReader{
+	keysetRepo := &serviceTestKeysetRepo{
 		err: errors.New("keyset not found"),
 	}
 
 	unwrapper := &serviceTestKeysetUnwrapper{}
 
-	keysetManager := NewKeysetManager(keysetReader, unwrapper, DefaultKeysetManagerConfig())
+	keysetManager := NewKeysetManager(keysetRepo, unwrapper, nil, DefaultKeysetManagerConfig())
 
-	registryReader := &serviceTestRegistryReader{
+	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{
 			"org-123": {
 				TenantID:       "tenant-abc",
@@ -399,10 +402,10 @@ func TestService_Encrypt_KeysetManagerError(t *testing.T) {
 			},
 		},
 	}
-	stateResolver := NewProtectionStateResolver(registryReader)
+	stateResolver := NewProtectionStateResolver(registryRepo)
 
 	legacyCrypto := newFakeLegacyCrypto()
-	svc := NewEncryptionService(stateResolver, keysetManager, keysetReader, legacyCrypto)
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyCrypto)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -466,7 +469,7 @@ func TestService_Decrypt_LegacyAllowed(t *testing.T) {
 	legacyCrypto.decryptedValues[legacyCiphertext] = "secret-value"
 
 	// Create service with envelope mode but legacy read allowed
-	registryReader := &serviceTestRegistryReader{
+	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{
 			"org-123": {
 				TenantID:       "tenant-abc",
@@ -477,7 +480,7 @@ func TestService_Decrypt_LegacyAllowed(t *testing.T) {
 			},
 		},
 	}
-	stateResolver := NewProtectionStateResolver(registryReader)
+	stateResolver := NewProtectionStateResolver(registryRepo)
 
 	svc := NewEncryptionService(stateResolver, nil, nil, legacyCrypto)
 
@@ -503,7 +506,7 @@ func TestService_Decrypt_LegacyNotAllowed(t *testing.T) {
 	legacyCiphertext := "legacy-encrypted:secret-value"
 
 	// Create service with envelope mode and legacy read NOT allowed
-	registryReader := &serviceTestRegistryReader{
+	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{
 			"org-123": {
 				TenantID:       "tenant-abc",
@@ -514,7 +517,7 @@ func TestService_Decrypt_LegacyNotAllowed(t *testing.T) {
 			},
 		},
 	}
-	stateResolver := NewProtectionStateResolver(registryReader)
+	stateResolver := NewProtectionStateResolver(registryRepo)
 
 	svc := NewEncryptionService(stateResolver, nil, nil, legacyCrypto)
 
@@ -704,19 +707,11 @@ func TestService_GenerateSearchToken_LegacyMode(t *testing.T) {
 
 	legacyCrypto := newFakeLegacyCrypto()
 
-	// Create service with legacy mode
-	registryReader := &serviceTestRegistryReader{
-		records: map[string]*mmodel.OrganizationRegistryRecord{
-			"org-legacy": {
-				TenantID:       "tenant-legacy",
-				OrganizationID: "org-legacy",
-				Status:         mmodel.RegistryStatusLegacy,
-				LegacyReadable: true,
-				CurrentVersion: 0,
-			},
-		},
+	// Create service with empty registry (no record = legacy mode)
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
-	stateResolver := NewProtectionStateResolver(registryReader)
+	stateResolver := NewProtectionStateResolver(registryRepo)
 
 	svc := NewEncryptionService(stateResolver, nil, nil, legacyCrypto)
 
@@ -798,7 +793,7 @@ func TestService_MustUseEnvelope_EnvelopeMode(t *testing.T) {
 
 	ctx := context.Background()
 
-	registryReader := &serviceTestRegistryReader{
+	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{
 			"org-envelope": {
 				TenantID:       "tenant-abc",
@@ -809,7 +804,7 @@ func TestService_MustUseEnvelope_EnvelopeMode(t *testing.T) {
 			},
 		},
 	}
-	stateResolver := NewProtectionStateResolver(registryReader)
+	stateResolver := NewProtectionStateResolver(registryRepo)
 
 	svc := NewEncryptionService(stateResolver, nil, nil, nil)
 
@@ -823,18 +818,11 @@ func TestService_MustUseEnvelope_LegacyMode(t *testing.T) {
 
 	ctx := context.Background()
 
-	registryReader := &serviceTestRegistryReader{
-		records: map[string]*mmodel.OrganizationRegistryRecord{
-			"org-legacy": {
-				TenantID:       "tenant-abc",
-				OrganizationID: "org-legacy",
-				Status:         mmodel.RegistryStatusLegacy,
-				LegacyReadable: true,
-				CurrentVersion: 0,
-			},
-		},
+	// Empty registry = legacy mode (no record found)
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
-	stateResolver := NewProtectionStateResolver(registryReader)
+	stateResolver := NewProtectionStateResolver(registryRepo)
 
 	svc := NewEncryptionService(stateResolver, nil, nil, nil)
 
@@ -1027,7 +1015,7 @@ func TestService_MustUseEnvelope_ContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	registryReader := &serviceTestRegistryReader{
+	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{
 			"org-123": {
 				TenantID:       "tenant-abc",
@@ -1036,7 +1024,7 @@ func TestService_MustUseEnvelope_ContextCanceled(t *testing.T) {
 			},
 		},
 	}
-	stateResolver := NewProtectionStateResolver(registryReader)
+	stateResolver := NewProtectionStateResolver(registryRepo)
 
 	svc := NewEncryptionService(stateResolver, nil, nil, nil)
 
@@ -1050,7 +1038,7 @@ func TestService_GetProtectionState(t *testing.T) {
 
 	ctx := context.Background()
 
-	registryReader := &serviceTestRegistryReader{
+	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{
 			"org-123": {
 				TenantID:       "tenant-abc",
@@ -1061,7 +1049,7 @@ func TestService_GetProtectionState(t *testing.T) {
 			},
 		},
 	}
-	stateResolver := NewProtectionStateResolver(registryReader)
+	stateResolver := NewProtectionStateResolver(registryRepo)
 
 	svc := NewEncryptionService(stateResolver, nil, nil, nil)
 
@@ -1078,7 +1066,7 @@ func TestService_GetProtectionState_ContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	registryReader := &serviceTestRegistryReader{
+	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{
 			"org-123": {
 				TenantID:       "tenant-abc",
@@ -1087,7 +1075,7 @@ func TestService_GetProtectionState_ContextCanceled(t *testing.T) {
 			},
 		},
 	}
-	stateResolver := NewProtectionStateResolver(registryReader)
+	stateResolver := NewProtectionStateResolver(registryRepo)
 
 	svc := NewEncryptionService(stateResolver, nil, nil, nil)
 
@@ -1101,7 +1089,7 @@ func TestService_GetKeysetInfo(t *testing.T) {
 
 	ctx := context.Background()
 
-	keysetReader := &serviceTestKeysetReader{
+	keysetRepo := &serviceTestKeysetRepo{
 		keysets: map[string]*mmodel.OrganizationKeyset{
 			"org-123": {
 				TenantID:       "tenant-abc",
@@ -1113,7 +1101,7 @@ func TestService_GetKeysetInfo(t *testing.T) {
 		},
 	}
 
-	svc := NewEncryptionService(nil, nil, keysetReader, nil)
+	svc := NewEncryptionService(nil, nil, keysetRepo, nil)
 
 	info, err := svc.GetKeysetInfo(ctx, "org-123")
 	require.NoError(t, err)
@@ -1126,7 +1114,7 @@ func TestService_GetKeysetInfo_ContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	keysetReader := &serviceTestKeysetReader{
+	keysetRepo := &serviceTestKeysetRepo{
 		keysets: map[string]*mmodel.OrganizationKeyset{
 			"org-123": {
 				TenantID:       "tenant-abc",
@@ -1135,7 +1123,7 @@ func TestService_GetKeysetInfo_ContextCanceled(t *testing.T) {
 		},
 	}
 
-	svc := NewEncryptionService(nil, nil, keysetReader, nil)
+	svc := NewEncryptionService(nil, nil, keysetRepo, nil)
 
 	_, err := svc.GetKeysetInfo(ctx, "org-123")
 	require.Error(t, err)
@@ -1147,11 +1135,11 @@ func TestService_GetKeysetInfo_NotFound(t *testing.T) {
 
 	ctx := context.Background()
 
-	keysetReader := &serviceTestKeysetReader{
+	keysetRepo := &serviceTestKeysetRepo{
 		keysets: map[string]*mmodel.OrganizationKeyset{},
 	}
 
-	svc := NewEncryptionService(nil, nil, keysetReader, nil)
+	svc := NewEncryptionService(nil, nil, keysetRepo, nil)
 
 	_, err := svc.GetKeysetInfo(ctx, "org-nonexistent")
 	require.Error(t, err)
@@ -1164,18 +1152,11 @@ func TestService_Encrypt_LegacyMode_NilResult(t *testing.T) {
 
 	legacyCrypto := &fakeLegacyCryptoNilResult{}
 
-	registryReader := &serviceTestRegistryReader{
-		records: map[string]*mmodel.OrganizationRegistryRecord{
-			"org-legacy": {
-				TenantID:       "tenant-legacy",
-				OrganizationID: "org-legacy",
-				Status:         mmodel.RegistryStatusLegacy,
-				LegacyReadable: true,
-				CurrentVersion: 0,
-			},
-		},
+	// Empty registry = legacy mode (no record found)
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
-	stateResolver := NewProtectionStateResolver(registryReader)
+	stateResolver := NewProtectionStateResolver(registryRepo)
 
 	svc := NewEncryptionService(stateResolver, nil, nil, legacyCrypto)
 
@@ -1198,18 +1179,11 @@ func TestService_Decrypt_LegacyMode_NilResult(t *testing.T) {
 
 	legacyCrypto := &fakeLegacyCryptoNilResult{}
 
-	registryReader := &serviceTestRegistryReader{
-		records: map[string]*mmodel.OrganizationRegistryRecord{
-			"org-legacy": {
-				TenantID:       "tenant-legacy",
-				OrganizationID: "org-legacy",
-				Status:         mmodel.RegistryStatusLegacy,
-				LegacyReadable: true,
-				CurrentVersion: 0,
-			},
-		},
+	// Empty registry = legacy mode (no record found)
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
-	stateResolver := NewProtectionStateResolver(registryReader)
+	stateResolver := NewProtectionStateResolver(registryRepo)
 
 	svc := NewEncryptionService(stateResolver, nil, nil, legacyCrypto)
 
@@ -1245,10 +1219,10 @@ func TestService_Encrypt_StateResolverError(t *testing.T) {
 
 	ctx := context.Background()
 
-	registryReader := &serviceTestRegistryReader{
+	registryRepo := &serviceTestRegistryRepo{
 		err: errors.New("registry error"),
 	}
-	stateResolver := NewProtectionStateResolver(registryReader)
+	stateResolver := NewProtectionStateResolver(registryRepo)
 
 	svc := NewEncryptionService(stateResolver, nil, nil, nil)
 
@@ -1269,10 +1243,10 @@ func TestService_GenerateSearchToken_StateResolverError(t *testing.T) {
 
 	ctx := context.Background()
 
-	registryReader := &serviceTestRegistryReader{
+	registryRepo := &serviceTestRegistryRepo{
 		err: errors.New("registry error"),
 	}
-	stateResolver := NewProtectionStateResolver(registryReader)
+	stateResolver := NewProtectionStateResolver(registryRepo)
 
 	svc := NewEncryptionService(stateResolver, nil, nil, nil)
 
@@ -1285,4 +1259,255 @@ func TestService_GenerateSearchToken_StateResolverError(t *testing.T) {
 	_, err := svc.GenerateSearchToken(ctx, searchCtx, "value")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to resolve protection state")
+}
+
+// ---------------------------------------------------------------------------
+// Global Mode Tests (ST-002-01: Lazy Provisioning via Global Mode)
+// ---------------------------------------------------------------------------
+
+// TestService_Encrypt_GlobalModeEnvelope_TriggersLazyProvisioning tests that when
+// globalMode is EncryptionModeEnvelope, Encrypt() calls encryptEnvelope() even when
+// the organization has no registry record (would normally resolve to legacy mode).
+//
+// This ensures lazy provisioning is triggered via KeysetManager.fetchAndCache()
+// instead of incorrectly falling back to legacy encryption.
+func TestService_Encrypt_GlobalModeEnvelope_TriggersLazyProvisioning(t *testing.T) {
+	t.Parallel()
+
+	// Create context with tenant ID for auto-provisioning
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-abc")
+
+	// Setup: Organization with NO registry record (ProtectionStateResolver returns legacy mode)
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{},
+	}
+	stateResolver := NewProtectionStateResolver(registryRepo)
+
+	// Setup: KeysetManager with lazy provisioning enabled
+	// The provisioner will be called when keyset is not found
+	aeadBytes, macBytes, aeadKeyID, _ := generateServiceTestKeysets(t)
+
+	provisionedKeyset := &mmodel.OrganizationKeyset{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-new",
+		KEKPath:        "transit/keys/crm/org-new",
+		WrappedKeyset:  "wrapped-aead",
+		KeysetInfo: mmodel.KeysetInfo{
+			PrimaryKeyID: aeadKeyID,
+		},
+		WrappedHMACKeyset: "wrapped-hmac",
+		HMACKeysetInfo: mmodel.KeysetInfo{
+			PrimaryKeyID: aeadKeyID,
+		},
+	}
+
+	// KeysetRepo starts empty, provisioner will populate it
+	keysetRepo := &serviceTestKeysetRepoWithProvisioning{
+		keysets:           map[string]*mmodel.OrganizationKeyset{},
+		provisionedKeyset: provisionedKeyset,
+	}
+
+	unwrapper := &serviceTestKeysetUnwrapper{
+		aeadKeyset: aeadBytes,
+		macKeyset:  macBytes,
+	}
+
+	// Create a mock provisioner that simulates lazy provisioning
+	mockProvisioner := &mockProvisioningService{
+		provisionedKeyset: provisionedKeyset,
+		keysetRepo:        keysetRepo,
+	}
+
+	keysetManager := NewKeysetManager(keysetRepo, unwrapper, mockProvisioner, DefaultKeysetManagerConfig())
+
+	legacyCrypto := newFakeLegacyCrypto()
+
+	// KEY CHANGE: Pass globalMode = EncryptionModeEnvelope to constructor
+	// This tells the service to use envelope encryption globally, triggering
+	// lazy provisioning even when per-org registry does not exist
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyCrypto, crypto.EncryptionModeEnvelope)
+
+	fieldCtx := FieldContext{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-new", // Organization with no existing registry
+		RecordID:       "record-456",
+		FieldName:      "tax_id",
+	}
+
+	plaintext := "sensitive-data-123"
+
+	// Execute: Encrypt should use envelope mode (triggering lazy provisioning)
+	// NOT legacy mode, even though ProtectionStateResolver returns legacy
+	ciphertext, err := svc.Encrypt(ctx, fieldCtx, plaintext)
+	require.NoError(t, err)
+
+	// Verify: Result has envelope marker (proves envelope path was taken)
+	assert.True(t, HasEnvelopeMarker(ciphertext), "ciphertext MUST have envelope marker when globalMode is envelope")
+
+	// Verify: Legacy crypto was NOT used
+	assert.NotContains(t, ciphertext, "legacy-encrypted", "legacy encryption MUST NOT be used when globalMode is envelope")
+
+	// Verify: Provisioner was called (lazy provisioning triggered)
+	assert.True(t, mockProvisioner.provisionCalled, "lazy provisioning MUST be triggered for non-provisioned org when globalMode is envelope")
+}
+
+// serviceTestKeysetRepoWithProvisioning extends serviceTestKeysetRepo to simulate
+// lazy provisioning behavior (keyset appears after provisioner is called).
+type serviceTestKeysetRepoWithProvisioning struct {
+	keysets           map[string]*mmodel.OrganizationKeyset
+	provisionedKeyset *mmodel.OrganizationKeyset
+	provisioned       bool
+}
+
+func (f *serviceTestKeysetRepoWithProvisioning) Get(_ context.Context, organizationID string) (*mmodel.OrganizationKeyset, error) {
+	keyset, ok := f.keysets[organizationID]
+	if !ok {
+		return nil, constant.ErrKeysetNotFound
+	}
+
+	return keyset, nil
+}
+
+func (f *serviceTestKeysetRepoWithProvisioning) Save(_ context.Context, keyset *mmodel.OrganizationKeyset) error {
+	f.keysets[keyset.OrganizationID] = keyset
+	f.provisioned = true
+
+	return nil
+}
+
+func (f *serviceTestKeysetRepoWithProvisioning) Update(_ context.Context, _ *mmodel.OrganizationKeyset, _ int64) error {
+	return nil
+}
+
+// mockProvisioningService implements ProvisioningService for testing lazy provisioning behavior.
+type mockProvisioningService struct {
+	provisionedKeyset *mmodel.OrganizationKeyset
+	keysetRepo        *serviceTestKeysetRepoWithProvisioning
+	provisionCalled   bool
+	err               error
+}
+
+func (m *mockProvisioningService) Provision(ctx context.Context, req ProvisionInput) (ProvisionResult, error) {
+	if m.err != nil {
+		return ProvisionResult{}, m.err
+	}
+
+	m.provisionCalled = true
+
+	// Simulate provisioning by adding keyset to repo
+	if m.keysetRepo != nil && m.provisionedKeyset != nil {
+		keyset := *m.provisionedKeyset
+		keyset.TenantID = req.TenantID
+		keyset.OrganizationID = req.OrganizationID
+
+		if err := m.keysetRepo.Save(ctx, &keyset); err != nil {
+			return ProvisionResult{}, err
+		}
+	}
+
+	return ProvisionResult{
+		OrganizationID:   req.OrganizationID,
+		KEKPath:          "transit/keys/crm/" + req.OrganizationID,
+		AEADPrimaryKeyID: 12345,
+		MACPrimaryKeyID:  12346,
+		RegistryStatus:   mmodel.RegistryStatusActive,
+	}, nil
+}
+
+func (m *mockProvisioningService) GetProvisioningStatus(_ context.Context, _ string) (*mmodel.RegistryStatus, error) {
+	status := mmodel.RegistryStatusActive
+	return &status, nil
+}
+
+func (m *mockProvisioningService) IsProvisioned(_ context.Context, _ string) (bool, error) {
+	return m.provisionCalled, nil
+}
+
+func (m *mockProvisioningService) IsActive(_ context.Context, _ string) (bool, error) {
+	return m.provisionCalled, nil
+}
+
+// TestService_GenerateSearchToken_GlobalModeEnvelope_TriggersLazyProvisioning tests that when
+// globalMode is EncryptionModeEnvelope, GenerateSearchToken() calls generateSearchTokenEnvelope()
+// even when the organization has no registry record (would normally resolve to legacy mode).
+//
+// This ensures lazy provisioning is triggered via KeysetManager.GetPrimitives()
+// instead of incorrectly falling back to legacy hash generation.
+func TestService_GenerateSearchToken_GlobalModeEnvelope_TriggersLazyProvisioning(t *testing.T) {
+	t.Parallel()
+
+	// Create context with tenant ID for auto-provisioning
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-abc")
+
+	// Setup: Organization with NO registry record (ProtectionStateResolver returns legacy mode)
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{},
+	}
+	stateResolver := NewProtectionStateResolver(registryRepo)
+
+	// Setup: KeysetManager with lazy provisioning enabled
+	// The provisioner will be called when keyset is not found
+	aeadBytes, macBytes, aeadKeyID, _ := generateServiceTestKeysets(t)
+
+	provisionedKeyset := &mmodel.OrganizationKeyset{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-new",
+		KEKPath:        "transit/keys/crm/org-new",
+		WrappedKeyset:  "wrapped-aead",
+		KeysetInfo: mmodel.KeysetInfo{
+			PrimaryKeyID: aeadKeyID,
+		},
+		WrappedHMACKeyset: "wrapped-hmac",
+		HMACKeysetInfo: mmodel.KeysetInfo{
+			PrimaryKeyID: aeadKeyID,
+		},
+	}
+
+	// KeysetRepo starts empty, provisioner will populate it
+	keysetRepo := &serviceTestKeysetRepoWithProvisioning{
+		keysets:           map[string]*mmodel.OrganizationKeyset{},
+		provisionedKeyset: provisionedKeyset,
+	}
+
+	unwrapper := &serviceTestKeysetUnwrapper{
+		aeadKeyset: aeadBytes,
+		macKeyset:  macBytes,
+	}
+
+	// Create a mock provisioner that simulates lazy provisioning
+	mockProvisioner := &mockProvisioningService{
+		provisionedKeyset: provisionedKeyset,
+		keysetRepo:        keysetRepo,
+	}
+
+	keysetManager := NewKeysetManager(keysetRepo, unwrapper, mockProvisioner, DefaultKeysetManagerConfig())
+
+	legacyCrypto := newFakeLegacyCrypto()
+
+	// KEY CHANGE: Pass globalMode = EncryptionModeEnvelope to constructor
+	// This tells the service to use envelope encryption globally, triggering
+	// lazy provisioning even when per-org registry does not exist
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyCrypto, crypto.EncryptionModeEnvelope)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-new", // Organization with no existing registry
+		FieldName:      "document",
+	}
+
+	normalizedValue := "ABC123"
+
+	// Execute: GenerateSearchToken should use envelope mode (triggering lazy provisioning)
+	// NOT legacy mode, even though ProtectionStateResolver returns legacy
+	token, err := svc.GenerateSearchToken(ctx, searchCtx, normalizedValue)
+	require.NoError(t, err)
+
+	// Verify: Token is not empty
+	assert.NotEmpty(t, token, "search token MUST NOT be empty")
+
+	// Verify: Legacy crypto hash was NOT used
+	assert.NotContains(t, token, "legacy-hash", "legacy hash MUST NOT be used when globalMode is envelope")
+
+	// Verify: Provisioner was called (lazy provisioning triggered)
+	assert.True(t, mockProvisioner.provisionCalled, "lazy provisioning MUST be triggered for non-provisioned org when globalMode is envelope")
 }

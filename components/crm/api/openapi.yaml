@@ -1455,7 +1455,7 @@ components:
         aead_primary_key_id: 1
         kek_path: transit/keys/org-00000000-0000-0000-0000-000000000000
         mac_primary_key_id: 1
-        status: pending_migration
+        status: active
       properties:
         aead_primary_key_id:
           description: The primary key ID for AEAD encryption.
@@ -1475,7 +1475,7 @@ components:
           type: string
         status:
           description: The current provisioning status.
-          example: pending_migration
+          example: active
           type: string
       type: object
     ProvisioningStatusResponse:

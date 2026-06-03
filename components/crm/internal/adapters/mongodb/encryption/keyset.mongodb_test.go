@@ -338,3 +338,33 @@ func validTestKeyset() *mmodel.OrganizationKeyset {
 		CreatedAt:             now,
 	}
 }
+
+func TestExtractTenantID_WithTenantInContext(t *testing.T) {
+	t.Parallel()
+
+	ctx := tmcore.ContextWithTenantID(context.Background(), "my-tenant")
+
+	tenantID := extractTenantID(ctx)
+
+	assert.Equal(t, "my-tenant", tenantID, "should extract tenant ID from context")
+}
+
+func TestExtractTenantID_WithoutTenantInContext(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	tenantID := extractTenantID(ctx)
+
+	assert.Equal(t, "default", tenantID, "should return 'default' when no tenant in context")
+}
+
+func TestExtractTenantID_WithEmptyTenantInContext(t *testing.T) {
+	t.Parallel()
+
+	ctx := tmcore.ContextWithTenantID(context.Background(), "")
+
+	tenantID := extractTenantID(ctx)
+
+	assert.Equal(t, "default", tenantID, "should return 'default' when tenant is empty")
+}

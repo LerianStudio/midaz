@@ -11,6 +11,7 @@ import (
 
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/kms/vault"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 )
@@ -101,32 +102,35 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 	// Create Tink keyset wrapper using Vault client as KMS
 	keysetWrapper := tink.NewKeysetWrapper(input.vaultClient)
 
-	// Wire KeysetManager with KeysetRepository and VaultKeysetUnwrapper
+	// Create Tink keyset factory for provisioning
+	keysetFactory := tink.NewKeysetFactory(input.vaultClient)
+
+	// Wire ProvisioningService FIRST (required by KeysetManager for lazy provisioning)
+	provisioningService := encryption.NewProvisioningService(
+		input.keysetRepo,
+		input.registryRepo,
+		&keysetGeneratorAdapter{factory: keysetFactory},
+		encryption.ProvisioningConfig{KEKMountPath: vaultMountPath},
+	)
+
+	// Wire KeysetManager with KeysetRepository, VaultKeysetUnwrapper, and ProvisioningService
+	// Tenant ID for auto-provisioning is obtained from context
 	keysetManager := encryption.NewKeysetManager(
 		input.keysetRepo,
 		keysetWrapper,
+		provisioningService,
 		encryption.DefaultKeysetManagerConfig(),
 	)
 
 	// Wire EncryptionService with all dependencies
+	// Pass EncryptionModeEnvelope as globalMode to enable lazy provisioning
+	// via KeysetManager for all organizations, regardless of their registry state
 	encryptionService := encryption.NewEncryptionService(
 		protectionStateResolver,
 		keysetManager,
 		input.keysetRepo,
 		input.legacyCrypto,
-	)
-
-	// Create Tink keyset factory for provisioning
-	keysetFactory := tink.NewKeysetFactory(input.vaultClient)
-
-	// Wire ProvisioningService with all dependencies
-	// keysetRepo implements both KeysetWriter and KeysetReaderForProvisioning interfaces
-	provisioningService := encryption.NewProvisioningService(
-		input.keysetRepo,
-		input.keysetRepo,
-		input.registryRepo,
-		&keysetGeneratorAdapter{factory: keysetFactory},
-		encryption.ProvisioningConfig{KEKMountPath: vaultMountPath},
+		crypto.EncryptionModeEnvelope,
 	)
 
 	return wireEncryptionServicesOutput{

@@ -62,7 +62,17 @@ func (r *RegistryMongoDBRepository) Save(ctx context.Context, record *mmodel.Org
 		return fmt.Errorf("registry record is required")
 	}
 
-	span.SetAttributes(attribute.String("app.request.organization_id", record.OrganizationID))
+	tenantID := extractTenantID(ctx)
+
+	span.SetAttributes(
+		attribute.String("app.request.tenant_id", tenantID),
+		attribute.String("app.request.organization_id", record.OrganizationID),
+	)
+
+	// Ensure tenant_id is set on the record
+	if record.TenantID == "" {
+		record.TenantID = tenantID
+	}
 
 	collection, err := r.collection(ctx)
 	if err != nil {
@@ -77,6 +87,7 @@ func (r *RegistryMongoDBRepository) Save(ctx context.Context, record *mmodel.Org
 
 	model := RegistryFromEntity(record)
 
+	// Database isolation handles multi-tenancy - filter by organization_id only
 	filter := bson.M{"organization_id": record.OrganizationID}
 	update := bson.M{"$setOnInsert": model}
 
@@ -99,7 +110,12 @@ func (r *RegistryMongoDBRepository) Get(ctx context.Context, organizationID stri
 	ctx, span := tracer.Start(ctx, "mongodb.registry.get")
 	defer span.End()
 
-	span.SetAttributes(attribute.String("app.request.organization_id", organizationID))
+	tenantID := extractTenantID(ctx)
+
+	span.SetAttributes(
+		attribute.String("app.request.tenant_id", tenantID),
+		attribute.String("app.request.organization_id", organizationID),
+	)
 
 	collection, err := r.collection(ctx)
 	if err != nil {
@@ -109,7 +125,10 @@ func (r *RegistryMongoDBRepository) Get(ctx context.Context, organizationID stri
 
 	var model RegistryMongoDBModel
 
-	if err := collection.FindOne(ctx, bson.M{"organization_id": organizationID}).Decode(&model); err != nil {
+	// Database isolation handles multi-tenancy - filter by organization_id only
+	filter := bson.M{"organization_id": organizationID}
+
+	if err := collection.FindOne(ctx, filter).Decode(&model); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, mmodel.ErrRegistryNotFound
 		}
@@ -132,10 +151,18 @@ func (r *RegistryMongoDBRepository) Update(ctx context.Context, record *mmodel.O
 		return fmt.Errorf("registry record is required")
 	}
 
+	tenantID := extractTenantID(ctx)
+
 	span.SetAttributes(
+		attribute.String("app.request.tenant_id", tenantID),
 		attribute.String("app.request.organization_id", record.OrganizationID),
 		attribute.Int64("app.request.expected_revision", expectedRevision),
 	)
+
+	// Ensure tenant_id is set on the record
+	if record.TenantID == "" {
+		record.TenantID = tenantID
+	}
 
 	collection, err := r.collection(ctx)
 	if err != nil {
@@ -148,7 +175,13 @@ func (r *RegistryMongoDBRepository) Update(ctx context.Context, record *mmodel.O
 	model := RegistryFromEntity(record)
 	model.Revision = expectedRevision + 1
 
-	result, err := collection.ReplaceOne(ctx, bson.M{"organization_id": record.OrganizationID, "revision": expectedRevision}, model)
+	// Database isolation handles multi-tenancy - filter by organization_id and revision only
+	filter := bson.M{
+		"organization_id": record.OrganizationID,
+		"revision":        expectedRevision,
+	}
+
+	result, err := collection.ReplaceOne(ctx, filter, model)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to update organization registry", err)
 		return fmt.Errorf("update organization registry: %w", err)
@@ -206,7 +239,8 @@ func (r *RegistryMongoDBRepository) ensureIndexes(ctx context.Context, collectio
 func (r *RegistryMongoDBRepository) createIndexes(ctx context.Context, collection *mongo.Collection) error {
 	indexModels := []mongo.IndexModel{
 		{
-			Keys:    bson.D{{Key: "organization_id", Value: 1}},
+			// Compound unique index on tenant_id + organization_id for proper tenant isolation
+			Keys:    bson.D{{Key: "tenant_id", Value: 1}, {Key: "organization_id", Value: 1}},
 			Options: options.Index().SetUnique(true),
 		},
 	}
