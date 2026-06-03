@@ -15,27 +15,26 @@ import (
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // MetadataFixture represents test metadata for insertion.
 type MetadataFixture struct {
-	ID         primitive.ObjectID `bson:"_id,omitempty"`
-	EntityID   string             `bson:"entity_id"`
-	EntityName string             `bson:"entity_name"`
-	Data       map[string]any     `bson:"metadata"`
-	CreatedAt  time.Time          `bson:"created_at"`
-	UpdatedAt  time.Time          `bson:"updated_at"`
+	ID         bson.ObjectID  `bson:"_id,omitempty"`
+	EntityID   string         `bson:"entity_id"`
+	EntityName string         `bson:"entity_name"`
+	Data       map[string]any `bson:"metadata"`
+	CreatedAt  time.Time      `bson:"created_at"`
+	UpdatedAt  time.Time      `bson:"updated_at"`
 }
 
 // InsertMetadata inserts a metadata fixture into the specified collection.
-func InsertMetadata(tb testing.TB, db *mongo.Database, collection string, fixture MetadataFixture) primitive.ObjectID {
+func InsertMetadata(tb testing.TB, db *mongo.Database, collection string, fixture MetadataFixture) bson.ObjectID {
 	tb.Helper()
 
 	if fixture.ID.IsZero() {
-		fixture.ID = primitive.NewObjectID()
+		fixture.ID = bson.NewObjectID()
 	}
 
 	if fixture.CreatedAt.IsZero() {
@@ -54,10 +53,10 @@ func InsertMetadata(tb testing.TB, db *mongo.Database, collection string, fixtur
 }
 
 // InsertManyMetadata inserts multiple metadata fixtures into the specified collection.
-func InsertManyMetadata(tb testing.TB, db *mongo.Database, collection string, fixtures []MetadataFixture) []primitive.ObjectID {
+func InsertManyMetadata(tb testing.TB, db *mongo.Database, collection string, fixtures []MetadataFixture) []bson.ObjectID {
 	tb.Helper()
 
-	ids := make([]primitive.ObjectID, len(fixtures))
+	ids := make([]bson.ObjectID, len(fixtures))
 	for i, f := range fixtures {
 		ids[i] = InsertMetadata(tb, db, collection, f)
 	}
