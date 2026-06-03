@@ -102,6 +102,7 @@ require (
 	github.com/LerianStudio/lib-streaming v1.4.0
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/docker/go-connections v0.7.0
+	github.com/go-playground/validator/v10 v10.30.2
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
 	github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.42.0
@@ -125,7 +126,6 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
-	github.com/go-playground/validator/v10 v10.30.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
