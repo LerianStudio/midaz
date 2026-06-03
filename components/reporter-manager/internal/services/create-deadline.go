@@ -8,10 +8,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/deadline"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/deadline"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/lib-observability/log"

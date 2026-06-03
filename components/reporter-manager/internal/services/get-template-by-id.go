@@ -8,10 +8,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/template"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/template"
 
 	"github.com/LerianStudio/lib-observability/log"
 	opentelemetry "github.com/LerianStudio/lib-observability/tracing"

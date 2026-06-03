@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/services"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/pongo"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/template_builder"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/pongo"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/template_builder"
 
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/gofiber/fiber/v2"

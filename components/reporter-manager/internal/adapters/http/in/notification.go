@@ -15,9 +15,9 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 
 	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/services"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/deadline"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/deadline"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/net/http"
 
 	"github.com/gofiber/fiber/v2"
 )

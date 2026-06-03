@@ -8,15 +8,15 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/deadline"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/report"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/template"
-	pkgRabbitmq "github.com/LerianStudio/midaz/v3/components/reporter/pkg/rabbitmq"
-	pkgRedis "github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
-	reportSeaweedFS "github.com/LerianStudio/midaz/v3/components/reporter/pkg/seaweedfs/report"
-	templateSeaweedFS "github.com/LerianStudio/midaz/v3/components/reporter/pkg/seaweedfs/template"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/datasource"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/deadline"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/report"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/template"
+	pkgRabbitmq "github.com/LerianStudio/midaz/v3/pkg/reporter/rabbitmq"
+	pkgRedis "github.com/LerianStudio/midaz/v3/pkg/reporter/redis"
+	reportSeaweedFS "github.com/LerianStudio/midaz/v3/pkg/reporter/seaweedfs/report"
+	templateSeaweedFS "github.com/LerianStudio/midaz/v3/pkg/reporter/seaweedfs/template"
 )
 
 // UseCase is a struct to implement the services methods

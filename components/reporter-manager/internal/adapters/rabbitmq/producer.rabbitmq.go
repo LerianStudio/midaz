@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
-	pkgRabbitmq "github.com/LerianStudio/midaz/v3/components/reporter/pkg/rabbitmq"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/model"
+	pkgRabbitmq "github.com/LerianStudio/midaz/v3/pkg/reporter/rabbitmq"
 
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"

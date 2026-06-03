@@ -16,10 +16,10 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 
 	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/services"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/report"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/template"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/report"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/template"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"

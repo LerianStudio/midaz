@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/reporter-worker/internal/services"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-	reportData "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/report"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/seaweedfs/template"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	reportData "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/report"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/seaweedfs/template"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	"github.com/LerianStudio/lib-observability/log"

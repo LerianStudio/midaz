@@ -16,16 +16,16 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/services"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/deadline"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/report"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/template"
-	reportSeaweedFS "github.com/LerianStudio/midaz/v3/components/reporter/pkg/seaweedfs/report"
-	templateSeaweedFS "github.com/LerianStudio/midaz/v3/components/reporter/pkg/seaweedfs/template"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/storage"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/datasource"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/deadline"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/report"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/template"
+	reportSeaweedFS "github.com/LerianStudio/midaz/v3/pkg/reporter/seaweedfs/report"
+	templateSeaweedFS "github.com/LerianStudio/midaz/v3/pkg/reporter/seaweedfs/template"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/storage"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
@@ -37,8 +37,8 @@ import (
 	amqp091 "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/trace"
 
-	mongoDB "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
-	libRedis "github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
+	mongoDB "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb"
+	libRedis "github.com/LerianStudio/midaz/v3/pkg/reporter/redis"
 )
 
 // mongoResources holds MongoDB-related resources created during initialization.

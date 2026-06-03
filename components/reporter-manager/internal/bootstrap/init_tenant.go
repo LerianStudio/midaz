@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
 
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"

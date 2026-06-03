@@ -20,9 +20,9 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 
 	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/services"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/template"
-	redisRepo "github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
-	templateSeaweedFS "github.com/LerianStudio/midaz/v3/components/reporter/pkg/seaweedfs/template"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/template"
+	redisRepo "github.com/LerianStudio/midaz/v3/pkg/reporter/redis"
+	templateSeaweedFS "github.com/LerianStudio/midaz/v3/pkg/reporter/seaweedfs/template"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"

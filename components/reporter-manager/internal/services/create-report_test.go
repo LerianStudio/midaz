@@ -12,13 +12,13 @@ import (
 
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/report"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/template"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/rabbitmq"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/datasource"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/model"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/report"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/template"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/redis"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/lib-observability/log"

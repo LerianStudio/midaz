@@ -7,7 +7,7 @@ package services
 import (
 	"context"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/pongo"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/pongo"
 
 	"github.com/LerianStudio/lib-observability/log"
 )

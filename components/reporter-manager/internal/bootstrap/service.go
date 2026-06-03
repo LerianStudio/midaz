@@ -10,7 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/readyz"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/readyz"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/lib-observability/log"

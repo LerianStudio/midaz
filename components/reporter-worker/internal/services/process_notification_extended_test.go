@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/fetcher"
-	extractionRepo "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/extraction"
-	reportData "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/report"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/datasource"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/fetcher"
+	extractionRepo "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/extraction"
+	reportData "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/report"
 
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/google/uuid"

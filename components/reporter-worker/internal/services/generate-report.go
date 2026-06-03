@@ -10,10 +10,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
-	pkgHTTP "github.com/LerianStudio/midaz/v3/components/reporter/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/model"
+	pkgHTTP "github.com/LerianStudio/midaz/v3/pkg/reporter/net/http"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"

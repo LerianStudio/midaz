@@ -16,10 +16,10 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/services"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/model"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/redis"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"

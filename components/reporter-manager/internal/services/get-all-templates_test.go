@@ -11,9 +11,9 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/template"
-	httpUtils "github.com/LerianStudio/midaz/v3/components/reporter/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/template"
+	httpUtils "github.com/LerianStudio/midaz/v3/pkg/reporter/net/http"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

@@ -8,7 +8,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/template_builder"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/template_builder"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"

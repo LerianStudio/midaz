@@ -18,11 +18,11 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 
 	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/services"
-	pkg "github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/deadline"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/template"
-	pkgHTTP "github.com/LerianStudio/midaz/v3/components/reporter/pkg/net/http"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/deadline"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/template"
+	pkgHTTP "github.com/LerianStudio/midaz/v3/pkg/reporter/net/http"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"

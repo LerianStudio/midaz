@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/LerianStudio/midaz/v3/components/reporter-manager/api"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
 
 	"github.com/gofiber/fiber/v2"
 )

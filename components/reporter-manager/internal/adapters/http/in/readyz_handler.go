@@ -5,11 +5,11 @@
 package in
 
 import (
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
-	mongoDB "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/readyz"
-	libRedis "github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/storage"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/datasource"
+	mongoDB "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/readyz"
+	libRedis "github.com/LerianStudio/midaz/v3/pkg/reporter/redis"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/storage"
 
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"

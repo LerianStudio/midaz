@@ -11,9 +11,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
 	"github.com/stretchr/testify/assert"
 )
 

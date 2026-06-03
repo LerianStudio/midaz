@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-	pkgConstant "github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
-	pkgRabbitmq "github.com/LerianStudio/midaz/v3/components/reporter/pkg/rabbitmq"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
+	pkgRabbitmq "github.com/LerianStudio/midaz/v3/pkg/reporter/rabbitmq"
 
 	"github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
@@ -21,7 +21,7 @@ import (
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/rabbitmq/amqp091-go"
 
-	mongoRepository "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/report"
+	mongoRepository "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/report"
 
 	"go.opentelemetry.io/otel/attribute"
 )

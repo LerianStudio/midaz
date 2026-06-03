@@ -20,7 +20,7 @@ import (
 
 	gomock "go.uber.org/mock/gomock"
 
-	fetcher "github.com/LerianStudio/midaz/v3/components/reporter/pkg/fetcher"
+	fetcher "github.com/LerianStudio/midaz/v3/pkg/reporter/fetcher"
 )
 
 // MockExtractionJobStatusChecker is a mock of ExtractionJobStatusChecker interface.

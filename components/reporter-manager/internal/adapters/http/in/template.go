@@ -14,12 +14,12 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 
 	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/services"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
-	template "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/template"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/net/http"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/model"
+	template "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/template"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/net/http"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"

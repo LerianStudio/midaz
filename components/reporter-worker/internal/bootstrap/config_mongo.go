@@ -12,9 +12,9 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	clog "github.com/LerianStudio/lib-observability/log"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-	pkgConstant "github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
-	mongoDB "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	mongoDB "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb"
 )
 
 // buildMongoConnection creates a MongoConnection with the connection string

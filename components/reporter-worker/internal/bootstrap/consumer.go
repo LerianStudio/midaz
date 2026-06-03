@@ -15,10 +15,10 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/reporter-worker/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/reporter-worker/internal/services"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
-	pkgHTTP "github.com/LerianStudio/midaz/v3/components/reporter/pkg/net/http"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/readyz"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
+	pkgHTTP "github.com/LerianStudio/midaz/v3/pkg/reporter/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/readyz"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"

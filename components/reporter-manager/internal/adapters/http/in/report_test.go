@@ -15,14 +15,14 @@ import (
 
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/report"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/template"
-	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/rabbitmq"
-	redisRepo "github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
-	reportSeaweed "github.com/LerianStudio/midaz/v3/components/reporter/pkg/seaweedfs/report"
+	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/model"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/report"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/template"
+	"github.com/LerianStudio/midaz/v3/pkg/reporter/rabbitmq"
+	redisRepo "github.com/LerianStudio/midaz/v3/pkg/reporter/redis"
+	reportSeaweed "github.com/LerianStudio/midaz/v3/pkg/reporter/seaweedfs/report"
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	"github.com/LerianStudio/lib-observability/log"
