@@ -9,7 +9,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/tests/utils/stubs"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestBuildDocumentToPatch(t *testing.T) {
