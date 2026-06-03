@@ -63,22 +63,47 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 		f.Use(tenantMw)
 	}
 
-	// Holders
-	f.Post("/v1/holders", auth.Authorize(ApplicationName, "holders", "post"), http.WithBody(new(mmodel.CreateHolderInput), hh.CreateHolder))
-	f.Get("/v1/holders/:id", auth.Authorize(ApplicationName, "holders", "get"), http.ParseUUIDPathParameters("holder"), hh.GetHolderByID)
-	f.Patch("/v1/holders/:id", auth.Authorize(ApplicationName, "holders", "patch"), http.ParseUUIDPathParameters("holder"), http.WithBody(new(mmodel.UpdateHolderInput), hh.UpdateHolder))
-	f.Delete("/v1/holders/:id", auth.Authorize(ApplicationName, "holders", "delete"), http.ParseUUIDPathParameters("holder"), hh.DeleteHolderByID)
-	f.Get("/v1/holders", auth.Authorize(ApplicationName, "holders", "get"), hh.GetAllHolders)
-
-	// Aliases
-	f.Get("/v1/aliases", auth.Authorize(ApplicationName, "aliases", "get"), ah.GetAllAliases)
-	f.Post("/v1/holders/:holder_id/aliases", auth.Authorize(ApplicationName, "aliases", "post"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.CreateAliasInput), ah.CreateAlias))
-	f.Get("/v1/holders/:holder_id/aliases/:alias_id", auth.Authorize(ApplicationName, "aliases", "get"), http.ParseUUIDPathParameters("aliases"), ah.GetAliasByID)
-	f.Patch("/v1/holders/:holder_id/aliases/:alias_id", auth.Authorize(ApplicationName, "aliases", "patch"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.UpdateAliasInput), ah.UpdateAlias))
-	f.Delete("/v1/holders/:holder_id/aliases/:alias_id", auth.Authorize(ApplicationName, "aliases", "delete"), http.ParseUUIDPathParameters("aliases"), ah.DeleteAliasByID)
-	f.Delete("/v1/holders/:holder_id/aliases/:alias_id/related-parties/:related_party_id", auth.Authorize(ApplicationName, "aliases", "delete"), http.ParseUUIDPathParameters("related-parties"), ah.DeleteRelatedParty)
+	// Standalone mode applies tenant middleware globally (above), so the routes
+	// themselves carry no PostAuthMiddlewares.
+	RegisterCRMRoutesToApp(f, auth, hh, ah, nil)
 
 	f.Use(tlMid.EndTracingSpans)
 
 	return f
+}
+
+// RegisterCRMRoutesToApp registers the CRM holder/alias routes on an existing
+// Fiber router. It is used both by the standalone NewRouter (above, with
+// routeOptions=nil because tenant middleware is mounted globally there) and by
+// the unified ledger server (which passes a CRM-scoped routeOptions carrying a
+// route-local tenant middleware so CRM's tenant Mongo never overwrites the
+// onboarding/transaction tenant DB injected for ledger routes).
+//
+// The 11 routes, paths, authz namespace (plugin-crm via ApplicationName),
+// UUID-path validation and body binding are identical in both callers.
+func RegisterCRMRoutesToApp(f fiber.Router, auth *middleware.AuthClient, hh *HolderHandler, ah *AliasHandler, routeOptions *http.ProtectedRouteOptions) {
+	// Holders
+	f.Post("/v1/holders", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "post"), routeOptions, http.WithBody(new(mmodel.CreateHolderInput), hh.CreateHolder))...)
+	f.Get("/v1/holders/:id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "get"), routeOptions, http.ParseUUIDPathParameters("holder"), hh.GetHolderByID)...)
+	f.Patch("/v1/holders/:id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "patch"), routeOptions, http.ParseUUIDPathParameters("holder"), http.WithBody(new(mmodel.UpdateHolderInput), hh.UpdateHolder))...)
+	f.Delete("/v1/holders/:id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "delete"), routeOptions, http.ParseUUIDPathParameters("holder"), hh.DeleteHolderByID)...)
+	f.Get("/v1/holders", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "get"), routeOptions, hh.GetAllHolders)...)
+
+	// Aliases
+	f.Get("/v1/aliases", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "get"), routeOptions, ah.GetAllAliases)...)
+	f.Post("/v1/holders/:holder_id/aliases", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "post"), routeOptions, http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.CreateAliasInput), ah.CreateAlias))...)
+	f.Get("/v1/holders/:holder_id/aliases/:alias_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "get"), routeOptions, http.ParseUUIDPathParameters("aliases"), ah.GetAliasByID)...)
+	f.Patch("/v1/holders/:holder_id/aliases/:alias_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "patch"), routeOptions, http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.UpdateAliasInput), ah.UpdateAlias))...)
+	f.Delete("/v1/holders/:holder_id/aliases/:alias_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "delete"), routeOptions, http.ParseUUIDPathParameters("aliases"), ah.DeleteAliasByID)...)
+	f.Delete("/v1/holders/:holder_id/aliases/:alias_id/related-parties/:related_party_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "delete"), routeOptions, http.ParseUUIDPathParameters("related-parties"), ah.DeleteRelatedParty)...)
+}
+
+// CreateCRMRouteRegistrar returns a registrar that mounts the CRM routes on the
+// unified ledger server. The routeOptions carries the CRM-scoped tenant
+// middleware (built in the ledger composition root) so it applies ONLY to CRM
+// routes.
+func CreateCRMRouteRegistrar(auth *middleware.AuthClient, hh *HolderHandler, ah *AliasHandler, routeOptions *http.ProtectedRouteOptions) func(fiber.Router) {
+	return func(router fiber.Router) {
+		RegisterCRMRoutesToApp(router, auth, hh, ah, routeOptions)
+	}
 }

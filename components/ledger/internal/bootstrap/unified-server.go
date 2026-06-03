@@ -16,6 +16,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v5/commons/server"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
+	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
@@ -52,7 +53,14 @@ func NewUnifiedServer(
 		},
 	})
 
-	// Add common middleware (only once for all routes)
+	// Add common middleware (only once for all routes).
+	// WithRecover MUST be first so it wraps every handler and downstream middleware:
+	// a panic anywhere unwinds back through this defer and returns a 500 via the
+	// Fiber error handler instead of dropping the connection. Previously only CRM's
+	// standalone router applied panic recovery; hoisting it here gives onboarding +
+	// transaction + crm a single process-wide recovery boundary (P3-T07).
+	app.Use(midazhttp.WithRecover(midazhttp.WithRecoverLogger(logger)))
+
 	tlMid := libObsMiddleware.NewTelemetryMiddleware(telemetry)
 	app.Use(tlMid.WithTelemetry(telemetry))
 	app.Use(cors.New())
