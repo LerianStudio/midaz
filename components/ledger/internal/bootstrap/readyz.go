@@ -12,9 +12,9 @@ import (
 	"time"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
+	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/metrics"
-	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/attribute"
@@ -363,6 +363,7 @@ func buildReadyzHandler(
 	txnPG *transactionPostgresComponents,
 	onbMgo *onboardingMongoComponents,
 	txnMgo *transactionMongoComponents,
+	crmMgo *crmComponents,
 	rmq *rabbitMQComponents,
 	metricsFactory *metrics.MetricsFactory,
 ) (*ReadyzHandler, error) {
@@ -385,6 +386,11 @@ func buildReadyzHandler(
 		cfg.TxnPrefixedMongoURI, cfg.TxnPrefixedMongoDBUser, cfg.TxnPrefixedMongoDBPassword,
 		cfg.TxnPrefixedMongoDBHost, cfg.TxnPrefixedMongoDBPort, cfg.TxnPrefixedMongoDBName,
 		cfg.TxnPrefixedMongoDBParameters)
+
+	crmMongoURI := fmt.Sprintf("%s://%s:%s@%s:%s/%s?%s",
+		cfg.CrmPrefixedMongoURI, cfg.CrmPrefixedMongoDBUser, cfg.CrmPrefixedMongoDBPassword,
+		cfg.CrmPrefixedMongoDBHost, cfg.CrmPrefixedMongoDBPort, cfg.CrmPrefixedMongoDBName,
+		cfg.CrmPrefixedMongoDBParameters)
 
 	// Build RabbitMQ URI for TLS detection
 	rmqURI := buildRabbitMQConnectionString(
@@ -412,6 +418,13 @@ func buildReadyzHandler(
 	if txnMgo.connection != nil {
 		checkers = append(checkers,
 			NewMongoChecker("mongo_transaction", txnMgo.connection, txnMongoURI))
+	}
+
+	// CRM Mongo checker - present only in single-tenant mode (multi-tenant CRM
+	// resolves connections per-request and has no static connection).
+	if crmMgo.connection != nil {
+		checkers = append(checkers,
+			NewMongoChecker("mongo_crm", crmMgo.connection, crmMongoURI))
 	}
 
 	// Redis checker

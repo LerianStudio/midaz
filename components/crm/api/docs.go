@@ -1602,7 +1602,7 @@ var SwaggerInfo = &swag.Spec{
 	Schemes:          []string{"http"},
 	Title:            "CRM API",
 	Description:      "The CRM API provides a set of endpoints for managing holder data, including information related to their ledger accounts.",
-	InfoInstanceName: "swagger",
+	InfoInstanceName: "crm",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
 	RightDelim:       "}}",

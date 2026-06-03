@@ -15,10 +15,10 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	crmhttp "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
-	crmservices "github.com/LerianStudio/midaz/v3/components/crm/internal/services"
+	crmhttp "github.com/LerianStudio/midaz/v3/components/crm/adapters/http/in"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/holder"
+	crmservices "github.com/LerianStudio/midaz/v3/components/crm/services"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 )
@@ -27,8 +27,8 @@ import (
 // ledger binary. connection and cipher are nil/zero-meaningful only in
 // single-tenant mode; mongoManager is non-nil only in multi-tenant mode.
 type crmComponents struct {
-	connection    *libMongo.Client    // nil in multi-tenant mode
-	cipher        *libCrypto.Crypto   // holder/alias PII encryption (R7)
+	connection    *libMongo.Client  // nil in multi-tenant mode
+	cipher        *libCrypto.Crypto // holder/alias PII encryption (R7)
 	holderHandler *crmhttp.HolderHandler
 	aliasHandler  *crmhttp.AliasHandler
 	mongoManager  *tmmongo.Manager // nil in single-tenant mode; exposed for middleware/eviction wiring
@@ -97,24 +97,9 @@ func initCRMMultiTenant(opts *Options, cfg *Config, logger libLog.Logger, cipher
 // initCRMSingleTenant builds a static Mongo client from the CrmPrefixed* config
 // and wires the holder/alias repos, use cases and handlers against it.
 func initCRMSingleTenant(cfg *Config, logger libLog.Logger, cipher *libCrypto.Crypto) (*crmComponents, error) {
-	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(cfg.CrmPrefixedMongoDBPort, cfg.CrmPrefixedMongoDBParameters, logger)
-
-	mongoQuery, err := url.ParseQuery(mongoParameters)
+	mongoSource, err := resolveCRMMongoURI(cfg, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse CRM MongoDB query parameters: %w", err)
-	}
-
-	mongoSource, err := libMongo.BuildURI(libMongo.URIConfig{
-		Scheme:   cfg.CrmPrefixedMongoURI,
-		Username: cfg.CrmPrefixedMongoDBUser,
-		Password: cfg.CrmPrefixedMongoDBPassword,
-		Host:     cfg.CrmPrefixedMongoDBHost,
-		Port:     mongoPort,
-		Database: cfg.CrmPrefixedMongoDBName,
-		Query:    mongoQuery,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to build CRM MongoDB URI: %w", err)
+		return nil, err
 	}
 
 	var mongoMaxPoolSize uint64 = 100
@@ -151,6 +136,44 @@ func initCRMSingleTenant(cfg *Config, logger libLog.Logger, cipher *libCrypto.Cr
 		holderHandler: holderHandler,
 		aliasHandler:  aliasHandler,
 	}, nil
+}
+
+// resolveCRMMongoURI builds the CRM Mongo connection string. It accepts either
+// a full URI (MONGO_CRM_URI containing "://", used verbatim) or a scheme value
+// ("mongodb"/"mongodb+srv"/empty) assembled from the discrete host/port/params,
+// preserving the flexibility the standalone CRM service had.
+func resolveCRMMongoURI(cfg *Config, logger libLog.Logger) (string, error) {
+	rawURI := strings.TrimSpace(cfg.CrmPrefixedMongoURI)
+	if strings.Contains(rawURI, "://") {
+		return rawURI, nil
+	}
+
+	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(cfg.CrmPrefixedMongoDBPort, cfg.CrmPrefixedMongoDBParameters, logger)
+
+	mongoQuery, err := url.ParseQuery(mongoParameters)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse CRM MongoDB query parameters: %w", err)
+	}
+
+	scheme := rawURI
+	if scheme == "" {
+		scheme = "mongodb"
+	}
+
+	mongoSource, err := libMongo.BuildURI(libMongo.URIConfig{
+		Scheme:   scheme,
+		Username: cfg.CrmPrefixedMongoDBUser,
+		Password: cfg.CrmPrefixedMongoDBPassword,
+		Host:     cfg.CrmPrefixedMongoDBHost,
+		Port:     mongoPort,
+		Database: cfg.CrmPrefixedMongoDBName,
+		Query:    mongoQuery,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to build CRM MongoDB URI: %w", err)
+	}
+
+	return mongoSource, nil
 }
 
 // buildCRMRepositories constructs the holder/alias Mongo repositories.

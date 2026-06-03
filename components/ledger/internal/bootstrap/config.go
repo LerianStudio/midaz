@@ -16,9 +16,6 @@ import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/lib-observability/metrics"
 	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
@@ -28,7 +25,11 @@ import (
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
 	tmredis "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/redis"
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-observability/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
+	crmhttp "github.com/LerianStudio/midaz/v3/components/crm/adapters/http/in"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
@@ -470,6 +471,21 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		addCleanup(func() { _ = txnMgo.connection.Close(context.Background()) })
 	}
 
+	// 4b. CRM MongoDB → holder/alias repos + handlers (collapsed from the
+	// standalone CRM service in P3). Single-tenant builds a static client +
+	// cipher; multi-tenant builds a 3rd crm-api tenant Mongo manager.
+	logger.Log(context.Background(), libLog.LevelInfo, "Initializing CRM MongoDB...")
+
+	crmMgo, err := initCRM(internalOpts, cfg, logger)
+	if err != nil {
+		doCleanup()
+		return nil, fmt.Errorf("failed to initialize CRM MongoDB: %w", err)
+	}
+
+	if crmMgo.connection != nil {
+		addCleanup(func() { _ = crmMgo.connection.Close(context.Background()) })
+	}
+
 	// 5. Redis (shared connection, two consumer repos)
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing Redis...")
 
@@ -549,7 +565,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 					}
 				}
 
-				// Close ALL mongo managers (onboarding + transaction)
+				// Close ALL mongo managers (onboarding + transaction + crm-api)
 				if onbMgo.mongoManager != nil {
 					if err := onbMgo.mongoManager.CloseConnection(ctx, tenantID); err != nil {
 						logger.Log(ctx, libLog.LevelWarn, "failed to close onboarding Mongo connection",
@@ -560,6 +576,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 				if txnMgo.mongoManager != nil {
 					if err := txnMgo.mongoManager.CloseConnection(ctx, tenantID); err != nil {
 						logger.Log(ctx, libLog.LevelWarn, "failed to close transaction Mongo connection",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				if crmMgo.mongoManager != nil {
+					if err := crmMgo.mongoManager.CloseConnection(ctx, tenantID); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to close crm-api Mongo connection",
 							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
 					}
 				}
@@ -736,7 +759,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Multi-tenant middleware ===
 
-	routeSetup, err := buildUnifiedRouteSetup(cfg, logger, onbPG.pgManager, txnPG.pgManager, onbMgo.mongoManager, txnMgo.mongoManager, tenantCache, tenantLoader)
+	routeSetup, err := buildUnifiedRouteSetup(cfg, logger, onbPG.pgManager, txnPG.pgManager, onbMgo.mongoManager, txnMgo.mongoManager, crmMgo.mongoManager, tenantCache, tenantLoader)
 	if err != nil {
 		doCleanup()
 		return nil, err
@@ -754,6 +777,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
 
+	// CRM uses the SAME auth client as ledger; only the authz resource namespace
+	// differs (plugin-crm, encoded in the route definitions). The CRM-scoped
+	// tenant middleware travels via routeSetup.crmRouteOptions.
+	crmRouteRegistrar := crmhttp.CreateCRMRouteRegistrar(auth, crmMgo.holderHandler, crmMgo.aliasHandler, routeSetup.crmRouteOptions)
+
 	logger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
 
 	// === Readyz handler ===
@@ -764,7 +792,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		metricsFactory = telemetry.MetricsFactory
 	}
 
-	readyzHandler, err := buildReadyzHandler(cfg, logger, redisConnection, onbPG, txnPG, onbMgo, txnMgo, rmq, metricsFactory)
+	readyzHandler, err := buildReadyzHandler(cfg, logger, redisConnection, onbPG, txnPG, onbMgo, txnMgo, crmMgo, rmq, metricsFactory)
 	if err != nil {
 		doCleanup()
 
@@ -781,6 +809,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		onboardingRouteRegistrar,
 		transactionRouteRegistrar,
 		ledgerRouteRegistrar,
+		crmRouteRegistrar,
 	)
 
 	// === Workers ===
@@ -1027,6 +1056,7 @@ type unifiedRouteSetup struct {
 	onboardingRouteOptions  *midazhttp.ProtectedRouteOptions
 	transactionRouteOptions *midazhttp.ProtectedRouteOptions
 	ledgerRouteOptions      *midazhttp.ProtectedRouteOptions
+	crmRouteOptions         *midazhttp.ProtectedRouteOptions
 }
 
 func buildUnifiedRouteSetup(
@@ -1036,6 +1066,7 @@ func buildUnifiedRouteSetup(
 	transactionPGManager *tmpostgres.Manager,
 	onboardingMongoManager *tmmongo.Manager,
 	transactionMongoManager *tmmongo.Manager,
+	crmMongoManager *tmmongo.Manager,
 	tenantCache *tenantcache.TenantCache,
 	tenantLoader *tenantcache.TenantLoader,
 ) (*unifiedRouteSetup, error) {
@@ -1060,7 +1091,12 @@ func buildUnifiedRouteSetup(
 		return nil, fmt.Errorf("transaction multi-tenant MongoDB manager not available")
 	}
 
-	// Build unified tenant middleware with all module managers (PG + Mongo)
+	if crmMongoManager == nil {
+		return nil, fmt.Errorf("crm multi-tenant MongoDB manager not available")
+	}
+
+	// Build the onboarding+transaction tenant middleware. CRM is DELIBERATELY
+	// excluded here: it gets its own instance below.
 	tenantMiddleware := tmmiddleware.NewTenantMiddleware(
 		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
 		tmmiddleware.WithPG(transactionPGManager, constant.ModuleTransaction),
@@ -1070,8 +1106,32 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
+	// CRM tenant middleware is a SEPARATE instance carrying ONLY the crm-api
+	// Mongo manager. This is the isolation-critical step (R6): the CRM
+	// WithTenantDB MUST be attached only to CRM routes via crmRouteOptions
+	// below. Mounting it on the onboarding/transaction middleware (or globally
+	// via f.Use) would overwrite the tenant Mongo that ledger handlers resolve,
+	// leaking one tenant's CRM DB into a concurrent ledger request.
+	//
+	// WithMB is called WITHOUT a module name (single-manager mode) on purpose:
+	// the CRM holder/alias repos read tmcore.GetMBContext(ctx) on the GENERIC
+	// key (they predate module-keyed resolution). A module-keyed WithMB would
+	// write the crm-api key while the repos read the generic key, so MT CRM
+	// requests would fail DB resolution. Because this middleware instance only
+	// runs on CRM routes, writing the generic key here cannot collide with the
+	// module-keyed onboarding/transaction injection on ledger routes — isolation
+	// is preserved by route scoping. (The manager itself still carries
+	// WithModule(ModuleCRM) for tenant-manager DB resolution; that is a separate
+	// concern from the request-context key.) The same tenantCache/tenantLoader
+	// are reused (no second cache/loader).
+	crmTenantMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithMB(crmMongoManager),
+		tmmiddleware.WithTenantCache(tenantCache),
+		tmmiddleware.WithTenantLoader(tenantLoader),
+	)
+
 	logger.Log(context.Background(), libLog.LevelInfo, "Tenant middleware configured",
-		libLog.String("modules", "onboarding,transaction"),
+		libLog.String("modules", "onboarding,transaction,crm-api"),
 	)
 
 	authAssertion := midazhttp.MarkTrustedAuthAssertion()
@@ -1086,6 +1146,11 @@ func buildUnifiedRouteSetup(
 
 	setup.ledgerRouteOptions = &midazhttp.ProtectedRouteOptions{
 		PostAuthMiddlewares: []fiber.Handler{authAssertion},
+	}
+
+	// CRM routes get the CRM-only tenant middleware instance.
+	setup.crmRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmTenantMiddleware.WithTenantDB},
 	}
 
 	return setup, nil

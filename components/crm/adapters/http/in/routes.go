@@ -9,8 +9,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
@@ -48,7 +48,7 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 		return c.Redirect("/swagger/index.html", fiber.StatusMovedPermanently)
 	})
 	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
-		fiberSwagger.InstanceName("swagger"),
+		fiberSwagger.InstanceName("crm"),
 	))
 
 	// Readyz endpoint: registered BEFORE auth/tenant middleware for K8s readiness probes.
