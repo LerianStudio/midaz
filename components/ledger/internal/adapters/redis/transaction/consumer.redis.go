@@ -1617,11 +1617,9 @@ func (rr *RedisConsumerRepository) UpdateBalanceCacheSettings(ctx context.Contex
 // This is used by the aggregation engine to fetch current balance states in batch.
 // Large inputs are processed in chunks of maxRedisBatchSize to prevent oversized payloads.
 //
-// CONTRACT: keys must be fully-qualified Redis keys, i.e. already tenant-namespaced
-// when running multi-tenant. The sole caller (SyncBalancesBatch) passes the ZSET
-// members claimed from the balance-sync schedule, which are already namespaced once
-// at write time. This method therefore performs NO tenant namespacing — doing so would
-// double-prefix the keys and cause every MGET to miss.
+// Keys must be fully-qualified Redis keys (already tenant-namespaced in multi-tenant
+// mode). This method performs no tenant namespacing; tenant isolation comes from the
+// per-tenant connection resolved by conn.GetClient(ctx).
 func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys []string) (map[string]*mmodel.BalanceRedis, error) {
 	if len(keys) == 0 {
 		return make(map[string]*mmodel.BalanceRedis), nil
@@ -1642,21 +1640,7 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 		return nil, err
 	}
 
-	// The keys passed here are already fully-qualified Redis keys. In multi-tenant
-	// mode they are the tenant-namespaced ZSET members claimed from the balance-sync
-	// schedule — written exactly once as "tenant:{id}:balance:..." by
-	// balance_atomic_operation.lua (SET value + ZADD member share the same key) and
-	// returned verbatim by GetBalanceSyncKeys.
-	//
-	// They MUST NOT be namespaced again here. Re-prefixing would produce
-	// "tenant:{id}:tenant:{id}:balance:..." so every MGET would miss; the sync worker
-	// would then treat live balances as orphaned (expired TTL) and silently drop the
-	// pending write — the balance never reaches PostgreSQL and the bug is
-	// self-perpetuating as each new mutation re-schedules the same doomed key.
-	//
-	// Tenant isolation on this read path is enforced by rr.conn.GetClient(ctx), which
-	// resolves the correct per-tenant connection pool — not by key prefixing.
-	//
+	// Keys are used as-is (already namespaced); see the method contract above.
 	// Process in chunks to prevent oversized payloads.
 	for start := 0; start < len(keys); start += maxRedisBatchSize {
 		end := min(start+maxRedisBatchSize, len(keys))

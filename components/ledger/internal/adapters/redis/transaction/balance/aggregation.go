@@ -39,19 +39,14 @@ func (k BalanceCompositeKey) String() string {
 }
 
 // BalanceCompositeKeyFromRedisKey extracts a composite key from a Redis balance key.
-// Redis key format: "balance:{transactions}:orgID:ledgerID:alias#partitionKey"
 //
-// In multi-tenant mode the claimed ZSET members handed to the flush pipeline are
-// tenant-namespaced exactly once at write time, i.e.
-// "tenant:{tenantID}:balance:{transactions}:orgID:ledgerID:alias#partitionKey".
-// The parser must therefore be prefix-tolerant: orgID and ledgerID are located as the
-// first two colon-separated 36-character UUID segments (position-independent), mirroring
-// BalanceSyncWorker.extractIDsFromMember. A positional parse (parts[2]/parts[3]) would
-// reject the namespaced key as a parse error, causing the balance to be treated as an
-// orphan and silently dropped — never persisting to PostgreSQL.
+// Base key format: "balance:{transactions}:orgID:ledgerID:alias#partitionKey".
+// The key may carry a leading namespace prefix (e.g. "tenant:{tenantID}:") so parsing is
+// position-independent: orgID and ledgerID are the first two colon-separated 36-character
+// UUID segments, and everything after the ledgerID segment is "alias#partitionKey".
+// The alias itself may contain colons (e.g. "test:account:100").
 //
-// Note: alias may contain colons (e.g., "test:account:100"); everything after the
-// ledgerID segment is treated as "alias#partitionKey".
+// Returns an error if two UUID segments cannot be found.
 func BalanceCompositeKeyFromRedisKey(redisKey string) (BalanceCompositeKey, error) {
 	parts := strings.Split(redisKey, ":")
 
