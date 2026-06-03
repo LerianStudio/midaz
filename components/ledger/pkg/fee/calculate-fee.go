@@ -59,13 +59,28 @@ func isSegmentReference(entry string) (bool, uuid.UUID, error) {
 
 // CalculateFee calculates and applies all fees for a transaction package.
 // It mutates f.Transaction.Send.Value and updates resp with fee results.
-// The defaultCurrency parameter specifies the currency code for fee amounts (e.g., "BRL").
+//
+// Fee legs are ALWAYS denominated in the transaction's Send.Asset (P4-T24): the
+// ledger validator aggregates per-asset and requires sum == 0 under exact
+// decimal.Equal, so a fee leg in any asset other than Send.Asset would either
+// trip ErrTransactionValueMismatch or silently create a multi-asset imbalance.
+// The defaultCurrency parameter is accepted for the value-only fallback when the
+// transaction carries no Send.Asset; it NEVER denominates a leg in a different
+// asset than the transaction. Send.Asset is the single source of truth.
+//
 // The segCtx parameter is optional: when non-nil, segment-based waivedAccounts resolution
 // is enabled (entries like "segment:<uuid>" trigger a Midaz API call to check account membership).
 // When segCtx is nil, only exact alias matching is used for waivedAccounts.
 func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, resp *transaction.Responses, defaultCurrency string, segCtx *SegmentContext) error {
 	if defaultCurrency == "" {
 		defaultCurrency = DefaultCurrencyBRL
+	}
+
+	// Fee legs are denominated in the transaction's Send.Asset. The configured
+	// default currency only acts as a fallback when the transaction omits one.
+	feeAsset := f.Transaction.Send.Asset
+	if feeAsset == "" {
+		feeAsset = defaultCurrency
 	}
 
 	logger.Log(context.TODO(), libLog.LevelInfo, "Trying to calculate a fee")
@@ -111,15 +126,15 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 		case constant.AppRuleMaxBetweenTypes:
 			logger.Log(context.TODO(), libLog.LevelInfo, fmt.Sprintf("Calculating fee with app rule maxBetweenTypes (feeIndex=%d)", feeIndex))
 
-			result, err = calculateMaxBetweenTypesFee(fee, valueToCalculate, defaultCurrency)
+			result, err = calculateMaxBetweenTypesFee(fee, valueToCalculate, feeAsset)
 		case constant.AppRuleFlatFee:
 			logger.Log(context.TODO(), libLog.LevelInfo, fmt.Sprintf("Calculating fee with app rule flatFee (feeIndex=%d)", feeIndex))
 
-			result, err = calculateFlatFee(fee, defaultCurrency)
+			result, err = calculateFlatFee(fee, feeAsset)
 		case constant.AppRulePercentual:
 			logger.Log(context.TODO(), libLog.LevelInfo, fmt.Sprintf("Calculating fee with app rule percentual (feeIndex=%d)", feeIndex))
 
-			result, err = calculatePercentualFee(fee, valueToCalculate, defaultCurrency)
+			result, err = calculatePercentualFee(fee, valueToCalculate, feeAsset)
 		default:
 			return pkg.ValidateBusinessError(constant.ErrApplicationRule, "", fmt.Sprintf("unknown application rule: %s", fee.CalculationModel.ApplicationRule))
 		}
@@ -128,9 +143,10 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 			return err
 		}
 
-		// Round fee based on asset precision (Half Up)
-		precision := getAssetPrecision(f.Transaction.Send.Asset)
-		result.Value = result.Value.Round(precision)
+		// Fee total is emitted unrounded: the ledger is arbitrary-precision and
+		// every serialization seam round-trips full precision (P4-T23). The
+		// residual-to-max reconciliation in applyFeeCorrection holds sum(legs) ==
+		// fee total exactly without any asset-scale rounding.
 
 		if err := applyDeductibleAndReferenceAmountRules(logger, feeIndex, directAliasesPtr, segmentIDs, segCtx, fee, resp, result, f); err != nil {
 			logger.Log(context.TODO(), libLog.LevelError, fmt.Sprintf("Fee distribution failed due to segment resolution error: %v", err))
@@ -156,7 +172,7 @@ func selectReferenceAmount(fee model.Fee, currentValue, originalValue decimal.De
 }
 
 // calculateMaxBetweenTypesFee calculates the maximum fee between flat and percentual types.
-func calculateMaxBetweenTypesFee(fee model.Fee, valueToCalculate decimal.Decimal, defaultCurrency string) (transaction.Amount, error) {
+func calculateMaxBetweenTypesFee(fee model.Fee, valueToCalculate decimal.Decimal, feeAsset string) (transaction.Amount, error) {
 	var maxValue decimal.Decimal
 
 	var maxAmount transaction.Amount
@@ -176,7 +192,7 @@ func calculateMaxBetweenTypesFee(fee model.Fee, valueToCalculate decimal.Decimal
 			}
 
 			resultAmount = transaction.Amount{
-				Asset: defaultCurrency,
+				Asset: feeAsset,
 				Value: realValue,
 			}
 		case constant.FeeTypePercentage:
@@ -185,7 +201,7 @@ func calculateMaxBetweenTypesFee(fee model.Fee, valueToCalculate decimal.Decimal
 				return transaction.Amount{}, pkg.ValidateBusinessError(constant.ErrApplicationRule, "", fmt.Sprintf("invalid percentage fee value: %v", err))
 			}
 
-			resultAmount = findPercentualOfValue(percentValue, valueToCalculate, defaultCurrency)
+			resultAmount = findPercentualOfValue(percentValue, valueToCalculate, feeAsset)
 			realValue = resultAmount.Value
 		default:
 			return transaction.Amount{}, pkg.ValidateBusinessError(constant.ErrApplicationRule, "", fmt.Sprintf("unknown fee type: %v", err))
@@ -201,7 +217,7 @@ func calculateMaxBetweenTypesFee(fee model.Fee, valueToCalculate decimal.Decimal
 }
 
 // calculateFlatFee calculates a flat fee amount.
-func calculateFlatFee(fee model.Fee, defaultCurrency string) (transaction.Amount, error) {
+func calculateFlatFee(fee model.Fee, feeAsset string) (transaction.Amount, error) {
 	if len(fee.CalculationModel.Calculations) == 0 {
 		return transaction.Amount{}, pkg.ValidateBusinessError(constant.ErrCalculationRequired, "", "flatFee requires at least one calculation")
 	}
@@ -214,13 +230,13 @@ func calculateFlatFee(fee model.Fee, defaultCurrency string) (transaction.Amount
 	}
 
 	return transaction.Amount{
-		Asset: defaultCurrency,
+		Asset: feeAsset,
 		Value: value,
 	}, nil
 }
 
 // calculatePercentualFee calculates a percentual fee amount.
-func calculatePercentualFee(fee model.Fee, valueToCalculate decimal.Decimal, defaultCurrency string) (transaction.Amount, error) {
+func calculatePercentualFee(fee model.Fee, valueToCalculate decimal.Decimal, feeAsset string) (transaction.Amount, error) {
 	if len(fee.CalculationModel.Calculations) == 0 {
 		return transaction.Amount{}, pkg.ValidateBusinessError(constant.ErrCalculationRequired, "", "percentual requires at least one calculation")
 	}
@@ -232,15 +248,15 @@ func calculatePercentualFee(fee model.Fee, valueToCalculate decimal.Decimal, def
 		return transaction.Amount{}, pkg.ValidateBusinessError(constant.ErrApplicationRule, "", fmt.Sprintf("invalid percentage fee value: %v", err))
 	}
 
-	return findPercentualOfValue(percentValue, valueToCalculate, defaultCurrency), nil
+	return findPercentualOfValue(percentValue, valueToCalculate, feeAsset), nil
 }
 
 // findPercentualOfValue finds the percentual of value
-func findPercentualOfValue(feeValue, transactionValue decimal.Decimal, defaultCurrency string) transaction.Amount {
+func findPercentualOfValue(feeValue, transactionValue decimal.Decimal, feeAsset string) transaction.Amount {
 	percentConverted := feeValue.Div(decimal.NewFromInt(100))
 
 	return transaction.Amount{
-		Asset: defaultCurrency,
+		Asset: feeAsset,
 		Value: transactionValue.Mul(percentConverted),
 	}
 }

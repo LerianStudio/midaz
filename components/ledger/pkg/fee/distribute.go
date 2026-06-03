@@ -266,13 +266,11 @@ func findMaxAccount(amounts map[string]transaction.Amount, exemptAccounts *[]str
 //   - payerKey: deductible only — the max account's reduced balance entry in
 //     updateAmount; the residual is deducted from it symmetrically so
 //     sum(deductions) stays equal to sum(fee_source legs) (debit==credit).
-//   - asset: the leg asset, used to quantize the residual to the asset scale.
 //   - found: whether the max account was processed (a non-exempt payer existed).
 type feeCorrectionTarget struct {
 	debitLegKey  string
 	creditLegKey string
 	payerKey     string
-	asset        string
 	found        bool
 }
 
@@ -320,24 +318,23 @@ func calculateProportionalFees(
 			proportionalFeePercent := amount.Value.Div(totalPaying)
 			feeApplied := feeValue.Value.Mul(proportionalFeePercent)
 
-			// Always round proportional fee to asset precision.
-			// For repeating decimals (e.g. 1/3), use Ceil for max account and Floor for others
-			// to ensure the total distributed does not exceed the fee.
-			// For non-repeating decimals, use Round (Half Up) for standard banking rounding.
-			assetPrecision := getAssetPrecision(amount.Asset)
+			// Legs are emitted unrounded: the ledger is arbitrary-precision decimal
+			// and every serialization seam (JSONB body, msgpack queue, Mongo
+			// metadata) round-trips full precision (P4-T23), so there is no scale
+			// to round to. Div caps proportionalFeePercent at decimal's
+			// DivisionPrecision, leaving a sub-precision residual that
+			// applyFeeCorrection reconciles onto the max account's leg — that
+			// reconciliation, not per-leg rounding, is what holds sum(legs) == fee
+			// total exactly.
 
-			if isRepeatingDecimal(proportionalFeePercent) {
-				if key == maxAccount {
-					feeApplied = feeApplied.RoundCeil(assetPrecision)
-				} else {
-					feeApplied = feeApplied.RoundFloor(assetPrecision)
-				}
-			} else {
-				feeApplied = feeApplied.Round(assetPrecision)
-			}
-
+			// Denominate the fee leg in feeValue.Asset (the transaction's
+			// Send.Asset, set by CalculateFee), NOT the payer account's asset
+			// (P4-T24). This guarantees every emitted fee leg shares the
+			// transaction asset, so the ledger validator's per-asset aggregation
+			// balances under exact decimal.Equal — no leg can escape into the
+			// global default currency or a divergent payer asset.
 			resultAmount := transaction.Amount{
-				Asset: amount.Asset,
+				Asset: feeValue.Asset,
 				Value: feeApplied,
 			}
 
@@ -349,7 +346,7 @@ func calculateProportionalFees(
 			if isToStruct {
 				amount = emitDeductibleLeg(feeModel, feeIndex, key, amount, resultAmount, exemptAccounts, updateAmount, maxAccount, target)
 			} else {
-				updateAmountToStruct = emitNonDeductibleLeg(feeModel, feeIndex, key, amount, resultAmount, exemptAccounts, updateAmount, updateAmountToStruct, maxAccount, target)
+				updateAmountToStruct = emitNonDeductibleLeg(feeModel, feeIndex, key, resultAmount, exemptAccounts, updateAmount, updateAmountToStruct, maxAccount, target)
 			}
 
 			newFeeTotalPaying = newFeeTotalPaying.Add(feeApplied)
@@ -384,7 +381,6 @@ func emitDeductibleLeg(
 	if target != nil && key == maxAccount {
 		target.debitLegKey = legKey
 		target.payerKey = key
-		target.asset = amount.Asset
 		target.found = true
 	}
 
@@ -399,7 +395,7 @@ func emitNonDeductibleLeg(
 	feeModel model.Fee,
 	feeIndex int,
 	key string,
-	amount, resultAmount transaction.Amount,
+	resultAmount transaction.Amount,
 	exemptAccounts *[]string,
 	updateAmount, updateAmountToStruct map[string]transaction.Amount,
 	maxAccount string,
@@ -423,25 +419,24 @@ func emitNonDeductibleLeg(
 	if target != nil && key == maxAccount {
 		target.debitLegKey = debitLegKey
 		target.creditLegKey = feeSourceKey
-		target.asset = amount.Asset
 		target.found = true
 	}
 
 	return updateAmountToStruct
 }
 
-// applyFeeCorrection reconciles the rounding residual onto the max account's
-// fee leg so that the distributed legs sum EXACTLY to the fee total at the
-// asset scale (double-entry conservation).
+// applyFeeCorrection reconciles the division residual onto the max account's
+// fee leg so that the distributed legs sum EXACTLY to the fee total
+// (double-entry conservation, full decimal precision, zero tolerance).
 //
-// Per-account legs are floor/ceil/round-rounded to the asset precision, so the
-// distributed sum (newFeeTotalPaying) can fall short of (or, when ceil dominates,
-// exceed) the fee total by a sub-unit residual. The residual is computed and
-// applied at the asset scale — both feeValue and newFeeTotalPaying are quantized
-// to the leg asset's precision before subtraction, so sub-scale "dust" (e.g. an
-// 18-decimal asset whose proportional split is not exactly representable) cannot
-// leak into the comparison. Conservation is defined as equality at the asset's
-// smallest representable unit, which is what double-entry requires.
+// Each per-account leg is feeValue * (amount/totalPaying); decimal division
+// caps the proportion at DivisionPrecision, so the distributed sum
+// (newFeeTotalPaying) can fall short of (or exceed) the fee total by a
+// sub-precision residual. The residual delta = feeValue - newFeeTotalPaying is
+// computed at full precision and applied to the max account's leg, making
+// sum(legs) == fee total exactly under decimal.Equal — no asset scale and no
+// precision table are involved, which is why deleting the ISO-4217 table cannot
+// break the balance invariant.
 //
 // The leg to correct is addressed by the keys captured at creation time
 // (feeCorrectionTarget), so a route label that contains "fee"/"fee_source"
@@ -468,8 +463,7 @@ func applyFeeCorrection(
 		return
 	}
 
-	scale := getAssetPrecision(target.asset)
-	delta := feeValue.Value.Round(scale).Sub(newFeeTotalPaying.Round(scale))
+	delta := feeValue.Value.Sub(newFeeTotalPaying)
 
 	if delta.IsZero() {
 		return

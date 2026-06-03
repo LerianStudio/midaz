@@ -7,7 +7,6 @@ package fee
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/fees/pack"
 
@@ -93,65 +92,4 @@ func filterByAmount(packages []*pack.Package, amount decimal.Decimal) []*pack.Pa
 // isTransactionValueBetweenMaxAndMinAmountPackage checks if the transaction value is between the max and min amount of the package
 func isTransactionValueBetweenMaxAndMinAmountPackage(p pack.Package, amount decimal.Decimal) bool {
 	return amount.GreaterThanOrEqual(p.MinimumAmount) && amount.LessThanOrEqual(p.MaximumAmount)
-}
-
-// isRepeatingDecimal checks if the decimal is repeating
-func isRepeatingDecimal(d decimal.Decimal) bool {
-	const maxCycleLength = 6
-
-	const minRepeatCount = 2 // Reduced from 3 to 2 for better detection
-
-	// Get the exact decimal representation without trailing zeros
-	s := d.String()
-
-	parts := strings.Split(s, ".")
-	if len(parts) != 2 {
-		return false
-	}
-
-	decimals := parts[1]
-
-	// If the decimal part is empty or all zeros, it's not repeating
-	if decimals == "" || strings.TrimRight(decimals, "0") == "" {
-		return false
-	}
-
-	// Remove trailing zeros to avoid false positives
-	decimals = strings.TrimRight(decimals, "0")
-
-	// If the decimal part is too short to have a meaningful repeating pattern, return false
-	if len(decimals) < minRepeatCount*2 {
-		return false
-	}
-
-	for size := 1; size <= maxCycleLength && size <= len(decimals)/2; size++ {
-		for start := 0; start+size*minRepeatCount <= len(decimals); start++ {
-			pattern := decimals[start : start+size]
-
-			// Skip if pattern is all zeros (which would be trailing zeros)
-			if strings.TrimRight(pattern, "0") == "" {
-				continue
-			}
-
-			// Check if this pattern repeats at least minRepeatCount times
-			repeatCount := 1
-
-			for i := 1; start+i*size+size <= len(decimals); i++ {
-				begin := start + i*size
-				end := begin + size
-
-				if decimals[begin:end] == pattern {
-					repeatCount++
-				} else {
-					break
-				}
-			}
-
-			if repeatCount >= minRepeatCount {
-				return true
-			}
-		}
-	}
-
-	return false
 }

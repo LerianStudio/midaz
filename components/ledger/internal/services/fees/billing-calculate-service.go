@@ -410,17 +410,13 @@ func (s *BillingCalculateService) calculateVolume(
 		return nil, bizErr
 	}
 
-	// Step 3a: Round gross amount to asset precision before applying discount.
-	assetPrecision := fee.GetAssetPrecision(billingAssetCode(bp))
-	grossAmount = grossAmount.Round(assetPrecision)
-
-	// Step 4: Apply discount on the already-rounded gross.
+	// Step 4: Apply discount on the gross amount. Amounts are kept at full
+	// decimal precision (the ledger is arbitrary-precision; P4-T23 found no
+	// lossy serialization boundary), so no asset-scale rounding is applied here.
 	netAmount, discount := fee.ApplyDiscount(grossAmount, totalEvents, bp.DiscountTiers)
 
-	// Step 4a: Round discount first, then derive net = gross - discount.
-	// This ensures net is always gross minus discount with no floating-point drift.
+	// Step 4a: Derive net = gross - discount so net is always gross minus discount.
 	if discount != nil {
-		discount.DiscountAmount = discount.DiscountAmount.Round(assetPrecision)
 		netAmount = grossAmount.Sub(discount.DiscountAmount)
 	}
 
@@ -537,14 +533,12 @@ func (s *BillingCalculateService) calculateMaintenance(
 		}, nil
 	}
 
-	// Step 2: Calculate net amount = feeAmount * accountCount.
-	// Round feeAmount to asset precision first so each per-account charge is precise.
+	// Step 2: Calculate net amount = feeAmount * accountCount. Amounts are kept
+	// at full decimal precision (no asset-scale rounding; P4-T23).
 	feeAmount := decimal.Zero
 	if bp.FeeAmount != nil {
 		feeAmount = *bp.FeeAmount
 	}
-
-	feeAmount = feeAmount.Round(fee.GetAssetPrecision(billingAssetCode(bp)))
 
 	netAmount := feeAmount.Mul(decimal.NewFromInt(int64(len(accounts))))
 
@@ -603,14 +597,4 @@ func buildSummary(results []model.BillingCalculationResult) model.BillingCalcula
 	}
 
 	return summary
-}
-
-// billingAssetCode safely extracts the asset code from a billing package,
-// returning an empty string when AssetCode is nil.
-func billingAssetCode(bp *model.BillingPackage) string {
-	if bp.AssetCode != nil {
-		return *bp.AssetCode
-	}
-
-	return ""
 }

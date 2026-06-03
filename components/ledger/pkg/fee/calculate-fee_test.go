@@ -258,91 +258,6 @@ func TestCalculateFee_InvalidFeeValue(t *testing.T) {
 	assert.Contains(t, err.Error(), "FEE-0044")
 }
 
-func TestIsRepeatingDecimal(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		value    decimal.Decimal
-		expected bool
-	}{
-		{
-			name:     "0.25 should not be repeating",
-			value:    decimal.NewFromFloat(0.25),
-			expected: false,
-		},
-		{
-			name:     "0.5 should not be repeating",
-			value:    decimal.NewFromFloat(0.5),
-			expected: false,
-		},
-		{
-			name:     "0.1 should not be repeating",
-			value:    decimal.NewFromFloat(0.1),
-			expected: false,
-		},
-		{
-			name:     "0.333333 should be repeating",
-			value:    decimal.NewFromFloat(1.0 / 3.0),
-			expected: true,
-		},
-		{
-			name:     "0.666666 should be repeating",
-			value:    decimal.NewFromFloat(2.0 / 3.0),
-			expected: true,
-		},
-		{
-			name:     "0.142857 should be repeating (1/7)",
-			value:    decimal.NewFromFloat(1.0 / 7.0),
-			expected: true,
-		},
-		{
-			name:     "0.75 should not be repeating",
-			value:    decimal.NewFromFloat(0.75),
-			expected: false,
-		},
-		{
-			name:     "0.125 should not be repeating",
-			value:    decimal.NewFromFloat(0.125),
-			expected: false,
-		},
-		{
-			name:     "0.0 should not be repeating",
-			value:    decimal.Zero,
-			expected: false,
-		},
-		{
-			name:     "1.0 should not be repeating",
-			value:    decimal.NewFromInt(1),
-			expected: false,
-		},
-		{
-			name:     "Integer without decimal part should not be repeating",
-			value:    decimal.NewFromInt(5),
-			expected: false,
-		},
-		{
-			name:     "0.090909 should be repeating",
-			value:    decimal.NewFromFloat(1.0 / 11.0),
-			expected: true,
-		},
-		{
-			name:     "0.166666 should be repeating",
-			value:    decimal.NewFromFloat(1.0 / 6.0),
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isRepeatingDecimal(tt.value)
-			if result != tt.expected {
-				t.Errorf("isRepeatingDecimal(%v) = %v, want %v", tt.value, result, tt.expected)
-			}
-		})
-	}
-}
-
 // TestFindPackageToCalculateFee tests all package search scenarios
 func TestFindPackageToCalculateFee(t *testing.T) {
 	route1 := "debitoted"
@@ -2177,7 +2092,13 @@ func TestCalculateFee_MaxBetweenTypes_PercentageGreaterThanFlat(t *testing.T) {
 
 // TestCalculateFee_Rounding verifies that fee values are rounded based on
 // asset precision (Half Up) BEFORE applyDeductibleAndReferenceAmountRules.
-func TestCalculateFee_Rounding(t *testing.T) {
+// TestCalculateFee_Unrounded locks the P4-T11 "emit unrounded" contract: with
+// the ISO-4217 precision table deleted, fees are NOT pre-rounded to any
+// asset scale — the computed value is emitted at full decimal precision. These
+// cases previously asserted Half-Up rounding to the (now-removed) table; they
+// now assert the exact arithmetic result. The asset code is carried purely as
+// the leg denomination (P4-T24), no longer as a precision-table key.
+func TestCalculateFee_Unrounded(t *testing.T) {
 	t.Parallel()
 
 	boolFalse := false
@@ -2192,7 +2113,7 @@ func TestCalculateFee_Rounding(t *testing.T) {
 		description     string
 	}{
 		{
-			name:            "percentual BRL 2% of 29.25 rounds 0.585 to 0.59",
+			name:            "percentual BRL 2% of 29.25 is 0.585 unrounded",
 			asset:           "BRL",
 			txValue:         "29.25",
 			applicationRule: constant.AppRulePercentual,
@@ -2200,11 +2121,11 @@ func TestCalculateFee_Rounding(t *testing.T) {
 				Type:  constant.FeeTypePercentage,
 				Value: "2",
 			}},
-			expectedFee: "0.59",
-			description: "BRL has 2 decimal places; 29.25 * 0.02 = 0.585 rounds to 0.59 (Half Up)",
+			expectedFee: "0.585",
+			description: "29.25 * 0.02 = 0.585 emitted unrounded (no asset-scale rounding)",
 		},
 		{
-			name:            "percentual BTC 2% of 0.12345678 keeps 8 decimal places",
+			name:            "percentual BTC 2% of 0.12345678 is 0.0024691356 unrounded",
 			asset:           "BTC",
 			txValue:         "0.12345678",
 			applicationRule: constant.AppRulePercentual,
@@ -2212,11 +2133,11 @@ func TestCalculateFee_Rounding(t *testing.T) {
 				Type:  constant.FeeTypePercentage,
 				Value: "2",
 			}},
-			expectedFee: "0.00246914",
-			description: "BTC has 8 decimal places; 0.12345678 * 0.02 = 0.0024691356 rounds to 0.00246914",
+			expectedFee: "0.0024691356",
+			description: "0.12345678 * 0.02 = 0.0024691356 emitted unrounded",
 		},
 		{
-			name:            "percentual JPY 7% of 999 rounds 69.93 to 70",
+			name:            "percentual JPY 7% of 999 is 69.93 unrounded",
 			asset:           "JPY",
 			txValue:         "999",
 			applicationRule: constant.AppRulePercentual,
@@ -2224,11 +2145,11 @@ func TestCalculateFee_Rounding(t *testing.T) {
 				Type:  constant.FeeTypePercentage,
 				Value: "7",
 			}},
-			expectedFee: "70",
-			description: "JPY has 0 decimal places; 999 * 0.07 = 69.93 rounds to 70 (Half Up)",
+			expectedFee: "69.93",
+			description: "999 * 0.07 = 69.93 emitted unrounded (no 0-dp JPY rounding)",
 		},
 		{
-			name:            "flatFee BRL fractional 0.585 rounds to 0.59",
+			name:            "flatFee BRL fractional 0.585 is 0.585 unrounded",
 			asset:           "BRL",
 			txValue:         "100",
 			applicationRule: constant.AppRuleFlatFee,
@@ -2236,11 +2157,11 @@ func TestCalculateFee_Rounding(t *testing.T) {
 				Type:  constant.FeeTypeFlat,
 				Value: "0.585",
 			}},
-			expectedFee: "0.59",
-			description: "BRL has 2 decimal places; flat fee 0.585 rounds to 0.59 (Half Up)",
+			expectedFee: "0.585",
+			description: "flat fee 0.585 emitted unrounded",
 		},
 		{
-			name:            "maxBetweenTypes BRL selects percentual 0.585 and rounds to 0.59",
+			name:            "maxBetweenTypes BRL selects percentual 0.585 unrounded",
 			asset:           "BRL",
 			txValue:         "29.25",
 			applicationRule: constant.AppRuleMaxBetweenTypes,
@@ -2254,8 +2175,8 @@ func TestCalculateFee_Rounding(t *testing.T) {
 					Value: "2",
 				},
 			},
-			expectedFee: "0.59",
-			description: "BRL has 2 decimal places; max(flat=0.50, 2% of 29.25=0.585) = 0.585 rounds to 0.59",
+			expectedFee: "0.585",
+			description: "max(flat=0.50, 2% of 29.25=0.585) = 0.585 emitted unrounded",
 		},
 	}
 
@@ -2339,9 +2260,9 @@ func TestCalculateFee_Rounding(t *testing.T) {
 
 			assert.True(t, feeFound, "fee entry not found in resp.From")
 
-			// Assert the fee value is correctly rounded
+			// Assert the fee value is emitted unrounded (full decimal precision).
 			assert.True(t, actualFeeValue.Equal(expectedFeeValue),
-				"[%s] fee value should be %s (rounded), got %s",
+				"[%s] fee value should be %s (unrounded), got %s",
 				tt.description, tt.expectedFee, actualFeeValue.String())
 
 			// Assert total = original + fee (since IsDeductibleFrom=false, fee is added)
@@ -2493,7 +2414,6 @@ func TestApplyFeeCorrection_ZeroDelta(t *testing.T) {
 	target := feeCorrectionTarget{
 		debitLegKey:  "@account1->fee0->r",
 		creditLegKey: "@fee_credit->fee_source0->@account1->r",
-		asset:        "BRL",
 		found:        true,
 	}
 
@@ -2560,7 +2480,6 @@ func TestApplyFeeCorrection_Deductible(t *testing.T) {
 	target := feeCorrectionTarget{
 		debitLegKey: legKey,
 		payerKey:    payerKey,
-		asset:       "BRL",
 		found:       true,
 	}
 

@@ -27,16 +27,23 @@ import (
 //
 //	sum(distributed fee legs) == fee total   (decimal.Equal, ZERO tolerance)
 //
-// The fee total is the per-fee amount AFTER rounding to the Send asset's
-// precision (calculate-fee.go:130). The distributed legs are the entries the
-// engine appends to resp.From (non-deductible fees) or resp.To (deductible
-// fees) whose synthetic key contains "fee". For non-deductible fees the engine
-// also mirrors a credit-side "fee_source" leg into resp.To; double-entry
-// requires the debit legs and the credit legs to each sum to the same total.
+// The fee total is the UNROUNDED per-fee amount: the ISO-4217 precision table
+// is deleted (P4-T11) and the engine emits legs at full decimal precision. The
+// invariant is therefore proven INDEPENDENT of any precision rule — it holds
+// solely because applyFeeCorrection reconciles the division residual onto the
+// max account's leg. The distributed legs are the entries the engine appends to
+// resp.From (non-deductible fees) or resp.To (deductible fees) whose synthetic
+// key contains "fee". For non-deductible fees the engine also mirrors a
+// credit-side "fee_source" leg into resp.To; double-entry requires the debit
+// legs and the credit legs to each sum to the same total.
 //
-// The matrix stresses applyFeeCorrection's rounding-residual reconciliation
-// (distribute.go:350) across asset precision, account count, fee shape,
-// deductibility, and repeating-decimal proportions.
+// The "asset precision" axis in the matrix below is now just a set of
+// transaction assets (JPY/0, BRL/2, KWD/3, BTC/8, ETH/18) carried as plain asset
+// codes — they are NOT precision-table keys anymore; the matrix proves
+// conservation holds across them with the table gone.
+//
+// The matrix stresses applyFeeCorrection's residual reconciliation across asset,
+// account count, fee shape, deductibility, and repeating-decimal proportions.
 //
 // boolPtr returns a pointer to b (model.Fee.IsDeductibleFrom is *bool).
 func boolPtr(b bool) *bool { return &b }
@@ -134,25 +141,26 @@ func sumFeeLegs(m map[string]transaction.Amount, includeSource bool) decimal.Dec
 	return total
 }
 
-// expectedFeeTotal re-derives the rounded fee total the same way CalculateFee
-// does: compute by application rule, then Round(Half-Up) to the Send asset's
-// precision (calculate-fee.go:128-130). Single-fee packages only.
-func expectedFeeTotal(t *testing.T, f model.Fee, sendValue decimal.Decimal, asset string) decimal.Decimal {
+// expectedFeeTotal re-derives the fee total the same way CalculateFee does:
+// compute by application rule, UNROUNDED. The ISO-4217 precision table is
+// deleted (P4-T11) and no per-leg or per-total asset-scale rounding is applied;
+// the residual-to-max reconciliation in applyFeeCorrection holds sum(legs) ==
+// this total exactly under decimal.Equal, independent of any precision rule.
+// Single-fee packages only.
+func expectedFeeTotal(t *testing.T, f model.Fee, sendValue decimal.Decimal, _ string) decimal.Decimal {
 	t.Helper()
-
-	precision := GetAssetPrecision(asset)
 
 	switch f.CalculationModel.ApplicationRule {
 	case constant.AppRuleFlatFee:
 		v, err := decimal.NewFromString(f.CalculationModel.Calculations[0].Value)
 		require.NoError(t, err)
 
-		return v.Round(precision)
+		return v
 	case constant.AppRulePercentual:
 		pct, err := decimal.NewFromString(f.CalculationModel.Calculations[0].Value)
 		require.NoError(t, err)
 
-		return sendValue.Mul(pct.Div(decimal.NewFromInt(100))).Round(precision)
+		return sendValue.Mul(pct.Div(decimal.NewFromInt(100)))
 	case constant.AppRuleMaxBetweenTypes:
 		var maxVal decimal.Decimal
 
@@ -169,7 +177,7 @@ func expectedFeeTotal(t *testing.T, f model.Fee, sendValue decimal.Decimal, asse
 			}
 		}
 
-		return maxVal.Round(precision)
+		return maxVal
 	default:
 		t.Fatalf("unsupported application rule %q", f.CalculationModel.ApplicationRule)
 
