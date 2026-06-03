@@ -23,6 +23,10 @@ import (
 type TransactionHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase
+	// FeeApplier drives the in-process fee engine inside the create seam. It is
+	// injected at bootstrap from the fee use case; a nil applier disables fee
+	// application (the create path stays unchanged).
+	FeeApplier FeeApplier
 }
 
 // CreateTransactionJSON method that create transaction using JSON

@@ -1017,6 +1017,19 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 
 	// Idempotency: extract key/TTL from HTTP headers, hash the request body,
 	// then check or claim the idempotency slot in Redis.
+	//
+	// The hash is intentionally computed over the RAW pre-fee payload (before
+	// the fee seam below mutates transactionInput.Send). Fees are deterministic
+	// given the same raw input + the same package configuration, so the raw
+	// body is the stable identity of the request. Two consequences are accepted
+	// by design (P4-T15): (1) package-config churn — if package config changes
+	// between two identical-key requests, the replay returns the FIRST
+	// fee-inclusive result (idempotency wins over recomputation); (2)
+	// deleted-package near-miss — a NON-replay request (different key, same
+	// body) issued after a package DELETE recomputes against the now-deleted
+	// package and yields a different fee outcome, which is correct because the
+	// hash keys on the raw body, not the package version. Package version is
+	// deliberately NOT part of the key.
 	idempotencyKey, idempotencyTTL := http.GetIdempotencyKeyAndTTL(c)
 
 	ts, err := libCommons.StructToJSONString(transactionInput)
@@ -1042,10 +1055,49 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.Created(c, *idempotencyResult.Replay)
 	}
 
+	// First validate: rejects malformed source/distribute on the RAW input
+	// before fees are computed. Its Responses value is intentionally superseded
+	// by the post-fee re-validation below (the fee engine mutates the send), so
+	// only the error is consumed here. The binding is kept (not `_, err`) to
+	// preserve the single-`:=`/single-`=` seam shape the structural gate
+	// (transaction_fee_seam_structure_test.go) enforces.
+	//nolint:staticcheck,wastedassign // first validate's value is deliberately superseded by the post-fee re-validation; only its error gates malformed input before fees run.
 	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
+
+		err = pkg.HandleKnownBusinessValidationErrors(err)
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+
+		return http.WithError(c, err)
+	}
+
+	// Fee seam: drive the in-process fee engine over the validated transaction,
+	// mutating transactionInput.Send.* (fee legs + moved Send.Value on
+	// deductible fees). No-op on isRevert (the reverse transaction already
+	// carries reversed fee legs from TransactionRevert). Runs BEFORE
+	// GetParsedLedgerSettings so the single validate reassignment below happens
+	// upstream of PropagateRouteValidation: that mutator then decorates the
+	// post-fee validate, and every downstream consumer reads the same pointer.
+	if err = handler.applyFees(ctx, &transactionInput, params.OrganizationID, params.LedgerID, isRevert); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to apply fees", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to apply fees", libLog.Err(err))
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+
+		return http.WithError(c, err)
+	}
+
+	// Re-run validation on the fee-mutated input. This is a single = reassignment
+	// of the existing validate variable (a *mtransaction.Responses pointer), so
+	// the fee-inclusive state by construction reaches every downstream reader of
+	// validate through WriteTransaction. It MUST NOT be a := rebind.
+	validate, err = mtransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate fee-inclusive send source and distribute", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate fee-inclusive send source and distribute", libLog.Err(err))
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
 

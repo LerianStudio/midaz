@@ -795,7 +795,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	accountTypeHandler := &httpin.AccountTypeHandler{Command: commandUseCase, Query: queryUseCase}
 
 	// Transaction handlers
-	transactionHandler := &httpin.TransactionHandler{Command: commandUseCase, Query: queryUseCase}
+	transactionHandler := &httpin.TransactionHandler{Command: commandUseCase, Query: queryUseCase, FeeApplier: fees.useCase}
 	operationHandler := &httpin.OperationHandler{Command: commandUseCase, Query: queryUseCase}
 	assetRateHandler := &httpin.AssetRateHandler{Command: commandUseCase, Query: queryUseCase}
 	balanceHandler := &httpin.BalanceHandler{Command: commandUseCase, Query: queryUseCase}

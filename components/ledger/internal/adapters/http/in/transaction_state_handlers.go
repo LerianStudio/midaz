@@ -430,6 +430,13 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
+	// No fee seam here (P4-T13). tran.Body was persisted by the create path
+	// (executeCreateTransaction), which already applied fees and persisted the
+	// fee legs as real operations. So transactionInput == tran.Body is already
+	// fee-inclusive, and this validate runs over the fee-inclusive shape.
+	// Calling applyFees on commit/cancel would charge the fee a second time
+	// (double-charge). Cancel routes the held legs — including fees — back via
+	// the cancel/refund path (P4-T14), not a re-charge. Do NOT call applyFees.
 	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
