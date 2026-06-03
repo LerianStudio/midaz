@@ -217,25 +217,17 @@ var (
 	ErrUpdateOfInternalBalance = errors.New("0175")
 )
 
-// List of CRM errors.
-// Errors with "CRM" suffix have generic equivalents and are used for error code mapping.
+// List of CRM domain errors.
+// These are CRM-specific domain error codes with no generic equivalent. The 12
+// dead 1:1 mapping codes (former CRM-0001..0005/0007/0009/0011/0012/0014..0016)
+// were removed when the standalone CRM error-code transformer was deleted (PD-2);
+// clients now receive canonical midaz codes. Gaps in the CRM-00xx sequence are
+// intentional - these are independent sentinels, not an ordered array.
 var (
-	ErrInvalidMetadataNestingCRM       = errors.New("CRM-0001")
-	ErrMetadataKeyLengthExceededCRM    = errors.New("CRM-0002")
-	ErrMissingFieldsInRequestCRM       = errors.New("CRM-0003")
-	ErrInvalidFieldTypeInRequest       = errors.New("CRM-0004")
-	ErrInvalidPathParameterCRM         = errors.New("CRM-0005")
 	ErrHolderNotFound                  = errors.New("CRM-0006")
-	ErrUnexpectedFieldsInTheRequestCRM = errors.New("CRM-0007")
 	ErrAliasNotFound                   = errors.New("CRM-0008")
-	ErrPaginationLimitExceededCRM      = errors.New("CRM-0009")
 	ErrDocumentAssociationError        = errors.New("CRM-0010")
-	ErrInvalidSortOrderCRM             = errors.New("CRM-0011")
-	ErrMetadataValueLengthExceededCRM  = errors.New("CRM-0012")
 	ErrAccountAlreadyAssociated        = errors.New("CRM-0013")
-	ErrInternalServerCRM               = errors.New("CRM-0014")
-	ErrBadRequestCRM                   = errors.New("CRM-0015")
-	ErrInvalidQueryParameterCRM        = errors.New("CRM-0016")
 	ErrHolderHasAliases                = errors.New("CRM-0017")
 	ErrMissingHeadersInRequest         = errors.New("CRM-0018")
 	ErrMetadataQueryInvalidFormat      = errors.New("CRM-0019")

@@ -304,23 +304,11 @@ Manages holders, aliases, related parties. Uses MongoDB for persistence. Support
 - `0174` ErrStaleBalanceVersion — balance modified between read and write (retry needed)
 - `0175` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
 
-#### CRM Error Codes (all 29)
-- `CRM-0001` ErrInvalidMetadataNestingCRM — nested metadata not allowed
-- `CRM-0002` ErrMetadataKeyLengthExceededCRM — key too long
-- `CRM-0003` ErrMissingFieldsInRequestCRM — required fields missing
-- `CRM-0004` ErrInvalidFieldTypeInRequest — wrong field type
-- `CRM-0005` ErrInvalidPathParameterCRM — invalid path parameter
+#### CRM Error Codes (all 17)
 - `CRM-0006` ErrHolderNotFound — holder not found
-- `CRM-0007` ErrUnexpectedFieldsInTheRequestCRM — unexpected fields
 - `CRM-0008` ErrAliasNotFound — alias not found
-- `CRM-0009` ErrPaginationLimitExceededCRM — pagination limit exceeded
 - `CRM-0010` ErrDocumentAssociationError — document association error
-- `CRM-0011` ErrInvalidSortOrderCRM — invalid sort order
-- `CRM-0012` ErrMetadataValueLengthExceededCRM — value too long
 - `CRM-0013` ErrAccountAlreadyAssociated — account already associated
-- `CRM-0014` ErrInternalServerCRM — internal server error
-- `CRM-0015` ErrBadRequestCRM — bad request
-- `CRM-0016` ErrInvalidQueryParameterCRM — invalid query parameter
 - `CRM-0017` ErrHolderHasAliases — holder has aliases (cannot delete)
 - `CRM-0018` ErrMissingHeadersInRequest — required headers missing
 - `CRM-0019` ErrMetadataQueryInvalidFormat — metadata query format error
