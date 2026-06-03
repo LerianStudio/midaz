@@ -178,12 +178,58 @@ services:
     networks:
       - infra-network
 
+  # SeaweedFS — S3-compatible object store for reporter-worker rendered PDFs +
+  # binary templates. Reporter-only, net-new in P8. Runs the all-in-one server
+  # in S3 mode; the reporter-worker points OBJECT_STORAGE_ENDPOINT at
+  # http://midaz-seaweedfs:8333 over infra-network.
+  midaz-seaweedfs:
+    container_name: midaz-seaweedfs
+    image: chrislusf/seaweedfs:4.05
+    restart: always
+    command: >
+      server -s3 -dir=/data
+      -s3.port=${SEAWEEDFS_S3_PORT}
+      -s3.config=/etc/seaweedfs/s3.json
+      -master.port=${SEAWEEDFS_MASTER_PORT}
+    ports:
+      - ${SEAWEEDFS_S3_PORT}:${SEAWEEDFS_S3_PORT}
+      - ${SEAWEEDFS_MASTER_PORT}:${SEAWEEDFS_MASTER_PORT}
+    # Probe 127.0.0.1 (not localhost): SeaweedFS binds the master to IPv4 only,
+    # and busybox wget resolves localhost to [::1] first → connection refused.
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:${SEAWEEDFS_MASTER_PORT}/cluster/status || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    volumes:
+      - ./seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+      - seaweedfs-data:/data
+    networks:
+      - infra-network
+
+  # KEDA — event-driven autoscaler for the reporter-worker (RabbitMQ queue-depth
+  # scaling). KEDA is a Kubernetes operator: it needs a cluster API to do
+  # anything, so it is NOT part of the default single-host `make up` bring-up.
+  # It is staged here under the `keda` compose profile so the definition lives in
+  # the unified compose, validates, and joins infra-network — enable explicitly
+  # with `docker compose --profile keda up` when targeting a local k8s.
+  midaz-keda:
+    container_name: midaz-keda
+    image: ghcr.io/kedacore/keda:2.16.0
+    restart: always
+    profiles:
+      - keda
+    networks:
+      - infra-network
+
 volumes:
   postgres-data:
   postgres-replica-data:
   redis-data:
   grafana-data:
   mongodb-data:
+  seaweedfs-data:
 
 networks:
   infra-network:
