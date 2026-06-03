@@ -90,14 +90,32 @@ func TestKeyNamespacing_MalformedTenantID_FailsClosedBalanceSyncScripts(t *testi
 
 }
 
-func TestKeyNamespacing_MalformedTenantID_FailsClosedGetBalancesByKeys(t *testing.T) {
+// TestGetBalancesByKeys_MultiTenant_NoDoubleNamespacing is a regression test for the
+// balance-sync multi-tenant bug where the flush/read path re-namespaced keys that were
+// already tenant-namespaced at write/claim time, producing "tenant:{id}:tenant:{id}:..."
+// and causing every MGET to miss (live balances silently dropped as orphans).
+//
+// The keys handed to GetBalancesByKeys are the claimed ZSET members — already
+// fully-qualified Redis keys — so they must reach MGET verbatim, even with a tenant
+// in context.
+func TestGetBalancesByKeys_MultiTenant_NoDoubleNamespacing(t *testing.T) {
 	t.Parallel()
 
-	mockClient := &mockMGetClient{
-		mGetFunc: func(_ context.Context, _ ...string) *redis.SliceCmd {
-			t.Fatal("GetBalancesByKeys must fail closed before calling MGet")
+	// Member as written once by balance_atomic_operation.lua: prefixed exactly one time.
+	const namespacedMember = "tenant:acme:balance:{transactions}:org:ledger:@alias#default"
 
-			return nil
+	validJSON := `{"id":"uuid-mt","alias":"@alias","key":"default","accountId":"acc-mt","assetCode":"USD","available":"42.00","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
+
+	var capturedKeys []string
+
+	mockClient := &mockMGetClient{
+		mGetFunc: func(_ context.Context, keys ...string) *redis.SliceCmd {
+			capturedKeys = append(capturedKeys, keys...)
+
+			cmd := redis.NewSliceCmd(context.Background())
+			cmd.SetVal([]any{validJSON})
+
+			return cmd
 		},
 	}
 
@@ -105,8 +123,18 @@ func TestKeyNamespacing_MalformedTenantID_FailsClosedGetBalancesByKeys(t *testin
 		conn: newMockMGetConnection(mockClient),
 	}
 
-	_, err := repo.GetBalancesByKeys(tmcore.ContextWithTenantID(context.Background(), "tenant:invalid"), []string{"key1", "key2"})
-	require.Error(t, err)
+	ctx := tmcore.ContextWithTenantID(context.Background(), "acme")
+
+	result, err := repo.GetBalancesByKeys(ctx, []string{namespacedMember})
+	require.NoError(t, err)
+
+	// MGET must receive the already-namespaced key unchanged (NOT double-prefixed).
+	require.Equal(t, []string{namespacedMember}, capturedKeys,
+		"claimed member must reach MGET verbatim; re-prefixing would cause a miss")
+
+	// The value must be found (no false orphan) and keyed by the input member.
+	require.NotNil(t, result[namespacedMember], "balance value must be found for the namespaced key")
+	assert.Equal(t, "uuid-mt", result[namespacedMember].ID)
 }
 
 func TestKeyNamespacing_MalformedTenantID_FailsClosedBatchScheduleAndRemove(t *testing.T) {
