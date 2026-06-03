@@ -242,17 +242,10 @@ lint:
 		echo "No Go files found in $(LEDGER_DIR), skipping linting"; \
 	fi
 	@echo "Checking for Go files in $(TESTS_DIR)..."
-	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
-	if [ -d "$(TESTS_DIR)" ]; then \
+	@if [ -d "$(TESTS_DIR)" ]; then \
 		if find "$(TESTS_DIR)" -name "*.go" -type f | grep -q .; then \
 			echo "Linting in $(TESTS_DIR)..."; \
-			if ! command -v golangci-lint >/dev/null 2>&1; then \
-				echo "golangci-lint not found, installing..."; \
-				go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
-			else \
-				echo "golangci-lint already installed ✔️"; \
-			fi; \
-			(cd $(TESTS_DIR) && golangci-lint run --fix --build-tags=integration ./... --verbose) || exit 1; \
+			(cd $(TESTS_DIR) && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run --build-tags=integration ./... --verbose) || exit 1; \
 		else \
 			echo "No Go files found in $(TESTS_DIR), skipping linting"; \
 		fi; \
@@ -260,17 +253,10 @@ lint:
 		echo "No tests directory found at $(TESTS_DIR), skipping linting"; \
 	fi
 	@echo "Checking for Go files in $(PKG_DIR)..."
-	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
-	if [ -d "$(PKG_DIR)" ]; then \
+	@if [ -d "$(PKG_DIR)" ]; then \
 		if find "$(PKG_DIR)" -name "*.go" -type f | grep -q .; then \
 			echo "Linting in $(PKG_DIR)..."; \
-			if ! command -v golangci-lint >/dev/null 2>&1; then \
-				echo "golangci-lint not found, installing..."; \
-				go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
-			else \
-				echo "golangci-lint already installed ✔️"; \
-			fi; \
-			(cd $(PKG_DIR) && golangci-lint run --fix ./... --verbose) || exit 1; \
+			(cd $(PKG_DIR) && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run ./... --verbose) || exit 1; \
 		else \
 			echo "No Go files found in $(PKG_DIR), skipping linting"; \
 		fi; \
@@ -278,6 +264,44 @@ lint:
 		echo "No pkg directory found at $(PKG_DIR), skipping linting"; \
 	fi
 	@echo "[ok] Linting completed successfully"
+
+# lint-fix runs golangci-lint with --fix across the same scope as `lint`.
+# This MUTATES source — it is a developer convenience, NOT a gate. The `lint`
+# target above is read-only so a clean checkout is verified without mutation.
+.PHONY: lint-fix
+lint-fix:
+	$(call print_title,Applying lint autofixes on all components)
+	@for dir in $(COMPONENTS); do \
+		echo "Checking for Go files in $$dir..."; \
+		if find "$$dir" -name "*.go" -type f | grep -q .; then \
+			echo "Fixing in $$dir..."; \
+			(cd $$dir && $(MAKE) lint-fix) || exit 1; \
+		else \
+			echo "No Go files found in $$dir, skipping"; \
+		fi; \
+	done
+	@echo "Checking for Go files in $(LEDGER_DIR)..."
+	@if find "$(LEDGER_DIR)" -name "*.go" -type f | grep -q .; then \
+		echo "Fixing in $(LEDGER_DIR)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) lint-fix) || exit 1; \
+	else \
+		echo "No Go files found in $(LEDGER_DIR), skipping"; \
+	fi
+	@echo "Checking for Go files in $(TESTS_DIR)..."
+	@if [ -d "$(TESTS_DIR)" ] && find "$(TESTS_DIR)" -name "*.go" -type f | grep -q .; then \
+		echo "Fixing in $(TESTS_DIR)..."; \
+		(cd $(TESTS_DIR) && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run --fix --build-tags=integration ./... --verbose) || exit 1; \
+	else \
+		echo "No Go files found in $(TESTS_DIR), skipping"; \
+	fi
+	@echo "Checking for Go files in $(PKG_DIR)..."
+	@if [ -d "$(PKG_DIR)" ] && find "$(PKG_DIR)" -name "*.go" -type f | grep -q .; then \
+		echo "Fixing in $(PKG_DIR)..."; \
+		(cd $(PKG_DIR) && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run --fix ./... --verbose) || exit 1; \
+	else \
+		echo "No Go files found in $(PKG_DIR), skipping"; \
+	fi
+	@echo "[ok] Lint autofixes applied"
 
 .PHONY: format
 format:

@@ -225,9 +225,11 @@ func (m *realMultiTenantMetrics) adjustActive(tenantID, module string, delta int
 			// concurrent increments.
 			if next == 0 && delta < 0 {
 				m.activeMu.Lock()
+
 				if existing, exists := m.active[key]; exists && existing == p && atomic.LoadInt64(existing) == 0 {
 					delete(m.active, key)
 				}
+
 				m.activeMu.Unlock()
 			}
 

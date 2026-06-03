@@ -5,6 +5,9 @@ SERVICE_NAME := infra-service
 BIN_DIR := ./.bin
 ARTIFACTS_DIR := ./artifacts
 
+# Pinned tool versions — keep in sync with .github/workflows/go-combined-analysis.yml
+GOLANGCI_LINT_VERSION := v2.4.0
+
 # Ensure artifacts directory exists
 $(shell mkdir -p $(ARTIFACTS_DIR))
 
@@ -71,16 +74,20 @@ test:
 .PHONY: lint
 lint:
 	$(call title1,"Running linters")
-	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
-	if find . -name "*.go" -type f | grep -q .; then \
-		if ! command -v golangci-lint >/dev/null 2>&1; then \
-			echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
-			go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0; \
-		fi; \
-		golangci-lint run --fix ./... --verbose && \
+	@if find . -name "*.go" -type f | grep -q .; then \
+		go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run ./... --verbose && \
 		echo "$(GREEN)$(BOLD)[ok]$(NC) Linting completed successfully$(GREEN) ✔️$(NC)"; \
 	else \
 		echo "$(YELLOW)No Go files found, skipping linting$(NC)"; \
+	fi
+
+.PHONY: lint-fix
+lint-fix:
+	$(call title1,"Applying lint autofixes (mutates source)")
+	@if find . -name "*.go" -type f | grep -q .; then \
+		go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run --fix ./... --verbose; \
+	else \
+		echo "$(YELLOW)No Go files found, skipping$(NC)"; \
 	fi
 
 .PHONY: format

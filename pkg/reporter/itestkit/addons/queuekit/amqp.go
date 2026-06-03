@@ -340,6 +340,7 @@ func (p *AMQPPublisher) Publish(ctx context.Context, exchange string, body []byt
 		false, // immediate
 		publishing,
 	)
+
 	p.mu.Unlock()
 
 	return err

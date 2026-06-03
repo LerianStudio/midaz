@@ -111,8 +111,6 @@ func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) pk
 }
 
 // initValidator initializes the validator singleton. Called once via sync.Once.
-//
-//nolint:gocyclo // Validator initialization registers many custom validations sequentially
 func initValidator() {
 	locale := en.New()
 	uni := ut.New(locale, locale)

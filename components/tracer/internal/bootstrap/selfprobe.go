@@ -108,7 +108,7 @@ func RunSelfProbe(ctx context.Context, checks SelfProbeChecks, recorder *observa
 
 	sort.Strings(names)
 
-	var failed []string
+	failed := make([]string, 0, len(names))
 
 	for _, name := range names {
 		checker := checks[name]
