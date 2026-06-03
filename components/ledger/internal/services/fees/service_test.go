@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
+	pkg "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -21,12 +21,12 @@ func TestNewUseCase(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPackRepo := pack.NewMockRepository(ctrl)
-	mockMidazSvc := http.NewMockMidazClient(ctrl)
+	mockResolver := pkg.NewMockMidazResolver(ctrl)
 
 	tests := []struct {
 		name            string
 		packageRepo     pack.Repository
-		midazClient     http.MidazClient
+		resolver        pkg.MidazResolver
 		defaultCurrency string
 		wantErr         bool
 		errContains     string
@@ -34,30 +34,30 @@ func TestNewUseCase(t *testing.T) {
 		{
 			name:            "Success - all dependencies provided",
 			packageRepo:     mockPackRepo,
-			midazClient:     mockMidazSvc,
+			resolver:        mockResolver,
 			defaultCurrency: "BRL",
 			wantErr:         false,
 		},
 		{
 			name:            "Error - nil PackageRepo",
 			packageRepo:     nil,
-			midazClient:     mockMidazSvc,
+			resolver:        mockResolver,
 			defaultCurrency: "BRL",
 			wantErr:         true,
 			errContains:     "PackageRepo",
 		},
 		{
-			name:            "Error - nil MidazClient",
+			name:            "Error - nil MidazResolver",
 			packageRepo:     mockPackRepo,
-			midazClient:     nil,
+			resolver:        nil,
 			defaultCurrency: "BRL",
 			wantErr:         true,
-			errContains:     "MidazClient",
+			errContains:     "MidazResolver",
 		},
 		{
 			name:            "Error - empty DefaultCurrency",
 			packageRepo:     mockPackRepo,
-			midazClient:     mockMidazSvc,
+			resolver:        mockResolver,
 			defaultCurrency: "",
 			wantErr:         true,
 			errContains:     "DefaultCurrency",
@@ -68,7 +68,7 @@ func TestNewUseCase(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			uc, err := NewUseCase(tt.packageRepo, tt.midazClient, tt.defaultCurrency)
+			uc, err := NewUseCase(tt.packageRepo, tt.resolver, tt.defaultCurrency)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -78,7 +78,7 @@ func TestNewUseCase(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, uc)
 				assert.Equal(t, tt.packageRepo, uc.PackageRepo())
-				assert.Equal(t, tt.midazClient, uc.MidazClient())
+				assert.Equal(t, tt.resolver, uc.Resolver())
 				assert.Equal(t, tt.defaultCurrency, uc.DefaultCurrency())
 			}
 		})

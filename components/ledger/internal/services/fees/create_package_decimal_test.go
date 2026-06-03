@@ -10,7 +10,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
+	pkg "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -24,12 +24,12 @@ func TestCreatePackage_InvalidDecimalMinAmount(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPackRepo := pack.NewMockRepository(ctrl)
-	mockMidazSvc := http.NewMockMidazClient(ctrl)
+	mockResolver := pkg.NewMockMidazResolver(ctrl)
 	enableFlag := true
 
 	packSvc := &UseCase{
 		packageRepo: mockPackRepo,
-		midazClient: mockMidazSvc,
+		resolver:    mockResolver,
 	}
 
 	tests := []struct {
@@ -95,8 +95,8 @@ func TestCreatePackage_InvalidDecimalMinAmount(t *testing.T) {
 			}
 
 			// Midaz validation passes, range validation passes (mocked)
-			mockMidazSvc.EXPECT().
-				GetAccountFromMidazByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			mockResolver.EXPECT().
+				AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(nil).
 				AnyTimes()
 

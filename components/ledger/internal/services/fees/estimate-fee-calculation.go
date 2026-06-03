@@ -97,9 +97,9 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 
 	segCtx := &feeUtils.SegmentContext{
 		Ctx:            ctx,
-		MidazClient:    uc.midazClient,
-		OrganizationID: organizationID.String(),
-		LedgerID:       cf.LedgerID.String(),
+		Resolver:       uc.resolver,
+		OrganizationID: organizationID,
+		LedgerID:       cf.LedgerID,
 	}
 
 	errCalculateFee := feeUtils.CalculateFee(logger, feeModel, packModel, validationResult, uc.defaultCurrency, segCtx)

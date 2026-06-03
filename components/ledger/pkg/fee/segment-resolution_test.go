@@ -8,58 +8,67 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
-	pkghttp "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
+	pkg "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
-// mockSegmentMidazClient is a hand-rolled test double for pkghttp.MidazClient,
-// following the same pattern as mockMidazClient in internal/cache/account_cache_test.go.
-type mockSegmentMidazClient struct {
-	getAccountDetailsFn func(ctx context.Context, orgID, ledgerID, alias string) (*pkg.Account, error)
-	callCount           int
+// testOrgID and testLedgerID are fixed IDs used by the segment-resolution tests.
+var (
+	testOrgID    = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	testLedgerID = uuid.MustParse("22222222-2222-2222-2222-222222222222")
+)
+
+// mockSegmentResolver is a hand-rolled test double for pkg.MidazResolver,
+// exercising only the GetAccountByAlias path used by isAccountExemptWithSegments.
+type mockSegmentResolver struct {
+	getAccountFn func(ctx context.Context, orgID, ledgerID uuid.UUID, alias string) (*pkg.Account, error)
+	callCount    int
 }
 
-func (m *mockSegmentMidazClient) GetAccountDetailsByAlias(
+func (m *mockSegmentResolver) GetAccountByAlias(
 	ctx context.Context,
-	orgID, ledgerID, alias string,
+	orgID, ledgerID uuid.UUID,
+	alias string,
 ) (*pkg.Account, error) {
 	m.callCount++
-	if m.getAccountDetailsFn != nil {
-		return m.getAccountDetailsFn(ctx, orgID, ledgerID, alias)
+	if m.getAccountFn != nil {
+		return m.getAccountFn(ctx, orgID, ledgerID, alias)
 	}
 
 	return nil, nil
 }
 
-func (m *mockSegmentMidazClient) GetAccountFromMidazByAlias(
+func (m *mockSegmentResolver) AccountExistsByAlias(
 	_ context.Context,
-	_, _, _ string,
+	_, _ uuid.UUID,
+	_ string,
 ) error {
 	return nil
 }
 
-func (m *mockSegmentMidazClient) CountTransactionsByRoute(
+func (m *mockSegmentResolver) ListAccounts(
 	_ context.Context,
-	_ pkghttp.CountParams,
+	_, _ uuid.UUID,
+	_, _ *uuid.UUID,
+) ([]pkg.Account, error) {
+	return nil, nil
+}
+
+func (m *mockSegmentResolver) CountTransactionsByRoute(
+	_ context.Context,
+	_, _ uuid.UUID,
+	_, _ string,
+	_, _ time.Time,
 ) (int64, error) {
 	return 0, nil
 }
 
-func (m *mockSegmentMidazClient) ListAccounts(
-	_ context.Context,
-	_, _ uuid.UUID,
-	_ pkghttp.AccountFilters,
-	_, _ int,
-) (*pkghttp.AccountPage, error) {
-	return nil, nil
-}
-
-// Compile-time assertion: mockSegmentMidazClient implements pkghttp.MidazClient.
-var _ pkghttp.MidazClient = (*mockSegmentMidazClient)(nil)
+// Compile-time assertion: mockSegmentResolver implements pkg.MidazResolver.
+var _ pkg.MidazResolver = (*mockSegmentResolver)(nil)
 
 // segmentUUID returns a fixed, deterministic UUID for use in test cases.
 func segmentUUID(s string) uuid.UUID {
@@ -278,7 +287,7 @@ func TestIsAccountExemptWithSegments_DirectAliasMatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &mockSegmentMidazClient{}
+			resolver := &mockSegmentResolver{}
 			aliases := tt.directAliases
 
 			got, gotExemptErr := isAccountExemptWithSegments(
@@ -286,13 +295,13 @@ func TestIsAccountExemptWithSegments_DirectAliasMatch(t *testing.T) {
 				tt.account,
 				&aliases,
 				nil,
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.NoError(t, gotExemptErr)
 			assert.Equal(t, tt.wantExempt, got)
-			assert.Equal(t, tt.wantCalls, client.callCount,
+			assert.Equal(t, tt.wantCalls, resolver.callCount,
 				"MidazClient must not be called when direct alias match resolves the check")
 		})
 	}
@@ -319,7 +328,7 @@ func TestIsAccountExemptWithSegments_NoSegmentIDs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &mockSegmentMidazClient{}
+			resolver := &mockSegmentResolver{}
 			aliases := []string{"other-account"}
 
 			got, gotExemptErr := isAccountExemptWithSegments(
@@ -327,13 +336,13 @@ func TestIsAccountExemptWithSegments_NoSegmentIDs(t *testing.T) {
 				tt.account,
 				&aliases,
 				[]uuid.UUID{},
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.NoError(t, gotExemptErr)
 			assert.Equal(t, tt.wantExempt, got)
-			assert.Equal(t, tt.wantCalls, client.callCount)
+			assert.Equal(t, tt.wantCalls, resolver.callCount)
 		})
 	}
 }
@@ -347,7 +356,7 @@ func TestIsAccountExemptWithSegments_SegmentMatch(t *testing.T) {
 		name       string
 		account    string
 		segmentIDs []uuid.UUID
-		accountFn  func(ctx context.Context, orgID, ledgerID, alias string) (*pkg.Account, error)
+		accountFn  func(ctx context.Context, orgID, ledgerID uuid.UUID, alias string) (*pkg.Account, error)
 		wantExempt bool
 		wantCalls  int
 	}{
@@ -355,7 +364,7 @@ func TestIsAccountExemptWithSegments_SegmentMatch(t *testing.T) {
 			name:       "account whose segmentID matches a waived segment returns true",
 			account:    "target-account",
 			segmentIDs: []uuid.UUID{seg1},
-			accountFn: func(_ context.Context, _, _, _ string) (*pkg.Account, error) {
+			accountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*pkg.Account, error) {
 				return &pkg.Account{
 					ID:        "acc-001",
 					Alias:     "target-account",
@@ -371,7 +380,7 @@ func TestIsAccountExemptWithSegments_SegmentMatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &mockSegmentMidazClient{getAccountDetailsFn: tt.accountFn}
+			resolver := &mockSegmentResolver{getAccountFn: tt.accountFn}
 			aliases := []string{}
 
 			got, gotExemptErr := isAccountExemptWithSegments(
@@ -379,13 +388,13 @@ func TestIsAccountExemptWithSegments_SegmentMatch(t *testing.T) {
 				tt.account,
 				&aliases,
 				tt.segmentIDs,
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.NoError(t, gotExemptErr)
 			assert.Equal(t, tt.wantExempt, got)
-			assert.Equal(t, tt.wantCalls, client.callCount)
+			assert.Equal(t, tt.wantCalls, resolver.callCount)
 		})
 	}
 }
@@ -400,14 +409,14 @@ func TestIsAccountExemptWithSegments_SegmentNoMatch(t *testing.T) {
 		name       string
 		account    string
 		segmentIDs []uuid.UUID
-		accountFn  func(ctx context.Context, orgID, ledgerID, alias string) (*pkg.Account, error)
+		accountFn  func(ctx context.Context, orgID, ledgerID uuid.UUID, alias string) (*pkg.Account, error)
 		wantExempt bool
 	}{
 		{
 			name:       "account whose segmentID does not match any waived segment returns false",
 			account:    "target-account",
 			segmentIDs: []uuid.UUID{waivedSeg},
-			accountFn: func(_ context.Context, _, _, _ string) (*pkg.Account, error) {
+			accountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*pkg.Account, error) {
 				return &pkg.Account{
 					ID:        "acc-002",
 					Alias:     "target-account",
@@ -422,7 +431,7 @@ func TestIsAccountExemptWithSegments_SegmentNoMatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &mockSegmentMidazClient{getAccountDetailsFn: tt.accountFn}
+			resolver := &mockSegmentResolver{getAccountFn: tt.accountFn}
 			aliases := []string{}
 
 			got, gotExemptErr := isAccountExemptWithSegments(
@@ -430,8 +439,8 @@ func TestIsAccountExemptWithSegments_SegmentNoMatch(t *testing.T) {
 				tt.account,
 				&aliases,
 				tt.segmentIDs,
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.NoError(t, gotExemptErr)
@@ -463,8 +472,8 @@ func TestIsAccountExemptWithSegments_MidazClientError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &mockSegmentMidazClient{
-				getAccountDetailsFn: func(_ context.Context, _, _, _ string) (*pkg.Account, error) {
+			resolver := &mockSegmentResolver{
+				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*pkg.Account, error) {
 					return nil, tt.clientErr
 				},
 			}
@@ -475,8 +484,8 @@ func TestIsAccountExemptWithSegments_MidazClientError(t *testing.T) {
 				tt.account,
 				&aliases,
 				tt.segmentIDs,
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.Error(t, gotExemptErr)
@@ -517,7 +526,7 @@ func TestIsAccountExemptWithSegments_NilMidazClient(t *testing.T) {
 				&aliases,
 				tt.segmentIDs,
 				nil,
-				"org-1", "led-1",
+				testOrgID, testLedgerID,
 			)
 
 			assert.NoError(t, gotExemptErr)
@@ -549,8 +558,8 @@ func TestIsAccountExemptWithSegments_AccountHasNilSegmentID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &mockSegmentMidazClient{
-				getAccountDetailsFn: func(_ context.Context, _, _, _ string) (*pkg.Account, error) {
+			resolver := &mockSegmentResolver{
+				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*pkg.Account, error) {
 					return &pkg.Account{
 						ID:        "acc-003",
 						Alias:     "target-account",
@@ -565,8 +574,8 @@ func TestIsAccountExemptWithSegments_AccountHasNilSegmentID(t *testing.T) {
 				tt.account,
 				&aliases,
 				tt.segmentIDs,
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.NoError(t, gotExemptErr)
@@ -614,7 +623,7 @@ func TestIsAccountExemptWithSegments_ExternalAccount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &mockSegmentMidazClient{}
+			resolver := &mockSegmentResolver{}
 			aliases := tt.directAliases
 
 			got, err := isAccountExemptWithSegments(
@@ -622,13 +631,13 @@ func TestIsAccountExemptWithSegments_ExternalAccount(t *testing.T) {
 				tt.account,
 				&aliases,
 				[]uuid.UUID{segID},
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.NoError(t, err)
 			assert.Equal(t, tt.wantExempt, got)
-			assert.Equal(t, tt.wantCalls, client.callCount,
+			assert.Equal(t, tt.wantCalls, resolver.callCount,
 				"MidazClient must not be called for @external/* accounts")
 		})
 	}

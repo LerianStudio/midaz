@@ -13,7 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -25,14 +24,14 @@ import (
 // newTestBillingPackageService creates a BillingPackageService with mock dependencies for testing.
 func newTestBillingPackageService(
 	t *testing.T,
-) (*BillingPackageService, *billing_package.MockRepository, *http.MockMidazClient) {
+) (*BillingPackageService, *billing_package.MockRepository, *pkg.MockMidazResolver) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
 	t.Cleanup(func() { ctrl.Finish() })
 
 	mockRepo := billing_package.NewMockRepository(ctrl)
-	mockMidaz := http.NewMockMidazClient(ctrl)
+	mockMidaz := pkg.NewMockMidazResolver(ctrl)
 
 	svc, err := NewBillingPackageService(mockRepo, mockMidaz)
 	assert.NoError(t, err)
@@ -115,11 +114,11 @@ func TestCreateBillingPackage_Success_Volume(t *testing.T) {
 					Return([]*model.BillingPackage{}, nil)
 
 				mockMidaz.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), *bp.DebitAccountAlias, bp.OrganizationID, bp.LedgerID).
+					AccountExistsByAlias(gomock.Any(), uuid.MustParse(bp.OrganizationID), uuid.MustParse(bp.LedgerID), *bp.DebitAccountAlias).
 					Return(nil)
 
 				mockMidaz.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), *bp.CreditAccountAlias, bp.OrganizationID, bp.LedgerID).
+					AccountExistsByAlias(gomock.Any(), uuid.MustParse(bp.OrganizationID), uuid.MustParse(bp.LedgerID), *bp.CreditAccountAlias).
 					Return(nil)
 
 				mockRepo.EXPECT().
@@ -146,11 +145,11 @@ func TestCreateBillingPackage_Success_Volume(t *testing.T) {
 					Return([]*model.BillingPackage{}, nil)
 
 				mockMidaz.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), *bp.DebitAccountAlias, bp.OrganizationID, bp.LedgerID).
+					AccountExistsByAlias(gomock.Any(), uuid.MustParse(bp.OrganizationID), uuid.MustParse(bp.LedgerID), *bp.DebitAccountAlias).
 					Return(nil)
 
 				mockMidaz.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), *bp.CreditAccountAlias, bp.OrganizationID, bp.LedgerID).
+					AccountExistsByAlias(gomock.Any(), uuid.MustParse(bp.OrganizationID), uuid.MustParse(bp.LedgerID), *bp.CreditAccountAlias).
 					Return(nil)
 
 				mockRepo.EXPECT().
@@ -204,7 +203,7 @@ func TestCreateBillingPackage_Success_Maintenance(t *testing.T) {
 			input: bp,
 			mockSetup: func() {
 				mockMidaz.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), *bp.MaintenanceCreditAccount, bp.OrganizationID, bp.LedgerID).
+					AccountExistsByAlias(gomock.Any(), uuid.MustParse(bp.OrganizationID), uuid.MustParse(bp.LedgerID), *bp.MaintenanceCreditAccount).
 					Return(nil)
 
 				mockRepo.EXPECT().
@@ -226,7 +225,7 @@ func TestCreateBillingPackage_Success_Maintenance(t *testing.T) {
 			}(),
 			mockSetup: func() {
 				mockMidaz.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), *bp.MaintenanceCreditAccount, bp.OrganizationID, bp.LedgerID).
+					AccountExistsByAlias(gomock.Any(), uuid.MustParse(bp.OrganizationID), uuid.MustParse(bp.LedgerID), *bp.MaintenanceCreditAccount).
 					Return(nil)
 
 				mockRepo.EXPECT().
@@ -378,11 +377,11 @@ func TestCreateBillingPackage_AccountValidationError(t *testing.T) {
 					Return([]*model.BillingPackage{}, nil)
 
 				mockMidaz.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), *bp.DebitAccountAlias, bp.OrganizationID, bp.LedgerID).
+					AccountExistsByAlias(gomock.Any(), uuid.MustParse(bp.OrganizationID), uuid.MustParse(bp.LedgerID), *bp.DebitAccountAlias).
 					Return(nil)
 
 				mockMidaz.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), *bp.CreditAccountAlias, bp.OrganizationID, bp.LedgerID).
+					AccountExistsByAlias(gomock.Any(), uuid.MustParse(bp.OrganizationID), uuid.MustParse(bp.LedgerID), *bp.CreditAccountAlias).
 					Return(errors.New("FEE-0014"))
 			},
 			errContains: "FEE-0014",
@@ -890,7 +889,7 @@ func TestValidateMaintenanceCreate_CreditAccountFails(t *testing.T) {
 			input: bp,
 			mockSetup: func() {
 				mockMidaz.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), *bp.MaintenanceCreditAccount, bp.OrganizationID, bp.LedgerID).
+					AccountExistsByAlias(gomock.Any(), uuid.MustParse(bp.OrganizationID), uuid.MustParse(bp.LedgerID), *bp.MaintenanceCreditAccount).
 					Return(errors.New("FEE-0014"))
 			},
 			errContains: "FEE-0014",
@@ -934,7 +933,7 @@ func TestValidateVolumeCreate_DebitAccountAliasFails(t *testing.T) {
 					Return([]*model.BillingPackage{}, nil)
 
 				mockMidaz.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), *bp.DebitAccountAlias, bp.OrganizationID, bp.LedgerID).
+					AccountExistsByAlias(gomock.Any(), uuid.MustParse(bp.OrganizationID), uuid.MustParse(bp.LedgerID), *bp.DebitAccountAlias).
 					Return(errors.New("FEE-0014"))
 			},
 			errContains: "FEE-0014",
@@ -962,23 +961,23 @@ func TestNewBillingPackageService_NilDependencies(t *testing.T) {
 	tests := []struct {
 		name        string
 		repo        billing_package.Repository
-		midaz       http.MidazClient
+		midaz       pkg.MidazResolver
 		expectErr   bool
 		errContains string
 	}{
 		{
 			name:        "Error - nil repository",
 			repo:        nil,
-			midaz:       http.NewMockMidazClient(gomock.NewController(t)),
+			midaz:       pkg.NewMockMidazResolver(gomock.NewController(t)),
 			expectErr:   true,
 			errContains: "BillingPackage repository is required",
 		},
 		{
-			name:        "Error - nil MidazClient",
+			name:        "Error - nil MidazResolver",
 			repo:        billing_package.NewMockRepository(gomock.NewController(t)),
 			midaz:       nil,
 			expectErr:   true,
-			errContains: "MidazClient is required",
+			errContains: "MidazResolver is required",
 		},
 	}
 

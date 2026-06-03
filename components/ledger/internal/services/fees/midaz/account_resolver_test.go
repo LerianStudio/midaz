@@ -7,12 +7,10 @@ package midaz
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
+	pkg "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -29,30 +27,30 @@ func inactiveStatus() *pkg.AccountStatus {
 	return &pkg.AccountStatus{Code: "inactive", Description: "Inactive account"}
 }
 
-// newTestAccountResolver creates an AccountResolver with a mock MidazClient for testing.
-func newTestAccountResolver(t *testing.T) (AccountResolver, *http.MockMidazClient) {
+// newTestAccountResolver creates an AccountResolver with a mock MidazResolver for testing.
+func newTestAccountResolver(t *testing.T) (AccountResolver, *pkg.MockMidazResolver) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
 	t.Cleanup(func() { ctrl.Finish() })
 
-	mockClient := http.NewMockMidazClient(ctrl)
+	mockResolver := pkg.NewMockMidazResolver(ctrl)
 
-	resolver, err := NewAccountResolver(mockClient)
+	resolver, err := NewAccountResolver(mockResolver)
 	assert.NoError(t, err)
 	assert.NotNil(t, resolver)
 
-	return resolver, mockClient
+	return resolver, mockResolver
 }
 
-func TestNewAccountResolver_NilClient(t *testing.T) {
+func TestNewAccountResolver_NilResolver(t *testing.T) {
 	t.Parallel()
 
 	resolver, err := NewAccountResolver(nil)
 
 	assert.Nil(t, resolver)
 	assert.Error(t, err)
-	assert.Equal(t, ErrNilMidazClient, err)
+	assert.Equal(t, ErrNilResolver, err)
 }
 
 func TestResolveAccounts(t *testing.T) {
@@ -66,33 +64,22 @@ func TestResolveAccounts(t *testing.T) {
 	tests := []struct {
 		name            string
 		target          model.AccountTarget
-		setupMock       func(mock *http.MockMidazClient)
+		setupMock       func(mock *pkg.MockMidazResolver)
 		expectedCount   int
 		expectedAliases []string
 		expectErr       bool
 	}{
 		{
-			name: "resolve by segmentId - single page all active",
+			name: "resolve by segmentId - all active",
 			target: model.AccountTarget{
 				SegmentID: &segmentID,
 			},
-			setupMock: func(mock *http.MockMidazClient) {
+			setupMock: func(mock *pkg.MockMidazResolver) {
 				mock.EXPECT().
-					ListAccounts(
-						gomock.Any(),
-						orgID,
-						ledgerID,
-						http.AccountFilters{SegmentID: &segmentID},
-						1,
-						100,
-					).
-					Return(&http.AccountPage{
-						Items: []pkg.Account{
-							{ID: "acc-1", Alias: "alice", Status: activeStatus()},
-							{ID: "acc-2", Alias: "bob", Status: activeStatus()},
-						},
-						Page:  1,
-						Limit: 100,
+					ListAccounts(gomock.Any(), orgID, ledgerID, &segmentID, nil).
+					Return([]pkg.Account{
+						{ID: "acc-1", Alias: "alice", Status: activeStatus()},
+						{ID: "acc-2", Alias: "bob", Status: activeStatus()},
 					}, nil).
 					Times(1)
 			},
@@ -101,26 +88,15 @@ func TestResolveAccounts(t *testing.T) {
 			expectErr:       false,
 		},
 		{
-			name: "resolve by portfolioId - single page all active",
+			name: "resolve by portfolioId - all active",
 			target: model.AccountTarget{
 				PortfolioID: &portfolioID,
 			},
-			setupMock: func(mock *http.MockMidazClient) {
+			setupMock: func(mock *pkg.MockMidazResolver) {
 				mock.EXPECT().
-					ListAccounts(
-						gomock.Any(),
-						orgID,
-						ledgerID,
-						http.AccountFilters{PortfolioID: &portfolioID},
-						1,
-						100,
-					).
-					Return(&http.AccountPage{
-						Items: []pkg.Account{
-							{ID: "acc-3", Alias: "charlie", Status: activeStatus()},
-						},
-						Page:  1,
-						Limit: 100,
+					ListAccounts(gomock.Any(), orgID, ledgerID, nil, &portfolioID).
+					Return([]pkg.Account{
+						{ID: "acc-3", Alias: "charlie", Status: activeStatus()},
 					}, nil).
 					Times(1)
 			},
@@ -129,18 +105,18 @@ func TestResolveAccounts(t *testing.T) {
 			expectErr:       false,
 		},
 		{
-			name: "resolve by aliases - all active",
+			name: "resolve by aliases - all active (with dedup)",
 			target: model.AccountTarget{
-				Aliases: []string{"alice", "bob"},
+				Aliases: []string{"alice", "bob", "alice"},
 			},
-			setupMock: func(mock *http.MockMidazClient) {
+			setupMock: func(mock *pkg.MockMidazResolver) {
 				mock.EXPECT().
-					GetAccountDetailsByAlias(gomock.Any(), orgID.String(), ledgerID.String(), "alice").
+					GetAccountByAlias(gomock.Any(), orgID, ledgerID, "alice").
 					Return(&pkg.Account{ID: "acc-1", Alias: "alice", Status: activeStatus()}, nil).
 					Times(1)
 
 				mock.EXPECT().
-					GetAccountDetailsByAlias(gomock.Any(), orgID.String(), ledgerID.String(), "bob").
+					GetAccountByAlias(gomock.Any(), orgID, ledgerID, "bob").
 					Return(&pkg.Account{ID: "acc-2", Alias: "bob", Status: activeStatus()}, nil).
 					Times(1)
 			},
@@ -153,24 +129,13 @@ func TestResolveAccounts(t *testing.T) {
 			target: model.AccountTarget{
 				SegmentID: &segmentID,
 			},
-			setupMock: func(mock *http.MockMidazClient) {
+			setupMock: func(mock *pkg.MockMidazResolver) {
 				mock.EXPECT().
-					ListAccounts(
-						gomock.Any(),
-						orgID,
-						ledgerID,
-						http.AccountFilters{SegmentID: &segmentID},
-						1,
-						100,
-					).
-					Return(&http.AccountPage{
-						Items: []pkg.Account{
-							{ID: "acc-1", Alias: "alice", Status: activeStatus()},
-							{ID: "acc-2", Alias: "bob", Status: inactiveStatus()},
-							{ID: "acc-3", Alias: "charlie", Status: activeStatus()},
-						},
-						Page:  1,
-						Limit: 100,
+					ListAccounts(gomock.Any(), orgID, ledgerID, &segmentID, nil).
+					Return([]pkg.Account{
+						{ID: "acc-1", Alias: "alice", Status: activeStatus()},
+						{ID: "acc-2", Alias: "bob", Status: inactiveStatus()},
+						{ID: "acc-3", Alias: "charlie", Status: activeStatus()},
 					}, nil).
 					Times(1)
 			},
@@ -183,14 +148,14 @@ func TestResolveAccounts(t *testing.T) {
 			target: model.AccountTarget{
 				Aliases: []string{"alice", "bob"},
 			},
-			setupMock: func(mock *http.MockMidazClient) {
+			setupMock: func(mock *pkg.MockMidazResolver) {
 				mock.EXPECT().
-					GetAccountDetailsByAlias(gomock.Any(), orgID.String(), ledgerID.String(), "alice").
+					GetAccountByAlias(gomock.Any(), orgID, ledgerID, "alice").
 					Return(&pkg.Account{ID: "acc-1", Alias: "alice", Status: activeStatus()}, nil).
 					Times(1)
 
 				mock.EXPECT().
-					GetAccountDetailsByAlias(gomock.Any(), orgID.String(), ledgerID.String(), "bob").
+					GetAccountByAlias(gomock.Any(), orgID, ledgerID, "bob").
 					Return(&pkg.Account{ID: "acc-2", Alias: "bob", Status: inactiveStatus()}, nil).
 					Times(1)
 			},
@@ -199,80 +164,34 @@ func TestResolveAccounts(t *testing.T) {
 			expectErr:       false,
 		},
 		{
-			name: "pagination - two pages of accounts",
+			name: "aliases - account not found is skipped",
 			target: model.AccountTarget{
-				SegmentID: &segmentID,
+				Aliases: []string{"alice", "ghost"},
 			},
-			setupMock: func(mock *http.MockMidazClient) {
-				// Page 1: full page (100 items)
-				page1Items := make([]pkg.Account, 100)
-				for i := range page1Items {
-					page1Items[i] = pkg.Account{
-						ID:     fmt.Sprintf("acc-p1-%03d", i),
-						Alias:  fmt.Sprintf("alias-p1-%03d", i),
-						Status: activeStatus(),
-					}
-				}
-
+			setupMock: func(mock *pkg.MockMidazResolver) {
 				mock.EXPECT().
-					ListAccounts(
-						gomock.Any(),
-						orgID,
-						ledgerID,
-						http.AccountFilters{SegmentID: &segmentID},
-						1,
-						100,
-					).
-					Return(&http.AccountPage{
-						Items: page1Items,
-						Page:  1,
-						Limit: 100,
-					}, nil).
+					GetAccountByAlias(gomock.Any(), orgID, ledgerID, "alice").
+					Return(&pkg.Account{ID: "acc-1", Alias: "alice", Status: activeStatus()}, nil).
 					Times(1)
 
-				// Page 2: partial page (2 items, signals end of pagination)
 				mock.EXPECT().
-					ListAccounts(
-						gomock.Any(),
-						orgID,
-						ledgerID,
-						http.AccountFilters{SegmentID: &segmentID},
-						2,
-						100,
-					).
-					Return(&http.AccountPage{
-						Items: []pkg.Account{
-							{ID: "acc-p2-a", Alias: "alias-p2-a", Status: activeStatus()},
-							{ID: "acc-p2-b", Alias: "alias-p2-b", Status: activeStatus()},
-						},
-						Page:  2,
-						Limit: 100,
-					}, nil).
+					GetAccountByAlias(gomock.Any(), orgID, ledgerID, "ghost").
+					Return(nil, nil).
 					Times(1)
 			},
-			expectedCount: 102,
-			expectErr:     false,
+			expectedCount:   1,
+			expectedAliases: []string{"alice"},
+			expectErr:       false,
 		},
 		{
 			name: "empty result - no matching active accounts",
 			target: model.AccountTarget{
 				SegmentID: &segmentID,
 			},
-			setupMock: func(mock *http.MockMidazClient) {
+			setupMock: func(mock *pkg.MockMidazResolver) {
 				mock.EXPECT().
-					ListAccounts(
-						gomock.Any(),
-						orgID,
-						ledgerID,
-						http.AccountFilters{SegmentID: &segmentID},
-						1,
-						100,
-					).
-					Return(&http.AccountPage{
-						Items: []pkg.Account{},
-						Page:  1,
-						Limit: 100,
-					}, nil).
+					ListAccounts(gomock.Any(), orgID, ledgerID, &segmentID, nil).
+					Return([]pkg.Account{}, nil).
 					Times(1)
 			},
 			expectedCount: 0,
@@ -283,31 +202,24 @@ func TestResolveAccounts(t *testing.T) {
 			target: model.AccountTarget{
 				SegmentID: &segmentID,
 			},
-			setupMock: func(mock *http.MockMidazClient) {
+			setupMock: func(mock *pkg.MockMidazResolver) {
 				mock.EXPECT().
-					ListAccounts(
-						gomock.Any(),
-						orgID,
-						ledgerID,
-						http.AccountFilters{SegmentID: &segmentID},
-						1,
-						100,
-					).
-					Return(nil, errors.New("midaz unavailable")).
+					ListAccounts(gomock.Any(), orgID, ledgerID, &segmentID, nil).
+					Return(nil, errors.New("query failed")).
 					Times(1)
 			},
 			expectedCount: 0,
 			expectErr:     true,
 		},
 		{
-			name: "error propagation - GetAccountDetailsByAlias returns error",
+			name: "error propagation - GetAccountByAlias returns error",
 			target: model.AccountTarget{
 				Aliases: []string{"alice"},
 			},
-			setupMock: func(mock *http.MockMidazClient) {
+			setupMock: func(mock *pkg.MockMidazResolver) {
 				mock.EXPECT().
-					GetAccountDetailsByAlias(gomock.Any(), orgID.String(), ledgerID.String(), "alice").
-					Return(nil, errors.New("midaz unavailable")).
+					GetAccountByAlias(gomock.Any(), orgID, ledgerID, "alice").
+					Return(nil, errors.New("query failed")).
 					Times(1)
 			},
 			expectedCount: 0,
@@ -316,7 +228,7 @@ func TestResolveAccounts(t *testing.T) {
 		{
 			name:          "empty account target returns error",
 			target:        model.AccountTarget{},
-			setupMock:     func(_ *http.MockMidazClient) {},
+			setupMock:     func(_ *pkg.MockMidazResolver) {},
 			expectedCount: 0,
 			expectErr:     true,
 		},
@@ -325,23 +237,12 @@ func TestResolveAccounts(t *testing.T) {
 			target: model.AccountTarget{
 				SegmentID: &segmentID,
 			},
-			setupMock: func(mock *http.MockMidazClient) {
+			setupMock: func(mock *pkg.MockMidazResolver) {
 				mock.EXPECT().
-					ListAccounts(
-						gomock.Any(),
-						orgID,
-						ledgerID,
-						http.AccountFilters{SegmentID: &segmentID},
-						1,
-						100,
-					).
-					Return(&http.AccountPage{
-						Items: []pkg.Account{
-							{ID: "acc-1", Alias: "alice", Status: activeStatus()},
-							{ID: "acc-2", Alias: "bob", Status: nil},
-						},
-						Page:  1,
-						Limit: 100,
+					ListAccounts(gomock.Any(), orgID, ledgerID, &segmentID, nil).
+					Return([]pkg.Account{
+						{ID: "acc-1", Alias: "alice", Status: activeStatus()},
+						{ID: "acc-2", Alias: "bob", Status: nil},
 					}, nil).
 					Times(1)
 			},
@@ -355,8 +256,8 @@ func TestResolveAccounts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			resolver, mockClient := newTestAccountResolver(t)
-			tt.setupMock(mockClient)
+			resolver, mockResolver := newTestAccountResolver(t)
+			tt.setupMock(mockResolver)
 
 			accounts, err := resolver.ResolveAccounts(context.Background(), orgID, ledgerID, tt.target)
 

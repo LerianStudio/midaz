@@ -1672,8 +1672,8 @@ func TestIsAccountExemptOrSegment_ErrorOnMissingSegmentContext(t *testing.T) {
 			segCtx: nil,
 		},
 		{
-			name:   "segCtx with nil MidazClient",
-			segCtx: &SegmentContext{MidazClient: nil},
+			name:   "segCtx with nil Resolver",
+			segCtx: &SegmentContext{Resolver: nil},
 		},
 	}
 

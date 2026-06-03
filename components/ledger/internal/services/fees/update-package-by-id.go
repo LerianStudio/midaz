@@ -156,8 +156,8 @@ func (uc *UseCase) validationFeesSetUnset(ctx context.Context, minAmount decimal
 				return err
 			}
 
-			// Validate if credit account exist on midaz
-			if errGetAccount := uc.midazClient.GetAccountFromMidazByAlias(ctx, fee.CreditAccount, organizationID.String(), ledgerID.String()); errGetAccount != nil {
+			// Validate that the credit account exists.
+			if errGetAccount := uc.resolver.AccountExistsByAlias(ctx, organizationID, ledgerID, fee.CreditAccount); errGetAccount != nil {
 				return errGetAccount
 			}
 
@@ -173,7 +173,7 @@ func (uc *UseCase) validationFeesSetUnset(ctx context.Context, minAmount decimal
 			finalFees[keyFormatted] = fee
 		} else {
 			// Existing fee - check if it's being updated or removed
-			hasFieldsToUpdate, errSetFieldsToUpdate := fee.SetAndValidateHasFieldsToUpdate(ctx, fee.IsDeductibleFrom, minAmount, existingFees, keyFormatted, organizationID, ledgerID, setFields, uc.midazClient)
+			hasFieldsToUpdate, errSetFieldsToUpdate := fee.SetAndValidateHasFieldsToUpdate(ctx, fee.IsDeductibleFrom, minAmount, existingFees, keyFormatted, organizationID, ledgerID, setFields, uc.resolver)
 			if errSetFieldsToUpdate != nil {
 				return errSetFieldsToUpdate
 			}

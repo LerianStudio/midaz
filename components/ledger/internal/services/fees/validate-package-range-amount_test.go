@@ -244,11 +244,11 @@ func TestValidatePackageMaxAndMinAmountRange(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockRepo := pack.NewMockRepository(ctrl)
-			mockMidaz := http.NewMockMidazClient(ctrl)
+			mockMidaz := pkg.NewMockMidazResolver(ctrl)
 
 			uc := &UseCase{
 				packageRepo: mockRepo,
-				midazClient: mockMidaz,
+				resolver:    mockMidaz,
 			}
 
 			tt.mockSetup(mockRepo)

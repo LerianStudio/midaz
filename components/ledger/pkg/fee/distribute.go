@@ -575,22 +575,22 @@ func isAccountExempt(account string, exemptAccounts *[]string) bool {
 // isAccountExemptOrSegment checks exemption using both direct alias matching and segment-based resolution.
 // It first canonicalizes the account key via trimFeeSuffix, stripping any decorated suffixes
 // (->fee, ->fee_source, ->route) to ensure that exemption checks use the base alias, not a synthetic key.
-// When segmentIDs is non-empty, it requires segCtx with a valid MidazClient and delegates to
-// isAccountExemptWithSegments for full segment resolution via the Midaz API.
-// If segmentIDs is non-empty but segCtx or MidazClient is nil, it returns an error to prevent
+// When segmentIDs is non-empty, it requires segCtx with a valid Resolver and delegates to
+// isAccountExemptWithSegments for full segment resolution via the ledger query layer.
+// If segmentIDs is non-empty but segCtx or Resolver is nil, it returns an error to prevent
 // silently charging accounts that should be exempt via segment waivers.
 // When segmentIDs is empty, it falls back to exact alias matching only.
 func isAccountExemptOrSegment(account string, exemptAccounts *[]string, segmentIDs []uuid.UUID, segCtx *SegmentContext) (bool, error) {
 	account = trimFeeSuffix(account)
 
 	if len(segmentIDs) > 0 {
-		if segCtx == nil || segCtx.MidazClient == nil {
+		if segCtx == nil || segCtx.Resolver == nil {
 			return false, pkg.ValidateBusinessError(constant.ErrMissingSegmentContext, "")
 		}
 
 		return isAccountExemptWithSegments(
 			segCtx.Ctx, account, exemptAccounts, segmentIDs,
-			segCtx.MidazClient, segCtx.OrganizationID, segCtx.LedgerID,
+			segCtx.Resolver, segCtx.OrganizationID, segCtx.LedgerID,
 		)
 	}
 

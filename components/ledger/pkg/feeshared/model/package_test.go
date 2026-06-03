@@ -10,7 +10,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -1992,7 +1991,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate(t *testing.T) {
 		fee                  Fee
 		existingFees         map[string]Fee
 		updateDeductibleFrom *bool
-		mockMidazSetup       func(*http.MockMidazClient)
+		mockMidazSetup       func(*pkg.MockMidazResolver)
 		wantErr              bool
 		errCode              string
 		expectUpdate         bool
@@ -2016,9 +2015,9 @@ func TestFee_SetAndValidateHasFieldsToUpdate(t *testing.T) {
 				},
 			},
 			updateDeductibleFrom: boolPtr(false),
-			mockMidazSetup: func(m *http.MockMidazClient) {
+			mockMidazSetup: func(m *pkg.MockMidazResolver) {
 				m.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), "new_account", orgID.String(), ledgerID.String()).
+					AccountExistsByAlias(gomock.Any(), orgID, ledgerID, "new_account").
 					Return(nil)
 			},
 			wantErr:      false,
@@ -2031,7 +2030,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate(t *testing.T) {
 				FeeLabel: "Updated Label",
 			},
 			updateDeductibleFrom: nil,
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              false,
 			expectUpdate:         true,
 		},
@@ -2042,7 +2041,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate(t *testing.T) {
 				Priority: 3,
 			},
 			updateDeductibleFrom: nil,
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              false,
 			expectUpdate:         true,
 		},
@@ -2053,7 +2052,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate(t *testing.T) {
 				ReferenceAmount: "invalid",
 			},
 			updateDeductibleFrom: nil,
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              true,
 			errCode:              constant.ErrReferenceAmountInvalid.Error(),
 			expectUpdate:         false,
@@ -2066,7 +2065,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate(t *testing.T) {
 				IsDeductibleFrom: nil, // Not updating
 			},
 			updateDeductibleFrom: nil,
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              true,
 			errCode:              constant.ErrIsDeductibleFrom.Error(),
 			expectUpdate:         false,
@@ -2090,7 +2089,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate(t *testing.T) {
 				},
 			},
 			updateDeductibleFrom: boolPtr(true),
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              true,
 			errCode:              constant.ErrIsDeductibleFrom.Error(),
 			expectUpdate:         false,
@@ -2102,9 +2101,9 @@ func TestFee_SetAndValidateHasFieldsToUpdate(t *testing.T) {
 				CreditAccount: "invalid_account",
 			},
 			updateDeductibleFrom: nil,
-			mockMidazSetup: func(m *http.MockMidazClient) {
+			mockMidazSetup: func(m *pkg.MockMidazResolver) {
 				m.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), "invalid_account", orgID.String(), ledgerID.String()).
+					AccountExistsByAlias(gomock.Any(), orgID, ledgerID, "invalid_account").
 					Return(pkg.ValidateBusinessError(constant.ErrFindAccountOnMidaz, "", "invalid_account"))
 			},
 			wantErr:      true,
@@ -2123,7 +2122,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate(t *testing.T) {
 				},
 			},
 			updateDeductibleFrom: nil,
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              true,
 			errCode:              constant.ErrAppRuleInvalid.Error(),
 			expectUpdate:         false,
@@ -2140,7 +2139,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate(t *testing.T) {
 				},
 			},
 			updateDeductibleFrom: nil,
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              true,
 			errCode:              constant.ErrCalculationTypeInvalid.Error(),
 			expectUpdate:         false,
@@ -2149,7 +2148,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate(t *testing.T) {
 			name:                 "No updates - all fields empty/nil",
 			fee:                  Fee{},
 			updateDeductibleFrom: nil,
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              false,
 			expectUpdate:         false,
 		},
@@ -2160,7 +2159,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			mockMidaz := http.NewMockMidazClient(ctrl)
+			mockMidaz := pkg.NewMockMidazResolver(ctrl)
 			tt.mockMidazSetup(mockMidaz)
 
 			upFields := bson.M{}
@@ -2228,7 +2227,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_CalculationModelCases(t *testing.T)
 		name                 string
 		fee                  Fee
 		updateDeductibleFrom *bool
-		mockMidazSetup       func(*http.MockMidazClient)
+		mockMidazSetup       func(*pkg.MockMidazResolver)
 		wantErr              bool
 		errCode              string
 	}{
@@ -2241,7 +2240,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_CalculationModelCases(t *testing.T)
 				},
 			},
 			updateDeductibleFrom: nil,
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              false,
 		},
 		{
@@ -2255,7 +2254,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_CalculationModelCases(t *testing.T)
 				},
 			},
 			updateDeductibleFrom: nil,
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              false,
 		},
 		{
@@ -2270,7 +2269,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_CalculationModelCases(t *testing.T)
 				},
 			},
 			updateDeductibleFrom: nil,
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              false,
 		},
 		{
@@ -2284,7 +2283,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_CalculationModelCases(t *testing.T)
 				},
 			},
 			updateDeductibleFrom: boolPtr(true),
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              true,
 			errCode:              constant.ErrDeductibleCalculationValuePercentage.Error(),
 		},
@@ -2299,7 +2298,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_CalculationModelCases(t *testing.T)
 				},
 			},
 			updateDeductibleFrom: nil, // Existing is deductible
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              true,
 			errCode:              constant.ErrDeductibleCalculationValueFlatFee.Error(),
 		},
@@ -2310,7 +2309,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_CalculationModelCases(t *testing.T)
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			mockMidaz := http.NewMockMidazClient(ctrl)
+			mockMidaz := pkg.NewMockMidazResolver(ctrl)
 			tt.mockMidazSetup(mockMidaz)
 
 			upFields := bson.M{}
@@ -2396,7 +2395,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_IsDeductibleFromCases(t *testing.T)
 		fee                  Fee
 		existingFees         map[string]Fee
 		updateDeductibleFrom *bool
-		mockMidazSetup       func(*http.MockMidazClient)
+		mockMidazSetup       func(*pkg.MockMidazResolver)
 		wantErr              bool
 		errCode              string
 	}{
@@ -2418,7 +2417,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_IsDeductibleFromCases(t *testing.T)
 				},
 			},
 			updateDeductibleFrom: boolPtr(true),
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              false,
 		},
 		{
@@ -2431,7 +2430,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_IsDeductibleFromCases(t *testing.T)
 				feeKey: existingFeeWithAfterFees,
 			},
 			updateDeductibleFrom: boolPtr(true),
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              true,
 			errCode:              constant.ErrIsDeductibleFrom.Error(),
 		},
@@ -2444,7 +2443,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_IsDeductibleFromCases(t *testing.T)
 				feeKey: existingFeeWithHighPercentage,
 			},
 			updateDeductibleFrom: boolPtr(true),
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              true,
 			errCode:              constant.ErrDeductibleCalculationValuePercentage.Error(),
 		},
@@ -2457,7 +2456,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_IsDeductibleFromCases(t *testing.T)
 				feeKey: existingFeeWithHighFlat,
 			},
 			updateDeductibleFrom: boolPtr(true),
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              true,
 			errCode:              constant.ErrDeductibleCalculationValueFlatFee.Error(),
 		},
@@ -2479,7 +2478,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_IsDeductibleFromCases(t *testing.T)
 				},
 			},
 			updateDeductibleFrom: boolPtr(false),
-			mockMidazSetup:       func(m *http.MockMidazClient) {},
+			mockMidazSetup:       func(m *pkg.MockMidazResolver) {},
 			wantErr:              false,
 		},
 	}
@@ -2489,7 +2488,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_IsDeductibleFromCases(t *testing.T)
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			mockMidaz := http.NewMockMidazClient(ctrl)
+			mockMidaz := pkg.NewMockMidazResolver(ctrl)
 			tt.mockMidazSetup(mockMidaz)
 
 			upFields := bson.M{}

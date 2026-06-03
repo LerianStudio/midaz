@@ -52,8 +52,8 @@ func TestSegmentExemption_EndToEnd_SegmentMatch(t *testing.T) {
 			t.Parallel()
 
 			segID := tt.accountSegID
-			client := &mockSegmentMidazClient{
-				getAccountDetailsFn: func(_ context.Context, _, _, _ string) (*pkg.Account, error) {
+			resolver := &mockSegmentResolver{
+				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*pkg.Account, error) {
 					return &pkg.Account{
 						ID:        "acc1",
 						Alias:     tt.account,
@@ -70,13 +70,13 @@ func TestSegmentExemption_EndToEnd_SegmentMatch(t *testing.T) {
 				tt.account,
 				&directAliases,
 				segmentIDs,
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.NoError(t, gotErr)
 			assert.Equal(t, tt.wantExempt, got)
-			assert.Equal(t, tt.wantCallCount, client.callCount)
+			assert.Equal(t, tt.wantCallCount, resolver.callCount)
 		})
 	}
 }
@@ -109,8 +109,8 @@ func TestSegmentExemption_EndToEnd_SegmentNoMatch(t *testing.T) {
 			t.Parallel()
 
 			segID := tt.accountSegID
-			client := &mockSegmentMidazClient{
-				getAccountDetailsFn: func(_ context.Context, _, _, _ string) (*pkg.Account, error) {
+			resolver := &mockSegmentResolver{
+				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*pkg.Account, error) {
 					return &pkg.Account{
 						ID:        "acc1",
 						Alias:     tt.account,
@@ -127,8 +127,8 @@ func TestSegmentExemption_EndToEnd_SegmentNoMatch(t *testing.T) {
 				tt.account,
 				&directAliases,
 				segmentIDs,
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.NoError(t, gotErr)
@@ -160,8 +160,8 @@ func TestSegmentExemption_EndToEnd_NilSegmentOnAccount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &mockSegmentMidazClient{
-				getAccountDetailsFn: func(_ context.Context, _, _, _ string) (*pkg.Account, error) {
+			resolver := &mockSegmentResolver{
+				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*pkg.Account, error) {
 					return &pkg.Account{
 						ID:        "acc1",
 						Alias:     tt.account,
@@ -178,8 +178,8 @@ func TestSegmentExemption_EndToEnd_NilSegmentOnAccount(t *testing.T) {
 				tt.account,
 				&directAliases,
 				segmentIDs,
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.NoError(t, gotErr)
@@ -213,7 +213,7 @@ func TestSegmentExemption_EndToEnd_DirectAliasStillWorks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &mockSegmentMidazClient{}
+			resolver := &mockSegmentResolver{}
 
 			directAliases, segmentIDs, resolveErr := resolveSegmentWaivedAccounts(tt.waivedAccts)
 			assert.NoError(t, resolveErr)
@@ -223,13 +223,13 @@ func TestSegmentExemption_EndToEnd_DirectAliasStillWorks(t *testing.T) {
 				tt.account,
 				&directAliases,
 				segmentIDs,
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.NoError(t, gotErr)
 			assert.Equal(t, tt.wantExempt, got)
-			assert.Equal(t, tt.wantCallCount, client.callCount,
+			assert.Equal(t, tt.wantCallCount, resolver.callCount,
 				"MidazClient must not be called when direct alias match resolves the check")
 		})
 	}
@@ -260,8 +260,8 @@ func TestSegmentExemption_EndToEnd_ExternalError_FEE0062(t *testing.T) {
 			t.Parallel()
 
 			clientErr := tt.clientErr
-			client := &mockSegmentMidazClient{
-				getAccountDetailsFn: func(_ context.Context, _, _, _ string) (*pkg.Account, error) {
+			resolver := &mockSegmentResolver{
+				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*pkg.Account, error) {
 					return nil, clientErr
 				},
 			}
@@ -274,8 +274,8 @@ func TestSegmentExemption_EndToEnd_ExternalError_FEE0062(t *testing.T) {
 				tt.account,
 				&directAliases,
 				segmentIDs,
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.Error(t, gotErr)
@@ -330,8 +330,8 @@ func TestSegmentExemption_EndToEnd_MixedWaivedAccounts(t *testing.T) {
 			t.Parallel()
 
 			segID := tt.accountSegID
-			client := &mockSegmentMidazClient{
-				getAccountDetailsFn: func(_ context.Context, _, _, alias string) (*pkg.Account, error) {
+			resolver := &mockSegmentResolver{
+				getAccountFn: func(_ context.Context, _, _ uuid.UUID, alias string) (*pkg.Account, error) {
 					return &pkg.Account{
 						ID:        alias,
 						Alias:     alias,
@@ -348,13 +348,13 @@ func TestSegmentExemption_EndToEnd_MixedWaivedAccounts(t *testing.T) {
 				tt.queryAccount,
 				&directAliases,
 				segmentIDs,
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.NoError(t, gotErr)
 			assert.Equal(t, tt.wantExempt, got)
-			assert.Equal(t, tt.wantCallCount, client.callCount)
+			assert.Equal(t, tt.wantCallCount, resolver.callCount)
 		})
 	}
 }
@@ -391,7 +391,7 @@ func TestSegmentExemption_EndToEnd_EmptyWaivedAccounts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &mockSegmentMidazClient{}
+			resolver := &mockSegmentResolver{}
 
 			directAliases, segmentIDs, resolveErr := resolveSegmentWaivedAccounts(tt.waivedAccts)
 			assert.NoError(t, resolveErr)
@@ -401,13 +401,13 @@ func TestSegmentExemption_EndToEnd_EmptyWaivedAccounts(t *testing.T) {
 				tt.account,
 				&directAliases,
 				segmentIDs,
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.NoError(t, gotErr)
 			assert.Equal(t, tt.wantExempt, got)
-			assert.Equal(t, tt.wantCallCount, client.callCount,
+			assert.Equal(t, tt.wantCallCount, resolver.callCount,
 				"MidazClient must not be called when waivedAccounts is empty")
 		})
 	}
@@ -445,8 +445,8 @@ func TestSegmentExemption_EndToEnd_CacheHitBehavior(t *testing.T) {
 			t.Parallel()
 
 			segID := tt.accountSegID
-			client := &mockSegmentMidazClient{
-				getAccountDetailsFn: func(_ context.Context, _, _, _ string) (*pkg.Account, error) {
+			resolver := &mockSegmentResolver{
+				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*pkg.Account, error) {
 					return &pkg.Account{
 						ID:        "acc1",
 						Alias:     tt.account,
@@ -464,8 +464,8 @@ func TestSegmentExemption_EndToEnd_CacheHitBehavior(t *testing.T) {
 				tt.account,
 				&directAliases,
 				segmentIDs,
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.NoError(t, firstErr)
@@ -477,13 +477,13 @@ func TestSegmentExemption_EndToEnd_CacheHitBehavior(t *testing.T) {
 				tt.account,
 				&directAliases,
 				segmentIDs,
-				client,
-				"org-1", "led-1",
+				resolver,
+				testOrgID, testLedgerID,
 			)
 
 			assert.NoError(t, secondErr)
 			assert.Equal(t, tt.wantExempt, secondResult, "second call must return same exemption result")
-			assert.Equal(t, tt.wantCallCountAfter, client.callCount,
+			assert.Equal(t, tt.wantCallCountAfter, resolver.callCount,
 				"each call must invoke MidazClient once since caching is not in-function")
 		})
 	}

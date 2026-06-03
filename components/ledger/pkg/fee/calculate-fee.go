@@ -15,7 +15,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
-	pkghttp "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	transaction "github.com/LerianStudio/midaz/v3/pkg/mtransaction"
@@ -24,12 +23,12 @@ import (
 )
 
 // SegmentContext holds optional dependencies for segment-based waivedAccounts resolution.
-// When nil or when MidazClient is nil, CalculateFee falls back to exact alias matching only.
+// When nil or when Resolver is nil, CalculateFee falls back to exact alias matching only.
 type SegmentContext struct {
 	Ctx            context.Context
-	MidazClient    pkghttp.MidazClient
-	OrganizationID string
-	LedgerID       string
+	Resolver       pkg.MidazResolver
+	OrganizationID uuid.UUID
+	LedgerID       uuid.UUID
 }
 
 // DefaultCurrencyBRL is the fallback currency when no default is configured.

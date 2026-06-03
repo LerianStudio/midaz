@@ -95,9 +95,9 @@ func (uc *UseCase) calculateFeeForSinglePackage(
 
 	segCtx := &feeUtils.SegmentContext{
 		Ctx:            ctx,
-		MidazClient:    uc.midazClient,
-		OrganizationID: organizationID.String(),
-		LedgerID:       cf.LedgerID.String(),
+		Resolver:       uc.resolver,
+		OrganizationID: organizationID,
+		LedgerID:       cf.LedgerID,
 	}
 
 	errCalculateFee := feeUtils.CalculateFee(logger, cf, feePackage, validationResult, uc.defaultCurrency, segCtx)
@@ -139,9 +139,9 @@ func (uc *UseCase) calculateFeeForMultiplePackages(
 
 	segCtx := &feeUtils.SegmentContext{
 		Ctx:            ctx,
-		MidazClient:    uc.midazClient,
-		OrganizationID: organizationID.String(),
-		LedgerID:       cf.LedgerID.String(),
+		Resolver:       uc.resolver,
+		OrganizationID: organizationID,
+		LedgerID:       cf.LedgerID,
 	}
 
 	errCalculateFee := feeUtils.CalculateFee(logger, cf, packFilter, validationResult, uc.defaultCurrency, segCtx)

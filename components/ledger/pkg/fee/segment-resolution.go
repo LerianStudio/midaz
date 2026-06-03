@@ -14,7 +14,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
+	pkg "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 	"github.com/google/uuid"
 )
 
@@ -24,7 +24,7 @@ import (
 //
 // Returns an error if any entry has the "segment:" prefix but contains an invalid UUID,
 // since this indicates a configuration error that could silently disable fee exemptions.
-// This function makes no external calls and is safe to call without a MidazClient.
+// This function makes no external calls and is safe to call without a resolver.
 func resolveSegmentWaivedAccounts(waivedAccounts []string) (directAliases []string, segmentIDs []uuid.UUID, err error) {
 	for _, entry := range waivedAccounts {
 		isSegment, segID, parseErr := isSegmentReference(entry)
@@ -45,29 +45,30 @@ func resolveSegmentWaivedAccounts(waivedAccounts []string) (directAliases []stri
 // isAccountExemptWithSegments checks whether an account is exempt from fee distribution.
 // It first performs a fast-path exact alias match against directAliases.
 // If no direct match is found and segmentIDs is non-empty, it resolves the account's
-// segment via MidazClient and checks whether the account belongs to any of the waived segments.
+// segment via the in-process resolver and checks whether the account belongs to any
+// of the waived segments.
 //
-// Returns an error if segment resolution fails (Midaz unavailable, API error), so the caller
-// can decide to fail the billing rather than silently charging exempt accounts.
+// Returns an error if segment resolution fails, so the caller can decide to fail the
+// billing rather than silently charging exempt accounts.
 //
 // Non-error false cases:
-//   - If segmentIDs is empty, no external call is made and (false, nil) is returned.
-//   - If midazClient is nil, segment resolution is skipped and (false, nil) is returned.
+//   - If segmentIDs is empty, no resolution is performed and (false, nil) is returned.
+//   - If resolver is nil, segment resolution is skipped and (false, nil) is returned.
 //   - If the account has a nil SegmentID, (false, nil) is returned.
 func isAccountExemptWithSegments(
 	ctx context.Context,
 	account string,
 	directAliases *[]string,
 	segmentIDs []uuid.UUID,
-	midazClient http.MidazClient,
-	organizationID, ledgerID string,
+	resolver pkg.MidazResolver,
+	organizationID, ledgerID uuid.UUID,
 ) (bool, error) {
-	// Fast path: exact alias match avoids any external call.
+	// Fast path: exact alias match avoids any resolution call.
 	if isAccountExempt(account, directAliases) {
 		return true, nil
 	}
 
-	// External accounts (e.g. @external/BRL) are virtual Midaz accounts with no
+	// External accounts (e.g. @external/BRL) are virtual accounts with no
 	// real entity — they cannot belong to a segment and are never exempt.
 	if strings.HasPrefix(account, "@external/") {
 		return false, nil
@@ -78,8 +79,8 @@ func isAccountExemptWithSegments(
 		return false, nil
 	}
 
-	// Cannot resolve segment without a client.
-	if midazClient == nil {
+	// Cannot resolve segment without a resolver.
+	if resolver == nil {
 		return false, nil
 	}
 
@@ -88,9 +89,9 @@ func isAccountExemptWithSegments(
 	ctx, span := tracer.Start(ctx, "fee.segment_resolution.check_account_segment")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Resolving segment for account: alias=%s organizationID=%s ledgerID=%s", account, organizationID, ledgerID))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Resolving segment for account: alias=%s", account))
 
-	accountDetails, err := midazClient.GetAccountDetailsByAlias(ctx, organizationID, ledgerID, account)
+	accountDetails, err := resolver.GetAccountByAlias(ctx, organizationID, ledgerID, account)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to resolve account segment for exemption check", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Segment resolution failed for account %s: %v", account, err))

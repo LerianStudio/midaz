@@ -10,7 +10,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/google/uuid"
@@ -167,7 +166,7 @@ func (a *AmountData) GetTransactionRoute() string {
 	return *a.TransactionRoute
 }
 
-func (f *Fee) SetAndValidateHasFieldsToUpdate(ctx context.Context, updateDeductibleFrom *bool, minAmount decimal.Decimal, existingFees map[string]Fee, feeKey string, organizationID, ledgerID uuid.UUID, upFields bson.M, msvc http.MidazClient) (bool, error) {
+func (f *Fee) SetAndValidateHasFieldsToUpdate(ctx context.Context, updateDeductibleFrom *bool, minAmount decimal.Decimal, existingFees map[string]Fee, feeKey string, organizationID, ledgerID uuid.UUID, upFields bson.M, resolver pkg.MidazResolver) (bool, error) {
 	hasValueToUpdate := false
 
 	if updated, err := f.updateCalculationModel(existingFees, updateDeductibleFrom, feeKey, minAmount, upFields); err != nil {
@@ -196,7 +195,7 @@ func (f *Fee) SetAndValidateHasFieldsToUpdate(ctx context.Context, updateDeducti
 		hasValueToUpdate = true
 	}
 
-	if updated, err := f.updateCreditAccount(ctx, feeKey, organizationID, ledgerID, upFields, msvc); err != nil {
+	if updated, err := f.updateCreditAccount(ctx, feeKey, organizationID, ledgerID, upFields, resolver); err != nil {
 		return false, err
 	} else {
 		hasValueToUpdate = hasValueToUpdate || updated
@@ -349,9 +348,9 @@ func (f *Fee) validateFlatCalculation(valueCalc, minAmount decimal.Decimal, feeK
 	return nil
 }
 
-func (f *Fee) updateCreditAccount(ctx context.Context, feeKey string, organizationID, ledgerID uuid.UUID, upFields bson.M, msvc http.MidazClient) (bool, error) {
+func (f *Fee) updateCreditAccount(ctx context.Context, feeKey string, organizationID, ledgerID uuid.UUID, upFields bson.M, resolver pkg.MidazResolver) (bool, error) {
 	if !commons.IsNilOrEmpty(&f.CreditAccount) {
-		return f.setAndValidateCreditAccount(ctx, feeKey, organizationID, ledgerID, upFields, msvc)
+		return f.setAndValidateCreditAccount(ctx, feeKey, organizationID, ledgerID, upFields, resolver)
 	}
 
 	return false, nil
@@ -491,12 +490,8 @@ func (f *Fee) shouldValidateDeductibleCalculation(existingFees map[string]Fee, u
 }
 
 // setAndValidateCreditAccount handles credit account validation and update logic
-func (f *Fee) setAndValidateCreditAccount(ctx context.Context, feeKey string, organizationID, ledgerID uuid.UUID, upFields bson.M, msvc http.MidazClient) (bool, error) {
-	if errValidate := msvc.GetAccountFromMidazByAlias(
-		ctx,
-		f.CreditAccount,
-		organizationID.String(),
-		ledgerID.String()); errValidate != nil {
+func (f *Fee) setAndValidateCreditAccount(ctx context.Context, feeKey string, organizationID, ledgerID uuid.UUID, upFields bson.M, resolver pkg.MidazResolver) (bool, error) {
+	if errValidate := resolver.AccountExistsByAlias(ctx, organizationID, ledgerID, f.CreditAccount); errValidate != nil {
 		return false, errValidate
 	}
 

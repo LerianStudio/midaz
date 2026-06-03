@@ -120,7 +120,7 @@ func (uc *UseCase) validateExistenceOfAccountOnMidaz(ctx context.Context, cpi mo
 	}
 
 	for alias := range uniqueAliases {
-		if errGetAccount := uc.midazClient.GetAccountFromMidazByAlias(ctx, alias, organizationID.String(), ledgerID.String()); errGetAccount != nil {
+		if errGetAccount := uc.resolver.AccountExistsByAlias(ctx, organizationID, ledgerID, alias); errGetAccount != nil {
 			return errGetAccount
 		}
 	}

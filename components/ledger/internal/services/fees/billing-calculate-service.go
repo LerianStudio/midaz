@@ -21,7 +21,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/fee"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
@@ -335,7 +334,7 @@ func (s *BillingCalculateService) calculateVolume(
 	}
 
 	// Step 1: Count transactions for this route.
-	countParams := http.CountParams{
+	countParams := midaz.CountParams{
 		OrganizationID: orgUUID,
 		LedgerID:       ledgerUUID,
 		Route:          bp.EventFilter.TransactionRoute,

@@ -10,7 +10,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
+	pkg "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/google/uuid"
@@ -23,11 +23,11 @@ func TestValidateExistenceOfAccountOnMidaz_DeduplicatesAliases(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPackRepo := pack.NewMockRepository(ctrl)
-	mockMidazSvc := http.NewMockMidazClient(ctrl)
+	mockResolver := pkg.NewMockMidazResolver(ctrl)
 
 	svc := &UseCase{
 		packageRepo: mockPackRepo,
-		midazClient: mockMidazSvc,
+		resolver:    mockResolver,
 	}
 
 	orgID := uuid.New()
@@ -49,8 +49,8 @@ func TestValidateExistenceOfAccountOnMidaz_DeduplicatesAliases(t *testing.T) {
 			},
 			expectedCallCount: 1,
 			mockSetup: func() {
-				mockMidazSvc.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), "account_a", orgID.String(), ledgerID.String()).
+				mockResolver.EXPECT().
+					AccountExistsByAlias(gomock.Any(), orgID, ledgerID, "account_a").
 					Return(nil).
 					Times(1)
 			},
@@ -65,12 +65,12 @@ func TestValidateExistenceOfAccountOnMidaz_DeduplicatesAliases(t *testing.T) {
 			},
 			expectedCallCount: 2,
 			mockSetup: func() {
-				mockMidazSvc.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), "account_a", orgID.String(), ledgerID.String()).
+				mockResolver.EXPECT().
+					AccountExistsByAlias(gomock.Any(), orgID, ledgerID, "account_a").
 					Return(nil).
 					Times(1)
-				mockMidazSvc.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), "account_b", orgID.String(), ledgerID.String()).
+				mockResolver.EXPECT().
+					AccountExistsByAlias(gomock.Any(), orgID, ledgerID, "account_b").
 					Return(nil).
 					Times(1)
 			},
@@ -87,8 +87,8 @@ func TestValidateExistenceOfAccountOnMidaz_DeduplicatesAliases(t *testing.T) {
 			},
 			expectedCallCount: 1,
 			mockSetup: func() {
-				mockMidazSvc.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), "shared_account", orgID.String(), ledgerID.String()).
+				mockResolver.EXPECT().
+					AccountExistsByAlias(gomock.Any(), orgID, ledgerID, "shared_account").
 					Return(nil).
 					Times(1)
 			},
@@ -102,12 +102,12 @@ func TestValidateExistenceOfAccountOnMidaz_DeduplicatesAliases(t *testing.T) {
 			},
 			expectedCallCount: 2,
 			mockSetup: func() {
-				mockMidazSvc.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), "valid_account", orgID.String(), ledgerID.String()).
+				mockResolver.EXPECT().
+					AccountExistsByAlias(gomock.Any(), orgID, ledgerID, "valid_account").
 					Return(nil).
 					MaxTimes(1)
-				mockMidazSvc.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), "invalid_account", orgID.String(), ledgerID.String()).
+				mockResolver.EXPECT().
+					AccountExistsByAlias(gomock.Any(), orgID, ledgerID, "invalid_account").
 					Return(constant.ErrFindAccountOnMidaz).
 					MaxTimes(1)
 			},

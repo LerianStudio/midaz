@@ -16,11 +16,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
@@ -29,29 +29,45 @@ import (
 // BillingPackageService handles business logic for billing package CRUD operations.
 type BillingPackageService struct {
 	billingPackageRepo billing_package.Repository
-	midazClient        http.MidazClient
+	resolver           pkg.MidazResolver
 }
 
 // ErrNilBillingPackageRepo is returned when a nil billing package repository is provided.
 var ErrNilBillingPackageRepo = errors.New("BillingPackage repository is required")
 
-// ErrNilBillingPackageMidazClient is returned when a nil MidazClient is provided.
-var ErrNilBillingPackageMidazClient = errors.New("MidazClient is required")
+// ErrNilBillingPackageResolver is returned when a nil MidazResolver is provided.
+var ErrNilBillingPackageResolver = errors.New("MidazResolver is required")
 
 // NewBillingPackageService creates a new BillingPackageService with validated dependencies.
-func NewBillingPackageService(repo billing_package.Repository, midazClient http.MidazClient) (*BillingPackageService, error) {
+func NewBillingPackageService(repo billing_package.Repository, resolver pkg.MidazResolver) (*BillingPackageService, error) {
 	if repo == nil {
 		return nil, ErrNilBillingPackageRepo
 	}
 
-	if midazClient == nil {
-		return nil, ErrNilBillingPackageMidazClient
+	if resolver == nil {
+		return nil, ErrNilBillingPackageResolver
 	}
 
 	return &BillingPackageService{
 		billingPackageRepo: repo,
-		midazClient:        midazClient,
+		resolver:           resolver,
 	}, nil
+}
+
+// resolveAccountExists validates that an account with the given alias exists,
+// parsing the package's string-typed org/ledger IDs into UUIDs for the resolver.
+func (s *BillingPackageService) resolveAccountExists(ctx context.Context, organizationID, ledgerID, alias string) error {
+	orgUUID, err := uuid.Parse(organizationID)
+	if err != nil {
+		return pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingPackage", "invalid organizationID UUID")
+	}
+
+	ledgerUUID, err := uuid.Parse(ledgerID)
+	if err != nil {
+		return pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingPackage", "invalid ledgerID UUID")
+	}
+
+	return s.resolver.AccountExistsByAlias(ctx, orgUUID, ledgerUUID, alias)
 }
 
 // CreateBillingPackage validates and creates a new billing package.
@@ -164,9 +180,9 @@ func (s *BillingPackageService) validateVolumeCreate(ctx context.Context, bp *mo
 		return conflictErr
 	}
 
-	// Validate debit account exists on Midaz.
+	// Validate debit account exists.
 	if bp.DebitAccountAlias != nil {
-		if errDebit := s.midazClient.GetAccountFromMidazByAlias(ctx, *bp.DebitAccountAlias, bp.OrganizationID, bp.LedgerID); errDebit != nil {
+		if errDebit := s.resolveAccountExists(ctx, bp.OrganizationID, bp.LedgerID, *bp.DebitAccountAlias); errDebit != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(childSpan, "Debit account validation failed on Midaz", errDebit)
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Debit account not found on Midaz: alias=%s, err=%v", *bp.DebitAccountAlias, errDebit))
 
@@ -174,9 +190,9 @@ func (s *BillingPackageService) validateVolumeCreate(ctx context.Context, bp *mo
 		}
 	}
 
-	// Validate credit account exists on Midaz.
+	// Validate credit account exists.
 	if bp.CreditAccountAlias != nil {
-		if errCredit := s.midazClient.GetAccountFromMidazByAlias(ctx, *bp.CreditAccountAlias, bp.OrganizationID, bp.LedgerID); errCredit != nil {
+		if errCredit := s.resolveAccountExists(ctx, bp.OrganizationID, bp.LedgerID, *bp.CreditAccountAlias); errCredit != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(childSpan, "Credit account validation failed on Midaz", errCredit)
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Credit account not found on Midaz: alias=%s, err=%v", *bp.CreditAccountAlias, errCredit))
 
@@ -194,9 +210,9 @@ func (s *BillingPackageService) validateMaintenanceCreate(ctx context.Context, b
 	ctx, childSpan := tracer.Start(ctx, "service.billing_package.validate_maintenance_create")
 	defer childSpan.End()
 
-	// Validate maintenance credit account exists on Midaz.
+	// Validate maintenance credit account exists.
 	if bp.MaintenanceCreditAccount != nil {
-		if errCredit := s.midazClient.GetAccountFromMidazByAlias(ctx, *bp.MaintenanceCreditAccount, bp.OrganizationID, bp.LedgerID); errCredit != nil {
+		if errCredit := s.resolveAccountExists(ctx, bp.OrganizationID, bp.LedgerID, *bp.MaintenanceCreditAccount); errCredit != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(childSpan, "Maintenance credit account validation failed on Midaz", errCredit)
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Maintenance credit account not found on Midaz: alias=%s, err=%v", *bp.MaintenanceCreditAccount, errCredit))
 

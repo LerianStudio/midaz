@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/bsondecimal"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
+	pkg "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
 
 	"github.com/google/uuid"
@@ -31,7 +32,7 @@ func TestUpdatePackage(t *testing.T) {
 	flagTrue := true
 
 	mockPackageRepo := pack.NewMockRepository(ctrl)
-	mockMidazSvc := http.NewMockMidazClient(ctrl)
+	mockResolver := pkg.NewMockMidazResolver(ctrl)
 
 	orgId := uuid.New()
 	packID := uuid.New()
@@ -113,7 +114,7 @@ func TestUpdatePackage(t *testing.T) {
 
 	packSvc := &UseCase{
 		packageRepo: mockPackageRepo,
-		midazClient: mockMidazSvc,
+		resolver:    mockResolver,
 	}
 
 	filter := http.QueryHeader{
@@ -167,8 +168,8 @@ func TestUpdatePackage(t *testing.T) {
 			filter:    filter,
 			packInput: packToUpdate,
 			mockSetup: func() {
-				mockMidazSvc.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				mockResolver.EXPECT().
+					AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil)
 
 				mockPackageRepo.EXPECT().
@@ -192,8 +193,8 @@ func TestUpdatePackage(t *testing.T) {
 			filter:    filter,
 			packInput: packToUpdate,
 			mockSetup: func() {
-				mockMidazSvc.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				mockResolver.EXPECT().
+					AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil)
 
 				mockPackageRepo.EXPECT().
@@ -218,8 +219,8 @@ func TestUpdatePackage(t *testing.T) {
 			filter:    filter,
 			packInput: packToUpdate,
 			mockSetup: func() {
-				mockMidazSvc.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				mockResolver.EXPECT().
+					AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil)
 
 				mockPackageRepo.EXPECT().
@@ -279,7 +280,7 @@ func TestUpdatePackageByID_UpdatedAtFieldSet(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPackageRepo := pack.NewMockRepository(ctrl)
-	mockMidazSvc := http.NewMockMidazClient(ctrl)
+	mockResolver := pkg.NewMockMidazResolver(ctrl)
 
 	orgId := uuid.New()
 	packID := uuid.New()
@@ -294,7 +295,7 @@ func TestUpdatePackageByID_UpdatedAtFieldSet(t *testing.T) {
 
 	packSvc := &UseCase{
 		packageRepo: mockPackageRepo,
-		midazClient: mockMidazSvc,
+		resolver:    mockResolver,
 	}
 
 	input := &model.UpdatePackageInput{

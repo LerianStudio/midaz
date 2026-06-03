@@ -12,6 +12,7 @@ import (
 	mongo "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
+	pkg "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
 
 	"github.com/google/uuid"
@@ -28,7 +29,7 @@ func TestCreatePackage(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPackRepo := pack.NewMockRepository(ctrl)
-	mockMidazSvc := http.NewMockMidazClient(ctrl)
+	mockResolver := pkg.NewMockMidazResolver(ctrl)
 	enableFlag := true
 	packID := uuid.New()
 	ledgerID := uuid.New()
@@ -38,7 +39,7 @@ func TestCreatePackage(t *testing.T) {
 
 	packSvc := &UseCase{
 		packageRepo: mockPackRepo,
-		midazClient: mockMidazSvc,
+		resolver:    mockResolver,
 	}
 
 	feeModel := model.Fee{
@@ -143,8 +144,8 @@ func TestCreatePackage(t *testing.T) {
 			segId:     segId,
 			ledgerId:  ledgerID,
 			mockSetup: func() {
-				mockMidazSvc.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				mockResolver.EXPECT().
+					AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil)
 
 				mockPackRepo.EXPECT().
@@ -175,8 +176,8 @@ func TestCreatePackage(t *testing.T) {
 			orgId:     orgId,
 			ledgerId:  ledgerID,
 			mockSetup: func() {
-				mockMidazSvc.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				mockResolver.EXPECT().
+					AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil)
 
 				mockPackRepo.EXPECT().
@@ -194,8 +195,8 @@ func TestCreatePackage(t *testing.T) {
 			orgId:     orgId,
 			ledgerId:  ledgerID,
 			mockSetup: func() {
-				mockMidazSvc.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				mockResolver.EXPECT().
+					AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil)
 
 				mockPackRepo.EXPECT().
@@ -214,8 +215,8 @@ func TestCreatePackage(t *testing.T) {
 			segId:     segId,
 			ledgerId:  ledgerID,
 			mockSetup: func() {
-				mockMidazSvc.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				mockResolver.EXPECT().
+					AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(constant.ErrFindAccountOnMidaz)
 			},
 			expectErr:      true,
@@ -230,8 +231,8 @@ func TestCreatePackage(t *testing.T) {
 			segId:     segId,
 			ledgerId:  ledgerID,
 			mockSetup: func() {
-				mockMidazSvc.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				mockResolver.EXPECT().
+					AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil)
 
 				mockPackRepo.EXPECT().
@@ -254,8 +255,8 @@ func TestCreatePackage(t *testing.T) {
 			segId:     segId,
 			ledgerId:  ledgerID,
 			mockSetup: func() {
-				mockMidazSvc.EXPECT().
-					GetAccountFromMidazByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				mockResolver.EXPECT().
+					AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil)
 
 				mockPackRepo.EXPECT().

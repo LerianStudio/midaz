@@ -7,40 +7,51 @@ package midaz
 import (
 	"context"
 	"errors"
-	"fmt"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
+	pkg "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// TransactionCounter counts transactions by route via the Midaz transaction service.
+// CountParams holds the parameters for counting transactions by route and window.
+type CountParams struct {
+	OrganizationID uuid.UUID
+	LedgerID       uuid.UUID
+	Route          string
+	Status         string
+	StartDate      time.Time
+	EndDate        time.Time
+}
+
+// TransactionCounter counts transactions by route via the ledger query layer.
 type TransactionCounter interface {
-	CountByRoute(ctx context.Context, params http.CountParams) (int64, error)
+	CountByRoute(ctx context.Context, params CountParams) (int64, error)
 }
 
-// ErrNilMidazClient is returned when a nil MidazClient is provided to NewTransactionCounter.
-var ErrNilMidazClient = errors.New("MidazClient is required")
+// ErrNilResolverCounter is returned when a nil MidazResolver is provided to NewTransactionCounter.
+var ErrNilResolverCounter = errors.New("MidazResolver is required and cannot be nil")
 
-// midazTransactionCounter implements TransactionCounter by delegating to MidazClient.
+// midazTransactionCounter implements TransactionCounter by delegating to the in-process MidazResolver.
 type midazTransactionCounter struct {
-	client http.MidazClient
+	resolver pkg.MidazResolver
 }
 
-// NewTransactionCounter creates a new TransactionCounter backed by the given MidazClient.
-func NewTransactionCounter(client http.MidazClient) (TransactionCounter, error) {
-	if client == nil {
-		return nil, ErrNilMidazClient
+// NewTransactionCounter creates a new TransactionCounter backed by the given MidazResolver.
+func NewTransactionCounter(resolver pkg.MidazResolver) (TransactionCounter, error) {
+	if resolver == nil {
+		return nil, ErrNilResolverCounter
 	}
 
-	return &midazTransactionCounter{client: client}, nil
+	return &midazTransactionCounter{resolver: resolver}, nil
 }
 
 // CountByRoute counts transactions matching the given route, status, and date range.
-func (tc *midazTransactionCounter) CountByRoute(ctx context.Context, params http.CountParams) (int64, error) {
+func (tc *midazTransactionCounter) CountByRoute(ctx context.Context, params CountParams) (int64, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "billing.count_transactions")
@@ -53,19 +64,15 @@ func (tc *midazTransactionCounter) CountByRoute(ctx context.Context, params http
 		attribute.String("app.request.status", params.Status),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Counting transactions by route: org=%s, ledger=%s, route=%s, status=%s",
-		params.OrganizationID.String(), params.LedgerID.String(),
-		params.Route, params.Status))
-
-	count, err := tc.client.CountTransactionsByRoute(ctx, params)
+	count, err := tc.resolver.CountTransactionsByRoute(ctx, params.OrganizationID, params.LedgerID, params.Route, params.Status, params.StartDate, params.EndDate)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to count transactions by route", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error counting transactions by route: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error counting transactions by route", libLog.Err(err))
 
 		return 0, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction count result: count=%d, route=%s", count, params.Route))
+	span.SetAttributes(attribute.Int64("db.rows_returned", count))
 
 	return count, nil
 }

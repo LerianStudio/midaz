@@ -10,27 +10,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
+	pkg "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
-// newTestTransactionCounter creates a midazTransactionCounter with a mock MidazClient for testing.
-func newTestTransactionCounter(t *testing.T) (TransactionCounter, *http.MockMidazClient) {
+// newTestTransactionCounter creates a midazTransactionCounter with a mock MidazResolver for testing.
+func newTestTransactionCounter(t *testing.T) (TransactionCounter, *pkg.MockMidazResolver) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
 	t.Cleanup(func() { ctrl.Finish() })
 
-	mockClient := http.NewMockMidazClient(ctrl)
+	mockResolver := pkg.NewMockMidazResolver(ctrl)
 
-	counter, err := NewTransactionCounter(mockClient)
+	counter, err := NewTransactionCounter(mockResolver)
 	assert.NoError(t, err)
 	assert.NotNil(t, counter)
 
-	return counter, mockClient
+	return counter, mockResolver
 }
 
 func TestCountByRoute(t *testing.T) {
@@ -38,7 +38,7 @@ func TestCountByRoute(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		params        http.CountParams
+		params        CountParams
 		mockReturn    int64
 		mockErr       error
 		expectedCount int64
@@ -46,7 +46,7 @@ func TestCountByRoute(t *testing.T) {
 	}{
 		{
 			name: "success - returns transaction count",
-			params: http.CountParams{
+			params: CountParams{
 				OrganizationID: uuid.New(),
 				LedgerID:       uuid.New(),
 				Route:          uuid.New().String(),
@@ -60,8 +60,8 @@ func TestCountByRoute(t *testing.T) {
 			expectErr:     false,
 		},
 		{
-			name: "error - client returns error",
-			params: http.CountParams{
+			name: "error - resolver returns error",
+			params: CountParams{
 				OrganizationID: uuid.New(),
 				LedgerID:       uuid.New(),
 				Route:          uuid.New().String(),
@@ -70,13 +70,13 @@ func TestCountByRoute(t *testing.T) {
 				EndDate:        time.Date(2026, 1, 31, 23, 59, 59, 0, time.UTC),
 			},
 			mockReturn:    0,
-			mockErr:       errors.New("midaz unavailable"),
+			mockErr:       errors.New("count failed"),
 			expectedCount: 0,
 			expectErr:     true,
 		},
 		{
 			name: "success - zero count",
-			params: http.CountParams{
+			params: CountParams{
 				OrganizationID: uuid.New(),
 				LedgerID:       uuid.New(),
 				Route:          uuid.New().String(),
@@ -95,10 +95,18 @@ func TestCountByRoute(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			counter, mockClient := newTestTransactionCounter(t)
+			counter, mockResolver := newTestTransactionCounter(t)
 
-			mockClient.EXPECT().
-				CountTransactionsByRoute(gomock.Any(), tt.params).
+			mockResolver.EXPECT().
+				CountTransactionsByRoute(
+					gomock.Any(),
+					tt.params.OrganizationID,
+					tt.params.LedgerID,
+					tt.params.Route,
+					tt.params.Status,
+					tt.params.StartDate,
+					tt.params.EndDate,
+				).
 				Return(tt.mockReturn, tt.mockErr).
 				Times(1)
 
@@ -115,12 +123,12 @@ func TestCountByRoute(t *testing.T) {
 	}
 }
 
-func TestNewTransactionCounter_NilClient(t *testing.T) {
+func TestNewTransactionCounter_NilResolver(t *testing.T) {
 	t.Parallel()
 
 	counter, err := NewTransactionCounter(nil)
 
 	assert.Nil(t, counter)
 	assert.Error(t, err)
-	assert.Equal(t, ErrNilMidazClient, err)
+	assert.Equal(t, ErrNilResolverCounter, err)
 }

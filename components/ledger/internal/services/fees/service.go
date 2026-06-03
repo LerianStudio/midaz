@@ -8,7 +8,7 @@ import (
 	"errors"
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
+	pkg "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 )
 
 // UseCase is a struct to implement the services methods.
@@ -18,8 +18,8 @@ type UseCase struct {
 	// packageRepo provides an abstraction on top of the pack data source.
 	packageRepo pack.Repository
 
-	// midazClient communicates with midaz
-	midazClient http.MidazClient
+	// resolver resolves account/transaction reads in-process via the ledger query layer.
+	resolver pkg.MidazResolver
 
 	// defaultCurrency is the default currency for fee calculations
 	defaultCurrency string
@@ -28,21 +28,21 @@ type UseCase struct {
 // ErrNilPackageRepo is returned when a nil PackageRepo is provided to NewUseCase.
 var ErrNilPackageRepo = errors.New("PackageRepo is required and cannot be nil")
 
-// ErrNilMidazClient is returned when a nil MidazClient is provided to NewUseCase.
-var ErrNilMidazClient = errors.New("MidazClient is required and cannot be nil")
+// ErrNilResolver is returned when a nil MidazResolver is provided to NewUseCase.
+var ErrNilResolver = errors.New("MidazResolver is required and cannot be nil")
 
 // ErrEmptyDefaultCurrency is returned when an empty DefaultCurrency is provided to NewUseCase.
 var ErrEmptyDefaultCurrency = errors.New("DefaultCurrency is required and cannot be empty")
 
 // NewUseCase creates a new UseCase with validated dependencies.
 // Returns an error if any required dependency is nil or empty.
-func NewUseCase(packageRepo pack.Repository, midazClient http.MidazClient, defaultCurrency string) (*UseCase, error) {
+func NewUseCase(packageRepo pack.Repository, resolver pkg.MidazResolver, defaultCurrency string) (*UseCase, error) {
 	if packageRepo == nil {
 		return nil, ErrNilPackageRepo
 	}
 
-	if midazClient == nil {
-		return nil, ErrNilMidazClient
+	if resolver == nil {
+		return nil, ErrNilResolver
 	}
 
 	if defaultCurrency == "" {
@@ -51,7 +51,7 @@ func NewUseCase(packageRepo pack.Repository, midazClient http.MidazClient, defau
 
 	return &UseCase{
 		packageRepo:     packageRepo,
-		midazClient:     midazClient,
+		resolver:        resolver,
 		defaultCurrency: defaultCurrency,
 	}, nil
 }
@@ -61,9 +61,9 @@ func (uc *UseCase) PackageRepo() pack.Repository {
 	return uc.packageRepo
 }
 
-// MidazClient returns the Midaz client dependency.
-func (uc *UseCase) MidazClient() http.MidazClient {
-	return uc.midazClient
+// Resolver returns the in-process Midaz resolver dependency.
+func (uc *UseCase) Resolver() pkg.MidazResolver {
+	return uc.resolver
 }
 
 // DefaultCurrency returns the default currency for fee calculations.

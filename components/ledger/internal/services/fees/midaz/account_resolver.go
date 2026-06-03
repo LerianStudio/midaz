@@ -6,26 +6,22 @@ package midaz
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
+	pkg "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// accountPageSize is the number of accounts fetched per page when paginating ListAccounts.
-const accountPageSize = 100
-
 // activeStatusCode is the account status code that indicates an active account.
-// Comparison is case-insensitive to handle both "active" and "ACTIVE" from Midaz.
+// Comparison is case-insensitive to handle both "active" and "ACTIVE".
 const activeStatusCode = "active"
 
 // errEmptyAccountTarget is a sentinel used only for span/log messages.
@@ -37,18 +33,21 @@ type AccountResolver interface {
 	ResolveAccounts(ctx context.Context, orgID, ledgerID uuid.UUID, target model.AccountTarget) ([]pkg.Account, error)
 }
 
-// midazAccountResolver implements AccountResolver by delegating to MidazClient.
+// ErrNilResolver is returned when a nil MidazResolver is provided to NewAccountResolver.
+var ErrNilResolver = errors.New("MidazResolver is required and cannot be nil")
+
+// midazAccountResolver implements AccountResolver by delegating to the in-process MidazResolver.
 type midazAccountResolver struct {
-	client http.MidazClient
+	resolver pkg.MidazResolver
 }
 
-// NewAccountResolver creates a new AccountResolver backed by the given MidazClient.
-func NewAccountResolver(client http.MidazClient) (AccountResolver, error) {
-	if client == nil {
-		return nil, ErrNilMidazClient
+// NewAccountResolver creates a new AccountResolver backed by the given MidazResolver.
+func NewAccountResolver(resolver pkg.MidazResolver) (AccountResolver, error) {
+	if resolver == nil {
+		return nil, ErrNilResolver
 	}
 
-	return &midazAccountResolver{client: client}, nil
+	return &midazAccountResolver{resolver: resolver}, nil
 }
 
 // ResolveAccounts resolves accounts matching the given target criteria,
@@ -76,28 +75,15 @@ func (r *midazAccountResolver) ResolveAccounts(
 	case target.SegmentID != nil:
 		span.SetAttributes(attribute.String("app.request.target_type", "segmentId"))
 
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Resolving accounts by segmentId: org=%s, ledger=%s, segment=%s",
-			orgID.String(), ledgerID.String(), target.SegmentID.String()))
-
-		accounts, err = r.resolveByListAccounts(ctx, orgID, ledgerID, http.AccountFilters{
-			SegmentID: target.SegmentID,
-		})
+		accounts, err = r.resolver.ListAccounts(ctx, orgID, ledgerID, target.SegmentID, nil)
 
 	case target.PortfolioID != nil:
 		span.SetAttributes(attribute.String("app.request.target_type", "portfolioId"))
 
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Resolving accounts by portfolioId: org=%s, ledger=%s, portfolio=%s",
-			orgID.String(), ledgerID.String(), target.PortfolioID.String()))
-
-		accounts, err = r.resolveByListAccounts(ctx, orgID, ledgerID, http.AccountFilters{
-			PortfolioID: target.PortfolioID,
-		})
+		accounts, err = r.resolver.ListAccounts(ctx, orgID, ledgerID, nil, target.PortfolioID)
 
 	case len(target.Aliases) > 0:
 		span.SetAttributes(attribute.String("app.request.target_type", "aliases"))
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Resolving accounts by aliases: org=%s, ledger=%s, count=%d",
-			orgID.String(), ledgerID.String(), len(target.Aliases)))
 
 		accounts, err = r.resolveByAliases(ctx, orgID, ledgerID, target.Aliases)
 
@@ -105,21 +91,19 @@ func (r *midazAccountResolver) ResolveAccounts(
 		bizErr := pkg.ValidateBusinessError(constant.ErrInvalidAccountTarget, "",
 			errEmptyAccountTarget)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Empty account target", bizErr)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Empty account target: org=%s, ledger=%s", orgID.String(), ledgerID.String()))
+		logger.Log(ctx, libLog.LevelWarn, "Empty account target")
 
 		return nil, bizErr
 	}
 
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to resolve accounts", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error resolving accounts: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error resolving accounts", libLog.Err(err))
 
 		return nil, err
 	}
 
 	active := filterActiveAccounts(accounts)
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Resolved accounts: total=%d, active=%d", len(accounts), len(active)))
 
 	span.SetAttributes(
 		attribute.Int("app.response.total_accounts", len(accounts)),
@@ -129,39 +113,7 @@ func (r *midazAccountResolver) ResolveAccounts(
 	return active, nil
 }
 
-// resolveByListAccounts paginates through ListAccounts until all pages are consumed.
-func (r *midazAccountResolver) resolveByListAccounts(
-	ctx context.Context,
-	orgID, ledgerID uuid.UUID,
-	filters http.AccountFilters,
-) ([]pkg.Account, error) {
-	var allAccounts []pkg.Account
-
-	page := 1
-
-	for {
-		accountPage, err := r.client.ListAccounts(ctx, orgID, ledgerID, filters, page, accountPageSize)
-		if err != nil {
-			return nil, err
-		}
-
-		if accountPage == nil {
-			return nil, pkg.ValidateBusinessError(constant.ErrMidazQueryFailed, "", "ListAccounts returned nil page without error")
-		}
-
-		allAccounts = append(allAccounts, accountPage.Items...)
-
-		if len(accountPage.Items) < accountPageSize {
-			break
-		}
-
-		page++
-	}
-
-	return allAccounts, nil
-}
-
-// resolveByAliases resolves each alias individually via GetAccountDetailsByAlias.
+// resolveByAliases resolves each alias individually via GetAccountByAlias.
 func (r *midazAccountResolver) resolveByAliases(
 	ctx context.Context,
 	orgID, ledgerID uuid.UUID,
@@ -181,11 +133,8 @@ func (r *midazAccountResolver) resolveByAliases(
 
 	accounts := make([]pkg.Account, 0, len(unique))
 
-	orgIDStr := orgID.String()
-	ledgerIDStr := ledgerID.String()
-
 	for _, alias := range unique {
-		account, err := r.client.GetAccountDetailsByAlias(ctx, orgIDStr, ledgerIDStr, alias)
+		account, err := r.resolver.GetAccountByAlias(ctx, orgID, ledgerID, alias)
 		if err != nil {
 			return nil, err
 		}
