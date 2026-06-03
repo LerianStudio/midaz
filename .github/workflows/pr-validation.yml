@@ -27,10 +27,15 @@ jobs:
         ci
         build
         revert
+      # crm is retained as a warn-only scope (require_scope: false) until the P9 code
+      # teardown removes crm-in-ledger; fees is a valid scope since fees code now
+      # lives inside the ledger binary.
       pr_title_scopes: |
         crm
         ledger
+        tracer
         reporter
+        fees
         api
         pkg
         infra

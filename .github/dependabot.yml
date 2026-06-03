@@ -1,8 +1,8 @@
 version: 2
 updates:
-  # Go modules - transaction component
+  # Go modules - single root module (monorepo has ONE go.mod at repo root)
   - package-ecosystem: "gomod"
-    directory: "/components/transaction"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -10,49 +10,6 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "area: dependencies"
-      - "component: transaction"
-    commit-message:
-      prefix: "chore(deps)"
-
-  # Go modules - onboarding component
-  - package-ecosystem: "gomod"
-    directory: "/components/onboarding"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    target-branch: "develop"
-    open-pull-requests-limit: 10
-    labels:
-      - "area: dependencies"
-      - "component: onboarding"
-    commit-message:
-      prefix: "chore(deps)"
-
-  # Go modules - ledger component
-  - package-ecosystem: "gomod"
-    directory: "/components/ledger"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    target-branch: "develop"
-    open-pull-requests-limit: 10
-    labels:
-      - "area: dependencies"
-      - "component: ledger"
-    commit-message:
-      prefix: "chore(deps)"
-
-  # Go modules - crm component
-  - package-ecosystem: "gomod"
-    directory: "/components/crm"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    target-branch: "develop"
-    open-pull-requests-limit: 10
-    labels:
-      - "area: dependencies"
-      - "component: crm"
     commit-message:
       prefix: "chore(deps)"
 
@@ -69,35 +26,7 @@ updates:
     commit-message:
       prefix: "ci(deps)"
 
-  # Docker - transaction
-  - package-ecosystem: "docker"
-    directory: "/components/transaction"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    target-branch: "develop"
-    open-pull-requests-limit: 5
-    labels:
-      - "area: build"
-      - "component: transaction"
-    commit-message:
-      prefix: "build(deps)"
-
-  # Docker - onboarding
-  - package-ecosystem: "docker"
-    directory: "/components/onboarding"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    target-branch: "develop"
-    open-pull-requests-limit: 5
-    labels:
-      - "area: build"
-      - "component: onboarding"
-    commit-message:
-      prefix: "build(deps)"
-
-  # Docker - ledger
+  # Docker - ledger (image-bearing component)
   - package-ecosystem: "docker"
     directory: "/components/ledger"
     schedule:
@@ -111,9 +40,9 @@ updates:
     commit-message:
       prefix: "build(deps)"
 
-  # Docker - crm
+  # Docker - tracer (image-bearing component)
   - package-ecosystem: "docker"
-    directory: "/components/crm"
+    directory: "/components/tracer"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -121,6 +50,34 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "area: build"
-      - "component: crm"
+      - "component: tracer"
+    commit-message:
+      prefix: "build(deps)"
+
+  # Docker - reporter-manager (image-bearing component)
+  - package-ecosystem: "docker"
+    directory: "/components/reporter-manager"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    target-branch: "develop"
+    open-pull-requests-limit: 5
+    labels:
+      - "area: build"
+      - "component: reporter-manager"
+    commit-message:
+      prefix: "build(deps)"
+
+  # Docker - reporter-worker (image-bearing component)
+  - package-ecosystem: "docker"
+    directory: "/components/reporter-worker"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    target-branch: "develop"
+    open-pull-requests-limit: 5
+    labels:
+      - "area: build"
+      - "component: reporter-worker"
     commit-message:
       prefix: "build(deps)"
