@@ -14,7 +14,7 @@ Midaz is an **open-source double-entry ledger** written in Go. It provides HTTP 
 | Architecture | Hexagonal + CQRS |
 | HTTP Framework | Fiber v2 |
 | Databases | PostgreSQL 17, MongoDB 8, RabbitMQ 4.1, Valkey 8 |
-| Components | Ledger (:3002), CRM (:4003), Infra (Docker Compose) |
+| Components | Ledger (:3002), CRM (:4003), Tracer (:4020), Reporter Manager (:4005), Reporter Worker (:4006), Infra (Docker Compose) |
 
 ## Get Running
 
