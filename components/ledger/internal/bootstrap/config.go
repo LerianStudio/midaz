@@ -166,7 +166,7 @@ type Config struct {
 	TxnPrefixedMongoTLSCACert    string `env:"MONGO_TRANSACTION_TLS_CA_CERT"`
 
 	// --- CRM MongoDB fields (MONGO_CRM_* env tags) ---
-	// CRM (holder/alias) collapsed into the unified ledger binary (P3).
+	// CRM (holder/alias) collapsed into the unified ledger binary.
 	CrmPrefixedMongoURI          string `env:"MONGO_CRM_URI"`
 	CrmPrefixedMongoDBHost       string `env:"MONGO_CRM_HOST"`
 	CrmPrefixedMongoDBName       string `env:"MONGO_CRM_NAME"`
@@ -180,7 +180,7 @@ type Config struct {
 	// --- CRM crypto keys (holder/alias PII at-rest encryption) ---
 	// These keep the BARE LCRYPTO_* env names (no CRM prefix) so the EXACT key
 	// VALUES used by the standalone CRM service carry over unchanged. Changing
-	// either value renders existing holder/alias PII undecryptable (R7).
+	// either value renders existing holder/alias PII undecryptable.
 	CrmHashSecretKey    string `env:"LCRYPTO_HASH_SECRET_KEY"`
 	CrmEncryptSecretKey string `env:"LCRYPTO_ENCRYPT_SECRET_KEY"`
 
@@ -1107,7 +1107,7 @@ func buildUnifiedRouteSetup(
 	)
 
 	// CRM tenant middleware is a SEPARATE instance carrying ONLY the crm-api
-	// Mongo manager. This is the isolation-critical step (R6): the CRM
+	// Mongo manager. This is the isolation-critical step: the CRM
 	// WithTenantDB MUST be attached only to CRM routes via crmRouteOptions
 	// below. Mounting it on the onboarding/transaction middleware (or globally
 	// via f.Use) would overwrite the tenant Mongo that ledger handlers resolve,

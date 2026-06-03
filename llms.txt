@@ -34,10 +34,10 @@ Midaz implements a financial hierarchy: Organizations → Ledgers → Assets, Po
   - [Services](components/ledger/internal/services/): Business logic — CQRS command/query use cases
   - [Migrations](components/ledger/migrations/): SQL migrations for onboarding and transaction databases
 - [CRM Component](components/crm/): Customer relationship management plugin
-  - [Bootstrap](components/crm/internal/bootstrap/): Config, DI, server lifecycle
-  - [HTTP Handlers](components/crm/internal/adapters/http/): Fiber handlers for holders and aliases
-  - [MongoDB Repos](components/crm/internal/adapters/mongodb/): CRM data persistence
-  - [Services](components/crm/internal/services/): CRM business logic
+  - [Bootstrap](components/crm/bootstrap/): Config, DI, server lifecycle
+  - [HTTP Handlers](components/crm/adapters/http/): Fiber handlers for holders and aliases
+  - [MongoDB Repos](components/crm/adapters/mongodb/): CRM data persistence
+  - [Services](components/crm/services/): CRM business logic
 - [Infrastructure](components/infra/): Docker Compose for PostgreSQL, MongoDB, RabbitMQ, Valkey, Grafana/OTEL
 - [Shared Packages](pkg/): Cross-component libraries
   - [Domain Models](pkg/mmodel/): Organization, Ledger, Account, Asset, Transaction, Balance, etc.

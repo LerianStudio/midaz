@@ -120,12 +120,12 @@ MIDAZ
 
 * **Endpoints**: List and describe all CRM API endpoints, including parameters, request/response formats, and error codes.
 
-###### Internal (`./components/crm/internal`)
+###### Components (`./components/crm`)
 
-* **Adapters** (`./components/crm/internal/adapters`):
+* **Adapters** (`./components/crm/adapters`):
   * **HTTP**: Inbound HTTP handlers for CRM operations.
   * **MongoDB**: Database connection and operations for CRM data persistence.
-* **Services** (`./components/crm/internal/services`):
+* **Services** (`./components/crm/services`):
   * Business logic services for customer relationship management operations.
 
 ##### Ledger (`./components/onboarding`)

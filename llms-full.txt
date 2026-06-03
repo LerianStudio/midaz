@@ -354,7 +354,7 @@ return nil, fmt.Errorf("failed to create entity: %w", err)
 ## 6. Environment Variables
 
 Source of truth: `components/ledger/internal/bootstrap/config.go` (Ledger Config struct) and
-`components/crm/internal/bootstrap/config.go` (CRM Config struct). Defaults in parentheses
+`components/crm/bootstrap/config.go` (CRM Config struct). Defaults in parentheses
 are set programmatically by `applyConfigDefaults()`.
 
 ### 6.1 Ledger Component
@@ -552,7 +552,7 @@ are set programmatically by `applyConfigDefaults()`.
 
 ### 6.2 CRM Component
 
-Source: `components/crm/internal/bootstrap/config.go`
+Source: `components/crm/bootstrap/config.go`
 
 | Variable | Default | Description |
 |----------|---------|-------------|

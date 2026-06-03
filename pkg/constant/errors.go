@@ -218,27 +218,26 @@ var (
 )
 
 // List of CRM domain errors.
-// These are CRM-specific domain error codes with no generic equivalent. The 12
-// dead 1:1 mapping codes (former CRM-0001..0005/0007/0009/0011/0012/0014..0016)
-// were removed when the standalone CRM error-code transformer was deleted (PD-2);
-// clients now receive canonical midaz codes. Gaps in the CRM-00xx sequence are
-// intentional - these are independent sentinels, not an ordered array.
+// These are CRM-specific domain error codes with no generic equivalent; CRM
+// validation/not-found failures surface canonical midaz codes instead. Gaps in
+// the CRM-00xx sequence are intentional - these are independent sentinels, not
+// an ordered array.
 var (
-	ErrHolderNotFound                  = errors.New("CRM-0006")
-	ErrAliasNotFound                   = errors.New("CRM-0008")
-	ErrDocumentAssociationError        = errors.New("CRM-0010")
-	ErrAccountAlreadyAssociated        = errors.New("CRM-0013")
-	ErrHolderHasAliases                = errors.New("CRM-0017")
-	ErrMissingHeadersInRequest         = errors.New("CRM-0018")
-	ErrMetadataQueryInvalidFormat      = errors.New("CRM-0019")
-	ErrMetadataQueryInvalidKey         = errors.New("CRM-0020")
-	ErrMetadataQueryContainsOperator   = errors.New("CRM-0021")
-	ErrInvalidHeaderValue              = errors.New("CRM-0022")
-	ErrAliasClosingDateBeforeCreation  = errors.New("CRM-0023")
-	ErrRelatedPartyNotFound            = errors.New("CRM-0024")
-	ErrInvalidRelatedPartyRole         = errors.New("CRM-0025")
-	ErrRelatedPartyDocumentRequired    = errors.New("CRM-0026")
-	ErrRelatedPartyNameRequired        = errors.New("CRM-0027")
-	ErrRelatedPartyStartDateRequired   = errors.New("CRM-0028")
-	ErrRelatedPartyEndDateInvalid      = errors.New("CRM-0029")
+	ErrHolderNotFound                 = errors.New("CRM-0006")
+	ErrAliasNotFound                  = errors.New("CRM-0008")
+	ErrDocumentAssociationError       = errors.New("CRM-0010")
+	ErrAccountAlreadyAssociated       = errors.New("CRM-0013")
+	ErrHolderHasAliases               = errors.New("CRM-0017")
+	ErrMissingHeadersInRequest        = errors.New("CRM-0018")
+	ErrMetadataQueryInvalidFormat     = errors.New("CRM-0019")
+	ErrMetadataQueryInvalidKey        = errors.New("CRM-0020")
+	ErrMetadataQueryContainsOperator  = errors.New("CRM-0021")
+	ErrInvalidHeaderValue             = errors.New("CRM-0022")
+	ErrAliasClosingDateBeforeCreation = errors.New("CRM-0023")
+	ErrRelatedPartyNotFound           = errors.New("CRM-0024")
+	ErrInvalidRelatedPartyRole        = errors.New("CRM-0025")
+	ErrRelatedPartyDocumentRequired   = errors.New("CRM-0026")
+	ErrRelatedPartyNameRequired       = errors.New("CRM-0027")
+	ErrRelatedPartyStartDateRequired  = errors.New("CRM-0028")
+	ErrRelatedPartyEndDateInvalid     = errors.New("CRM-0029")
 )
