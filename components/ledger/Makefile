@@ -261,6 +261,61 @@ generate-docs:
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger documentation generated$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
+# Setup Commands
+#-------------------------------------------------------
+
+.PHONY: set-env
+set-env:
+	$(call title1,"Setting up environment file")
+	@if [ -f ".env.example" ] && [ ! -f ".env" ]; then \
+		echo "Creating .env from .env.example"; \
+		cp ".env.example" ".env"; \
+	elif [ ! -f ".env.example" ]; then \
+		echo "$(YELLOW)Warning: No .env.example found$(NC)"; \
+	else \
+		echo ".env already exists"; \
+	fi
+	@$(MAKE) generate-keys
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Environment file set up successfully$(GREEN) ✔️$(NC)"
+
+# Generate and inject a crypto key into .env if it is unset or still the
+# placeholder. Migrated from the standalone crm Makefile at COLLAPSE time —
+# the collapsed CRM code reads the bare LCRYPTO_* env names.
+# Usage: $(call inject_crypto_key,KEY_NAME,PLACEHOLDER)
+define inject_crypto_key
+	@CURRENT_VAL=$$(grep "^$(1)=" .env 2>/dev/null | cut -d'=' -f2); \
+	if [ -z "$$CURRENT_VAL" ] || [ "$$CURRENT_VAL" = "$(2)" ]; then \
+		echo "  Generating $(1)..."; \
+		NEW_KEY=$$(docker run --rm alpine/openssl rand -hex 32 2>/dev/null); \
+		if [ -z "$$NEW_KEY" ] || [ $${#NEW_KEY} -ne 64 ]; then \
+			echo "$(RED)  ✗ Failed to generate key. Ensure Docker is running.$(NC)"; \
+			exit 1; \
+		fi; \
+		if grep -q "^$(1)=" ".env"; then \
+			sed -i.bak "s|^$(1)=.*|$(1)=$$NEW_KEY|" ".env" && rm -f ".env.bak"; \
+		else \
+			echo "$(1)=$$NEW_KEY" >> ".env"; \
+		fi; \
+		echo "$(GREEN)  ✓ $(1) generated$(NC)"; \
+	else \
+		echo "$(GREEN)  ✓ $(1) already set$(NC)"; \
+	fi
+endef
+
+.PHONY: generate-keys
+generate-keys:
+	$(call title1,"Generating crypto keys for local testing")
+	@if [ ! -f ".env" ]; then \
+		echo "$(YELLOW)  ! No .env file found. Run 'make set-env' first.$(NC)"; \
+		exit 0; \
+	fi
+	$(call inject_crypto_key,LCRYPTO_HASH_SECRET_KEY,my-hash-secret-key)
+	$(call inject_crypto_key,LCRYPTO_ENCRYPT_SECRET_KEY,my-encrypt-secret-key)
+	@echo ""
+	@echo "$(YELLOW)  ⚠️  WARNING: Generated keys are for LOCAL/TEST use only.$(NC)"
+	@echo "$(YELLOW)     For production, generate keys securely and store in a secrets manager.$(NC)"
+
+#-------------------------------------------------------
 # Developer Helper Commands
 #-------------------------------------------------------
 
