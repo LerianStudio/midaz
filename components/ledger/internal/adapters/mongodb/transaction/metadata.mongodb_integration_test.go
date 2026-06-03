@@ -1414,10 +1414,10 @@ func TestIntegration_MetadataRepository_TenantContext_TakesPrecedence_OverStatic
 // mongo-driver v2 migration regression tests (Gate-9 behavioral bar)
 // ============================================================================
 
-// TestIntegration_MetadataRepository_Create_ServerAssignsObjectID proves gotcha #2:
-// a zero bson.ObjectID with `bson:"_id,omitempty"` is omitted on marshal under the
-// v2 driver (ObjectID implements Zeroer), so MongoDB server-assigns a non-zero _id
-// rather than persisting the zero ObjectID.
+// TestIntegration_MetadataRepository_Create_ServerAssignsObjectID asserts that a zero
+// bson.ObjectID carrying `bson:"_id,omitempty"` is omitted on marshal (ObjectID
+// implements Zeroer), so MongoDB assigns a non-zero _id rather than persisting the
+// zero ObjectID. This guarantees server-side _id generation for new documents.
 func TestIntegration_MetadataRepository_Create_ServerAssignsObjectID(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
@@ -1449,9 +1449,11 @@ func TestIntegration_MetadataRepository_Create_ServerAssignsObjectID(t *testing.
 	assert.False(t, rawID.IsZero(), "server must assign a non-zero _id (zero ObjectID must not be persisted)")
 }
 
-// TestIntegration_MetadataRepository_FindByEntity_DecodeRoundTrips proves gotcha #4:
-// a full document survives a write/read round-trip through the stricter v2 decoder,
-// with all field types (string, nested map, time) decoded back into *Metadata intact.
+// TestIntegration_MetadataRepository_FindByEntity_DecodeRoundTrips asserts that a full
+// document survives a write/read round-trip with every field type intact: string,
+// 64-bit integer, and a nested document. Numeric and nested values are the types most
+// sensitive to the BSON decoder's representation choices, so they are asserted by
+// concrete type and value.
 func TestIntegration_MetadataRepository_FindByEntity_DecodeRoundTrips(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
@@ -1484,10 +1486,15 @@ func TestIntegration_MetadataRepository_FindByEntity_DecodeRoundTrips(t *testing
 	assert.Equal(t, "Transaction", found.EntityName)
 	assert.Equal(t, "credit", found.Data["type"], "string field should round-trip")
 
-	// The v2 driver decodes nested documents into bson.D (ordered), not map[string]any.
-	// Data is a typed map[string]any at the top level, but its nested values land as bson.D.
+	// A BSON 64-bit integer decodes into an int64 when the target is `any`.
+	amount, ok := found.Data["amount"].(int64)
+	require.True(t, ok, "amount should decode as int64, got %T", found.Data["amount"])
+	assert.Equal(t, int64(4200), amount, "int64 field should round-trip")
+
+	// Data is a typed map[string]any at the top level, but a nested document has no
+	// concrete Go target, so the decoder represents it as an ordered bson.D.
 	nested, ok := found.Data["nested"].(bson.D)
-	require.True(t, ok, "nested document should decode as bson.D under the v2 driver, got %T", found.Data["nested"])
+	require.True(t, ok, "nested document should decode as bson.D, got %T", found.Data["nested"])
 
 	var nestedK any
 	for _, e := range nested {

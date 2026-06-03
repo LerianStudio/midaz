@@ -99,7 +99,8 @@ func TestIntegration_AliasRepo_Create_EncryptsData(t *testing.T) {
 	require.True(t, ok, "document should be stored as string")
 	assert.NotEqual(t, originalDocument, storedDoc, "document should be encrypted in storage")
 
-	// Search hash should be present. The v2 driver decodes nested documents as bson.D.
+	// Search hash should be present. A nested document with no concrete Go target
+	// decodes as an ordered bson.D.
 	search, ok := rawDoc["search"].(bson.D)
 	require.True(t, ok, "search document should exist")
 
