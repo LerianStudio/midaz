@@ -6,18 +6,18 @@ package services
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/holder"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
-func TestCreateHolder(t *testing.T) {
+func TestGetHolderByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -33,46 +33,40 @@ func TestCreateHolder(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		input          *mmodel.CreateHolderInput
+		holderID       uuid.UUID
 		mockSetup      func()
-		expectErr      bool
-		expectedHolder *mmodel.Holder
+		expectError    bool
+		expectedResult *mmodel.Holder
 	}{
 		{
-			name: "Success with required fields provided",
-			input: &mmodel.CreateHolderInput{
-				Name:     name,
-				Document: document,
-			},
+			name:     "Success retrieving holder by ID",
+			holderID: holderID,
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Holder{
 						ID:       &holderID,
 						Name:     &name,
 						Document: &document,
 					}, nil)
 			},
-			expectErr: false,
-			expectedHolder: &mmodel.Holder{
+			expectError: false,
+			expectedResult: &mmodel.Holder{
 				ID:       &holderID,
 				Name:     &name,
 				Document: &document,
 			},
 		},
 		{
-			name: "Error when repository fails to create holder",
-			input: &mmodel.CreateHolderInput{
-				Name:     name,
-				Document: document,
-			},
+			name:     "Error when holder not found by ID",
+			holderID: uuid.New(),
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("database error"))
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, cn.ErrHolderNotFound)
 			},
-			expectErr:      true,
-			expectedHolder: nil,
+			expectError:    true,
+			expectedResult: nil,
 		},
 	}
 
@@ -81,15 +75,14 @@ func TestCreateHolder(t *testing.T) {
 			testCase.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.CreateHolder(ctx, "0194ffee-e14f-70f5-b400-04b7b7434131", testCase.input)
+			result, err := uc.GetHolderByID(ctx, uuid.New().String(), testCase.holderID, false)
 
-			if testCase.expectErr {
+			if testCase.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, result)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, testCase.expectedHolder.Name, result.Name)
-				assert.Equal(t, testCase.expectedHolder.Document, result.Document)
+				assert.Equal(t, testCase.expectedResult, result)
 			}
 		})
 	}

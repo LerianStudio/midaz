@@ -18,10 +18,10 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/lib-observability/metrics"
 	libZap "github.com/LerianStudio/lib-observability/zap"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/http/in"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v3/components/crm/services"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 )
 
