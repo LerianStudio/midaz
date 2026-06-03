@@ -105,7 +105,7 @@ test:
 test-unit:
 	$(call print_title,Running Go unit tests)
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
+	@set -e; export ALLOW_INSECURE_TLS=true; mkdir -p $(TEST_REPORTS_DIR); \
 	pkgs=$$(go list ./... | awk '!/\/tests($|\/)/' | awk '!/\/api($|\/)/'); \
 	if [ -z "$$pkgs" ]; then \
 	  echo "No unit test packages found (outside ./tests)**"; \
@@ -225,7 +225,7 @@ test-integration:
 	$(call print_title,Running integration tests with testcontainers)
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
+	@set -e; export ALLOW_INSECURE_TLS=true; mkdir -p $(TEST_REPORTS_DIR); \
 	if [ -n "$(PKG)" ]; then \
 	  echo "Using specified package: $(PKG)"; \
 	  pkgs=$$(go list $(PKG) 2>/dev/null | tr '\n' ' '); \
