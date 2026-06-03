@@ -121,7 +121,7 @@ func (uc *UseCase) calculateFeeForMultiplePackages(
 	validationResultFromSize, validationResultToSize int,
 	organizationID uuid.UUID,
 ) error {
-	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee(packages, cf.Transaction.Route, cf.SegmentID, sendModel.Value)
+	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee(packages, cf.Transaction.Route, cf.SegmentID, sendModel.Value) //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 	if errFilterPack != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error to filter package %v", errFilterPack))
 		return pkg.ValidateBusinessError(constant.ErrFilterPackage, "")

@@ -194,7 +194,7 @@ func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.
 		}
 
 		if route != "" {
-			fromTo.Route = route
+			fromTo.Route = route //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		}
 
 		newFromTo = append(newFromTo, fromTo)

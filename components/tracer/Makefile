@@ -2,7 +2,7 @@
 
 # Component-specific variables
 SERVICE_NAME := tracer
-GOLANGCI_LINT_VERSION := v2.10.1
+GOLANGCI_LINT_VERSION := v2.4.0
 BIN_DIR := ./.bin
 ARTIFACTS_DIR := ./artifacts
 POSTGRES_SERVICE ?= tracer-postgres

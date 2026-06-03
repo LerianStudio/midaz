@@ -101,7 +101,7 @@ lint:
 		else \
 			echo "$(GREEN)golangci-lint already installed ✔️$(NC)"; \
 		fi; \
-		golangci-lint run --fix ./... --verbose; \
+		golangci-lint run --fix ./... --verbose && \
 		echo "$(GREEN)$(BOLD)[ok]$(NC) Linting completed successfully$(GREEN) ✔️$(NC)"; \
 	else \
 		echo "$(YELLOW)No Go files found, skipping linting$(NC)"; \
