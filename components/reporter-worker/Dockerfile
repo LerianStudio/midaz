@@ -1,32 +1,31 @@
-# syntax=docker/dockerfile:1.4 
+FROM --platform=$BUILDPLATFORM golang:1.26.3-alpine AS builder
 
-FROM golang:1.26-alpine AS builder
+WORKDIR /reporter-worker-app
 
-# Set the working directory for the build
-WORKDIR /reporter
-
-# Copy only go.mod and go.sum first to cache dependencies
 COPY go.mod go.sum ./
-
-# Download Go modules
 RUN go mod download
 
-# Copy only necessary source files for worker component
-COPY pkg/ pkg/
-COPY components/worker/ components/worker/
+# Repo-root build context. Reporter imports ZERO midaz packages, so Go's
+# package-level dead-code elimination keeps uncopied midaz packages out of the
+# build graph. `COPY . .` is the only future-proof option: a selective COPY
+# would break the moment any future reporter code imports a midaz pkg.
+COPY . .
 
-# Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -tags netgo \
-  -ldflags='-w -s -extldflags "-static"' \
-  -o /worker ./components/worker/cmd/app/main.go
+ARG TARGETOS
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
+    go build -tags netgo \
+    -ldflags '-s -w -extldflags "-static"' \
+    -o /worker components/reporter-worker/cmd/app/main.go
 
-# Stage 2: Final minimal image with only the binary
+# Worker renders PDFs via chromedp, so it MUST stay fat alpine + headless
+# Chromium (distroless cannot host the Chromium userland — R20).
 FROM alpine:3.23
 
 ARG VERSION=dev
 ARG BUILD_DATE=unknown
 
-LABEL org.opencontainers.image.source="https://github.com/LerianStudio/reporter"
+LABEL org.opencontainers.image.source="https://github.com/LerianStudio/midaz"
 LABEL org.opencontainers.image.description="Reporter Worker - Async Report Generator"
 LABEL org.opencontainers.image.vendor="Lerian Studio"
 LABEL org.opencontainers.image.licenses="Elastic-2.0"
@@ -73,7 +72,7 @@ USER appuser
 # Expose health check port for container orchestrators
 EXPOSE 4006
 
-# Health check via the worker's HTTP health endpoint (checks RabbitMQ connectivity).
+# Health check via the worker's HTTP health endpoint (alpine keeps a shell).
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=15s \
   CMD wget --no-verbose --tries=1 --spider http://localhost:4006/health || exit 1
 
