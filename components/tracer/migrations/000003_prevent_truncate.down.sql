@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS prevent_truncate() CASCADE;

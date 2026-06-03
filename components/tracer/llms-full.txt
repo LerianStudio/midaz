@@ -1,0 +1,240 @@
+# Lerian Tracer — Full Reference
+
+> Real-time transaction validation and fraud prevention API. Go 1.25.7 service using hexagonal architecture + CQRS with Google CEL rule engine, multi-scope spending limits, and immutable audit trail with hash chain verification. PostgreSQL 16. Elastic License 2.0.
+
+Tracer is a product-agnostic validation service that provides instant ALLOW/DENY/REVIEW decisions for financial transactions. It is part of the Lerian Studio ecosystem alongside Midaz (ledger) and Matcher (reconciliation). Designed for sub-100ms P99 latency with in-memory rule cache, background sync worker, and circuit breaker resilience.
+
+## Core Domain Concepts
+
+### Validation Request
+Every transaction submitted contains: requestId (UUID, idempotency key), transactionType (CARD/WIRE/PIX/CRYPTO), amount (decimal string via shopspring/decimal), currency (ISO 4217), transactionTimestamp (RFC3339), account context (required), and optional segment/portfolio/merchant contexts with metadata key-value pairs.
+
+### Decision Flow
+Transaction → Rules Evaluation (CEL) → Limit Check → Final Decision (ALLOW/DENY/REVIEW). DENY takes precedence: any rule match with DENY action or any exceeded limit produces DENY. REVIEW only if no DENY. ALLOW when all checks pass. Configurable default decision when no rules match (ALLOW or DENY, not REVIEW).
+
+### Rules Engine (CEL)
+Rules are Google CEL expressions evaluated against transaction data. Type-safe with compile-time validation. Cost limits prevent DoS. Expressions compiled at rule creation, cached in-memory. Available variables: transactionType (string), subType (string), amount (dyn/float64), currency (string), transactionTimestamp (int64 Unix nanos), account (map), segment (map), portfolio (map), merchant (map), metadata (map).
+
+CEL expression examples:
+- `amount > 10000` — flag high-value transactions
+- `transactionType == "WIRE" && subType == "international"` — review international wires
+- `account["status"] == "suspended"` — deny suspended accounts
+- `size(merchant) > 0 && merchant["category"] == "5411" && amount > 5000` — merchant category check
+
+Note: amount is float64 internally. Prefer range comparisons over exact equality for decimal amounts.
+
+### Spending Limits
+Hierarchical limits with configurable scopes: account-level, segment-level, portfolio-level. Period types: DAILY, MONTHLY, WEEKLY, PER_TRANSACTION, CUSTOM (date range). Time windows: activeTimeStart/activeTimeEnd (HH:MM format). Usage counters tracked per scope+period key. Cleanup worker removes expired counters.
+
+### Rule & Limit Lifecycle
+States: DRAFT → ACTIVE → INACTIVE → DELETED. Rules created in DRAFT, must be activated to participate in evaluation. Limits follow same pattern. Soft-delete: DELETED state sets deletedAt timestamp. State transitions validated by domain model.
+
+### Audit Trail
+Every validation creates immutable audit event. Hash chain verification for SOX/GLBA compliance (7-year retention). Event types: TRANSACTION_VALIDATED, RULE_CREATED/UPDATED/ACTIVATED/DEACTIVATED/DRAFTED/DELETED, LIMIT_CREATED/UPDATED/ACTIVATED/DEACTIVATED/DRAFTED/DELETED. Deduplication by event hash.
+
+## API Endpoints
+
+### Validations
+- `POST /v1/validations` — Execute transaction validation (returns ALLOW/DENY/REVIEW)
+- `GET /v1/validations` — List validation history (cursor-based pagination, date filters)
+- `GET /v1/validations/{id}` — Get validation by ID
+
+### Rules
+- `POST /v1/rules` — Create rule (DRAFT status)
+- `GET /v1/rules` — List rules (filter by status, action; cursor pagination)
+- `PATCH /v1/rules/{id}` — Update rule (expression only modifiable in DRAFT)
+- `DELETE /v1/rules/{id}` — Soft-delete rule (INACTIVE only)
+- `POST /v1/rules/{id}/activate` — Activate rule (DRAFT/INACTIVE → ACTIVE)
+- `POST /v1/rules/{id}/deactivate` — Deactivate rule (ACTIVE/DRAFT → INACTIVE)
+
+### Limits
+- `POST /v1/limits` — Create spending limit
+- `GET /v1/limits` — List limits (filter by status, type; cursor pagination)
+- `GET /v1/limits/{id}/usage` — Get limit usage snapshot
+- `PATCH /v1/limits/{id}` — Update limit (immutable: limitType, currency)
+- `POST /v1/limits/{id}/activate` — Activate limit
+- `POST /v1/limits/{id}/deactivate` — Deactivate limit
+- `DELETE /v1/limits/{id}` — Soft-delete (DRAFT/INACTIVE only)
+
+### Audit Events
+- `GET /v1/audit-events` — List audit events (filter by type, action, resource)
+- `GET /v1/audit-events/{id}` — Get audit event by ID
+- `GET /v1/audit-events/{id}/verify` — Verify hash chain integrity
+
+### Health & Documentation
+- `GET /health` — Liveness probe
+- `GET /ready` — Readiness probe (checks PostgreSQL + rule cache health)
+- `GET /swagger/*` — Swagger UI
+
+## Authentication
+- API Key via `X-API-Key` header
+- Constant-time comparison to prevent timing attacks
+- Configurable: API_KEY_ENABLED, API_KEY_ENABLED_ONLY_VALIDATION
+- Access Manager plugin support: PLUGIN_AUTH_ENABLED, PLUGIN_AUTH_ADDRESS
+- Public endpoints: /health, /ready, /version, /swagger/*
+
+## Architecture
+
+### Hexagonal + CQRS
+```
+cmd/app/main.go                    — Entry point, bootstrap
+internal/bootstrap/                — Composition root: Config, DI, HTTPServer, Service
+internal/adapters/http/in/         — Fiber handlers, routes, middleware, validation
+internal/adapters/postgres/        — Repository implementations (squirrel SQL builder)
+internal/adapters/postgres/db/     — DB interfaces (DB, Connection, TxBeginner)
+internal/adapters/cel/             — CEL expression engine adapter
+internal/services/                 — Service facades (RuleService, LimitService, ValidationService, AuditEventService)
+internal/services/command/         — Write operations (create, update, activate, deactivate, draft, delete)
+internal/services/query/           — Read operations (get, list, evaluate rules, check limits, verify audit)
+internal/services/cache/           — In-memory rule cache (RuleCache, CacheAdapter, WarmUp)
+internal/services/workers/         — Background workers (RuleSyncWorker, UsageCleanupWorker)
+internal/services/mocks/           — Generated mocks for service interfaces
+pkg/model/                         — Domain entities: Rule, Limit, Validation, Scope, AuditEvent, etc.
+pkg/constant/                      — Error codes (TRC-XXXX), pagination defaults, app constants
+pkg/clock/                         — Clock interface (RealClock, FixedClock for tests via MOCK_TIME)
+pkg/resilience/                    — Circuit breaker (sony/gobreaker wrapper)
+pkg/validation/                    — Date/time validation helpers
+pkg/hash/                          — Hash chain computation for audit events
+pkg/logging/                       — Structured logging with trace context enrichment
+pkg/sanitize/                      — Input sanitization
+pkg/net/                           — HTTP cursor pagination, IP extraction
+pkg/contextutil/                   — Context value extraction helpers
+```
+
+### Key Interfaces
+
+#### Command Layer (internal/services/command/)
+- `RuleRepository` — Create, GetByID, GetByName, ListByStatus, Update, Delete, ListActiveByScopes, UpdateStatus
+- `LimitRepository` — Create, GetByID, Update, UpdateStatus
+- `TransactionValidationRepository` — Create (insert validation record)
+- `AuditEventRepository` — Create (insert audit event)
+- `AuditWriter` — RecordValidationEvent, RecordRuleEvent, RecordLimitEvent
+- `ExpressionCompiler` — Compile(ctx, expression) → (any, error)
+- `RuleCacheWriter` — UpsertRule, RemoveRule
+
+#### Query Layer (internal/services/query/)
+- `ActiveRulesRepository` — GetActiveRulesForScopes(ctx, scopes) (DB or cache)
+- `LimitRepository` — GetByID, List (with cursor pagination)
+- `UsageCounterRepository` — GetByLimitID, IncrementOrInsert, GetByScopeAndPeriod
+- `TransactionValidationRepository` — FindByID, FindByRequestID, List
+- `AuditEventRepository` — FindByEventID, ListWithFilters, FindPrecedingEvents
+
+#### Service Facades (internal/services/)
+- `ValidationService` — Validate(ctx, request) → ValidateResult (orchestrates rules + limits + audit)
+- `RuleService` — CreateRule, UpdateRule, GetRule, ListRules, ActivateRule, DeactivateRule, DraftRule, DeleteRule
+- `LimitService` — CreateLimit, UpdateLimit, GetLimit, ListLimits, ActivateLimit, DeactivateLimit, DraftLimit, DeleteLimit, GetLimitUsage
+- `AuditEventService` — GetAuditEvent, ListAuditEvents, ListValidations, VerifyHashChain
+- `TransactionValidationService` — GetTransactionValidation, ListTransactionValidations
+
+#### Infrastructure (internal/adapters/postgres/db/)
+- `DB` — ExecContext, QueryContext, QueryRowContext
+- `Connection` — GetDB() (DB, error)
+- `TxBeginner` — BeginTx(ctx, opts) → Tx
+
+### Background Workers
+- **RuleSyncWorker**: Polls PostgreSQL for rule changes, updates in-memory cache. Circuit breaker protects against DB failures. Configurable poll interval (default 10s), staleness threshold (50s), overlap buffer (2s).
+- **UsageCleanupWorker**: Periodically removes expired usage counters. Configurable interval (default 24h). Disabled by default (CLEANUP_WORKER_ENABLED=false).
+
+### Rule Cache Architecture
+Startup: WarmUp loads all active rules from DB, compiles CEL expressions, populates RuleCache (30s timeout). CacheAdapter wraps RuleCache to satisfy ActiveRulesRepository interface. RuleSyncWorker runs delta polling in background. Command services (activate/deactivate) update cache synchronously for local instance consistency.
+
+### Data Models
+
+#### Rule
+Fields: ID (uuid), Name (unique, max 255), Description (max 1000), Expression (CEL, max 5000), Action (ALLOW/DENY/REVIEW), Scopes (max 100), Status (DRAFT/ACTIVE/INACTIVE/DELETED), Priority (int), ActivatedAt, DeactivatedAt, CreatedAt, UpdatedAt, DeletedAt.
+
+#### Limit
+Fields: ID (uuid), Name (unique, max 255), Description (max 1000), LimitType (DAILY/MONTHLY/WEEKLY/PER_TRANSACTION/CUSTOM), MaxAmount (decimal), Currency (ISO 4217), Scopes, Status (DRAFT/ACTIVE/INACTIVE/DELETED), ActiveTimeStart/End (HH:MM), CustomStartDate/EndDate (RFC3339 for CUSTOM type), CreatedAt, UpdatedAt, DeletedAt, ResetAt.
+
+#### Scope (shared by rules and limits)
+Fields: SegmentID (*uuid), PortfolioID (*uuid), AccountID (*uuid), MerchantID (*uuid), TransactionType (*string), SubType (*string). All optional; at least one must be set.
+
+#### AuditEvent
+Fields: ID (uuid), EventID (uuid, dedup key), EventType, Action, Result, ResourceType, ResourceID, ActorID, ActorType, Timestamp, RequestPayload, ResponsePayload, PreviousState, NewState, HashChainPrev, HashCurrent, ClientIP.
+
+#### TransactionValidation
+Fields: ID (uuid), RequestID (uuid, unique), TransactionType, Amount, Currency, Decision, Reason, MatchedRuleIDs, EvaluatedRuleIDs, LimitUsageDetails, ProcessingTimeMs, CreatedAt.
+
+### Error Code System
+All errors use TRC-XXXX codes defined in pkg/constant/errors.go. Categories: General (0001-0019), DateTime (0020-0039), Pagination (0040-0059), Metadata (0060-0079), Decision/CEL (0080-0099), Rules (0100-0119), Limits (0120-0139), Audit (0140-0159), UsageCounter (0160-0179), CheckLimits (0180-0199), Constructor/DI (0200-0219), ValidationRequest (0220-0249), TransactionValidation (0250-0269), Cache (0280-0299), Extended Limits (0300-0319).
+
+## Database
+
+### PostgreSQL 16
+- 16 migrations (000001-000016)
+- Tables: rules, limits, usage_counters, transaction_validations, audit_events
+- Cursor-based pagination (no offset/page)
+- Squirrel SQL builder with parameterized queries ($1, $2)
+- Connection via lib-commons/v4 PostgresConnection (primary + replica DSN)
+
+### Migrations
+```
+migrations/000001_calculate_audit_event_hash.{up,down}.sql
+migrations/000002_verify_audit_hash_chain.{up,down}.sql
+migrations/000003_prevent_truncate.{up,down}.sql
+migrations/000004_initial_schema.{up,down}.sql
+...
+migrations/000015_processing_time_ms_float.{up,down}.sql
+migrations/000016_drop_legacy_functions_migrations_table.{up,down}.sql
+migrations/seeds/        — Development seed data
+```
+
+## Configuration
+
+### Environment Variables
+Application: SERVER_PORT (4020), SERVER_ADDRESS, LOG_LEVEL, VERSION
+Database: DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT, DB_SSL_MODE, MIGRATIONS_PATH
+Auth: API_KEY, API_KEY_ENABLED, API_KEY_ENABLED_ONLY_VALIDATION, PLUGIN_AUTH_ADDRESS, PLUGIN_AUTH_ENABLED
+CORS: CORS_ALLOWED_ORIGINS
+CEL: CEL_COST_LIMIT (default 10000)
+Evaluation: DEFAULT_DECISION_WHEN_NO_MATCH (ALLOW|DENY), MAX_RULES_PER_REQUEST (default 1000)
+Telemetry: ENABLE_TELEMETRY, OTEL_RESOURCE_SERVICE_NAME, OTEL_LIBRARY_NAME, OTEL_EXPORTER_OTLP_ENDPOINT
+Cleanup Worker: CLEANUP_WORKER_ENABLED (false), CLEANUP_INTERVAL_HOURS (24), CLEANUP_RETENTION_DAYS (90)
+Rule Sync: RULE_SYNC_POLL_INTERVAL_SECONDS (10), RULE_SYNC_STALENESS_THRESHOLD_SECONDS (50), RULE_SYNC_OVERLAP_BUFFER_SECONDS (2)
+Testing: MOCK_TIME (RFC3339, read once at boot for deterministic time in integration tests)
+
+### Docker Compose Services
+| Service | Image | Port |
+|---------|-------|------|
+| tracer | tracer:dev (Dockerfile.dev) | 4020 |
+| tracer-postgres | postgres:16-alpine | 5432 |
+
+## Testing
+
+### Test Types
+- Unit tests: `make test-unit` — co-located _test.go files, gomock + sqlmock
+- Integration tests: `make test-integration` — testcontainers-go (build tag: integration)
+- E2E BDD tests: `make test-e2e` — Godog/Gherkin (build tag: e2e)
+- Benchmarks: `make test-bench` — b.Loop() pattern (Go 1.24+)
+
+### Test Infrastructure
+- tests/integration/ — 30 integration test files covering all API endpoints
+- tests/end2end/ — BDD features (rule lifecycle, limit enforcement, audit verification)
+- internal/testutil/ — Shared helpers (FixedTime, DeterministicUUID, Ptr[T])
+- internal/testutil_integration/ — Integration test suite helpers
+- internal/testutil_dbsuite/ — Database test suite helpers
+
+## Libraries
+
+### Lerian
+- lib-auth/v2 (v2.6.0): JWT/RBAC middleware, auth client
+- lib-commons/v4 (v4.6.0): Logging (zap), tracing (OpenTelemetry), PostgreSQL client, config loading, HTTP utilities, launcher
+
+### Key Third-Party
+- gofiber/fiber/v2: HTTP framework
+- google/cel-go v0.27.0: CEL expression engine
+- Masterminds/squirrel: SQL query builder
+- shopspring/decimal: Precise decimal arithmetic
+- google/uuid: UUID generation
+- jackc/pgx/v5: PostgreSQL driver
+- sony/gobreaker: Circuit breaker
+- DATA-DOG/go-sqlmock: SQL mocking
+- testcontainers/testcontainers-go: Container-based integration tests
+- cucumber/godog: BDD test framework
+- go.uber.org/mock: Interface mocking (gomock)
+
+---
+
+**Last Updated**: April 2026
+**Go Version**: module `go 1.25.7`
+**Migrations**: 16 (000001 through 000016)

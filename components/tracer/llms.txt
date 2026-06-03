@@ -1,0 +1,61 @@
+# Lerian Tracer
+
+> Real-time transaction validation and fraud prevention API. Go 1.25.7 service using hexagonal architecture + CQRS with CEL rule engine, spending limits, and immutable audit trail. Part of the Lerian Studio ecosystem. Elastic License 2.0.
+
+Tracer provides instant ALLOW/DENY/REVIEW decisions for financial transactions. It evaluates configurable CEL expressions against transaction data, enforces multi-scope spending limits (account, segment, portfolio), and maintains SOX/GLBA-compliant audit records with hash chain verification. Authentication via lib-auth v2 (API Key + Access Manager plugin). PostgreSQL 16, in-memory rule cache with background sync worker, and circuit breaker resilience.
+
+## Documentation
+
+- [README](README.md): Project overview, getting started, API examples, architecture diagram
+- [License](LICENSE): Elastic License 2.0
+- [Changelog](CHANGELOG.md): Release history and version changes
+- [Project Rules](docs/PROJECT_RULES.md): Architecture patterns, coding conventions, testing standards
+
+## AI Agent Guides
+
+- [AGENTS.md](AGENTS.md): Universal AI agent entry point — quick start, architecture, conventions, what not to do
+- [CLAUDE.md](CLAUDE.md): Deep reference for AI agents — code patterns, interfaces, commands, configuration, debugging
+
+## API
+
+- [OpenAPI Spec (JSON)](api/swagger.json): Full API specification (Swagger 2.0)
+- [OpenAPI Spec (YAML)](api/openapi.yaml): OpenAPI 3.0 format
+- [Swagger Types](api/types.go): Custom type definitions for Swagger docs
+
+## Architecture
+
+- [Bootstrap](internal/bootstrap/): Composition root — config, DI, server lifecycle, workers
+- [Services](internal/services/): Business logic — validation orchestration, command/query, cache, workers
+- [Command Services](internal/services/command/): Write operations — create, update, activate, deactivate, draft, delete
+- [Query Services](internal/services/query/): Read operations — get, list, evaluate rules, check limits, verify audit
+- [Rule Cache](internal/services/cache/): In-memory rule cache with warmup and background sync
+- [Background Workers](internal/services/workers/): RuleSyncWorker, UsageCleanupWorker
+- [HTTP Adapters](internal/adapters/http/in/): Fiber handlers, routes, middleware, input validation
+- [PostgreSQL Adapters](internal/adapters/postgres/): Repository implementations with squirrel SQL builder
+- [CEL Adapter](internal/adapters/cel/): Expression engine — compile, evaluate, cost limiting
+- [Domain Models](pkg/model/): Rules, limits, validations, scopes, audit events (44 files)
+- [Error Constants](pkg/constant/errors.go): Categorized error codes (TRC-XXXX)
+- [Clock](pkg/clock/): Clock interface — real + fixed for deterministic testing
+- [Resilience](pkg/resilience/): Circuit breaker wrapper (sony/gobreaker)
+
+## Configuration
+
+- [Environment Template](.env.example): All configuration variables with documentation
+- [Docker Compose](docker-compose.yml): PostgreSQL + Tracer for local development
+- [Dockerfile](Dockerfile): Multi-stage build (golang:1.26-alpine → distroless nonroot)
+- [Linter Config](.golangci.yml): golangci-lint v2 with errorlint, depguard, revive, wsl_v5
+
+## Development
+
+- [Makefile](Makefile): Build, test, lint, Docker, migration, security commands
+- [Test Makefiles](mk/): Modular make targets (tests, docker, database, quality, security, docs)
+- [Migrations](migrations/): 16 migrations (000001-000016) + seed data
+- [E2E Tests](tests/end2end/): BDD tests with Godog/Gherkin feature files
+- [Integration Tests](tests/integration/): 30 testcontainers-based API tests
+- [Test Utilities](internal/testutil/): Deterministic UUIDs, fixed time, generic helpers
+- [Scripts](scripts/): Git hooks setup, env check, API docs verification
+
+## Optional
+
+- [Security Policy](SECURITY.md): Vulnerability reporting
+- [PR Template](.github/pull_request_template.md): Pull request checklist
