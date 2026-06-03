@@ -1,0 +1,1 @@
+This is not a .tpl file. It has a .txt extension and should be rejected.

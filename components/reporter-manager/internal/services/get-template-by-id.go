@@ -1,0 +1,54 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package services
+
+import (
+	"context"
+	"errors"
+
+	"github.com/LerianStudio/reporter/pkg"
+	"github.com/LerianStudio/reporter/pkg/constant"
+	"github.com/LerianStudio/reporter/pkg/ctxutil"
+	"github.com/LerianStudio/reporter/pkg/mongodb/template"
+
+	"github.com/LerianStudio/lib-observability/log"
+	opentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.opentelemetry.io/otel/attribute"
+)
+
+// GetTemplateByID recover a package by ID
+func (uc *UseCase) GetTemplateByID(ctx context.Context, id uuid.UUID) (*template.Template, error) {
+	reqId := ctxutil.HeaderIDFromContext(ctx)
+
+	ctx, span := uc.Tracer.Start(ctx, "service.template.get_by_id")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.template_id", id.String()),
+	)
+	uc.Logger.Log(ctx, log.LevelInfo, "Retrieving template", log.String("id", id.String()))
+
+	templateModel, err := uc.TemplateRepo.FindByID(ctx, id)
+	if err != nil {
+		uc.Logger.Log(ctx, log.LevelError, "Error getting template on repo by id", log.Err(err))
+
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			errNotFound := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionTemplate)
+
+			opentelemetry.HandleSpanBusinessErrorEvent(span, "Template not found", errNotFound)
+
+			return nil, errNotFound
+		}
+
+		opentelemetry.HandleSpanError(span, "Failed to get template on repo by id", err)
+
+		return nil, err
+	}
+
+	return templateModel, nil
+}

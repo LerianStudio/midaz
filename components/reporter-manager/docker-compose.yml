@@ -1,0 +1,46 @@
+name: reporter-manager
+
+services:
+  reporter-manager:
+    container_name: reporter-manager
+    restart: always
+    build:
+      context: ../../
+      dockerfile: ./components/manager/Dockerfile
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:4005/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    env_file:
+      - .env
+    ports:
+      - ${SERVER_PORT}:${SERVER_PORT}
+    networks:
+      - reporter-infra-network
+      - reporter-manager-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+    # NOTE: depends_on with health conditions cannot reference services from
+    # components/infra/docker-compose.yml because they run as separate Compose
+    # projects. The root-level `make up` handles cross-compose health ordering
+    # by running `wait-for-infra` between starting infra and backend services.
+    # For manual startup, ensure infra is healthy first:
+    #   cd components/infra && make up
+    # then start this service.
+
+networks:
+  reporter-infra-network:
+    external: true
+  infra-network:
+    # Shared network from broader Lerian platform (created by midaz infra)
+    external: true
+  reporter-manager-network:
+    driver: bridge

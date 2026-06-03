@@ -1,0 +1,1664 @@
+basePath: /
+definitions:
+  CreateDeadlineInput:
+    description: CreateDeadlineInput is the input payload to create a deadline.
+    properties:
+      active:
+        example: true
+        type: boolean
+      color:
+        example: '#FF5733'
+        type: string
+      description:
+        example: Monthly regulatory compliance report
+        type: string
+      dueDate:
+        example: "2026-03-31T23:59:59Z"
+        type: string
+      frequency:
+        example: monthly
+        type: string
+      monthsOfYear:
+        example:
+        - 1
+        - 6
+        items:
+          type: integer
+        type: array
+      name:
+        example: Monthly Regulatory Report
+        type: string
+      notifyDaysBefore:
+        example: 5
+        type: integer
+      templateId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      type:
+        example: regulatory
+        type: string
+    required:
+    - color
+    - dueDate
+    - frequency
+    - name
+    - type
+    type: object
+  CreateReportInput:
+    description: CreateReportInput is the input payload to create a report.
+    properties:
+      filters:
+        additionalProperties:
+          additionalProperties:
+            additionalProperties:
+              $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_model.FilterCondition'
+            type: object
+          type: object
+        type: object
+      templateId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+    required:
+    - filters
+    - templateId
+    type: object
+  DataSourceDetails:
+    description: DataSourceDetails is the data source details of database
+    properties:
+      externalName:
+        example: onboarding
+        type: string
+      id:
+        example: midaz_onboarding
+        type: string
+      tables:
+        items:
+          $ref: '#/definitions/TableDetails'
+        type: array
+      type:
+        example: postgresql
+        type: string
+    type: object
+  DataSourceInformation:
+    description: DataSourceInformation is the data source information of database
+      connected on plugin
+    properties:
+      externalName:
+        example: onboarding
+        type: string
+      id:
+        example: midaz_onboarding
+        type: string
+      type:
+        example: postgresql
+        type: string
+    type: object
+  DeliverDeadlineInput:
+    description: DeliverDeadlineInput is the input payload to mark a deadline as delivered
+      or not.
+    properties:
+      delivered:
+        example: true
+        type: boolean
+    required:
+    - delivered
+    type: object
+  Pagination:
+    description: Pagination is the struct designed to store the pagination data of
+      an entity list.
+    properties:
+      items: {}
+      limit:
+        example: 10
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 10
+        type: integer
+    type: object
+  TableDetails:
+    description: TableDetails is the struct of table information
+    properties:
+      fields:
+        example:
+        - '[''id'''
+        - ' ''name'''
+        - ' ''parent_account_id'']'
+        items:
+          type: string
+        type: array
+      name:
+        example: account
+        type: string
+    type: object
+  TemplateResponse:
+    description: TemplateResponse wraps a template with optional validation warnings.
+    properties:
+      createdAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      description:
+        example: Template Financeiro
+        type: string
+      fileName:
+        example: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      outputFormat:
+        example: HTML
+        type: string
+      updatedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      warnings:
+        items:
+          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_datasource.ValidationWarning'
+        type: array
+    type: object
+  UpdateDeadlineInput:
+    description: UpdateDeadlineInput is the input payload to update a deadline.
+    properties:
+      active:
+        example: false
+        type: boolean
+      color:
+        example: '#00FF00'
+        type: string
+      description:
+        example: Updated description
+        type: string
+      dueDate:
+        example: "2026-06-30T23:59:59Z"
+        type: string
+      frequency:
+        example: annual
+        type: string
+      monthsOfYear:
+        example:
+        - 1
+        - 6
+        items:
+          type: integer
+        type: array
+      name:
+        example: Updated Report Name
+        type: string
+      notifyDaysBefore:
+        example: 10
+        type: integer
+      templateId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      type:
+        example: custom
+        type: string
+    type: object
+  components_manager_internal_adapters_http_in.errorMetrics:
+    properties:
+      previousPeriodTotal:
+        type: integer
+      total:
+        type: integer
+    type: object
+  components_manager_internal_adapters_http_in.metricsResponse:
+    properties:
+      dataSources:
+        type: integer
+      errors:
+        $ref: '#/definitions/components_manager_internal_adapters_http_in.errorMetrics'
+      reports:
+        type: integer
+      templates:
+        type: integer
+    type: object
+  components_manager_internal_adapters_http_in.notificationItem:
+    properties:
+      color:
+        type: string
+      daysUntilDue:
+        type: integer
+      description:
+        type: string
+      dueDate:
+        type: string
+      frequency:
+        type: string
+      id:
+        type: string
+      monthsOfYear:
+        items:
+          type: integer
+        type: array
+      name:
+        type: string
+      notifyDaysBefore:
+        type: integer
+      severity:
+        type: string
+      type:
+        type: string
+    type: object
+  components_manager_internal_adapters_http_in.notificationResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/components_manager_internal_adapters_http_in.notificationItem'
+        type: array
+      total:
+        type: integer
+    type: object
+  github_com_LerianStudio_reporter_pkg_datasource.ValidationWarning:
+    properties:
+      code:
+        description: Code is a machine-readable warning code (e.g., "DATA_SOURCE_UNAVAILABLE").
+        type: string
+      field:
+        description: Field identifies the affected field or data source reference.
+        type: string
+      message:
+        description: Message is a human-readable description of the warning.
+        type: string
+    type: object
+  github_com_LerianStudio_reporter_pkg_model.FilterCondition:
+    properties:
+      between:
+        description: |-
+          Between specifies a range condition with exactly two values [min, max].
+          Matches records where min <= field <= max
+          Example: {"between": [100, 1000]} matches records where 100 <= field <= 1000
+        items: {}
+        type: array
+      eq:
+        description: |-
+          Equals specifies exact value matches. Multiple values treated as OR conditions.
+          Example: {"eq": ["active", "pending"]} matches records where field equals "active" OR "pending"
+        items: {}
+        type: array
+      gt:
+        description: |-
+          GreaterThan specifies values that must be greater than the provided value.
+          Should contain exactly one value for comparison.
+          Example: {"gt": [100]} matches records where field > 100
+        items: {}
+        type: array
+      gte:
+        description: |-
+          GreaterOrEqual specifies values that must be greater than or equal to the provided value.
+          Should contain exactly one value for comparison.
+          Example: {"gte": ["2025-06-01"]} matches records where field >= "2025-06-01"
+        items: {}
+        type: array
+      in:
+        description: |-
+          In specifies a list of values where the field must match any one of them.
+          Multiple values treated as OR conditions.
+          Example: {"in": ["active", "pending", "suspended"]} matches any of these statuses
+        items: {}
+        type: array
+      lt:
+        description: |-
+          LessThan specifies values that must be less than the provided value.
+          Should contain exactly one value for comparison.
+          Example: {"lt": [1000]} matches records where field < 1000
+        items: {}
+        type: array
+      lte:
+        description: |-
+          LessOrEqual specifies values that must be less than or equal to the provided value.
+          Should contain exactly one value for comparison.
+          Example: {"lte": ["2025-06-30"]} matches records where field <= "2025-06-30"
+        items: {}
+        type: array
+      nin:
+        description: |-
+          NotIn specifies a list of values where the field must NOT match any of them.
+          Multiple values treated as AND NOT conditions.
+          Example: {"nin": ["deleted", "archived"]} excludes these statuses
+        items: {}
+        type: array
+    type: object
+  github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline:
+    properties:
+      active:
+        example: true
+        type: boolean
+      color:
+        example: '#FF5733'
+        type: string
+      createdAt:
+        example: "2026-01-01T00:00:00Z"
+        type: string
+      deliveredAt:
+        example: "2026-03-15T10:00:00Z"
+        type: string
+      description:
+        example: Monthly regulatory compliance report
+        type: string
+      dueDate:
+        example: "2026-03-31T23:59:59Z"
+        type: string
+      frequency:
+        example: monthly
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      monthsOfYear:
+        example:
+        - 1
+        - 6
+        items:
+          type: integer
+        type: array
+      name:
+        example: Monthly Regulatory Report
+        type: string
+      notifyDaysBefore:
+        example: 5
+        type: integer
+      status:
+        example: pending
+        type: string
+      templateId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      templateName:
+        example: Template Financeiro
+        type: string
+      type:
+        example: regulatory
+        type: string
+      updatedAt:
+        example: "2026-01-01T00:00:00Z"
+        type: string
+    type: object
+  github_com_LerianStudio_reporter_pkg_mongodb_report.Report:
+    properties:
+      completedAt:
+        type: string
+      createdAt:
+        type: string
+      deletedAt:
+        type: string
+      filters:
+        additionalProperties:
+          additionalProperties:
+            additionalProperties:
+              $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_model.FilterCondition'
+            type: object
+          type: object
+        type: object
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      status:
+        example: processing
+        type: string
+      templateDescription:
+        example: Cadoc
+        type: string
+      templateId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      templateOutputFormat:
+        example: xml
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  github_com_LerianStudio_reporter_pkg_mongodb_template.Template:
+    properties:
+      createdAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      description:
+        example: Template Financeiro
+        type: string
+      fileName:
+        example: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      outputFormat:
+        example: HTML
+        type: string
+      updatedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+    type: object
+  github_com_LerianStudio_reporter_pkg_pongo.BlockDefinition:
+    properties:
+      acceptsChildren:
+        type: boolean
+      category:
+        type: string
+      label:
+        type: string
+      properties:
+        items:
+          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_pongo.BlockProperty'
+        type: array
+      type:
+        type: string
+    type: object
+  github_com_LerianStudio_reporter_pkg_pongo.BlockProperty:
+    properties:
+      name:
+        type: string
+      required:
+        type: boolean
+      type:
+        type: string
+      values:
+        items:
+          type: string
+        type: array
+    type: object
+  github_com_LerianStudio_reporter_pkg_pongo.BlocksConfigResponse:
+    properties:
+      blocks:
+        items:
+          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_pongo.BlockDefinition'
+        type: array
+    type: object
+  github_com_LerianStudio_reporter_pkg_pongo.FilterDefinition:
+    properties:
+      args:
+        items:
+          type: string
+        type: array
+      description:
+        type: string
+      example:
+        type: string
+      name:
+        type: string
+    type: object
+  github_com_LerianStudio_reporter_pkg_pongo.FiltersResponse:
+    properties:
+      filters:
+        items:
+          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_pongo.FilterDefinition'
+        type: array
+    type: object
+  github_com_LerianStudio_reporter_pkg_template_builder.ElifBranch:
+    properties:
+      children:
+        items:
+          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock'
+        type: array
+      condition:
+        type: string
+    type: object
+  github_com_LerianStudio_reporter_pkg_template_builder.FilterChain:
+    properties:
+      args:
+        type: string
+      name:
+        type: string
+    type: object
+  github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeInput:
+    properties:
+      blocks:
+        items:
+          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock'
+        type: array
+      format:
+        type: string
+    type: object
+  github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeResponse:
+    properties:
+      code:
+        type: string
+      mappedFields:
+        additionalProperties:
+          additionalProperties:
+            items:
+              type: string
+            type: array
+          type: object
+        type: object
+    type: object
+  github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock:
+    properties:
+      assignment:
+        type: string
+      blockId:
+        type: string
+      children:
+        items:
+          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock'
+        type: array
+      collection:
+        type: string
+      condition:
+        type: string
+      content:
+        type: string
+      elifBranches:
+        items:
+          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.ElifBranch'
+        type: array
+      elseChildren:
+        items:
+          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock'
+        type: array
+      expression:
+        type: string
+      field:
+        type: string
+      filters:
+        items:
+          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.FilterChain'
+        type: array
+      format:
+        type: string
+      function:
+        type: string
+      inline:
+        type: boolean
+      iterator:
+        type: string
+      properties:
+        additionalProperties: {}
+        type: object
+      tagArgs:
+        type: string
+      tagName:
+        type: string
+      trimWhitespace:
+        type: boolean
+      type:
+        type: string
+      variable:
+        type: string
+    type: object
+  github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksInput:
+    properties:
+      blocks:
+        items:
+          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock'
+        type: array
+    type: object
+  github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksResponse:
+    properties:
+      errors:
+        items:
+          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.ValidationError'
+        type: array
+      valid:
+        type: boolean
+    type: object
+  github_com_LerianStudio_reporter_pkg_template_builder.ValidationError:
+    properties:
+      blockId:
+        type: string
+      field:
+        type: string
+      message:
+        type: string
+    type: object
+  pkg.HTTPError:
+    properties:
+      code:
+        type: string
+      entityType:
+        type: string
+      err: {}
+      message:
+        type: string
+      title:
+        type: string
+    type: object
+host: localhost:4005
+info:
+  contact: {}
+  description: This is a swagger documentation for Reporter
+  termsOfService: http://swagger.io/terms/
+  title: Reporter
+  version: 1.2.0
+paths:
+  /v1/data-sources:
+    get:
+      description: Retrieves all data sources connected on plugin with all information
+        from the database
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/DataSourceInformation'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Get all data sources connected on reporter
+      tags:
+      - Data source
+  /v1/data-sources/{dataSourceId}:
+    get:
+      description: Retrieves a data sources information with data source id passed
+      parameters:
+      - description: Data source ID
+        in: path
+        name: dataSourceId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/DataSourceDetails'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Get a data sources information
+      tags:
+      - Data source
+  /v1/deadlines:
+    get:
+      description: List all the deadlines
+      parameters:
+      - description: Deadline status
+        enum:
+        - pending
+        - overdue
+        - delivered
+        in: query
+        name: status
+        type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline'
+                  type: array
+                limit:
+                  type: integer
+                page:
+                  type: integer
+                total:
+                  type: integer
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Get all Deadlines
+      tags:
+      - Deadlines
+    post:
+      consumes:
+      - application/json
+      description: Create a Deadline with the input payload
+      parameters:
+      - description: Deadline Input
+        in: body
+        name: deadline
+        required: true
+        schema:
+          $ref: '#/definitions/CreateDeadlineInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Create a Deadline
+      tags:
+      - Deadlines
+  /v1/deadlines/{id}:
+    delete:
+      description: Delete a Deadline by its ID
+      parameters:
+      - description: Deadline ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Delete a Deadline
+      tags:
+      - Deadlines
+    patch:
+      consumes:
+      - application/json
+      description: Update a Deadline by its ID
+      parameters:
+      - description: Deadline ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Deadline Update Input
+        in: body
+        name: deadline
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateDeadlineInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Update a Deadline
+      tags:
+      - Deadlines
+  /v1/deadlines/{id}/deliver:
+    patch:
+      consumes:
+      - application/json
+      description: Mark a Deadline as delivered by its ID
+      parameters:
+      - description: Deadline ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Deliver Deadline Input
+        in: body
+        name: deadline
+        required: true
+        schema:
+          $ref: '#/definitions/DeliverDeadlineInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Deliver a Deadline
+      tags:
+      - Deadlines
+  /v1/deadlines/notifications:
+    get:
+      description: Returns active deadlines within their notification window, sorted
+        by urgency
+      parameters:
+      - default: 10
+        description: Maximum number of notifications (1-100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/components_manager_internal_adapters_http_in.notificationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Get deadline notifications
+      tags:
+      - Deadlines
+  /v1/metrics:
+    get:
+      description: Returns aggregated counts of templates, reports, data sources,
+        and errors
+      parameters:
+      - default: 7
+        description: Number of days for error period
+        in: query
+        maximum: 365
+        minimum: 1
+        name: errorPeriodDays
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/components_manager_internal_adapters_http_in.metricsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Get system metrics
+      tags:
+      - Metrics
+  /v1/reports:
+    get:
+      description: List all the reports
+      parameters:
+      - description: Report status
+        enum:
+        - Processing
+        - Finished
+        - Error
+        - PendingExtraction
+        in: query
+        name: status
+        type: string
+      - description: Template UUID (also accepts templateId)
+        format: uuid
+        in: query
+        name: template_id
+        type: string
+      - description: Created at date, YYYY-MM-DD (also accepts createdAt)
+        format: date
+        in: query
+        name: created_at
+        type: string
+      - description: Filter window start, YYYY-MM-DD
+        format: date
+        in: query
+        name: start_date
+        type: string
+      - description: Filter window end, YYYY-MM-DD
+        format: date
+        in: query
+        name: end_date
+        type: string
+      - description: Filter by description
+        in: query
+        name: description
+        type: string
+      - description: Filter by output format
+        enum:
+        - PDF
+        - HTML
+        - XML
+        - TXT
+        - CSV
+        in: query
+        name: output_format
+        type: string
+      - description: Filter by active flag
+        in: query
+        name: active
+        type: boolean
+      - description: Filter by type
+        in: query
+        name: type
+        type: string
+      - description: Opaque cursor for cursor-based pagination
+        in: query
+        name: cursor
+        type: string
+      - default: desc
+        description: Sort order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort_order
+        type: string
+      - default: 10
+        description: Page size
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_report.Report'
+                  type: array
+                limit:
+                  type: integer
+                page:
+                  type: integer
+                total:
+                  type: integer
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Get all reports
+      tags:
+      - Reports
+    post:
+      consumes:
+      - application/json
+      description: Create a Report of existent template with the input payload
+      parameters:
+      - description: Client-provided idempotency key to prevent duplicate report creation
+        in: header
+        name: X-Idempotency
+        type: string
+      - description: Report Input
+        in: body
+        name: reports
+        required: true
+        schema:
+          $ref: '#/definitions/CreateReportInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              description: Set to 'true' when the response is a replay of a previously
+                processed idempotent request
+              type: string
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_report.Report'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Create a Report
+      tags:
+      - Reports
+  /v1/reports/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get information of a Report passing the ID
+      parameters:
+      - description: Report ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_report.Report'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Get a Report
+      tags:
+      - Reports
+  /v1/reports/{id}/download:
+    get:
+      consumes:
+      - application/json
+      description: Make a download of a Report passing the ID
+      parameters:
+      - description: Report ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          headers:
+            Content-Disposition:
+              description: attachment; filename=report.pdf
+              type: string
+            Content-Type:
+              description: application/pdf | text/html | application/xml | text/csv
+              type: string
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Download a Report
+      tags:
+      - Reports
+  /v1/templates:
+    get:
+      description: List all the templates
+      parameters:
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_template.Template'
+                  type: array
+                limit:
+                  type: integer
+                page:
+                  type: integer
+                total:
+                  type: integer
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Get all Templates
+      tags:
+      - Templates
+    post:
+      consumes:
+      - multipart/form-data
+      description: Create a Template with the input payload (multipart form)
+      parameters:
+      - description: Client-provided idempotency key to prevent duplicate template
+          creation
+        in: header
+        name: X-Idempotency
+        type: string
+      - description: Template file
+        in: formData
+        name: template
+        required: true
+        type: file
+      - description: Output format (html, pdf, txt, xml)
+        in: formData
+        name: outputFormat
+        required: true
+        type: string
+      - description: Template description
+        in: formData
+        name: description
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/TemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Create a Template
+      tags:
+      - Templates
+  /v1/templates/{id}:
+    delete:
+      description: Delete a Template by its ID
+      parameters:
+      - description: Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Delete a Template
+      tags:
+      - Templates
+    get:
+      consumes:
+      - application/json
+      description: Get information of a Template passing the ID
+      parameters:
+      - description: Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_template.Template'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Get a Template
+      tags:
+      - Templates
+    patch:
+      consumes:
+      - multipart/form-data
+      description: Update a Template by its ID (multipart form)
+      parameters:
+      - description: Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Template file
+        in: formData
+        name: template
+        type: file
+      - description: Output format (html, pdf, txt, xml)
+        in: formData
+        name: outputFormat
+        type: string
+      - description: Template description
+        in: formData
+        name: description
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/TemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Update a Template
+      tags:
+      - Templates
+  /v1/templates/blocks-config:
+    get:
+      description: Returns all available block type definitions including properties
+        and categories
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_pongo.BlocksConfigResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Get block definitions for template builder
+      tags:
+      - Template Builder
+  /v1/templates/filters:
+    get:
+      description: Returns all available Pongo2 filter definitions including DIMP
+        filters
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_pongo.FiltersResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Get filter definitions for template builder
+      tags:
+      - Template Builder
+  /v1/templates/generate-code:
+    post:
+      consumes:
+      - application/json
+      description: Converts a JSON block structure into Pongo2 template code and extracts
+        mapped fields
+      parameters:
+      - description: Block structure
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Generate Pongo2 code from template blocks
+      tags:
+      - Template Builder
+  /v1/templates/validate:
+    post:
+      consumes:
+      - application/json
+      description: Validates a sequence of template blocks. Validation errors are
+        returned in the **200 envelope** with `valid:false` and per-block error messages.
+        HTTP **400** is reserved for malformed request bodies (JSON parse failures).
+      parameters:
+      - description: Blocks to validate
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Validate template blocks
+      tags:
+      - Template Builder
+securityDefinitions:
+  BearerAuth:
+    description: The authorization token in the 'Bearer access_token' format. Only
+      required when auth plugin is enabled.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
