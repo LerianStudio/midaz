@@ -1,6 +1,6 @@
 # Lerian Midaz — Full Reference
 
-> Enterprise-grade open-source double-entry ledger system. Go 1.25 monorepo (v3 module path) with a unified Ledger HTTP API (onboarding + transaction) and a CRM plugin. Uses PostgreSQL (primary/replica), MongoDB (metadata), RabbitMQ (async transactions), and Valkey/Redis (caching). Supports multi-tenant isolation via lib-commons v4 tenant-manager. Elastic License 2.0.
+> Enterprise-grade open-source double-entry ledger system. Go 1.26.3 monorepo (v3 module path, single root go.mod — no go.work) on `github.com/LerianStudio/lib-commons/v5` v5.4.1 + `lib-observability` v1.0.1. Five deploy units: a unified Ledger HTTP API (onboarding + transaction + CRM holders/aliases + fees, :3002), a Tracer fraud-prevention API (:4020), and a two-unit Reporter (manager :4005 + worker :4006), plus an Infra docker-compose backing stack. Uses PostgreSQL (primary/replica), MongoDB (metadata + CRM + fees), RabbitMQ (async transactions, reporter jobs), Valkey/Redis (caching), and SeaweedFS (reporter object storage). Supports multi-tenant isolation via the lib-commons v5 tenant-manager. Elastic License 2.0.
 
 ---
 
@@ -23,18 +23,26 @@ Key capabilities:
 - **Transaction lifecycle**: Create → Commit/Cancel/Revert (pending transactions support)
 - **Async processing**: RabbitMQ-based balance updates with bulk recorder (10x throughput)
 - **Multi-asset**: Currency (ISO-4217), crypto, commodities, custom asset types
-- **Multi-tenant**: Database-per-tenant isolation via lib-commons v4 tenant-manager
+- **Multi-tenant**: Database-per-tenant isolation via the lib-commons v5 tenant-manager
 - **Accounting routes**: Configurable operation routes and transaction routes for validation
+- **Fees (embedded)**: fee engine + billing packages embedded in the ledger binary; fees applied on transaction create
+- **CRM (folded)**: holder/alias management folded into the ledger binary (`plugin-crm` namespace, `X-Organization-Id` scoping)
 
 ## 2. Architecture
 
-### 2.1 Components
+### 2.1 Deploy Units
 
-| Component | Port | Description | Data Stores |
-|-----------|------|-------------|-------------|
-| **Ledger** | 3002 | Unified HTTP API (onboarding + transaction) | PostgreSQL (onboarding DB + transaction DB), MongoDB (metadata), Redis, RabbitMQ |
-| **CRM** | 4003 | Customer relationship management plugin | MongoDB |
-| **Infra** | — | Docker Compose infrastructure | PostgreSQL 17, MongoDB 8, RabbitMQ 4.1, Valkey 8, Grafana/OTEL-LGTM |
+Five deploy units: four Go services + infra. **CRM and fees are not deploy units** — CRM is a
+package tree (`components/crm`) imported by the ledger binary, and fees are embedded in the
+ledger binary. Both are served on the ledger port `:3002`.
+
+| Deploy unit | Port | Description | Data Stores |
+|-------------|------|-------------|-------------|
+| **Ledger** | 3002 | Unified HTTP API: onboarding + transaction + **CRM** (holders/aliases) + **fees** (engine + billing) | PostgreSQL (onboarding DB + transaction DB), MongoDB (metadata + CRM + fees), Redis/Valkey, RabbitMQ |
+| **Tracer** | 4020 | Real-time transaction validation / fraud-prevention API (CEL rule engine, hash-chained audit) | PostgreSQL (own migrations) |
+| **Reporter Manager** | 4005 | REST API that accepts report-generation requests and publishes jobs to RabbitMQ | MongoDB, RabbitMQ |
+| **Reporter Worker** | 4006 | Async consumer rendering PDFs via headless Chromium, writing to S3-compatible storage | MongoDB, RabbitMQ, SeaweedFS |
+| **Infra** | — | Docker Compose backing stack (single source) | PostgreSQL 17 (primary/replica), MongoDB, RabbitMQ 4.1, Valkey, SeaweedFS, KEDA, Grafana/OTEL-LGTM |
 
 ### 2.2 Pattern: Hexagonal Architecture with CQRS
 
@@ -51,56 +59,74 @@ Dependencies flow inward. Inner layers must not depend on outer layers. Interfac
 ```
 midaz/
 ├── components/
-│   ├── ledger/              # Unified ledger (onboarding + transaction)
+│   ├── ledger/              # DEPLOY UNIT :3002 — onboarding + transaction + CRM + fees
 │   │   ├── cmd/app/         # main.go entry point
 │   │   ├── internal/
 │   │   │   ├── adapters/
-│   │   │   │   ├── http/in/ # Fiber HTTP handlers + routes
+│   │   │   │   ├── http/in/ # Fiber HTTP handlers + routes (incl. fees_routes.go)
 │   │   │   │   ├── http/out/# Outbound HTTP clients
 │   │   │   │   ├── postgres/# PostgreSQL repositories (onboarding + transaction)
-│   │   │   │   ├── mongodb/ # MongoDB metadata repositories
-│   │   │   │   ├── redis/   # Redis cache repositories
+│   │   │   │   ├── mongodb/ # MongoDB metadata + fees repositories
+│   │   │   │   ├── redis/   # Redis/Valkey cache repositories
 │   │   │   │   └── rabbitmq/# RabbitMQ producer/consumer
-│   │   │   ├── bootstrap/   # Config, DI, server lifecycle, workers
+│   │   │   ├── bootstrap/   # Config, DI, server lifecycle, workers, initCRM, fee wiring
 │   │   │   └── services/
 │   │   │       ├── command/ # Write operations (CQRS)
-│   │   │       └── query/   # Read operations (CQRS)
+│   │   │       ├── query/   # Read operations (CQRS)
+│   │   │       └── fees/    # Embedded fee + billing-package use cases
+│   │   ├── pkg/
+│   │   │   ├── fee/         # Embedded fee engine
+│   │   │   └── feeshared/   # Embedded fee shared types/constants (plugin-fees)
 │   │   ├── migrations/
 │   │   │   ├── onboarding/  # SQL migrations for onboarding DB
 │   │   │   └── transaction/ # SQL migrations for transaction DB
 │   │   └── api/             # Swagger docs
-│   ├── crm/                 # CRM plugin
-│   │   ├── cmd/app/         # main.go entry point
-│   │   ├── internal/
-│   │   │   ├── adapters/
-│   │   │   │   ├── http/    # Fiber HTTP handlers
-│   │   │   │   └── mongodb/ # MongoDB repositories
-│   │   │   ├── bootstrap/   # Config, DI
-│   │   │   └── services/    # CRM business logic
+│   ├── crm/                 # PACKAGE TREE (not a deploy unit) — imported by ledger
+│   │   ├── adapters/
+│   │   │   ├── http/in/     # Fiber holder/alias handlers + routes (plugin-crm namespace)
+│   │   │   └── mongodb/     # holder/ + alias/ repositories
+│   │   ├── services/        # CRM business logic
 │   │   └── api/             # Swagger docs
-│   └── infra/               # Docker Compose + config
+│   ├── tracer/              # DEPLOY UNIT :4020 — fraud-prevention API (CEL, audit log)
+│   │   ├── cmd/app/
+│   │   ├── internal/
+│   │   └── migrations/      # Tracer's own SQL migrations
+│   ├── reporter-manager/    # DEPLOY UNIT :4005 — report request API → RabbitMQ jobs
+│   │   ├── cmd/app/
+│   │   └── internal/
+│   ├── reporter-worker/     # DEPLOY UNIT :4006 — PDF renderer (Chromium) → S3 storage
+│   │   ├── cmd/app/
+│   │   └── internal/
+│   └── infra/               # DEPLOY UNIT — Docker Compose backing stack (single source)
 │       ├── docker-compose.yml
 │       ├── postgres/        # Init scripts
 │       ├── mongo/           # Replica set init
 │       ├── rabbitmq/        # Definitions, config
+│       ├── seaweedfs/       # S3 config (s3.json, init-bucket.sh)
 │       └── grafana/         # OTEL collector config
-├── pkg/                     # Shared packages
-│   ├── mmodel/              # Domain models (32 files)
-│   ├── constant/            # Error codes, action constants, HTTP constants
+├── pkg/                     # Shared packages (root)
+│   ├── mmodel/              # Domain models (incl. Holder, Alias)
+│   ├── constant/            # Error codes (ledger 0001–0175, 16 CRM-00xx), action/module constants
 │   ├── errors.go            # Typed error structs + ValidateBusinessError
 │   ├── gold/                # ANTLR4 transaction DSL grammar + parser
 │   ├── net/http/            # Middleware, pagination, protected routes
-│   ├── transaction/         # Transaction processing utilities
+│   ├── mtransaction/        # Transaction processing utilities (renamed from the old transaction pkg)
+│   ├── streaming/           # lib-streaming event modeling
+│   ├── reporter/            # Reporter shared library (used by both reporter units)
 │   ├── mongo/               # MongoDB utilities
 │   ├── repository/          # Repository interfaces
 │   ├── pagination/          # Pagination helpers
 │   └── utils/               # General utilities
-├── tests/                   # Integration + chaos tests
+├── tests/                   # Shared test trees (root)
+│   ├── reporter/            # Reporter shared suites (e2e/integration/property/fuzzy/chaos/utils)
+│   ├── chaos/, helpers/, utils/
 ├── scripts/                 # Build/CI scripts
-├── mk/                      # Makefile includes (coverage, tests)
+├── mk/                      # Makefile includes (coverage, tests, quality)
 ├── docs/PROJECT_RULES.md    # Coding standards (1130 lines)
+├── docs/auth/RBAC-NAMESPACES.md  # The four authz namespaces (R9)
+├── docs/api/SCOPING.md      # Path vs X-Organization-Id header scoping (R22)
 ├── Makefile                 # Root orchestrator
-├── go.mod                   # Module: github.com/LerianStudio/midaz/v3
+├── go.mod                   # Module: github.com/LerianStudio/midaz/v3 (single root go.mod)
 └── go.sum
 ```
 
@@ -262,15 +288,52 @@ Base path: `/v1`
 | GET | /version | Version info |
 | GET | /swagger/* | Swagger UI |
 
-### 4.2 CRM API (port 4003)
+### 4.2 CRM API (served by the ledger binary on port 3002)
 
-Manages holders, aliases, related parties. Uses MongoDB for persistence. Supports encrypted PII fields.
+CRM (holders, aliases, related parties) is folded into the ledger binary — it is **not** a
+standalone service. Routes are served on `:3002` under the `plugin-crm` authz namespace. Uses
+MongoDB for persistence; supports encrypted PII fields.
+
+Scoping is **header-based**: CRM endpoints read the organization from the `X-Organization-Id`
+HTTP header, not the URL path (legacy from the standalone CRM service). See
+`docs/api/SCOPING.md` (R22). CRM endpoints carry no `:organization_id` path segment.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /v1/holders | Create holder |
+| GET | /v1/holders | List holders |
+| GET | /v1/holders/:id | Get holder |
+| PATCH | /v1/holders/:id | Update holder |
+| DELETE | /v1/holders/:id | Delete holder |
+| GET | /v1/aliases | List aliases |
+| POST | /v1/holders/:holder_id/aliases | Create alias |
+| GET | /v1/holders/:holder_id/aliases/:alias_id | Get alias |
+| PATCH | /v1/holders/:holder_id/aliases/:alias_id | Update alias |
+| DELETE | /v1/holders/:holder_id/aliases/:alias_id | Delete alias |
+| DELETE | /v1/holders/:holder_id/aliases/:alias_id/related-parties/:related_party_id | Delete related party |
+
+CRM error responses carry **canonical midaz codes** (e.g. `0009`, `0046`, `0047`, `0094`) — the
+legacy `CRM-00xx` transform shim was removed. The 16 surviving CRM domain sentinels (section 5.1)
+are still emitted on their own paths.
+
+### 4.3 Tracer API (port 4020)
+
+Real-time transaction validation / fraud-prevention API. Hexagonal + CQRS, CEL rule engine,
+hash-chained audit log. Ships its own SQL migrations under `components/tracer/migrations`.
+
+### 4.4 Reporter (ports 4005 / 4006)
+
+Two deploy units: **Reporter Manager** (`:4005`) accepts report-generation requests and publishes
+jobs to RabbitMQ (`reporter.generate-report.{exchange,queue,key}`); **Reporter Worker** (`:4006`)
+consumes jobs, renders PDFs via headless Chromium (chromedp), and writes output to S3-compatible
+object storage (SeaweedFS). Shared library: `pkg/reporter`. Shared suites: `tests/reporter`.
 
 ## 5. Error System
 
 ### 5.1 Error Codes (pkg/constant/errors.go)
 
-175 numeric codes (0001–0175) for ledger errors. 29 CRM errors prefixed with `CRM-`.
+175 numeric codes (0001–0175) for ledger errors. 16 CRM domain codes prefixed with `CRM-`
+(CRM-0018 and the 12 transform-only sentinels were pruned with the error shim).
 
 #### Ledger Error Codes (selected key codes)
 - `0007` ErrEntityNotFound — entity not found
@@ -352,8 +415,10 @@ return nil, fmt.Errorf("failed to create entity: %w", err)
 
 ## 6. Environment Variables
 
-Source of truth: `components/ledger/internal/bootstrap/config.go` (Ledger Config struct) and
-`components/crm/bootstrap/config.go` (CRM Config struct). Defaults in parentheses
+Source of truth: `components/ledger/internal/bootstrap/config.go` (the unified Ledger Config
+struct — also holds the CRM and fees Mongo config since both are folded into the ledger binary),
+plus `components/tracer/.env.example`, `components/reporter-manager/.env.example`, and
+`components/reporter-worker/.env.example` for the other deploy units. Defaults in parentheses
 are set programmatically by `applyConfigDefaults()`.
 
 ### 6.1 Ledger Component
@@ -549,50 +614,62 @@ are set programmatically by `applyConfigDefaults()`.
 | BALANCE_SYNC_MAX_WORKERS | (5) | Balance sync worker count |
 | SETTINGS_CACHE_TTL | (5m) | Settings cache duration (Go duration) |
 
-### 6.2 CRM Component
+### 6.2 CRM + Fees (folded into the ledger binary)
 
-Source: `components/crm/bootstrap/config.go`
+Since CRM and fees are served by the ledger binary, their config lives in the unified ledger
+Config struct (`components/ledger/internal/bootstrap/config.go`) and `components/ledger/.env.example`.
+They use **namespaced** Mongo env vars so they do not collide with the ledger's onboarding /
+transaction Mongo. They MAY point at the same Mongo deployment (separate logical DBs).
+
+CRM Mongo (`MONGO_CRM_*`, read by `initCRM` via the `CrmPrefixed*` config fields):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| ENV_NAME | development | Environment name |
-| SERVER_ADDRESS | :4003 | HTTP listen address |
-| LOG_LEVEL | debug | Log level |
-| MONGO_URI | mongodb | Connection URI scheme |
-| MONGO_HOST | midaz-mongodb | MongoDB host |
-| MONGO_NAME | crm | Database name |
-| MONGO_USER | midaz | Username |
-| MONGO_PASSWORD | lerian | Password |
-| MONGO_PORT | 5703 | Port |
-| MONGO_PARAMETERS | — | Extra connection parameters |
-| MONGO_MAX_POOL_SIZE | 1000 | Max pool size |
-| LCRYPTO_HASH_SECRET_KEY | — | PII hash key (data security) |
-| LCRYPTO_ENCRYPT_SECRET_KEY | — | PII encryption key (data security) |
-| PLUGIN_AUTH_ADDRESS | — | Auth service address |
-| PLUGIN_AUTH_ENABLED | false | Enable auth middleware |
-| APPLICATION_NAME | ledger | Application identity |
-| OTEL_RESOURCE_SERVICE_NAME | crm | Service name |
-| OTEL_LIBRARY_NAME | — | Instrumentation library name |
-| OTEL_RESOURCE_SERVICE_VERSION | — | Service version |
-| OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT | — | Deployment environment |
-| OTEL_EXPORTER_OTLP_ENDPOINT | — | OTLP endpoint |
-| ENABLE_TELEMETRY | false | Enable telemetry |
-| MULTI_TENANT_ENABLED | false | Enable multi-tenant mode |
-| MULTI_TENANT_URL | — | Tenant Manager API URL |
-| MULTI_TENANT_TIMEOUT | — | HTTP client timeout (seconds) |
-| MULTI_TENANT_IDLE_TIMEOUT_SEC | — | Idle connection eviction (seconds) |
-| MULTI_TENANT_MAX_TENANT_POOLS | — | Max concurrent tenant pools |
-| MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD | — | CB failures before open |
-| MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC | — | CB timeout (seconds) |
-| MULTI_TENANT_SERVICE_API_KEY | — | Service API key |
-| MULTI_TENANT_CONNECTIONS_CHECK_INTERVAL_SEC | — | Revalidation interval (seconds) |
-| MULTI_TENANT_CACHE_TTL_SEC | (120) | Tenant config cache TTL (seconds) |
-| MULTI_TENANT_REDIS_HOST | — | Redis for Pub/Sub |
-| MULTI_TENANT_REDIS_PORT | 6379 | Redis port |
-| MULTI_TENANT_REDIS_PASSWORD | — | Redis password |
-| MULTI_TENANT_REDIS_TLS | false | TLS for Redis |
+| MONGO_CRM_URI | mongodb | Connection URI scheme |
+| MONGO_CRM_HOST | midaz-mongodb | MongoDB host |
+| MONGO_CRM_NAME | crm | Database name |
+| MONGO_CRM_USER | midaz | Username |
+| MONGO_CRM_PASSWORD | lerian | Password |
+| MONGO_CRM_PORT | 5703 | Port |
+| MONGO_CRM_PARAMETERS | — | Extra connection parameters |
+| MONGO_CRM_MAX_POOL_SIZE | 1000 | Max pool size |
+| MONGO_CRM_TLS_CA_CERT | — | TLS CA cert path |
+| LCRYPTO_HASH_SECRET_KEY | — | CRM PII hash key |
+| LCRYPTO_ENCRYPT_SECRET_KEY | — | CRM PII encryption key |
 
-### 6.3 Infrastructure
+Fees Mongo (`MONGO_FEES_*`):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| MONGO_FEES_URI | mongodb | Connection URI scheme |
+| MONGO_FEES_HOST | midaz-mongodb | MongoDB host |
+| MONGO_FEES_NAME | fees | Database name |
+| MONGO_FEES_USER | midaz | Username |
+| MONGO_FEES_PASSWORD | lerian | Password |
+| MONGO_FEES_PORT | 5703 | Port |
+| MONGO_FEES_PARAMETERS | — | Extra connection parameters |
+| MONGO_FEES_MAX_POOL_SIZE | 100 | Max pool size |
+| MONGO_FEES_TLS_CA_CERT | — | TLS CA cert path |
+
+Auth and multi-tenant env vars (`PLUGIN_AUTH_*`, `MULTI_TENANT_*`) are shared across the whole
+ledger binary (one set governs onboarding, transaction, CRM, and fees) — see section 6.1.
+
+### 6.3 Tracer (port 4020)
+
+Source: `components/tracer/.env.example`. Key vars: `SERVER_PORT` (4020), `SERVER_ADDRESS`,
+`DEPLOYMENT_MODE`, `ALLOW_INSECURE_TLS`, `API_KEY` / `API_KEY_ENABLED`, `CORS_ALLOWED_ORIGINS`,
+`DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` / `DB_PORT` (its own PostgreSQL), plus the
+standard OTEL exporter vars.
+
+### 6.4 Reporter Manager / Worker (ports 4005 / 4006)
+
+Source: `components/reporter-manager/.env.example` and `components/reporter-worker/.env.example`.
+Manager key vars: `SERVER_PORT` (4005), `MONGO_*`, RabbitMQ exchange/queue/key for
+`reporter.generate-report.*`. Worker key vars: `HEALTH_PORT` (4006), `RABBITMQ_*`
+(exchange/queue/key/DLQ, worker count), `OTEL_EXPORTER_OTLP_ENDPOINT_PORT`, and the SeaweedFS S3
+target for rendered PDFs.
+
+### 6.5 Infrastructure
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -629,7 +706,7 @@ Source: `components/crm/bootstrap/config.go`
 
 ### 7.1 Prerequisites
 
-- Go 1.25+
+- Go 1.26.3+ (toolchain go1.26.4)
 - Docker (with `docker compose`)
 - golangci-lint v2.4.0
 
@@ -642,8 +719,8 @@ make dev-setup                # Install tools + git hooks + env files
 make setup-git-hooks          # Configure git hooks
 
 # Build & Run
-make build                    # Build ledger + CRM
-make up                       # Start all services (infra → ledger → CRM)
+make build                    # Build the deploy-unit binaries
+make up                       # Start all services (infra → ledger → tracer → reporter-manager → reporter-worker)
 make down                     # Stop all services
 make restart                  # Restart all services
 make rebuild-up               # Rebuild and restart
@@ -678,27 +755,33 @@ make generate-docs            # Generate Swagger docs
 
 ### 7.3 Docker Images
 
-- **Ledger**: `golang:1.25-alpine` → `gcr.io/distroless/static-debian12`, exposed port 3002
-- **CRM**: `golang:1.25-alpine` → `gcr.io/distroless/static-debian12`, exposed port 4003
-- Both run as `nonroot:nonroot`
+- **Ledger** (onboarding + transaction + CRM + fees): multi-stage Go build → distroless,
+  exposed port 3002, runs as `nonroot:nonroot`.
+- **Tracer**: multi-stage Go build → distroless, exposed port 4020.
+- **Reporter Manager**: multi-stage Go build → distroless, exposed port 4005.
+- **Reporter Worker**: fat alpine image with the Chromium userland (cannot be distroless — R20),
+  exposed port 4006.
+
+There is no standalone CRM image — CRM ships inside the ledger image.
 
 ## 8. Key Dependencies
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| github.com/LerianStudio/lib-commons/v4 | — | Shared library (logging, telemetry, Redis, tenant-manager, HTTP) |
-| github.com/LerianStudio/lib-auth/v2 | v2.6.0 | Authentication middleware |
-| github.com/gofiber/fiber/v2 | v2.52.12 | HTTP framework |
-| github.com/jackc/pgx/v5 | v5.9.1 | PostgreSQL driver |
-| go.mongodb.org/mongo-driver | v1.17.9 | MongoDB driver |
-| github.com/rabbitmq/amqp091-go | v1.10.0 | RabbitMQ AMQP client |
-| github.com/redis/go-redis/v9 | v9.18.0 | Redis client |
+| github.com/LerianStudio/lib-commons/v5 | v5.4.1 | Shared library (tenant-manager, Redis, HTTP toolkit, lifecycle, outbox) |
+| github.com/LerianStudio/lib-observability | v1.0.1 | Logging, metrics, tracing, assertions, panic recovery, redaction |
+| github.com/LerianStudio/lib-auth/v2 | v2.8.0 | Authentication middleware |
+| github.com/gofiber/fiber/v2 | v2.52.13 | HTTP framework |
+| github.com/jackc/pgx/v5 | v5.9.2 | PostgreSQL driver |
+| go.mongodb.org/mongo-driver/v2 | v2.6.0 | MongoDB driver (v2 line) |
+| github.com/rabbitmq/amqp091-go | v1.11.0 | RabbitMQ AMQP client |
+| github.com/redis/go-redis/v9 | v9.20.0 | Redis/Valkey client |
 | github.com/shopspring/decimal | v1.4.0 | Precise decimal arithmetic |
 | github.com/antlr4-go/antlr/v4 | v4.13.1 | ANTLR4 for Gold DSL parser |
 | github.com/Masterminds/squirrel | v1.5.4 | SQL query builder |
-| github.com/testcontainers/testcontainers-go | v0.41.0 | Integration test containers |
+| github.com/testcontainers/testcontainers-go | v0.42.0 | Integration test containers |
 | github.com/vmihailenco/msgpack/v5 | v5.4.1 | MessagePack serialization |
-| go.opentelemetry.io/otel | v1.42.0 | OpenTelemetry tracing |
+| go.opentelemetry.io/otel | v1.44.0 | OpenTelemetry tracing |
 | go.uber.org/mock | v0.6.0 | Mock generation |
 
 ## 9. Multi-Tenancy
@@ -712,7 +795,9 @@ When `MULTI_TENANT_ENABLED=true`:
 5. TenantCache provides process-local caching with configurable TTL
 6. On tenant suspend/delete: all connections (PG, Mongo, RabbitMQ) are closed and cache invalidated
 7. RabbitMQ consumers are started/stopped per tenant dynamically
-8. Modules: `onboarding` and `transaction` with independent PG and Mongo managers
+8. Modules: `onboarding` and `transaction` with independent PG and Mongo managers; CRM
+   (`plugin-crm`) and fees (`plugin-fees`) add their own namespaced Mongo tenant clients within
+   the ledger binary (resolution via the lib-commons v5 tenant-manager)
 
 ## 10. Gold DSL
 

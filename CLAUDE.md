@@ -5,12 +5,16 @@ Concise rules for AI agents working in Midaz. For expanded references, use `AGEN
 ## Project
 
 - Midaz is an enterprise double-entry ledger system.
-- Module: `github.com/LerianStudio/midaz/v3`.
-- Go: 1.25+.
+- Module: `github.com/LerianStudio/midaz/v3` (single root `go.mod`, no `go.work`).
+- Go: 1.26.3+ (toolchain go1.26.4).
+- lib-commons: `github.com/LerianStudio/lib-commons/v5` v5.4.1; `lib-observability` v1.0.1.
 - License: Elastic License 2.0.
-- Main component: `components/ledger`.
-- CRM component: `components/crm`.
-- Shared code: `pkg`.
+- Five deploy units (4 Go services + infra): `components/ledger` (:3002), `components/tracer` (:4020), `components/reporter-manager` (:4005), `components/reporter-worker` (:4006), `components/infra`.
+- Main component: `components/ledger` — the unified binary serving onboarding + transaction + CRM (holders/aliases) + fees on :3002.
+- CRM is folded into ledger: `components/crm` is a package tree (no `cmd/`, no `internal/`) imported by the ledger binary; routes register under the `plugin-crm` authz namespace. There is no standalone CRM service.
+- Fees are embedded in ledger: engine at `components/ledger/pkg/fee`, shared types at `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`, Mongo collections at `components/ledger/internal/adapters/mongodb/fees`. Fee seam: `transaction_create.go`, after `mtransaction.ApplyDefaultBalanceKeys(...)` and before the idempotency claim.
+- Tracer, reporter-manager, and reporter-worker are co-located components but separate Go service deploy units.
+- Shared code: `pkg` (root; `pkg/mtransaction` was formerly `pkg/transaction`; `pkg/reporter` is the reporter shared lib) and `tests` (root; `tests/reporter` holds reporter suites).
 
 ## Architecture
 

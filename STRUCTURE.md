@@ -1,61 +1,72 @@
 # Project Structure Overview
 
-This guide covers the project structure. The codebase is designed for scalability, maintainability, and clear separation of concerns following the Command Query Responsibility Segregation (CQRS) pattern. This architecture keeps the codebase organized so developers can navigate and contribute effectively.
+This guide covers the project structure after the monorepo consolidation. The codebase is a
+single Go module (`github.com/LerianStudio/midaz/v3`, Go 1.26.3, single root `go.mod` — no
+`go.work`, no `replace`) following hexagonal architecture with Command Query Responsibility
+Segregation (CQRS).
+
+The repository ships **five deploy units** (four Go services + infra). CRM and fees are not
+deploy units: CRM is a collapsed package tree imported by the ledger binary, and fees are
+embedded inside the ledger binary.
 
 #### Directory Layout
 
-The project is structured into key directories, each serving specific roles:
-
 ```
 MIDAZ
- |   bin
  |   components
- |   |---   crm
- |   |   |---   api
- |   |   |---   cmd
- |   |   |---   internal
- |   |   |   |---   adapters
- |   |   |   |   |---   http
- |   |   |   |   |   |---   in
- |   |   |   |   |---   mongodb
- |   |   |   |---   services
- |   |   |---   scripts
- |   |---   infra
- |   |   |---   artifacts
+ |   |---   infra                  # backing-stack docker-compose (single source)
  |   |   |---   grafana
+ |   |   |---   mongo
  |   |   |---   postgres
  |   |   |---   rabbitmq
- |   |   |   |---   etc
  |   |   |---   seaweedfs
- |   |---   ledger
+ |   |---   ledger                 # DEPLOY UNIT :3002 — onboarding + transaction + CRM + fees
  |   |   |---   api
- |   |   |---   artifacts
  |   |   |---   cmd
  |   |   |   |---   app
  |   |   |---   internal
  |   |   |   |---   adapters
  |   |   |   |   |---   http
- |   |   |   |   |   |---   in
- |   |   |   |---   bootstrap
- |   |   |---   scripts
- |   |---   tracer
+ |   |   |   |   |   |---   in     # Fiber handlers + routes (incl. fees_routes.go)
+ |   |   |   |   |---   mongodb    # metadata + fees repositories
+ |   |   |   |   |---   postgres   # onboarding + transaction repositories
+ |   |   |   |   |---   rabbitmq
+ |   |   |   |   |---   redis
+ |   |   |   |---   bootstrap      # composition root (initCRM, fee wiring)
+ |   |   |   |---   services
+ |   |   |   |   |---   command
+ |   |   |   |   |---   query
+ |   |   |   |   |---   fees       # embedded fee/billing use cases
+ |   |   |---   migrations
+ |   |   |---   pkg
+ |   |   |   |---   fee            # embedded fee engine
+ |   |   |   |---   feeshared      # embedded fee shared types/constants (plugin-fees)
+ |   |---   crm                    # PACKAGE TREE (not a deploy unit) — imported by ledger
+ |   |   |---   adapters
+ |   |   |   |---   http
+ |   |   |   |   |---   in         # holder/alias handlers + routes (plugin-crm namespace)
+ |   |   |   |---   mongodb
+ |   |   |   |   |---   alias
+ |   |   |   |   |---   holder
+ |   |   |   |---   api
+ |   |   |   |---   services
+ |   |---   tracer                 # DEPLOY UNIT :4020
  |   |   |---   api
  |   |   |---   cmd
  |   |   |   |---   app
  |   |   |---   internal
  |   |   |---   migrations
- |   |---   reporter-manager
+ |   |---   reporter-manager       # DEPLOY UNIT :4005
  |   |   |---   api
  |   |   |---   cmd
  |   |   |   |---   app
  |   |   |---   internal
- |   |---   reporter-worker
+ |   |---   reporter-worker        # DEPLOY UNIT :4006
  |   |   |---   cmd
  |   |   |   |---   app
  |   |   |---   internal
  |   image
- |   |---   README
- |   pkg
+ |   pkg                           # shared libraries (root)
  |   |---   constant
  |   |---   gold
  |   |---   mbootstrap
@@ -64,110 +75,126 @@ MIDAZ
  |   |---   mtransaction
  |   |---   net
  |   |---   pagination
- |   |---   reporter
+ |   |---   reporter               # reporter shared library (used by both reporter units)
  |   |---   repository
  |   |---   shell
  |   |---   streaming
  |   |---   utils
  |   postman
  |   scripts
- |   tests
+ |   tests                         # shared test trees (root)
  |   |---   chaos
  |   |---   helpers
- |   |---   reporter
+ |   |---   reporter               # reporter shared suites (e2e/integration/property/fuzzy/chaos/utils)
  |   |---   utils
 ```
 
-#### Common Utilities (`./pkg`)
+#### Deploy Units
 
-* `libLog`: Overview of the logging framework and configuration details.
-* `libMongo`, `mpostgres`: Database utilities, including setup and configuration.
-* `libPointers`: Explanation of any custom pointer utilities or enhancements used in the project.
-* `libZap`: Details on the structured logger adapted for high-performance scenarios.
-* `libHTTP`: Information on HTTP helpers and network communication utilities.
-* `shell`: Guide on shell utilities, including scripting and automation tools.
-* `transaction`: Contains details of transaction models and validations
+| Unit | Port | Role |
+|------|------|------|
+| **infra** | — | Single `components/infra/docker-compose.yml`: PostgreSQL 17 (primary/replica), MongoDB, Valkey, RabbitMQ, SeaweedFS, KEDA, OTEL-LGTM. All units join `infra-network`. |
+| **ledger** | `:3002` | Unified binary: onboarding + transaction, **CRM** (holders/aliases), and **fees** (fee engine + billing). |
+| **tracer** | `:4020` | Real-time transaction validation / fraud-prevention API. Hexagonal + CQRS, CEL rule engine, hash-chained audit log. Ships its own migrations under `components/tracer/migrations`. |
+| **reporter-manager** | `:4005` | REST API that accepts report-generation requests and publishes jobs to RabbitMQ (`reporter.generate-report.{exchange,queue,key}`). Distroless image. |
+| **reporter-worker** | `:4006` | Async consumer that renders PDFs via headless Chromium (chromedp) and writes output to S3-compatible object storage (SeaweedFS). Fat alpine image with the Chromium userland (cannot be distroless — R20). |
 
 #### Components (`./components`)
 
-##### CRM (`./components/crm`)
+##### Ledger (`./components/ledger`) — deploy unit, `:3002`
 
-###### API (`./components/crm/api`)
+The unified ledger binary folds four domains into one process:
 
-* **Endpoints**: List and describe all CRM API endpoints, including parameters, request/response formats, and error codes.
+* **Onboarding + Transaction**: the original midaz ledger (organizations, ledgers, assets,
+  portfolios, segments, accounts, transactions, operations, balances; routing via
+  account-types / operation-routes / transaction-routes).
+* **CRM (folded)**: holder/alias routes registered from the `components/crm` package tree. See
+  below.
+* **Fees (embedded)**: fee engine at `components/ledger/pkg/fee`, shared types at
+  `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`,
+  Mongo repos at `components/ledger/internal/adapters/mongodb/fees`, routes at
+  `components/ledger/internal/adapters/http/in/fees_routes.go`. The fee seam runs inside
+  `transaction_create.go` after `mtransaction.ApplyDefaultBalanceKeys(...)` and before the
+  idempotency claim.
 
-###### Components (`./components/crm`)
+Composition root: `components/ledger/internal/bootstrap/config.go` (wires onboarding,
+transaction, `initCRM`, and fees).
+
+##### CRM (`./components/crm`) — package tree, NOT a deploy unit
+
+CRM was lifted out of `internal/` so the ledger binary can import it across the component
+boundary. It has **no** `cmd/` and **no** standalone binary.
 
 * **Adapters** (`./components/crm/adapters`):
-  * **HTTP**: Inbound HTTP handlers for CRM operations.
-  * **MongoDB**: Database connection and operations for CRM data persistence.
-* **Services** (`./components/crm/services`):
-  * Business logic services for customer relationship management operations.
+  * **HTTP** (`./adapters/http/in`): holder/alias handlers + `routes.go`, registered into the
+    ledger Fiber app. Authorizes under the `plugin-crm` namespace.
+  * **MongoDB** (`./adapters/mongodb/{holder,alias}`): CRM persistence.
+* **Services** (`./components/crm/services`): holder/alias command/query use cases.
+* **API** (`./components/crm/api`): CRM OpenAPI/Swagger specs.
 
-##### Ledger (`./components/ledger`)
+CRM scopes requests by the `X-Organization-Id` HTTP header (not path-based org hierarchy) — see
+`docs/api/SCOPING.md` (R22). CRM error responses now carry canonical midaz codes; the legacy
+`CRM-00xx` transform shim was removed (PD-2). The 16 surviving CRM domain sentinels live in
+`pkg/constant/errors.go`.
 
-The unified ledger deploy unit (`:3002`) folds the former separate `onboarding`
-and `transaction` components into one binary.
+##### Tracer (`./components/tracer`) — deploy unit, `:4020`
 
-###### API (`./onboarding/api`)
+Real-time transaction validation and fraud-prevention API. Hexagonal + CQRS, CEL rule engine,
+hash-chained audit log. Ships its own migrations under `./components/tracer/migrations`.
 
-* **Endpoints:** List and describe all API endpoints, including parameters, request/response formats, and error codes.
+##### Reporter (`./components/reporter-manager` + `./components/reporter-worker`) — two deploy units
 
-###### Internal (`./onboarding/internal`)
+Reporter is split across two deploy units (Option C split: shared library extracted to
+`pkg/reporter`, shared suites to `tests/reporter`):
 
-* **Adapters** (`./adapters`):
-  * **Database:** Connection and operation guides for MongoDB and PostgreSQL.
-* **Application Logic** (`./app`):
-  * **Command:** Documentation of command handlers, including how commands are processed.
-  * **Query:** Details on query handlers, how queries are executed, and their return structures.
-* **Domain** (`./domain`):
-  * Description of domain models such as Onboarding, Portfolio, Transaction, etc., and their relationships.
-* **Services** (`./service`):
-  * Detailed information on business logic services, their roles, and interactions in the application.
+* **Reporter Manager** (`./components/reporter-manager`, `:4005`): REST API that accepts
+  report-generation requests and publishes jobs to RabbitMQ. Distroless image.
+* **Reporter Worker** (`./components/reporter-worker`, `:4006`): async consumer that renders PDFs
+  via headless Chromium (chromedp) and writes to S3-compatible object storage. Fat alpine image
+  with the Chromium userland (cannot be distroless — R20).
 
-##### Tracer (`./components/tracer`)
+Both attach to `infra-network` and use the shared Mongo / Valkey / RabbitMQ backing services.
 
-Real-time transaction validation and fraud-prevention API (`:4020`). Hexagonal +
-CQRS, CEL rule engine, hash-chained audit log. Ships its own migrations under
-`./components/tracer/migrations`.
+* **Shared library** (`./pkg/reporter`): datasource/fetcher, PDF/pongo rendering, template
+  builder, S3 (SeaweedFS) and storage adapters, multi-tenant helpers — imported by both reporter
+  deploy units.
+* **Shared suites** (`./tests/reporter`): `e2e`, `integration`, `property`, `fuzzy`, `chaos`,
+  and `utils` test trees for the reporter components.
 
-##### Reporter (`./components/reporter-manager` + `./components/reporter-worker`)
+##### Infra (`./components/infra`) — deploy unit (backing stack)
 
-Reporter is **two deploy units**, co-located via the Option C split (shared
-library extracted to `pkg/reporter`, shared suites to `tests/reporter`):
+`components/infra/docker-compose.yml` is the single source for the backing stack: PostgreSQL 17
+(primary + replica), MongoDB, Valkey, RabbitMQ, SeaweedFS, KEDA autoscaling, and OTEL-LGTM. The
+SeaweedFS S3 config (`s3.json`, `init-bucket.sh`) lives under `./components/infra/seaweedfs/`.
 
-* **Reporter Manager** (`./components/reporter-manager`, `:4005`): the REST API
-  that accepts report-generation requests and publishes jobs to RabbitMQ
-  (`reporter.generate-report.{exchange,queue,key}`). Ships as a distroless image.
-* **Reporter Worker** (`./components/reporter-worker`, `:4006`): the async
-  consumer that renders PDFs via headless Chromium (chromedp) and writes output
-  to S3-compatible object storage. Ships as a fat alpine image with the Chromium
-  userland (cannot be distroless — R20).
+#### Shared Packages (`./pkg`)
 
-Both services attach to the shared `infra-network` and use midaz's shared
-Mongo / Valkey / RabbitMQ (4.1.3) backing services.
+Cross-component Go libraries (root module):
 
-* **Shared library** (`./pkg/reporter`): datasource/fetcher, PDF/pongo rendering,
-  template builder, S3 (seaweedfs) and storage adapters, multi-tenant helpers —
-  imported by both reporter deploy units.
-* **Shared suites** (`./tests/reporter`): `e2e`, `integration`, `property`,
-  `fuzzy`, `chaos`, and `utils` test trees for the reporter components.
+| Package | Purpose |
+|---------|---------|
+| `pkg/mmodel` | Domain models (Organization, Ledger, Account, Asset, Transaction, Balance, Holder, Alias, etc.) |
+| `pkg/constant` | Error codes (`errors.go`, ledger `0001`–`0175` + 16 `CRM-00xx`), entity/action/module constants |
+| `pkg/gold` | ANTLR4 Gold DSL grammar + parser for transactions |
+| `pkg/mtransaction` | Transaction processing utilities (formerly `pkg/transaction`) |
+| `pkg/net` | HTTP middleware, pagination, protected-route helpers |
+| `pkg/streaming` | lib-streaming event modeling (`pkg/streaming/events`) |
+| `pkg/reporter` | Reporter shared library (datasource, rendering, storage) used by both reporter units |
+| `pkg/mbootstrap` | Bootstrap helpers |
+| `pkg/mongo` | MongoDB utilities |
+| `pkg/pagination` | Pagination helpers |
+| `pkg/repository` | Repository interfaces |
+| `pkg/shell` | Shell/scripting utilities |
+| `pkg/utils` | General utilities |
 
-**Object storage / autoscaling:** the SeaweedFS S3 config is staged at
-`./components/infra/seaweedfs/` (`s3.json`, `init-bucket.sh`), but the SeaweedFS
-service definition and KEDA autoscaling are reporter-only net-new infra owned by
-**Phase 8** — they are not part of the shared infra compose yet.
+> Logging, telemetry, tracing, panic recovery, HTTP toolkit, and tenant-manager symbols
+> (`libLog`, `libHTTP`, etc.) come from the external libraries
+> `github.com/LerianStudio/lib-commons/v5` (v5.4.1) and
+> `github.com/LerianStudio/lib-observability` (v1.0.1) — they are **not** subpackages of `./pkg`.
 
-### Configuration (`./config`)
+#### Miscellaneous
 
-* **Identity Schemas** (`./identity-schemas`): Guide on setting up and modifying identity schemas.
-
-### Miscellaneous
-
-#### Images (`./image`)
-
-* **README:** Purpose of images stored and how to use them in the project.
-
-#### Postman Collections (`./postman`)
-
-* **Usage:** How to import and use the provided Postman collections for API testing.
+* **Images** (`./image`): project images and README assets.
+* **Postman** (`./postman`): API collections for manual testing.
+* **Scripts** (`./scripts`): coverage, docs generation, environment checks.
+* **Makefile includes** (`./mk`): coverage, tests, quality targets.
