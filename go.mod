@@ -105,7 +105,7 @@ require (
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/cucumber/godog v0.15.1
 	github.com/docker/go-connections v0.7.0
-	github.com/go-playground/validator/v10 v10.30.2
+	github.com/go-playground/validator/v10 v10.30.3
 	github.com/gofiber/adaptor/v2 v2.2.1
 	github.com/gofiber/contrib/otelfiber/v2 v2.2.3
 	github.com/google/cel-go v0.28.1
