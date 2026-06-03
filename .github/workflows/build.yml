@@ -17,7 +17,6 @@ jobs:
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
       filter_paths: |-
-        components/crm
         components/ledger
         components/tracer
         components/reporter-manager
@@ -37,14 +36,12 @@ jobs:
       enable_helm_dispatch: true
       helm_chart: "midaz"
       helm_detect_env_changes: true
-      # NOTE: reporter-manager/reporter-worker are intentionally absent from the
-      # helm/gitops key mappings here. Mirroring the P5 tracer precedent, P6 is
-      # ADDITIVE filter_paths ONLY — the build fan-out emits midaz-reporter-manager
-      # and midaz-reporter-worker image candidates, but the helm_values_key_mappings
-      # / yaml_key_mappings entries that route them are deferred to P8 / the P6-T19
-      # Helm-gitops-APIDog lockstep, so the deploy-key flip stays off the default
-      # branch until the external midaz chart gains manager/worker keys (R12).
-      helm_values_key_mappings: '{"midaz-crm": "crm", "midaz-ledger": "ledger"}'
+      # DEPLOY-GATED (P8-T20 ops lockstep, R12): this maps the four surviving
+      # midaz-* images to their Helm value-block keys (bare keys). crm/fees are
+      # collapsed into ledger and emit no image. The external midaz Helm chart MUST
+      # gain tracer/manager/worker value blocks and drop crm/plugin-fees BEFORE a
+      # real tag fans out, or co-located components build but never deploy.
+      helm_values_key_mappings: '{"midaz-ledger":"ledger","midaz-tracer":"tracer","midaz-reporter-manager":"manager","midaz-reporter-worker":"worker"}'
     secrets: inherit
 
   # =========================
@@ -64,7 +61,11 @@ jobs:
       deploy_in_firmino: true
       deploy_in_clotilde: true
       artifact_pattern: "gitops-tags-midaz-*"
-      yaml_key_mappings: '{"midaz-crm.tag": ".crm.image.tag", "midaz-ledger.tag": ".ledger.image.tag"}'
+      # DEPLOY-GATED (P8-T20 ops lockstep, R12): DISTINCT schema from
+      # helm_values_key_mappings — keys carry a .tag SUFFIX, values are full dotted
+      # YAML paths (.image.tag). midaz-firmino-gitops MUST update these targets and
+      # drop crm/fees BEFORE a real tag fans out.
+      yaml_key_mappings: '{"midaz-ledger.tag":".ledger.image.tag","midaz-tracer.tag":".tracer.image.tag","midaz-reporter-manager.tag":".manager.image.tag","midaz-reporter-worker.tag":".worker.image.tag"}'
       commit_message_prefix: "midaz"
       enable_argocd_sync: true
       enable_docker_login: false
@@ -73,6 +74,12 @@ jobs:
   # =========================
   # UPLOAD MIGRATIONS TO S3
   # =========================
+  # Only ledger ships S3-uploaded migrations (onboarding + transaction), consumed
+  # out-of-band by ops for managed-Postgres customers. Tracer is intentionally
+  # EXCLUDED (P5 Decision 2): its migrations are an ordered, hash-chained sequence
+  # applied exclusively via tracer's bootstrap migration runner — keeping ONE
+  # applied-by path is a correctness property. Reporter manager/worker have no SQL
+  # migrations. crm/fees are collapsed into ledger and emit no image/migrations.
   upload-onboarding-migrations:
     needs: [build]
     if: needs.build.result == 'success'
