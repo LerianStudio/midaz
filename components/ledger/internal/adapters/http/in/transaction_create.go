@@ -1006,15 +1006,6 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 	mtransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
 	mtransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
 
-	var fromTo []mtransaction.FromTo
-
-	fromTo = append(fromTo, mtransaction.MutateConcatAliases(transactionInput.Send.Source.From)...)
-	to := mtransaction.MutateConcatAliases(transactionInput.Send.Distribute.To)
-
-	if transactionStatus != constant.PENDING {
-		fromTo = append(fromTo, to...)
-	}
-
 	// Idempotency: extract key/TTL from HTTP headers, hash the request body,
 	// then check or claim the idempotency slot in Redis.
 	//
@@ -1081,7 +1072,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 	// GetParsedLedgerSettings so the single validate reassignment below happens
 	// upstream of PropagateRouteValidation: that mutator then decorates the
 	// post-fee validate, and every downstream consumer reads the same pointer.
-	if err = handler.applyFees(ctx, &transactionInput, params.OrganizationID, params.LedgerID, isRevert); err != nil {
+	if err = handler.applyFees(ctx, &transactionInput, params.OrganizationID, params.LedgerID, isRevert, transactionStatus == constant.NOTED); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to apply fees", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to apply fees", libLog.Err(err))
 
@@ -1089,6 +1080,24 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 
 		return http.WithError(c, err)
 	}
+
+	// Normalize the fee-mutated send: applyFees rebuilds Source.From/Distribute.To
+	// from the engine output with BARE aliases and without IsFrom, so the same
+	// normalization the raw input received (default balance keys, IsFrom on
+	// sources, concat aliases) must run again over the fee-inclusive legs before
+	// the second validate. Both mutators are idempotent — ApplyDefaultBalanceKeys
+	// only fills empty keys and MutateConcatAliases skips already-concat'd aliases
+	// — so the original legs are untouched and only the appended fee legs are
+	// brought into the concat form the downstream balance/operation matching needs.
+	for i := range transactionInput.Send.Source.From {
+		transactionInput.Send.Source.From[i].IsFrom = true
+	}
+
+	mtransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
+
+	mtransaction.MutateConcatAliases(transactionInput.Send.Source.From)
+	mtransaction.MutateConcatAliases(transactionInput.Send.Distribute.To)
 
 	// Re-run validation on the fee-mutated input. This is a single = reassignment
 	// of the existing validate variable (a *mtransaction.Responses pointer), so
@@ -1104,6 +1113,22 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 
 		return http.WithError(c, err)
+	}
+
+	// Build the concat-form fromTo from the FEE-INCLUSIVE, normalized send. This
+	// runs after applyFees + the second validate so the slice carries the fee
+	// legs in the same "<index>#alias#balanceKey" form that buildBalanceOperations
+	// keys the validate maps by and that the Lua-returned balances carry — without
+	// it the `balances × fromTo` match loop in BuildOperations never emits the fee
+	// Operation rows. The aliases are already concat'd in place above; this read
+	// is idempotent.
+	var fromTo []mtransaction.FromTo
+
+	fromTo = append(fromTo, mtransaction.MutateConcatAliases(transactionInput.Send.Source.From)...)
+	to := mtransaction.MutateConcatAliases(transactionInput.Send.Distribute.To)
+
+	if transactionStatus != constant.PENDING {
+		fromTo = append(fromTo, to...)
 	}
 
 	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, params.OrganizationID, params.LedgerID)

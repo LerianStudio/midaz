@@ -68,11 +68,27 @@ func TestApplyFees_NoOpOnRevert(t *testing.T) {
 	input := baseTransaction()
 	orgID, ledgerID := uuid.New(), uuid.New()
 
-	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, true /* isRevert */)
+	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, true /* isRevert */, false /* isAnnotation */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, applier.calls, "fee engine must not run on the revert path (no re-charge)")
 	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)), "revert input must be untouched")
+}
+
+func TestApplyFees_NoOpOnAnnotation(t *testing.T) {
+	applier := &fakeFeeApplier{mutate: func(cf *model.FeeCalculate) {
+		cf.Transaction.Send.Value = decimal.NewFromInt(999) // would corrupt if ever run
+	}}
+	handler := &TransactionHandler{FeeApplier: applier}
+
+	input := baseTransaction()
+	orgID, ledgerID := uuid.New(), uuid.New()
+
+	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, false /* isRevert */, true /* isAnnotation */)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, applier.calls, "fee engine must not run on the annotation path (NOTED is one-sided, no fee)")
+	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)), "annotation input must be untouched")
 }
 
 func TestApplyFees_NoOpWhenApplierNil(t *testing.T) {
@@ -80,7 +96,7 @@ func TestApplyFees_NoOpWhenApplierNil(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false)
+	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false)
 
 	require.NoError(t, err)
 	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)))
@@ -105,7 +121,7 @@ func TestApplyFees_FoldsMutatedSendBack(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, false)
+	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, false, false)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, applier.calls)
@@ -126,7 +142,7 @@ func TestApplyFees_TranslatesBusinessError(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false)
+	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false)
 
 	require.Error(t, err)
 

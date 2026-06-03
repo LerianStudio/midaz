@@ -45,15 +45,19 @@ type FeeApplier interface {
 // reversed fee legs reconstructed by TransactionRevert from the persisted
 // parent operations, so re-charging here would double the fees.
 //
+// On isAnnotation=true (NOTED transactions) this is also a no-op: an annotation
+// is one-sided and records no real balance movement, so charging it a fee would
+// emit fee legs that have no funding side and break its invariants.
+//
 // A nil applier (fee engine disabled / not wired) is also a no-op so the
 // transaction path stays unchanged when no fee use case is injected.
 func (handler *TransactionHandler) applyFees(
 	ctx context.Context,
 	transactionInput *mtransaction.Transaction,
 	organizationID, ledgerID uuid.UUID,
-	isRevert bool,
+	isRevert, isAnnotation bool,
 ) error {
-	if isRevert || handler.FeeApplier == nil {
+	if isRevert || isAnnotation || handler.FeeApplier == nil {
 		return nil
 	}
 
