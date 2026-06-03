@@ -22,13 +22,9 @@ services:
           cpus: '0.25'
     networks:
       - infra-network
-      - reporter-network
 
 networks:
   infra-network:
     name: infra-network
     driver: bridge
     external: true
-  reporter-network:
-    name: reporter-network
-    driver: bridge

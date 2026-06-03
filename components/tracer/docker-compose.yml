@@ -35,13 +35,9 @@ services:
           memory: 128M
     networks:
       - infra-network
-      - tracer-network
 
 networks:
   infra-network:
     name: infra-network
     driver: bridge
     external: true
-  tracer-network:
-    name: tracer-network
-    driver: bridge

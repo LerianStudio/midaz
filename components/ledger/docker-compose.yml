@@ -13,13 +13,9 @@ services:
       - .:/usr/src/app
     networks:
       - infra-network
-      - ledger-network
 
 networks:
   infra-network:
     name: infra-network
     driver: bridge
     external: true
-  ledger-network:
-    name: ledger-network
-    driver: bridge
