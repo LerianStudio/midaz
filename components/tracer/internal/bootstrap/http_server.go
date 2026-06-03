@@ -9,8 +9,8 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v5/commons/server"
-	libCommonsLog "github.com/LerianStudio/lib-observability/log"
-	libCommonsOtel "github.com/LerianStudio/lib-observability/tracing"
+	libObsLog "github.com/LerianStudio/lib-observability/log"
+	libObsOtel "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -18,8 +18,8 @@ import (
 type HTTPServer struct {
 	app           *fiber.App
 	serverAddress string
-	logger        libCommonsLog.Logger
-	telemetry     libCommonsOtel.Telemetry
+	logger        libObsLog.Logger
+	telemetry     libObsOtel.Telemetry
 }
 
 // ServerAddress is a convenience method to return the server address.
@@ -29,7 +29,7 @@ func (s *HTTPServer) ServerAddress() string {
 
 // NewHTTPServer creates an instance of HTTPServer.
 // Returns error instead of panic per Ring standards (no panic outside main.go).
-func NewHTTPServer(cfg *Config, app *fiber.App, logger libCommonsLog.Logger, telemetry *libCommonsOtel.Telemetry) (*HTTPServer, error) {
+func NewHTTPServer(cfg *Config, app *fiber.App, logger libObsLog.Logger, telemetry *libObsOtel.Telemetry) (*HTTPServer, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config must not be nil")
 	}

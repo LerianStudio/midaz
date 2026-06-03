@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
@@ -20,7 +20,7 @@ import (
 
 // CountSegments returns the number of segments for the specified organization and ledger.
 func (uc *UseCase) CountSegments(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.count_segments")
 	defer span.End()

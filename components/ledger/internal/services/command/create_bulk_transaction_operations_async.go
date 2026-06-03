@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
@@ -78,7 +78,7 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 	ctx context.Context,
 	payloads []transaction.TransactionProcessingPayload,
 ) (*BulkResult, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_bulk_transaction_operations_async")
 	defer span.End()

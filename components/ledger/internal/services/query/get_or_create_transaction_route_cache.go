@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
@@ -36,7 +36,7 @@ var cacheNotFoundSentinel = []byte("NOT_FOUND")
 const sentinelTTL = time.Duration(60)
 
 func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) (mmodel.TransactionRouteCache, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.get_or_create_transaction_route_cache")
 	defer span.End()

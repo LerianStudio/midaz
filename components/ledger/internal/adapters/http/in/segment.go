@@ -7,7 +7,7 @@ package in
 import (
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
@@ -48,7 +48,7 @@ type SegmentHandler struct {
 func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_segment")
 	defer span.End()
@@ -108,7 +108,7 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_segments")
 	defer span.End()
@@ -203,7 +203,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_segment_by_id")
 	defer span.End()
@@ -263,7 +263,7 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_segment")
 	defer span.End()
@@ -324,7 +324,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_segment_by_id")
 	defer span.End()
@@ -377,7 +377,7 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 func (handler *SegmentHandler) CountSegments(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_segments")
 	defer span.End()

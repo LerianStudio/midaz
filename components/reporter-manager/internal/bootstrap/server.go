@@ -7,8 +7,8 @@ package bootstrap
 import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v5/commons/server"
-	libCommonsLog "github.com/LerianStudio/lib-observability/log"
-	libCommonsOtel "github.com/LerianStudio/lib-observability/tracing"
+	libObsLog "github.com/LerianStudio/lib-observability/log"
+	libObsOtel "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -16,8 +16,8 @@ import (
 type Server struct {
 	app           *fiber.App
 	serverAddress string
-	logger        libCommonsLog.Logger
-	telemetry     libCommonsOtel.Telemetry
+	logger        libObsLog.Logger
+	telemetry     libObsOtel.Telemetry
 }
 
 // ServerAddress returns is a convenience method to return the server address.
@@ -26,7 +26,7 @@ func (s *Server) ServerAddress() string {
 }
 
 // NewServer creates an instance of Server.
-func NewServer(cfg *Config, app *fiber.App, logger libCommonsLog.Logger, telemetry *libCommonsOtel.Telemetry) *Server {
+func NewServer(cfg *Config, app *fiber.App, logger libObsLog.Logger, telemetry *libObsOtel.Telemetry) *Server {
 	s := &Server{
 		app:           app,
 		serverAddress: cfg.ServerAddress,

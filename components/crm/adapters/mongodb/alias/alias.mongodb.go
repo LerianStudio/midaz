@@ -20,7 +20,7 @@ import (
 	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	mongoUtils "github.com/LerianStudio/midaz/v3/pkg/mongo"
@@ -86,7 +86,7 @@ func (am *MongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, 
 
 // Create inserts an alias into mongo
 func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, alias *mmodel.Alias) (*mmodel.Alias, error) {
-	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_alias")
 	defer span.End()
@@ -165,7 +165,7 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 // Find an alias by holder and alias id
 func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, holderID, id uuid.UUID, includeDeleted bool) (*mmodel.Alias, error) {
-	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_alias")
 	defer span.End()
@@ -221,7 +221,7 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 }
 
 func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, holderID, id uuid.UUID, alias *mmodel.Alias, fieldsToRemove []string) (*mmodel.Alias, error) {
-	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.update_alias")
 	defer span.End()
@@ -322,7 +322,7 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 // Delete remove an alias
 func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, holderID, id uuid.UUID, hardDelete bool) error {
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.delete_alias")
 	defer span.End()

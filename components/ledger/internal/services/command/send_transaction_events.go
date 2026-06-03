@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
@@ -66,7 +66,7 @@ const (
 // at create_bulk_transaction_operations_async.go:555 which only does
 // fresh inserts) pass TransactionLifecyclePhaseCreated explicitly.
 func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.Transaction, phase string) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	if !isTransactionEventEnabled() {
 		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction event not enabled. RABBITMQ_TRANSACTION_EVENTS_ENABLED='%s'", os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")))

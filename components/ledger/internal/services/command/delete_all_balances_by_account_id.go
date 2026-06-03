@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -23,7 +23,7 @@ import (
 
 // DeleteAllBalancesByAccountID delete all balances by account id in the repository.
 func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.delete_all_balances_by_account_id")
 	defer span.End()
@@ -113,7 +113,7 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 }
 
 func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, allow bool) (err error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.toggle_balance_transfers")
 	defer span.End()
@@ -142,7 +142,7 @@ func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, l
 }
 
 func (uc *UseCase) updateBalanceTransferPermissions(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, allowTransfer *bool) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.update_balance_transfer_permissions_for_account")
 	defer span.End()

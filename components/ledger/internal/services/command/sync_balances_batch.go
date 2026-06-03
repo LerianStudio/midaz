@@ -7,7 +7,7 @@ package command
 import (
 	"context"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
@@ -45,7 +45,7 @@ type SyncBalancesBatchResult struct {
 //
 //nolint:gocognit,gocyclo // Will be refactored into smaller helpers; tracked separately.
 func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []redisTransaction.SyncKey) (*SyncBalancesBatchResult, error) {
-	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, metricFactory := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.sync_balances_batch")
 	defer span.End()

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
@@ -95,7 +95,7 @@ type OverdraftEventPayload struct {
 // independent — a lib-streaming Emit error does not prevent the rabbit
 // publish, and vice versa.
 func (uc *UseCase) SendOverdraftEvents(ctx context.Context, tran *transaction.Transaction) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	if !isOverdraftEventEnabled() {
 		logger.Log(ctx, libLog.LevelInfo, "Overdraft events not enabled",

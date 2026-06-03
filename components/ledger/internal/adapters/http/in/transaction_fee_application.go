@@ -7,7 +7,7 @@ package in
 import (
 	"context"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/google/uuid"
 
@@ -61,7 +61,7 @@ func (handler *TransactionHandler) applyFees(
 		return nil
 	}
 
-	logger := libCommons.NewLoggerFromContext(ctx)
+	logger := libObs.NewLoggerFromContext(ctx)
 
 	cf := &model.FeeCalculate{
 		LedgerID:    ledgerID,

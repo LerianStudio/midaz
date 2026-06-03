@@ -10,11 +10,11 @@ import (
 	"os"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-observability"
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
+	libObs "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -73,7 +73,7 @@ func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
 
 // ProducerDefault sends a message to a RabbitMQ queue for further processing.
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	logger.Log(ctx, libLog.LevelInfo, "Init sent message", libLog.String("exchange", exchange), libLog.String("key", key))
 
@@ -132,7 +132,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 // ProducerDefaultWithContext sends a message to RabbitMQ with context-aware timeout.
 // Uses EnsureChannelWithContext to respect context deadline for connection attempts.
 func (prmq *ProducerRabbitMQRepository) ProducerDefaultWithContext(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	logger.Log(ctx, libLog.LevelInfo, "Init sent message with context", libLog.String("exchange", exchange), libLog.String("key", key))
 

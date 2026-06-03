@@ -8,7 +8,7 @@ import (
 	"context"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
@@ -31,7 +31,7 @@ import (
 // transaction will still be persisted via WriteTransaction → RabbitMQ/direct
 // DB write regardless of whether the cache entry succeeds.
 func (uc *UseCase) CreateWriteBehindTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, transactionInput mtransaction.Transaction) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_write_behind_transaction")
 	defer span.End()

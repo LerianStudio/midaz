@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -22,7 +22,7 @@ import (
 )
 
 func (uc *UseCase) validateAliasClosingDate(ctx context.Context, organizationID string, holderID, aliasId uuid.UUID, closingDate *mmodel.Date) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.validate_alias_closing_date")
 	defer span.End()
