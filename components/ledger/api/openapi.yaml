@@ -16,6 +16,477 @@ info:
 servers:
 - url: http://localhost:3002/
 paths:
+  /v1/billing-packages:
+    get:
+      description: List all billing packages
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID (optional — omit to list all packages for the organization)
+        in: query
+        name: ledgerId
+        schema:
+          type: string
+      - description: Filter by billing package type (volume or maintenance)
+        in: query
+        name: type
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Page
+        in: query
+        name: page
+        schema:
+          default: 1
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Get all billing packages
+      tags:
+      - BillingPackages
+    post:
+      description: Create a BillingPackage with the input payload
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage'
+        description: BillingPackage Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Create a BillingPackage
+      tags:
+      - BillingPackages
+      x-codegen-request-body-name: billingPackage
+  /v1/billing-packages/{id}:
+    delete:
+      description: SoftDelete a BillingPackage with the input ID
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: BillingPackage ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: No Content
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: SoftDelete a BillingPackage by ID
+      tags:
+      - BillingPackages
+    get:
+      description: Get a billing package by id
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: BillingPackage ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Get billing package
+      tags:
+      - BillingPackages
+    patch:
+      description: Update a billing package with the input payload
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: BillingPackage ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackageUpdate'
+        description: Update BillingPackage Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Update a billing package
+      tags:
+      - BillingPackages
+      x-codegen-request-body-name: billingPackage
+  /v1/billing/calculate:
+    post:
+      description: Calculate billing for a given organization, ledger, and period
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateRequest'
+        description: Billing Calculation Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Calculate billing
+      tags:
+      - BillingCalculate
+      x-codegen-request-body-name: billingCalculate
+  /v1/estimates:
+    post:
+      description: Create a fee estimate calculation with input payload
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeeEstimate'
+        description: Fee Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeeEstimateResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Create a fee estimate calculation
+      tags:
+      - Fees
+      x-codegen-request-body-name: fee
   /v1/organizations:
     get:
       description: Returns a paginated list of organizations, optionally filtered
@@ -101,7 +572,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200'
+                $ref: '#/components/schemas/inline_response_200_1'
           description: Successfully retrieved organizations list
         "400":
           content:
@@ -494,7 +965,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_1'
+                $ref: '#/components/schemas/inline_response_200_2'
           description: Successfully retrieved ledgers list
         "400":
           content:
@@ -925,7 +1396,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_2'
+                $ref: '#/components/schemas/inline_response_200_3'
           description: Successfully retrieved account types
         "400":
           content:
@@ -1371,7 +1842,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_3'
+                $ref: '#/components/schemas/inline_response_200_4'
           description: Successfully retrieved accounts list
         "400":
           content:
@@ -1597,7 +2068,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_4'
+                $ref: '#/components/schemas/inline_response_200_5'
           description: OK
         "401":
           content:
@@ -1733,7 +2204,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_4'
+                $ref: '#/components/schemas/inline_response_200_5'
           description: OK
         "401":
           content:
@@ -2114,7 +2585,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_4'
+                $ref: '#/components/schemas/inline_response_200_5'
           description: OK
         "400":
           content:
@@ -2403,7 +2874,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_5'
+                $ref: '#/components/schemas/inline_response_200_6'
           description: OK
         "400":
           content:
@@ -2662,7 +3133,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_6'
+                $ref: '#/components/schemas/inline_response_200_7'
           description: OK
         "400":
           content:
@@ -2835,7 +3306,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_7'
+                $ref: '#/components/schemas/inline_response_200_8'
           description: Successfully retrieved assets list
         "400":
           content:
@@ -3299,7 +3770,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_4'
+                $ref: '#/components/schemas/inline_response_200_5'
           description: OK
         "400":
           content:
@@ -3687,7 +4158,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_8'
+                $ref: '#/components/schemas/inline_response_200_9'
           description: OK
         "400":
           content:
@@ -4066,7 +4537,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_9'
+                $ref: '#/components/schemas/inline_response_200_10'
           description: Successfully retrieved portfolios list
         "400":
           content:
@@ -4547,7 +5018,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_10'
+                $ref: '#/components/schemas/inline_response_200_11'
           description: Successfully retrieved segments list
         "400":
           content:
@@ -5156,7 +5627,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_11'
+                $ref: '#/components/schemas/inline_response_200_12'
           description: OK
         "400":
           content:
@@ -5530,7 +6001,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_12'
+                $ref: '#/components/schemas/inline_response_200_13'
           description: OK
         "400":
           content:
@@ -6515,6 +6986,357 @@ paths:
       summary: Revert a Transaction
       tags:
       - Transactions
+  /v1/packages:
+    get:
+      description: List all the packages
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: Segment ID
+        in: query
+        name: segmentId
+        schema:
+          type: string
+      - description: Ledger ID
+        in: query
+        name: ledgerId
+        schema:
+          type: string
+      - description: Transaction Route
+        in: query
+        name: transactionRoute
+        schema:
+          type: string
+      - description: Enable flag
+        in: query
+        name: enable
+        schema:
+          type: boolean
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Page
+        in: query
+        name: page
+        schema:
+          default: 1
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_14'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Get all packages
+      tags:
+      - Packages
+    post:
+      description: Create a Package with the input payload
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePackageInput'
+        description: Package Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Create a Package
+      tags:
+      - Packages
+      x-codegen-request-body-name: pack
+  /v1/packages/{id}:
+    delete:
+      description: SoftDelete a Package with the input ID
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: Package ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: No Content
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: SoftDelete a Package by ID
+      tags:
+      - Packages
+    get:
+      description: Get a package by id
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: Package ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Get package
+      tags:
+      - Packages
+    patch:
+      description: Update a package with the input payload
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: Package ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePackageInput'
+        description: Update Package Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Update a package
+      tags:
+      - Packages
+      x-codegen-request-body-name: package
   /v1/settings/metadata-indexes:
     get:
       description: Get all metadata indexes, optionally filtered by entity name
@@ -7117,16 +7939,18 @@ components:
       type: object
     Amount:
       description: Amount is the struct designed to represent the amount of an operation.
+        Contains the value and scale (decimal places) of an operation amount.
+      example:
+        value: 1500.0
       properties:
-        asset:
-          example: BRL
-          type: string
         value:
-          example: 1000.0
+          description: |-
+            The amount value in the smallest unit of the asset (e.g., cents)
+            example: 1500
+            minimum: 0
+          example: 1500.0
+          minimum: 0
           type: number
-      required:
-      - asset
-      - value
       type: object
     Asset:
       description: Asset represents a financial instrument within a ledger, such as
@@ -7519,6 +8343,47 @@ components:
           example: 1
           minimum: 1
           type: integer
+      type: object
+    Calculation:
+      description: Calculation is a struct designed to store the calculation details
+        of a fee from a pack.
+      example:
+        type: percentage
+        value: "100.00"
+      properties:
+        type:
+          enum:
+          - percentage
+          - flat
+          type: string
+        value:
+          example: "100.00"
+          type: string
+      required:
+      - value
+      type: object
+    CalculationModel:
+      description: CalculationModel is a struct designed to store the calculation
+        of a fee from a pack.
+      example:
+        applicationRule: maxBetweenTypes
+        calculations:
+        - type: percentage
+          value: "100.00"
+        - type: percentage
+          value: "100.00"
+      properties:
+        applicationRule:
+          enum:
+          - maxBetweenTypes
+          - flatFee
+          - percentual
+          example: maxBetweenTypes
+          type: string
+        calculations:
+          items:
+            $ref: '#/components/schemas/Calculation'
+          type: array
       type: object
     CreateAccountInput:
       description: Request payload for creating a new account within a ledger. Accounts
@@ -8061,6 +8926,78 @@ components:
       - legalDocument
       - legalName
       type: object
+    CreatePackageInput:
+      description: CreatePackageInput is the input payload to create a pack.
+      example:
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        fees:
+          key:
+            calculationModel:
+              applicationRule: maxBetweenTypes
+              calculations:
+              - type: percentage
+                value: "100.00"
+              - type: percentage
+                value: "100.00"
+            referenceAmount: originalAmount
+            creditAccount: conta_receita_taxas_adm
+            routeTo: taxa_crédito
+            isDeductibleFrom: true
+            routeFrom: taxa_débito
+            priority: 1
+            feeLabel: Taxa Administrativa
+        transactionRoute: debitoted
+        enable: true
+        maximumAmount: "1000.20"
+        segmentId: 00000000-0000-0000-0000-000000000000
+        minimumAmount: "100.00"
+        description: Pacote de taxas administrativas padrão
+        waivedAccounts:
+        - '["acc001"'
+        - ' "acc002"]'
+        feeGroupLabel: Pacote Padrão
+      properties:
+        description:
+          example: Pacote de taxas administrativas padrão
+          type: string
+        enable:
+          type: boolean
+        feeGroupLabel:
+          example: Pacote Padrão
+          type: string
+        fees:
+          additionalProperties:
+            $ref: '#/components/schemas/Fee'
+          type: object
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        maximumAmount:
+          example: "1000.20"
+          type: string
+        minimumAmount:
+          example: "100.00"
+          type: string
+        segmentId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        transactionRoute:
+          example: debitoted
+          type: string
+        waivedAccounts:
+          example:
+          - '["acc001"'
+          - ' "acc002"]'
+          items:
+            type: string
+          type: array
+      required:
+      - enable
+      - feeGroupLabel
+      - ledgerId
+      - maximumAmount
+      - minimumAmount
+      type: object
     CreatePortfolioInput:
       description: CreatePortfolioInput is the input payload to create a portfolio
         within a ledger, representing a collection of accounts grouped for specific
@@ -8424,6 +9361,49 @@ components:
     Distribute:
       description: Distribute is the struct designed to represent the distribution
         fields of an operation.
+      example:
+        to:
+        - accountAlias: '@person1'
+          amount:
+            value: 1500.0
+          metadata:
+            key: '{}'
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            from: BRL
+            to: USDe
+            value: 1000.0
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          balanceKey: asset-freeze
+          remaining: remaining
+        - accountAlias: '@person1'
+          amount:
+            value: 1500.0
+          metadata:
+            key: '{}'
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            from: BRL
+            to: USDe
+            value: 1000.0
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          balanceKey: asset-freeze
+          remaining: remaining
+        remaining: remaining
       properties:
         remaining:
           type: string
@@ -8480,9 +9460,427 @@ components:
           maxLength: 100
           type: string
       type: object
+    Fee:
+      description: Fee is the input payload to create a fee of a pack.
+      example:
+        calculationModel:
+          applicationRule: maxBetweenTypes
+          calculations:
+          - type: percentage
+            value: "100.00"
+          - type: percentage
+            value: "100.00"
+        referenceAmount: originalAmount
+        creditAccount: conta_receita_taxas_adm
+        routeTo: taxa_crédito
+        isDeductibleFrom: true
+        routeFrom: taxa_débito
+        priority: 1
+        feeLabel: Taxa Administrativa
+      properties:
+        calculationModel:
+          $ref: '#/components/schemas/CalculationModel'
+        creditAccount:
+          example: conta_receita_taxas_adm
+          type: string
+        feeLabel:
+          example: Taxa Administrativa
+          type: string
+        isDeductibleFrom:
+          example: true
+          type: boolean
+        priority:
+          example: 1
+          minimum: 0
+          type: integer
+        referenceAmount:
+          enum:
+          - originalAmount
+          - afterFeesAmount
+          example: originalAmount
+          type: string
+        routeFrom:
+          example: taxa_débito
+          type: string
+        routeTo:
+          example: taxa_crédito
+          type: string
+      required:
+      - calculationModel
+      - creditAccount
+      - feeLabel
+      - isDeductibleFrom
+      type: object
+    FeeCalculate:
+      description: FeeCalculate is the input payload to create a fee.
+      example:
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        segmentId: 00000000-0000-0000-0000-000000000000
+        transaction:
+          metadata:
+            key: '{}'
+          code: 00000000-0000-0000-0000-000000000000
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          pending: false
+          description: Description
+          transactionDate: 2021-01-01T00:00:00Z
+          chartOfAccountsGroupName: FUNDING
+          send:
+            distribute:
+              to:
+              - accountAlias: '@person1'
+                amount:
+                  value: 1500.0
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              - accountAlias: '@person1'
+                amount:
+                  value: 1500.0
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              remaining: remaining
+            source:
+              from:
+              - accountAlias: '@person1'
+                amount:
+                  value: 1500.0
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              - accountAlias: '@person1'
+                amount:
+                  value: 1500.0
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              remaining: remaining
+            asset: BRL
+            value: 1000.0
+      properties:
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        segmentId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        transaction:
+          $ref: '#/components/schemas/TransactionInput'
+      required:
+      - ledgerId
+      type: object
+    FeeEstimate:
+      description: FeeEstimate is the input payload to create a fee estimate.
+      example:
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        packageId: 00000000-0000-0000-0000-000000000000
+        transaction:
+          metadata:
+            key: '{}'
+          code: 00000000-0000-0000-0000-000000000000
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          pending: false
+          description: Description
+          transactionDate: 2021-01-01T00:00:00Z
+          chartOfAccountsGroupName: FUNDING
+          send:
+            distribute:
+              to:
+              - accountAlias: '@person1'
+                amount:
+                  value: 1500.0
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              - accountAlias: '@person1'
+                amount:
+                  value: 1500.0
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              remaining: remaining
+            source:
+              from:
+              - accountAlias: '@person1'
+                amount:
+                  value: 1500.0
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              - accountAlias: '@person1'
+                amount:
+                  value: 1500.0
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              remaining: remaining
+            asset: BRL
+            value: 1000.0
+      properties:
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        packageId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        transaction:
+          $ref: '#/components/schemas/TransactionInput'
+      required:
+      - ledgerId
+      - packageId
+      type: object
+    FeeEstimateResponse:
+      description: FeeEstimateResponse is the response payload for estimate fee
+      example:
+        feesApplied:
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          segmentId: 00000000-0000-0000-0000-000000000000
+          transaction:
+            metadata:
+              key: '{}'
+            code: 00000000-0000-0000-0000-000000000000
+            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
+            pending: false
+            description: Description
+            transactionDate: 2021-01-01T00:00:00Z
+            chartOfAccountsGroupName: FUNDING
+            send:
+              distribute:
+                to:
+                - accountAlias: '@person1'
+                  amount:
+                    value: 1500.0
+                  metadata:
+                    key: '{}'
+                  route: 00000000-0000-0000-0000-000000000000
+                  routeId: 00000000-0000-0000-0000-000000000000
+                  rate:
+                    externalId: 00000000-0000-0000-0000-000000000000
+                    from: BRL
+                    to: USDe
+                    value: 1000.0
+                  isFrom: true
+                  chartOfAccounts: "1000"
+                  description: description
+                  share:
+                    percentage: 0
+                    percentageOfPercentage: 6
+                  balanceKey: asset-freeze
+                  remaining: remaining
+                - accountAlias: '@person1'
+                  amount:
+                    value: 1500.0
+                  metadata:
+                    key: '{}'
+                  route: 00000000-0000-0000-0000-000000000000
+                  routeId: 00000000-0000-0000-0000-000000000000
+                  rate:
+                    externalId: 00000000-0000-0000-0000-000000000000
+                    from: BRL
+                    to: USDe
+                    value: 1000.0
+                  isFrom: true
+                  chartOfAccounts: "1000"
+                  description: description
+                  share:
+                    percentage: 0
+                    percentageOfPercentage: 6
+                  balanceKey: asset-freeze
+                  remaining: remaining
+                remaining: remaining
+              source:
+                from:
+                - accountAlias: '@person1'
+                  amount:
+                    value: 1500.0
+                  metadata:
+                    key: '{}'
+                  route: 00000000-0000-0000-0000-000000000000
+                  routeId: 00000000-0000-0000-0000-000000000000
+                  rate:
+                    externalId: 00000000-0000-0000-0000-000000000000
+                    from: BRL
+                    to: USDe
+                    value: 1000.0
+                  isFrom: true
+                  chartOfAccounts: "1000"
+                  description: description
+                  share:
+                    percentage: 0
+                    percentageOfPercentage: 6
+                  balanceKey: asset-freeze
+                  remaining: remaining
+                - accountAlias: '@person1'
+                  amount:
+                    value: 1500.0
+                  metadata:
+                    key: '{}'
+                  route: 00000000-0000-0000-0000-000000000000
+                  routeId: 00000000-0000-0000-0000-000000000000
+                  rate:
+                    externalId: 00000000-0000-0000-0000-000000000000
+                    from: BRL
+                    to: USDe
+                    value: 1000.0
+                  isFrom: true
+                  chartOfAccounts: "1000"
+                  description: description
+                  share:
+                    percentage: 0
+                    percentageOfPercentage: 6
+                  balanceKey: asset-freeze
+                  remaining: remaining
+                remaining: remaining
+              asset: BRL
+              value: 1000.0
+        message: Successfully estimated fee.
+      properties:
+        feesApplied:
+          $ref: '#/components/schemas/FeeCalculate'
+        message:
+          example: Successfully estimated fee.
+          type: string
+      type: object
     FromTo:
       description: FromTo is the struct designed to represent the from/to fields of
         an operation.
+      example:
+        accountAlias: '@person1'
+        amount:
+          value: 1500.0
+        metadata:
+          key: '{}'
+        route: 00000000-0000-0000-0000-000000000000
+        routeId: 00000000-0000-0000-0000-000000000000
+        rate:
+          externalId: 00000000-0000-0000-0000-000000000000
+          from: BRL
+          to: USDe
+          value: 1000.0
+        isFrom: true
+        chartOfAccounts: "1000"
+        description: description
+        share:
+          percentage: 0
+          percentageOfPercentage: 6
+        balanceKey: asset-freeze
+        remaining: remaining
       properties:
         accountAlias:
           example: '@person1'
@@ -9089,6 +10487,27 @@ components:
           format: date-time
           type: string
       type: object
+    Pagination:
+      description: Pagination is the struct designed to store the pagination data
+        of an entity list.
+      example:
+        total: 10
+        limit: 10
+        page: 1
+        items: '{}'
+      properties:
+        items:
+          type: object
+        limit:
+          example: 10
+          type: integer
+        page:
+          example: 1
+          type: integer
+        total:
+          example: 10
+          type: integer
+      type: object
     Portfolio:
       description: Portfolio represents a collection of accounts grouped for specific
         purposes such as business units, departments, or client portfolios.
@@ -9159,6 +10578,11 @@ components:
     Rate:
       description: Rate is the struct designed to represent the rate fields of an
         operation.
+      example:
+        externalId: 00000000-0000-0000-0000-000000000000
+        from: BRL
+        to: USDe
+        value: 1000.0
       properties:
         externalId:
           example: 00000000-0000-0000-0000-000000000000
@@ -9242,6 +10666,95 @@ components:
     Send:
       description: Send is the struct designed to represent the sending fields of
         an operation.
+      example:
+        distribute:
+          to:
+          - accountAlias: '@person1'
+            amount:
+              value: 1500.0
+            metadata:
+              key: '{}'
+            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              from: BRL
+              to: USDe
+              value: 1000.0
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            balanceKey: asset-freeze
+            remaining: remaining
+          - accountAlias: '@person1'
+            amount:
+              value: 1500.0
+            metadata:
+              key: '{}'
+            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              from: BRL
+              to: USDe
+              value: 1000.0
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            balanceKey: asset-freeze
+            remaining: remaining
+          remaining: remaining
+        source:
+          from:
+          - accountAlias: '@person1'
+            amount:
+              value: 1500.0
+            metadata:
+              key: '{}'
+            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              from: BRL
+              to: USDe
+              value: 1000.0
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            balanceKey: asset-freeze
+            remaining: remaining
+          - accountAlias: '@person1'
+            amount:
+              value: 1500.0
+            metadata:
+              key: '{}'
+            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              from: BRL
+              to: USDe
+              value: 1000.0
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            balanceKey: asset-freeze
+            remaining: remaining
+          remaining: remaining
+        asset: BRL
+        value: 1000.0
       properties:
         asset:
           example: BRL
@@ -9296,6 +10809,9 @@ components:
     Share:
       description: Share is the struct designed to represent the sharing fields of
         an operation.
+      example:
+        percentage: 0
+        percentageOfPercentage: 6
       properties:
         percentage:
           type: integer
@@ -9307,6 +10823,49 @@ components:
     Source:
       description: Source is the struct designed to represent the source fields of
         an operation.
+      example:
+        from:
+        - accountAlias: '@person1'
+          amount:
+            value: 1500.0
+          metadata:
+            key: '{}'
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            from: BRL
+            to: USDe
+            value: 1000.0
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          balanceKey: asset-freeze
+          remaining: remaining
+        - accountAlias: '@person1'
+          amount:
+            value: 1500.0
+          metadata:
+            key: '{}'
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            from: BRL
+            to: USDe
+            value: 1000.0
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          balanceKey: asset-freeze
+          remaining: remaining
+        remaining: remaining
       properties:
         from:
           items:
@@ -9563,6 +11122,145 @@ components:
           example: 2021-01-01T00:00:00Z
           format: date-time
           type: string
+      type: object
+    TransactionInput:
+      description: TransactionInput is the request payload for creating a transaction.
+      example:
+        metadata:
+          key: '{}'
+        code: 00000000-0000-0000-0000-000000000000
+        route: 00000000-0000-0000-0000-000000000000
+        routeId: 00000000-0000-0000-0000-000000000000
+        pending: false
+        description: Description
+        transactionDate: 2021-01-01T00:00:00Z
+        chartOfAccountsGroupName: FUNDING
+        send:
+          distribute:
+            to:
+            - accountAlias: '@person1'
+              amount:
+                value: 1500.0
+              metadata:
+                key: '{}'
+              route: 00000000-0000-0000-0000-000000000000
+              routeId: 00000000-0000-0000-0000-000000000000
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                from: BRL
+                to: USDe
+                value: 1000.0
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              balanceKey: asset-freeze
+              remaining: remaining
+            - accountAlias: '@person1'
+              amount:
+                value: 1500.0
+              metadata:
+                key: '{}'
+              route: 00000000-0000-0000-0000-000000000000
+              routeId: 00000000-0000-0000-0000-000000000000
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                from: BRL
+                to: USDe
+                value: 1000.0
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              balanceKey: asset-freeze
+              remaining: remaining
+            remaining: remaining
+          source:
+            from:
+            - accountAlias: '@person1'
+              amount:
+                value: 1500.0
+              metadata:
+                key: '{}'
+              route: 00000000-0000-0000-0000-000000000000
+              routeId: 00000000-0000-0000-0000-000000000000
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                from: BRL
+                to: USDe
+                value: 1000.0
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              balanceKey: asset-freeze
+              remaining: remaining
+            - accountAlias: '@person1'
+              amount:
+                value: 1500.0
+              metadata:
+                key: '{}'
+              route: 00000000-0000-0000-0000-000000000000
+              routeId: 00000000-0000-0000-0000-000000000000
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                from: BRL
+                to: USDe
+                value: 1000.0
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              balanceKey: asset-freeze
+              remaining: remaining
+            remaining: remaining
+          asset: BRL
+          value: 1000.0
+      properties:
+        chartOfAccountsGroupName:
+          example: FUNDING
+          type: string
+        code:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        description:
+          example: Description
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        pending:
+          example: false
+          type: boolean
+        route:
+          description: 'Deprecated: legacy route identifier, contains the transaction
+            route UUID as a string. Use routeId instead.'
+          example: 00000000-0000-0000-0000-000000000000
+          maxLength: 250
+          type: string
+        routeId:
+          description: |-
+            UUID of the transaction route. Primary field replacing the deprecated Route string.
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        send:
+          $ref: '#/components/schemas/Send'
+        transactionDate:
+          example: 2021-01-01T00:00:00Z
+          type: string
+      required:
+      - send
       type: object
     TransactionRoute:
       description: TransactionRoute object
@@ -9979,6 +11677,61 @@ components:
             required: false
           type: object
       type: object
+    UpdatePackageInput:
+      description: UpdatePackageInput is the input payload to update a pack.
+      example:
+        fees:
+          key:
+            calculationModel:
+              applicationRule: maxBetweenTypes
+              calculations:
+              - type: percentage
+                value: "100.00"
+              - type: percentage
+                value: "100.00"
+            referenceAmount: originalAmount
+            creditAccount: conta_receita_taxas_adm
+            routeTo: taxa_crédito
+            isDeductibleFrom: true
+            routeFrom: taxa_débito
+            priority: 1
+            feeLabel: Taxa Administrativa
+        enable: true
+        maximumAmount: "1000"
+        minimumAmount: "100"
+        description: Pacote de taxas administrativas padrão
+        waivedAccounts:
+        - '[''acc001'''
+        - ' ''ac0002'']'
+        feeGroupLabel: Pacote Padrão
+      properties:
+        description:
+          example: Pacote de taxas administrativas padrão
+          type: string
+        enable:
+          example: true
+          type: boolean
+        feeGroupLabel:
+          example: Pacote Padrão
+          type: string
+        fees:
+          additionalProperties:
+            $ref: '#/components/schemas/Fee'
+          type: object
+        maximumAmount:
+          example: "1000"
+          type: string
+        minimumAmount:
+          example: "100"
+          type: string
+        waivedAccounts:
+          example:
+          - '[''acc001'''
+          - ' ''ac0002'']'
+          items:
+            type: string
+          type: array
+      type: object
     UpdatePortfolioInput:
       description: UpdatePortfolioInput is the input payload to update an existing
         portfolio's properties such as name, entity ID, status, and metadata.
@@ -10100,7 +11853,349 @@ components:
           maxLength: 255
           type: string
       type: object
-    http.Pagination:
+    github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package:
+      example:
+        fees:
+          key:
+            calculationModel:
+              applicationRule: maxBetweenTypes
+              calculations:
+              - type: percentage
+                value: "100.00"
+              - type: percentage
+                value: "100.00"
+            referenceAmount: originalAmount
+            creditAccount: conta_receita_taxas_adm
+            routeTo: taxa_crédito
+            isDeductibleFrom: true
+            routeFrom: taxa_débito
+            priority: 1
+            feeLabel: Taxa Administrativa
+        maximumAmount: 2.0
+        description: Pacote de taxas administrativas padrão
+        waivedAccounts:
+        - '[''acc001'''
+        - ' ''ac0002'']'
+        feeGroupLabel: Pacote Padrão
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        createdAt: 2021-01-01T00:00:00Z
+        deletedAt: 2021-01-01T00:00:00Z
+        transactionRoute: debitoted
+        enable: true
+        segmentId: 00000000-0000-0000-0000-000000000000
+        minimumAmount: 100.0
+        id: 00000000-0000-0000-0000-000000000000
+        updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        createdAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        deletedAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        description:
+          example: Pacote de taxas administrativas padrão
+          type: string
+        enable:
+          type: boolean
+        feeGroupLabel:
+          example: Pacote Padrão
+          type: string
+        fees:
+          additionalProperties:
+            $ref: '#/components/schemas/Fee'
+          type: object
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        maximumAmount:
+          example: 2.0
+          minimum: 0
+          type: number
+        minimumAmount:
+          example: 100.0
+          minimum: 0
+          type: number
+        segmentId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        transactionRoute:
+          example: debitoted
+          type: string
+        updatedAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        waivedAccounts:
+          example:
+          - '[''acc001'''
+          - ' ''ac0002'']'
+          items:
+            type: string
+          type: array
+      type: object
+    github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.AccountTarget:
+      example:
+        aliases:
+        - aliases
+        - aliases
+        portfolioId: portfolioId
+        segmentId: segmentId
+      properties:
+        aliases:
+          items:
+            type: string
+          type: array
+        portfolioId:
+          type: string
+        segmentId:
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateRequest:
+      properties:
+        ledgerId:
+          type: string
+        period:
+          description: YYYY-MM, YYYY-Www, or YYYY-MM-DD format
+          type: string
+        type:
+          description: '"volume", "maintenance", or empty for both'
+          type: string
+      required:
+      - ledgerId
+      - period
+      type: object
+    github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateResponse:
+      example:
+        summary:
+          totalVolume: 7
+          totalResults: 2
+          totalMaintenance: 5
+          totalNetAmount: "456.78"
+        results:
+        - billingPackageId: billingPackageId
+          billingPackageLabel: billingPackageLabel
+          period: period
+          billingType: billingType
+          totalNetAmount: "123.45"
+          totalSkipped: 1
+          transactionPayload:
+          - 5
+          - 5
+          totalAccounts: 0
+          totalCharged: 6
+        - billingPackageId: billingPackageId
+          billingPackageLabel: billingPackageLabel
+          period: period
+          billingType: billingType
+          totalNetAmount: "123.45"
+          totalSkipped: 1
+          transactionPayload:
+          - 5
+          - 5
+          totalAccounts: 0
+          totalCharged: 6
+      properties:
+        results:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculationResult'
+          type: array
+        summary:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateSummary'
+      type: object
+    github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateSummary:
+      example:
+        totalVolume: 7
+        totalResults: 2
+        totalMaintenance: 5
+        totalNetAmount: "456.78"
+      properties:
+        totalMaintenance:
+          type: integer
+        totalNetAmount:
+          example: "456.78"
+          type: string
+        totalResults:
+          type: integer
+        totalVolume:
+          type: integer
+      type: object
+    github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculationResult:
+      example:
+        billingPackageId: billingPackageId
+        billingPackageLabel: billingPackageLabel
+        period: period
+        billingType: billingType
+        totalNetAmount: "123.45"
+        totalSkipped: 1
+        transactionPayload:
+        - 5
+        - 5
+        totalAccounts: 0
+        totalCharged: 6
+      properties:
+        billingPackageId:
+          type: string
+        billingPackageLabel:
+          type: string
+        billingType:
+          description: '"volume" or "maintenance"'
+          type: string
+        period:
+          type: string
+        totalAccounts:
+          type: integer
+        totalCharged:
+          type: integer
+        totalNetAmount:
+          example: "123.45"
+          type: string
+        totalSkipped:
+          type: integer
+        transactionPayload:
+          items:
+            type: integer
+          type: array
+      type: object
+    github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage:
+      example:
+        pricingModel: pricingModel
+        accountTarget:
+          aliases:
+          - aliases
+          - aliases
+          portfolioId: portfolioId
+          segmentId: segmentId
+        maintenanceCreditAccount: maintenanceCreditAccount
+        tiers:
+        - unitPrice: "1.50"
+          minQuantity: 5
+          maxQuantity: 1
+        - unitPrice: "1.50"
+          minQuantity: 5
+          maxQuantity: 1
+        assetCode: assetCode
+        debitAccountAlias: debitAccountAlias
+        discountTiers:
+        - discountPercentage: "10.00"
+          minQuantity: 0
+        - discountPercentage: "10.00"
+          minQuantity: 0
+        eventFilter: '{}'
+        description: description
+        freeQuota: 6
+        creditAccountAlias: creditAccountAlias
+        label: label
+        type: type
+        ledgerId: ledgerId
+        organizationId: organizationId
+        createdAt: createdAt
+        feeAmount: "50.00"
+        deletedAt: deletedAt
+        enable: true
+        id: id
+        countMode: countMode
+        updatedAt: updatedAt
+      properties:
+        accountTarget:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.AccountTarget'
+        assetCode:
+          type: string
+        countMode:
+          type: string
+        createdAt:
+          description: Timestamps.
+          type: string
+        creditAccountAlias:
+          type: string
+        debitAccountAlias:
+          type: string
+        deletedAt:
+          type: string
+        description:
+          type: string
+        discountTiers:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.DiscountTier'
+          type: array
+        enable:
+          type: boolean
+        eventFilter:
+          allOf:
+          - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.EventFilter'
+          description: Volume-specific fields.
+          type: object
+        feeAmount:
+          description: Maintenance-specific fields.
+          example: "50.00"
+          type: string
+        freeQuota:
+          type: integer
+        id:
+          type: string
+        label:
+          type: string
+        ledgerId:
+          type: string
+        maintenanceCreditAccount:
+          type: string
+        organizationId:
+          type: string
+        pricingModel:
+          type: string
+        tiers:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.PricingTier'
+          type: array
+        type:
+          type: string
+        updatedAt:
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackageUpdate:
+      properties:
+        description:
+          type: string
+        enable:
+          type: boolean
+        label:
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.DiscountTier:
+      example:
+        discountPercentage: "10.00"
+        minQuantity: 0
+      properties:
+        discountPercentage:
+          example: "10.00"
+          type: string
+        minQuantity:
+          type: integer
+      type: object
+    github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.EventFilter:
+      properties:
+        status:
+          type: string
+        transactionRoute:
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.PricingTier:
+      example:
+        unitPrice: "1.50"
+        minQuantity: 5
+        maxQuantity: 1
+      properties:
+        maxQuantity:
+          type: integer
+        minQuantity:
+          type: integer
+        unitPrice:
+          example: "1.50"
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
       example:
         prev_cursor: prev_cursor
         next_cursor: next_cursor
@@ -10367,12 +12462,105 @@ components:
       type: object
     inline_response_200:
       example:
-        http.Pagination:
-          prev_cursor: prev_cursor
-          next_cursor: next_cursor
-          limit: 0
-          page: 6
+        Pagination:
+          total: 10
+          limit: 10
+          page: 1
           items: '{}'
+        total: 7
+        limit: 5
+        page: 2
+        items:
+        - pricingModel: pricingModel
+          accountTarget:
+            aliases:
+            - aliases
+            - aliases
+            portfolioId: portfolioId
+            segmentId: segmentId
+          maintenanceCreditAccount: maintenanceCreditAccount
+          tiers:
+          - unitPrice: "1.50"
+            minQuantity: 5
+            maxQuantity: 1
+          - unitPrice: "1.50"
+            minQuantity: 5
+            maxQuantity: 1
+          assetCode: assetCode
+          debitAccountAlias: debitAccountAlias
+          discountTiers:
+          - discountPercentage: "10.00"
+            minQuantity: 0
+          - discountPercentage: "10.00"
+            minQuantity: 0
+          eventFilter: '{}'
+          description: description
+          freeQuota: 6
+          creditAccountAlias: creditAccountAlias
+          label: label
+          type: type
+          ledgerId: ledgerId
+          organizationId: organizationId
+          createdAt: createdAt
+          feeAmount: "50.00"
+          deletedAt: deletedAt
+          enable: true
+          id: id
+          countMode: countMode
+          updatedAt: updatedAt
+        - pricingModel: pricingModel
+          accountTarget:
+            aliases:
+            - aliases
+            - aliases
+            portfolioId: portfolioId
+            segmentId: segmentId
+          maintenanceCreditAccount: maintenanceCreditAccount
+          tiers:
+          - unitPrice: "1.50"
+            minQuantity: 5
+            maxQuantity: 1
+          - unitPrice: "1.50"
+            minQuantity: 5
+            maxQuantity: 1
+          assetCode: assetCode
+          debitAccountAlias: debitAccountAlias
+          discountTiers:
+          - discountPercentage: "10.00"
+            minQuantity: 0
+          - discountPercentage: "10.00"
+            minQuantity: 0
+          eventFilter: '{}'
+          description: description
+          freeQuota: 6
+          creditAccountAlias: creditAccountAlias
+          label: label
+          type: type
+          ledgerId: ledgerId
+          organizationId: organizationId
+          createdAt: createdAt
+          feeAmount: "50.00"
+          deletedAt: deletedAt
+          enable: true
+          id: id
+          countMode: countMode
+          updatedAt: updatedAt
+      properties:
+        Pagination:
+          $ref: '#/components/schemas/Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage'
+          type: array
+        limit:
+          type: integer
+        page:
+          type: integer
+        total:
+          type: integer
+      type: object
+    inline_response_200_1:
+      example:
         items:
         - legalName: Lerian Financial Services Ltd.
           createdAt: 2021-01-01T00:00:00Z
@@ -10398,22 +12586,22 @@ components:
           parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
       properties:
-        http.Pagination:
-          $ref: '#/components/schemas/http.Pagination'
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Organization'
           type: array
       type: object
-    inline_response_200_1:
+    inline_response_200_2:
       example:
-        http.Pagination:
-          prev_cursor: prev_cursor
-          next_cursor: next_cursor
-          limit: 0
-          page: 6
-          items: '{}'
         items:
         - organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
@@ -10435,22 +12623,22 @@ components:
           id: 00000000-0000-0000-0000-000000000000
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
       properties:
-        http.Pagination:
-          $ref: '#/components/schemas/http.Pagination'
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Ledger'
           type: array
       type: object
-    inline_response_200_2:
+    inline_response_200_3:
       example:
-        http.Pagination:
-          prev_cursor: prev_cursor
-          next_cursor: next_cursor
-          limit: 0
-          page: 6
-          items: '{}'
         items:
         - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -10476,22 +12664,22 @@ components:
             year
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           updatedAt: 2021-01-01T00:00:00Z
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
       properties:
-        http.Pagination:
-          $ref: '#/components/schemas/http.Pagination'
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/AccountType'
           type: array
       type: object
-    inline_response_200_3:
+    inline_response_200_4:
       example:
-        http.Pagination:
-          prev_cursor: prev_cursor
-          next_cursor: next_cursor
-          limit: 0
-          page: 6
-          items: '{}'
         items:
         - metadata:
             key: '{}'
@@ -10529,22 +12717,22 @@ components:
           id: 00000000-0000-0000-0000-000000000000
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
       properties:
-        http.Pagination:
-          $ref: '#/components/schemas/http.Pagination'
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Account'
           type: array
       type: object
-    inline_response_200_4:
+    inline_response_200_5:
       example:
-        http.Pagination:
-          prev_cursor: prev_cursor
-          next_cursor: next_cursor
-          limit: 0
-          page: 6
-          items: '{}'
         items:
         - settings: '{}'
           metadata:
@@ -10588,22 +12776,22 @@ components:
           key: asset-freeze
           direction: credit
           updatedAt: 2021-01-01T00:00:00Z
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
       properties:
-        http.Pagination:
-          $ref: '#/components/schemas/http.Pagination'
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/mmodel.Balance'
           type: array
       type: object
-    inline_response_200_5:
+    inline_response_200_6:
       example:
-        http.Pagination:
-          prev_cursor: prev_cursor
-          next_cursor: next_cursor
-          limit: 0
-          page: 6
-          items: '{}'
         items:
         - accountAlias: '@person1'
           metadata:
@@ -10659,22 +12847,22 @@ components:
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
           status: '{}'
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
       properties:
-        http.Pagination:
-          $ref: '#/components/schemas/http.Pagination'
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Operation'
           type: array
       type: object
-    inline_response_200_6:
+    inline_response_200_7:
       example:
-        http.Pagination:
-          prev_cursor: prev_cursor
-          next_cursor: next_cursor
-          limit: 0
-          page: 6
-          items: '{}'
         items:
         - metadata:
             key: '{}'
@@ -10704,22 +12892,22 @@ components:
           id: 00000000-0000-0000-0000-000000000000
           to: BRL
           updatedAt: 2021-01-01T00:00:00Z
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
       properties:
-        http.Pagination:
-          $ref: '#/components/schemas/http.Pagination'
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/AssetRate'
           type: array
       type: object
-    inline_response_200_7:
+    inline_response_200_8:
       example:
-        http.Pagination:
-          prev_cursor: prev_cursor
-          next_cursor: next_cursor
-          limit: 0
-          page: 6
-          items: '{}'
         items:
         - ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -10745,22 +12933,22 @@ components:
           type: currency
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
       properties:
-        http.Pagination:
-          $ref: '#/components/schemas/http.Pagination'
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Asset'
           type: array
       type: object
-    inline_response_200_8:
+    inline_response_200_9:
       example:
-        http.Pagination:
-          prev_cursor: prev_cursor
-          next_cursor: next_cursor
-          limit: 0
-          page: 6
-          items: '{}'
         items:
         - metadata:
             key: '{}'
@@ -10792,22 +12980,22 @@ components:
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
       properties:
-        http.Pagination:
-          $ref: '#/components/schemas/http.Pagination'
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/OperationRoute'
           type: array
       type: object
-    inline_response_200_9:
+    inline_response_200_10:
       example:
-        http.Pagination:
-          prev_cursor: prev_cursor
-          next_cursor: next_cursor
-          limit: 0
-          page: 6
-          items: '{}'
         items:
         - ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -10831,22 +13019,22 @@ components:
           id: 00000000-0000-0000-0000-000000000000
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
       properties:
-        http.Pagination:
-          $ref: '#/components/schemas/http.Pagination'
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Portfolio'
           type: array
       type: object
-    inline_response_200_10:
+    inline_response_200_11:
       example:
-        http.Pagination:
-          prev_cursor: prev_cursor
-          next_cursor: next_cursor
-          limit: 0
-          page: 6
-          items: '{}'
         items:
         - ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -10868,22 +13056,22 @@ components:
           id: 00000000-0000-0000-0000-000000000000
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
       properties:
-        http.Pagination:
-          $ref: '#/components/schemas/http.Pagination'
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Segment'
           type: array
       type: object
-    inline_response_200_11:
+    inline_response_200_12:
       example:
-        http.Pagination:
-          prev_cursor: prev_cursor
-          next_cursor: next_cursor
-          limit: 0
-          page: 6
-          items: '{}'
         items:
         - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -10967,180 +13155,273 @@ components:
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           title: Charge Settlement
           updatedAt: 2025-01-01T00:00:00Z
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
       properties:
-        http.Pagination:
-          $ref: '#/components/schemas/http.Pagination'
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/TransactionRoute'
           type: array
       type: object
-    inline_response_200_12:
+    inline_response_200_13:
       example:
-        http.Pagination:
+        items:
+        - amount: 1500.0
+          metadata:
+            key: '{}'
+          assetCode: BRL
+          destination:
+          - '@person2'
+          description: Transaction description
+          source:
+          - '@person1'
+          chartOfAccountsGroupName: Chart of accounts group name
+          parentTransactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          operations:
+          - accountAlias: '@person1'
+            metadata:
+              key: '{}'
+            description: Credit card operation
+            type: DEBIT
+            balanceAffected: true
+            organizationId: 00000000-0000-0000-0000-000000000000
+            createdAt: 2021-01-01T00:00:00Z
+            routeId: 00000000-0000-0000-0000-000000000000
+            balance: '{}'
+            balanceAfter: '{}'
+            id: 00000000-0000-0000-0000-000000000000
+            direction: debit
+            updatedAt: 2021-01-01T00:00:00Z
+            routeCode: ROUTE-001
+            amount: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
+            routeDescription: Settlement route for service charges
+            balanceKey: asset-freeze
+            balanceId: 00000000-0000-0000-0000-000000000000
+            status: '{}'
+          - accountAlias: '@person1'
+            metadata:
+              key: '{}'
+            description: Credit card operation
+            type: DEBIT
+            balanceAffected: true
+            organizationId: 00000000-0000-0000-0000-000000000000
+            createdAt: 2021-01-01T00:00:00Z
+            routeId: 00000000-0000-0000-0000-000000000000
+            balance: '{}'
+            balanceAfter: '{}'
+            id: 00000000-0000-0000-0000-000000000000
+            direction: debit
+            updatedAt: 2021-01-01T00:00:00Z
+            routeCode: ROUTE-001
+            amount: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
+            routeDescription: Settlement route for service charges
+            balanceKey: asset-freeze
+            balanceId: 00000000-0000-0000-0000-000000000000
+            status: '{}'
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          id: 00000000-0000-0000-0000-000000000000
+          status: '{}'
+          updatedAt: 2021-01-01T00:00:00Z
+        - amount: 1500.0
+          metadata:
+            key: '{}'
+          assetCode: BRL
+          destination:
+          - '@person2'
+          description: Transaction description
+          source:
+          - '@person1'
+          chartOfAccountsGroupName: Chart of accounts group name
+          parentTransactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          operations:
+          - accountAlias: '@person1'
+            metadata:
+              key: '{}'
+            description: Credit card operation
+            type: DEBIT
+            balanceAffected: true
+            organizationId: 00000000-0000-0000-0000-000000000000
+            createdAt: 2021-01-01T00:00:00Z
+            routeId: 00000000-0000-0000-0000-000000000000
+            balance: '{}'
+            balanceAfter: '{}'
+            id: 00000000-0000-0000-0000-000000000000
+            direction: debit
+            updatedAt: 2021-01-01T00:00:00Z
+            routeCode: ROUTE-001
+            amount: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
+            routeDescription: Settlement route for service charges
+            balanceKey: asset-freeze
+            balanceId: 00000000-0000-0000-0000-000000000000
+            status: '{}'
+          - accountAlias: '@person1'
+            metadata:
+              key: '{}'
+            description: Credit card operation
+            type: DEBIT
+            balanceAffected: true
+            organizationId: 00000000-0000-0000-0000-000000000000
+            createdAt: 2021-01-01T00:00:00Z
+            routeId: 00000000-0000-0000-0000-000000000000
+            balance: '{}'
+            balanceAfter: '{}'
+            id: 00000000-0000-0000-0000-000000000000
+            direction: debit
+            updatedAt: 2021-01-01T00:00:00Z
+            routeCode: ROUTE-001
+            amount: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
+            routeDescription: Settlement route for service charges
+            balanceKey: asset-freeze
+            balanceId: 00000000-0000-0000-0000-000000000000
+            status: '{}'
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          id: 00000000-0000-0000-0000-000000000000
+          status: '{}'
+          updatedAt: 2021-01-01T00:00:00Z
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
           limit: 0
           page: 6
           items: '{}'
-        items:
-        - amount: 1500.0
-          metadata:
-            key: '{}'
-          assetCode: BRL
-          destination:
-          - '@person2'
-          description: Transaction description
-          source:
-          - '@person1'
-          chartOfAccountsGroupName: Chart of accounts group name
-          parentTransactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          operations:
-          - accountAlias: '@person1'
-            metadata:
-              key: '{}'
-            description: Credit card operation
-            type: DEBIT
-            balanceAffected: true
-            organizationId: 00000000-0000-0000-0000-000000000000
-            createdAt: 2021-01-01T00:00:00Z
-            routeId: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
-            id: 00000000-0000-0000-0000-000000000000
-            direction: debit
-            updatedAt: 2021-01-01T00:00:00Z
-            routeCode: ROUTE-001
-            amount: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
-            routeDescription: Settlement route for service charges
-            balanceKey: asset-freeze
-            balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
-          - accountAlias: '@person1'
-            metadata:
-              key: '{}'
-            description: Credit card operation
-            type: DEBIT
-            balanceAffected: true
-            organizationId: 00000000-0000-0000-0000-000000000000
-            createdAt: 2021-01-01T00:00:00Z
-            routeId: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
-            id: 00000000-0000-0000-0000-000000000000
-            direction: debit
-            updatedAt: 2021-01-01T00:00:00Z
-            routeCode: ROUTE-001
-            amount: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
-            routeDescription: Settlement route for service charges
-            balanceKey: asset-freeze
-            balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
-          route: 00000000-0000-0000-0000-000000000000
-          routeId: 00000000-0000-0000-0000-000000000000
-          id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
-        - amount: 1500.0
-          metadata:
-            key: '{}'
-          assetCode: BRL
-          destination:
-          - '@person2'
-          description: Transaction description
-          source:
-          - '@person1'
-          chartOfAccountsGroupName: Chart of accounts group name
-          parentTransactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          operations:
-          - accountAlias: '@person1'
-            metadata:
-              key: '{}'
-            description: Credit card operation
-            type: DEBIT
-            balanceAffected: true
-            organizationId: 00000000-0000-0000-0000-000000000000
-            createdAt: 2021-01-01T00:00:00Z
-            routeId: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
-            id: 00000000-0000-0000-0000-000000000000
-            direction: debit
-            updatedAt: 2021-01-01T00:00:00Z
-            routeCode: ROUTE-001
-            amount: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
-            routeDescription: Settlement route for service charges
-            balanceKey: asset-freeze
-            balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
-          - accountAlias: '@person1'
-            metadata:
-              key: '{}'
-            description: Credit card operation
-            type: DEBIT
-            balanceAffected: true
-            organizationId: 00000000-0000-0000-0000-000000000000
-            createdAt: 2021-01-01T00:00:00Z
-            routeId: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
-            id: 00000000-0000-0000-0000-000000000000
-            direction: debit
-            updatedAt: 2021-01-01T00:00:00Z
-            routeCode: ROUTE-001
-            amount: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
-            routeDescription: Settlement route for service charges
-            balanceKey: asset-freeze
-            balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
-          route: 00000000-0000-0000-0000-000000000000
-          routeId: 00000000-0000-0000-0000-000000000000
-          id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
       properties:
-        http.Pagination:
-          $ref: '#/components/schemas/http.Pagination'
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Transaction'
           type: array
+      type: object
+    inline_response_200_14:
+      example:
+        Pagination:
+          total: 10
+          limit: 10
+          page: 1
+          items: '{}'
+        total: 1
+        limit: 0
+        page: 6
+        items:
+        - fees:
+            key:
+              calculationModel:
+                applicationRule: maxBetweenTypes
+                calculations:
+                - type: percentage
+                  value: "100.00"
+                - type: percentage
+                  value: "100.00"
+              referenceAmount: originalAmount
+              creditAccount: conta_receita_taxas_adm
+              routeTo: taxa_crédito
+              isDeductibleFrom: true
+              routeFrom: taxa_débito
+              priority: 1
+              feeLabel: Taxa Administrativa
+          maximumAmount: 2.0
+          description: Pacote de taxas administrativas padrão
+          waivedAccounts:
+          - '[''acc001'''
+          - ' ''ac0002'']'
+          feeGroupLabel: Pacote Padrão
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          transactionRoute: debitoted
+          enable: true
+          segmentId: 00000000-0000-0000-0000-000000000000
+          minimumAmount: 100.0
+          id: 00000000-0000-0000-0000-000000000000
+          updatedAt: 2021-01-01T00:00:00Z
+        - fees:
+            key:
+              calculationModel:
+                applicationRule: maxBetweenTypes
+                calculations:
+                - type: percentage
+                  value: "100.00"
+                - type: percentage
+                  value: "100.00"
+              referenceAmount: originalAmount
+              creditAccount: conta_receita_taxas_adm
+              routeTo: taxa_crédito
+              isDeductibleFrom: true
+              routeFrom: taxa_débito
+              priority: 1
+              feeLabel: Taxa Administrativa
+          maximumAmount: 2.0
+          description: Pacote de taxas administrativas padrão
+          waivedAccounts:
+          - '[''acc001'''
+          - ' ''ac0002'']'
+          feeGroupLabel: Pacote Padrão
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          transactionRoute: debitoted
+          enable: true
+          segmentId: 00000000-0000-0000-0000-000000000000
+          minimumAmount: 100.0
+          id: 00000000-0000-0000-0000-000000000000
+          updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        Pagination:
+          $ref: '#/components/schemas/Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+          type: array
+        limit:
+          type: integer
+        page:
+          type: integer
+        total:
+          type: integer
       type: object
   securitySchemes:
     BearerAuth:

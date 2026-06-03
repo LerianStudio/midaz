@@ -23,6 +23,580 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/v1/billing-packages": {
+            "get": {
+                "description": "List all billing packages",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "BillingPackages"
+                ],
+                "summary": "Get all billing packages",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID (optional — omit to list all packages for the organization)",
+                        "name": "ledgerId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by billing package type (volume or maintenance)",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage"
+                                            }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "page": {
+                                            "type": "integer"
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a BillingPackage with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "BillingPackages"
+                ],
+                "summary": "Create a BillingPackage",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "BillingPackage Input",
+                        "name": "billingPackage",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/billing-packages/{id}": {
+            "get": {
+                "description": "Get a billing package by id",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "BillingPackages"
+                ],
+                "summary": "Get billing package",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "BillingPackage ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "SoftDelete a BillingPackage with the input ID",
+                "tags": [
+                    "BillingPackages"
+                ],
+                "summary": "SoftDelete a BillingPackage by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "BillingPackage ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Update a billing package with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "BillingPackages"
+                ],
+                "summary": "Update a billing package",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "BillingPackage ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update BillingPackage Input",
+                        "name": "billingPackage",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackageUpdate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/billing/calculate": {
+            "post": {
+                "description": "Calculate billing for a given organization, ledger, and period",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "BillingCalculate"
+                ],
+                "summary": "Calculate billing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Billing Calculation Input",
+                        "name": "billingCalculate",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/estimates": {
+            "post": {
+                "description": "Create a fee estimate calculation with input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Fees"
+                ],
+                "summary": "Create a fee estimate calculation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Fee Input",
+                        "name": "fee",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/FeeEstimate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/FeeEstimateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations": {
             "get": {
                 "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria",
@@ -124,7 +698,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -591,7 +1165,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -1102,7 +1676,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -1639,7 +2213,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -1912,7 +2486,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -2085,7 +2659,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -2537,7 +3111,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -2891,7 +3465,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -3212,7 +3786,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -3429,7 +4003,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -3974,7 +4548,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -4442,7 +5016,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -4904,7 +5478,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -5465,7 +6039,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -6173,7 +6747,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -6637,7 +7211,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -7807,6 +8381,432 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/packages": {
+            "get": {
+                "description": "List all the packages",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Packages"
+                ],
+                "summary": "Get all packages",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Segment ID",
+                        "name": "segmentId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledgerId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Transaction Route",
+                        "name": "transactionRoute",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Enable flag",
+                        "name": "enable",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package"
+                                            }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "page": {
+                                            "type": "integer"
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a Package with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Packages"
+                ],
+                "summary": "Create a Package",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Package Input",
+                        "name": "pack",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreatePackageInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/packages/{id}": {
+            "get": {
+                "description": "Get a package by id",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Packages"
+                ],
+                "summary": "Get package",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Package ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "SoftDelete a Package with the input ID",
+                "tags": [
+                    "Packages"
+                ],
+                "summary": "SoftDelete a Package by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Package ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Update a package with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Packages"
+                ],
+                "summary": "Update a package",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Package ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update Package Input",
+                        "name": "package",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdatePackageInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/settings/metadata-indexes": {
             "get": {
                 "description": "Get all metadata indexes, optionally filtered by entity name",
@@ -8400,20 +9400,14 @@ const docTemplate = `{
             }
         },
         "Amount": {
-            "description": "Amount is the struct designed to represent the amount of an operation.",
+            "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
             "type": "object",
-            "required": [
-                "asset",
-                "value"
-            ],
             "properties": {
-                "asset": {
-                    "type": "string",
-                    "example": "BRL"
-                },
                 "value": {
+                    "description": "The amount value in the smallest unit of the asset (e.g., cents)\nexample: 1500\nminimum: 0",
                     "type": "number",
-                    "example": 1000
+                    "minimum": 0,
+                    "example": 1500
                 }
             }
         },
@@ -8703,6 +9697,47 @@ const docTemplate = `{
                     "type": "integer",
                     "minimum": 1,
                     "example": 1
+                }
+            }
+        },
+        "Calculation": {
+            "description": "Calculation is a struct designed to store the calculation details of a fee from a pack.",
+            "type": "object",
+            "required": [
+                "value"
+            ],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "percentage",
+                        "flat"
+                    ]
+                },
+                "value": {
+                    "type": "string",
+                    "example": "100.00"
+                }
+            }
+        },
+        "CalculationModel": {
+            "description": "CalculationModel is a struct designed to store the calculation of a fee from a pack.",
+            "type": "object",
+            "properties": {
+                "applicationRule": {
+                    "type": "string",
+                    "enum": [
+                        "maxBetweenTypes",
+                        "flatFee",
+                        "percentual"
+                    ],
+                    "example": "maxBetweenTypes"
+                },
+                "calculations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Calculation"
+                    }
                 }
             }
         },
@@ -9117,6 +10152,66 @@ const docTemplate = `{
                 }
             }
         },
+        "CreatePackageInput": {
+            "description": "CreatePackageInput is the input payload to create a pack.",
+            "type": "object",
+            "required": [
+                "enable",
+                "feeGroupLabel",
+                "ledgerId",
+                "maximumAmount",
+                "minimumAmount"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Pacote de taxas administrativas padrão"
+                },
+                "enable": {
+                    "type": "boolean"
+                },
+                "feeGroupLabel": {
+                    "type": "string",
+                    "example": "Pacote Padrão"
+                },
+                "fees": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/Fee"
+                    }
+                },
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "maximumAmount": {
+                    "type": "string",
+                    "example": "1000.20"
+                },
+                "minimumAmount": {
+                    "type": "string",
+                    "example": "100.00"
+                },
+                "segmentId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "transactionRoute": {
+                    "type": "string",
+                    "example": "debitoted"
+                },
+                "waivedAccounts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"acc001\"",
+                        " \"acc002\"]"
+                    ]
+                }
+            }
+        },
         "CreatePortfolioInput": {
             "description": "CreatePortfolioInput is the input payload to create a portfolio within a ledger, representing a collection of accounts grouped for specific purposes.",
             "type": "object",
@@ -9452,6 +10547,108 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 100,
                     "example": "Bad Request"
+                }
+            }
+        },
+        "Fee": {
+            "description": "Fee is the input payload to create a fee of a pack.",
+            "type": "object",
+            "required": [
+                "calculationModel",
+                "creditAccount",
+                "feeLabel",
+                "isDeductibleFrom"
+            ],
+            "properties": {
+                "calculationModel": {
+                    "$ref": "#/definitions/CalculationModel"
+                },
+                "creditAccount": {
+                    "type": "string",
+                    "example": "conta_receita_taxas_adm"
+                },
+                "feeLabel": {
+                    "type": "string",
+                    "example": "Taxa Administrativa"
+                },
+                "isDeductibleFrom": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "priority": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 1
+                },
+                "referenceAmount": {
+                    "type": "string",
+                    "enum": [
+                        "originalAmount",
+                        "afterFeesAmount"
+                    ],
+                    "example": "originalAmount"
+                },
+                "routeFrom": {
+                    "type": "string",
+                    "example": "taxa_débito"
+                },
+                "routeTo": {
+                    "type": "string",
+                    "example": "taxa_crédito"
+                }
+            }
+        },
+        "FeeCalculate": {
+            "description": "FeeCalculate is the input payload to create a fee.",
+            "type": "object",
+            "required": [
+                "ledgerId"
+            ],
+            "properties": {
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "segmentId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "transaction": {
+                    "$ref": "#/definitions/TransactionInput"
+                }
+            }
+        },
+        "FeeEstimate": {
+            "description": "FeeEstimate is the input payload to create a fee estimate.",
+            "type": "object",
+            "required": [
+                "ledgerId",
+                "packageId"
+            ],
+            "properties": {
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "packageId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "transaction": {
+                    "$ref": "#/definitions/TransactionInput"
+                }
+            }
+        },
+        "FeeEstimateResponse": {
+            "description": "FeeEstimateResponse is the response payload for estimate fee",
+            "type": "object",
+            "properties": {
+                "feesApplied": {
+                    "$ref": "#/definitions/FeeCalculate"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Successfully estimated fee."
                 }
             }
         },
@@ -9962,6 +11159,25 @@ const docTemplate = `{
                 }
             }
         },
+        "Pagination": {
+            "description": "Pagination is the struct designed to store the pagination data of an entity list.",
+            "type": "object",
+            "properties": {
+                "items": {},
+                "limit": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 10
+                }
+            }
+        },
         "Portfolio": {
             "description": "Portfolio represents a collection of accounts grouped for specific purposes such as business units, departments, or client portfolios.",
             "type": "object",
@@ -10365,6 +11581,54 @@ const docTemplate = `{
                 }
             }
         },
+        "TransactionInput": {
+            "description": "TransactionInput is the request payload for creating a transaction.",
+            "type": "object",
+            "required": [
+                "send"
+            ],
+            "properties": {
+                "chartOfAccountsGroupName": {
+                    "type": "string",
+                    "example": "FUNDING"
+                },
+                "code": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Description"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "pending": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "route": {
+                    "description": "Deprecated: legacy route identifier, contains the transaction route UUID as a string. Use routeId instead.",
+                    "type": "string",
+                    "maxLength": 250,
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "routeId": {
+                    "description": "UUID of the transaction route. Primary field replacing the deprecated Route string.\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "send": {
+                    "$ref": "#/definitions/Send"
+                },
+                "transactionDate": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
         "TransactionRoute": {
             "description": "TransactionRoute object",
             "type": "object",
@@ -10671,6 +11935,48 @@ const docTemplate = `{
                 }
             }
         },
+        "UpdatePackageInput": {
+            "description": "UpdatePackageInput is the input payload to update a pack.",
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Pacote de taxas administrativas padrão"
+                },
+                "enable": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "feeGroupLabel": {
+                    "type": "string",
+                    "example": "Pacote Padrão"
+                },
+                "fees": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/Fee"
+                    }
+                },
+                "maximumAmount": {
+                    "type": "string",
+                    "example": "1000"
+                },
+                "minimumAmount": {
+                    "type": "string",
+                    "example": "100"
+                },
+                "waivedAccounts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "['acc001'",
+                        " 'ac0002']"
+                    ]
+                }
+            }
+        },
         "UpdatePortfolioInput": {
             "description": "UpdatePortfolioInput is the input payload to update an existing portfolio's properties such as name, entity ID, status, and metadata.",
             "type": "object",
@@ -10775,7 +12081,320 @@ const docTemplate = `{
                 }
             }
         },
-        "http.Pagination": {
+        "github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Pacote de taxas administrativas padrão"
+                },
+                "enable": {
+                    "type": "boolean"
+                },
+                "feeGroupLabel": {
+                    "type": "string",
+                    "example": "Pacote Padrão"
+                },
+                "fees": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/Fee"
+                    }
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "maximumAmount": {
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 2
+                },
+                "minimumAmount": {
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 100
+                },
+                "segmentId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "transactionRoute": {
+                    "type": "string",
+                    "example": "debitoted"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "waivedAccounts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "['acc001'",
+                        " 'ac0002']"
+                    ]
+                }
+            }
+        },
+        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.AccountTarget": {
+            "type": "object",
+            "properties": {
+                "aliases": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "portfolioId": {
+                    "type": "string"
+                },
+                "segmentId": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateRequest": {
+            "type": "object",
+            "required": [
+                "ledgerId",
+                "period"
+            ],
+            "properties": {
+                "ledgerId": {
+                    "type": "string"
+                },
+                "period": {
+                    "description": "YYYY-MM, YYYY-Www, or YYYY-MM-DD format",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "\"volume\", \"maintenance\", or empty for both",
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateResponse": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculationResult"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateSummary"
+                }
+            }
+        },
+        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateSummary": {
+            "type": "object",
+            "properties": {
+                "totalMaintenance": {
+                    "type": "integer"
+                },
+                "totalNetAmount": {
+                    "type": "string",
+                    "example": "456.78"
+                },
+                "totalResults": {
+                    "type": "integer"
+                },
+                "totalVolume": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculationResult": {
+            "type": "object",
+            "properties": {
+                "billingPackageId": {
+                    "type": "string"
+                },
+                "billingPackageLabel": {
+                    "type": "string"
+                },
+                "billingType": {
+                    "description": "\"volume\" or \"maintenance\"",
+                    "type": "string"
+                },
+                "period": {
+                    "type": "string"
+                },
+                "totalAccounts": {
+                    "type": "integer"
+                },
+                "totalCharged": {
+                    "type": "integer"
+                },
+                "totalNetAmount": {
+                    "type": "string",
+                    "example": "123.45"
+                },
+                "totalSkipped": {
+                    "type": "integer"
+                },
+                "transactionPayload": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage": {
+            "type": "object",
+            "properties": {
+                "accountTarget": {
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.AccountTarget"
+                },
+                "assetCode": {
+                    "type": "string"
+                },
+                "countMode": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "description": "Timestamps.",
+                    "type": "string"
+                },
+                "creditAccountAlias": {
+                    "type": "string"
+                },
+                "debitAccountAlias": {
+                    "type": "string"
+                },
+                "deletedAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "discountTiers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.DiscountTier"
+                    }
+                },
+                "enable": {
+                    "type": "boolean"
+                },
+                "eventFilter": {
+                    "description": "Volume-specific fields.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.EventFilter"
+                        }
+                    ]
+                },
+                "feeAmount": {
+                    "description": "Maintenance-specific fields.",
+                    "type": "string",
+                    "example": "50.00"
+                },
+                "freeQuota": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "ledgerId": {
+                    "type": "string"
+                },
+                "maintenanceCreditAccount": {
+                    "type": "string"
+                },
+                "organizationId": {
+                    "type": "string"
+                },
+                "pricingModel": {
+                    "type": "string"
+                },
+                "tiers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.PricingTier"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackageUpdate": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "enable": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.DiscountTier": {
+            "type": "object",
+            "properties": {
+                "discountPercentage": {
+                    "type": "string",
+                    "example": "10.00"
+                },
+                "minQuantity": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.EventFilter": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string"
+                },
+                "transactionRoute": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.PricingTier": {
+            "type": "object",
+            "properties": {
+                "maxQuantity": {
+                    "type": "integer"
+                },
+                "minQuantity": {
+                    "type": "integer"
+                },
+                "unitPrice": {
+                    "type": "string",
+                    "example": "1.50"
+                }
+            }
+        },
+        "github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination": {
             "type": "object",
             "properties": {
                 "items": {},

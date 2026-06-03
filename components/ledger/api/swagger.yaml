@@ -331,16 +331,16 @@ definitions:
     type: object
   Amount:
     description: Amount is the struct designed to represent the amount of an operation.
+      Contains the value and scale (decimal places) of an operation amount.
     properties:
-      asset:
-        example: BRL
-        type: string
       value:
-        example: 1000
+        description: |-
+          The amount value in the smallest unit of the asset (e.g., cents)
+          example: 1500
+          minimum: 0
+        example: 1500
+        minimum: 0
         type: number
-    required:
-    - asset
-    - value
     type: object
   Asset:
     description: Asset represents a financial instrument within a ledger, such as
@@ -684,6 +684,37 @@ definitions:
         example: 1
         minimum: 1
         type: integer
+    type: object
+  Calculation:
+    description: Calculation is a struct designed to store the calculation details
+      of a fee from a pack.
+    properties:
+      type:
+        enum:
+        - percentage
+        - flat
+        type: string
+      value:
+        example: "100.00"
+        type: string
+    required:
+    - value
+    type: object
+  CalculationModel:
+    description: CalculationModel is a struct designed to store the calculation of
+      a fee from a pack.
+    properties:
+      applicationRule:
+        enum:
+        - maxBetweenTypes
+        - flatFee
+        - percentual
+        example: maxBetweenTypes
+        type: string
+      calculations:
+        items:
+          $ref: '#/definitions/Calculation'
+        type: array
     type: object
   CreateAccountInput:
     description: Request payload for creating a new account within a ledger. Accounts
@@ -1137,6 +1168,50 @@ definitions:
     - legalDocument
     - legalName
     type: object
+  CreatePackageInput:
+    description: CreatePackageInput is the input payload to create a pack.
+    properties:
+      description:
+        example: Pacote de taxas administrativas padrão
+        type: string
+      enable:
+        type: boolean
+      feeGroupLabel:
+        example: Pacote Padrão
+        type: string
+      fees:
+        additionalProperties:
+          $ref: '#/definitions/Fee'
+        type: object
+      ledgerId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      maximumAmount:
+        example: "1000.20"
+        type: string
+      minimumAmount:
+        example: "100.00"
+        type: string
+      segmentId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      transactionRoute:
+        example: debitoted
+        type: string
+      waivedAccounts:
+        example:
+        - '["acc001"'
+        - ' "acc002"]'
+        items:
+          type: string
+        type: array
+    required:
+    - enable
+    - feeGroupLabel
+    - ledgerId
+    - maximumAmount
+    - minimumAmount
+    type: object
   CreatePortfolioInput:
     description: CreatePortfolioInput is the input payload to create a portfolio within
       a ledger, representing a collection of accounts grouped for specific purposes.
@@ -1491,6 +1566,80 @@ definitions:
           maxLength: 100
         example: Bad Request
         maxLength: 100
+        type: string
+    type: object
+  Fee:
+    description: Fee is the input payload to create a fee of a pack.
+    properties:
+      calculationModel:
+        $ref: '#/definitions/CalculationModel'
+      creditAccount:
+        example: conta_receita_taxas_adm
+        type: string
+      feeLabel:
+        example: Taxa Administrativa
+        type: string
+      isDeductibleFrom:
+        example: true
+        type: boolean
+      priority:
+        example: 1
+        minimum: 0
+        type: integer
+      referenceAmount:
+        enum:
+        - originalAmount
+        - afterFeesAmount
+        example: originalAmount
+        type: string
+      routeFrom:
+        example: taxa_débito
+        type: string
+      routeTo:
+        example: taxa_crédito
+        type: string
+    required:
+    - calculationModel
+    - creditAccount
+    - feeLabel
+    - isDeductibleFrom
+    type: object
+  FeeCalculate:
+    description: FeeCalculate is the input payload to create a fee.
+    properties:
+      ledgerId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      segmentId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      transaction:
+        $ref: '#/definitions/TransactionInput'
+    required:
+    - ledgerId
+    type: object
+  FeeEstimate:
+    description: FeeEstimate is the input payload to create a fee estimate.
+    properties:
+      ledgerId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      packageId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      transaction:
+        $ref: '#/definitions/TransactionInput'
+    required:
+    - ledgerId
+    - packageId
+    type: object
+  FeeEstimateResponse:
+    description: FeeEstimateResponse is the response payload for estimate fee
+    properties:
+      feesApplied:
+        $ref: '#/definitions/FeeCalculate'
+      message:
+        example: Successfully estimated fee.
         type: string
     type: object
   FromTo:
@@ -2011,6 +2160,21 @@ definitions:
         format: date-time
         type: string
     type: object
+  Pagination:
+    description: Pagination is the struct designed to store the pagination data of
+      an entity list.
+    properties:
+      items: {}
+      limit:
+        example: 10
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 10
+        type: integer
+    type: object
   Portfolio:
     description: Portfolio represents a collection of accounts grouped for specific
       purposes such as business units, departments, or client portfolios.
@@ -2380,6 +2544,45 @@ definitions:
         format: date-time
         type: string
     type: object
+  TransactionInput:
+    description: TransactionInput is the request payload for creating a transaction.
+    properties:
+      chartOfAccountsGroupName:
+        example: FUNDING
+        type: string
+      code:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      description:
+        example: Description
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      pending:
+        example: false
+        type: boolean
+      route:
+        description: 'Deprecated: legacy route identifier, contains the transaction
+          route UUID as a string. Use routeId instead.'
+        example: 00000000-0000-0000-0000-000000000000
+        maxLength: 250
+        type: string
+      routeId:
+        description: |-
+          UUID of the transaction route. Primary field replacing the deprecated Route string.
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      send:
+        $ref: '#/definitions/Send'
+      transactionDate:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+    required:
+    - send
+    type: object
   TransactionRoute:
     description: TransactionRoute object
     properties:
@@ -2687,6 +2890,36 @@ definitions:
           Updated status of the organization
           required: false
     type: object
+  UpdatePackageInput:
+    description: UpdatePackageInput is the input payload to update a pack.
+    properties:
+      description:
+        example: Pacote de taxas administrativas padrão
+        type: string
+      enable:
+        example: true
+        type: boolean
+      feeGroupLabel:
+        example: Pacote Padrão
+        type: string
+      fees:
+        additionalProperties:
+          $ref: '#/definitions/Fee'
+        type: object
+      maximumAmount:
+        example: "1000"
+        type: string
+      minimumAmount:
+        example: "100"
+        type: string
+      waivedAccounts:
+        example:
+        - '[''acc001'''
+        - ' ''ac0002'']'
+        items:
+          type: string
+        type: array
+    type: object
   UpdatePortfolioInput:
     description: UpdatePortfolioInput is the input payload to update an existing portfolio's
       properties such as name, entity ID, status, and metadata.
@@ -2779,7 +3012,219 @@ definitions:
         maxLength: 255
         type: string
     type: object
-  http.Pagination:
+  github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package:
+    properties:
+      createdAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      deletedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      description:
+        example: Pacote de taxas administrativas padrão
+        type: string
+      enable:
+        type: boolean
+      feeGroupLabel:
+        example: Pacote Padrão
+        type: string
+      fees:
+        additionalProperties:
+          $ref: '#/definitions/Fee'
+        type: object
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      ledgerId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      maximumAmount:
+        example: 2
+        minimum: 0
+        type: number
+      minimumAmount:
+        example: 100
+        minimum: 0
+        type: number
+      segmentId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      transactionRoute:
+        example: debitoted
+        type: string
+      updatedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      waivedAccounts:
+        example:
+        - '[''acc001'''
+        - ' ''ac0002'']'
+        items:
+          type: string
+        type: array
+    type: object
+  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.AccountTarget:
+    properties:
+      aliases:
+        items:
+          type: string
+        type: array
+      portfolioId:
+        type: string
+      segmentId:
+        type: string
+    type: object
+  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateRequest:
+    properties:
+      ledgerId:
+        type: string
+      period:
+        description: YYYY-MM, YYYY-Www, or YYYY-MM-DD format
+        type: string
+      type:
+        description: '"volume", "maintenance", or empty for both'
+        type: string
+    required:
+    - ledgerId
+    - period
+    type: object
+  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateResponse:
+    properties:
+      results:
+        items:
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculationResult'
+        type: array
+      summary:
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateSummary'
+    type: object
+  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateSummary:
+    properties:
+      totalMaintenance:
+        type: integer
+      totalNetAmount:
+        example: "456.78"
+        type: string
+      totalResults:
+        type: integer
+      totalVolume:
+        type: integer
+    type: object
+  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculationResult:
+    properties:
+      billingPackageId:
+        type: string
+      billingPackageLabel:
+        type: string
+      billingType:
+        description: '"volume" or "maintenance"'
+        type: string
+      period:
+        type: string
+      totalAccounts:
+        type: integer
+      totalCharged:
+        type: integer
+      totalNetAmount:
+        example: "123.45"
+        type: string
+      totalSkipped:
+        type: integer
+      transactionPayload:
+        items:
+          type: integer
+        type: array
+    type: object
+  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage:
+    properties:
+      accountTarget:
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.AccountTarget'
+      assetCode:
+        type: string
+      countMode:
+        type: string
+      createdAt:
+        description: Timestamps.
+        type: string
+      creditAccountAlias:
+        type: string
+      debitAccountAlias:
+        type: string
+      deletedAt:
+        type: string
+      description:
+        type: string
+      discountTiers:
+        items:
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.DiscountTier'
+        type: array
+      enable:
+        type: boolean
+      eventFilter:
+        allOf:
+        - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.EventFilter'
+        description: Volume-specific fields.
+      feeAmount:
+        description: Maintenance-specific fields.
+        example: "50.00"
+        type: string
+      freeQuota:
+        type: integer
+      id:
+        type: string
+      label:
+        type: string
+      ledgerId:
+        type: string
+      maintenanceCreditAccount:
+        type: string
+      organizationId:
+        type: string
+      pricingModel:
+        type: string
+      tiers:
+        items:
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.PricingTier'
+        type: array
+      type:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackageUpdate:
+    properties:
+      description:
+        type: string
+      enable:
+        type: boolean
+      label:
+        type: string
+    type: object
+  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.DiscountTier:
+    properties:
+      discountPercentage:
+        example: "10.00"
+        type: string
+      minQuantity:
+        type: integer
+    type: object
+  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.EventFilter:
+    properties:
+      status:
+        type: string
+      transactionRoute:
+        type: string
+    type: object
+  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.PricingTier:
+    properties:
+      maxQuantity:
+        type: integer
+      minQuantity:
+        type: integer
+      unitPrice:
+        example: "1.50"
+        type: string
+    type: object
+  github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
     properties:
       items: {}
       limit:
@@ -3026,6 +3471,394 @@ info:
   title: Midaz Ledger API
   version: v3.7.0
 paths:
+  /v1/billing-packages:
+    get:
+      description: List all billing packages
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: Ledger ID (optional — omit to list all packages for the organization)
+        in: query
+        name: ledgerId
+        type: string
+      - description: Filter by billing package type (volume or maintenance)
+        in: query
+        name: type
+        type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage'
+                  type: array
+                limit:
+                  type: integer
+                page:
+                  type: integer
+                total:
+                  type: integer
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Get all billing packages
+      tags:
+      - BillingPackages
+    post:
+      consumes:
+      - application/json
+      description: Create a BillingPackage with the input payload
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: BillingPackage Input
+        in: body
+        name: billingPackage
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create a BillingPackage
+      tags:
+      - BillingPackages
+  /v1/billing-packages/{id}:
+    delete:
+      description: SoftDelete a BillingPackage with the input ID
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: BillingPackage ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: SoftDelete a BillingPackage by ID
+      tags:
+      - BillingPackages
+    get:
+      description: Get a billing package by id
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: BillingPackage ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Get billing package
+      tags:
+      - BillingPackages
+    patch:
+      consumes:
+      - application/json
+      description: Update a billing package with the input payload
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: BillingPackage ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update BillingPackage Input
+        in: body
+        name: billingPackage
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackageUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Update a billing package
+      tags:
+      - BillingPackages
+  /v1/billing/calculate:
+    post:
+      consumes:
+      - application/json
+      description: Calculate billing for a given organization, ledger, and period
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: Billing Calculation Input
+        in: body
+        name: billingCalculate
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Calculate billing
+      tags:
+      - BillingCalculate
+  /v1/estimates:
+    post:
+      consumes:
+      - application/json
+      description: Create a fee estimate calculation with input payload
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: Fee Input
+        in: body
+        name: fee
+        required: true
+        schema:
+          $ref: '#/definitions/FeeEstimate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/FeeEstimateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create a fee estimate calculation
+      tags:
+      - Fees
   /v1/organizations:
     get:
       description: Returns a paginated list of organizations, optionally filtered
@@ -3101,7 +3934,7 @@ paths:
           description: Successfully retrieved organizations list
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -3387,7 +4220,7 @@ paths:
           description: Successfully retrieved ledgers list
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -3696,7 +4529,7 @@ paths:
           description: Successfully retrieved account types
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -4067,7 +4900,7 @@ paths:
           description: Successfully retrieved accounts list
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -4404,7 +5237,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -4645,7 +5478,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -4825,7 +5658,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -4942,7 +5775,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -5195,7 +6028,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -5288,7 +6121,7 @@ paths:
           description: Successfully retrieved assets list
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -5665,7 +6498,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -5985,7 +6818,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -6303,7 +7136,7 @@ paths:
           description: Successfully retrieved portfolios list
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -6694,7 +7527,7 @@ paths:
           description: Successfully retrieved segments list
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -7192,7 +8025,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -7506,7 +8339,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -8379,6 +9212,298 @@ paths:
       summary: Count total organizations
       tags:
       - Organizations
+  /v1/packages:
+    get:
+      description: List all the packages
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: Segment ID
+        in: query
+        name: segmentId
+        type: string
+      - description: Ledger ID
+        in: query
+        name: ledgerId
+        type: string
+      - description: Transaction Route
+        in: query
+        name: transactionRoute
+        type: string
+      - description: Enable flag
+        in: query
+        name: enable
+        type: boolean
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+                  type: array
+                limit:
+                  type: integer
+                page:
+                  type: integer
+                total:
+                  type: integer
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Get all packages
+      tags:
+      - Packages
+    post:
+      consumes:
+      - application/json
+      description: Create a Package with the input payload
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: Package Input
+        in: body
+        name: pack
+        required: true
+        schema:
+          $ref: '#/definitions/CreatePackageInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create a Package
+      tags:
+      - Packages
+  /v1/packages/{id}:
+    delete:
+      description: SoftDelete a Package with the input ID
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: Package ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: SoftDelete a Package by ID
+      tags:
+      - Packages
+    get:
+      description: Get a package by id
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: Package ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Get package
+      tags:
+      - Packages
+    patch:
+      consumes:
+      - application/json
+      description: Update a package with the input payload
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: Package ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update Package Input
+        in: body
+        name: package
+        required: true
+        schema:
+          $ref: '#/definitions/UpdatePackageInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Update a package
+      tags:
+      - Packages
   /v1/settings/metadata-indexes:
     get:
       description: Get all metadata indexes, optionally filtered by entity name

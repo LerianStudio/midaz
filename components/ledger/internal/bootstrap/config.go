@@ -838,14 +838,21 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// tenant middleware travels via routeSetup.crmRouteOptions.
 	crmRouteRegistrar := crmhttp.CreateCRMRouteRegistrar(auth, crmMgo.holderHandler, crmMgo.aliasHandler, routeSetup.crmRouteOptions)
 
-	// Fee use cases are constructed (initFees) and held for the next chunk
-	// (P4-T10/T17) which mounts the fee CRUD/estimate/billing routes as a
-	// RouteRegistrar. Until then this milestone confirms they are reachable and
-	// keeps them out of dead-code territory.
-	logger.Log(context.Background(), libLog.LevelInfo, "Fee use cases ready",
+	// Fee/billing handlers wire directly to the in-process fee use cases built by
+	// initFees (no reconstruction). The fee UseCase satisfies both the package CRUD
+	// and fee-estimate handler interfaces.
+	feePackageHandler := &httpin.PackageHandler{Service: fees.useCase}
+	feeHandler := &httpin.FeeHandler{Service: fees.useCase}
+	billingPackageHandler := &httpin.BillingPackageHandler{Service: fees.billingPackageService}
+	billingCalculateHandler := &httpin.BillingCalculateHandler{Service: fees.billingCalculateService}
+
+	// Fees uses the SAME auth client as ledger; only the authz resource namespace
+	// differs (plugin-fees, encoded in the route definitions). The fees-scoped
+	// tenant middleware travels via routeSetup.feesRouteOptions.
+	feesRouteRegistrar := httpin.CreateFeesRouteRegistrar(auth, feePackageHandler, feeHandler, billingPackageHandler, billingCalculateHandler, routeSetup.feesRouteOptions)
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Fee routes mounted on unified server",
 		libLog.String("default_currency", fees.useCase.DefaultCurrency()),
-		libLog.Bool("billing_package_service_ready", fees.billingPackageService != nil),
-		libLog.Bool("billing_calculate_service_ready", fees.billingCalculateService != nil),
 	)
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
@@ -876,6 +883,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		transactionRouteRegistrar,
 		ledgerRouteRegistrar,
 		crmRouteRegistrar,
+		feesRouteRegistrar,
 	)
 
 	// === Workers ===
