@@ -28,6 +28,13 @@ jobs:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@v1.27.5
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
+      # Analysis-class filter: covers every component that still has Go code in-tree
+      # (crm code remains pending the P9 teardown even though it emits no image), so
+      # it differs by design from build.yml's IMAGE filter (the four image dirs only).
+      # NOTE (godog/BDD): the shared go-pr-analysis workflow exposes no godog hook
+      # (P5 Decision 1). The tracer BDD suite runs via a BESPOKE, non-gating
+      # fast-follow job (tracer's mk/tests.mk `make tracer COMMAND=test-e2e`), not
+      # through this caller — nothing here to drop or mis-scope.
       filter_paths: '["components/crm", "components/ledger", "components/tracer", "components/reporter-manager", "components/reporter-worker"]'
       path_level: 2
       app_name_prefix: "midaz"
