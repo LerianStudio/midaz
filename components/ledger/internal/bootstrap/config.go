@@ -184,6 +184,27 @@ type Config struct {
 	CrmHashSecretKey    string `env:"LCRYPTO_HASH_SECRET_KEY"`
 	CrmEncryptSecretKey string `env:"LCRYPTO_ENCRYPT_SECRET_KEY"`
 
+	// --- Fees MongoDB fields (MONGO_FEES_* env tags) ---
+	// Fee/billing-package collections collapsed into the unified ledger binary
+	// (P4). Namespaced MONGO_FEES_* to avoid colliding with the standalone fees
+	// service's bare MONGO_* surface and ledger's MONGO_ONBOARDING_/MONGO_TRANSACTION_.
+	FeesPrefixedMongoURI          string `env:"MONGO_FEES_URI"`
+	FeesPrefixedMongoDBHost       string `env:"MONGO_FEES_HOST"`
+	FeesPrefixedMongoDBName       string `env:"MONGO_FEES_NAME"`
+	FeesPrefixedMongoDBUser       string `env:"MONGO_FEES_USER"`
+	FeesPrefixedMongoDBPassword   string `env:"MONGO_FEES_PASSWORD"`
+	FeesPrefixedMongoDBPort       string `env:"MONGO_FEES_PORT"`
+	FeesPrefixedMongoDBParameters string `env:"MONGO_FEES_PARAMETERS"`
+	FeesPrefixedMaxPoolSize       int    `env:"MONGO_FEES_MAX_POOL_SIZE"`
+	FeesPrefixedMongoTLSCACert    string `env:"MONGO_FEES_TLS_CA_CERT"`
+
+	// --- Fee engine config (FEES_* / DEFAULT_CURRENCY) ---
+	// DEFAULT_CURRENCY keeps its bare env name (carried verbatim from the
+	// standalone fees service) so existing deployments need no rename. It is the
+	// fallback currency used by the fee calculation engine when a fee leg does
+	// not specify one. Defaults to "USD" in applyConfigDefaults when unset.
+	FeesDefaultCurrency string `env:"DEFAULT_CURRENCY"`
+
 	// --- RabbitMQ (transaction domain only) ---
 	RabbitURI                                string `env:"RABBITMQ_URI"`
 	RabbitMQHost                             string `env:"RABBITMQ_HOST"`
@@ -486,6 +507,23 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		addCleanup(func() { _ = crmMgo.connection.Close(context.Background()) })
 	}
 
+	// 4c. Fees MongoDB → pack/billing-package repos (collapsed from the
+	// standalone plugin-fees service in P4). The constructors ensure the 11
+	// compound indexes on the static connection's DB at startup. In MT mode a
+	// fee tenant Mongo manager (module plugin-fees) is also built; per-request
+	// DB resolution lands on tmcore via the route-scoped middleware.
+	logger.Log(context.Background(), libLog.LevelInfo, "Initializing fees MongoDB...")
+
+	feeMgo, err := initFeesMongo(internalOpts, cfg, logger)
+	if err != nil {
+		doCleanup()
+		return nil, fmt.Errorf("failed to initialize fees MongoDB: %w", err)
+	}
+
+	if feeMgo.connection != nil {
+		addCleanup(func() { _ = feeMgo.connection.Close(context.Background()) })
+	}
+
 	// 5. Redis (shared connection, two consumer repos)
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing Redis...")
 
@@ -583,6 +621,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 				if crmMgo.mongoManager != nil {
 					if err := crmMgo.mongoManager.CloseConnection(ctx, tenantID); err != nil {
 						logger.Log(ctx, libLog.LevelWarn, "failed to close crm-api Mongo connection",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				if feeMgo.mongoManager != nil {
+					if err := feeMgo.mongoManager.CloseConnection(ctx, tenantID); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to close plugin-fees Mongo connection",
 							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
 					}
 				}
@@ -721,6 +766,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionRedisRepo:    txnRedisRepo,
 	}
 
+	// === Fee use cases ===
+	// Built from the fee Mongo slice + the ledger query.UseCase so fee
+	// account/segment/count reads run in-process. HTTP route mounting is
+	// deferred to the next chunk (P4-T10/T17); here the fee use cases are only
+	// constructed + held so they are not dead code.
+	fees, err := initFees(feeMgo, queryUseCase, cfg, logger)
+	if err != nil {
+		doCleanup()
+		return nil, fmt.Errorf("failed to initialize fee use cases: %w", err)
+	}
+
 	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
 	if err := rmq.wireConsumer(commandUseCase); err != nil {
 		doCleanup()
@@ -759,7 +815,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Multi-tenant middleware ===
 
-	routeSetup, err := buildUnifiedRouteSetup(cfg, logger, onbPG.pgManager, txnPG.pgManager, onbMgo.mongoManager, txnMgo.mongoManager, crmMgo.mongoManager, tenantCache, tenantLoader)
+	routeSetup, err := buildUnifiedRouteSetup(cfg, logger, onbPG.pgManager, txnPG.pgManager, onbMgo.mongoManager, txnMgo.mongoManager, crmMgo.mongoManager, feeMgo.mongoManager, tenantCache, tenantLoader)
 	if err != nil {
 		doCleanup()
 		return nil, err
@@ -781,6 +837,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// differs (plugin-crm, encoded in the route definitions). The CRM-scoped
 	// tenant middleware travels via routeSetup.crmRouteOptions.
 	crmRouteRegistrar := crmhttp.CreateCRMRouteRegistrar(auth, crmMgo.holderHandler, crmMgo.aliasHandler, routeSetup.crmRouteOptions)
+
+	// Fee use cases are constructed (initFees) and held for the next chunk
+	// (P4-T10/T17) which mounts the fee CRUD/estimate/billing routes as a
+	// RouteRegistrar. Until then this milestone confirms they are reachable and
+	// keeps them out of dead-code territory.
+	logger.Log(context.Background(), libLog.LevelInfo, "Fee use cases ready",
+		libLog.String("default_currency", fees.useCase.DefaultCurrency()),
+		libLog.Bool("billing_package_service_ready", fees.billingPackageService != nil),
+		libLog.Bool("billing_calculate_service_ready", fees.billingCalculateService != nil),
+	)
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
 
@@ -1057,6 +1123,7 @@ type unifiedRouteSetup struct {
 	transactionRouteOptions *midazhttp.ProtectedRouteOptions
 	ledgerRouteOptions      *midazhttp.ProtectedRouteOptions
 	crmRouteOptions         *midazhttp.ProtectedRouteOptions
+	feesRouteOptions        *midazhttp.ProtectedRouteOptions
 }
 
 func buildUnifiedRouteSetup(
@@ -1067,6 +1134,7 @@ func buildUnifiedRouteSetup(
 	onboardingMongoManager *tmmongo.Manager,
 	transactionMongoManager *tmmongo.Manager,
 	crmMongoManager *tmmongo.Manager,
+	feesMongoManager *tmmongo.Manager,
 	tenantCache *tenantcache.TenantCache,
 	tenantLoader *tenantcache.TenantLoader,
 ) (*unifiedRouteSetup, error) {
@@ -1093,6 +1161,10 @@ func buildUnifiedRouteSetup(
 
 	if crmMongoManager == nil {
 		return nil, fmt.Errorf("crm multi-tenant MongoDB manager not available")
+	}
+
+	if feesMongoManager == nil {
+		return nil, fmt.Errorf("fees multi-tenant MongoDB manager not available")
 	}
 
 	// Build the onboarding+transaction tenant middleware. CRM is DELIBERATELY
@@ -1130,8 +1202,30 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
+	// Fees tenant middleware is its own SEPARATE instance carrying ONLY the
+	// plugin-fees Mongo manager, for the same isolation reason as CRM: mounting
+	// the fee WithTenantDB on the onboarding/transaction middleware (or globally)
+	// would overwrite the tenant Mongo that ledger handlers resolve. It is
+	// attached only to fee routes via feesRouteOptions below.
+	//
+	// WithMB is called WITHOUT a module name (single-manager mode) on purpose:
+	// the fee pack/billing_package repos read tmcore.GetMBContext(ctx) on the
+	// GENERIC key (the standalone fees service ran single-module — it registered
+	// its manager under the SERVICE name with no WithModule). A module-keyed
+	// WithMB would write the plugin-fees key while the repos read the generic
+	// key, so MT fee requests would fail DB resolution. Route scoping keeps the
+	// generic-key write from colliding with the module-keyed onboarding/
+	// transaction injection on ledger routes. (The manager itself still carries
+	// WithModule(ModuleFees) for tenant-manager DB resolution; that is a separate
+	// concern from the request-context key.) Same cache/loader are reused.
+	feesTenantMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithMB(feesMongoManager),
+		tmmiddleware.WithTenantCache(tenantCache),
+		tmmiddleware.WithTenantLoader(tenantLoader),
+	)
+
 	logger.Log(context.Background(), libLog.LevelInfo, "Tenant middleware configured",
-		libLog.String("modules", "onboarding,transaction,crm-api"),
+		libLog.String("modules", "onboarding,transaction,crm-api,plugin-fees"),
 	)
 
 	authAssertion := midazhttp.MarkTrustedAuthAssertion()
@@ -1151,6 +1245,12 @@ func buildUnifiedRouteSetup(
 	// CRM routes get the CRM-only tenant middleware instance.
 	setup.crmRouteOptions = &midazhttp.ProtectedRouteOptions{
 		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmTenantMiddleware.WithTenantDB},
+	}
+
+	// Fee routes get the fees-only tenant middleware instance. The next chunk
+	// (P4-T10) consumes feesRouteOptions when it mounts the fee RouteRegistrar.
+	setup.feesRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, feesTenantMiddleware.WithTenantDB},
 	}
 
 	return setup, nil
@@ -1258,4 +1358,11 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.BalanceSyncBatchSize, 50)
 	intDefault(&cfg.BalanceSyncFlushTimeoutMs, 500)
 	intDefault(&cfg.BalanceSyncPollIntervalMs, 50)
+
+	// Fee engine default currency. The standalone fees service shipped with no
+	// hard default (DEFAULT_CURRENCY was required env); the unified binary must
+	// not fail fee construction when the var is unset, so fall back to "USD".
+	if strings.TrimSpace(cfg.FeesDefaultCurrency) == "" {
+		cfg.FeesDefaultCurrency = "USD"
+	}
 }

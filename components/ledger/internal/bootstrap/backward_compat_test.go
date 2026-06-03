@@ -86,7 +86,7 @@ func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 		// All managers nil + tenantCache/loader nil: in single-tenant mode none of
 		// them are dereferenced, proving no Tenant Manager interaction occurs.
 		setup, err := buildUnifiedRouteSetup(&Config{MultiTenantEnabled: false}, logger,
-			nil, nil, nil, nil, nil, nil, nil)
+			nil, nil, nil, nil, nil, nil, nil, nil)
 
 		require.NoError(t, err,
 			"buildUnifiedRouteSetup must not error in single-tenant mode")
@@ -99,6 +99,8 @@ func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 			"ledger routes must carry no tenant middleware in single-tenant mode")
 		assert.Nil(t, setup.crmRouteOptions,
 			"CRM routes must carry no tenant middleware in single-tenant mode")
+		assert.Nil(t, setup.feesRouteOptions,
+			"fee routes must carry no tenant middleware in single-tenant mode")
 	})
 
 	t.Run("crm_config_fields_present_with_correct_tags", func(t *testing.T) {
