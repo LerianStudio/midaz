@@ -21,7 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // ============================================================================
@@ -99,10 +99,18 @@ func TestIntegration_AliasRepo_Create_EncryptsData(t *testing.T) {
 	require.True(t, ok, "document should be stored as string")
 	assert.NotEqual(t, originalDocument, storedDoc, "document should be encrypted in storage")
 
-	// Search hash should be present
-	search, ok := rawDoc["search"].(bson.M)
-	require.True(t, ok, "search map should exist")
-	assert.NotEmpty(t, search["document"], "document hash should be generated")
+	// Search hash should be present. The v2 driver decodes nested documents as bson.D.
+	search, ok := rawDoc["search"].(bson.D)
+	require.True(t, ok, "search document should exist")
+
+	var searchDocument any
+	for _, e := range search {
+		if e.Key == "document" {
+			searchDocument = e.Value
+		}
+	}
+
+	assert.NotEmpty(t, searchDocument, "document hash should be generated")
 }
 
 func TestIntegration_AliasRepo_Create_DuplicateAccount(t *testing.T) {

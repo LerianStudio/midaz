@@ -47,22 +47,41 @@ func BuildDocumentToPatch(updateDocument bson.M, fieldsToRemove []string) bson.M
 	return update
 }
 
-// flattenBSONM recursively flattens a nested BSON map.
+// flattenBSONM recursively flattens a nested BSON document into dotted-path keys.
+// Nested sub-documents are recursed regardless of whether the driver decoded them
+// as bson.M (unordered map) or bson.D (ordered slice). The mongo-driver v2 default
+// decoder yields bson.D for nested documents, so handling both keeps flattening
+// independent of the decode representation.
 func flattenBSONM(m bson.M, prefix string, flat bson.M) {
 	for k, v := range m {
-		var key string
-		if prefix == "" {
-			key = k
-		} else {
-			key = prefix + "." + k
-		}
-
-		if sub, ok := v.(bson.M); ok {
-			flattenBSONM(sub, key, flat)
-		} else {
-			flat[key] = v
-		}
+		flattenValue(joinKey(prefix, k), v, flat)
 	}
+}
+
+// flattenValue routes a single value into the flattened document, recursing into
+// nested sub-documents (bson.M or bson.D) and writing leaf values as-is.
+func flattenValue(key string, v any, flat bson.M) {
+	switch sub := v.(type) {
+	case bson.M:
+		for k, val := range sub {
+			flattenValue(joinKey(key, k), val, flat)
+		}
+	case bson.D:
+		for _, e := range sub {
+			flattenValue(joinKey(key, e.Key), e.Value, flat)
+		}
+	default:
+		flat[key] = v
+	}
+}
+
+// joinKey builds a dotted path from a prefix and a key.
+func joinKey(prefix, key string) string {
+	if prefix == "" {
+		return key
+	}
+
+	return prefix + "." + key
 }
 
 // shouldUnset Checks if the key should be "unset" (removed) based on the fieldsToRemove array.

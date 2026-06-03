@@ -11,15 +11,15 @@ import (
 	"strings"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // onboardingMongoComponents holds MongoDB-related components for the onboarding domain.

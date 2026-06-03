@@ -19,7 +19,6 @@ require (
 	github.com/swaggo/swag v1.16.6
 	github.com/testcontainers/testcontainers-go v0.42.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
-	go.mongodb.org/mongo-driver v1.17.9
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
 	go.uber.org/mock v0.6.0
@@ -98,7 +97,7 @@ require (
 )
 
 require (
-	github.com/LerianStudio/lib-commons/v5 v5.2.0-beta.12
+	github.com/LerianStudio/lib-commons/v5 v5.4.1
 	github.com/LerianStudio/lib-observability v1.0.1
 	github.com/LerianStudio/lib-streaming v1.4.0
 	github.com/Shopify/toxiproxy/v2 v2.12.0
@@ -107,6 +106,7 @@ require (
 	github.com/moby/moby/client v0.4.1
 	github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.42.0
 	github.com/twmb/franz-go v1.21.2
+	go.mongodb.org/mongo-driver/v2 v2.6.0
 	go.uber.org/goleak v1.3.0
 )
 
@@ -126,7 +126,6 @@ require (
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/go-playground/validator/v10 v10.30.2 // indirect
-	github.com/golang/snappy v1.0.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -153,7 +152,6 @@ require (
 	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
-	go.mongodb.org/mongo-driver/v2 v2.6.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.52.0 // indirect

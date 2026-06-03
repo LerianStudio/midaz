@@ -22,7 +22,7 @@ import (
 	mongotestutil "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // ============================================================================
@@ -1408,4 +1408,93 @@ func TestIntegration_MetadataRepository_TenantContext_TakesPrecedence_OverStatic
 	// Assert — entity DOES exist in the tenant database (direct verification)
 	countInTenant := mongotestutil.CountDocuments(t, tenantDB, strings.ToLower(collection), bson.M{"entity_id": "precedence-entity-1"})
 	assert.Equal(t, int64(1), countInTenant, "document should exist in the tenant database")
+}
+
+// ============================================================================
+// mongo-driver v2 migration regression tests (Gate-9 behavioral bar)
+// ============================================================================
+
+// TestIntegration_MetadataRepository_Create_ServerAssignsObjectID proves gotcha #2:
+// a zero bson.ObjectID with `bson:"_id,omitempty"` is omitted on marshal under the
+// v2 driver (ObjectID implements Zeroer), so MongoDB server-assigns a non-zero _id
+// rather than persisting the zero ObjectID.
+func TestIntegration_MetadataRepository_Create_ServerAssignsObjectID(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "transaction"
+
+	metadata := &Metadata{
+		EntityID:   "txn-oid-assign",
+		EntityName: "Transaction",
+		Data:       map[string]any{"type": "credit"},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	// Act — Create leaves metadata.ID as the zero ObjectID; omitempty must omit it.
+	err := repo.Create(ctx, collection, metadata)
+	require.NoError(t, err, "Create should not return error")
+
+	// Assert — read the raw document and confirm _id is a non-zero ObjectID.
+	var raw bson.M
+	err = container.Database.Collection(strings.ToLower(collection)).
+		FindOne(ctx, bson.M{"entity_id": "txn-oid-assign"}).Decode(&raw)
+	require.NoError(t, err, "should find the inserted document")
+
+	rawID, ok := raw["_id"].(bson.ObjectID)
+	require.True(t, ok, "_id should decode as a bson.ObjectID, got %T", raw["_id"])
+	assert.False(t, rawID.IsZero(), "server must assign a non-zero _id (zero ObjectID must not be persisted)")
+}
+
+// TestIntegration_MetadataRepository_FindByEntity_DecodeRoundTrips proves gotcha #4:
+// a full document survives a write/read round-trip through the stricter v2 decoder,
+// with all field types (string, nested map, time) decoded back into *Metadata intact.
+func TestIntegration_MetadataRepository_FindByEntity_DecodeRoundTrips(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "transaction"
+
+	created := time.Now().UTC().Truncate(time.Millisecond)
+	metadata := &Metadata{
+		EntityID:   "txn-roundtrip",
+		EntityName: "Transaction",
+		Data: map[string]any{
+			"type":   "credit",
+			"amount": int64(4200),
+			"nested": map[string]any{"k": "v"},
+		},
+		CreatedAt: created,
+		UpdatedAt: created,
+	}
+	require.NoError(t, repo.Create(ctx, collection, metadata), "Create should not return error")
+
+	// Act — read it back through the v2 decoder.
+	found, err := repo.FindByEntity(ctx, collection, "txn-roundtrip")
+
+	// Assert — every field decoded back intact.
+	require.NoError(t, err, "FindByEntity should not return error")
+	require.NotNil(t, found, "document should be found")
+	assert.Equal(t, "txn-roundtrip", found.EntityID)
+	assert.Equal(t, "Transaction", found.EntityName)
+	assert.Equal(t, "credit", found.Data["type"], "string field should round-trip")
+
+	// The v2 driver decodes nested documents into bson.D (ordered), not map[string]any.
+	// Data is a typed map[string]any at the top level, but its nested values land as bson.D.
+	nested, ok := found.Data["nested"].(bson.D)
+	require.True(t, ok, "nested document should decode as bson.D under the v2 driver, got %T", found.Data["nested"])
+
+	var nestedK any
+	for _, e := range nested {
+		if e.Key == "k" {
+			nestedK = e.Value
+		}
+	}
+
+	assert.Equal(t, "v", nestedK, "nested document value should round-trip")
 }

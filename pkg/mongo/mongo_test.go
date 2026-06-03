@@ -121,6 +121,47 @@ func TestBuildDocumentToPatch(t *testing.T) {
 			wantSet:        bson.M{"addresses.secondary.city": "LA"},
 			wantUnset:      bson.M{"addresses.primary": "addresses.primary"},
 		},
+		{
+			// The mongo-driver v2 default decoder yields bson.D for nested documents.
+			// Flattening must produce identical dotted paths whether nested docs are
+			// bson.D or bson.M (this is the exact shape produced by bson.Unmarshal in
+			// the CRM update path post-migration).
+			name: "nested bson.D flattens to dot notation",
+			updateDocument: bson.M{
+				"metadata": bson.D{
+					{Key: "key1", Value: "v1"},
+					{Key: "key2", Value: "v2"},
+				},
+			},
+			fieldsToRemove: nil,
+			wantSet:        bson.M{"metadata.key1": "v1", "metadata.key2": "v2"},
+			wantUnset:      nil,
+		},
+		{
+			name: "deeply nested bson.D flattens to dot notation",
+			updateDocument: bson.M{
+				"a": bson.D{
+					{Key: "b", Value: bson.D{
+						{Key: "c", Value: "deep"},
+					}},
+				},
+			},
+			fieldsToRemove: nil,
+			wantSet:        bson.M{"a.b.c": "deep"},
+			wantUnset:      nil,
+		},
+		{
+			name: "nested bson.D field removal excludes parent and children from set",
+			updateDocument: bson.M{
+				"metadata": bson.D{
+					{Key: "key1", Value: "v1"},
+					{Key: "key2", Value: "v2"},
+				},
+			},
+			fieldsToRemove: []string{"metadata.key1"},
+			wantSet:        bson.M{"metadata.key2": "v2"},
+			wantUnset:      bson.M{"metadata.key1": ""},
+		},
 	}
 
 	for _, tt := range tests {
@@ -215,6 +256,37 @@ func TestFlattenBSONM(t *testing.T) {
 			},
 			prefix: "root",
 			want:   bson.M{"root.child.grandchild": "value"},
+		},
+		{
+			name: "nested bson.D recurses like bson.M",
+			input: bson.M{
+				"outer": bson.D{
+					{Key: "inner", Value: "value"},
+				},
+			},
+			prefix: "",
+			want:   bson.M{"outer.inner": "value"},
+		},
+		{
+			name: "deeply nested bson.D",
+			input: bson.M{
+				"a": bson.D{
+					{Key: "b", Value: bson.D{
+						{Key: "c", Value: "deep"},
+					}},
+				},
+			},
+			prefix: "",
+			want:   bson.M{"a.b.c": "deep"},
+		},
+		{
+			name: "mixed bson.M and bson.D nesting",
+			input: bson.M{
+				"m": bson.M{"x": 1},
+				"d": bson.D{{Key: "y", Value: 2}},
+			},
+			prefix: "",
+			want:   bson.M{"m.x": 1, "d.y": 2},
 		},
 	}
 

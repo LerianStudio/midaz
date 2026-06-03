@@ -12,19 +12,19 @@ import (
 	"strings"
 	"time"
 
+	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	libCommons "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/repository"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // Repository provides an interface for operations related on mongodb a metadata entities.
@@ -132,7 +132,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 		"$setOnInsert": record,
 	}
 
-	opts := options.Update().SetUpsert(true)
+	opts := options.UpdateOne().SetUpsert(true)
 
 	upsertResult, err := coll.UpdateOne(ctx, filter, update, opts)
 	if err != nil {
@@ -172,17 +172,17 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 	coll := db.Collection(strings.ToLower(collection))
 
-	opts := options.FindOptions{}
+	opts := options.Find()
 
 	if filter.UseMetadata {
 		limit := int64(filter.Limit)
 		skip := int64(filter.Page*filter.Limit - filter.Limit)
-		opts = options.FindOptions{Limit: &limit, Skip: &skip}
+		opts = options.Find().SetLimit(limit).SetSkip(skip)
 	}
 
 	ctx, spanFind := tracer.Start(ctx, "mongodb.find_list.find")
 
-	cur, err := coll.Find(ctx, filter.Metadata, &opts)
+	cur, err := coll.Find(ctx, filter.Metadata, opts)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanFind, "Failed to find metadata", err)
 
@@ -364,7 +364,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	}
 
 	coll := db.Collection(strings.ToLower(collection))
-	opts := options.Update().SetUpsert(true)
+	opts := options.UpdateOne().SetUpsert(true)
 	filter := bson.M{"entity_id": id}
 	update := bson.D{{Key: "$set", Value: bson.D{{Key: "metadata", Value: metadata}, {Key: "updated_at", Value: time.Now()}}}}
 
@@ -412,7 +412,7 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 		return err
 	}
 
-	opts := options.Delete()
+	opts := options.DeleteOne()
 
 	coll := db.Collection(strings.ToLower(collection))
 
@@ -800,7 +800,7 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 	ctx, spanDelete := tracer.Start(ctx, "mongodb.delete_index.delete_one")
 	defer spanDelete.End()
 
-	_, err = coll.Indexes().DropOne(ctx, indexName)
+	err = coll.Indexes().DropOne(ctx, indexName)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete index", err)
 
