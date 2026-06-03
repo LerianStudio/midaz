@@ -20,6 +20,9 @@ docs/ring*/
 # Build and binary files
 *__debug_bin*
 dist/
+.bin/
+# Stray root binary from `go build ./components/<svc>/cmd/app` (default output name)
+/app
 coverage.out
 scripts/coverage_ignore.txt
 reports/

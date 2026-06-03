@@ -1,23 +1,18 @@
-name: reporter-worker
-
 services:
   reporter-worker:
-    container_name: reporter-worker
+    container_name: midaz-reporter-worker
     restart: always
     build:
       context: ../../
-      dockerfile: ./components/worker/Dockerfile
+      dockerfile: ./components/reporter-worker/Dockerfile
+    env_file:
+      - .env
     healthcheck:
-      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:4006/health || exit 1" ]
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:${HEALTH_PORT}/health || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 15s
-    env_file:
-      - .env
-    networks:
-      - reporter-worker-network
-      - reporter-infra-network
     deploy:
       resources:
         limits:
@@ -26,19 +21,23 @@ services:
         reservations:
           memory: 256M
           cpus: '0.5'
-    # NOTE: depends_on with health conditions cannot reference services from
-    # components/infra/docker-compose.yml because they run as separate Compose
-    # projects. The root-level `make up` handles cross-compose health ordering
-    # by running `wait-for-infra` between starting infra and backend services.
-    # For manual startup, ensure infra is healthy first:
-    #   cd components/infra && make up
-    # then start this service.
+    networks:
+      - infra-network
+      - reporter-network
+    # Phase-8 TODO (P8): the worker renders PDFs to S3-compatible object storage.
+    # The SeaweedFS S3 service (chrislusf/seaweedfs:4.05) and KEDA autoscaling
+    # (ghcr.io/kedacore/keda:2.16.0) are reporter-only net-new infra owned by
+    # Phase 8 — their SERVICE definitions are NOT added to midaz's infra compose
+    # in P6. The SeaweedFS config is already staged at components/infra/seaweedfs/
+    # {s3.json,init-bucket.sh}; OBJECT_STORAGE_ENDPOINT in .env points at the
+    # future seaweedfs service on infra-network. Until P8 brings it up, configure
+    # OBJECT_STORAGE_* at any S3-compatible endpoint reachable on infra-network.
 
 networks:
-  reporter-worker-network:
-    driver: bridge
-  reporter-infra-network:
-    external: true
   infra-network:
-    # Shared network from broader Lerian platform (created by midaz infra)
+    name: infra-network
+    driver: bridge
     external: true
+  reporter-network:
+    name: reporter-network
+    driver: bridge

@@ -10,13 +10,16 @@ INFRA_DIR := ./components/infra
 LEDGER_DIR := ./components/ledger
 CRM_DIR := ./components/crm
 TRACER_DIR := ./components/tracer
+REPORTER_MANAGER_DIR := ./components/reporter-manager
+REPORTER_WORKER_DIR := ./components/reporter-worker
 TESTS_DIR := ./tests
 PKG_DIR := ./pkg
 
 # Define a list of all component directories for easier iteration.
-# LEDGER_DIR is special-cased OUTSIDE this loop (legacy footgun) — tracer is
-# added to the NORMAL loop alongside CRM so lint/format/up/etc. fan out to it.
-COMPONENTS := $(INFRA_DIR) $(CRM_DIR) $(TRACER_DIR)
+# LEDGER_DIR is special-cased OUTSIDE this loop (legacy footgun) — tracer and the
+# two reporter components are added to the NORMAL loop alongside CRM so
+# lint/format/set-env/dev-setup/all-components fan out to them.
+COMPONENTS := $(INFRA_DIR) $(CRM_DIR) $(TRACER_DIR) $(REPORTER_MANAGER_DIR) $(REPORTER_WORKER_DIR)
 
 # Pinned tool versions — keep in sync with .github/workflows/go-combined-analysis.yml
 GOLANGCI_LINT_VERSION := v2.4.0
@@ -65,6 +68,8 @@ define check_env_files
 	if [ ! -f "$(LEDGER_DIR)/.env" ]; then missing=true; fi; \
 	if [ ! -f "$(CRM_DIR)/.env" ]; then missing=true; fi; \
 	if [ ! -f "$(TRACER_DIR)/.env" ]; then missing=true; fi; \
+	if [ ! -f "$(REPORTER_MANAGER_DIR)/.env" ]; then missing=true; fi; \
+	if [ ! -f "$(REPORTER_WORKER_DIR)/.env" ]; then missing=true; fi; \
 	if [ "$$missing" = "true" ]; then \
 		echo "Environment files are missing. Running set-env command first..."; \
 		$(MAKE) set-env; \
@@ -134,6 +139,8 @@ help:
 	@echo "  make infra COMMAND=<cmd>          - Run command in infra component"
 	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
 	@echo "  make tracer COMMAND=<cmd>         - Run command in tracer component"
+	@echo "  make reporter-manager COMMAND=<cmd> - Run command in reporter-manager component"
+	@echo "  make reporter-worker COMMAND=<cmd>  - Run command in reporter-worker component"
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
 	@echo ""
 	@echo ""
@@ -533,7 +540,7 @@ logs:
 	@cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
 
 # Component-specific command execution
-.PHONY: infra ledger tracer all-components
+.PHONY: infra ledger tracer reporter-manager reporter-worker all-components
 infra:
 	$(call print_title,"Running command in infra component")
 	@if [ -z "$(COMMAND)" ]; then \
@@ -557,6 +564,22 @@ tracer:
 		exit 1; \
 	fi
 	@cd $(TRACER_DIR) && $(MAKE) $(COMMAND)
+
+reporter-manager:
+	$(call print_title,"Running command in reporter-manager component")
+	@if [ -z "$(COMMAND)" ]; then \
+		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
+		exit 1; \
+	fi
+	@cd $(REPORTER_MANAGER_DIR) && $(MAKE) $(COMMAND)
+
+reporter-worker:
+	$(call print_title,"Running command in reporter-worker component")
+	@if [ -z "$(COMMAND)" ]; then \
+		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
+		exit 1; \
+	fi
+	@cd $(REPORTER_WORKER_DIR) && $(MAKE) $(COMMAND)
 
 all-components:
 	$(call print_title,"Running command across all components")

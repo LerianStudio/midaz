@@ -1,25 +1,17 @@
-name: reporter-manager
-
 services:
   reporter-manager:
-    container_name: reporter-manager
+    container_name: midaz-reporter-manager
     restart: always
     build:
       context: ../../
-      dockerfile: ./components/manager/Dockerfile
-    healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:4005/health" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
+      dockerfile: ./components/reporter-manager/Dockerfile
     env_file:
       - .env
     ports:
       - ${SERVER_PORT}:${SERVER_PORT}
-    networks:
-      - reporter-infra-network
-      - reporter-manager-network
+    # Manager image is distroless (no shell), so the container HEALTHCHECK is the
+    # orchestrator's responsibility (Kubernetes probe against /health). No
+    # compose-level healthcheck — mirrors ledger's distroless service.
     deploy:
       resources:
         limits:
@@ -28,19 +20,15 @@ services:
         reservations:
           memory: 128M
           cpus: '0.25'
-    # NOTE: depends_on with health conditions cannot reference services from
-    # components/infra/docker-compose.yml because they run as separate Compose
-    # projects. The root-level `make up` handles cross-compose health ordering
-    # by running `wait-for-infra` between starting infra and backend services.
-    # For manual startup, ensure infra is healthy first:
-    #   cd components/infra && make up
-    # then start this service.
+    networks:
+      - infra-network
+      - reporter-network
 
 networks:
-  reporter-infra-network:
-    external: true
   infra-network:
-    # Shared network from broader Lerian platform (created by midaz infra)
+    name: infra-network
+    driver: bridge
     external: true
-  reporter-manager-network:
+  reporter-network:
+    name: reporter-network
     driver: bridge
