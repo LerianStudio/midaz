@@ -16,9 +16,10 @@ import (
 // string here is a breaking change for clients that branch on the code, so the
 // lock makes such a change fail loudly in review rather than ship silently.
 //
-// The gaps in the sequence (CRM-0001..0005, 0007, 0009, 0011, 0012, 0014..0016)
-// are intentional — those were the 1:1-mapping codes with canonical midaz
-// equivalents and no longer exist as sentinels.
+// The gaps in the sequence (CRM-0001..0005, 0007, 0009, 0011, 0012, 0014..0016,
+// 0018) are intentional — those were the 1:1-mapping transform codes with
+// canonical midaz equivalents (and the orphan CRM-0018) and no longer exist as
+// sentinels.
 func TestCRMErrorSentinelWireCodes(t *testing.T) {
 	cases := []struct {
 		name string
@@ -30,7 +31,6 @@ func TestCRMErrorSentinelWireCodes(t *testing.T) {
 		{"ErrDocumentAssociationError", ErrDocumentAssociationError, "CRM-0010"},
 		{"ErrAccountAlreadyAssociated", ErrAccountAlreadyAssociated, "CRM-0013"},
 		{"ErrHolderHasAliases", ErrHolderHasAliases, "CRM-0017"},
-		{"ErrMissingHeadersInRequest", ErrMissingHeadersInRequest, "CRM-0018"},
 		{"ErrMetadataQueryInvalidFormat", ErrMetadataQueryInvalidFormat, "CRM-0019"},
 		{"ErrMetadataQueryInvalidKey", ErrMetadataQueryInvalidKey, "CRM-0020"},
 		{"ErrMetadataQueryContainsOperator", ErrMetadataQueryContainsOperator, "CRM-0021"},

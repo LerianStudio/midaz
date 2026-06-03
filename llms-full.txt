@@ -304,13 +304,12 @@ Manages holders, aliases, related parties. Uses MongoDB for persistence. Support
 - `0174` ErrStaleBalanceVersion — balance modified between read and write (retry needed)
 - `0175` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
 
-#### CRM Error Codes (all 17)
+#### CRM Error Codes (all 16)
 - `CRM-0006` ErrHolderNotFound — holder not found
 - `CRM-0008` ErrAliasNotFound — alias not found
 - `CRM-0010` ErrDocumentAssociationError — document association error
 - `CRM-0013` ErrAccountAlreadyAssociated — account already associated
 - `CRM-0017` ErrHolderHasAliases — holder has aliases (cannot delete)
-- `CRM-0018` ErrMissingHeadersInRequest — required headers missing
 - `CRM-0019` ErrMetadataQueryInvalidFormat — metadata query format error
 - `CRM-0020` ErrMetadataQueryInvalidKey — metadata query invalid key
 - `CRM-0021` ErrMetadataQueryContainsOperator — metadata query contains operator

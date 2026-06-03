@@ -228,7 +228,6 @@ var (
 	ErrDocumentAssociationError       = errors.New("CRM-0010")
 	ErrAccountAlreadyAssociated       = errors.New("CRM-0013")
 	ErrHolderHasAliases               = errors.New("CRM-0017")
-	ErrMissingHeadersInRequest        = errors.New("CRM-0018")
 	ErrMetadataQueryInvalidFormat     = errors.New("CRM-0019")
 	ErrMetadataQueryInvalidKey        = errors.New("CRM-0020")
 	ErrMetadataQueryContainsOperator  = errors.New("CRM-0021")
