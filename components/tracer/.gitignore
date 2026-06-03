@@ -36,7 +36,6 @@ go.work.sum
 .vscode
 .windsurf
 .cursor
-.secrets
 .run
 
 .bin/
