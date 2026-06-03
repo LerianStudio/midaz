@@ -1,6 +1,6 @@
-FROM golang:1.26.3-alpine3.22 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.3-alpine AS builder
 
-WORKDIR /app
+WORKDIR /tracer-app
 
 RUN apk add --no-cache \
     ca-certificates \
@@ -8,18 +8,19 @@ RUN apk add --no-cache \
     tzdata \
     && update-ca-certificates
 
-WORKDIR /tracer
-
-# Copy only go.mod and go.sum first to cache dependencies
 COPY go.mod go.sum ./
-
 RUN go mod download
 
 COPY . .
 
+ARG TARGETOS
 ARG TARGETARCH
 SHELL ["/bin/ash", "-e", "-o", "pipefail", "-c"]
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -a -tags netgo -ldflags '-w -extldflags "-static"' -o /app/tracer ./cmd/app
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
+    go build -a -tags netgo \
+    -ldflags '-s -w -extldflags "-static"' \
+    -o /app/tracer components/tracer/cmd/app/main.go
+
 # Production image using distroless for minimal attack surface (Ring Standards)
 # Note: distroless has no shell - use orchestrator health checks (Kubernetes probes)
 FROM gcr.io/distroless/static-debian12:nonroot AS prod
@@ -27,7 +28,7 @@ FROM gcr.io/distroless/static-debian12:nonroot AS prod
 WORKDIR /app
 
 COPY --from=builder /app/tracer /app/tracer
-COPY --from=builder /tracer/migrations /app/migrations
+COPY --from=builder /tracer-app/components/tracer/migrations /app/migrations
 
 # Explicitly set non-root user for Docker Hub health score compliance
 USER nonroot:nonroot
@@ -42,6 +43,3 @@ ENV GOMEMLIMIT=1800MiB
 EXPOSE 4020
 
 ENTRYPOINT ["/app/tracer"]
-
-
-

@@ -9,11 +9,14 @@ MIDAZ_ROOT := $(shell pwd)
 INFRA_DIR := ./components/infra
 LEDGER_DIR := ./components/ledger
 CRM_DIR := ./components/crm
+TRACER_DIR := ./components/tracer
 TESTS_DIR := ./tests
 PKG_DIR := ./pkg
 
-# Define a list of all component directories for easier iteration
-COMPONENTS := $(INFRA_DIR) $(CRM_DIR)
+# Define a list of all component directories for easier iteration.
+# LEDGER_DIR is special-cased OUTSIDE this loop (legacy footgun) — tracer is
+# added to the NORMAL loop alongside CRM so lint/format/up/etc. fan out to it.
+COMPONENTS := $(INFRA_DIR) $(CRM_DIR) $(TRACER_DIR)
 
 # Pinned tool versions — keep in sync with .github/workflows/go-combined-analysis.yml
 GOLANGCI_LINT_VERSION := v2.4.0
@@ -61,6 +64,7 @@ define check_env_files
 	if [ ! -f "$(INFRA_DIR)/.env" ]; then missing=true; fi; \
 	if [ ! -f "$(LEDGER_DIR)/.env" ]; then missing=true; fi; \
 	if [ ! -f "$(CRM_DIR)/.env" ]; then missing=true; fi; \
+	if [ ! -f "$(TRACER_DIR)/.env" ]; then missing=true; fi; \
 	if [ "$$missing" = "true" ]; then \
 		echo "Environment files are missing. Running set-env command first..."; \
 		$(MAKE) set-env; \
@@ -129,6 +133,7 @@ help:
 	@echo "  make logs                         - Show logs for all services"
 	@echo "  make infra COMMAND=<cmd>          - Run command in infra component"
 	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
+	@echo "  make tracer COMMAND=<cmd>         - Run command in tracer component"
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
 	@echo ""
 	@echo ""
@@ -528,7 +533,7 @@ logs:
 	@cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
 
 # Component-specific command execution
-.PHONY: infra ledger all-components
+.PHONY: infra ledger tracer all-components
 infra:
 	$(call print_title,"Running command in infra component")
 	@if [ -z "$(COMMAND)" ]; then \
@@ -544,6 +549,14 @@ ledger:
 		exit 1; \
 	fi
 	@cd $(LEDGER_DIR) && $(MAKE) $(COMMAND)
+
+tracer:
+	$(call print_title,"Running command in tracer component")
+	@if [ -z "$(COMMAND)" ]; then \
+		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
+		exit 1; \
+	fi
+	@cd $(TRACER_DIR) && $(MAKE) $(COMMAND)
 
 all-components:
 	$(call print_title,"Running command across all components")

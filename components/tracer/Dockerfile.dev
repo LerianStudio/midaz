@@ -2,15 +2,13 @@
 # For production, use Dockerfile (distroless)
 FROM golang:1.26.3-alpine AS builder
 
-WORKDIR /app
+WORKDIR /tracer-app
 
 RUN apk add --no-cache \
     ca-certificates \
     git \
     tzdata \
     && update-ca-certificates
-
-WORKDIR /tracer
 
 # Copy only go.mod and go.sum first to cache dependencies
 COPY go.mod go.sum ./
@@ -21,7 +19,9 @@ COPY . .
 
 ARG TARGETPLATFORM
 SHELL ["/bin/ash", "-o", "pipefail", "-c"]
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) go build -a -tags netgo -ldflags '-w -extldflags "-static"' -o /app/tracer ./cmd/app
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) \
+    go build -a -tags netgo -ldflags '-w -extldflags "-static"' \
+    -o /app/tracer components/tracer/cmd/app/main.go
 
 # Development image with Alpine (shell + wget for healthcheck)
 FROM alpine:3.23 AS dev
@@ -41,7 +41,7 @@ RUN addgroup -g 1000 tracer && \
     adduser -u 1000 -G tracer -s /bin/sh -D tracer
 
 COPY --from=builder /app/tracer /app/tracer
-COPY --from=builder /tracer/migrations /app/migrations
+COPY --from=builder /tracer-app/components/tracer/migrations /app/migrations
 
 # Set ownership
 RUN chown -R tracer:tracer /app

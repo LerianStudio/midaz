@@ -1,21 +1,17 @@
 services:
   tracer:
-    image: tracer:${VERSION:-dev}
-    container_name: tracer
+    container_name: midaz-tracer
     restart: always
     build:
-      context: .
-      dockerfile: Dockerfile.dev
+      context: ../../
+      dockerfile: ./components/tracer/Dockerfile.dev
     env_file:
       - .env
     ports:
       - ${SERVER_PORT}:${SERVER_PORT}
     volumes:
       - .:/usr/src/app
-    depends_on:
-      tracer-postgres:
-        condition: service_healthy
-    # Note: healthcheck uses wget which is included in Alpine base image
+    # Note: healthcheck uses wget which is included in the Alpine dev image.
     # Production (Kubernetes) uses liveness/readiness probes instead.
     # The path is /readyz (canonical Lerian readiness probe — not /health,
     # which only verifies the process is alive). start_period matches
@@ -38,31 +34,14 @@ services:
           cpus: '0.25'
           memory: 128M
     networks:
+      - infra-network
       - tracer-network
-
-  tracer-postgres:
-    image: postgres:16-alpine
-    container_name: tracer-postgres
-    restart: always
-    ports:
-      - ${DB_PORT}:5432
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    networks:
-      - tracer-network
-
-volumes:
-  postgres-data:
 
 networks:
+  infra-network:
+    name: infra-network
+    driver: bridge
+    external: true
   tracer-network:
+    name: tracer-network
     driver: bridge
