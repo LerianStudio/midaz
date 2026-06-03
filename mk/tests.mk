@@ -270,6 +270,41 @@ test-integration:
 	  fi; \
 	fi
 
+# BDD end-to-end tests (godog/cucumber) for the tracer component.
+#
+# tracer ships a Gherkin/godog e2e suite under
+# components/tracer/tests/end2end (build tag `e2e`). The suite drives a RUNNING
+# tracer HTTP service over the wire, so it is end-to-end, not a testcontainers
+# unit/integration run.
+#
+# INFRA PREREQUISITE: a reachable tracer service + its shared Postgres must be up
+# before this target runs. Point the suite at the service via SERVER_ADDRESS
+# (full URL, host:port, or bare :port — see components/tracer/internal/testutil
+# GetBaseURL). Authenticate with API_KEY when the target service enforces auth.
+# In CI the service is stood up by the job (P7-T15, deferred to P8); for local
+# dev bring tracer up first (e.g. `make tracer COMMAND=up`) and export
+# SERVER_ADDRESS=http://localhost:<tracer-port>.
+#
+# GODOG_TAGS optionally scopes which scenarios run (passed through to godog).
+SERVER_ADDRESS ?=
+GODOG_TAGS ?=
+
+.PHONY: test-bdd
+test-bdd:
+	$(call print_title,Running tracer godog/cucumber BDD e2e suite)
+	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+	@set -e; \
+	if [ -z "$(SERVER_ADDRESS)" ]; then \
+	  echo "ERROR: SERVER_ADDRESS is not set."; \
+	  echo "The godog BDD suite is end-to-end and needs a running tracer service + shared Postgres."; \
+	  echo "Bring tracer up, then: make test-bdd SERVER_ADDRESS=http://localhost:<tracer-port>"; \
+	  exit 1; \
+	fi; \
+	echo "Targeting tracer service at: $(SERVER_ADDRESS)"; \
+	SERVER_ADDRESS=$(SERVER_ADDRESS) GODOG_TAGS=$(GODOG_TAGS) \
+	  go test -tags e2e -v -count=1 $(GO_TEST_LDFLAGS) \
+	  ./components/tracer/tests/end2end/...
+
 # Integration tests with testcontainers (with coverage, uses covermode=atomic)
 #
 # NOTE: Integration tests always run with -p=1 (packages sequentially) because
