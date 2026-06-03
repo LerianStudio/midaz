@@ -203,3 +203,24 @@ require (
 	golang.org/x/sys v0.45.0 // indirect
 	gopkg.in/go-playground/validator.v9 v9.31.0
 )
+
+// reporter-unique direct dependencies folded in for the two-component co-location (P6).
+require (
+	github.com/aws/aws-sdk-go-v2 v1.41.7
+	github.com/aws/aws-sdk-go-v2/config v1.32.11
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.11
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.96.4
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.7
+	github.com/chromedp/cdproto v0.0.0-20250803210736-d308e07a266d
+	github.com/chromedp/chromedp v0.14.2
+	github.com/flosch/pongo2/v6 v6.0.0
+	github.com/go-resty/resty/v2 v2.17.2
+	github.com/go-sql-driver/mysql v1.7.1
+	github.com/microsoft/go-mssqldb v1.7.0
+	github.com/sijms/go-ora/v2 v2.9.0
+	github.com/testcontainers/testcontainers-go/modules/mongodb v0.42.0
+	github.com/testcontainers/testcontainers-go/modules/mssql v0.41.0
+	github.com/testcontainers/testcontainers-go/modules/mysql v0.41.0
+	github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.42.0
+	github.com/testcontainers/testcontainers-go/modules/redis v0.42.0
+)
