@@ -19,6 +19,7 @@ jobs:
       filter_paths: |-
         components/crm
         components/ledger
+        components/tracer
       shared_paths: |
         go.mod
         go.sum
