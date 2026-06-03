@@ -30,6 +30,7 @@ jobs:
       pr_title_scopes: |
         crm
         ledger
+        reporter
         api
         pkg
         infra

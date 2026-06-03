@@ -20,6 +20,8 @@ jobs:
         components/crm
         components/ledger
         components/tracer
+        components/reporter-manager
+        components/reporter-worker
       shared_paths: |
         go.mod
         go.sum
@@ -35,6 +37,13 @@ jobs:
       enable_helm_dispatch: true
       helm_chart: "midaz"
       helm_detect_env_changes: true
+      # NOTE: reporter-manager/reporter-worker are intentionally absent from the
+      # helm/gitops key mappings here. Mirroring the P5 tracer precedent, P6 is
+      # ADDITIVE filter_paths ONLY — the build fan-out emits midaz-reporter-manager
+      # and midaz-reporter-worker image candidates, but the helm_values_key_mappings
+      # / yaml_key_mappings entries that route them are deferred to P8 / the P6-T19
+      # Helm-gitops-APIDog lockstep, so the deploy-key flip stays off the default
+      # branch until the external midaz chart gains manager/worker keys (R12).
       helm_values_key_mappings: '{"midaz-crm": "crm", "midaz-ledger": "ledger"}'
     secrets: inherit
 

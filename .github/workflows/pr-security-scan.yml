@@ -37,6 +37,8 @@ jobs:
       filter_paths: |-
         components/crm
         components/ledger
+        components/reporter-manager
+        components/reporter-worker
       shared_paths: |
         go.mod
         go.sum
