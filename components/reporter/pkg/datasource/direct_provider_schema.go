@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/ctxutil"
-	"github.com/LerianStudio/reporter/pkg/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
 
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 )

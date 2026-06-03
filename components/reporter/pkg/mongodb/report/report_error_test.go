@@ -11,10 +11,11 @@ import (
 	"testing"
 
 	tmCore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libMongo "github.com/LerianStudio/reporter/pkg/mongodb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+
+	libMongo "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
 )
 
 func TestResolveDatabase_FailsClosed_WhenTenantIDExistsWithoutMongoDatabase(t *testing.T) {

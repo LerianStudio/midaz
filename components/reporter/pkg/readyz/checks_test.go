@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/datasource"
-	mongoDB "github.com/LerianStudio/reporter/pkg/mongodb"
-	libRedis "github.com/LerianStudio/reporter/pkg/redis"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
+	mongoDB "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
+	libRedis "github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
 
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	"github.com/stretchr/testify/assert"

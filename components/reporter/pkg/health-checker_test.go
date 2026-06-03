@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
-	mongoMock "github.com/LerianStudio/reporter/pkg/mongodb"
-	pgMock "github.com/LerianStudio/reporter/pkg/postgres"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	mongoMock "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
+	pgMock "github.com/LerianStudio/midaz/v3/components/reporter/pkg/postgres"
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	libObservability "github.com/LerianStudio/lib-observability"

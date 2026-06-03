@@ -13,8 +13,8 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/ctxutil"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
 
 	"github.com/LerianStudio/lib-observability/log"
 	"go.mongodb.org/mongo-driver/v2/bson"

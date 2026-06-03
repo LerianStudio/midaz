@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg"
-	pkgConstant "github.com/LerianStudio/reporter/pkg/constant"
-	pkgRabbitmq "github.com/LerianStudio/reporter/pkg/rabbitmq"
-	"github.com/LerianStudio/reporter/tests/utils/containers"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	pkgConstant "github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	pkgRabbitmq "github.com/LerianStudio/midaz/v3/components/reporter/pkg/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/reporter/tests/utils/containers"
 
 	libConstant "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	libRabbitMQ "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"

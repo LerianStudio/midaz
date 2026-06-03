@@ -11,8 +11,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/net/http"
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"

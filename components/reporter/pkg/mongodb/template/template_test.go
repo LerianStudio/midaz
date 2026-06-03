@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
 )
 
 func TestTemplateMongoDBModel_ToEntity(t *testing.T) {

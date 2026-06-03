@@ -16,10 +16,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/datasource"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
 )
 
 // Layer 8 of the canonical 9-test-layer matrix in dev-readyz/SKILL.md.

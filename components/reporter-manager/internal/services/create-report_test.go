@@ -10,14 +10,15 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/datasource"
-	"github.com/LerianStudio/reporter/pkg/model"
-	"github.com/LerianStudio/reporter/pkg/mongodb/report"
-	"github.com/LerianStudio/reporter/pkg/mongodb/template"
-	"github.com/LerianStudio/reporter/pkg/rabbitmq"
-	"github.com/LerianStudio/reporter/pkg/redis"
 	"go.opentelemetry.io/otel/trace/noop"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/report"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/template"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/lib-observability/log"

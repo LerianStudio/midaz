@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"

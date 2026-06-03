@@ -14,9 +14,10 @@ import (
 
 	libConstant "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	libObservability "github.com/LerianStudio/lib-observability"
-	pg "github.com/LerianStudio/reporter/pkg/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	pg "github.com/LerianStudio/midaz/v3/components/reporter/pkg/postgres"
 )
 
 func TestIsFatalError(t *testing.T) {

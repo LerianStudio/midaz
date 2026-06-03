@@ -11,7 +11,8 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	clog "github.com/LerianStudio/lib-observability/log"
 	libZap "github.com/LerianStudio/lib-observability/zap"
-	"github.com/LerianStudio/reporter/pkg/pongo"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/pongo"
 )
 
 // loadConfigAndLogger loads environment config, registers pongo2 filters, and initializes the logger.

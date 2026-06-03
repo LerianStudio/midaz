@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
 
 	"github.com/stretchr/testify/assert"
 )

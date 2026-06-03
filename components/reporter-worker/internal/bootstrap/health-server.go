@@ -10,12 +10,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/datasource"
-	mongoDB "github.com/LerianStudio/reporter/pkg/mongodb"
-	"github.com/LerianStudio/reporter/pkg/readyz"
-	libRedis "github.com/LerianStudio/reporter/pkg/redis"
-	"github.com/LerianStudio/reporter/pkg/storage"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
+	mongoDB "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/readyz"
+	libRedis "github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/storage"
 
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"

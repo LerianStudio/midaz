@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/ctxutil"
-	pkgRedis "github.com/LerianStudio/reporter/pkg/redis"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
+	pkgRedis "github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
 
 	tmValkey "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/valkey"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"

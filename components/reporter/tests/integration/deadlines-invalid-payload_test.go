@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"testing"
 
-	h "github.com/LerianStudio/reporter/tests/utils"
+	h "github.com/LerianStudio/midaz/v3/components/reporter/tests/utils"
 )
 
 // TestIntegration_Deadline_CreatePayload_InvalidSeeds verifies that known-invalid payloads

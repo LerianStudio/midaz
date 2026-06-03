@@ -9,7 +9,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
 )
 
 const backoffDivisor = 2

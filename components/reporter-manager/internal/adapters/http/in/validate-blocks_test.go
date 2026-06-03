@@ -12,8 +12,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/reporter/components/manager/internal/services"
-	"github.com/LerianStudio/reporter/pkg/template_builder"
+	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/services"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/template_builder"
 
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/gofiber/fiber/v2"

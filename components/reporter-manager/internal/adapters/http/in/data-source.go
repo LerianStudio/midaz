@@ -8,12 +8,13 @@ import (
 	"errors"
 
 	"github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/reporter/components/manager/internal/services"
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/ctxutil"
-	_ "github.com/LerianStudio/reporter/pkg/model"
-	"github.com/LerianStudio/reporter/pkg/net/http"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/services"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
+	_ "github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/net/http"
 
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"

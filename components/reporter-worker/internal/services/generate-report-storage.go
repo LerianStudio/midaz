@@ -8,7 +8,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/LerianStudio/reporter/pkg/ctxutil"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"

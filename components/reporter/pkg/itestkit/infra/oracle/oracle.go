@@ -10,7 +10,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/LerianStudio/reporter/pkg/itestkit"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit"
 )
 
 type OracleConfig struct {

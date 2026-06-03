@@ -7,8 +7,9 @@ package mongodb
 import (
 	"fmt"
 
-	"github.com/LerianStudio/reporter/pkg/model"
 	"go.mongodb.org/mongo-driver/v2/bson"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
 )
 
 // buildMongoFilter converts FilterCondition map to MongoDB filter format.

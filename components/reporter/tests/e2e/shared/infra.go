@@ -19,13 +19,14 @@ import (
 
 	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/reporter/pkg/itestkit"
-	"github.com/LerianStudio/reporter/pkg/itestkit/addons/e2ekit"
-	"github.com/LerianStudio/reporter/pkg/itestkit/infra/minio"
-	"github.com/LerianStudio/reporter/pkg/itestkit/infra/mongodb"
-	"github.com/LerianStudio/reporter/pkg/itestkit/infra/postgres"
-	"github.com/LerianStudio/reporter/pkg/itestkit/infra/rabbitmq"
-	"github.com/LerianStudio/reporter/pkg/itestkit/infra/redis"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit/addons/e2ekit"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit/infra/minio"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit/infra/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit/infra/postgres"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit/infra/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit/infra/redis"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.mongodb.org/mongo-driver/v2/bson"

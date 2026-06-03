@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg"
-	pkgConstant "github.com/LerianStudio/reporter/pkg/constant"
-	pkgRabbitmq "github.com/LerianStudio/reporter/pkg/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	pkgConstant "github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	pkgRabbitmq "github.com/LerianStudio/midaz/v3/components/reporter/pkg/rabbitmq"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"

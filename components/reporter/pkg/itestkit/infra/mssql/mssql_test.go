@@ -12,8 +12,8 @@ import (
 
 	_ "github.com/microsoft/go-mssqldb"
 
-	"github.com/LerianStudio/reporter/pkg/itestkit"
-	"github.com/LerianStudio/reporter/pkg/itestkit/infra/mssql"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit/infra/mssql"
 )
 
 func TestMSSQLInfra(t *testing.T) {

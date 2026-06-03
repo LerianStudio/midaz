@@ -12,7 +12,8 @@ import (
 	"testing"
 
 	tmCore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	"github.com/LerianStudio/reporter/pkg/storage"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/storage"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

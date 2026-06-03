@@ -10,7 +10,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/LerianStudio/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
 )
 
 // decryptFetcherData decrypts AES-GCM encrypted data received from the Fetcher service.

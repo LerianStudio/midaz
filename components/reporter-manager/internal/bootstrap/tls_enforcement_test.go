@@ -9,9 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/reporter/pkg/readyz"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/readyz"
 )
 
 // validSaaSTLSManagerConfig returns a Manager Config where every DSN uses

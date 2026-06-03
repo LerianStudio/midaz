@@ -9,7 +9,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcmongo "github.com/testcontainers/testcontainers-go/modules/mongodb"
 
-	"github.com/LerianStudio/reporter/pkg/itestkit"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit"
 )
 
 type MongoDBConfig struct {

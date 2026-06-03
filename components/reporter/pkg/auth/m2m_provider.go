@@ -18,10 +18,11 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/lib-observability/log"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/reporter/pkg/redact"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/redact"
 )
 
 // maxTokenResponseBodySize is the maximum response body size for token exchange.

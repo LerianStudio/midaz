@@ -13,10 +13,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/reporter/pkg/template_builder"
-	h "github.com/LerianStudio/reporter/tests/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/template_builder"
+	h "github.com/LerianStudio/midaz/v3/components/reporter/tests/utils"
 )
 
 const generateCodePath = "/v1/templates/generate-code"

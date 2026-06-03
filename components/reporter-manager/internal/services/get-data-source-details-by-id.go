@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/ctxutil"
-	"github.com/LerianStudio/reporter/pkg/datasource"
-	"github.com/LerianStudio/reporter/pkg/model"
-	"github.com/LerianStudio/reporter/pkg/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	"github.com/LerianStudio/lib-observability/log"

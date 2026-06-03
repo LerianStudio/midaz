@@ -13,24 +13,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/model"
-	"github.com/LerianStudio/reporter/pkg/mongodb/report"
-	"github.com/LerianStudio/reporter/pkg/mongodb/template"
-	"github.com/LerianStudio/reporter/pkg/rabbitmq"
-	redisRepo "github.com/LerianStudio/reporter/pkg/redis"
-	reportSeaweed "github.com/LerianStudio/reporter/pkg/seaweedfs/report"
 	"go.opentelemetry.io/otel/trace/noop"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/report"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/template"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/rabbitmq"
+	redisRepo "github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
+	reportSeaweed "github.com/LerianStudio/midaz/v3/components/reporter/pkg/seaweedfs/report"
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	"github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/reporter/components/manager/internal/services"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/services"
 )
 
 func TestReportHandler_CreateReport(t *testing.T) {

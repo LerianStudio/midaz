@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
 
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/sony/gobreaker"

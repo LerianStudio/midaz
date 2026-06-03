@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LerianStudio/reporter/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
 
 	"github.com/LerianStudio/lib-observability/log"
 )

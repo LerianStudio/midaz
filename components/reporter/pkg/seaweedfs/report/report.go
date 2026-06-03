@@ -11,11 +11,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/ctxutil"
-	"github.com/LerianStudio/reporter/pkg/seaweedfs"
-	"github.com/LerianStudio/reporter/pkg/storage"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/seaweedfs"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/storage"
 
 	tmS3 "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/s3"
 	"github.com/LerianStudio/lib-observability/log"

@@ -9,8 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/datasource"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"

@@ -11,7 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"

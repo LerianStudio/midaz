@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/seaweedfs"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/seaweedfs"
 )
 
 // SeaweedFSAdapter wraps the existing SeaweedFS client to implement ObjectStorage interface.

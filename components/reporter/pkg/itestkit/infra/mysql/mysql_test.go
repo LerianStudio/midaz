@@ -12,8 +12,8 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	"github.com/LerianStudio/reporter/pkg/itestkit"
-	"github.com/LerianStudio/reporter/pkg/itestkit/infra/mysql"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit/infra/mysql"
 )
 
 func TestMySQLInfra(t *testing.T) {

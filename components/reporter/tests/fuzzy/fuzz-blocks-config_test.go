@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	h "github.com/LerianStudio/reporter/tests/utils"
+	h "github.com/LerianStudio/midaz/v3/components/reporter/tests/utils"
 )
 
 // FuzzBlocksConfig_MalformedRequest fuzzes the GET /v1/templates/blocks-config endpoint

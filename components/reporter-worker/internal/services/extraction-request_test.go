@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/datasource"
-	"github.com/LerianStudio/reporter/pkg/fetcher"
-	extractionRepo "github.com/LerianStudio/reporter/pkg/mongodb/extraction"
-	reportData "github.com/LerianStudio/reporter/pkg/mongodb/report"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/fetcher"
+	extractionRepo "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/extraction"
+	reportData "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/report"
 
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/google/uuid"

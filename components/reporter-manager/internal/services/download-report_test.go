@@ -11,12 +11,13 @@ import (
 	"time"
 
 	"github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/mongodb/report"
-	"github.com/LerianStudio/reporter/pkg/mongodb/template"
-	reportSeaweedFS "github.com/LerianStudio/reporter/pkg/seaweedfs/report"
-	templateUtils "github.com/LerianStudio/reporter/pkg/templateutils"
 	"go.opentelemetry.io/otel/trace/noop"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/report"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/template"
+	reportSeaweedFS "github.com/LerianStudio/midaz/v3/components/reporter/pkg/seaweedfs/report"
+	templateUtils "github.com/LerianStudio/midaz/v3/components/reporter/pkg/templateutils"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

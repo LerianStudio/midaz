@@ -13,9 +13,10 @@ import (
 	"testing"
 	"time"
 
-	h "github.com/LerianStudio/reporter/tests/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	h "github.com/LerianStudio/midaz/v3/components/reporter/tests/utils"
 )
 
 // TestIntegration_Chaos_RabbitMQ_ConnectionClosed tests the behavior when manager tries to send

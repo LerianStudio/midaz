@@ -15,7 +15,7 @@ import (
 
 	"github.com/google/uuid"
 
-	h "github.com/LerianStudio/reporter/tests/utils"
+	h "github.com/LerianStudio/midaz/v3/components/reporter/tests/utils"
 )
 
 // Property 1: Report status deve sempre progredir de Processing → Finished ou Error

@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	h "github.com/LerianStudio/reporter/tests/utils"
+	h "github.com/LerianStudio/midaz/v3/components/reporter/tests/utils"
 )
 
 // GET /v1/reports — filters (status, templateId, createdAt)

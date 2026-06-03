@@ -9,10 +9,11 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/mongodb/template"
-	httpUtils "github.com/LerianStudio/reporter/pkg/net/http"
 	"go.opentelemetry.io/otel/trace/noop"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/template"
+	httpUtils "github.com/LerianStudio/midaz/v3/components/reporter/pkg/net/http"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

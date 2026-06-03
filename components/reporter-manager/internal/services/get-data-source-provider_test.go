@@ -10,14 +10,15 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/datasource"
-	"github.com/LerianStudio/reporter/pkg/model"
-	"github.com/LerianStudio/reporter/pkg/redis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
 )
 
 // TestUseCase_GetDataSourceInformation_WithProvider verifies that when a

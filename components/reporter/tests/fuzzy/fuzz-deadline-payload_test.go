@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	h "github.com/LerianStudio/reporter/tests/utils"
+	h "github.com/LerianStudio/midaz/v3/components/reporter/tests/utils"
 )
 
 // FuzzDeadline_CreatePayload fuzzes the create deadline endpoint with random JSON payloads.

@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/fetcher"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/fetcher"
 )
 
 // ProviderConfig holds configuration for selecting and constructing the

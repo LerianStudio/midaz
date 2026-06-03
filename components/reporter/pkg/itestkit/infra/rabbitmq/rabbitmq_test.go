@@ -11,8 +11,8 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	"github.com/LerianStudio/reporter/pkg/itestkit"
-	"github.com/LerianStudio/reporter/pkg/itestkit/infra/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit/infra/rabbitmq"
 )
 
 func TestRabbitInfra(t *testing.T) {

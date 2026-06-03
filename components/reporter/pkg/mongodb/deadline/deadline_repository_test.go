@@ -8,8 +8,9 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/lib-observability/zap"
-	libMongo "github.com/LerianStudio/reporter/pkg/mongodb"
 	"github.com/stretchr/testify/assert"
+
+	libMongo "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
 )
 
 func testLogger() *zap.Logger {

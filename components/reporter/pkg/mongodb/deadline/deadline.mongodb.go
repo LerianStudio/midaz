@@ -10,19 +10,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/ctxutil"
-	"github.com/LerianStudio/reporter/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/net/http"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libMongo "github.com/LerianStudio/reporter/pkg/mongodb"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
+
+	libMongo "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
 )
 
 // applyStatusFilter translates a computed status into MongoDB query conditions.

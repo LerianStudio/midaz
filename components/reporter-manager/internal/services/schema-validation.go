@@ -10,10 +10,11 @@ import (
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/datasource"
-	pkgHTTP "github.com/LerianStudio/reporter/pkg/net/http"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
+	pkgHTTP "github.com/LerianStudio/midaz/v3/components/reporter/pkg/net/http"
 
 	"go.opentelemetry.io/otel/attribute"
 )

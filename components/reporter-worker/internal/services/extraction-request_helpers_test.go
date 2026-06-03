@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/fetcher"
-	"github.com/LerianStudio/reporter/pkg/model"
-	extractionRepo "github.com/LerianStudio/reporter/pkg/mongodb/extraction"
-	reportData "github.com/LerianStudio/reporter/pkg/mongodb/report"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/fetcher"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
+	extractionRepo "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/extraction"
+	reportData "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/report"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/lib-observability/log"

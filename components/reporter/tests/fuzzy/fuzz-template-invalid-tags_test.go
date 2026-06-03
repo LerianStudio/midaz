@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	h "github.com/LerianStudio/reporter/tests/utils"
+	h "github.com/LerianStudio/midaz/v3/components/reporter/tests/utils"
 )
 
 func fuzzAssertNoServerError(t *testing.T, label string, code int, body []byte, templateContent string) {

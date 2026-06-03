@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/LerianStudio/reporter/pkg/redact"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/redact"
 )
 
 // ============================================================================

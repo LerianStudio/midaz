@@ -8,14 +8,15 @@ import (
 	"context"
 
 	"github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/fetcher"
-	extractionRepo "github.com/LerianStudio/reporter/pkg/mongodb/extraction"
-	reportData "github.com/LerianStudio/reporter/pkg/mongodb/report"
-	"github.com/LerianStudio/reporter/pkg/pdf"
-	reportSeaweedFS "github.com/LerianStudio/reporter/pkg/seaweedfs/report"
-	templateSeaweedFS "github.com/LerianStudio/reporter/pkg/seaweedfs/template"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/fetcher"
+	extractionRepo "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/extraction"
+	reportData "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/report"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/pdf"
+	reportSeaweedFS "github.com/LerianStudio/midaz/v3/components/reporter/pkg/seaweedfs/report"
+	templateSeaweedFS "github.com/LerianStudio/midaz/v3/components/reporter/pkg/seaweedfs/template"
 )
 
 // ExtractionJobCreator abstracts the Fetcher client's extraction job creation

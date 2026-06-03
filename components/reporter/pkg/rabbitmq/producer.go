@@ -7,7 +7,7 @@ package rabbitmq
 import (
 	"context"
 
-	"github.com/LerianStudio/reporter/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
 )
 
 // ProducerRepository provides an interface for Producer related to rabbitmq.

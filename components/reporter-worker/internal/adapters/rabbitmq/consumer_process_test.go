@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"testing"
 
-	pkgConstant "github.com/LerianStudio/reporter/pkg/constant"
-	pkgRabbitmq "github.com/LerianStudio/reporter/pkg/rabbitmq"
+	pkgConstant "github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	pkgRabbitmq "github.com/LerianStudio/midaz/v3/components/reporter/pkg/rabbitmq"
 
 	libRabbitMQ "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	"github.com/LerianStudio/lib-observability/log"

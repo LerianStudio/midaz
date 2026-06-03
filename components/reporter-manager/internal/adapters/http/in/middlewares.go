@@ -8,9 +8,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/net/http"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/gofiber/fiber/v2"

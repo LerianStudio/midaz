@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/LerianStudio/reporter/components/worker/internal/bootstrap"
+	"github.com/LerianStudio/midaz/v3/components/reporter-worker/internal/bootstrap"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 )

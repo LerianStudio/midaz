@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	h "github.com/LerianStudio/reporter/tests/utils"
+	h "github.com/LerianStudio/midaz/v3/components/reporter/tests/utils"
 )
 
 // FuzzReport_Filters tests report generation with various malformed filter inputs

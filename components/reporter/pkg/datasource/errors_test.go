@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"testing"
 
-	pkg "github.com/LerianStudio/reporter/pkg"
 	"github.com/stretchr/testify/assert"
+
+	pkg "github.com/LerianStudio/midaz/v3/components/reporter/pkg"
 )
 
 func TestErrDataSourceNotFound_ImplementsError(t *testing.T) {

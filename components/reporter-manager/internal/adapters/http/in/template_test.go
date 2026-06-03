@@ -18,10 +18,11 @@ import (
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	"github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/reporter/components/manager/internal/services"
-	"github.com/LerianStudio/reporter/pkg/mongodb/template"
-	redisRepo "github.com/LerianStudio/reporter/pkg/redis"
-	templateSeaweedFS "github.com/LerianStudio/reporter/pkg/seaweedfs/template"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/services"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/template"
+	redisRepo "github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
+	templateSeaweedFS "github.com/LerianStudio/midaz/v3/components/reporter/pkg/seaweedfs/template"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"

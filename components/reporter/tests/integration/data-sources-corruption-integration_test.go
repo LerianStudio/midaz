@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	h "github.com/LerianStudio/reporter/tests/utils"
+	h "github.com/LerianStudio/midaz/v3/components/reporter/tests/utils"
 )
 
 func fetchDataSources(t *testing.T, ctx context.Context, cli *h.HTTPClient, headers map[string]string) []map[string]any {

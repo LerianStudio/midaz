@@ -7,8 +7,8 @@ package rabbitmq
 import (
 	"context"
 
-	"github.com/LerianStudio/reporter/pkg/ctxutil"
-	pkgHTTP "github.com/LerianStudio/reporter/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
+	pkgHTTP "github.com/LerianStudio/midaz/v3/components/reporter/pkg/net/http"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"

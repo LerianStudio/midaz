@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	pkgConstant "github.com/LerianStudio/reporter/pkg/constant"
+	pkgConstant "github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
 
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"

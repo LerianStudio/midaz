@@ -7,9 +7,10 @@ package templateutils
 import (
 	"testing"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
 )
 
 func TestGetMimeType(t *testing.T) {

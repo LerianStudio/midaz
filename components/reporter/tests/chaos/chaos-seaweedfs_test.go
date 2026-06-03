@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	h "github.com/LerianStudio/reporter/tests/utils"
-	chaosutil "github.com/LerianStudio/reporter/tests/utils/chaos"
+	h "github.com/LerianStudio/midaz/v3/components/reporter/tests/utils"
+	chaosutil "github.com/LerianStudio/midaz/v3/components/reporter/tests/utils/chaos"
 
 	toxiproxy "github.com/Shopify/toxiproxy/v2/client"
 	"github.com/stretchr/testify/assert"

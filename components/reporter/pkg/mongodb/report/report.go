@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
 
 	"github.com/google/uuid"
 )

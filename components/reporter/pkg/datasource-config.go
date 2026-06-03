@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/mongodb"
-	pg "github.com/LerianStudio/reporter/pkg/postgres"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
+	pg "github.com/LerianStudio/midaz/v3/components/reporter/pkg/postgres"
 
 	libConstant "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	"github.com/LerianStudio/lib-observability/log"

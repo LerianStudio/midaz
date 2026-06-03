@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
 )
 
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.

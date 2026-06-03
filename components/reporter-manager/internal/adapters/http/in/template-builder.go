@@ -7,11 +7,11 @@ package in
 import (
 	"errors"
 
-	"github.com/LerianStudio/reporter/components/manager/internal/services"
-	"github.com/LerianStudio/reporter/pkg/ctxutil"
-	pkgHTTP "github.com/LerianStudio/reporter/pkg/net/http"
-	_ "github.com/LerianStudio/reporter/pkg/pongo"
-	"github.com/LerianStudio/reporter/pkg/template_builder"
+	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/services"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
+	pkgHTTP "github.com/LerianStudio/midaz/v3/components/reporter/pkg/net/http"
+	_ "github.com/LerianStudio/midaz/v3/components/reporter/pkg/pongo"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/template_builder"
 
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	"github.com/LerianStudio/lib-observability/log"

@@ -13,10 +13,11 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/LerianStudio/reporter/components/manager/api"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter-manager/api"
 )
 
 func TestWithSwaggerEnvConfig(t *testing.T) {

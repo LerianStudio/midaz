@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/model"
 	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
 )
 
 func isLikelyUUIDField(fieldName string) bool {

@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/reporter/pkg/readyz"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/readyz"
 
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/stretchr/testify/assert"

@@ -7,7 +7,7 @@ package services
 import (
 	"os"
 
-	"github.com/LerianStudio/reporter/tests/utils/containers"
+	"github.com/LerianStudio/midaz/v3/components/reporter/tests/utils/containers"
 )
 
 // ServiceConfig holds configuration derived from test infrastructure.

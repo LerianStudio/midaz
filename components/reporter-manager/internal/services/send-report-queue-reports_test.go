@@ -9,9 +9,10 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/reporter/pkg/model"
-	"github.com/LerianStudio/reporter/pkg/rabbitmq"
 	"go.opentelemetry.io/otel/trace/noop"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/rabbitmq"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

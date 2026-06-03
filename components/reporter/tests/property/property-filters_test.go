@@ -12,7 +12,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/LerianStudio/reporter/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
 )
 
 // Property 1: JSON round-trip preserves all string operator values.

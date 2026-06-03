@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LerianStudio/reporter/tests/utils/chaos"
+	"github.com/LerianStudio/midaz/v3/components/reporter/tests/utils/chaos"
 
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"

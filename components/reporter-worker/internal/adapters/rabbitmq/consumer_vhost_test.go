@@ -10,9 +10,10 @@ import (
 	"context"
 	"testing"
 
-	pkgRabbitmq "github.com/LerianStudio/reporter/pkg/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
+
+	pkgRabbitmq "github.com/LerianStudio/midaz/v3/components/reporter/pkg/rabbitmq"
 )
 
 // TestConsumerRoutes_TenantResolver verifies that the tenant resolver is correctly

@@ -11,11 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/model"
 	"github.com/google/uuid"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
 )
 
 // TestDLQMessage_MetadataStructure validates DLQ message schema

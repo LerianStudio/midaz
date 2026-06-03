@@ -14,7 +14,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/LerianStudio/reporter/pkg/readyz"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/readyz"
 
 	libRabbitMQ "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"

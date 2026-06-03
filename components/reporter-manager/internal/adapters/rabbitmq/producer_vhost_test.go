@@ -11,7 +11,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/reporter/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/google/uuid"

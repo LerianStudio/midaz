@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/reporter/pkg/postgres"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/postgres"
 )
 
 // SchemaResolver resolves database schema names for table references.

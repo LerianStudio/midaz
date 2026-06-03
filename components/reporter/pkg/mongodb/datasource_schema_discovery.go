@@ -8,10 +8,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
 )
 
 // discoverAllFieldsWithAggregation uses MongoDB aggregation with sampling for large collections.

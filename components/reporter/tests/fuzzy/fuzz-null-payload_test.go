@@ -10,7 +10,7 @@ import (
 	"context"
 	"testing"
 
-	h "github.com/LerianStudio/reporter/tests/utils"
+	h "github.com/LerianStudio/midaz/v3/components/reporter/tests/utils"
 )
 
 // TestPredefined_NullPayloadValidation tests that null payloads are properly rejected with 400.

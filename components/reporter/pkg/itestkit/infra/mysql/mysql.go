@@ -9,7 +9,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcmysql "github.com/testcontainers/testcontainers-go/modules/mysql"
 
-	"github.com/LerianStudio/reporter/pkg/itestkit"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/itestkit"
 )
 
 type MySQLConfig struct {

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	h "github.com/LerianStudio/reporter/tests/utils"
+	h "github.com/LerianStudio/midaz/v3/components/reporter/tests/utils"
 )
 
 // FuzzReport_Payload tests various malformed report creation payloads

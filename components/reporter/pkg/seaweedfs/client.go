@@ -11,7 +11,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
 )
 
 // SeaweedFSClient provides direct HTTP access to SeaweedFS

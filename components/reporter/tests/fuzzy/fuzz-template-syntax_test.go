@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	h "github.com/LerianStudio/reporter/tests/utils"
+	h "github.com/LerianStudio/midaz/v3/components/reporter/tests/utils"
 )
 
 // FuzzTemplate_SyntaxErrors tests various template syntax errors

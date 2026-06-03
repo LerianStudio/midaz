@@ -8,7 +8,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/reporter/pkg/template_builder"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/template_builder"
 
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/stretchr/testify/assert"

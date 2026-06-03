@@ -8,8 +8,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/reporter/pkg"
-	pg "github.com/LerianStudio/reporter/pkg/postgres"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	pg "github.com/LerianStudio/midaz/v3/components/reporter/pkg/postgres"
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 

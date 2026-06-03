@@ -10,15 +10,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/ctxutil"
-	"github.com/LerianStudio/reporter/pkg/datasource"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
 
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libMongo "github.com/LerianStudio/reporter/pkg/mongodb"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
+
+	libMongo "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
 )
 
 // Repository provides CRUD operations for ExtractionMapping documents in MongoDB.

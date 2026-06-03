@@ -9,8 +9,8 @@ import (
 	"errors"
 	"testing"
 
-	reportData "github.com/LerianStudio/reporter/pkg/mongodb/report"
-	"github.com/LerianStudio/reporter/pkg/seaweedfs/template"
+	reportData "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb/report"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/seaweedfs/template"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	"github.com/LerianStudio/lib-observability/log"

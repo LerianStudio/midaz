@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
 
 	"github.com/LerianStudio/lib-observability/log"
 	_ "github.com/jackc/pgx/v5/stdlib" // Registers the "pgx" driver with database/sql via init() – required for sql.Open("pgx", ...)

@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/reporter/tests/e2e/shared"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/tests/e2e/shared"
 )
 
 // ############################################################################

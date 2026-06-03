@@ -13,10 +13,11 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	"github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/reporter/pkg/constant"
 	"github.com/sony/gobreaker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
 )
 
 func TestCircuitBreakerManager_New(t *testing.T) {

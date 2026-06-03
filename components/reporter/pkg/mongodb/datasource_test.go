@@ -7,7 +7,7 @@ package mongodb
 import (
 	"testing"
 
-	"github.com/LerianStudio/reporter/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/model"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )

@@ -7,8 +7,8 @@ package services
 import (
 	"context"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/ctxutil"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
 
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/google/uuid"

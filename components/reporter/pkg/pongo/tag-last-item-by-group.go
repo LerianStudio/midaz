@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
 
 	"github.com/flosch/pongo2/v6"
 )

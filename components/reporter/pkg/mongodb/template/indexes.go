@@ -8,9 +8,9 @@ import (
 	"context"
 	"strings"
 
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/ctxutil"
-	libMongo "github.com/LerianStudio/reporter/pkg/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
+	libMongo "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"

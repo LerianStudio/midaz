@@ -11,7 +11,8 @@ import (
 	"strings"
 
 	clog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/reporter/pkg/readyz"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/readyz"
 )
 
 // Config holds the application's configurable parameters read from environment variables.

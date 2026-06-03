@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/reporter/tests/utils/containers"
-	"github.com/LerianStudio/reporter/tests/utils/services"
+	"github.com/LerianStudio/midaz/v3/components/reporter/tests/utils/containers"
+	"github.com/LerianStudio/midaz/v3/components/reporter/tests/utils/services"
 )
 
 var (

@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/mongodb"
-	pg "github.com/LerianStudio/reporter/pkg/postgres"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
+	pg "github.com/LerianStudio/midaz/v3/components/reporter/pkg/postgres"
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 

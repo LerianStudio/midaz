@@ -13,7 +13,7 @@ import (
 	"net/http"
 	neturl "net/url"
 
-	"github.com/LerianStudio/reporter/pkg/ctxutil"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"

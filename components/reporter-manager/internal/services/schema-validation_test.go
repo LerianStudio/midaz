@@ -10,8 +10,9 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/reporter/pkg/datasource"
 	"go.opentelemetry.io/otel/trace/noop"
+
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

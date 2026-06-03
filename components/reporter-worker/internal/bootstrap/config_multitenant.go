@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	pkgConstant "github.com/LerianStudio/reporter/pkg/constant"
-	libRedis "github.com/LerianStudio/reporter/pkg/redis"
+	pkgConstant "github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	libRedis "github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
 
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"

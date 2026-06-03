@@ -8,11 +8,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/datasource"
-	mongoDB "github.com/LerianStudio/reporter/pkg/mongodb"
-	"github.com/LerianStudio/reporter/pkg/redact"
-	libRedis "github.com/LerianStudio/reporter/pkg/redis"
-	"github.com/LerianStudio/reporter/pkg/storage"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
+	mongoDB "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/redact"
+	libRedis "github.com/LerianStudio/midaz/v3/components/reporter/pkg/redis"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/storage"
 
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 )

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/reporter/pkg/datasource"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/datasource"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

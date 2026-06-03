@@ -7,11 +7,11 @@ package services
 import (
 	"context"
 
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/constant"
-	"github.com/LerianStudio/reporter/pkg/ctxutil"
-	pkgHTTP "github.com/LerianStudio/reporter/pkg/net/http"
-	templateUtils "github.com/LerianStudio/reporter/pkg/templateutils"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/ctxutil"
+	pkgHTTP "github.com/LerianStudio/midaz/v3/components/reporter/pkg/net/http"
+	templateUtils "github.com/LerianStudio/midaz/v3/components/reporter/pkg/templateutils"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"

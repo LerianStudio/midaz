@@ -7,15 +7,16 @@ package bootstrap
 import (
 	"context"
 
-	"github.com/LerianStudio/reporter/pkg"
-	"github.com/LerianStudio/reporter/pkg/pdf"
-	"github.com/LerianStudio/reporter/pkg/readyz"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/pdf"
+	"github.com/LerianStudio/midaz/v3/components/reporter/pkg/readyz"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	libRabbitMQ "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	"github.com/LerianStudio/lib-observability/log"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
-	libMongo "github.com/LerianStudio/reporter/pkg/mongodb"
+
+	libMongo "github.com/LerianStudio/midaz/v3/components/reporter/pkg/mongodb"
 )
 
 // Service is the application glue where we put all top level components to be used.

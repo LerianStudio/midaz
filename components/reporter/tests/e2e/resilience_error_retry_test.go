@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	shared "github.com/LerianStudio/reporter/tests/e2e/shared"
+	shared "github.com/LerianStudio/midaz/v3/components/reporter/tests/e2e/shared"
 )
 
 // ############################################################################
