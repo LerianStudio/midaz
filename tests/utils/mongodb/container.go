@@ -97,7 +97,7 @@ func SetupContainerWithConfig(tb testing.TB, cfg ContainerConfig) *ContainerResu
 	client, err := mongo.Connect(clientOpts)
 	require.NoError(tb, err, "failed to connect to MongoDB container")
 
-	// Verify connection (v2 Connect is lazy; Ping forces the round-trip).
+	// Connect is lazy; Ping forces the connection round-trip to verify reachability.
 	err = client.Ping(ctx, nil)
 	require.NoError(tb, err, "failed to ping MongoDB container")
 

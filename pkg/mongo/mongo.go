@@ -48,10 +48,9 @@ func BuildDocumentToPatch(updateDocument bson.M, fieldsToRemove []string) bson.M
 }
 
 // flattenBSONM recursively flattens a nested BSON document into dotted-path keys.
-// Nested sub-documents are recursed regardless of whether the driver decoded them
-// as bson.M (unordered map) or bson.D (ordered slice). The mongo-driver v2 default
-// decoder yields bson.D for nested documents, so handling both keeps flattening
-// independent of the decode representation.
+// A nested sub-document may be represented as either bson.M (unordered map) or
+// bson.D (ordered slice) depending on how it was decoded; both are recursed so
+// flattening is independent of the decode representation.
 func flattenBSONM(m bson.M, prefix string, flat bson.M) {
 	for k, v := range m {
 		flattenValue(joinKey(prefix, k), v, flat)

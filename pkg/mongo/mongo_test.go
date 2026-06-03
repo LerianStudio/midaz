@@ -122,10 +122,9 @@ func TestBuildDocumentToPatch(t *testing.T) {
 			wantUnset:      bson.M{"addresses.primary": "addresses.primary"},
 		},
 		{
-			// The mongo-driver v2 default decoder yields bson.D for nested documents.
-			// Flattening must produce identical dotted paths whether nested docs are
-			// bson.D or bson.M (this is the exact shape produced by bson.Unmarshal in
-			// the CRM update path post-migration).
+			// A nested document represented as bson.D must flatten to the same dotted
+			// paths as the equivalent bson.M, so flattening does not depend on which
+			// representation the decoder produced.
 			name: "nested bson.D flattens to dot notation",
 			updateDocument: bson.M{
 				"metadata": bson.D{
