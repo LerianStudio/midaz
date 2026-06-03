@@ -16,7 +16,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 
-	"tracer/internal/observability"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/observability"
 )
 
 // pgKVRedactKeys lists the libpq keyword/value keys whose values must be

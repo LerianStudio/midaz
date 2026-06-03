@@ -11,8 +11,8 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 
-	"tracer/pkg/clock"
-	"tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
 )
 
 // WarmUp loads all active rules from the database, compiles their CEL expressions,

@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"tracer/pkg/contextutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/contextutil"
 )
 
 func TestClientIPMiddleware_ExtractFromXForwardedFor(t *testing.T) {

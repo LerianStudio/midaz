@@ -13,8 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 	time "time"
-	db "tracer/internal/adapters/postgres/db"
-	model "tracer/pkg/model"
+
+	db "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
+	model "github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"

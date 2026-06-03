@@ -13,9 +13,9 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
 
-	"tracer/pkg/constant"
-	"tracer/pkg/logging"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // GetLimitQuery handles retrieving a single limit.

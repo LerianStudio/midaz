@@ -15,11 +15,11 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 
-	pgdb "tracer/internal/adapters/postgres/db"
-	"tracer/pkg/clock"
-	"tracer/pkg/constant"
-	"tracer/pkg/logging"
-	"tracer/pkg/model"
+	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // Sentinel errors for nil dependencies passed to NewUpdateRuleCommand.

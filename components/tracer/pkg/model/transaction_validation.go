@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
 )
 
 // TransactionValidation is the immutable audit record for compliance (SOX/GLBA).

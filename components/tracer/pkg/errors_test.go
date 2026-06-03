@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
 )
 
 func TestEntityNotFoundError_Error(t *testing.T) {

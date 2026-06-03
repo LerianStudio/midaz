@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
 )
 
 // DefaultTestTime is the standard test time, stable within a single test run.

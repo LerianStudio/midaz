@@ -13,8 +13,8 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/google/uuid"
 
-	"tracer/pkg/clock"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // RuleCache provides thread-safe in-memory storage for compiled rules.

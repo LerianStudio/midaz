@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
 )
 
 func TestAuditEventFilters_Validate(t *testing.T) {

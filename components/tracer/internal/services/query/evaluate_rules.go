@@ -15,8 +15,8 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 
-	"tracer/pkg/logging"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // Sentinel errors for EvaluateRulesQuery.

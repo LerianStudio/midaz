@@ -15,7 +15,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
 )
 
 // ScenarioContext holds shared state between step definitions within a single scenario.

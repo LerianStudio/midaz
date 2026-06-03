@@ -5,8 +5,8 @@
 package bootstrap
 
 import (
-	"tracer/internal/services"
-	"tracer/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/command"
 )
 
 // Compile-time interface conformance checks. If RecordAuditEventCommand's

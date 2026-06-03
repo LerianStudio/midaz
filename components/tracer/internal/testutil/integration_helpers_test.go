@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
 )
 
 // TestGetBaseURL covers the resolution order of the integration-test base URL:

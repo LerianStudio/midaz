@@ -23,12 +23,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"tracer/internal/adapters/http/in/mocks"
-	"tracer/internal/services"
-	"tracer/internal/testutil"
-	"tracer/pkg/clock"
-	"tracer/pkg/constant"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/http/in/mocks"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 func TestValidationHandler_Validate(t *testing.T) {

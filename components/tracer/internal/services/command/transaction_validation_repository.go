@@ -10,8 +10,8 @@ import (
 	"context"
 	"errors"
 
-	pgdb "tracer/internal/adapters/postgres/db"
-	"tracer/pkg/model"
+	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // ErrDuplicateValidation is returned when a transaction validation record with the same

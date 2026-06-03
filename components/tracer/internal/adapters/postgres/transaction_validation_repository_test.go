@@ -24,13 +24,13 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	pgdb "tracer/internal/adapters/postgres/db"
-	"tracer/internal/adapters/postgres/db/mocks"
-	"tracer/internal/services/command"
-	"tracer/internal/testutil"
-	"tracer/pkg/constant"
-	"tracer/pkg/model"
-	pkgHTTP "tracer/pkg/net/http"
+	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db/mocks"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	pkgHTTP "github.com/LerianStudio/midaz/v3/components/tracer/pkg/net/http"
 )
 
 // setupTransactionValidationRepositoryMockDB creates a gomock controller, mock DBConnection, and sqlmock for testing.

@@ -10,7 +10,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/gofiber/fiber/v2"
 
-	"tracer/api"
+	"github.com/LerianStudio/midaz/v3/components/tracer/api"
 )
 
 // WithSwaggerEnvConfig sets the Swagger configuration for the API documentation from environment variables if they are set.

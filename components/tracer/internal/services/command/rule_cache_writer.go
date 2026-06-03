@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // RuleCacheWriter is implemented by components that can directly update the

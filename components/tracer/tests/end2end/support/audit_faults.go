@@ -17,7 +17,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
 )
 
 // =============================================================================

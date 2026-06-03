@@ -7,7 +7,7 @@ package model
 import (
 	"testing"
 
-	"tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

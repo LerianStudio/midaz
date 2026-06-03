@@ -12,8 +12,8 @@ import (
 	"math"
 	"strings"
 
-	"tracer/pkg/constant"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 
 	"github.com/google/cel-go/cel"
 	"github.com/shopspring/decimal"

@@ -10,7 +10,7 @@ import (
 	"os"
 	"testing"
 
-	"tracer/internal/testutil_dbsuite"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil_dbsuite"
 )
 
 // TestMain sets up the integration test environment using testcontainers.

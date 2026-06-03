@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	"tracer/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/http/in"
 )
 
 // postgresSelfProbe satisfies SelfProbeChecker for the PostgreSQL dep at

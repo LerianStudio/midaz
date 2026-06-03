@@ -16,8 +16,8 @@ import (
 	tmredis "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/redis"
 	libLog "github.com/LerianStudio/lib-observability/log"
 
-	"tracer/internal/adapters/cel"
-	"tracer/internal/services/workers"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/cel"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/workers"
 )
 
 // multiTenantComponents bundles every object that the bootstrap builds for

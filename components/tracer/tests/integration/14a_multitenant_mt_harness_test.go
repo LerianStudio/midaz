@@ -50,8 +50,8 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/require"
 
-	"tracer/internal/testutil"
-	testutil_integration "tracer/internal/testutil_integration"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	testutil_integration "github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil_integration"
 )
 
 // mtHarness bundles the fake infrastructure a multi-tenant test needs. All

@@ -23,11 +23,11 @@ import (
 	"github.com/sony/gobreaker"
 	"go.opentelemetry.io/otel/trace"
 
-	"tracer/internal/services/cache"
-	"tracer/pkg/clock"
-	"tracer/pkg/logging"
-	"tracer/pkg/model"
-	"tracer/pkg/resilience"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/cache"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/resilience"
 )
 
 // RuleSyncWorker periodically polls the database for rule changes

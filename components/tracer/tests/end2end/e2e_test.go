@@ -12,8 +12,8 @@ import (
 
 	"github.com/cucumber/godog"
 
-	"tracer/tests/end2end/steps"
-	"tracer/tests/end2end/support"
+	"github.com/LerianStudio/midaz/v3/components/tracer/tests/end2end/steps"
+	"github.com/LerianStudio/midaz/v3/components/tracer/tests/end2end/support"
 )
 
 func TestFeatures(t *testing.T) {

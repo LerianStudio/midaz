@@ -10,7 +10,7 @@ import (
 	"context"
 	"time"
 
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // RuleSyncRepository provides the delta query needed by the sync worker.

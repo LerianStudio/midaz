@@ -8,7 +8,7 @@ import (
 	"context"
 	"errors"
 
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // ListAuditEventsQuery handles listing audit events with filters.

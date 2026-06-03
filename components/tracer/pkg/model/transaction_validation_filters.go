@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
 )
 
 // validTransactionValidationSortFields defines the whitelist of allowed sort columns for transaction validation queries.

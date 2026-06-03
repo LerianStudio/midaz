@@ -11,7 +11,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"tracer/pkg/contextutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/contextutil"
 )
 
 // ClientIPMiddleware extracts the client's IP address and injects it into the request context.

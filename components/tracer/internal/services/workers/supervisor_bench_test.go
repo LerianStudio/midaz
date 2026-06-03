@@ -14,11 +14,11 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/mock/gomock"
 
-	"tracer/internal/services/cache"
-	"tracer/internal/services/workers/mocks"
-	"tracer/internal/testutil"
-	"tracer/pkg/clock"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/cache"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/workers/mocks"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // newBenchSupervisor builds a WorkerSupervisor with the minimum wiring needed

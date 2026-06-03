@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	pgdbMocks "tracer/internal/adapters/postgres/db/mocks"
-	"tracer/internal/testutil"
-	"tracer/pkg/constant"
-	"tracer/pkg/model"
+	pgdbMocks "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db/mocks"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 func TestNewActivateLimitCommand_NilRepository(t *testing.T) {

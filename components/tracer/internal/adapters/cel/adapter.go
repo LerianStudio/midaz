@@ -18,9 +18,9 @@ import (
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker"
 
-	"tracer/pkg/constant"
-	"tracer/pkg/logging"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // missingKeyErrPrefix is the prefix cel-go uses when a map key lookup misses.

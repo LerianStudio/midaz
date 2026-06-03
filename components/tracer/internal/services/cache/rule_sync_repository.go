@@ -10,7 +10,7 @@ import (
 	"context"
 	"time"
 
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // RuleSyncRepository provides database queries for the cache sync system.

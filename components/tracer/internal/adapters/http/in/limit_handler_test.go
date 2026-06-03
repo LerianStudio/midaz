@@ -23,9 +23,9 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"tracer/internal/testutil"
-	"tracer/pkg/constant"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 func TestLimitHandler_CreateLimit(t *testing.T) {

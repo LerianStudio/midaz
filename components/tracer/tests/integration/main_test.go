@@ -10,7 +10,7 @@ import (
 	"os"
 	"testing"
 
-	testutil_integration "tracer/internal/testutil_integration"
+	testutil_integration "github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil_integration"
 )
 
 // TestMain sets up the integration test environment using testcontainers.

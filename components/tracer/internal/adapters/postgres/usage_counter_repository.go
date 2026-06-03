@@ -19,10 +19,10 @@ import (
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
-	pgdb "tracer/internal/adapters/postgres/db"
-	"tracer/pkg/constant"
-	"tracer/pkg/logging"
-	"tracer/pkg/model"
+	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // DefaultDeleteBatchSize is the number of rows to delete per iteration when cleaning up expired counters.

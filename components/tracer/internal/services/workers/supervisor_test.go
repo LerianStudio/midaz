@@ -17,12 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"tracer/internal/services/cache"
-	"tracer/internal/services/workers/mocks"
-	"tracer/internal/testutil"
-	"tracer/pkg/clock"
-	"tracer/pkg/constant"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/cache"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/workers/mocks"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // fakeTenantLister is a test double for the subset of tmclient.Client used by

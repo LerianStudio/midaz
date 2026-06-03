@@ -7,8 +7,8 @@ package cache
 import (
 	"context"
 
-	"tracer/pkg/constant"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // CacheAdapter wraps RuleCache to satisfy query.ActiveRulesRepository.

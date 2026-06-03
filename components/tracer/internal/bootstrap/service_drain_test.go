@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"tracer/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/http/in"
 )
 
 // newDrainTestService builds a Service wired with a healthChecker so the

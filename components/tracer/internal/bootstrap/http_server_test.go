@@ -13,7 +13,7 @@ import (
 
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 
-	"tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
 )
 
 func TestHTTPServer_ServerAddress(t *testing.T) {

@@ -17,11 +17,11 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libRuntime "github.com/LerianStudio/lib-observability/runtime"
 
-	"tracer/internal/services/cache"
-	"tracer/internal/services/metrics"
-	"tracer/pkg/clock"
-	"tracer/pkg/constant"
-	"tracer/pkg/resilience"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/cache"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/metrics"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/resilience"
 )
 
 // defaultMaxTenantWorkers mirrors the MULTI_TENANT_MAX_TENANT_POOLS default.

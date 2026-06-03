@@ -11,8 +11,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"tracer/internal/bootstrap"
-	"tracer/pkg"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/bootstrap"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg"
 
 	// automaxprocs side-effects GOMAXPROCS to honour Linux cgroup CPU quotas.
 	// Without this, on cgroup-restricted hosts (Kubernetes, Docker with

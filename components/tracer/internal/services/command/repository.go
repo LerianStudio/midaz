@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
-	pgdb "tracer/internal/adapters/postgres/db"
-	"tracer/pkg/model"
+	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // RuleRepository defines the interface for rule persistence.

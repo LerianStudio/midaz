@@ -22,8 +22,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
-	"tracer/pkg"
-	cn "tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg"
+	cn "github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
 )
 
 var UUIDPathParameters = []string{

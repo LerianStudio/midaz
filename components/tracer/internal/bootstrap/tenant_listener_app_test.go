@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
 )
 
 // TestTenantListenerApp_ShutdownIsConcurrentSafe verifies H2: calling

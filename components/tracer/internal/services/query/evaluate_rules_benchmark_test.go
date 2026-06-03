@@ -14,8 +14,8 @@ import (
 	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
 
-	"tracer/internal/testutil"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // benchSink prevents compiler from optimizing away benchmark results.

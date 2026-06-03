@@ -21,8 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"tracer/internal/testutil"
-	testutil_integration "tracer/internal/testutil_integration"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	testutil_integration "github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil_integration"
 )
 
 // =============================================================================

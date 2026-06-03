@@ -15,9 +15,9 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 
-	"tracer/internal/adapters/cel"
-	"tracer/pkg/logging"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/cel"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // ErrNilExpressionEvaluator is returned when NewRuleEvaluator is called with a nil ExpressionEvaluator.

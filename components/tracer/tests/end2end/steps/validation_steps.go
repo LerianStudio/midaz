@@ -14,8 +14,8 @@ import (
 	"github.com/cucumber/godog"
 	"github.com/shopspring/decimal"
 
-	"tracer/internal/testutil"
-	"tracer/tests/end2end/support"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/tests/end2end/support"
 )
 
 func registerValidationSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) {

@@ -4,7 +4,7 @@
 
 package cache
 
-import "tracer/pkg/model"
+import "github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 
 // CachedRule holds a domain Rule and its compiled CEL program.
 // Program is typed as `any` to avoid cross-package type coupling with

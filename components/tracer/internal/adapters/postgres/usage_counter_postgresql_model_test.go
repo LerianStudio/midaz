@@ -12,8 +12,8 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"tracer/internal/testutil"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 func TestUsageCounterPostgreSQLModel_FromEntity_NilEntity(t *testing.T) {

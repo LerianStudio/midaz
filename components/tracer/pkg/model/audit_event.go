@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
 )
 
 // ActorType represents the type of actor that performed an action.

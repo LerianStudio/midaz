@@ -4,7 +4,7 @@
 
 package command
 
-import "tracer/pkg/model"
+import "github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 
 // RuleToMap converts a Rule to a map for audit context.
 // Creates an immutable snapshot by copying slices and dereferencing pointers.

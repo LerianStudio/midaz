@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"tracer/pkg/constant"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // VerifyAuditEventQuery handles hash chain verification.

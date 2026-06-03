@@ -16,11 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"tracer/internal/services/query"
-	queryMocks "tracer/internal/services/query/mocks"
-	"tracer/internal/testutil"
-	"tracer/pkg/constant"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/query"
+	queryMocks "github.com/LerianStudio/midaz/v3/components/tracer/internal/services/query/mocks"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 func TestNewTransactionValidationService(t *testing.T) {

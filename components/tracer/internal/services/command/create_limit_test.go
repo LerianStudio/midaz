@@ -16,12 +16,12 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	pgdb "tracer/internal/adapters/postgres/db"
-	pgdbMocks "tracer/internal/adapters/postgres/db/mocks"
-	"tracer/internal/testhelper"
-	"tracer/internal/testutil"
-	"tracer/pkg/constant"
-	"tracer/pkg/model"
+	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
+	pgdbMocks "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db/mocks"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testhelper"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 func TestNewCreateLimitCommand(t *testing.T) {

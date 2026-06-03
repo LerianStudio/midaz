@@ -8,10 +8,10 @@ import (
 	"context"
 	"testing"
 
-	"tracer/internal/services/cache"
-	"tracer/internal/testutil"
-	"tracer/pkg/clock"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/cache"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // benchResult prevents compiler from optimizing away GetActiveRules calls.

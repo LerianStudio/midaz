@@ -14,8 +14,8 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"tracer/internal/testutil"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // TestTransactionValidationPostgreSQLModel_ToEntity tests the conversion from database model to domain entity.

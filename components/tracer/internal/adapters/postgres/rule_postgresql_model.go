@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // RulePostgreSQLModel is the database representation of a Rule entity.

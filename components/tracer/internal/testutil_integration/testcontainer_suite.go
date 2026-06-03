@@ -20,9 +20,9 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"tracer/internal/bootstrap"
-	"tracer/internal/testutil"
-	"tracer/pkg"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/bootstrap"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg"
 )
 
 // envVarNames lists environment variables set by the test suite.

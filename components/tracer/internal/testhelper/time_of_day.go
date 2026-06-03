@@ -7,7 +7,7 @@ package testhelper
 import (
 	"fmt"
 
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // MustNewTimeOfDay creates a model.TimeOfDay from a string or panics.

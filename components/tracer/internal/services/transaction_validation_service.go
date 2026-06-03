@@ -14,10 +14,10 @@ import (
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
 
-	"tracer/internal/services/query"
-	"tracer/pkg/constant"
-	"tracer/pkg/logging"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // Sentinel errors for TransactionValidationService.

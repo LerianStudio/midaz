@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"tracer/internal/adapters/http/in"
-	"tracer/internal/bootstrap"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/bootstrap"
 )
 
 // TestHealth_ReturnsServiceUnavailable_BeforeSelfProbe verifies the K8s

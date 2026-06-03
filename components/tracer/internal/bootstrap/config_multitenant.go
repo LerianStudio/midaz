@@ -12,7 +12,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 
-	"tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
 )
 
 // Multi-tenant canonical defaults.

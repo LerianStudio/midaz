@@ -11,8 +11,8 @@ import (
 
 	"github.com/google/uuid"
 
-	pgdb "tracer/internal/adapters/postgres/db"
-	"tracer/pkg/model"
+	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // AuditWriter defines the interface for recording audit events.

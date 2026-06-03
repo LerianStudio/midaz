@@ -927,8 +927,8 @@ import (
     "github.com/google/uuid"
 
     // Internal packages
-    "tracer/internal/services"
-    "tracer/pkg/model"
+    "github.com/LerianStudio/midaz/v3/components/tracer/internal/services"
+    "github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 ```
 
@@ -2365,7 +2365,7 @@ func UUIDPtr(u uuid.UUID) *uuid.UUID {
 Usage in tests:
 
 ```go
-import "tracer/internal/testutil"
+import "github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
 
 // In test:
 {AccountID: testutil.UUIDPtr(uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"))}

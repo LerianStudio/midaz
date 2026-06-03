@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"tracer/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/http/in"
 )
 
 // TestPostgresSelfProbe_NilHealthChecker tolerates a nil checker without

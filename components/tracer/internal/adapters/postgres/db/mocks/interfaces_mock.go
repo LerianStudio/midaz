@@ -13,7 +13,8 @@ import (
 	context "context"
 	sql "database/sql"
 	reflect "reflect"
-	db "tracer/internal/adapters/postgres/db"
+
+	db "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
 
 	gomock "go.uber.org/mock/gomock"
 )

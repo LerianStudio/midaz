@@ -12,7 +12,8 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
-	model "tracer/pkg/model"
+
+	model "github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"

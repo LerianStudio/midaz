@@ -14,8 +14,8 @@ import (
 
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 
-	"tracer/internal/observability"
-	"tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/observability"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
 )
 
 // Sentinel errors for health check failures.

@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"tracer/internal/testutil"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"

@@ -21,11 +21,11 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	pgdb "tracer/internal/adapters/postgres/db"
-	"tracer/internal/adapters/postgres/db/mocks"
-	"tracer/internal/testutil"
-	"tracer/pkg/constant"
-	"tracer/pkg/model"
+	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db/mocks"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // setupUsageCounterRepositoryMockDB creates a gomock controller, mock DBConnection, and sqlmock for testing.

@@ -20,12 +20,12 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"tracer/internal/adapters/postgres"
-	"tracer/internal/services/cache"
-	"tracer/internal/services/workers"
-	"tracer/internal/testutil"
-	"tracer/pkg/clock"
-	"tracer/pkg/resilience"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/cache"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/workers"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/resilience"
 )
 
 // testIntegrationSetup holds shared state for integration tests.

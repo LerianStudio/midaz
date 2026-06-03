@@ -12,8 +12,9 @@ package query
 import (
 	context "context"
 	reflect "reflect"
-	cel "tracer/internal/adapters/cel"
-	model "tracer/pkg/model"
+
+	cel "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/cel"
+	model "github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 
 	gomock "go.uber.org/mock/gomock"
 )

@@ -16,7 +16,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/trace"
 
-	"tracer/api"
+	"github.com/LerianStudio/midaz/v3/components/tracer/api"
 )
 
 // emitReadyzMetrics records the per-dep duration histogram + status counter

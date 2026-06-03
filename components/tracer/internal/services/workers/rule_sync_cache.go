@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"tracer/internal/services/cache"
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/cache"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // RuleSyncCache defines the cache operations needed by the sync worker.

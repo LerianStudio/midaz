@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
 
-	pgdb "tracer/internal/adapters/postgres/db"
-	pgdbMocks "tracer/internal/adapters/postgres/db/mocks"
-	"tracer/pkg/model"
+	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
+	pgdbMocks "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db/mocks"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // expectRuleUpdateTxSuccess wires the full BeginTx → UpdateWithTx →

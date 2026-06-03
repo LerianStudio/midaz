@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // GetAuditEventQuery handles retrieving a single audit event.

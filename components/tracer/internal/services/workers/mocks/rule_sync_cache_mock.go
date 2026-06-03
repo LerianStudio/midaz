@@ -13,8 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 	time "time"
-	cache "tracer/internal/services/cache"
-	model "tracer/pkg/model"
+
+	cache "github.com/LerianStudio/midaz/v3/components/tracer/internal/services/cache"
+	model "github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"

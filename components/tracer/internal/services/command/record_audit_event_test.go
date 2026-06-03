@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	pgdbMocks "tracer/internal/adapters/postgres/db/mocks"
-	commandMocks "tracer/internal/services/command/mocks"
-	"tracer/internal/testutil"
-	"tracer/pkg/contextutil"
-	"tracer/pkg/model"
+	pgdbMocks "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db/mocks"
+	commandMocks "github.com/LerianStudio/midaz/v3/components/tracer/internal/services/command/mocks"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/contextutil"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
 // ============================================================================
