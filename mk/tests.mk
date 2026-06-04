@@ -228,11 +228,11 @@ test-integration:
 	@set -e; export ALLOW_INSECURE_TLS=true; mkdir -p $(TEST_REPORTS_DIR); \
 	if [ -n "$(PKG)" ]; then \
 	  echo "Using specified package: $(PKG)"; \
-	  pkgs=$$(go list $(PKG) 2>/dev/null | tr '\n' ' '); \
+	  pkgs=$$(go list -tags=integration $(PKG) 2>/dev/null | tr '\n' ' '); \
 	else \
-	  echo "Finding packages with *_integration_test.go files..."; \
-	  dirs=$$(find ./components ./pkg ./tests -name '*_integration_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
-	  pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
+	  echo "Finding packages with //go:build integration files..."; \
+	  dirs=$$(grep -rl '^//go:build integration' --include='*_test.go' ./components ./pkg ./tests 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
+	  pkgs=$$(if [ -n "$$dirs" ]; then go list -tags=integration $$dirs 2>/dev/null | tr '\n' ' '; fi); \
 	fi; \
 	if [ -z "$$pkgs" ]; then \
 	  echo "No integration test packages found"; \
@@ -381,11 +381,11 @@ coverage-integration:
 	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
 	if [ -n "$(PKG)" ]; then \
 	  echo "Using specified package: $(PKG)"; \
-	  pkgs=$$(go list $(PKG) 2>/dev/null | tr '\n' ' '); \
+	  pkgs=$$(go list -tags=integration $(PKG) 2>/dev/null | tr '\n' ' '); \
 	else \
-	  echo "Finding packages with *_integration_test.go files..."; \
-	  dirs=$$(find ./components ./pkg ./tests -name '*_integration_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
-	  pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
+	  echo "Finding packages with //go:build integration files..."; \
+	  dirs=$$(grep -rl '^//go:build integration' --include='*_test.go' ./components ./pkg ./tests 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
+	  pkgs=$$(if [ -n "$$dirs" ]; then go list -tags=integration $$dirs 2>/dev/null | tr '\n' ' '; fi); \
 	fi; \
 	if [ -z "$$pkgs" ]; then \
 	  echo "No integration test packages found"; \

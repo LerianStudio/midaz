@@ -205,13 +205,13 @@ func StartRabbitMQ() error {
 	return RabbitContainer.Start(context.Background())
 }
 
-// uploadTestTemplates uploads templates from tests/chaos/templates directory.
+// uploadTestTemplates uploads templates from tests/reporter/chaos/templates directory.
 func uploadTestTemplates(ctx context.Context, managerURL string) error {
 	cli := h.NewHTTPClient(managerURL, 30*time.Second)
 	headers := h.AuthHeaders()
 
 	// Find template files
-	templatesDir := filepath.Join(findTestRoot(), "tests", "chaos", "templates")
+	templatesDir := filepath.Join(findTestRoot(), "tests", "reporter", "chaos", "templates")
 	templateFiles, err := filepath.Glob(filepath.Join(templatesDir, "*.tpl"))
 	if err != nil {
 		return err
