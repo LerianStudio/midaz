@@ -39,29 +39,56 @@ func (k BalanceCompositeKey) String() string {
 }
 
 // BalanceCompositeKeyFromRedisKey extracts a composite key from a Redis balance key.
-// Redis key format: "balance:{transactions}:orgID:ledgerID:alias#partitionKey"
-// Note: alias may contain colons (e.g., "test:account:100"), so we join parts[4:] before splitting by #
+//
+// Base key format: "balance:{transactions}:orgID:ledgerID:alias#partitionKey".
+// The key may carry a leading namespace prefix (e.g. "tenant:{tenantID}:") so parsing is
+// position-independent: orgID and ledgerID are the first two colon-separated 36-character
+// UUID segments, and everything after the ledgerID segment is "alias#partitionKey".
+// The alias itself may contain colons (e.g. "test:account:100").
+//
+// Returns an error if two UUID segments cannot be found.
 func BalanceCompositeKeyFromRedisKey(redisKey string) (BalanceCompositeKey, error) {
-	// Expected format: balance:{transactions}:orgID:ledgerID:alias#key
-	// Note: alias may contain colons, so we need at least 5 parts but may have more
 	parts := strings.Split(redisKey, ":")
-	if len(parts) < 5 {
-		return BalanceCompositeKey{}, fmt.Errorf("invalid redis key format: expected at least 5 parts, got %d", len(parts))
+
+	// Locate the first two parseable 36-char UUID segments: orgID then ledgerID.
+	// This is robust to any leading prefix (e.g. the tenant namespace) the key may carry.
+	var (
+		orgID       uuid.UUID
+		ledgerID    uuid.UUID
+		haveOrg     bool
+		ledgerIndex = -1
+	)
+
+	for i, seg := range parts {
+		if len(seg) != 36 {
+			continue
+		}
+
+		u, err := uuid.Parse(seg)
+		if err != nil {
+			continue
+		}
+
+		if !haveOrg {
+			orgID = u
+			haveOrg = true
+
+			continue
+		}
+
+		ledgerID = u
+		ledgerIndex = i
+
+		break
 	}
 
-	// Parts: [balance, {transactions}, orgID, ledgerID, alias...#key]
-	orgID, err := uuid.Parse(parts[2])
-	if err != nil {
-		return BalanceCompositeKey{}, fmt.Errorf("invalid organization ID in redis key %q: %w", redisKey, err)
+	if !haveOrg || ledgerIndex == -1 {
+		return BalanceCompositeKey{}, fmt.Errorf("invalid redis key format: missing two UUIDs (orgID, ledgerID): %q", redisKey)
 	}
 
-	ledgerID, err := uuid.Parse(parts[3])
-	if err != nil {
-		return BalanceCompositeKey{}, fmt.Errorf("invalid ledger ID in redis key %q: %w", redisKey, err)
-	}
-
-	// Join all parts from index 4 onwards to handle aliases with colons (e.g., "test:account:100#other")
-	aliasAndKey := strings.Join(parts[4:], ":")
+	// Everything after the ledgerID segment is "alias#key" (alias may contain colons,
+	// e.g. "test:account:100#other"), so rejoin the remaining segments with ":".
+	aliasAndKey := strings.Join(parts[ledgerIndex+1:], ":")
 	aliasParts := strings.Split(aliasAndKey, "#")
 
 	alias := aliasParts[0]
