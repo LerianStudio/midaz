@@ -18,7 +18,7 @@ Validate system resilience and recovery under infrastructure failures.
 
 ## Running
 ```bash
-ORG_ID=your-org-id make test-chaos
+ORG_ID=your-org-id go test -tags chaos ./tests/reporter/chaos/...
 ```
 
 ## Test Categories

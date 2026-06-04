@@ -1,4 +1,4 @@
-# Project Rules - Tracer MVP v1.2 (Last Updated: April 2026)
+# Project Rules - Tracer v1.2 (Last Updated: June 2026)
 
 This document defines the architecture patterns, code conventions, testing requirements, and DevOps standards for the Tracer transaction validation service.
 
@@ -55,7 +55,7 @@ This project follows Hexagonal Architecture (Ports & Adapters) principles with C
 
 **Design Principles:**
 - **Single Responsibility:** Each bounded context owns its data and operations
-- **Single-Tenant MVP:** One client per instance; simplified authentication
+- **Multi-Tenant Optional:** Single-tenant by default; multi-tenant wiring gated by `MULTI_TENANT_ENABLED` (default false)
 - **Fail-Open with Alerting:** System defaults to ALLOW under failure conditions
 - **Payload-Complete Pattern:** All context required for validation included in request
 - **Performance by Design:** Sub-100ms latency is architectural constraint
@@ -703,9 +703,9 @@ func (l *Limit) Validate() error {
 
 ## Code Conventions
 
-### Go Version and Modern Syntax (Go 1.25+)
+### Go Version and Modern Syntax (Go 1.26+)
 
-This project requires Go 1.25 or later. Use modern Go syntax:
+Tracer is a co-located deploy unit in the `midaz` monorepo and builds against the single root `go.mod` (module `github.com/LerianStudio/midaz/v3`, `go 1.26.3`, toolchain `go1.26.4`) — there is no component-local `go.mod`. This project requires Go 1.26 or later. Use modern Go syntax:
 
 #### Use `any` Instead of `interface{}`
 
@@ -921,9 +921,9 @@ import (
     "database/sql"
 
     // External dependencies
-    libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-    libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-    libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+    libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+    libLog "github.com/LerianStudio/lib-observability/log"
+    libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
     "github.com/google/uuid"
 
     // Internal packages
@@ -1319,7 +1319,7 @@ libHTTP.WithError(c, err)
 
 ```go
 import (
-    libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+    libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
     "github.com/gofiber/fiber/v2"
 )
 
@@ -1433,7 +1433,7 @@ GET /v1/rules?limit=10&cursor=eyJpZCI6InJ1bGUtMTIzIiwicG9pbnRzTmV4dCI6dHJ1ZX0=
 
 ### OpenTelemetry Integration
 
-This project uses OpenTelemetry via `lib-commons` for distributed tracing.
+This project uses OpenTelemetry via `lib-observability` for distributed tracing.
 
 ### Required Tracing Pattern
 
@@ -1561,16 +1561,17 @@ return libHTTP.WithError(c, constant.ErrInvalidInput)
 
 ## Authentication
 
-### Single-Tenant MVP Architecture
+### Authentication Architecture
 
-Tracer MVP uses single-tenant deployment with API Key authentication only.
+Tracer authenticates via lib-auth v2: API Key plus the Access Manager plugin. Multi-tenant deployment is supported and gated by `MULTI_TENANT_ENABLED` (default false).
 
 | Aspect | Value |
 |--------|-------|
-| **Mechanism** | API Key (header) |
+| **Mechanism** | API Key (header) + Access Manager plugin (lib-auth v2) |
 | **Header** | `X-API-Key` |
-| **Validation** | Environment variable comparison |
-| **Multi-tenant** | Phase 2 (not MVP) |
+| **API Key validation** | Constant-time comparison against the configured `API_KEY` |
+| **Plugin auth** | `PLUGIN_AUTH_ENABLED` / `PLUGIN_AUTH_ADDRESS` |
+| **Multi-tenant** | Optional, gated by `MULTI_TENANT_ENABLED` (default false) |
 
 ### Authentication Flow
 
@@ -1578,7 +1579,7 @@ Tracer MVP uses single-tenant deployment with API Key authentication only.
 import (
     "crypto/subtle"
     
-    libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+    libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
     "github.com/gofiber/fiber/v2"
 )
 
@@ -1602,7 +1603,7 @@ func AuthMiddleware(apiKey string) fiber.Handler {
 - All endpoints require authentication (except `/health`, `/readyz`, `/metrics`, `/version`, `/swagger/*`)
 - `/metrics` is unauthenticated by design (Prometheus scrape) and MUST be network-restricted via Kubernetes Service `ClusterIP`, NetworkPolicy, or equivalent firewall — never expose via public ingress.
 - API Key configured via `API_KEY` environment variable
-- No JWT/JWK validation in MVP (simplification)
+- Access Manager plugin auth is available via `PLUGIN_AUTH_ENABLED` / `PLUGIN_AUTH_ADDRESS` (lib-auth v2)
 - Log all authentication failures for auditing
 
 ---
@@ -2862,14 +2863,14 @@ Example:
 
 ### Database Migrations
 
-Migrations are stored in `migrations/` directory as a single numbered sequence (currently 000001 through 000016). There is no function/schema split — all SQL (functions, triggers, tables) lives in the same numbered `.up.sql` / `.down.sql` pairs and is applied in order.
+Migrations are stored in `migrations/` directory as a single numbered sequence (currently 000001 through 000017). There is no function/schema split — all SQL (functions, triggers, tables) lives in the same numbered `.up.sql` / `.down.sql` pairs and is applied in order.
 
 - Naming: `000NNN_descriptive_name.up.sql` / `000NNN_descriptive_name.down.sql`
-- Applied via `lib-commons/v4/commons/postgres.Migrator` (wraps `golang-migrate/migrate/v4`)
+- Applied via `lib-commons/v5/commons/postgres.Migrator` (wraps `golang-migrate/migrate/v4`)
 - Seed data in `migrations/seeds/` (loaded via `make seed`)
 - Validate with: `make migrate-version`
 
-**Rollback note.** Rolling back past migration 000016 permanently drops the `schema_migrations_functions` tracker table (its `down.sql` is intentionally empty). Operators who need the legacy tracker back — for any reason — must recreate it manually:
+**Rollback note.** Migration 000016 is no longer the top of the stack (000017 sits above it), so reaching it requires first rolling back any later migrations. Rolling back past migration 000016 permanently drops the `schema_migrations_functions` tracker table (its `down.sql` is intentionally empty). Operators who need the legacy tracker back — for any reason — must recreate it manually:
 
 ```sql
 CREATE TABLE schema_migrations_functions (
@@ -2926,7 +2927,7 @@ acceptable justifications. Default expectation: idempotency via the mechanisms l
 
 > **Note on salvageable patterns from the previous custom runner.** Directory-traversal safety
 > (`os.OpenRoot`) and advisory locking (`pg_advisory_lock`) for migration files are now handled
-> by `lib-commons/v4/commons/postgres.Migrator`, which is the single source of truth for the
+> by `lib-commons/v5/commons/postgres.Migrator`, which is the single source of truth for the
 > PostgreSQL migration path. Any future non-PostgreSQL migrator (e.g. a MongoDB or ClickHouse
 > migrator) should reproduce those patterns from the deleted `pkg/migration` runner — see
 > the git history on `origin/develop` for the canonical implementation.
@@ -3027,7 +3028,8 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, ...) *fiber.App
 
 | Dependency | Purpose |
 |------------|---------|
-| `github.com/LerianStudio/lib-commons/v4` | Common utilities, logging, tracing, PostgreSQL client |
+| `github.com/LerianStudio/lib-commons/v5` | Common utilities, PostgreSQL client, tenant managers |
+| `github.com/LerianStudio/lib-observability` | Logging, tracing, metrics, runtime (observability split out of lib-commons) |
 | `github.com/gofiber/fiber/v2` | HTTP framework |
 | `google.golang.org/grpc` | gRPC framework (used for OTLP telemetry export) |
 | `github.com/jackc/pgx/v5` | PostgreSQL driver |
@@ -3045,8 +3047,8 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, ...) *fiber.App
 
 | Dependency | Purpose |
 |------------|---------|
-| `go.opentelemetry.io/otel` | Distributed tracing (use via lib-commons only) |
-| `go.uber.org/zap` | Structured logging (use via lib-commons only) |
+| `go.opentelemetry.io/otel` | Distributed tracing (use via lib-observability only) |
+| `go.uber.org/zap` | Structured logging (use via lib-observability only) |
 
 ---
 
@@ -3084,7 +3086,7 @@ package logging
 import (
     "context"
 
-    libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+    libLog "github.com/LerianStudio/lib-observability/log"
     "go.opentelemetry.io/otel/trace"
 )
 
@@ -3199,16 +3201,16 @@ logger.WithFields("operation", "handler.rule.create").Info("...")  // Missing Wi
 
 ## Observability Patterns
 
-### Tracing with lib-commons (Required)
+### Tracing with lib-observability (Required)
 
-**Always use lib-commons wrappers** for OpenTelemetry operations. Direct imports of `go.opentelemetry.io/otel/*` packages are only allowed for types (e.g., `trace.Span`) when required by lib-commons function signatures.
+**Always use lib-observability wrappers** for OpenTelemetry operations. Direct imports of `go.opentelemetry.io/otel/*` packages are only allowed for types (e.g., `trace.Span`) when required by lib-observability function signatures.
 
 **Allowed patterns:**
 
 ```go
 import (
-    libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-    libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+    libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+    libOtel "github.com/LerianStudio/lib-observability/tracing"
     "go.opentelemetry.io/otel/trace"  // OK: Only for trace.Span type
 )
 

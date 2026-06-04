@@ -91,9 +91,7 @@ Run: `make lint`
 
 ### CI/CD Pipeline
 
-Checks in `.github/workflows/`:
-- Test determinism (3x runs)
-- Non-English content detection (optional)
+Tracer is a co-located deploy unit in the `midaz` monorepo; CI runs from the monorepo-root `.github/workflows/` (there is no component-local `.github/`).
 
 ---
 

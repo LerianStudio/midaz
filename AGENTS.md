@@ -85,7 +85,7 @@ pkg/
 | `pkg/constant/errors.go` | All error codes |
 | `pkg/errors.go` | Error types + ValidateBusinessError factory |
 | `components/ledger/.env.example` | All environment variables |
-| `docs/PROJECT_RULES.md` | 1130 lines of coding standards (DO NOT overwrite) |
+| `docs/PROJECT_RULES.md` | 1159 lines of coding standards (DO NOT overwrite) |
 
 ## What NOT To Do
 
@@ -101,6 +101,6 @@ pkg/
 - **[CLAUDE.md](CLAUDE.md)** — Deep technical reference (architecture, bootstrap, multi-tenancy, transaction processing)
 - **[llms-full.txt](llms-full.txt)** — Complete reference with all env vars, API endpoints, error codes, models
 - **[llms.txt](llms.txt)** — Concise overview following llmstxt.org spec
-- **[docs/PROJECT_RULES.md](docs/PROJECT_RULES.md)** — Coding standards and conventions (1130 lines)
+- **[docs/PROJECT_RULES.md](docs/PROJECT_RULES.md)** — Coding standards and conventions (1159 lines)
 - **[docs/auth/RBAC-NAMESPACES.md](docs/auth/RBAC-NAMESPACES.md)** — The four authz namespaces in the unified binary (R9)
 - **[docs/api/SCOPING.md](docs/api/SCOPING.md)** — Path vs `X-Organization-Id` header scoping (R22)

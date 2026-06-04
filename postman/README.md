@@ -8,8 +8,8 @@ This directory contains the automated Postman collection generation and testing 
 # Generate Postman collection from OpenAPI specs
 make generate-docs
 
-# Run complete API workflow tests
-make newman
+# Run complete API workflow tests (Newman CLI; no make target exists)
+newman run postman/MIDAZ.postman_collection.json -e postman/MIDAZ.postman_environment.json --folder "Complete API Workflow"
 ```
 
 ## Overview
@@ -17,7 +17,7 @@ make newman
 The Midaz API testing system has two main processes:
 
 1. **Collection Generation** (`make generate-docs`): Converts OpenAPI specifications into Postman collections
-2. **Workflow Testing** (`make newman`): Executes end-to-end API tests
+2. **Workflow Testing** (Newman CLI): Executes end-to-end API tests
 
 ## Collection Generation Process (`make generate-docs`)
 
@@ -29,8 +29,8 @@ The Midaz API testing system has two main processes:
 
 ### Step 2: OpenAPI Specification Generation (`scripts/generate-docs.sh`)
 - **Orchestrator**: Clean, beautified wrapper around the generation process
-- **Components**: Processes `onboarding` and `transaction` services
-- **Command**: `swag init -g cmd/app/main.go -o api --parseDependency --parseInternal`
+- **Components**: Processes `ledger` and `crm` components
+- **Command**: `swag init -g cmd/app/main.go -o api --parseDependency --parseInternal` (run per component; only `ledger` has a `cmd/app/main.go` entry point — `crm` is a package tree without one)
 - **Input**: Go source code with Swagger annotations
 - **Output**: `api/swagger.json` and `api/swagger.yaml` per component
 - **Features**: Progress tracking, error handling, timing metrics, log abstraction
@@ -46,7 +46,7 @@ The Midaz API testing system has two main processes:
 #### File Chain & Purpose:
 
 **Main Orchestrator**: `sync-postman.sh`
-- **Input**: `swagger.json` files from both components
+- **Input**: `swagger.json` files from the `ledger` and `crm` components
 - **Purpose**: Coordinates the entire conversion pipeline
 - **Key Functions**:
   - Runs conversions in parallel for performance
@@ -76,7 +76,7 @@ The Midaz API testing system has two main processes:
   - Error handling and logging
 
 **Workflow Generation Script**: `create-workflow.js`
-- **Input**: `postman/WORKFLOW.md` (57 step workflow definition)
+- **Input**: `postman/WORKFLOW.md` (56 step workflow definition)
 - **Output**: "Complete API Workflow" folder in collection
 - **Features**:
   - Sequential API testing (Organization → Ledger → Account → Transaction)
@@ -86,14 +86,14 @@ The Midaz API testing system has two main processes:
   - Comprehensive cleanup sequence
 
 ### Step 4: Collection Assembly & Optimization (Handled by `sync-postman.sh`)
-- **Parallel Processing**: Converts both services simultaneously
+- **Parallel Processing**: Converts both components simultaneously
 - **Intelligent Merging**: Combines requests from multiple services
 - **Organization**: Groups requests by functional area
 - **Variable Management**: Creates unified environment variables
 - **URL Routing**: Ensures correct service endpoints
 - **Quality Assurance**: Validates collection structure and handles errors gracefully
 
-## Workflow Testing Process (`make newman`)
+## Workflow Testing Process (Newman CLI)
 
 ### Step 1: Newman Setup
 - **Tool**: Newman CLI (Postman command-line runner)
@@ -102,7 +102,7 @@ The Midaz API testing system has two main processes:
 - **Reporting**: Configures HTML and detailed reports
 
 ### Step 2: Workflow Execution
-- **Target**: "Complete API Workflow" folder (57 steps)
+- **Target**: "Complete API Workflow" folder (56 steps)
 - **Sequence**: End-to-end API testing across all services
 - **Validation**: 165+ assertions covering business logic
 - **Performance**: Response time monitoring and regression detection
@@ -136,7 +136,7 @@ The Midaz API testing system has two main processes:
 ```
 postman/
 ├── README.md                           # This documentation
-├── WORKFLOW.md                         # 57-step workflow definition
+├── WORKFLOW.md                         # 56-step workflow definition
 ├── MIDAZ.postman_collection.json       # Generated collection (111+ requests)
 └── MIDAZ.postman_environment.json     # Environment variables
 
@@ -185,7 +185,7 @@ reports/newman/
 - Ensure Node.js dependencies: `npm install` in `scripts/`
 
 **Newman Test Failures**:
-- Check service availability: Both onboarding (3000) and transaction (3001) ports
+- Check service availability: the unified ledger binary serves onboarding and transaction on a single port (3002)
 - Verify environment variables are set correctly
 - Review detailed HTML reports for specific error details
 
@@ -210,7 +210,7 @@ newman run postman/MIDAZ.postman_collection.json -e postman/MIDAZ.postman_enviro
 ## Success Metrics
 
 A successful test run typically shows:
-- **100% Success Rate**: Example: 57/57 requests passing
+- **100% Success Rate**: Example: 56/56 requests passing
 - **Full Assertion Coverage**: Example: 165+ assertions validating business logic
 - **End-to-End Coverage**: All API endpoints tested
 - **Fast Response Times**: Target: <5ms average response time

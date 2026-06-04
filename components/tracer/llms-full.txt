@@ -1,8 +1,8 @@
 # Lerian Tracer — Full Reference
 
-> Real-time transaction validation and fraud prevention API. Go 1.25.7 service using hexagonal architecture + CQRS with Google CEL rule engine, multi-scope spending limits, and immutable audit trail with hash chain verification. PostgreSQL 16. Elastic License 2.0.
+> Real-time transaction validation and fraud prevention API. Go 1.26.3 service (toolchain go1.26.4) using hexagonal architecture + CQRS with Google CEL rule engine, multi-scope spending limits, and immutable audit trail with hash chain verification. PostgreSQL 17. Elastic License 2.0.
 
-Tracer is a product-agnostic validation service that provides instant ALLOW/DENY/REVIEW decisions for financial transactions. It is part of the Lerian Studio ecosystem alongside Midaz (ledger) and Matcher (reconciliation). Designed for sub-100ms P99 latency with in-memory rule cache, background sync worker, and circuit breaker resilience.
+Tracer is a co-located deploy unit in the Midaz monorepo (module `github.com/LerianStudio/midaz/v3`, single root `go.mod`, no own `go.mod`). It is a product-agnostic validation service that provides instant ALLOW/DENY/REVIEW decisions for financial transactions. It is part of the Lerian Studio ecosystem alongside Midaz (ledger) and Matcher (reconciliation). Designed for sub-100ms P99 latency with in-memory rule cache, background sync worker, and circuit breaker resilience.
 
 ## Core Domain Concepts
 
@@ -63,7 +63,9 @@ Every validation creates immutable audit event. Hash chain verification for SOX/
 
 ### Health & Documentation
 - `GET /health` — Liveness probe
-- `GET /ready` — Readiness probe (checks PostgreSQL + rule cache health)
+- `GET /readyz` — Readiness probe (Lerian-canonical; checks PostgreSQL + rule cache health)
+- `GET /metrics` — Prometheus metrics (mounted before the `/v1` group)
+- `GET /version` — Build version
 - `GET /swagger/*` — Swagger UI
 
 ## Authentication
@@ -71,11 +73,14 @@ Every validation creates immutable audit event. Hash chain verification for SOX/
 - Constant-time comparison to prevent timing attacks
 - Configurable: API_KEY_ENABLED, API_KEY_ENABLED_ONLY_VALIDATION
 - Access Manager plugin support: PLUGIN_AUTH_ENABLED, PLUGIN_AUTH_ADDRESS
-- Public endpoints: /health, /ready, /version, /swagger/*
+- Public endpoints: /health, /readyz, /metrics, /version, /swagger/*
 
 ## Architecture
 
 ### Hexagonal + CQRS
+
+Paths below are relative to `components/tracer/`. Go import paths prefix them with the module root, e.g. `github.com/LerianStudio/midaz/v3/components/tracer/internal/services/command`.
+
 ```
 cmd/app/main.go                    — Entry point, bootstrap
 internal/bootstrap/                — Composition root: Config, DI, HTTPServer, Service
@@ -160,12 +165,13 @@ All errors use TRC-XXXX codes defined in pkg/constant/errors.go. Categories: Gen
 
 ## Database
 
-### PostgreSQL 16
-- 16 migrations (000001-000016)
+### PostgreSQL 17
+- 17 migrations (000001-000017)
 - Tables: rules, limits, usage_counters, transaction_validations, audit_events
 - Cursor-based pagination (no offset/page)
 - Squirrel SQL builder with parameterized queries ($1, $2)
-- Connection via lib-commons/v4 PostgresConnection (primary + replica DSN)
+- Connection via lib-commons/v5 `commons/postgres` client (primary + replica DSN)
+- Tracer's `tracer` database is created by the consolidated `components/infra` (`postgres/init.sql`); tracer runs only its own migrations against it. The shared infra Postgres runs `postgres:17` on the `infra-network`.
 
 ### Migrations
 ```
@@ -174,8 +180,8 @@ migrations/000002_verify_audit_hash_chain.{up,down}.sql
 migrations/000003_prevent_truncate.{up,down}.sql
 migrations/000004_initial_schema.{up,down}.sql
 ...
-migrations/000015_processing_time_ms_float.{up,down}.sql
 migrations/000016_drop_legacy_functions_migrations_table.{up,down}.sql
+migrations/000017_audit_actor_in_hash.{up,down}.sql
 migrations/seeds/        — Development seed data
 ```
 
@@ -191,13 +197,15 @@ Evaluation: DEFAULT_DECISION_WHEN_NO_MATCH (ALLOW|DENY), MAX_RULES_PER_REQUEST (
 Telemetry: ENABLE_TELEMETRY, OTEL_RESOURCE_SERVICE_NAME, OTEL_LIBRARY_NAME, OTEL_EXPORTER_OTLP_ENDPOINT
 Cleanup Worker: CLEANUP_WORKER_ENABLED (false), CLEANUP_INTERVAL_HOURS (24), CLEANUP_RETENTION_DAYS (90)
 Rule Sync: RULE_SYNC_POLL_INTERVAL_SECONDS (10), RULE_SYNC_STALENESS_THRESHOLD_SECONDS (50), RULE_SYNC_OVERLAP_BUFFER_SECONDS (2)
+Multi-Tenancy: MULTI_TENANT_ENABLED (false; when true, tracer resolves per-tenant Postgres pools), MULTI_TENANT_URL, MULTI_TENANT_SERVICE_API_KEY, MULTI_TENANT_ALLOW_INSECURE_HTTP (false), MULTI_TENANT_REDIS_HOST/PORT/PASSWORD/TLS, MULTI_TENANT_MAX_TENANT_POOLS (100), MULTI_TENANT_MAX_OPEN_CONNS_PER_TENANT, MULTI_TENANT_IDLE_TIMEOUT_SEC (300), MULTI_TENANT_TIMEOUT (30), MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD (5), MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC (30), MULTI_TENANT_CACHE_TTL_SEC (120), MULTI_TENANT_CONNECTIONS_CHECK_INTERVAL_SEC (30). Wiring lives in internal/bootstrap/config_multitenant*.go and tenant_listener_app.go.
 Testing: MOCK_TIME (RFC3339, read once at boot for deterministic time in integration tests)
 
 ### Docker Compose Services
+The component `docker-compose.yml` declares only the `tracer` app service (container `midaz-tracer`, built from `Dockerfile.dev` with build context `../../`, the monorepo root) and joins the shared external `infra-network`. PostgreSQL and other shared infra come from `components/infra/docker-compose.yml` (`postgres:17`), not from this compose — there is no standalone `tracer-postgres`.
+
 | Service | Image | Port |
 |---------|-------|------|
-| tracer | tracer:dev (Dockerfile.dev) | 4020 |
-| tracer-postgres | postgres:16-alpine | 5432 |
+| tracer | built from `Dockerfile.dev` (context `../../`) | `${SERVER_PORT}` (4020) |
 
 ## Testing
 
@@ -208,7 +216,7 @@ Testing: MOCK_TIME (RFC3339, read once at boot for deterministic time in integra
 - Benchmarks: `make test-bench` — b.Loop() pattern (Go 1.24+)
 
 ### Test Infrastructure
-- tests/integration/ — 30 integration test files covering all API endpoints
+- tests/integration/ — 45 integration test files covering all API endpoints
 - tests/end2end/ — BDD features (rule lifecycle, limit enforcement, audit verification)
 - internal/testutil/ — Shared helpers (FixedTime, DeterministicUUID, Ptr[T])
 - internal/testutil_integration/ — Integration test suite helpers
@@ -217,24 +225,27 @@ Testing: MOCK_TIME (RFC3339, read once at boot for deterministic time in integra
 ## Libraries
 
 ### Lerian
-- lib-auth/v2 (v2.6.0): JWT/RBAC middleware, auth client
-- lib-commons/v4 (v4.6.0): Logging (zap), tracing (OpenTelemetry), PostgreSQL client, config loading, HTTP utilities, launcher
+- lib-auth/v2 (v2.8.0): JWT/RBAC middleware, auth client (`lib-auth/v2/auth/middleware`)
+- lib-commons/v5 (v5.4.1): PostgreSQL client (`commons/postgres`), config loading, HTTP utilities, launcher, tenant managers (`commons/tenant-manager/*`)
+- lib-observability (v1.0.1): observability split out of lib-commons — logging (`lib-observability/log`, `lib-observability/zap`), tracing/OpenTelemetry (`lib-observability/tracing`, exposing `HandleSpanError`/`HandleSpanBusinessErrorEvent`), metrics, runtime, middleware
 
 ### Key Third-Party
-- gofiber/fiber/v2: HTTP framework
-- google/cel-go v0.27.0: CEL expression engine
-- Masterminds/squirrel: SQL query builder
-- shopspring/decimal: Precise decimal arithmetic
-- google/uuid: UUID generation
-- jackc/pgx/v5: PostgreSQL driver
-- sony/gobreaker: Circuit breaker
-- DATA-DOG/go-sqlmock: SQL mocking
-- testcontainers/testcontainers-go: Container-based integration tests
-- cucumber/godog: BDD test framework
-- go.uber.org/mock: Interface mocking (gomock)
+- gofiber/fiber/v2 v2.52.13: HTTP framework
+- google/cel-go v0.28.1: CEL expression engine
+- Masterminds/squirrel v1.5.4: SQL query builder
+- shopspring/decimal v1.4.0: Precise decimal arithmetic
+- google/uuid v1.6.0: UUID generation
+- jackc/pgx/v5 v5.9.2: PostgreSQL driver
+- bxcodec/dbresolver/v2 v2.2.1: Primary/replica DB routing
+- golang-migrate/migrate/v4 v4.19.1: Database migrations
+- sony/gobreaker v1.0.0: Circuit breaker
+- DATA-DOG/go-sqlmock v1.5.2: SQL mocking
+- testcontainers/testcontainers-go v0.42.0: Container-based integration tests
+- cucumber/godog v0.15.1: BDD test framework
+- go.uber.org/mock v0.6.0: Interface mocking (gomock)
 
 ---
 
-**Last Updated**: April 2026
-**Go Version**: module `go 1.25.7`
-**Migrations**: 16 (000001 through 000016)
+**Last Updated**: June 2026
+**Go Version**: root `go.mod` `go 1.26.3` (toolchain `go1.26.4`); Docker builder image `golang:1.26.3-alpine`
+**Migrations**: 17 (000001 through 000017)

@@ -6,7 +6,7 @@ Comprehensive reference for AI coding agents working in the Tracer codebase. Rea
 
 ```bash
 cp .env.example .env   # Create environment file
-make up                # Start PostgreSQL + Tracer via Docker Compose
+make up                # Start Tracer via Docker Compose (joins the shared infra-network)
 make test              # Run all tests
 make lint              # Run golangci-lint v2
 ```
@@ -19,12 +19,13 @@ Readiness: `GET http://localhost:4020/readyz`
 | Attribute | Value |
 |-----------|-------|
 | **Project** | Real-time transaction validation and fraud prevention API |
-| **Language** | Go (go.mod: `go 1.25.7`; Dockerfile builder: `golang:1.26-alpine` — builder image is intentionally newer) |
+| **Component** | Co-located deploy unit in the `midaz` monorepo (module `github.com/LerianStudio/midaz/v3`, single root `go.mod`, no own `go.mod`) |
+| **Language** | Go (root `go.mod`: `go 1.26.3`, toolchain `go1.26.4`; Dockerfile builder: `golang:1.26.3-alpine`) |
 | **Architecture** | Hexagonal (Ports & Adapters) + CQRS |
 | **Database** | PostgreSQL 16 |
-| **Rule Engine** | Google CEL (cel-go v0.27.0) |
+| **Rule Engine** | Google CEL (cel-go v0.28.1) |
 | **Auth** | lib-auth v2 (API Key + Access Manager plugin) |
-| **Observability** | OpenTelemetry via lib-commons/v4 |
+| **Observability** | OpenTelemetry via lib-observability |
 | **Testing** | TDD; testify + sqlmock + gomock + testcontainers + Godog (BDD) |
 | **License** | Elastic License 2.0 |
 
@@ -86,7 +87,7 @@ make validate-api-docs # Validate generated OpenAPI spec
 ### Docker
 
 ```bash
-make up               # Start PostgreSQL + Tracer (docker compose up -d)
+make up               # Start Tracer (docker compose up -d; uses shared infra-network for PostgreSQL)
 make down             # Stop and remove containers/volumes
 make start            # Start existing containers (without recreating)
 make stop             # Stop containers (without removing)
@@ -207,9 +208,9 @@ tracer/
 │   ├── contextutil/               # Context value extraction
 │   └── shell/                     # Makefile color/utility includes
 ├── tests/
-│   ├── integration/               # 30 testcontainers-based API tests
+│   ├── integration/               # 45 testcontainers-based API test files
 │   └── end2end/                   # BDD (Godog) with Gherkin features
-├── migrations/                    # 16 migrations + seeds/
+├── migrations/                    # 17 migrations + seeds/
 ├── api/                           # Generated Swagger docs
 └── .golangci.yml                  # Linter config (golangci-lint v2)
 ```
@@ -325,7 +326,7 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 - `operation` field must match span name
 - Log messages: "Creating rule" (start), "Rule created successfully" (success), "Failed to create rule" (error)
 
-### 8. Authentication (MVP)
+### 8. Authentication
 
 - API Key via `X-API-Key` header
 - Constant-time comparison (`crypto/subtle`)
@@ -350,18 +351,20 @@ Most config loaded via `libCommons.SetConfigFromEnvVars(cfg)` from struct tags. 
 | **Telemetry** | `ENABLE_TELEMETRY`, `OTEL_RESOURCE_SERVICE_NAME`, `OTEL_LIBRARY_NAME`, `OTEL_RESOURCE_SERVICE_VERSION`, `OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT`, `OTEL_EXPORTER_OTLP_ENDPOINT` |
 | **Cleanup Worker** | `CLEANUP_WORKER_ENABLED` (false), `CLEANUP_INTERVAL_HOURS` (24) |
 | **Rule Sync** | `RULE_SYNC_POLL_INTERVAL_SECONDS` (10), `RULE_SYNC_STALENESS_THRESHOLD_SECONDS` (50), `RULE_SYNC_OVERLAP_BUFFER_SECONDS` (2) |
+| **Multi-Tenancy** | `MULTI_TENANT_ENABLED` (false), `MULTI_TENANT_URL`, `MULTI_TENANT_SERVICE_API_KEY`, `MULTI_TENANT_REDIS_HOST`, `MULTI_TENANT_ALLOW_INSECURE_HTTP` |
 | **Testing** | `MOCK_TIME` (RFC3339 via `os.Getenv`, not in Config struct — read once at boot for deterministic integration tests) |
 
 ### Docker Compose Services
 
+The component compose declares only the `tracer` app service (container `midaz-tracer`, built from `Dockerfile.dev` with build context `../../`, the monorepo root) and joins the shared external `infra-network`. PostgreSQL and other shared infra come from `components/infra/docker-compose.yml`, not from this compose.
+
 | Service | Image | Port |
 |---------|-------|------|
-| tracer | `tracer:dev` (Dockerfile.dev) | 4020 (via `SERVER_ADDRESS` env var) |
-| tracer-postgres | `postgres:16-alpine` | 5432 |
+| tracer | built from `Dockerfile.dev` (context `../../`) | `${SERVER_PORT}` (4020) |
 
 ### Dockerfile (Production)
 
-Multi-stage: `golang:1.26-alpine` (builder) → `gcr.io/distroless/static-debian12:nonroot` (runtime). Exposes 4020 and 7001. Non-root user. No shell in production — use orchestrator probes.
+Multi-stage: `golang:1.26.3-alpine` (builder, `--platform=$BUILDPLATFORM`) → `gcr.io/distroless/static-debian12:nonroot` (runtime, stage `prod`). Both Dockerfiles COPY `go.mod`/`go.sum` from the repo-root build context and build `components/tracer/cmd/app/main.go`. Exposes 4020. Non-root user. No shell in production — use orchestrator probes.
 
 ## Linting
 
@@ -387,21 +390,23 @@ Empty line required before: `return`, `if`, `for`, `switch`, `defer`, assignment
 
 ### Lerian-Specific
 
-- **lib-auth/v2** (`v2.6.0`): Auth middleware, auth client
+- **lib-auth/v2** (`v2.8.0`): Auth middleware, auth client
   - `authMiddleware.NewAuthClient(address, enabled, &logger)`
-- **lib-commons/v4** (`v4.6.0`): Common utilities, telemetry, infrastructure
+- **lib-commons/v5** (`v5.4.1`): Common utilities, infrastructure
   - Tracking: `libCommons.NewTrackingFromContext(ctx)` → logger, tracer, headerID
-  - OpenTelemetry: `libOtel.HandleSpanError(span, "msg", err)`, `libOtel.HandleSpanBusinessErrorEvent(span, "msg", err)`
   - Database: `libPostgres.New(config)` → Client with primary/replica
   - Config: `libCommons.SetConfigFromEnvVars(cfg)` — struct tag loading
   - HTTP: `libHTTP.OK()`, `libHTTP.Created()`, `libHTTP.WithError()`, `libHTTP.HandleFiberError()`
   - Launcher: `libCommons.NewLauncher(opts...).Run()` — graceful multi-service lifecycle
+- **lib-observability** (`v1.0.1`): OpenTelemetry, logging (observability split out of lib-commons)
+  - OpenTelemetry: `libOtel.HandleSpanError(span, "msg", err)`, `libOtel.HandleSpanBusinessErrorEvent(span, "msg", err)`
   - Logging: `libZap.New()`, `libLog.Logger` interface
+  - Packages: `lib-observability/{log,metrics,runtime,tracing,zap}`
 
 ### Key Third-Party
 
 - `gofiber/fiber/v2` — HTTP framework
-- `google/cel-go` v0.27.0 — CEL expression engine
+- `google/cel-go` v0.28.1 — CEL expression engine
 - `Masterminds/squirrel` — SQL query builder
 - `shopspring/decimal` — Precise decimal arithmetic
 - `google/uuid` — UUID generation
@@ -483,6 +488,6 @@ All CI uses shared workflows from `LerianStudio/github-actions-shared-workflows`
 
 ---
 
-**Last Updated**: April 2026
-**Go Version**: module `go 1.25.7`, Docker builder image `golang:1.26-alpine`
-**Migrations**: 16 (000001 through 000016)
+**Last Updated**: June 2026
+**Go Version**: root `go.mod` `go 1.26.3` (toolchain `go1.26.4`), Docker builder image `golang:1.26.3-alpine`
+**Migrations**: 17 (000001 through 000017)

@@ -9,10 +9,10 @@ Concise rules for AI agents working in Midaz. For expanded references, use `AGEN
 - Go: 1.26.3+ (toolchain go1.26.4).
 - lib-commons: `github.com/LerianStudio/lib-commons/v5` v5.4.1; `lib-observability` v1.0.1.
 - License: Elastic License 2.0.
-- Five deploy units (4 Go services + infra): `components/ledger` (:3002), `components/tracer` (:4020), `components/reporter-manager` (:4005), `components/reporter-worker` (:4006), `components/infra`.
+- Five deploy units (4 Go services + infra): `components/ledger` (:3002), `components/tracer` (:4020), `components/reporter-manager` (:4005), `components/reporter-worker` (health-only :4006, no REST API — a RabbitMQ consumer), `components/infra`.
 - Main component: `components/ledger` — the unified binary serving onboarding + transaction + CRM (holders/aliases) + fees on :3002.
 - CRM is folded into ledger: `components/crm` is a package tree (no `cmd/`, no `internal/`) imported by the ledger binary; routes register under the `plugin-crm` authz namespace. There is no standalone CRM service.
-- Fees are embedded in ledger: engine at `components/ledger/pkg/fee`, shared types at `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`, Mongo collections at `components/ledger/internal/adapters/mongodb/fees`. Fee seam: `transaction_create.go`, after `mtransaction.ApplyDefaultBalanceKeys(...)` and before the idempotency claim.
+- Fees are embedded in ledger: engine at `components/ledger/pkg/fee`, shared types at `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`, Mongo collections at `components/ledger/internal/adapters/mongodb/fees`. Fee seam: `transaction_create.go` (HTTP handler layer), after `mtransaction.ApplyDefaultBalanceKeys(...)` and the idempotency claim, before the post-fee re-validation.
 - Tracer, reporter-manager, and reporter-worker are co-located components but separate Go service deploy units.
 - Shared code: `pkg` (root; `pkg/mtransaction` was formerly `pkg/transaction`; `pkg/reporter` is the reporter shared lib) and `tests` (root; `tests/reporter` holds reporter suites).
 
@@ -175,7 +175,7 @@ Producer is `github.com/LerianStudio/lib-streaming`. Wire format: CloudEvents 1.
 - IMPORTANT-posture direct emits MUST go through `pkgStreaming.EmitImportant`. Build/emit failures MUST NOT fail the request: log Warn, span-record, return success. `EmitImportant` bounds direct emit latency with `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS` (default 5s) so broker issues cannot hold HTTP responses until client timeout. Durability is the outbox's job. CRITICAL events use outbox-only (atomic with DB), no direct emit.
 - Emit POST-COMMIT and PRE-METADATA-WRITE — never at HTTP handlers. `ce-subject` is the aggregate ID, passed as `libStreaming.Event.Subject`.
 - Register the producer's `Close()` as `libCommons.RunApp("Streaming Producer", ...)` so it drains on SIGTERM (mirror `eventListenerRunnable`).
-- v1.1.0 module-proxy distribution does NOT export Catalog/policy constants (GitHub HEAD differs). Use `libStreaming.Event` directly; pass `WithOutboxRepository(repo)` to `libStreaming.New` when outbox lands.
+- lib-streaming is pinned at v1.4.0, which exports Catalog/policy constants (e.g. `BuildManifest`, `DefaultDeliveryPolicy`, `ResolveDeliveryPolicy`). Pass `WithOutboxRepository(repo)` to `libStreaming.New` when outbox lands.
 
 ### Event modeling (`pkg/streaming/events`)
 

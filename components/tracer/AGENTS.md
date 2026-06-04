@@ -6,18 +6,18 @@ Universal entry point for any AI coding agent working on the Tracer codebase.
 
 **Tracer** is a real-time transaction validation and fraud prevention API built by Lerian Studio. It provides instant ALLOW/DENY/REVIEW decisions for financial transactions using CEL rule expressions, multi-scope spending limits, and an immutable audit trail with hash chain verification for SOX/GLBA compliance.
 
-- **Language**: Go 1.25 (module `go 1.25.7`)
+- **Language**: Go 1.26.3 (single root `go.mod` for the midaz monorepo, module `github.com/LerianStudio/midaz/v3`, toolchain go1.26.4 — tracer has no own go.mod)
 - **Architecture**: Hexagonal Architecture (Ports & Adapters) + CQRS
 - **Database**: PostgreSQL 16
-- **Rule Engine**: Google CEL (cel-go v0.27.0) with in-memory cache
-- **Auth**: lib-auth v2 (API Key + Access Manager plugin)
+- **Rule Engine**: Google CEL (cel-go v0.28.1) with in-memory cache
+- **Auth**: lib-auth/v2 (v2.8.0) (API Key + Access Manager plugin)
 - **License**: Elastic License 2.0
 
 ## Quick Start
 
 ```bash
 cp .env.example .env   # Create environment file
-make up                # Start PostgreSQL + Tracer
+make up                # Start Tracer via Docker Compose (joins the shared infra-network; PostgreSQL comes from components/infra)
 make test              # Run all tests
 make lint              # golangci-lint v2
 ```

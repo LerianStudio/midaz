@@ -113,9 +113,10 @@ The unified ledger binary folds four domains into one process:
 * **Fees (embedded)**: fee engine at `components/ledger/pkg/fee`, shared types at
   `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`,
   Mongo repos at `components/ledger/internal/adapters/mongodb/fees`, routes at
-  `components/ledger/internal/adapters/http/in/fees_routes.go`. The fee seam runs inside
-  `transaction_create.go` after `mtransaction.ApplyDefaultBalanceKeys(...)` and before the
-  idempotency claim.
+  `components/ledger/internal/adapters/http/in/fees_routes.go`. The fee seam runs inside the
+  `transaction_create.go` HTTP handler (not the command layer) after
+  `mtransaction.ApplyDefaultBalanceKeys(...)` and the idempotency claim, mutating the send legs
+  before the post-fee re-validation; `applyFees` itself lives in `transaction_fee_application.go`.
 
 Composition root: `components/ledger/internal/bootstrap/config.go` (wires onboarding,
 transaction, `initCRM`, and fees).

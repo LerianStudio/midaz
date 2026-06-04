@@ -2,10 +2,10 @@
 
 > Real-time transaction validation and fraud prevention API for financial systems
 
-[![Go Version](https://img.shields.io/badge/Go-1.25.5+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.26.3+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat&logo=postgresql)](https://www.postgresql.org)
 [![License](https://img.shields.io/badge/license-Elastic%20License%202.0-4c1.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.1-orange.svg)](https://github.com/lerianstudio/tracer)
+[![Status](https://img.shields.io/badge/status-v0.1-orange.svg)](https://github.com/LerianStudio/midaz)
 
 ---
 
@@ -185,7 +185,7 @@ Every validation creates an immutable audit record:
 - **Hexagonal Architecture** - Clean separation of concerns (Ports & Adapters)
 - **CQRS pattern** - Command/Query segregation for clarity
 - **Product-agnostic** - Works with any transaction type
-- **Single-tenant V1** - One instance per organization (multi-tenant roadmap)
+- **Multi-tenant capable** - Tenant-isolated DB resolution, gated by `MULTI_TENANT_ENABLED` (default off)
 
 ---
 
@@ -282,8 +282,9 @@ tracer/
 │
 ├── docs/                     # 📚 Documentation
 │   ├── PROJECT_RULES.md      # Architecture & conventions
-│   ├── api-key-guide.md      # Authentication setup
-│   └── pre-dev/              # Planning docs (PRD, TRD, etc.)
+│   ├── CODING_STANDARDS.md   # Coding standards
+│   ├── LANGUAGE_POLICY.md    # Language policy
+│   └── QUALITY_AUTOMATION.md # Quality automation
 │
 ├── migrations/               # Database migrations
 ├── docker-compose.yml        # Local development stack
@@ -295,10 +296,10 @@ tracer/
 
 | Layer                | Technology                  | Purpose                                   |
 |----------------------|-----------------------------|-------------------------------------------|
-| **Language**         | Go 1.25.5                   | Performance, concurrency, static typing   |
-| **HTTP Framework**   | Fiber v2.52.10              | Fast, Express-like API framework          |
+| **Language**         | Go 1.26.3                   | Performance, concurrency, static typing   |
+| **HTTP Framework**   | Fiber v2.52.13              | Fast, Express-like API framework          |
 | **Database**         | PostgreSQL 16               | ACID transactions, JSON support           |
-| **Expression Engine**| CEL (google/cel-go v0.26.1) | Type-safe rule evaluation                 |
+| **Expression Engine**| CEL (google/cel-go v0.28.1) | Type-safe rule evaluation                 |
 | **Observability**    | OpenTelemetry + Jaeger      | Distributed tracing                       |
 | **Logging**          | Loki                        | Centralized log aggregation               |
 | **Metrics**          | Prometheus                  | Time-series metrics                       |
@@ -312,15 +313,15 @@ tracer/
 ### Prerequisites
 
 - Docker 20+ & Docker Compose 2+
-- Go 1.25.5+ (for local development)
+- Go 1.26.3+ (for local development)
 - Make (optional, for convenience commands)
 
 ### 1. Clone & Setup
 
 ```bash
-# Clone repository
-git clone https://github.com/lerianstudio/tracer.git
-cd tracer
+# Tracer is co-located in the midaz monorepo
+git clone https://github.com/LerianStudio/midaz.git
+cd midaz/components/tracer
 
 # Copy environment template
 cp .env.example .env
@@ -332,18 +333,19 @@ vi .env
 ### 2. Start Services
 
 ```bash
-# Start PostgreSQL, Jaeger, and Tracer
+# Start the Tracer app service (joins the shared infra-network;
+# PostgreSQL and the OTel collector come from components/infra)
 make up
 
-# Verify services are running
-docker-compose ps
+# Verify the container is running
+docker compose ps
 ```
 
 ### 3. Verify Health
 
 ```bash
 # Check if app is running (liveness probe)
-curl http://localhost:8080/health
+curl http://localhost:4020/health
 # Expected: healthy
 
 # Check if dependencies are ready (PostgreSQL)
@@ -355,9 +357,8 @@ curl http://localhost:4020/readyz
 
 | Service        | URL                         | Credentials                                  |
 |----------------|-----------------------------|--------------------------------------------- |
-| **Tracer API** | <http://localhost:8080>     | API Key in `.env`                            |
-| **PostgreSQL** | `localhost:5432`            | user: `tracer`, pass: `tracer`, db: `tracer` |
-| **Jaeger UI**  | <http://localhost:16686>    | N/A                                          |
+| **Tracer API** | <http://localhost:4020>     | API Key in `.env`                                  |
+| **PostgreSQL** | `midaz-postgres-primary:5701` (shared infra) | user: `midaz`, pass: `lerian`, db: `tracer` |
 
 ### 4. Test API (Example)
 
@@ -366,7 +367,7 @@ curl http://localhost:4020/readyz
 export API_KEY="your-api-key-from-env-file"
 
 # Create a rule
-curl -X POST http://localhost:8080/v1/rules \
+curl -X POST http://localhost:4020/v1/rules \
   -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -382,7 +383,7 @@ curl -X POST http://localhost:8080/v1/rules \
 
 ```bash
 # Execute validation (minimal request)
-curl -X POST http://localhost:8080/v1/validations \
+curl -X POST http://localhost:4020/v1/validations \
   -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -490,7 +491,7 @@ git push origin feature/my-feature
 ### Base URL
 
 ```text
-http://localhost:8080/v1
+http://localhost:4020/v1
 ```
 
 ### Authentication
@@ -754,12 +755,12 @@ See `.env.example` for all configuration options.
 
 | Variable           | Description             | Default                                |
 |--------------------|-------------------------|----------------------------------------|
-| `SERVER_PORT`      | HTTP server port        | `8080`                                 |
-| `DB_HOST`          | PostgreSQL host         | `localhost`                            |
+| `SERVER_PORT`      | HTTP server port        | `4020`                                 |
+| `DB_HOST`          | PostgreSQL host         | `midaz-postgres-primary`               |
 | `DB_NAME`          | Database name           | `tracer`                               |
 | `API_KEY`          | API authentication key  | (required)                             |
 | `LOG_LEVEL`        | Logging verbosity       | `INFO`                                 |
-| `JAEGER_ENDPOINT`  | Tracing collector URL   | `http://jaeger:14268/api/traces`       |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP trace exporter endpoint | `tracer-jaeger:4317`        |
 
 ---
 
@@ -799,8 +800,8 @@ Contributions are welcome! Please follow these guidelines:
 
 ## Support
 
-- **Issues:** [GitHub Issues](https://github.com/lerianstudio/tracer/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/lerianstudio/tracer/discussions)
+- **Issues:** [GitHub Issues](https://github.com/LerianStudio/midaz/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/LerianStudio/midaz/discussions)
 - **Contact:** LerianStudio Engineering Team
 
 ---

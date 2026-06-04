@@ -1,14 +1,13 @@
 # Lerian Tracer
 
-> Real-time transaction validation and fraud prevention API. Go 1.25.7 service using hexagonal architecture + CQRS with CEL rule engine, spending limits, and immutable audit trail. Part of the Lerian Studio ecosystem. Elastic License 2.0.
+> Real-time transaction validation and fraud prevention API. A co-located deploy unit in the Lerian Midaz monorepo (module `github.com/LerianStudio/midaz/v3`, single root `go.mod`, no own `go.mod`; Go 1.26.3, toolchain go1.26.4) on lib-commons/v5 v5.4.1 + lib-observability v1.0.1. Hexagonal architecture + CQRS with a CEL rule engine, spending limits, and an immutable hash-chained audit trail. Serves on :4020. Elastic License 2.0.
 
-Tracer provides instant ALLOW/DENY/REVIEW decisions for financial transactions. It evaluates configurable CEL expressions against transaction data, enforces multi-scope spending limits (account, segment, portfolio), and maintains SOX/GLBA-compliant audit records with hash chain verification. Authentication via lib-auth v2 (API Key + Access Manager plugin). PostgreSQL 16, in-memory rule cache with background sync worker, and circuit breaker resilience.
+Tracer provides instant ALLOW/DENY/REVIEW decisions for financial transactions. It evaluates configurable CEL expressions against transaction data, enforces multi-scope spending limits (account, segment, portfolio), and maintains SOX/GLBA-compliant audit records with hash chain verification. Authentication via lib-auth v2 (API Key + Access Manager plugin). Multi-tenant isolation is wired and gated by `MULTI_TENANT_ENABLED` (default false). Persistence is the shared infra PostgreSQL (postgres:17 from `components/infra/docker-compose.yml`); it also uses an in-memory rule cache with a background sync worker and circuit breaker resilience.
 
 ## Documentation
 
 - [README](README.md): Project overview, getting started, API examples, architecture diagram
 - [License](LICENSE): Elastic License 2.0
-- [Changelog](CHANGELOG.md): Release history and version changes
 - [Project Rules](docs/PROJECT_RULES.md): Architecture patterns, coding conventions, testing standards
 
 ## AI Agent Guides
@@ -40,22 +39,21 @@ Tracer provides instant ALLOW/DENY/REVIEW decisions for financial transactions. 
 
 ## Configuration
 
-- [Environment Template](.env.example): All configuration variables with documentation
-- [Docker Compose](docker-compose.yml): PostgreSQL + Tracer for local development
-- [Dockerfile](Dockerfile): Multi-stage build (golang:1.26-alpine → distroless nonroot)
+- [Environment Template](.env.example): All configuration variables with documentation (SERVER_PORT 4020)
+- [Docker Compose](docker-compose.yml): Tracer app service only; joins the shared external `infra-network` for PostgreSQL and other backing services
+- [Dockerfile](Dockerfile): Multi-stage build (golang:1.26.3-alpine → distroless nonroot)
 - [Linter Config](.golangci.yml): golangci-lint v2 with errorlint, depguard, revive, wsl_v5
 
 ## Development
 
 - [Makefile](Makefile): Build, test, lint, Docker, migration, security commands
 - [Test Makefiles](mk/): Modular make targets (tests, docker, database, quality, security, docs)
-- [Migrations](migrations/): 16 migrations (000001-000016) + seed data
+- [Migrations](migrations/): 17 migrations (000001-000017) + seed data
 - [E2E Tests](tests/end2end/): BDD tests with Godog/Gherkin feature files
-- [Integration Tests](tests/integration/): 30 testcontainers-based API tests
+- [Integration Tests](tests/integration/): 45 testcontainers-based API tests
 - [Test Utilities](internal/testutil/): Deterministic UUIDs, fixed time, generic helpers
 - [Scripts](scripts/): Git hooks setup, env check, API docs verification
 
 ## Optional
 
 - [Security Policy](SECURITY.md): Vulnerability reporting
-- [PR Template](.github/pull_request_template.md): Pull request checklist

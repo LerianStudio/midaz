@@ -1,8 +1,8 @@
-# Workflow Generator v2.0 - Simplified Modular Architecture
+# Workflow Generator - Simplified Modular Architecture
 
 ## Overview
 
-This is the modernized, simplified version of the Midaz API Workflow Generator that implements the architecture described in `WF_SIMP_PLAN.md`. It maintains 100% compatibility with the original implementation while providing improvements in maintainability, debugging, and extensibility.
+This is the Midaz API Workflow Generator: a simplified, modular implementation built for maintainability, debugging, and extensibility.
 
 ### Key Benefits
 
@@ -11,7 +11,6 @@ This is the modernized, simplified version of the Midaz API Workflow Generator t
 - **Configuration-Driven**: All hardcoded values moved to config files
 - **Enhanced Error Handling**: Comprehensive validation and error reporting
 - **Preserved Business Logic**: Critical dependency chains maintained exactly
-- **Safe Migration**: Wrapper for gradual rollout with fallback capabilities
 
 ## Architecture
 
@@ -19,46 +18,31 @@ This is the modernized, simplified version of the Midaz API Workflow Generator t
 
 ```
 scripts/postman-coll-generation/
-├── create-workflow-v2.js          # New main entry point
-├── create-workflow-wrapper.js     # Migration wrapper with fallback
+├── create-workflow.js             # Main entry point (npm run workflow)
 ├── config/
 │   └── workflow.config.js         # Centralized configuration
-├── lib/
-│   ├── workflow-processor.js      # Main orchestration
-│   ├── markdown-parser.js         # Markdown parsing & validation
-│   ├── request-matcher.js         # Collection search with alternatives
-│   ├── path-resolver.js           # URL normalization & corrections
-│   ├── variable-mapper.js         # Parameter substitution
-│   └── request-body-generator.js  # Transaction body templates
-└── tests/
-    ├── unit/                       # Component tests
-    ├── integration/               # Full workflow tests
-    └── regression/               # Old vs new comparison
+└── lib/
+    ├── workflow-processor.js      # Main orchestration
+    ├── markdown-parser.js         # Markdown parsing & validation
+    ├── request-matcher.js         # Collection search with alternatives
+    ├── path-resolver.js           # URL normalization & corrections
+    ├── variable-mapper.js         # Parameter substitution
+    └── request-body-generator.js  # Transaction body templates
 ```
 
 ## Usage
 
-### Direct Usage (New Implementation)
+### Direct Usage
 ```bash
-node create-workflow-v2.js input.json WORKFLOW.md output.json
+node create-workflow.js input.json WORKFLOW.md output.json
 ```
 
-### Safe Migration (Wrapper with Fallback)
+Or via the npm script:
 ```bash
-# Use old implementation (default)
-node create-workflow-wrapper.js input.json WORKFLOW.md output.json
-
-# Use new implementation with fallback
-USE_NEW_WORKFLOW_GENERATOR=true node create-workflow-wrapper.js input.json WORKFLOW.md output.json
-
-# Compare both implementations
-ENABLE_COMPARISON=true node create-workflow-wrapper.js input.json WORKFLOW.md output.json
+npm run workflow input.json WORKFLOW.md output.json
 ```
 
 ### Environment Variables
-- `USE_NEW_WORKFLOW_GENERATOR=true/false` - Use new implementation
-- `ENABLE_COMPARISON=true/false` - Compare both implementations
-- `FAIL_ON_DIFFERENCES=true/false` - Fail if outputs differ
 - `DEBUG=true/false` - Enable debug output
 
 ## Configuration
@@ -112,16 +96,22 @@ transactions: {
 
 ## Testing
 
-### Run Regression Tests
+### Run the Generated Collection
 ```bash
-cd tests/regression
-node output-comparison.test.js
+npm run test:collection
 ```
 
-### Test Coverage
-- **Unit Tests**: Individual component testing
-- **Integration Tests**: Full workflow generation
-- **Regression Tests**: Old vs new implementation comparison
+This delegates to `make newman` at the repo root, which runs the generated
+collection (`postman/MIDAZ.postman_collection.json`) against the configured
+environment. For verbose output of just the workflow folder:
+```bash
+npm run test:collection:verbose
+```
+
+### Validate Collection/Environment JSON
+```bash
+npm run validate:all
+```
 
 ## Critical Preserved Logic
 
@@ -146,30 +136,10 @@ Three distinct transaction patterns maintained:
 - **Inflow**: Money coming in (no source)
 - **Outflow**: Money going out (no destination)
 
-## Migration Strategy
-
-### Phase 1: Shadow Mode (Recommended)
-```bash
-# Run both implementations, use old output
-ENABLE_COMPARISON=true node create-workflow-wrapper.js ...
-```
-
-### Phase 2: New Implementation with Fallback
-```bash
-# Use new implementation, fallback to old on failure
-USE_NEW_WORKFLOW_GENERATOR=true node create-workflow-wrapper.js ...
-```
-
-### Phase 3: Direct Usage
-```bash
-# Use new implementation directly
-node create-workflow-v2.js ...
-```
-
 ## Debugging
 
 ### Enhanced Logging
-The new implementation provides detailed logging:
+The generator provides detailed logging:
 ```
 Searching for: POST /v1/organizations
    Generated 2 alternative paths:
@@ -250,8 +220,8 @@ validateCustomRules(steps, issues) {
 
 Before deploying to production:
 
-- [ ] Run regression tests: `node tests/regression/output-comparison.test.js`
-- [ ] Compare outputs with wrapper: `ENABLE_COMPARISON=true ...`
+- [ ] Run the generated collection: `npm run test:collection`
+- [ ] Validate collection/environment JSON: `npm run validate:all`
 - [ ] Test with actual collection and workflow files
 - [ ] Verify zero-out balance logic produces identical transactions
 - [ ] Check all 56 workflow steps are generated correctly
@@ -262,15 +232,14 @@ Before deploying to production:
 
 1. **DO NOT MODIFY** the balance zeroing templates without extensive testing
 2. **DO NOT CHANGE** variable names in the dependency chain
-3. **ALWAYS RUN** regression tests before deployment
+3. **ALWAYS RUN** the generated collection (`npm run test:collection`) before deployment
 4. **TEST THOROUGHLY** with production data before switching
 
 ## Support
 
 For issues or questions:
 1. Check the debug output with `DEBUG=true`
-2. Run regression tests to identify the issue
-3. Compare with original implementation using wrapper
-4. Review the configuration for missing patterns
+2. Run the generated collection (`npm run test:collection`) to identify the issue
+3. Review the configuration for missing patterns
 
 The modular architecture makes it easy to isolate and fix issues in specific components without affecting the entire system.

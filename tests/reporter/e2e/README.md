@@ -28,34 +28,33 @@ End-to-end tests for the Reporter application using the `itestkit` framework. Th
   - [Template - Report Validation](#template---report-validation)
   - [Validation - Query Parameters](#validation---query-parameters)
   - [Resilience - Error & Retry](#resilience---error--retry)
-  - [Tenant - Isolation](#tenant---isolation)
 
 ## Quick Start
 
 ```bash
 # Run all e2e tests (pre-built images)
-make test-e2e
+go test -v -tags e2e ./tests/reporter/e2e -timeout 30m
 
 # Build images from source (requires GitHub token for private deps)
-make test-e2e E2E_SKIP_BUILD=false GITHUB_TOKEN=`cat .secrets/github_token.txt`
+E2E_SKIP_BUILD=false GITHUB_TOKEN=`cat .secrets/github_token.txt` go test -v -tags e2e ./tests/reporter/e2e -timeout 30m
 
 # Run with custom images
-make test-e2e MANAGER_IMAGE=reporter-manager:v1.0 WORKER_IMAGE=reporter-worker:v1.0
+MANAGER_IMAGE=reporter-manager:v1.0 WORKER_IMAGE=reporter-worker:v1.0 go test -v -tags e2e ./tests/reporter/e2e -timeout 30m
 
 # Run a specific test
-go test -v -tags e2e ./tests/e2e -run TestTemplate_CreateHTML -timeout 10m
+go test -v -tags e2e ./tests/reporter/e2e -run TestTemplate_CreateHTML -timeout 10m
 
 # Run with fixed ports (useful for debugging)
-FIXED_PORT=true go test -v -tags e2e ./tests/e2e -timeout 30m
+FIXED_PORT=true go test -v -tags e2e ./tests/reporter/e2e -timeout 30m
 
 # Infrastructure-only mode (start infra, then debug Manager/Worker in IDE)
-FIXED_PORT=true E2E_INFRA_ONLY=true go test -v -tags e2e ./tests/e2e -timeout 30m
+FIXED_PORT=true E2E_INFRA_ONLY=true go test -v -tags e2e ./tests/reporter/e2e -timeout 30m
 
 # Save generated reports to disk for manual inspection
-E2E_SAVE_REPORTS=true make test-e2e
+E2E_SAVE_REPORTS=true go test -v -tags e2e ./tests/reporter/e2e -timeout 30m
 
 # Save reports to a custom directory
-E2E_SAVE_REPORTS=true E2E_REPORTS_DIR=./debug-reports make test-e2e
+E2E_SAVE_REPORTS=true E2E_REPORTS_DIR=./debug-reports go test -v -tags e2e ./tests/reporter/e2e -timeout 30m
 ```
 
 ## Environment Variables
@@ -70,26 +69,25 @@ E2E_SAVE_REPORTS=true E2E_REPORTS_DIR=./debug-reports make test-e2e
 | `E2E_INFRA_ONLY` | `false` | Start infrastructure only and block (for debugging Manager/Worker in IDE) |
 | `E2E_SKIP_MANAGER` | `false` | Skip Manager container, use external Manager |
 | `E2E_SKIP_WORKER` | `false` | Skip Worker container (for debugging Worker locally) |
-| `E2E_ENABLE_MT` | `false` | Enable multi-tenant tests |
 | `E2E_SAVE_REPORTS` | `false` | Save downloaded reports to disk for manual inspection |
 | `E2E_REPORTS_DIR` | `/tmp/e2e-reports/` | Directory for saved reports (used with `E2E_SAVE_REPORTS=true`) |
 | `E2E_DEBUG_LOG` | `false` | Print all HTTP requests/responses to stderr |
 
 ## Prerequisites
 
-- Go 1.25+
+- Go 1.26+
 - Docker with Docker Compose
 - Pre-built Reporter images (`reporter-manager:latest`, `reporter-worker:latest`)
 
 To build the images before running tests:
 
 ```bash
-# Option 1: Build via make target
-make test-e2e E2E_SKIP_BUILD=false GITHUB_TOKEN=`cat .secrets/github_token.txt`
+# Option 1: Let the suite build images on demand (E2E_SKIP_BUILD=false)
+E2E_SKIP_BUILD=false GITHUB_TOKEN=`cat .secrets/github_token.txt` go test -v -tags e2e ./tests/reporter/e2e -timeout 30m
 
-# Option 2: Build images manually
-cd components/manager && docker build -t reporter-manager:latest .
-cd components/worker && docker build -t reporter-worker:latest .
+# Option 2: Build images manually (build context is the repo root for the single root go.mod)
+docker build -f components/reporter-manager/Dockerfile -t reporter-manager:latest .
+docker build -f components/reporter-worker/Dockerfile -t reporter-worker:latest .
 ```
 
 ## Test Architecture
@@ -113,18 +111,19 @@ The E2E tests spin up a complete test environment using [testcontainers-go](http
 |       |                                                        |
 |       | Query & Generate                                       |
 |       v                                                        |
-|  +------------+       +----------+                             |
-|  | PostgreSQL |       |  Redis   |  (Cache/Locking)            |
-|  | (midaz_    |       +----------+                             |
-|  | onboarding)|                                                |
-|  +------------+       +----------+                             |
-|                       |  MinIO   |  (S3 report storage)        |
-|  +------------+       +----------+                             |
-|  |  MongoDB   |                                                |
-|  | (plugin_   |                                                |
-|  |  crm)      |                                                |
-|  +------------+                                                |
-|   (Data Sources)                                               |
+|  +-------------+      +----------+                            |
+|  | PostgreSQL  |      |  Redis   |  (Cache/Locking)           |
+|  | (midaz_     |      +----------+                            |
+|  | onboarding, |                                              |
+|  | midaz_      |      +----------+                            |
+|  | transaction)|      |  MinIO   |  (S3 report storage)       |
+|  +-------------+      +----------+                            |
+|  +------------+                                               |
+|  |  MongoDB   |                                               |
+|  | (plugin_   |                                               |
+|  |  crm)      |                                               |
+|  +------------+                                               |
+|   (Data Sources)                                              |
 |                                                                |
 +---------------------------------------------------------------+
 ```
@@ -132,18 +131,25 @@ The E2E tests spin up a complete test environment using [testcontainers-go](http
 ## Project Structure
 
 ```
-tests/e2e/
+tests/reporter/e2e/
 ├── main_test.go                        # TestMain setup/teardown
+├── deadline_crud_test.go               # Deadline CRUD lifecycle
+├── deadline_delivery_test.go           # Deadline delivery (mark/clear)
+├── deadline_validation_test.go         # Deadline payload validation
 ├── infra_datasources_test.go           # Data source discovery and access
 ├── infra_health_test.go                # Health/readiness endpoint checks
+├── infra_metrics_test.go               # Metrics endpoint checks
 ├── infra_security_test.go              # Security headers, rate limiting, CORS
+├── pdf_security_test.go                # PDF rendering security (LFI/injection vectors)
 ├── report_filters_test.go              # Filter operators (eq, gt, lt, between, in, nin)
 ├── report_generation_test.go           # Full report generation pipeline (all formats)
 ├── report_management_test.go           # Report CRUD, idempotency, downloads
 ├── resilience_error_retry_test.go      # Retry logic, DLQ, circuit breakers
+├── template_builder_config_test.go     # Template-builder blocks/filters config
+├── template_builder_generate_test.go   # Template-builder generate-code
+├── template_builder_validate_test.go   # Template-builder validate
 ├── template_crud_test.go               # Template CRUD, validation, injection prevention
 ├── template_report_validation_test.go  # Business template data validation (ACCS005, CADOC 4111, etc.)
-├── tenant_isolation_test.go            # Multi-tenant isolation (E2E_ENABLE_MT=true)
 ├── validation_query_params_test.go     # Query parameter validation
 ├── shared/                             # Test utilities
 │   ├── apps.go                         # StartManager, StartWorker, AppEnv
@@ -155,7 +161,7 @@ tests/e2e/
 └── testdata/
     ├── init_postgres.sql               # PostgreSQL seed data (midaz_onboarding)
     ├── init_mongo.js                   # MongoDB seed data (plugin_crm)
-    └── templates/                      # Template fixtures (21 files)
+    └── templates/                      # Template fixtures (23 .tpl + not-tpl.txt)
         ├── valid_html.tpl
         ├── valid_csv.tpl
         ├── valid_pdf.tpl
@@ -174,12 +180,13 @@ Test files use category prefixes to group related tests:
 
 | Prefix | Category | Description |
 |--------|----------|-------------|
-| `infra_` | Infrastructure | Health checks, security, data sources |
+| `infra_` | Infrastructure | Health checks, metrics, security, data sources |
 | `report_` | Reports | CRUD, generation pipeline, filters |
-| `template_` | Templates | Template CRUD and validation |
+| `template_` | Templates | Template CRUD, validation, and template-builder |
+| `deadline_` | Deadlines | Deadline CRUD, delivery, validation |
+| `pdf_` | PDF | PDF rendering security |
 | `validation_` | Validation | Input validation and query parameters |
 | `resilience_` | Resilience | Error handling, retry logic, circuit breakers |
-| `tenant_` | Tenancy | Multi-tenant isolation |
 
 ## Important Patterns
 
@@ -273,10 +280,11 @@ Choose the appropriate prefix for your test file:
 
 - `infra_*.go` - Infrastructure/platform concerns
 - `report_*.go` - Report domain operations
-- `template_*.go` - Template domain operations
+- `template_*.go` - Template domain operations (incl. template-builder)
+- `deadline_*.go` - Deadline domain operations
+- `pdf_*.go` - PDF rendering security
 - `validation_*.go` - Input validation
 - `resilience_*.go` - Error handling and fault tolerance
-- `tenant_*.go` - Multi-tenancy
 
 ### 3. Test Function Naming
 
@@ -307,10 +315,10 @@ Set `E2E_SKIP_BUILD=true` to use pre-built images, or provide the token:
 
 ```bash
 # Option 1: Use pre-built images (default)
-make test-e2e
+go test -v -tags e2e ./tests/reporter/e2e -timeout 30m
 
 # Option 2: Build from source
-make test-e2e E2E_SKIP_BUILD=false GITHUB_TOKEN=`cat .secrets/github_token.txt`
+E2E_SKIP_BUILD=false GITHUB_TOKEN=`cat .secrets/github_token.txt` go test -v -tags e2e ./tests/reporter/e2e -timeout 30m
 ```
 
 ### Tests timeout waiting for report completion
@@ -329,10 +337,10 @@ Start infrastructure only, then run Manager/Worker in your IDE:
 
 ```bash
 # Terminal 1: Start infrastructure
-FIXED_PORT=true E2E_INFRA_ONLY=true go test -v -tags e2e ./tests/e2e -timeout 30m
+FIXED_PORT=true E2E_INFRA_ONLY=true go test -v -tags e2e ./tests/reporter/e2e -timeout 30m
 
 # Terminal 2: Run tests against local Manager/Worker
-E2E_SKIP_MANAGER=true E2E_SKIP_WORKER=true go test -v -tags e2e ./tests/e2e -run TestMyTest -timeout 10m
+E2E_SKIP_MANAGER=true E2E_SKIP_WORKER=true go test -v -tags e2e ./tests/reporter/e2e -run TestMyTest -timeout 10m
 ```
 
 ### Saving reports for manual inspection
@@ -342,10 +350,10 @@ reports to disk so you can open and inspect them manually:
 
 ```bash
 # Save to /tmp/e2e-reports/ (default)
-E2E_SAVE_REPORTS=true go test -v -tags e2e ./tests/e2e -run TestTemplateReport -timeout 30m
+E2E_SAVE_REPORTS=true go test -v -tags e2e ./tests/reporter/e2e -run TestTemplateReport -timeout 30m
 
 # Save to a custom directory
-E2E_SAVE_REPORTS=true E2E_REPORTS_DIR=./my-reports go test -v -tags e2e ./tests/e2e -run TestTemplateReport -timeout 30m
+E2E_SAVE_REPORTS=true E2E_REPORTS_DIR=./my-reports go test -v -tags e2e ./tests/reporter/e2e -run TestTemplateReport -timeout 30m
 ```
 
 Files are saved as `<TestName>.<ext>` (e.g., `TestTemplateReport_AccountPDF.pdf`,
@@ -374,11 +382,13 @@ docker ps -a | grep -E "(mongo|rabbit|redis|minio|postgres)" | awk '{print $1}' 
 | File | Test | Description |
 |------|------|-------------|
 | `infra_health_test.go` | `TestHealth_ManagerHealthEndpoint` | GET /health returns 200 |
-| `infra_health_test.go` | `TestHealth_ManagerReadyEndpoint` | GET /ready returns 200 or 503 |
-| `infra_health_test.go` | `TestHealth_ManagerReadyDependencies` | /ready checks all dependencies |
+| `infra_health_test.go` | `TestHealth_ManagerReadyzEndpoint` | GET /readyz returns 200 or 503 |
+| `infra_health_test.go` | `TestHealth_ManagerReadyEndpoint` | Legacy /ready alias is permanently removed (404 regression guard) |
+| `infra_health_test.go` | `TestHealth_ManagerReadyDependencies` | /readyz checks all dependencies |
 | `infra_health_test.go` | `TestHealth_ManagerVersionEndpoint` | Version endpoint returns valid data |
 | `infra_health_test.go` | `TestHealth_WorkerHealthEndpoint` | Worker /health returns 200 |
-| `infra_health_test.go` | `TestHealth_WorkerReadyEndpoint` | Worker /ready returns 200 or 503 |
+| `infra_health_test.go` | `TestHealth_WorkerReadyzEndpoint` | Worker /readyz returns 200 or 503 |
+| `infra_health_test.go` | `TestHealth_WorkerReadyEndpoint` | Worker legacy /ready alias is permanently removed (404 regression guard) |
 | `infra_health_test.go` | `TestHealth_ManagerHealthResponseFormat` | Response JSON format validation |
 | `infra_health_test.go` | `TestHealth_ManagerReadyResponseBody` | Valid JSON body response |
 | `infra_health_test.go` | `TestHealth_MultipleHealthChecks` | Sequential health check consistency |
@@ -402,8 +412,9 @@ docker ps -a | grep -E "(mongo|rabbit|redis|minio|postgres)" | awk '{print $1}' 
 
 | File | Test | Description |
 |------|------|-------------|
-| `infra_datasources_test.go` | `TestDS_ListDataSources` | List returns midaz_onboarding and plugin_crm |
-| `infra_datasources_test.go` | `TestDS_GetMidazOnboarding` | Get PostgreSQL data source details |
+| `infra_datasources_test.go` | `TestDS_ListDataSources` | List returns midaz_onboarding, midaz_transaction, and plugin_crm |
+| `infra_datasources_test.go` | `TestDS_GetMidazOnboarding` | Get PostgreSQL data source details (midaz_onboarding) |
+| `infra_datasources_test.go` | `TestDS_GetMidazTransaction` | Get PostgreSQL data source details (midaz_transaction) |
 | `infra_datasources_test.go` | `TestDS_GetPluginCRM` | Get MongoDB data source details |
 | `infra_datasources_test.go` | `TestDS_GetNotFound` | 404 for non-existent data source |
 | `infra_datasources_test.go` | `TestDS_GetPathTraversal` | Path traversal attack prevention |
@@ -443,22 +454,34 @@ docker ps -a | grep -E "(mongo|rabbit|redis|minio|postgres)" | awk '{print $1}' 
 | `report_generation_test.go` | `TestGen_FilterEq` | Equality filter in pipeline |
 | `report_generation_test.go` | `TestGen_FilterGtDate` | Greater-than date filter |
 | `report_generation_test.go` | `TestGen_FilterBetweenDates` | Date range filter |
+| `report_generation_test.go` | `TestGen_FilterInStatus` | IN filter on status |
+| `report_generation_test.go` | `TestGen_FilterNinStatus` | NOT IN filter on status |
+| `report_generation_test.go` | `TestGen_CombinedFilters` | Multiple filters combined |
+| `report_generation_test.go` | `TestGen_EmptyFiltersAllData` | Empty filter returns all data |
+| `report_generation_test.go` | `TestGen_EmptyResultSet` | Empty result set handling |
 | `report_generation_test.go` | `TestGen_StatusTransitions` | Report status progression |
+| `report_generation_test.go` | `TestGen_ErrorStatusMetadata` | Error status metadata recorded |
+| `report_generation_test.go` | `TestGen_WorkerIdempotencySkipFinished` | Worker skips already-finished report |
+| `report_generation_test.go` | `TestGen_WorkerIdempotencySkipErrored` | Worker skips already-errored report |
 | `report_generation_test.go` | `TestGen_PDFTimeoutHandling` | PDF generation timeout handling |
 
 ### Report - Filters
 
 | File | Test | Description |
 |------|------|-------------|
-| `report_filters_test.go` | `TestFilter_EqSingleValue` | Equality: eq operator |
-| `report_filters_test.go` | `TestFilter_GtNumeric` | Greater-than numeric |
+| `report_filters_test.go` | `TestFilter_EqSingleValue` | Equality: eq operator (single value) |
+| `report_filters_test.go` | `TestFilter_EqMultipleValues` | Equality: eq operator (multiple values) |
+| `report_filters_test.go` | `TestFilter_GtDate` | Greater-than date |
 | `report_filters_test.go` | `TestFilter_GteDate` | Greater-than-or-equal date |
-| `report_filters_test.go` | `TestFilter_LtNumeric` | Less-than numeric |
+| `report_filters_test.go` | `TestFilter_LtDate` | Less-than date |
 | `report_filters_test.go` | `TestFilter_LteDate` | Less-than-or-equal date |
 | `report_filters_test.go` | `TestFilter_BetweenDates` | Date range filter |
-| `report_filters_test.go` | `TestFilter_BetweenNumeric` | Numeric range filter |
+| `report_filters_test.go` | `TestFilter_BetweenDateRange` | Date range filter (explicit range) |
 | `report_filters_test.go` | `TestFilter_InList` | IN operator |
 | `report_filters_test.go` | `TestFilter_NinExclusion` | NOT IN operator |
+| `report_filters_test.go` | `TestFilter_AccountEqName` | Account filter by name |
+| `report_filters_test.go` | `TestFilter_AccountGtDate` | Account greater-than date filter |
+| `report_filters_test.go` | `TestFilter_AccountLtDate` | Account less-than date filter |
 | `report_filters_test.go` | `TestFilter_CombinedSameField` | Multiple filters on same field |
 | `report_filters_test.go` | `TestFilter_AcrossMultipleTables` | Filters across tables |
 | `report_filters_test.go` | `TestFilter_EmptyFiltersAllData` | Empty filter returns all data |
@@ -472,18 +495,40 @@ docker ps -a | grep -E "(mongo|rabbit|redis|minio|postgres)" | awk '{print $1}' 
 | `template_crud_test.go` | `TestTemplate_CreateXML` | Create XML template |
 | `template_crud_test.go` | `TestTemplate_CreatePDF` | Create PDF template |
 | `template_crud_test.go` | `TestTemplate_CreateTXT` | Create TXT template |
+| `template_crud_test.go` | `TestTemplate_CreateCSVContentAsHTML` | CSV content served as HTML |
+| `template_crud_test.go` | `TestTemplate_CreateSchemaQualified` | Schema-qualified table references |
 | `template_crud_test.go` | `TestTemplate_CreateMissingFile` | Missing file in multipart upload |
+| `template_crud_test.go` | `TestTemplate_CreateMissingDescription` | Missing description rejected |
+| `template_crud_test.go` | `TestTemplate_CreateMissingOutputFormat` | Missing output format rejected |
 | `template_crud_test.go` | `TestTemplate_CreateInvalidExtension` | Invalid file extension |
+| `template_crud_test.go` | `TestTemplate_CreateInvalidOutputFormat` | Invalid output format rejected |
+| `template_crud_test.go` | `TestTemplate_CreateInvalidField` | Invalid field reference rejected |
+| `template_crud_test.go` | `TestTemplate_CreateInvalidTable` | Invalid table reference rejected |
+| `template_crud_test.go` | `TestTemplate_CreateInvalidDatabase` | Invalid database reference rejected |
 | `template_crud_test.go` | `TestTemplate_CreateEmptyFile` | Empty template file |
 | `template_crud_test.go` | `TestTemplate_CreateScriptInjection` | XSS script injection blocked |
 | `template_crud_test.go` | `TestTemplate_CreateEventHandlerInjection` | Event handler injection blocked |
+| `template_crud_test.go` | `TestTemplate_CreateIframeInjection` | Iframe injection blocked |
 | `template_crud_test.go` | `TestTemplate_IdempotencyHeader` | Idempotency-Key header |
+| `template_crud_test.go` | `TestTemplate_IdempotencyBodyHash` | Body hash-based idempotency |
+| `template_crud_test.go` | `TestTemplate_IdempotencyConcurrentDuplicate` | Concurrent duplicate handling |
 | `template_crud_test.go` | `TestTemplate_GetByID` | GET template by ID |
 | `template_crud_test.go` | `TestTemplate_GetNotFound` | 404 for non-existent template |
+| `template_crud_test.go` | `TestTemplate_GetInvalidUUID` | Invalid UUID rejected on GET |
 | `template_crud_test.go` | `TestTemplate_ListNoFilters` | List all templates |
 | `template_crud_test.go` | `TestTemplate_ListPagination` | Pagination support |
+| `template_crud_test.go` | `TestTemplate_ListEmptyResult` | Empty list result |
+| `template_crud_test.go` | `TestTemplate_ListFilterByDescription` | List filtered by description |
+| `template_crud_test.go` | `TestTemplate_ListFilterByOutputFormat` | List filtered by output format |
+| `template_crud_test.go` | `TestTemplate_ListFilterByOutputFormatCamelCase` | List filtered by output format (camelCase) |
 | `template_crud_test.go` | `TestTemplate_UpdateFullUpdate` | Full template update |
+| `template_crud_test.go` | `TestTemplate_UpdateNotFound` | Update non-existent template |
+| `template_crud_test.go` | `TestTemplate_UpdateInvalidUUID` | Invalid UUID rejected on update |
+| `template_crud_test.go` | `TestTemplate_UpdateOutputFormatWithoutFile` | Update output format without re-uploading file |
+| `template_crud_test.go` | `TestTemplate_UpdateScriptInjection` | XSS script injection blocked on update |
 | `template_crud_test.go` | `TestTemplate_DeleteSuccess` | Successful deletion |
+| `template_crud_test.go` | `TestTemplate_DeleteNotFound` | Delete non-existent template |
+| `template_crud_test.go` | `TestTemplate_DeleteInvalidUUID` | Invalid UUID rejected on delete |
 | `template_crud_test.go` | `TestTemplate_DeleteAlreadyDeleted` | Delete already deleted template |
 
 ### Template - Report Validation
@@ -497,6 +542,7 @@ with the expected internal data. Reports can be saved to disk for manual inspect
 | `template_report_validation_test.go` | `TestTemplateReport_AccountPDF` | account_pdf.tpl — PDF pipeline with account data validation |
 | `template_report_validation_test.go` | `TestTemplateReport_ACCS005` | ACCS005.tpl — Brazilian CCS XML with holder/account/alias data |
 | `template_report_validation_test.go` | `TestTemplateReport_CADOC4111` | cadoc-4111.tpl — CADOC 4111 XML with operation balances |
+| `template_report_validation_test.go` | `TestTemplateReport_EngineFeatureShowcase` | engine-features-showcase_html.tpl — templating engine feature coverage |
 
 ### Validation - Query Parameters
 
@@ -524,16 +570,5 @@ with the expected internal data. Reports can be saved to disk for manual inspect
 | `resilience_error_retry_test.go` | `TestErr_RabbitMQReconnection` | RabbitMQ connection recovery |
 | `resilience_error_retry_test.go` | `TestErr_CompensatingTransactionS3Failure` | S3 failure compensation |
 
-### Tenant - Isolation
-
-Requires `E2E_ENABLE_MT=true` to run.
-
-| File | Test | Description |
-|------|------|-------------|
-| `tenant_isolation_test.go` | `TestMT_TenantATemplateNotVisibleToB` | Cross-tenant template isolation |
-| `tenant_isolation_test.go` | `TestMT_TenantBCannotDownloadTenantAReport` | Cross-tenant download blocked |
-| `tenant_isolation_test.go` | `TestMT_ReportUsesTenantSpecificDB` | Tenant-scoped database usage |
-| `tenant_isolation_test.go` | `TestMT_RabbitMQMessageIncludesTenantID` | Messages include tenant ID |
-| `tenant_isolation_test.go` | `TestMT_SingleTenantModeWithoutHeaders` | Backward compatibility |
-| `tenant_isolation_test.go` | `TestMT_TenantIsolationTemplateList` | Template lists are tenant-scoped |
-| `tenant_isolation_test.go` | `TestMT_TenantIsolationReportList` | Report lists are tenant-scoped |
+> Multi-tenant isolation is covered by the integration suite
+> (`tests/reporter/integration/tenant_isolation_test.go`), not the e2e suite.

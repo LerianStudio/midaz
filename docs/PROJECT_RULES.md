@@ -19,7 +19,7 @@
 10. [Build & CI/CD](#10-build--cicd)
 11. [Git Conventions](#11-git-conventions)
 12. [Background Workers](#12-background-workers)
-13. [Inter-Module Ports](#13-inter-module-ports)
+13. [Inter-Module Composition](#13-inter-module-composition)
 14. [Multi-Tenancy](#14-multi-tenancy)
 
 ---
@@ -40,58 +40,47 @@ Services split into:
 - `services/command/` - Write operations (mutations)
 - `services/query/` - Read operations (projections)
 
-### Deployment Modes
+### Deploy Units
 
-| Mode | Description | Port |
-|------|-------------|------|
-| **Unified Ledger** | Single process composing onboarding + transaction via in-process calls | 3002 |
-| **Microservices** | Independent services communicating via gRPC | 3000/3001 |
+| Deploy unit | Description | Port |
+|-------------|-------------|------|
+| **`components/ledger`** | Unified binary: single process serving onboarding + transaction + CRM (holders/aliases) + fees | 3002 |
+| **`components/tracer`** | Transaction validation / fraud-prevention API (CEL rules, spending limits, audit trail) | 4020 |
+| **`components/reporter-manager`** | Async report-generation REST API (templates, reports, deadlines) | 4005 |
+| **`components/reporter-worker`** | Headless RabbitMQ consumer rendering report artifacts (health probe only) | 4006 (HEALTH_PORT) |
+| **`components/infra`** | Single consolidated docker-compose for shared infra (no Go build) | - |
+
+There is no standalone "microservices" deployment of onboarding, transaction, CRM, or fees: they are folded into the single `components/ledger` binary on :3002. CRM is a package tree under `components/crm` (no `cmd/`, no `internal/`) imported by the ledger binary; fees are embedded at `components/ledger/pkg/fee` (engine), `pkg/feeshared` (shared types), and `internal/services/fees` (use cases). Tracer and the two reporter services are co-located in the monorepo but each is a separate Go service deploy unit using the single root `go.mod`.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    UNIFIED LEDGER MODE                      │
+│                    UNIFIED LEDGER BINARY                    │
 │  UnifiedServer (Fiber App) - Single HTTP Port :3002         │
 ├─────────────────────────────────────────────────────────────┤
-│  /v1/organizations/*  → Onboarding Routes                   │
+│  /v1/organizations/*  → Onboarding Routes (midaz ns)        │
 │  /v1/organizations/*/transactions/* → Transaction Routes    │
 │  /v1/settings/metadata-indexes/* → Metadata Index Routes    │
+│  /v1/holders/*, /v1/aliases/* → CRM Routes (plugin-crm ns)  │
+│  /v1/packages/*, /v1/estimates → Fee Routes (plugin-fees ns)│
 └─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│                    MICROSERVICES MODE                       │
-├──────────────────────────┬──────────────────────────────────┤
-│  Onboarding :3000        │  Transaction :3001 (HTTP)        │
-│  - Organizations         │  - Transactions                  │
-│  - Ledgers               │  - Operations                    │
-│  - Accounts              │  - Balances                      │
-│  - Assets                │  - Asset Rates                   │
-│  - Portfolios            │                                  │
-│  - Segments              │  gRPC :3011 (Balance Service)    │
-└──────────────────────────┴──────────────────────────────────┘
 ```
 
 ### Component Communication
 
-In **Unified Mode**, the `ledger` component composes both modules with in-process calls:
+The `ledger` component composes all four surfaces in-process — there is no gRPC anywhere in the ledger binary. Onboarding and transaction share a single `command.UseCase` and a single `query.UseCase` constructed over the same repo set; all handlers receive the same use-case pointers. `NewUnifiedServer` mounts route registrars (onboarding, transaction, ledger metadata, CRM, fees) onto one Fiber app:
 
 ```go
-// Transaction module initialized first to expose BalancePort
-transactionService := transaction.InitServiceWithOptionsOrError(&transaction.Options{Logger: logger})
-balancePort := transactionService.GetBalancePort()
-
-// Onboarding module uses BalancePort for direct in-process calls (no gRPC overhead)
-onboardingService := onboarding.InitServiceWithOptionsOrError(&onboarding.Options{
-    UnifiedMode: true,
-    BalancePort: balancePort,  // Direct UseCase reference
-})
-```
-
-In **Microservices Mode**, onboarding calls transaction via gRPC:
-
-```go
-// gRPC adapter wraps network calls
-grpcConnection := &mgrpc.GRPCConnection{Addr: "midaz-transaction:3011"}
-balancePort := grpcout.NewBalanceAdapter(grpcConnection)
+// All route surfaces register onto one Fiber app via the registrar pattern.
+// Onboarding and transaction share the same command.UseCase / query.UseCase
+// instances — direct in-process calls, no gRPC, no network hop.
+server := bootstrap.NewUnifiedServer(
+    cfg, logger, telemetry,
+    onboardingRouteRegistrar,
+    transactionRouteRegistrar,
+    ledgerRouteRegistrar,
+    crmRouteRegistrar,
+    feesRouteRegistrar,
+)
 ```
 
 ---
@@ -106,8 +95,7 @@ components/{service}/
 ├── internal/
 │   ├── adapters/
 │   │   ├── http/in/          # HTTP inbound handlers
-│   │   ├── grpc/in/          # gRPC inbound handlers
-│   │   ├── grpc/out/         # gRPC outbound clients
+│   │   ├── http/out/         # HTTP outbound clients
 │   │   ├── postgres/         # PostgreSQL repositories
 │   │   ├── mongodb/          # MongoDB repositories
 │   │   ├── redis/            # Cache layer
@@ -129,11 +117,12 @@ components/{service}/
 | Package | Purpose | Key Files |
 |---------|---------|-----------|
 | `mmodel/` | Shared domain models (Account, Balance, Transaction, Organization, etc.) | 26 model files |
-| `mbootstrap/` | Service composition interfaces (BalancePort, SettingsPort, MetadataIndexRepository, Service) | `balance.go`, `settings.go`, `interfaces.go` |
-| `constant/` | Error codes (177 errors), enums, constants | `errors.go`, `account.go`, `transaction.go` |
+| `mbootstrap/` | Service composition interfaces (Runnable, Service, MetadataIndexRepository) | `interfaces.go`, `metadata-index-repo.go` |
+| `constant/` | Error codes (4-digit core + `CRM-` prefixed), enums, constants | `errors.go`, `account.go`, `transaction.go` |
 | `net/http/` | HTTP utilities, error handling, Fiber middleware | HTTP response helpers |
-| `mgrpc/` | gRPC infrastructure, proto definitions, connection management | `balance/` proto package |
-| `transaction/` | Transaction domain logic (balance validations, operation calculations) | `validations.go`, `transaction.go` |
+| `mtransaction/` | Transaction domain logic (balance validations, operation calculations); formerly `pkg/transaction` | `input.go`, `overdraft.go`, direction/refund/time helpers |
+| `reporter/` | Shared reporter library (domain, infra clients, templating, integration test harness) | `circuit-breaker.go`, `datasource/`, `mongodb/`, `pdf/` |
+| `streaming/` | lib-streaming event modeling (`pkgStreaming`) | `emit.go`, `tenant.go`, `events/` |
 | `gold/` | Transaction DSL parser (ANTLR4-based, **deprecated** - use `/dsl` endpoint) | `Transaction.g4`, `parser/`, `transaction/` |
 | `mongo/` | MongoDB connection utilities | `ExtractMongoPortAndParameters` |
 | `shell/` | Shell execution utilities | Script helpers |
@@ -141,22 +130,25 @@ components/{service}/
 
 ### Components
 
-| Component | Port | Responsibility | Architecture |
-|-----------|------|----------------|--------------|
-| `onboarding` | 3000 | Entity management (organizations, ledgers, accounts, assets, portfolios, segments) | Hexagonal + CQRS |
-| `transaction` | 3001 (HTTP), 3011 (gRPC) | Double-entry accounting, balances, operations, asset rates | Hexagonal + CQRS |
-| `ledger` | 3002 | Unified mode composing onboarding + transaction | Composition layer |
-| `crm` | 4003 | Customer/holder management, aliases | Hexagonal (flat services) |
-| `infra` | - | Docker infrastructure (PostgreSQL, MongoDB, Redis, RabbitMQ) | Infrastructure-only |
+| Component | Port | Responsibility | Notes |
+|-----------|------|----------------|-------|
+| `ledger` | 3002 | Unified binary: onboarding + transaction + CRM (holders/aliases) + fees | Single Go service deploy unit; absorbs `crm` and fees |
+| `crm` | - | Customer/holder management, aliases | Package tree (no `cmd/`, no `internal/`) imported by the ledger binary; routes under `plugin-crm` authz namespace. Not a deploy unit, emits no image. |
+| `tracer` | 4020 | Transaction validation / fraud-prevention API (CEL rules, spending limits, audit trail) | Separate Go service deploy unit |
+| `reporter-manager` | 4005 | Async report-generation REST API (templates, reports, deadlines) | Separate Go service deploy unit |
+| `reporter-worker` | 4006 (HEALTH_PORT) | Headless RabbitMQ consumer rendering report artifacts | Separate Go service deploy unit; health probe only, no business REST surface |
+| `infra` | - | Single consolidated docker-compose for shared infra (PostgreSQL, MongoDB, Valkey, RabbitMQ, otel-lgtm, SeaweedFS) | Infrastructure-only, no Go build |
 
 ### Component Capabilities Matrix
 
-| Component | PostgreSQL | MongoDB | Redis | RabbitMQ | gRPC In | gRPC Out | Migrations |
-|-----------|------------|---------|-------|----------|---------|----------|------------|
-| onboarding | Yes | Yes (metadata) | Yes (cache) | No | Yes | Yes (to transaction) | 18 files |
-| transaction | Yes | Yes (metadata) | Yes (cache/sync) | Yes (async balance) | Yes | No | 36 files |
-| ledger | No (composition) | No | No | No | No | No | Inherits from modules |
-| crm | No | Yes (holders, aliases) | No | No | No | No | None |
+The `ledger` binary composes four route surfaces in-process (no gRPC). Capabilities by surface:
+
+| Surface | PostgreSQL | MongoDB | Valkey/Redis | RabbitMQ | Migrations |
+|---------|------------|---------|--------------|----------|------------|
+| onboarding | Yes | Yes (metadata) | Yes (cache) | No | Yes (onboarding) |
+| transaction | Yes | Yes (metadata) | Yes (cache/sync) | Yes (async balance) | Yes (transaction) |
+| CRM (`plugin-crm`) | No | Yes (holders, aliases) | No | No | None |
+| fees (`plugin-fees`) | No | Yes (packages, billing) | No | No | None |
 
 ---
 
@@ -213,8 +205,8 @@ import (
     "github.com/shopspring/decimal"
 
     // 3. Internal: lib-commons (with lib prefix)
-    libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-    libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+    libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+    libLog "github.com/LerianStudio/lib-observability/log"
 
     // 4. Internal: midaz project packages
     "github.com/LerianStudio/midaz/v3/pkg"
@@ -274,7 +266,7 @@ if err != nil {
 
 **Location:** `pkg/constant/errors.go`
 
-Core errors use 4-digit numeric codes (0001-0148). CRM-specific errors use a `CRM-` prefix (CRM-0001 to CRM-0029):
+Core errors use 4-digit numeric codes (0001-0175). CRM-specific errors use a `CRM-` prefix (CRM-0006 to CRM-0029, non-contiguous):
 
 ```go
 var (
@@ -285,8 +277,8 @@ var (
     ErrTokenMissing            = errors.New("0041")
     ErrInternalServer          = errors.New("0046")
 
-    // CRM errors (pkg/constant/crm_errors.go)
-    // CRM-0001 through CRM-0029: holder/alias validation, relationships, metadata
+    // CRM errors (same file, "List of CRM domain errors" var block)
+    // CRM-0006 through CRM-0029: holder/alias validation, relationships, metadata (gaps intentional)
 )
 ```
 
@@ -635,9 +627,9 @@ dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
 
 2. **Runtime validation with logging:**
    ```go
-   if cfg.ProtoAddress == "" {
-       cfg.ProtoAddress = ":3011"
-       logger.Warn("PROTO_ADDRESS not set, using default: :3011")
+   if cfg.ServerAddress == "" {
+       cfg.ServerAddress = ":3002"
+       logger.Warn("SERVER_ADDRESS not set, using default: :3002")
    }
    ```
 
@@ -665,9 +657,9 @@ ReadTimeout: time.Duration(cfg.RedisReadTimeout) * time.Second
 | `_test.go` | Unit tests | None |
 | `_integration_test.go` | Integration tests (testcontainers) | `//go:build integration` |
 | `_fuzz_test.go` | Native Go fuzz tests | None |
-| `_property_test.go` | Property-based invariant tests | `//go:build integration` |
+| `_property_test.go` | Property-based invariant tests | None (a minority use `//go:build integration`) |
 | `_chaos_test.go` | Chaos engineering tests (Toxiproxy) | `//go:build integration` |
-| `_tenant_test.go` | Multi-tenant isolation tests | `//go:build integration` |
+| `_tenant_test.go` | Multi-tenant isolation tests | None |
 | `_benchmark_test.go` / `_bench_test.go` | Benchmarks | None |
 | `_mock.go` | Generated mocks | None |
 
@@ -821,7 +813,7 @@ make ledger COMMAND=lint
 
 ```dockerfile
 # Stage 1: Builder (multi-platform support)
-FROM --platform=$BUILDPLATFORM golang:1.25.7-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.3-alpine AS builder
 WORKDIR /ledger-app
 COPY go.mod go.sum ./
 RUN go mod download
@@ -855,11 +847,10 @@ ENTRYPOINT ["/app"]
 | `build.yml` | Tag push | Build & publish Docker images |
 | `go-combined-analysis.yml` | PR | CodeQL, lint, gosec, tests |
 | `pr-security-scan.yml` | PR | Security scanning |
-| `go-integration-e2e.yml` | PR | Integration and E2E tests |
-| `midaz-e2e-tests.yml` | PR | Full E2E test suite |
 | `pr-validation.yml` | PR | PR format validation |
 | `release.yml` | Release | Release automation |
 | `release-notification.yml` | Release | Discord/Slack notifications |
+| `gptchangelog.yml` | Post-release | Changelog generation |
 | `env-vars-pr-notification.yml` | PR | Environment variable change alerts |
 
 ### Code Quality Gates
@@ -1024,41 +1015,9 @@ multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 
 ---
 
-## 13. Inter-Module Ports
+## 13. Inter-Module Composition
 
-### BalancePort Interface
-
-Defines transport-agnostic balance operations:
-
-```go
-// pkg/mbootstrap/balance.go
-type BalancePort interface {
-    CreateBalanceSync(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error)
-    DeleteAllBalancesByAccountID(ctx context.Context, orgID, ledgerID, accountID uuid.UUID, requestID string) error
-    CheckHealth(ctx context.Context) error
-}
-```
-
-**Implementations:**
-- `transaction.UseCase` - Direct in-process (unified mode)
-- `grpcout.BalanceGRPCRepository` - Network calls via gRPC (microservices mode)
-
-### SettingsPort Interface
-
-Defines transport-agnostic ledger settings queries:
-
-```go
-// pkg/mbootstrap/settings.go
-type SettingsPort interface {
-    GetLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (map[string]any, error)
-}
-```
-
-**Implementations:**
-- `onboarding.query.UseCase` - Direct in-process (unified mode)
-- Future: gRPC adapter for microservices mode
-
-**Usage:** Transaction module queries ledger settings (e.g., `validateAccountType`, `validateRoutes`) from onboarding via this port. Wired via lazy initialization after both modules are initialized to resolve the circular dependency.
+Onboarding and transaction are not separate services in the unified binary — they share a single `command.UseCase` and a single `query.UseCase`, both constructed in the ledger composition root over the same repo set. Balance creation and ledger-settings reads run through those shared use cases directly; there is no gRPC and no network hop anywhere in the ledger binary. The only cross-module interface kept in `pkg/mbootstrap` is the metadata-index contract below.
 
 ### MetadataIndexRepository Interface
 
@@ -1133,7 +1092,7 @@ type TenantConfig struct {
 
 ### Dependency
 
-Multi-tenancy is provided by `lib-commons/v4`:
+Multi-tenancy is provided by `lib-commons/v5`:
 - `tmclient.Client` - HTTP client to tenant manager service
 - `tmpostgres.Manager` / `tmmongo.Manager` / `tmrabbitmq.Manager` - Per-tenant connection pool managers
 - `tmmiddleware.TenantMiddleware` - Fiber middleware to extract tenant and inject DB
@@ -1156,4 +1115,4 @@ Multi-tenancy is provided by `lib-commons/v4`:
 - **Error Catalog:** https://docs.midaz.io/midaz/api-reference/resources/errors-list
 - **Project Structure:** `STRUCTURE.md`
 - **Linter Config:** `.golangci.yml`
-- **Go Version:** 1.25.0 (toolchain 1.25.7)
+- **Go Version:** 1.26.3 (toolchain go1.26.4)

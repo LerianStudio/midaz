@@ -18,18 +18,30 @@ Test system robustness against malformed, invalid, and malicious inputs.
 ✅ **No panics** - Any input handled safely  
 
 ## Running
-```bash
-# All fuzzing tests (1 minute each)
-ORG_ID=your-org-id make test-fuzzy
 
-# Specific test
-go test -fuzz=FuzzTemplateInvalidTags -fuzztime=30s ./tests/fuzzy
+This suite is gated by the `fuzz` build tag and spins up infrastructure via
+testcontainers by default (set `USE_EXISTING_INFRA=true` to reuse a running
+docker-compose stack instead).
+
+```bash
+# Run this suite's Fuzz* targets (build tag + full package path required)
+go test -tags fuzz ./tests/reporter/fuzzy/...
+
+# Specific target, e.g. 30s
+go test -tags fuzz -fuzz=FuzzTemplate_InvalidTags -fuzztime=30s ./tests/reporter/fuzzy
 ```
 
+> Note: `make test-fuzz` only discovers Fuzz* targets under `./components` and
+> `./pkg`; it does not scan `./tests`, so it does NOT run this reporter suite.
+> Invoke `go test` directly as shown above.
+
 ## Test Files
-- `fuzz_template_invalid_tags_test.go` - Non-existent fields/tables
-- `fuzz_template_syntax_test.go` - Syntax errors, XSS, sizes
-- `fuzz_filters_test.go` - Malformed filters
-- `fuzz_report_payload_test.go` - Invalid payloads, IDs
-- `fuzz_null_payload_test.go` - Null/empty validation
-- `fuzz_predefined_invalid_templates_test.go` - Specific error scenarios
+- `fuzz-template-invalid-tags_test.go` - Non-existent fields/tables
+- `fuzz-template-syntax_test.go` - Syntax errors, XSS, sizes
+- `fuzz-blocks-config_test.go` - Malformed blocks-config requests/bodies, header injection
+- `fuzz-filters_test.go` - Malformed filters config
+- `fuzz-report-payload_test.go` - Invalid report payloads, organization IDs
+- `fuzz-deadline-payload_test.go` - Malformed deadline create/update/deliver payloads
+- `fuzz-null-payload_test.go` - Null/empty validation
+- `fuzz-predefined-invalid-templates_test.go` - Specific error scenarios
+- `fuzz_test.go` / `main_test.go` - Shared fuzz harness and testcontainers setup
