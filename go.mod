@@ -2,7 +2,7 @@ module github.com/LerianStudio/midaz/v3
 
 go 1.25.9
 
-toolchain go1.26.3
+toolchain go1.26.4
 
 require (
 	github.com/LerianStudio/lib-auth/v2 v2.7.0
@@ -100,7 +100,7 @@ require (
 )
 
 require (
-	github.com/LerianStudio/lib-commons/v5 v5.1.0
+	github.com/LerianStudio/lib-commons/v5 v5.1.3
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/docker/go-connections v0.7.0
 	github.com/moby/moby/api v1.54.1
