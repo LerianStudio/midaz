@@ -1,5 +1,49 @@
 # Midaz Changelog
 
+## [3.7.6](https://github.com/LerianStudio/midaz/releases/tag/v3.7.6)
+
+- Fixes:
+  - Stop double-namespacing balance keys in multi-tenant balance-sync read path.
+
+Contributors: @ClaraTersi, @lerian-studio
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.7.5...v3.7.6)
+
+---
+
+## [3.7.5](https://github.com/LerianStudio/midaz/releases/tag/v3.7.5)
+
+- Fixes:
+  - Bumped lib-commons to v5.1.3 to address issues with the HTTP/1.1 tmclient transport.
+
+Contributors: @jeffersonrodrigues92
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.7.4...v3.7.5)
+
+---
+
+## [3.7.4](https://github.com/LerianStudio/midaz/releases/tag/v3.7.4)
+
+- Fixes:
+  - Resolved issue with subscribing to the environment-scoped tenant-events channel.
+
+Contributors: @jeffersonrodrigues92,
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.7.3...v3.7.4)
+
+---
+
+## [3.7.3](https://github.com/LerianStudio/midaz/releases/tag/v3.7.3)
+
+- Fixes:
+  - Align tenant-manager module name with provisioning (crm → crm-api) :bug:
+
+Contributors: @ClaraTersi, @jeffersonrodrigues92, @lerian-studio
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.7.2...v3.7.3)
+
+---
+
 ## [3.7.2](https://github.com/LerianStudio/midaz/releases/tag/v3.7.2)
 
 - **Fixes:**
