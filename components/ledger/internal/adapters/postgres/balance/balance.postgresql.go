@@ -143,29 +143,60 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 	record := &BalancePostgreSQLModel{}
 	record.FromEntity(balance)
 
+	// When Direction is empty, omit the column so the schema DEFAULT ('credit'
+	// from migration 000031) applies. The DB CHECK constraint rejects an empty
+	// string, and keeping the default in the schema avoids duplicating the
+	// fallback value in Go.
+	insertColumns := []string{
+		"id",
+		"organization_id",
+		"ledger_id",
+		"account_id",
+		"alias",
+		"asset_code",
+		"available",
+		"on_hold",
+		"version",
+		"account_type",
+		"allow_sending",
+		"allow_receiving",
+		"created_at",
+		"updated_at",
+		"deleted_at",
+		"key",
+		"overdraft_used",
+		"settings",
+	}
+
+	insertValues := []any{
+		record.ID,
+		record.OrganizationID,
+		record.LedgerID,
+		record.AccountID,
+		record.Alias,
+		record.AssetCode,
+		record.Available,
+		record.OnHold,
+		record.Version,
+		record.AccountType,
+		record.AllowSending,
+		record.AllowReceiving,
+		record.CreatedAt,
+		record.UpdatedAt,
+		record.DeletedAt,
+		record.Key,
+		record.OverdraftUsed,
+		record.Settings,
+	}
+
+	if record.Direction != "" {
+		insertColumns = append(insertColumns, "direction")
+		insertValues = append(insertValues, record.Direction)
+	}
+
 	insert := squirrel.Insert(r.tableName).
-		Columns(balanceColumnList...).
-		Values(
-			record.ID,
-			record.OrganizationID,
-			record.LedgerID,
-			record.AccountID,
-			record.Alias,
-			record.AssetCode,
-			record.Available,
-			record.OnHold,
-			record.Version,
-			record.AccountType,
-			record.AllowSending,
-			record.AllowReceiving,
-			record.CreatedAt,
-			record.UpdatedAt,
-			record.DeletedAt,
-			record.Key,
-			record.Direction,
-			record.OverdraftUsed,
-			record.Settings,
-		).
+		Columns(insertColumns...).
+		Values(insertValues...).
 		Suffix("RETURNING " + strings.Join(balanceColumnList, ", ")).
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -1470,6 +1501,10 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
 	if len(balances) == 0 {
 		return 0, nil
+	}
+
+	if err := ctx.Err(); err != nil {
+		return 0, fmt.Errorf("context error before batch balance sync: %w", err)
 	}
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)

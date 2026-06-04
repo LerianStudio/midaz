@@ -1507,7 +1507,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			opBalanceAffected                                            *bool
 			opVersionBalance, opVersionBalanceAfter                      *int64
 			opDirection, opRouteID, opRouteCode, opRouteDescription      *string
-			opSnapshot                                                   json.RawMessage
+			opSnapshot                                                   *json.RawMessage
 		)
 
 		if err := rows.Scan(
@@ -1621,7 +1621,10 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 				RouteID:               opRouteID,
 				RouteCode:             opRouteCode,
 				RouteDescription:      opRouteDescription,
-				Snapshot:              opSnapshot,
+			}
+
+			if opSnapshot != nil {
+				op.Snapshot = *opSnapshot
 			}
 
 			t.Operations = append(t.Operations, op.ToEntity())
