@@ -113,6 +113,9 @@ type RedisRepository interface {
 	// GetBalancesByKeys retrieves multiple balance values by their Redis keys using MGET.
 	// Returns a map of key -> *mmodel.BalanceRedis (nil if key does not exist).
 	// This enables batch retrieval for the aggregation engine.
+	//
+	// Keys must be fully-qualified Redis keys (already tenant-namespaced in
+	// multi-tenant mode); this method does not apply tenant namespacing.
 	GetBalancesByKeys(ctx context.Context, keys []string) (map[string]*mmodel.BalanceRedis, error)
 	// RemoveBalanceSyncKeysBatch conditionally removes keys from the sync schedule.
 	// Only removes a member if its current ZSET score matches the claimed score,
@@ -1613,6 +1616,10 @@ func (rr *RedisConsumerRepository) UpdateBalanceCacheSettings(ctx context.Contex
 // Returns a map where each key maps to its BalanceRedis value, or nil if the key does not exist.
 // This is used by the aggregation engine to fetch current balance states in batch.
 // Large inputs are processed in chunks of maxRedisBatchSize to prevent oversized payloads.
+//
+// Keys must be fully-qualified Redis keys (already tenant-namespaced in multi-tenant
+// mode). This method performs no tenant namespacing; tenant isolation comes from the
+// per-tenant connection resolved by conn.GetClient(ctx).
 func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys []string) (map[string]*mmodel.BalanceRedis, error) {
 	if len(keys) == 0 {
 		return make(map[string]*mmodel.BalanceRedis), nil
@@ -1633,21 +1640,11 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 		return nil, err
 	}
 
-	prefixedKeys, err := tenantKeysFromContext(ctx, keys)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis keys", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to namespace redis keys", libLog.Err(err))
-
-		return nil, err
-	}
-
+	// Keys are used as-is (already namespaced); see the method contract above.
 	// Process in chunks to prevent oversized payloads.
-	// chunk (prefixed) is sent to Redis; originalKeysChunk (unprefixed) is used as
-	// map keys in the result so callers can look up by the keys they know.
-	for start := 0; start < len(prefixedKeys); start += maxRedisBatchSize {
-		end := min(start+maxRedisBatchSize, len(prefixedKeys))
-		chunk := prefixedKeys[start:end]
-		originalKeysChunk := keys[start:end]
+	for start := 0; start < len(keys); start += maxRedisBatchSize {
+		end := min(start+maxRedisBatchSize, len(keys))
+		chunk := keys[start:end]
 
 		values, err := client.MGet(ctx, chunk...).Result()
 		if err != nil {
@@ -1657,7 +1654,7 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 			return nil, err
 		}
 
-		for i, key := range originalKeysChunk {
+		for i, key := range chunk {
 			if values[i] == nil {
 				result[key] = nil
 

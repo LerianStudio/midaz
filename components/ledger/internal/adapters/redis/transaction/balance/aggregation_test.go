@@ -108,6 +108,27 @@ func TestBalanceCompositeKeyFromRedisKey(t *testing.T) {
 			wantErr:     false,
 		},
 		{
+			// Regression: multi-tenant claimed members are namespaced once at write time.
+			// The parser must skip the "tenant:{id}:" prefix and still find orgID/ledgerID,
+			// otherwise the balance is rejected as a parse error and silently dropped.
+			name:        "multi-tenant namespaced key with partition",
+			redisKey:    "tenant:acme:balance:{transactions}:11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222:@account#default",
+			wantOrgID:   uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+			wantLedger:  uuid.MustParse("22222222-2222-2222-2222-222222222222"),
+			wantAccount: "@account",
+			wantPartKey: "default",
+			wantErr:     false,
+		},
+		{
+			name:        "multi-tenant namespaced key with alias containing colons",
+			redisKey:    "tenant:acme:balance:{transactions}:11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222:test:account:100#other",
+			wantOrgID:   uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+			wantLedger:  uuid.MustParse("22222222-2222-2222-2222-222222222222"),
+			wantAccount: "test:account:100",
+			wantPartKey: "other",
+			wantErr:     false,
+		},
+		{
 			name:        "valid key format with alias containing colons",
 			redisKey:    "balance:{transactions}:11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222:test:account:100#other",
 			wantOrgID:   uuid.MustParse("11111111-1111-1111-1111-111111111111"),
