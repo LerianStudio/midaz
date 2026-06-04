@@ -330,7 +330,7 @@ func StartManager(t *testing.T, ctx context.Context, env *AppEnv, cfg AppStartCo
 	} else {
 		builder = builder.WithDockerfile(e2ekit.BuildConfig{
 			ContextDir: e2ekit.ProjectRoot(),
-			Dockerfile: "components/manager/Dockerfile",
+			Dockerfile: "components/reporter-manager/Dockerfile",
 			Tag:        cfg.Image,
 			Secrets: []e2ekit.BuildSecret{
 				{ID: "github_token", Env: "GITHUB_TOKEN"},
@@ -364,7 +364,7 @@ func StartWorker(t *testing.T, ctx context.Context, env *AppEnv, cfg AppStartCon
 	} else {
 		builder = builder.WithDockerfile(e2ekit.BuildConfig{
 			ContextDir: e2ekit.ProjectRoot(),
-			Dockerfile: "components/worker/Dockerfile",
+			Dockerfile: "components/reporter-worker/Dockerfile",
 			Tag:        cfg.Image,
 			Secrets: []e2ekit.BuildSecret{
 				{ID: "github_token", Env: "GITHUB_TOKEN"},

@@ -43,7 +43,7 @@ func StartManager(ctx context.Context, cfg *ServiceConfig) (*ManagerService, err
 
 	// Build the manager binary if needed
 	binaryPath := "./.bin/manager-test"
-	buildCmd := exec.CommandContext(ctx, "go", "build", "-o", binaryPath, "./components/manager/cmd/app")
+	buildCmd := exec.CommandContext(ctx, "go", "build", "-o", binaryPath, "./components/reporter-manager/cmd/app")
 	buildCmd.Dir = findProjectRoot()
 	buildCmd.Stdout = os.Stdout
 	buildCmd.Stderr = os.Stderr
