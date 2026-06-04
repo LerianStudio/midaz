@@ -1,5 +1,16 @@
 # Midaz Changelog
 
+## [3.7.6](https://github.com/LerianStudio/midaz/releases/tag/v3.7.6)
+
+- Fixes:
+  - Stop double-namespacing balance keys in multi-tenant balance-sync read path.
+
+Contributors: @ClaraTersi, @lerian-studio
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.7.5...v3.7.6)
+
+---
+
 ## [3.7.5](https://github.com/LerianStudio/midaz/releases/tag/v3.7.5)
 
 - Fixes:
