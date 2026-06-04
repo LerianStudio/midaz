@@ -52,6 +52,7 @@ type AccountCreatedPayload struct {
 	SegmentID       *string `json:"segmentId"`
 	ParentAccountID *string `json:"parentAccountId"`
 	EntityID        *string `json:"entityId"`
+	HolderID        *string `json:"holderId"`
 	Alias           *string `json:"alias"`
 
 	// Status block. Decoupled from mmodel.Status so domain-side fields
@@ -97,6 +98,7 @@ func NewAccountCreated(acc *mmodel.Account) AccountCreatedPayload {
 		SegmentID:       acc.SegmentID,
 		ParentAccountID: acc.ParentAccountID,
 		EntityID:        acc.EntityID,
+		HolderID:        acc.HolderID,
 		Alias:           acc.Alias,
 		Status: AccountStatusPayload{
 			Code:        acc.Status.Code,

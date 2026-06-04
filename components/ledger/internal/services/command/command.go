@@ -104,4 +104,23 @@ type UseCase struct {
 	// disabled" by every call site — never required for the request to
 	// succeed.
 	Streaming libStreaming.Emitter
+
+	// --- Holder ownership (CRM seam, wired at bootstrap) ---
+
+	// HolderReader asserts holder existence for the RequireHolder gate on the
+	// create path. Org-scoped; satisfied by an adapter over the CRM holder
+	// service so command never imports components/crm. A nil value disables the
+	// gate (the check only runs when RequireHolder is true and a HolderID is set).
+	HolderReader HolderReader
+
+	// SettingsReader reads cached, parsed ledger settings for the RequireHolder
+	// gate without importing the query package. A nil value falls back to default
+	// settings (RequireHolder false), preserving permissive behaviour.
+	SettingsReader SettingsReader
+
+	// HolderProvisioner provisions the deterministic self-holder when an
+	// organization is created. Satisfied by the CRM holder service's
+	// CreateHolderWithID. A nil value skips eager provisioning (the backfill
+	// runner remains the repair path).
+	HolderProvisioner HolderProvisioner
 }

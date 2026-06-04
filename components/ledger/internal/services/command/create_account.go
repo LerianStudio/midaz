@@ -50,6 +50,15 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
+	requireHolder := uc.requireHolderEnabled(ctx, organizationID, ledgerID)
+
+	if err := uc.applyHolderValidation(ctx, organizationID, requireHolder, cai); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder validation failed", err)
+		logger.Log(ctx, libLog.LevelWarn, "Holder validation failed", libLog.Err(err))
+
+		return nil, err
+	}
+
 	if libCommons.IsNilOrEmpty(&cai.Name) {
 		cai.Name = cai.AssetCode + " " + cai.Type + " account"
 	}
@@ -132,6 +141,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	blocked := cai.Blocked != nil && *cai.Blocked
 
+	holderID := uc.resolveHolderID(organizationID, cai)
+
 	now := time.Now()
 
 	account := &mmodel.Account{
@@ -147,6 +158,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		PortfolioID:     cai.PortfolioID,
 		LedgerID:        ledgerID.String(),
 		EntityID:        cai.EntityID,
+		HolderID:        holderID,
 		Status:          status,
 		CreatedAt:       now,
 		UpdatedAt:       now,
@@ -250,6 +262,72 @@ func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status
 	status.Description = cai.Status.Description
 
 	return status
+}
+
+// requireHolderEnabled reads the cached RequireHolder flag for a ledger.
+// It uses the cached settings reader port (not the uncached LedgerRepo.GetSettings)
+// and falls back to false when the reader is unwired or returns an error, keeping
+// account creation permissive by default.
+func (uc *UseCase) requireHolderEnabled(ctx context.Context, organizationID, ledgerID uuid.UUID) bool {
+	if uc.SettingsReader == nil {
+		return false
+	}
+
+	settings, err := uc.SettingsReader.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
+	if err != nil {
+		return false
+	}
+
+	return settings.Accounting.RequireHolder
+}
+
+// applyHolderValidation enforces that an explicitly supplied holder exists.
+// It mirrors applyAccountingValidations: it only runs when RequireHolder is true
+// and the input carries a HolderID; a missing holder maps to ErrHolderNotFound.
+// The derived self-holder default (resolveHolderID) is always resolvable and is
+// not subject to this check.
+func (uc *UseCase) applyHolderValidation(ctx context.Context, organizationID uuid.UUID, requireHolder bool, cai *mmodel.CreateAccountInput) error {
+	if !requireHolder || libCommons.IsNilOrEmpty(cai.HolderID) {
+		return nil
+	}
+
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	holderID, err := uuid.Parse(*cai.HolderID)
+	if err != nil {
+		return pkg.ValidateBusinessError(constant.ErrInvalidRequestBody, constant.EntityAccount)
+	}
+
+	exists, err := uc.HolderReader.Exists(ctx, organizationID.String(), holderID)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return pkg.ValidateBusinessError(constant.ErrHolderNotFound, constant.EntityHolder)
+	}
+
+	return nil
+}
+
+// resolveHolderID materialises the account's holder_id on the create path.
+// When the input supplies a holder, that value wins. Otherwise non-external
+// accounts default to the org's deterministic self-holder (derived, no I/O), and
+// external accounts stay unowned (nil).
+func (uc *UseCase) resolveHolderID(organizationID uuid.UUID, cai *mmodel.CreateAccountInput) *string {
+	if !libCommons.IsNilOrEmpty(cai.HolderID) {
+		return cai.HolderID
+	}
+
+	if strings.ToLower(cai.Type) == "external" {
+		return nil
+	}
+
+	self := deriveSelfHolderID(organizationID).String()
+
+	return &self
 }
 
 // applyAccountingValidations validates the account type against the registered

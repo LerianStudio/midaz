@@ -176,7 +176,7 @@ func TestAccountCreatedPayload_JSONShape(t *testing.T) {
 		"id", "organizationId", "ledgerId",
 		"name", "assetCode", "type",
 		"portfolioId", "segmentId", "parentAccountId",
-		"entityId", "alias",
+		"entityId", "holderId", "alias",
 		"status", "blocked",
 		"createdAt", "updatedAt",
 	} {
@@ -195,5 +195,5 @@ func TestAccountCreatedPayload_JSONShape(t *testing.T) {
 
 	// Sanity: no field count surprises. Pin the count so additive drift
 	// is caught here as well as in the strict e2e unmarshal.
-	assert.Lenf(t, generic, 15, "expected 15 top-level fields, got %d (drift?)", len(generic))
+	assert.Lenf(t, generic, 16, "expected 16 top-level fields, got %d (drift?)", len(generic))
 }
