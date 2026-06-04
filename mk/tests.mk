@@ -231,7 +231,7 @@ test-integration:
 	  pkgs=$$(go list $(PKG) 2>/dev/null | tr '\n' ' '); \
 	else \
 	  echo "Finding packages with *_integration_test.go files..."; \
-	  dirs=$$(find ./components ./pkg -name '*_integration_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
+	  dirs=$$(find ./components ./pkg ./tests -name '*_integration_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
 	  pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
 	fi; \
 	if [ -z "$$pkgs" ]; then \
@@ -267,6 +267,64 @@ test-integration:
 	    CHAOS=$(CHAOS) go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
 	      -run '$(RUN_PATTERN)' $$pkgs; \
+	  fi; \
+	fi
+
+# Property-based tests (`property` build tag).
+# These suites compile only under -tags=property and use testcontainers, so no
+# external Docker stack is required. Discovery defaults to ./tests/reporter/property
+# (the only property-tagged suite today); override with PKG to scope elsewhere.
+#
+# NOTE: run with -p=1 to avoid testcontainers overwhelming Docker when packages
+# create containers in parallel (same rationale as test-integration).
+.PHONY: test-property
+test-property:
+	$(call print_title,Running property-based tests (-tags=property))
+	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	@set -e; export ALLOW_INSECURE_TLS=true; mkdir -p $(TEST_REPORTS_DIR); \
+	pkg=$${PKG:-./tests/reporter/property/...}; \
+	pkgs=$$(go list -tags=property $$pkg 2>/dev/null | tr '\n' ' '); \
+	if [ -z "$$pkgs" ]; then \
+	  echo "No property test packages found"; \
+	else \
+	  echo "Packages: $$pkgs"; \
+	  if [ -n "$(GOTESTSUM)" ]; then \
+	    gotestsum --format testname -- \
+	      -tags=property -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      -p 1 $(LOW_RES_PARALLEL_FLAG) $$pkgs; \
+	  else \
+	    go test -tags=property -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      -p 1 $(LOW_RES_PARALLEL_FLAG) $$pkgs; \
+	  fi; \
+	fi
+
+# Compile-gated chaos tests (`chaos` build tag).
+# Distinct from test-chaos-system: that target runs the env-gated, live-stack
+# system suite under ./tests/chaos (no build tag, gated by CHAOS=1 + TestMain).
+# This target runs the chaos-tagged, testcontainers-based suites (today only
+# ./tests/reporter/chaos) that compile solely under -tags=chaos. Override PKG to
+# scope elsewhere. Run with -p=1 for the same testcontainers rationale as
+# test-integration.
+.PHONY: test-reporter-chaos
+test-reporter-chaos:
+	$(call print_title,Running compile-gated chaos tests (-tags=chaos))
+	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	@set -e; export ALLOW_INSECURE_TLS=true; mkdir -p $(TEST_REPORTS_DIR); \
+	pkg=$${PKG:-./tests/reporter/chaos/...}; \
+	pkgs=$$(go list -tags=chaos $$pkg 2>/dev/null | tr '\n' ' '); \
+	if [ -z "$$pkgs" ]; then \
+	  echo "No chaos-tagged test packages found"; \
+	else \
+	  echo "Packages: $$pkgs"; \
+	  if [ -n "$(GOTESTSUM)" ]; then \
+	    gotestsum --format testname -- \
+	      -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      -p 1 $(LOW_RES_PARALLEL_FLAG) $$pkgs; \
+	  else \
+	    go test -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      -p 1 $(LOW_RES_PARALLEL_FLAG) $$pkgs; \
 	  fi; \
 	fi
 
@@ -326,7 +384,7 @@ coverage-integration:
 	  pkgs=$$(go list $(PKG) 2>/dev/null | tr '\n' ' '); \
 	else \
 	  echo "Finding packages with *_integration_test.go files..."; \
-	  dirs=$$(find ./components ./pkg -name '*_integration_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
+	  dirs=$$(find ./components ./pkg ./tests -name '*_integration_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
 	  pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
 	fi; \
 	if [ -z "$$pkgs" ]; then \
@@ -387,3 +445,29 @@ test-all:
 	$(MAKE) test-unit
 	$(call print_title,Running integration tests)
 	$(MAKE) test-integration
+
+# Full CI test matrix — one command, one exit code.
+#
+# Sequences the deterministic, self-contained legs (testcontainers only, no live
+# docker-compose stack required), reaching ./tests/reporter via the property and
+# chaos legs and the test-integration glob widening to ./tests:
+#   1. test-unit            (-race, UNTAGGED — bare `go test` discovers unit pkgs)
+#   2. test-integration     (-tags=integration -p 1; glob now reaches ./tests/reporter/integration)
+#   3. test-property        (-tags=property -p 1; ./tests/reporter/property)
+#   4. test-reporter-chaos  (-tags=chaos   -p 1; ./tests/reporter/chaos)
+# Each leg is a separate $(MAKE) invocation under `set -e`, so the first failing
+# leg aborts the run and `make ci` returns its non-zero exit code.
+#
+# OPT-IN legs NOT in the default ci path (each needs a live service/stack, so they
+# are non-deterministic in a bare CI runner and must be invoked explicitly):
+#   - make test-bdd SERVER_ADDRESS=...  tracer godog e2e suite (needs a running tracer + Postgres)
+#   - make test-chaos-system            system chaos suite (brings the full docker-compose stack up/down)
+#   - make test-fuzz                    native fuzz engine (time-boxed mutation runs, not a pass/fail gate)
+.PHONY: ci
+ci:
+	$(call print_title,Running CI test matrix)
+	@set -e; \
+	$(MAKE) test-unit; \
+	$(MAKE) test-integration; \
+	$(MAKE) test-property; \
+	$(MAKE) test-reporter-chaos
