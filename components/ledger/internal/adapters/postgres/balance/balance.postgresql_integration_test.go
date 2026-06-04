@@ -924,16 +924,18 @@ func TestIntegration_BalanceRepository_UpdateMany_UpdatesMultipleBalances(t *tes
 	// Batch of balances to sync
 	balances := []mmodel.BalanceRedis{
 		{
-			ID:        balanceID1.String(),
-			Available: decimal.NewFromInt(500),
-			OnHold:    decimal.NewFromInt(10),
-			Version:   10,
+			ID:            balanceID1.String(),
+			Available:     decimal.NewFromInt(500),
+			OnHold:        decimal.NewFromInt(10),
+			Version:       10,
+			OverdraftUsed: "0",
 		},
 		{
-			ID:        balanceID2.String(),
-			Available: decimal.NewFromInt(600),
-			OnHold:    decimal.NewFromInt(20),
-			Version:   10,
+			ID:            balanceID2.String(),
+			Available:     decimal.NewFromInt(600),
+			OnHold:        decimal.NewFromInt(20),
+			Version:       10,
+			OverdraftUsed: "0",
 		},
 	}
 
@@ -1054,16 +1056,18 @@ func TestIntegration_BalanceRepository_UpdateMany_PartialUpdate(t *testing.T) {
 	// Batch: first one newer (should update), second one older (should skip)
 	balances := []mmodel.BalanceRedis{
 		{
-			ID:        balanceID.String(),
-			Available: decimal.NewFromInt(500),
-			OnHold:    decimal.NewFromInt(10),
-			Version:   10, // higher than default (1), should update
+			ID:            balanceID.String(),
+			Available:     decimal.NewFromInt(500),
+			OnHold:        decimal.NewFromInt(10),
+			Version:       10, // higher than default (1), should update
+			OverdraftUsed: "0",
 		},
 		{
-			ID:        balanceID2.String(),
-			Available: decimal.NewFromInt(600),
-			OnHold:    decimal.NewFromInt(20),
-			Version:   5, // lower than 10, should skip
+			ID:            balanceID2.String(),
+			Available:     decimal.NewFromInt(600),
+			OnHold:        decimal.NewFromInt(20),
+			Version:       5, // lower than 10, should skip
+			OverdraftUsed: "0",
 		},
 	}
 
@@ -1177,10 +1181,11 @@ func TestIntegration_BalanceRepository_UpdateMany_LargeBatch(t *testing.T) {
 	balances := make([]mmodel.BalanceRedis, 150)
 	for i := range 150 {
 		balances[i] = mmodel.BalanceRedis{
-			ID:        balanceIDs[i].String(),
-			Available: decimal.NewFromInt(int64(1000 + i)),
-			OnHold:    decimal.NewFromInt(int64(i)),
-			Version:   100, // Higher than initial version (1)
+			ID:            balanceIDs[i].String(),
+			Available:     decimal.NewFromInt(int64(1000 + i)),
+			OnHold:        decimal.NewFromInt(int64(i)),
+			Version:       100, // Higher than initial version (1)
+			OverdraftUsed: "0",
 		}
 	}
 

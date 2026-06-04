@@ -86,6 +86,11 @@ func TestIntegration_InitOnboardingPostgres_SingleTenantProducesWorkingRepos(t *
 	require.NoError(t, err)
 	cfg := infra.buildOnboardingTestConfig()
 
+	// Single-tenant init runs migrations from a relative path resolved against
+	// the working directory, so the test must run from the project root.
+	restoreDir := changeToProjectRoot(t)
+	defer restoreDir()
+
 	// Restore the default connector so the real PostgreSQL container is used.
 	// The unit test file overrides postgresConnector; here we need the real one.
 	original := onboardingPostgresConnector
@@ -226,6 +231,11 @@ func TestIntegration_InitOnboardingPostgres_DispatcherRoutesCorrectly(t *testing
 	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
 	require.NoError(t, err)
 	cfg := infra.buildOnboardingTestConfig()
+
+	// The single-tenant sub-test runs migrations from a relative path resolved
+	// against the working directory, so the test must run from the project root.
+	restoreDir := changeToProjectRoot(t)
+	defer restoreDir()
 
 	original := onboardingPostgresConnector
 	onboardingPostgresConnector = defaultOnboardingPostgresConnector

@@ -234,6 +234,34 @@ func getBalanceFromRedis(t *testing.T, ctx context.Context, redisRepo redis.Redi
 	return &balance
 }
 
+// drainBalanceSync flushes scheduled balance mutations from Redis to PostgreSQL.
+//
+// In production, hot balances are mutated atomically in Redis by the Lua script
+// during validation, while cold (PostgreSQL) balances are persisted asynchronously
+// by BalanceSyncWorker, which claims due keys from the schedule:balance-sync ZSET
+// and calls SyncBalancesBatch. These handler-level integration tests do not run
+// that worker, so they must drive the same drain explicitly before asserting on
+// PostgreSQL balance state. This mirrors the worker's claim -> SyncBalancesBatch
+// loop, iterating until the schedule is empty so concurrent bursts are fully
+// flushed.
+func drainBalanceSync(t *testing.T, ctx context.Context, commandUC *command.UseCase, redisRepo redis.RedisRepository, orgID, ledgerID uuid.UUID) {
+	t.Helper()
+
+	const claimLimit int64 = 1000
+
+	for {
+		keys, err := redisRepo.GetBalanceSyncKeys(ctx, claimLimit)
+		require.NoError(t, err, "failed to claim balance sync keys")
+
+		if len(keys) == 0 {
+			return
+		}
+
+		_, err = commandUC.SyncBalancesBatch(ctx, orgID, ledgerID, keys)
+		require.NoError(t, err, "failed to sync balances to PostgreSQL")
+	}
+}
+
 // TestIntegration_TransactionHandler_CreateTransactionJSON_Sync validates that
 // CreateTransactionJSON correctly creates a non-pending transaction in sync mode.
 // This tests the complete flow:
@@ -367,6 +395,10 @@ func TestIntegration_TransactionHandler_CreateTransactionJSON_Sync(t *testing.T)
 	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
 	assert.Equal(t, cn.APPROVED, dbStatus,
 		"database transaction status should be APPROVED after sync processing")
+
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker) before
+	// asserting on durable balance state.
+	drainBalanceSync(t, context.Background(), infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	// Assert: Source balance decreased by 100 (1000 -> 900)
 	sourceAvailable := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
@@ -939,6 +971,12 @@ func TestIntegration_TransactionHandler_CreateTransactionJSON_Async(t *testing.T
 	assert.Equal(t, cn.APPROVED, dbStatus,
 		"database transaction status should be APPROVED after async processing")
 
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker) before
+	// asserting on durable balance state. The async consumer persists the
+	// transaction/operations but, like sync mode, leaves cold-balance
+	// persistence to the sync worker.
+	drainBalanceSync(t, context.Background(), infra.commandUC, infra.redisRepo, infra.orgID, infra.ledgerID)
+
 	// Assert: Source balance decreased by 100 (1000 -> 900)
 	sourceAvailable := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
 	assert.True(t, sourceAvailable.Equal(decimal.NewFromInt(900)),
@@ -1129,6 +1167,9 @@ func TestIntegration_TransactionHandler_PendingTransaction_CreateAndCommit(t *te
 	assert.Equal(t, cn.PENDING, dbStatus,
 		"transaction status should be PENDING after creation")
 
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker).
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
 	// Assert: Source balance in PostgreSQL - Available decreased, OnHold increased
 	sourceAvailableAfterCreate := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
 	sourceOnHoldAfterCreate := postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, sourceBalanceID)
@@ -1197,6 +1238,9 @@ func TestIntegration_TransactionHandler_PendingTransaction_CreateAndCommit(t *te
 	dbStatusAfterCommit := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
 	assert.Equal(t, cn.APPROVED, dbStatusAfterCommit,
 		"transaction status should be APPROVED after commit")
+
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker).
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	// Assert: Source balance in PostgreSQL - Available=900, OnHold=0 (released)
 	sourceAvailableAfterCommit := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
@@ -1530,6 +1574,9 @@ func TestIntegration_TransactionHandler_PendingTransaction_Revert(t *testing.T) 
 	dbStatusAfterCommit := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
 	assert.Equal(t, cn.APPROVED, dbStatusAfterCommit, "transaction should be APPROVED after commit")
 
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker).
+	drainBalanceSync(t, context.Background(), infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
 	// Verify balances after commit
 	sourceAvailableAfterCommit := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
 	destAvailableAfterCommit := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, destBalanceID)
@@ -1579,6 +1626,9 @@ func TestIntegration_TransactionHandler_PendingTransaction_Revert(t *testing.T) 
 	reversalStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, *reversalTxID)
 	assert.Equal(t, cn.APPROVED, reversalStatus,
 		"reversal transaction should have status APPROVED")
+
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker).
+	drainBalanceSync(t, context.Background(), infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	// Verify balances returned to original state
 	sourceAvailableAfterRevert := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
@@ -1700,6 +1750,9 @@ func TestIntegration_TransactionHandler_CancelPendingTransaction(t *testing.T) {
 	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
 	assert.Equal(t, cn.PENDING, dbStatus, "transaction should be PENDING after creation")
 
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker).
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
 	// Source balance: available=800, onHold=200 (funds reserved)
 	sourceAvailableAfterCreate := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
 	sourceOnHoldAfterCreate := postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, sourceBalanceID)
@@ -1750,6 +1803,9 @@ func TestIntegration_TransactionHandler_CancelPendingTransaction(t *testing.T) {
 	dbStatusAfterCancel := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
 	assert.Equal(t, cn.CANCELED, dbStatusAfterCancel,
 		"transaction status should be CANCELED after cancel")
+
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker).
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	// Source balance: available=1000 (restored), onHold=0 (released)
 	sourceAvailableAfterCancel := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
@@ -2045,6 +2101,11 @@ func TestIntegration_TransactionHandler_ConcurrentMixedTransactions(t *testing.T
 	t.Logf("Concurrent test results: outSucc=%d outFails=%d inSucc=%d inFails=%d expected=%s",
 		outSucc, outFails, inSucc, inFails, expectedBalance.String())
 
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker). The
+	// concurrent burst schedules many sync keys; the drain loops until the
+	// schedule is empty.
+	drainBalanceSync(t, context.Background(), infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
 	// Verify PostgreSQL balance
 	pgBalance := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balanceID)
 	assert.True(t, pgBalance.Equal(expectedBalance),
@@ -2185,6 +2246,9 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 
 	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
 	assert.NotEmpty(t, dbStatus, "transaction should exist in database")
+
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker).
+	drainBalanceSync(t, context.Background(), infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	// Verify balance was only affected once
 	sourceBalance := postgrestestutil.GetBalanceByAlias(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, sourceAlias)
