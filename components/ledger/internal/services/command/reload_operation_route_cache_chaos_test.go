@@ -29,9 +29,6 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
-	libZap "github.com/LerianStudio/lib-observability/zap"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
@@ -40,6 +37,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -78,18 +76,10 @@ func setupReloadChaosInfra(t *testing.T) *chaosReloadTestInfra {
 	// 2. Start PostgreSQL container (direct connection, not proxied)
 	pgContainer := pgtestutil.SetupContainer(t)
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	pgConn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           pgContainer.Config.DBName,
-		ReplicaDBName:           pgContainer.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	pgConn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
 
 	txRouteRepo := transactionroute.NewTransactionRoutePostgreSQLRepository(pgConn)
 	opRouteRepo := operationroute.NewOperationRoutePostgreSQLRepository(pgConn)
@@ -113,12 +103,9 @@ func setupReloadChaosInfra(t *testing.T) *chaosReloadTestInfra {
 	proxyAddr := containerInfo.ProxyListen
 
 	// 7. Build Redis repo connected through Toxiproxy
-	proxyConn := &libRedis.RedisConnection{
-		Address: []string{proxyAddr},
-		Logger:  logger,
-	}
+	proxyClient := redistestutil.CreateConnection(t, proxyAddr)
 
-	redisRepo, err := redis.NewConsumerRedis(proxyConn, false)
+	redisRepo, err := redis.NewConsumerRedis(proxyClient)
 	require.NoError(t, err, "failed to create Redis repository through proxy")
 
 	uc := &UseCase{
@@ -164,8 +151,8 @@ func TestIntegration_Chaos_Redis_ConnectionLoss_ReloadOperationRouteCache(t *tes
 
 	infra := setupReloadChaosInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create DB data: operation routes + transaction route + links
 	sourceRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "Chaos Source", "source")

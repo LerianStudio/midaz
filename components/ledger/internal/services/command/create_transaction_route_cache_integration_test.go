@@ -20,6 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +42,7 @@ func setupCacheTestInfra(t *testing.T) *cacheTestInfra {
 	container := redistestutil.SetupContainer(t)
 	conn := redistestutil.CreateConnection(t, container.Addr)
 
-	redisRepo, err := redis.NewConsumerRedis(conn, false)
+	redisRepo, err := redis.NewConsumerRedis(conn)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	uc := &UseCase{
@@ -61,12 +62,12 @@ func setupCacheTestInfra(t *testing.T) *cacheTestInfra {
 func TestIntegration_CreateAccountingRouteCache_ActionAwareCacheStored(t *testing.T) {
 	infra := setupCacheTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	sourceRouteID := libCommons.GenerateUUIDv7()
-	destRouteID := libCommons.GenerateUUIDv7()
+	sourceRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	destRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -131,14 +132,14 @@ func TestIntegration_CreateAccountingRouteCache_ActionAwareCacheStored(t *testin
 func TestIntegration_CreateAccountingRouteCache_MultipleActions(t *testing.T) {
 	infra := setupCacheTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	directSourceID := libCommons.GenerateUUIDv7()
-	directDestID := libCommons.GenerateUUIDv7()
-	holdSourceID := libCommons.GenerateUUIDv7()
-	holdDestID := libCommons.GenerateUUIDv7()
+	directSourceID := uuid.Must(libCommons.GenerateUUIDv7())
+	directDestID := uuid.Must(libCommons.GenerateUUIDv7())
+	holdSourceID := uuid.Must(libCommons.GenerateUUIDv7())
+	holdDestID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -202,10 +203,10 @@ func TestIntegration_CreateAccountingRouteCache_MultipleActions(t *testing.T) {
 func TestIntegration_CreateAccountingRouteCache_BidirectionalRoute(t *testing.T) {
 	infra := setupCacheTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	bidiRouteID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
+	bidiRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -248,9 +249,9 @@ func TestIntegration_CreateAccountingRouteCache_BidirectionalRoute(t *testing.T)
 func TestIntegration_CreateAccountingRouteCache_EmptyOperationRoutes(t *testing.T) {
 	infra := setupCacheTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:              routeID,
@@ -285,9 +286,9 @@ func TestIntegration_CreateAccountingRouteCache_EmptyOperationRoutes(t *testing.
 func TestIntegration_CreateAccountingRouteCache_OverwritesExistingKey(t *testing.T) {
 	infra := setupCacheTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Write initial cache
 	route1 := &mmodel.TransactionRoute{
@@ -297,7 +298,7 @@ func TestIntegration_CreateAccountingRouteCache_OverwritesExistingKey(t *testing
 		Title:          "Route v1",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:                libCommons.GenerateUUIDv7(),
+				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "source",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
@@ -311,8 +312,8 @@ func TestIntegration_CreateAccountingRouteCache_OverwritesExistingKey(t *testing
 	require.NoError(t, err, "first CreateAccountingRouteCache should not fail")
 
 	// Overwrite with updated route containing different operation routes
-	newSourceID := libCommons.GenerateUUIDv7()
-	newDestID := libCommons.GenerateUUIDv7()
+	newSourceID := uuid.Must(libCommons.GenerateUUIDv7())
+	newDestID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route2 := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -357,10 +358,10 @@ func TestIntegration_CreateAccountingRouteCache_OverwritesExistingKey(t *testing
 func TestIntegration_CreateAccountingRouteCache_AccountRulePreserved(t *testing.T) {
 	infra := setupCacheTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	sourceID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
+	sourceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -407,13 +408,13 @@ func TestIntegration_CreateAccountingRouteCache_AccountRulePreserved(t *testing.
 func TestIntegration_CreateAccountingRouteCache_DifferentOrgsSameRouteID(t *testing.T) {
 	infra := setupCacheTestInfra(t)
 
-	org1 := libCommons.GenerateUUIDv7()
-	org2 := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
+	org1 := uuid.Must(libCommons.GenerateUUIDv7())
+	org2 := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	sourceID1 := libCommons.GenerateUUIDv7()
-	sourceID2 := libCommons.GenerateUUIDv7()
+	sourceID1 := uuid.Must(libCommons.GenerateUUIDv7())
+	sourceID2 := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route1 := &mmodel.TransactionRoute{
 		ID:             routeID,

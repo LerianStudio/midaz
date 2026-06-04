@@ -216,7 +216,7 @@ func TestIntegration_TemplateBuilder_GetFiltersConfig_ReturnsDIMPFilters(t *test
 	}
 
 	// Verify total filter count matches registry
-	const expectedFilterCount = 7
+	const expectedFilterCount = 10
 	if len(resp.Filters) != expectedFilterCount {
 		t.Fatalf("expected %d filter definitions, got %d", expectedFilterCount, len(resp.Filters))
 	}
@@ -408,11 +408,12 @@ func TestIntegration_TemplateBuilder_GetBlocksConfig_CategoryDistribution(t *tes
 	}
 
 	expectedCategories := map[string]bool{
-		"basic":   false,
-		"control": false,
-		"data":    false,
-		"dimp":    false,
-		"layout":  false,
+		"basic":    false,
+		"control":  false,
+		"data":     false,
+		"dimp":     false,
+		"layout":   false,
+		"advanced": false,
 	}
 
 	for _, block := range resp.Blocks {

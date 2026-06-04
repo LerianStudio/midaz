@@ -32,6 +32,7 @@ import (
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
@@ -100,6 +101,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
+	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
@@ -113,6 +115,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 		TransactionRepo:         transactionRepo,
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
+		LedgerRepo:              ledgerRepo,
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
 	}
@@ -135,11 +138,44 @@ func setupTestInfra(t *testing.T) *testInfra {
 	infra.orgID = uuid.Must(libCommons.GenerateUUIDv7())
 	infra.ledgerID = uuid.Must(libCommons.GenerateUUIDv7())
 
+	// The create-transaction path reads ledger settings via LedgerRepo.GetSettings,
+	// but the `ledger` table lives in the onboarding module (absent from the
+	// transaction-only container). Provision a minimal ledger row so settings
+	// resolution returns empty (validators default off) instead of erroring.
+	seedLedgerSettings(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID)
+
 	// Setup Fiber app with routes
 	infra.app = fiber.New()
 	infra.setupRoutes()
 
 	return infra
+}
+
+// seedLedgerSettings provisions a minimal `ledger` table and a single settings
+// row for the given org/ledger in the transaction-only test container. The
+// onboarding migrations (which own the real ledger table) are not loaded here,
+// so we create just the columns LedgerRepo.GetSettings reads. Empty settings
+// make ParseLedgerSettings fall back to defaults (route/account-type validation
+// disabled).
+func seedLedgerSettings(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID) {
+	t.Helper()
+
+	_, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS ledger (
+			id              UUID PRIMARY KEY NOT NULL,
+			organization_id UUID NOT NULL,
+			settings        JSONB NOT NULL DEFAULT '{}',
+			deleted_at      TIMESTAMP WITH TIME ZONE
+		)`)
+	require.NoError(t, err, "failed to create ledger table for settings seed")
+
+	_, err = db.Exec(`
+		INSERT INTO ledger (id, organization_id, settings)
+		VALUES ($1, $2, '{}')
+		ON CONFLICT (id) DO NOTHING`,
+		ledgerID, orgID,
+	)
+	require.NoError(t, err, "failed to seed ledger settings row")
 }
 
 // setupRoutes registers handler routes on the Fiber app.
@@ -597,6 +633,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
+	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
@@ -622,6 +659,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 		TransactionRepo:         transactionRepo,
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
+		LedgerRepo:              ledgerRepo,
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
 	}
@@ -643,6 +681,11 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	// Use fake UUIDs for org and ledger (they're in the onboarding component, not transaction)
 	infra.orgID = uuid.Must(libCommons.GenerateUUIDv7())
 	infra.ledgerID = uuid.Must(libCommons.GenerateUUIDv7())
+
+	// Provision a minimal ledger settings row (see seedLedgerSettings) so the
+	// create-transaction path can resolve settings against the transaction-only
+	// container.
+	seedLedgerSettings(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID)
 
 	// Setup Fiber app with routes
 	infra.app = fiber.New()

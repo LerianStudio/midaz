@@ -23,13 +23,12 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
-	libZap "github.com/LerianStudio/lib-observability/zap"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -82,13 +81,9 @@ func setupCacheWriteChaosInfra(t *testing.T) *chaosCacheWriteTestInfra {
 	proxyAddr := containerInfo.ProxyListen
 
 	// 6. Build Redis repo connected through Toxiproxy
-	logger := libZap.InitializeLogger()
-	proxyConn := &libRedis.RedisConnection{
-		Address: []string{proxyAddr},
-		Logger:  logger,
-	}
+	proxyClient := redistestutil.CreateConnection(t, proxyAddr)
 
-	redisRepo, err := redis.NewConsumerRedis(proxyConn, false)
+	redisRepo, err := redis.NewConsumerRedis(proxyClient)
 	require.NoError(t, err, "failed to create Redis repository through proxy")
 
 	uc := &UseCase{
@@ -105,11 +100,11 @@ func setupCacheWriteChaosInfra(t *testing.T) *chaosCacheWriteTestInfra {
 
 // makeTestRoute creates a TransactionRoute with operation routes for testing.
 func makeTestRoute() *mmodel.TransactionRoute {
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	sourceID := libCommons.GenerateUUIDv7()
-	destID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
+	sourceID := uuid.Must(libCommons.GenerateUUIDv7())
+	destID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	return &mmodel.TransactionRoute{
 		ID:             routeID,

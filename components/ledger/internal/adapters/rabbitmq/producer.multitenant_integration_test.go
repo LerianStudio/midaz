@@ -152,22 +152,22 @@ func setupMultiTenantInfra(t *testing.T, tenantIDs []string) *multiTenantTestInf
 }
 
 // newMockTenantManagerServer creates an httptest server that serves tenant configs.
-// Responds to GET /tenants/{tenantID}/services/{service}/settings with the
+// Responds to GET /v1/tenants/{tenantID}/associations/{service}/connections with the
 // RabbitMQ connection details for the tenant's vhost.
 func newMockTenantManagerServer(t *testing.T, rmqContainer *rmqtestutil.ContainerResult, tenants map[string]*tenantVHost) *httptest.Server {
 	t.Helper()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/tenants/", func(w http.ResponseWriter, r *http.Request) {
-		// Path format: /tenants/{tenantID}/services/{service}/settings
-		// splitPath returns: ["tenants", tenantID, "services", service, "settings"]
+	mux.HandleFunc("/v1/tenants/", func(w http.ResponseWriter, r *http.Request) {
+		// Path format: /v1/tenants/{tenantID}/associations/{service}/connections
+		// splitPath returns: ["v1", "tenants", tenantID, "associations", service, "connections"]
 		parts := splitPath(r.URL.Path)
-		if len(parts) < 5 || parts[0] != "tenants" || parts[2] != "services" {
+		if len(parts) < 6 || parts[0] != "v1" || parts[1] != "tenants" || parts[3] != "associations" || parts[5] != "connections" {
 			http.Error(w, "invalid path format", http.StatusBadRequest)
 			return
 		}
 
-		tenantID := parts[1]
+		tenantID := parts[2]
 
 		tenant, ok := tenants[tenantID]
 		if !ok {

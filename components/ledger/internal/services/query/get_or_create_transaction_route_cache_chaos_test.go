@@ -27,14 +27,12 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
-	libZap "github.com/LerianStudio/lib-observability/zap"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -73,18 +71,10 @@ func setupQueryChaosInfra(t *testing.T) *chaosQueryTestInfra {
 	// 2. Start PostgreSQL container (direct connection, not proxied)
 	pgContainer := pgtestutil.SetupContainer(t)
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	pgConn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           pgContainer.Config.DBName,
-		ReplicaDBName:           pgContainer.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	pgConn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
 
 	txRouteRepo := transactionroute.NewTransactionRoutePostgreSQLRepository(pgConn)
 
@@ -107,12 +97,9 @@ func setupQueryChaosInfra(t *testing.T) *chaosQueryTestInfra {
 	proxyAddr := containerInfo.ProxyListen
 
 	// 7. Build Redis repo connected through Toxiproxy
-	proxyConn := &libRedis.RedisConnection{
-		Address: []string{proxyAddr},
-		Logger:  logger,
-	}
+	proxyConn := redistestutil.CreateConnection(t, proxyAddr)
 
-	redisRepo, err := redis.NewConsumerRedis(proxyConn, false)
+	redisRepo, err := redis.NewConsumerRedis(proxyConn)
 	require.NoError(t, err, "failed to create Redis repository through proxy")
 
 	uc := &UseCase{
@@ -162,8 +149,6 @@ func setupDualProxyQueryChaosInfra(t *testing.T) *chaosDualProxyQueryTestInfra {
 	// 1. Create chaos infrastructure (Docker network + Toxiproxy)
 	chaosInfra := chaos.NewInfrastructure(t)
 
-	logger := libZap.InitializeLogger()
-
 	// 2. Start PostgreSQL container on the host network
 	pgContainer := pgtestutil.SetupContainer(t)
 
@@ -182,14 +167,7 @@ func setupDualProxyQueryChaosInfra(t *testing.T) *chaosDualProxyQueryTestInfra {
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	proxyPGConnStr := pgtestutil.BuildConnectionStringWithHost(pgContainerInfo.ProxyListen, pgContainer.Config)
 
-	pgConn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: proxyPGConnStr,
-		ConnectionStringReplica: proxyPGConnStr,
-		PrimaryDBName:           pgContainer.Config.DBName,
-		ReplicaDBName:           pgContainer.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	pgConn := pgtestutil.CreatePostgresClient(t, proxyPGConnStr, proxyPGConnStr, pgContainer.Config.DBName, migrationsPath)
 
 	txRouteRepo := transactionroute.NewTransactionRoutePostgreSQLRepository(pgConn)
 
@@ -208,12 +186,9 @@ func setupDualProxyQueryChaosInfra(t *testing.T) *chaosDualProxyQueryTestInfra {
 	require.NotEmpty(t, redisContainerInfo.ProxyListen, "Redis proxy listen address must be non-empty")
 
 	// Build Redis repo connected through Toxiproxy
-	proxyRedisConn := &libRedis.RedisConnection{
-		Address: []string{redisContainerInfo.ProxyListen},
-		Logger:  logger,
-	}
+	proxyRedisConn := redistestutil.CreateConnection(t, redisContainerInfo.ProxyListen)
 
-	redisRepo, err := redis.NewConsumerRedis(proxyRedisConn, false)
+	redisRepo, err := redis.NewConsumerRedis(proxyRedisConn)
 	require.NoError(t, err, "failed to create Redis repository through proxy")
 
 	uc := &UseCase{
@@ -257,8 +232,8 @@ func TestIntegration_Chaos_Redis_ConnectionLoss_GetOrCreateTransactionRouteCache
 
 	infra := setupQueryChaosInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create operation routes and transaction route in PostgreSQL
 	sourceRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "Chaos Source", "source")
@@ -357,8 +332,8 @@ func TestIntegration_Chaos_Redis_HighLatency_GetOrCreateTransactionRouteCache(t 
 
 	infra := setupQueryChaosInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create DB data
 	sourceRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "Latency Source", "source")
@@ -476,8 +451,8 @@ func TestIntegration_Chaos_Redis_WriteTimeout_GetOrCreateTransactionRouteCache(t
 
 	infra := setupQueryChaosInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create DB data
 	sourceRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "WriteTimeout Source", "source")
@@ -508,8 +483,8 @@ func TestIntegration_Chaos_Redis_WriteTimeout_GetOrCreateTransactionRouteCache(t
 	require.NoError(t, err, "Phase 2: AddLatency should not fail")
 
 	// Create a second route that has NOT been cached yet
-	orgID2 := libCommons.GenerateUUIDv7()
-	ledgerID2 := libCommons.GenerateUUIDv7()
+	orgID2 := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID2 := uuid.Must(libCommons.GenerateUUIDv7())
 
 	sourceRouteID2 := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID2, ledgerID2, "WriteTimeout Source2", "source")
 	destRouteID2 := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID2, ledgerID2, "WriteTimeout Dest2", "destination")
@@ -603,8 +578,8 @@ func TestIntegration_Chaos_Postgres_ConnectionLoss_GetOrCreateTransactionRouteCa
 
 	infra := setupDualProxyQueryChaosInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert test data directly into PostgreSQL (bypassing proxy for fixture setup)
 	sourceRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "PGDown Source", "source")
@@ -631,8 +606,8 @@ func TestIntegration_Chaos_Postgres_ConnectionLoss_GetOrCreateTransactionRouteCa
 	require.NoError(t, err, "Phase 2: PostgreSQL Toxiproxy Disconnect should not fail")
 
 	// Create a second route in DB (direct connection) that is NOT in Redis cache
-	orgID2 := libCommons.GenerateUUIDv7()
-	ledgerID2 := libCommons.GenerateUUIDv7()
+	orgID2 := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID2 := uuid.Must(libCommons.GenerateUUIDv7())
 
 	sourceRouteID2 := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID2, ledgerID2, "PGDown Source2", "source")
 	destRouteID2 := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID2, ledgerID2, "PGDown Dest2", "destination")
@@ -709,8 +684,8 @@ func TestIntegration_Chaos_Postgres_HighLatency_GetOrCreateTransactionRouteCache
 
 	infra := setupDualProxyQueryChaosInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert test data directly into PostgreSQL
 	sourceRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "PGLatency Source", "source")
@@ -738,8 +713,8 @@ func TestIntegration_Chaos_Postgres_HighLatency_GetOrCreateTransactionRouteCache
 	require.NoError(t, err, "Phase 2: AddLatency on PostgreSQL proxy should not fail")
 
 	// Use a second uncached key so the function must query PostgreSQL
-	orgID2 := libCommons.GenerateUUIDv7()
-	ledgerID2 := libCommons.GenerateUUIDv7()
+	orgID2 := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID2 := uuid.Must(libCommons.GenerateUUIDv7())
 
 	sourceRouteID2 := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID2, ledgerID2, "PGLatency Source2", "source")
 	destRouteID2 := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID2, ledgerID2, "PGLatency Dest2", "destination")
@@ -829,8 +804,8 @@ func TestIntegration_Chaos_BothDown_GetOrCreateTransactionRouteCache(t *testing.
 
 	infra := setupDualProxyQueryChaosInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert test data directly into PostgreSQL
 	sourceRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "BothDown Source", "source")
@@ -859,8 +834,8 @@ func TestIntegration_Chaos_BothDown_GetOrCreateTransactionRouteCache(t *testing.
 	require.NoError(t, err, "Phase 2: PostgreSQL Toxiproxy Disconnect should not fail")
 
 	// Use a second uncached key to force the full code path (cache miss -> DB fetch)
-	orgID2 := libCommons.GenerateUUIDv7()
-	ledgerID2 := libCommons.GenerateUUIDv7()
+	orgID2 := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID2 := uuid.Must(libCommons.GenerateUUIDv7())
 
 	sourceRouteID2 := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID2, ledgerID2, "BothDown Source2", "source")
 	destRouteID2 := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID2, ledgerID2, "BothDown Dest2", "destination")

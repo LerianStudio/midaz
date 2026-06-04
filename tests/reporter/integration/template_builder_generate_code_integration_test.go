@@ -188,8 +188,8 @@ func TestIntegration_GenerateCode_Section(t *testing.T) {
 			{
 				Type: "section",
 				Children: []template_builder.TemplateBlock{
-					{Type: "text", Content: "section child A"},
-					{Type: "text", Content: "section child B"},
+					{Type: "text", Content: "child A"},
+					{Type: "text", Content: "child B"},
 				},
 			},
 		},
@@ -202,9 +202,9 @@ func TestIntegration_GenerateCode_Section(t *testing.T) {
 	var resp template_builder.GenerateCodeResponse
 	require.NoError(t, json.Unmarshal(body, &resp), "unmarshal response")
 
-	assert.Contains(t, resp.Code, "section child A", "generated code should contain first child content")
-	assert.Contains(t, resp.Code, "section child B", "generated code should contain second child content")
-	assert.NotContains(t, resp.Code, "section", "section type should not appear as a wrapper tag in output")
+	assert.Contains(t, resp.Code, "child A", "generated code should contain first child content")
+	assert.Contains(t, resp.Code, "child B", "generated code should contain second child content")
+	assert.NotContains(t, resp.Code, "{% section", "section type should not emit a Pongo wrapper tag in output")
 }
 
 // TestIntegration_GenerateCode_MappedFieldsExtraction verifies that a variable

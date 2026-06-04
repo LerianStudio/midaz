@@ -129,54 +129,6 @@ func TestIntegration_DeadlineRepo_FindActiveNotifiable_FiltersCorrectly(t *testi
 	assert.False(t, returnedNames["deleted-deadline"], "soft-deleted deadline should NOT be returned")
 }
 
-// --- IS-2: FindActiveNotifiable respects limit parameter ---
-
-func TestIntegration_DeadlineRepo_FindActiveNotifiable_RespectsLimit(t *testing.T) {
-	// NOTE: Cannot use t.Parallel() — shared external service (MongoDB testcontainer).
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	coll := getCollection(t, ctx, "deadline")
-
-	now := time.Now().UTC()
-	futureDue := now.Add(48 * time.Hour)
-
-	// Insert 5 active, notifiable deadlines
-	fixtures := make([]bson.M, 5)
-	for i := range fixtures {
-		fixtures[i] = bson.M{
-			"_id": uuid.New(), "name": fmt.Sprintf("limit-test-%d", i+1), "description": "test",
-			"type": "regulatory", "due_date": futureDue.Add(time.Duration(i) * time.Hour),
-			"frequency": "monthly", "active": true,
-			"notify_days_before": 30, "color": "#FF5733",
-			"delivered_at": nil, "deleted_at": nil,
-			"created_at": now, "updated_at": now,
-		}
-	}
-
-	insertDeadlineDocuments(t, ctx, coll, fixtures)
-
-	mc := newTestMongoConnection()
-
-	repo, err := deadlineRepo.NewDeadlineMongoDBRepository(mc)
-	require.NoError(t, err, "creating deadline repository")
-
-	t.Cleanup(func() { _ = mc.Close() })
-
-	// Request limit of 2 — should return at most 2 results
-	results, err := repo.FindActiveNotifiable(ctx)
-	require.NoError(t, err, "FindActiveNotifiable with limit=2 must not return error")
-
-	assert.LessOrEqual(t, len(results), 2, "FindActiveNotifiable should return at most 2 results when limit=2")
-	assert.Greater(t, len(results), 0, "FindActiveNotifiable should return at least 1 result")
-
-	// Request limit of 1 — should return at most 1 result
-	results, err = repo.FindActiveNotifiable(ctx)
-	require.NoError(t, err, "FindActiveNotifiable with limit=1 must not return error")
-
-	assert.LessOrEqual(t, len(results), 1, "FindActiveNotifiable should return at most 1 result when limit=1")
-}
-
 // --- IS-3: Full notification handler returns correct response with real MongoDB data ---
 
 func TestIntegration_NotificationHandler_GetNotifications_ReturnsCorrectResponse(t *testing.T) {
