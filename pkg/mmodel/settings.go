@@ -21,7 +21,8 @@ import (
 //	{
 //	  "accounting": {
 //	    "validateAccountType": true,
-//	    "validateRoutes": true
+//	    "validateRoutes": true,
+//	    "requireHolder": true
 //	  }
 //	}
 type LedgerSettings struct {
@@ -41,6 +42,11 @@ type AccountingValidation struct {
 	// When true, transactions must specify valid route IDs that exist in the ledger.
 	// Default: false (permissive - no validation)
 	ValidateRoutes bool `json:"validateRoutes"`
+
+	// RequireHolder enables enforcement that accounts must reference an existing holder.
+	// When true, account creation rejects accounts whose resolved holder does not exist.
+	// Default: false (permissive - no validation)
+	RequireHolder bool `json:"requireHolder"`
 }
 
 // defaultAccountingValidation is the canonical source of default validation settings.
@@ -48,6 +54,7 @@ type AccountingValidation struct {
 var defaultAccountingValidation = AccountingValidation{
 	ValidateAccountType: false,
 	ValidateRoutes:      false,
+	RequireHolder:       false,
 }
 
 // DefaultLedgerSettings returns the default ledger settings as a typed struct.
@@ -66,6 +73,7 @@ func DefaultLedgerSettingsMap() map[string]any {
 		"accounting": map[string]any{
 			"validateAccountType": defaultAccountingValidation.ValidateAccountType,
 			"validateRoutes":      defaultAccountingValidation.ValidateRoutes,
+			"requireHolder":       defaultAccountingValidation.RequireHolder,
 		},
 	}
 }
@@ -77,6 +85,7 @@ func LedgerSettingsToMap(s LedgerSettings) map[string]any {
 		"accounting": map[string]any{
 			"validateAccountType": s.Accounting.ValidateAccountType,
 			"validateRoutes":      s.Accounting.ValidateRoutes,
+			"requireHolder":       s.Accounting.RequireHolder,
 		},
 	}
 }
@@ -119,6 +128,10 @@ func ParseLedgerSettings(settings map[string]any) LedgerSettings {
 		result.Accounting.ValidateRoutes = validateRoutes
 	}
 
+	if requireHolder, ok := accountingMap["requireHolder"].(bool); ok {
+		result.Accounting.RequireHolder = requireHolder
+	}
+
 	return result
 }
 
@@ -134,6 +147,7 @@ var settingsSchema = map[string]map[string]string{
 	"accounting": {
 		"validateAccountType": "bool",
 		"validateRoutes":      "bool",
+		"requireHolder":       "bool",
 	},
 }
 

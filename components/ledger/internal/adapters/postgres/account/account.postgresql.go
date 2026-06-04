@@ -37,6 +37,7 @@ var accountColumnList = []string{
 	"name",
 	"parent_account_id",
 	"entity_id",
+	"holder_id",
 	"asset_code",
 	"organization_id",
 	"ledger_id",
@@ -142,6 +143,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 			"name",
 			"parent_account_id",
 			"entity_id",
+			"holder_id",
 			"asset_code",
 			"organization_id",
 			"ledger_id",
@@ -161,6 +163,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 			record.Name,
 			record.ParentAccountID,
 			record.EntityID,
+			record.HolderID,
 			record.AssetCode,
 			record.OrganizationID,
 			record.LedgerID,
@@ -288,6 +291,10 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		findAll = findAll.Where(squirrel.Expr("entity_id = ?", *filter.EntityID))
 	}
 
+	if !libCommons.IsNilOrEmpty(filter.HolderID) {
+		findAll = findAll.Where(squirrel.Expr("holder_id = ?", *filter.HolderID))
+	}
+
 	if filter.Blocked != nil {
 		findAll = findAll.Where(squirrel.Expr("blocked = ?", *filter.Blocked))
 	}
@@ -348,6 +355,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 			&acc.Name,
 			&acc.ParentAccountID,
 			&acc.EntityID,
+			&acc.HolderID,
 			&acc.AssetCode,
 			&acc.OrganizationID,
 			&acc.LedgerID,
@@ -433,6 +441,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&acc.Name,
 		&acc.ParentAccountID,
 		&acc.EntityID,
+		&acc.HolderID,
 		&acc.AssetCode,
 		&acc.OrganizationID,
 		&acc.LedgerID,
@@ -518,6 +527,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		&acc.Name,
 		&acc.ParentAccountID,
 		&acc.EntityID,
+		&acc.HolderID,
 		&acc.AssetCode,
 		&acc.OrganizationID,
 		&acc.LedgerID,
@@ -604,6 +614,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		&acc.Name,
 		&acc.ParentAccountID,
 		&acc.EntityID,
+		&acc.HolderID,
 		&acc.AssetCode,
 		&acc.OrganizationID,
 		&acc.LedgerID,
@@ -767,6 +778,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 			&acc.Name,
 			&acc.ParentAccountID,
 			&acc.EntityID,
+			&acc.HolderID,
 			&acc.AssetCode,
 			&acc.OrganizationID,
 			&acc.LedgerID,
@@ -860,6 +872,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 			&acc.Name,
 			&acc.ParentAccountID,
 			&acc.EntityID,
+			&acc.HolderID,
 			&acc.AssetCode,
 			&acc.OrganizationID,
 			&acc.LedgerID,
@@ -1135,6 +1148,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 			&acc.Name,
 			&acc.ParentAccountID,
 			&acc.EntityID,
+			&acc.HolderID,
 			&acc.AssetCode,
 			&acc.OrganizationID,
 			&acc.LedgerID,
@@ -1227,6 +1241,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 			&acc.Name,
 			&acc.ParentAccountID,
 			&acc.EntityID,
+			&acc.HolderID,
 			&acc.AssetCode,
 			&acc.OrganizationID,
 			&acc.LedgerID,

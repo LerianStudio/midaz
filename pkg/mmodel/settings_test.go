@@ -19,11 +19,13 @@ func TestLedgerSettings_StructExists(t *testing.T) {
 		Accounting: AccountingValidation{
 			ValidateAccountType: true,
 			ValidateRoutes:      true,
+			RequireHolder:       true,
 		},
 	}
 
 	assert.True(t, settings.Accounting.ValidateAccountType)
 	assert.True(t, settings.Accounting.ValidateRoutes)
+	assert.True(t, settings.Accounting.RequireHolder)
 }
 
 func TestDefaultLedgerSettings(t *testing.T) {
@@ -31,6 +33,7 @@ func TestDefaultLedgerSettings(t *testing.T) {
 
 	assert.False(t, settings.Accounting.ValidateAccountType, "ValidateAccountType must default to false")
 	assert.False(t, settings.Accounting.ValidateRoutes, "ValidateRoutes must default to false")
+	assert.False(t, settings.Accounting.RequireHolder, "RequireHolder must default to false")
 }
 
 func TestDefaultLedgerSettingsMap(t *testing.T) {
@@ -41,6 +44,7 @@ func TestDefaultLedgerSettingsMap(t *testing.T) {
 	assert.True(t, ok, "accounting section must exist")
 	assert.Equal(t, false, accounting["validateAccountType"])
 	assert.Equal(t, false, accounting["validateRoutes"])
+	assert.Equal(t, false, accounting["requireHolder"])
 }
 
 func TestParseLedgerSettings(t *testing.T) {
@@ -74,17 +78,49 @@ func TestParseLedgerSettings(t *testing.T) {
 			expected: DefaultLedgerSettings(),
 		},
 		{
-			name: "both flags true",
+			name: "all flags true",
 			input: map[string]any{
 				"accounting": map[string]any{
 					"validateAccountType": true,
 					"validateRoutes":      true,
+					"requireHolder":       true,
 				},
 			},
 			expected: LedgerSettings{
 				Accounting: AccountingValidation{
 					ValidateAccountType: true,
 					ValidateRoutes:      true,
+					RequireHolder:       true,
+				},
+			},
+		},
+		{
+			name: "only requireHolder true",
+			input: map[string]any{
+				"accounting": map[string]any{
+					"requireHolder": true,
+				},
+			},
+			expected: LedgerSettings{
+				Accounting: AccountingValidation{
+					ValidateAccountType: false,
+					ValidateRoutes:      false,
+					RequireHolder:       true,
+				},
+			},
+		},
+		{
+			name: "invalid type for requireHolder uses default",
+			input: map[string]any{
+				"accounting": map[string]any{
+					"requireHolder": "not a bool",
+				},
+			},
+			expected: LedgerSettings{
+				Accounting: AccountingValidation{
+					ValidateAccountType: false,
+					ValidateRoutes:      false,
+					RequireHolder:       false,
 				},
 			},
 		},
@@ -196,9 +232,20 @@ func TestValidateSettings(t *testing.T) {
 				"accounting": map[string]any{
 					"validateAccountType": true,
 					"validateRoutes":      false,
+					"requireHolder":       true,
 				},
 			},
 			wantErr: false,
+		},
+		{
+			name: "requireHolder wrong type returns error",
+			input: map[string]any{
+				"accounting": map[string]any{
+					"requireHolder": "yes",
+				},
+			},
+			wantErr:     true,
+			errContains: "requireHolder",
 		},
 		{
 			name: "valid partial settings",

@@ -20,6 +20,7 @@ type AccountPostgreSQLModel struct {
 	Name              string
 	ParentAccountID   *string
 	EntityID          *string
+	HolderID          *string
 	AssetCode         string
 	OrganizationID    string
 	LedgerID          string
@@ -48,6 +49,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 		Name:            t.Name,
 		ParentAccountID: t.ParentAccountID,
 		EntityID:        t.EntityID,
+		HolderID:        t.HolderID,
 		AssetCode:       t.AssetCode,
 		OrganizationID:  t.OrganizationID,
 		LedgerID:        t.LedgerID,
@@ -82,6 +84,7 @@ func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 		Name:              account.Name,
 		ParentAccountID:   account.ParentAccountID,
 		EntityID:          account.EntityID,
+		HolderID:          account.HolderID,
 		AssetCode:         account.AssetCode,
 		OrganizationID:    account.OrganizationID,
 		LedgerID:          account.LedgerID,

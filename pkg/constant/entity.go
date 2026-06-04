@@ -13,6 +13,7 @@ const (
 	EntityAsset            = "Asset"
 	EntityAssetRate        = "AssetRate"
 	EntityBalance          = "Balance"
+	EntityHolder           = "Holder"
 	EntityLedger           = "Ledger"
 	EntityOperation        = "Operation"
 	EntityOperationRoute   = "OperationRoute"

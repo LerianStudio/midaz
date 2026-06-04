@@ -42,11 +42,17 @@ type CreateAccountInput struct {
 	// format: uuid
 	ParentAccountID *string `json:"parentAccountId" validate:"omitempty,uuid" format:"uuid"`
 
-	// Optional external identifier for linking to external systems
+	// Free-form external reference for linking to external systems. This is NOT the
+	// ownership link: use holderId to formally tie the account to a holder.
 	// required: false
 	// example: EXT-ACC-12345
 	// maxLength: 256
 	EntityID *string `json:"entityId" validate:"omitempty,max=256" example:"EXT-ACC-12345" maxLength:"256"`
+
+	// ID of the holder that formally owns this account (optional)
+	// required: false
+	// format: uuid
+	HolderID *string `json:"holderId" validate:"omitempty,uuid" format:"uuid"`
 
 	// Asset code that this account will use for balances and transactions
 	// required: true
@@ -125,7 +131,8 @@ type UpdateAccountInput struct {
 	// format: uuid
 	PortfolioID *string `json:"portfolioId" validate:"omitempty,uuid" format:"uuid"`
 
-	// Optional external identifier for linking to external systems
+	// Free-form external reference for linking to external systems. This is NOT the
+	// ownership link, and holderId is immutable: ownership cannot be changed via update.
 	// required: false
 	// example: EXT-ACC-12345
 	// maxLength: 256
@@ -193,10 +200,16 @@ type Account struct {
 	// format: uuid
 	ParentAccountID *string `json:"parentAccountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// Optional external identifier for linking to external systems
+	// Free-form external reference for linking to external systems. This is NOT the
+	// ownership link: holderId is the formal owner of the account.
 	// example: EXT-ACC-12345
 	// maxLength: 256
 	EntityID *string `json:"entityId" example:"EXT-ACC-12345" maxLength:"256"`
+
+	// ID of the holder that formally owns this account (UUID format)
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	HolderID *string `json:"holderId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// Asset code associated with this account (determines currency/asset type)
 	// example: USD
