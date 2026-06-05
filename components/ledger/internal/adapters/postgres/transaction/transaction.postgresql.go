@@ -1566,15 +1566,12 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			return nil, libHTTP.CursorPagination{}, err
 		}
 
-		if !libCommons.IsNilOrEmpty(body) {
-			err = json.Unmarshal([]byte(*body), &tran.Body)
-			if err != nil {
-				libOpentelemetry.HandleSpanError(span, "Failed to unmarshal body", err)
+		if err = decodeTransactionBody(tran, body); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to unmarshal body", err)
 
-				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal body: %v", err))
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal body: %v", err))
 
-				return nil, libHTTP.CursorPagination{}, err
-			}
+			return nil, libHTTP.CursorPagination{}, err
 		}
 
 		transactionUUID := uuid.MustParse(tran.ID)
@@ -1720,6 +1717,16 @@ func (r *TransactionPostgreSQLRepository) CountByFilters(ctx context.Context, or
 	}
 
 	return count, nil
+}
+
+// decodeTransactionBody unmarshals the raw JSON body column into the model's
+// Body field. A nil or empty body is a no-op, leaving Body at its zero value.
+func decodeTransactionBody(tran *TransactionPostgreSQLModel, body *string) error {
+	if libCommons.IsNilOrEmpty(body) {
+		return nil
+	}
+
+	return json.Unmarshal([]byte(*body), &tran.Body)
 }
 
 // derefString safely dereferences a *string, returning "" if nil.
