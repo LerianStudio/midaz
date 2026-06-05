@@ -3,8 +3,8 @@ info:
   contact: {}
   description: This is a swagger documentation for Reporter
   termsOfService: http://swagger.io/terms/
-  title: Reporter
-  version: 1.2.0
+  title: Reporter API
+  version: 4.0.0
 servers:
 - url: //localhost:4005/
 paths:
@@ -126,7 +126,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200'
+                $ref: '#/components/schemas/_v1_deadlines_get_200_response'
           description: OK
         "400":
           content:
@@ -171,7 +171,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline'
+                $ref: '#/components/schemas/deadline.Deadline'
           description: Created
         "400":
           content:
@@ -205,8 +205,8 @@ paths:
       x-codegen-request-body-name: deadline
   /v1/deadlines/notifications:
     get:
-      description: Returns active deadlines within their notification window, sorted
-        by urgency
+      description: "Returns active deadlines within their notification window, sorted\
+        \ by urgency"
       parameters:
       - description: Maximum number of notifications (1-100)
         in: query
@@ -219,7 +219,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/components_manager_internal_adapters_http_in.notificationResponse'
+                $ref: '#/components/schemas/internal_adapters_http_in.notificationResponse'
           description: OK
         "400":
           content:
@@ -320,7 +320,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline'
+                $ref: '#/components/schemas/deadline.Deadline'
           description: OK
         "400":
           content:
@@ -380,7 +380,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline'
+                $ref: '#/components/schemas/deadline.Deadline'
           description: OK
         "400":
           content:
@@ -420,8 +420,8 @@ paths:
       x-codegen-request-body-name: deadline
   /v1/metrics:
     get:
-      description: Returns aggregated counts of templates, reports, data sources,
-        and errors
+      description: "Returns aggregated counts of templates, reports, data sources,\
+        \ and errors"
       parameters:
       - description: Number of days for error period
         in: query
@@ -436,7 +436,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/components_manager_internal_adapters_http_in.metricsResponse'
+                $ref: '#/components/schemas/internal_adapters_http_in.metricsResponse'
           description: OK
         "400":
           content:
@@ -487,19 +487,19 @@ paths:
         schema:
           format: uuid
           type: string
-      - description: Created at date, YYYY-MM-DD (also accepts createdAt)
+      - description: "Created at date, YYYY-MM-DD (also accepts createdAt)"
         in: query
         name: created_at
         schema:
           format: date
           type: string
-      - description: Filter window start, YYYY-MM-DD
+      - description: "Filter window start, YYYY-MM-DD"
         in: query
         name: start_date
         schema:
           format: date
           type: string
-      - description: Filter window end, YYYY-MM-DD
+      - description: "Filter window end, YYYY-MM-DD"
         in: query
         name: end_date
         schema:
@@ -562,7 +562,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_1'
+                $ref: '#/components/schemas/_v1_reports_get_200_response'
           description: OK
         "400":
           content:
@@ -613,7 +613,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_mongodb_report.Report'
+                $ref: '#/components/schemas/report.Report'
           description: Created
           headers:
             X-Idempotency-Replayed:
@@ -672,7 +672,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_mongodb_report.Report'
+                $ref: '#/components/schemas/report.Report'
           description: OK
         "400":
           content:
@@ -811,7 +811,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_2'
+                $ref: '#/components/schemas/_v1_templates_get_200_response'
           description: OK
         "400":
           content:
@@ -855,20 +855,7 @@ paths:
         content:
           multipart/form-data:
             schema:
-              properties:
-                template:
-                  description: Template file
-                  format: binary
-                  type: string
-                outputFormat:
-                  description: Output format (html, pdf, txt, xml)
-                  type: string
-                description:
-                  description: Template description
-                  type: string
-              required:
-              - outputFormat
-              - template
+              $ref: '#/components/schemas/_v1_templates_post_request'
         required: true
       responses:
         "201":
@@ -915,7 +902,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_pongo.BlocksConfigResponse'
+                $ref: '#/components/schemas/pongo.BlocksConfigResponse'
           description: OK
         "401":
           content:
@@ -949,7 +936,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_pongo.FiltersResponse'
+                $ref: '#/components/schemas/pongo.FiltersResponse'
           description: OK
         "401":
           content:
@@ -982,7 +969,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeInput'
+              $ref: '#/components/schemas/template_builder.GenerateCodeInput'
         description: Block structure
         required: true
       responses:
@@ -990,7 +977,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeResponse'
+                $ref: '#/components/schemas/template_builder.GenerateCodeResponse'
           description: OK
         "400":
           content:
@@ -1031,7 +1018,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksInput'
+              $ref: '#/components/schemas/template_builder.ValidateBlocksInput'
         description: Blocks to validate
         required: true
       responses:
@@ -1039,7 +1026,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksResponse'
+                $ref: '#/components/schemas/template_builder.ValidateBlocksResponse'
           description: OK
         "400":
           content:
@@ -1134,7 +1121,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_mongodb_template.Template'
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template'
           description: OK
         "400":
           content:
@@ -1184,17 +1171,7 @@ paths:
         content:
           multipart/form-data:
             schema:
-              properties:
-                template:
-                  description: Template file
-                  format: binary
-                  type: string
-                outputFormat:
-                  description: Output format (html, pdf, txt, xml)
-                  type: string
-                description:
-                  description: Template description
-                  type: string
+              $ref: '#/components/schemas/_v1_templates__id__patch_request'
       responses:
         "200":
           content:
@@ -1304,36 +1281,36 @@ components:
             key:
               key:
                 nin:
-                - '{}'
-                - '{}'
+                - "{}"
+                - "{}"
                 in:
-                - '{}'
-                - '{}'
+                - "{}"
+                - "{}"
                 lt:
-                - '{}'
-                - '{}'
+                - "{}"
+                - "{}"
                 gte:
-                - '{}'
-                - '{}'
+                - "{}"
+                - "{}"
                 eq:
-                - '{}'
-                - '{}'
+                - "{}"
+                - "{}"
                 lte:
-                - '{}'
-                - '{}'
+                - "{}"
+                - "{}"
                 gt:
-                - '{}'
-                - '{}'
+                - "{}"
+                - "{}"
                 between:
-                - '{}'
-                - '{}'
+                - "{}"
+                - "{}"
         templateId: 00000000-0000-0000-0000-000000000000
       properties:
         filters:
           additionalProperties:
             additionalProperties:
               additionalProperties:
-                $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_model.FilterCondition'
+                $ref: '#/components/schemas/model.FilterCondition'
               type: object
             type: object
           type: object
@@ -1350,14 +1327,14 @@ components:
         tables:
         - name: account
           fields:
-          - '[''id'''
+          - "['id'"
           - ' ''name'''
-          - ' ''parent_account_id'']'
+          - " 'parent_account_id']"
         - name: account
           fields:
-          - '[''id'''
+          - "['id'"
           - ' ''name'''
-          - ' ''parent_account_id'']'
+          - " 'parent_account_id']"
         externalName: onboarding
         id: midaz_onboarding
         type: postgresql
@@ -1409,11 +1386,6 @@ components:
     Pagination:
       description: Pagination is the struct designed to store the pagination data
         of an entity list.
-      example:
-        total: 10
-        limit: 10
-        page: 1
-        items: '{}'
       properties:
         items:
           type: object
@@ -1432,15 +1404,15 @@ components:
       example:
         name: account
         fields:
-        - '[''id'''
+        - "['id'"
         - ' ''name'''
-        - ' ''parent_account_id'']'
+        - " 'parent_account_id']"
       properties:
         fields:
           example:
-          - '[''id'''
+          - "['id'"
           - ' ''name'''
-          - ' ''parent_account_id'']'
+          - " 'parent_account_id']"
           items:
             type: string
           type: array
@@ -1485,7 +1457,7 @@ components:
           type: string
         warnings:
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_datasource.ValidationWarning'
+            $ref: '#/components/schemas/datasource.ValidationWarning'
           type: array
       type: object
     UpdateDeadlineInput:
@@ -1539,121 +1511,15 @@ components:
           example: custom
           type: string
       type: object
-    components_manager_internal_adapters_http_in.errorMetrics:
-      example:
-        previousPeriodTotal: 6
-        total: 1
-      properties:
-        previousPeriodTotal:
-          type: integer
-        total:
-          type: integer
-      type: object
-    components_manager_internal_adapters_http_in.metricsResponse:
-      example:
-        reports: 5
-        templates: 5
-        dataSources: 0
-        errors:
-          previousPeriodTotal: 6
-          total: 1
-      properties:
-        dataSources:
-          type: integer
-        errors:
-          $ref: '#/components/schemas/components_manager_internal_adapters_http_in.errorMetrics'
-        reports:
-          type: integer
-        templates:
-          type: integer
-      type: object
-    components_manager_internal_adapters_http_in.notificationItem:
-      example:
-        daysUntilDue: 0
-        severity: severity
-        color: color
-        dueDate: dueDate
-        name: name
-        notifyDaysBefore: 1
-        description: description
-        id: id
-        type: type
-        monthsOfYear:
-        - 6
-        - 6
-        frequency: frequency
-      properties:
-        color:
-          type: string
-        daysUntilDue:
-          type: integer
-        description:
-          type: string
-        dueDate:
-          type: string
-        frequency:
-          type: string
-        id:
-          type: string
-        monthsOfYear:
-          items:
-            type: integer
-          type: array
-        name:
-          type: string
-        notifyDaysBefore:
-          type: integer
-        severity:
-          type: string
-        type:
-          type: string
-      type: object
-    components_manager_internal_adapters_http_in.notificationResponse:
-      example:
-        total: 5
-        items:
-        - daysUntilDue: 0
-          severity: severity
-          color: color
-          dueDate: dueDate
-          name: name
-          notifyDaysBefore: 1
-          description: description
-          id: id
-          type: type
-          monthsOfYear:
-          - 6
-          - 6
-          frequency: frequency
-        - daysUntilDue: 0
-          severity: severity
-          color: color
-          dueDate: dueDate
-          name: name
-          notifyDaysBefore: 1
-          description: description
-          id: id
-          type: type
-          monthsOfYear:
-          - 6
-          - 6
-          frequency: frequency
-      properties:
-        items:
-          items:
-            $ref: '#/components/schemas/components_manager_internal_adapters_http_in.notificationItem'
-          type: array
-        total:
-          type: integer
-      type: object
-    github_com_LerianStudio_reporter_pkg_datasource.ValidationWarning:
+    datasource.ValidationWarning:
       example:
         code: code
         field: field
         message: message
       properties:
         code:
-          description: Code is a machine-readable warning code (e.g., "DATA_SOURCE_UNAVAILABLE").
+          description: "Code is a machine-readable warning code (e.g., \"DATA_SOURCE_UNAVAILABLE\"\
+            )."
           type: string
         field:
           description: Field identifies the affected field or data source reference.
@@ -1662,98 +1528,7 @@ components:
           description: Message is a human-readable description of the warning.
           type: string
       type: object
-    github_com_LerianStudio_reporter_pkg_model.FilterCondition:
-      example:
-        nin:
-        - '{}'
-        - '{}'
-        in:
-        - '{}'
-        - '{}'
-        lt:
-        - '{}'
-        - '{}'
-        gte:
-        - '{}'
-        - '{}'
-        eq:
-        - '{}'
-        - '{}'
-        lte:
-        - '{}'
-        - '{}'
-        gt:
-        - '{}'
-        - '{}'
-        between:
-        - '{}'
-        - '{}'
-      properties:
-        between:
-          description: |-
-            Between specifies a range condition with exactly two values [min, max].
-            Matches records where min <= field <= max
-            Example: {"between": [100, 1000]} matches records where 100 <= field <= 1000
-          items:
-            type: object
-          type: array
-        eq:
-          description: |-
-            Equals specifies exact value matches. Multiple values treated as OR conditions.
-            Example: {"eq": ["active", "pending"]} matches records where field equals "active" OR "pending"
-          items:
-            type: object
-          type: array
-        gt:
-          description: |-
-            GreaterThan specifies values that must be greater than the provided value.
-            Should contain exactly one value for comparison.
-            Example: {"gt": [100]} matches records where field > 100
-          items:
-            type: object
-          type: array
-        gte:
-          description: |-
-            GreaterOrEqual specifies values that must be greater than or equal to the provided value.
-            Should contain exactly one value for comparison.
-            Example: {"gte": ["2025-06-01"]} matches records where field >= "2025-06-01"
-          items:
-            type: object
-          type: array
-        in:
-          description: |-
-            In specifies a list of values where the field must match any one of them.
-            Multiple values treated as OR conditions.
-            Example: {"in": ["active", "pending", "suspended"]} matches any of these statuses
-          items:
-            type: object
-          type: array
-        lt:
-          description: |-
-            LessThan specifies values that must be less than the provided value.
-            Should contain exactly one value for comparison.
-            Example: {"lt": [1000]} matches records where field < 1000
-          items:
-            type: object
-          type: array
-        lte:
-          description: |-
-            LessOrEqual specifies values that must be less than or equal to the provided value.
-            Should contain exactly one value for comparison.
-            Example: {"lte": ["2025-06-30"]} matches records where field <= "2025-06-30"
-          items:
-            type: object
-          type: array
-        nin:
-          description: |-
-            NotIn specifies a list of values where the field must NOT match any of them.
-            Multiple values treated as AND NOT conditions.
-            Example: {"nin": ["deleted", "archived"]} excludes these statuses
-          items:
-            type: object
-          type: array
-      type: object
-    github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline:
+    deadline.Deadline:
       example:
         color: '#FF5733'
         dueDate: 2026-03-31T23:59:59Z
@@ -1827,85 +1602,7 @@ components:
           example: 2026-01-01T00:00:00Z
           type: string
       type: object
-    github_com_LerianStudio_reporter_pkg_mongodb_report.Report:
-      example:
-        createdAt: createdAt
-        completedAt: completedAt
-        deletedAt: deletedAt
-        metadata:
-          key: '{}'
-        templateDescription: Cadoc
-        templateOutputFormat: xml
-        filters:
-          key:
-            key:
-              key:
-                nin:
-                - '{}'
-                - '{}'
-                in:
-                - '{}'
-                - '{}'
-                lt:
-                - '{}'
-                - '{}'
-                gte:
-                - '{}'
-                - '{}'
-                eq:
-                - '{}'
-                - '{}'
-                lte:
-                - '{}'
-                - '{}'
-                gt:
-                - '{}'
-                - '{}'
-                between:
-                - '{}'
-                - '{}'
-        id: 00000000-0000-0000-0000-000000000000
-        templateId: 00000000-0000-0000-0000-000000000000
-        status: processing
-        updatedAt: updatedAt
-      properties:
-        completedAt:
-          type: string
-        createdAt:
-          type: string
-        deletedAt:
-          type: string
-        filters:
-          additionalProperties:
-            additionalProperties:
-              additionalProperties:
-                $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_model.FilterCondition'
-              type: object
-            type: object
-          type: object
-        id:
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
-        metadata:
-          additionalProperties:
-            type: object
-          type: object
-        status:
-          example: processing
-          type: string
-        templateDescription:
-          example: Cadoc
-          type: string
-        templateId:
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
-        templateOutputFormat:
-          example: xml
-          type: string
-        updatedAt:
-          type: string
-      type: object
-    github_com_LerianStudio_reporter_pkg_mongodb_template.Template:
+    github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template:
       example:
         createdAt: 2021-01-01T00:00:00Z
         fileName: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
@@ -1933,7 +1630,224 @@ components:
           example: 2021-01-01T00:00:00Z
           type: string
       type: object
-    github_com_LerianStudio_reporter_pkg_pongo.BlockDefinition:
+    internal_adapters_http_in.errorMetrics:
+      example:
+        previousPeriodTotal: 6
+        total: 1
+      properties:
+        previousPeriodTotal:
+          type: integer
+        total:
+          type: integer
+      type: object
+    internal_adapters_http_in.metricsResponse:
+      example:
+        reports: 5
+        templates: 5
+        dataSources: 0
+        errors:
+          previousPeriodTotal: 6
+          total: 1
+      properties:
+        dataSources:
+          type: integer
+        errors:
+          $ref: '#/components/schemas/internal_adapters_http_in.errorMetrics'
+        reports:
+          type: integer
+        templates:
+          type: integer
+      type: object
+    internal_adapters_http_in.notificationItem:
+      example:
+        daysUntilDue: 0
+        severity: severity
+        color: color
+        dueDate: dueDate
+        name: name
+        notifyDaysBefore: 1
+        description: description
+        id: id
+        type: type
+        monthsOfYear:
+        - 6
+        - 6
+        frequency: frequency
+      properties:
+        color:
+          type: string
+        daysUntilDue:
+          type: integer
+        description:
+          type: string
+        dueDate:
+          type: string
+        frequency:
+          type: string
+        id:
+          type: string
+        monthsOfYear:
+          items:
+            type: integer
+          type: array
+        name:
+          type: string
+        notifyDaysBefore:
+          type: integer
+        severity:
+          type: string
+        type:
+          type: string
+      type: object
+    internal_adapters_http_in.notificationResponse:
+      example:
+        total: 5
+        items:
+        - daysUntilDue: 0
+          severity: severity
+          color: color
+          dueDate: dueDate
+          name: name
+          notifyDaysBefore: 1
+          description: description
+          id: id
+          type: type
+          monthsOfYear:
+          - 6
+          - 6
+          frequency: frequency
+        - daysUntilDue: 0
+          severity: severity
+          color: color
+          dueDate: dueDate
+          name: name
+          notifyDaysBefore: 1
+          description: description
+          id: id
+          type: type
+          monthsOfYear:
+          - 6
+          - 6
+          frequency: frequency
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/internal_adapters_http_in.notificationItem'
+          type: array
+        total:
+          type: integer
+      type: object
+    model.FilterCondition:
+      example:
+        nin:
+        - "{}"
+        - "{}"
+        in:
+        - "{}"
+        - "{}"
+        lt:
+        - "{}"
+        - "{}"
+        gte:
+        - "{}"
+        - "{}"
+        eq:
+        - "{}"
+        - "{}"
+        lte:
+        - "{}"
+        - "{}"
+        gt:
+        - "{}"
+        - "{}"
+        between:
+        - "{}"
+        - "{}"
+      properties:
+        between:
+          description: |-
+            Between specifies a range condition with exactly two values [min, max].
+            Matches records where min <= field <= max
+            Example: {"between": [100, 1000]} matches records where 100 <= field <= 1000
+          items:
+            type: object
+          type: array
+        eq:
+          description: |-
+            Equals specifies exact value matches. Multiple values treated as OR conditions.
+            Example: {"eq": ["active", "pending"]} matches records where field equals "active" OR "pending"
+          items:
+            type: object
+          type: array
+        gt:
+          description: |-
+            GreaterThan specifies values that must be greater than the provided value.
+            Should contain exactly one value for comparison.
+            Example: {"gt": [100]} matches records where field > 100
+          items:
+            type: object
+          type: array
+        gte:
+          description: |-
+            GreaterOrEqual specifies values that must be greater than or equal to the provided value.
+            Should contain exactly one value for comparison.
+            Example: {"gte": ["2025-06-01"]} matches records where field >= "2025-06-01"
+          items:
+            type: object
+          type: array
+        in:
+          description: |-
+            In specifies a list of values where the field must match any one of them.
+            Multiple values treated as OR conditions.
+            Example: {"in": ["active", "pending", "suspended"]} matches any of these statuses
+          items:
+            type: object
+          type: array
+        lt:
+          description: |-
+            LessThan specifies values that must be less than the provided value.
+            Should contain exactly one value for comparison.
+            Example: {"lt": [1000]} matches records where field < 1000
+          items:
+            type: object
+          type: array
+        lte:
+          description: |-
+            LessOrEqual specifies values that must be less than or equal to the provided value.
+            Should contain exactly one value for comparison.
+            Example: {"lte": ["2025-06-30"]} matches records where field <= "2025-06-30"
+          items:
+            type: object
+          type: array
+        nin:
+          description: |-
+            NotIn specifies a list of values where the field must NOT match any of them.
+            Multiple values treated as AND NOT conditions.
+            Example: {"nin": ["deleted", "archived"]} excludes these statuses
+          items:
+            type: object
+          type: array
+      type: object
+    pkg.HTTPError:
+      example:
+        code: code
+        err: "{}"
+        entityType: entityType
+        message: message
+        title: title
+      properties:
+        code:
+          type: string
+        entityType:
+          type: string
+        err:
+          type: object
+        message:
+          type: string
+        title:
+          type: string
+      type: object
+    pongo.BlockDefinition:
       example:
         acceptsChildren: true
         label: label
@@ -1961,12 +1875,12 @@ components:
           type: string
         properties:
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_pongo.BlockProperty'
+            $ref: '#/components/schemas/pongo.BlockProperty'
           type: array
         type:
           type: string
       type: object
-    github_com_LerianStudio_reporter_pkg_pongo.BlockProperty:
+    pongo.BlockProperty:
       example:
         values:
         - values
@@ -1986,7 +1900,7 @@ components:
             type: string
           type: array
       type: object
-    github_com_LerianStudio_reporter_pkg_pongo.BlocksConfigResponse:
+    pongo.BlocksConfigResponse:
       example:
         blocks:
         - acceptsChildren: true
@@ -2026,10 +1940,10 @@ components:
       properties:
         blocks:
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_pongo.BlockDefinition'
+            $ref: '#/components/schemas/pongo.BlockDefinition'
           type: array
       type: object
-    github_com_LerianStudio_reporter_pkg_pongo.FilterDefinition:
+    pongo.FilterDefinition:
       example:
         args:
         - args
@@ -2049,7 +1963,7 @@ components:
         name:
           type: string
       type: object
-    github_com_LerianStudio_reporter_pkg_pongo.FiltersResponse:
+    pongo.FiltersResponse:
       example:
         filters:
         - args:
@@ -2067,35 +1981,113 @@ components:
       properties:
         filters:
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_pongo.FilterDefinition'
+            $ref: '#/components/schemas/pongo.FilterDefinition'
           type: array
       type: object
-    github_com_LerianStudio_reporter_pkg_template_builder.ElifBranch:
+    report.Report:
+      example:
+        createdAt: createdAt
+        completedAt: completedAt
+        deletedAt: deletedAt
+        metadata:
+          key: "{}"
+        templateDescription: Cadoc
+        templateOutputFormat: xml
+        filters:
+          key:
+            key:
+              key:
+                nin:
+                - "{}"
+                - "{}"
+                in:
+                - "{}"
+                - "{}"
+                lt:
+                - "{}"
+                - "{}"
+                gte:
+                - "{}"
+                - "{}"
+                eq:
+                - "{}"
+                - "{}"
+                lte:
+                - "{}"
+                - "{}"
+                gt:
+                - "{}"
+                - "{}"
+                between:
+                - "{}"
+                - "{}"
+        id: 00000000-0000-0000-0000-000000000000
+        templateId: 00000000-0000-0000-0000-000000000000
+        status: processing
+        updatedAt: updatedAt
+      properties:
+        completedAt:
+          type: string
+        createdAt:
+          type: string
+        deletedAt:
+          type: string
+        filters:
+          additionalProperties:
+            additionalProperties:
+              additionalProperties:
+                $ref: '#/components/schemas/model.FilterCondition'
+              type: object
+            type: object
+          type: object
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        status:
+          example: processing
+          type: string
+        templateDescription:
+          example: Cadoc
+          type: string
+        templateId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        templateOutputFormat:
+          example: xml
+          type: string
+        updatedAt:
+          type: string
+      type: object
+    template_builder.ElifBranch:
       properties:
         children:
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock'
+            $ref: '#/components/schemas/template_builder.TemplateBlock'
           type: array
         condition:
           type: string
       type: object
-    github_com_LerianStudio_reporter_pkg_template_builder.FilterChain:
+    template_builder.FilterChain:
       properties:
         args:
           type: string
         name:
           type: string
       type: object
-    github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeInput:
+    template_builder.GenerateCodeInput:
       properties:
         blocks:
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock'
+            $ref: '#/components/schemas/template_builder.TemplateBlock'
           type: array
         format:
           type: string
       type: object
-    github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeResponse:
+    template_builder.GenerateCodeResponse:
       example:
         mappedFields:
           key:
@@ -2115,7 +2107,7 @@ components:
             type: object
           type: object
       type: object
-    github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock:
+    template_builder.TemplateBlock:
       properties:
         assignment:
           type: string
@@ -2123,7 +2115,7 @@ components:
           type: string
         children:
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock'
+            $ref: '#/components/schemas/template_builder.TemplateBlock'
           type: array
         collection:
           type: string
@@ -2133,11 +2125,11 @@ components:
           type: string
         elifBranches:
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_template_builder.ElifBranch'
+            $ref: '#/components/schemas/template_builder.ElifBranch'
           type: array
         elseChildren:
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock'
+            $ref: '#/components/schemas/template_builder.TemplateBlock'
           type: array
         expression:
           type: string
@@ -2145,7 +2137,7 @@ components:
           type: string
         filters:
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_template_builder.FilterChain'
+            $ref: '#/components/schemas/template_builder.FilterChain'
           type: array
         format:
           type: string
@@ -2170,14 +2162,14 @@ components:
         variable:
           type: string
       type: object
-    github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksInput:
+    template_builder.ValidateBlocksInput:
       properties:
         blocks:
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock'
+            $ref: '#/components/schemas/template_builder.TemplateBlock'
           type: array
       type: object
-    github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksResponse:
+    template_builder.ValidateBlocksResponse:
       example:
         valid: true
         errors:
@@ -2190,12 +2182,12 @@ components:
       properties:
         errors:
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_template_builder.ValidationError'
+            $ref: '#/components/schemas/template_builder.ValidationError'
           type: array
         valid:
           type: boolean
       type: object
-    github_com_LerianStudio_reporter_pkg_template_builder.ValidationError:
+    template_builder.ValidationError:
       example:
         blockId: blockId
         field: field
@@ -2208,26 +2200,22 @@ components:
         message:
           type: string
       type: object
-    pkg.HTTPError:
-      properties:
-        code:
-          type: string
-        entityType:
-          type: string
-        err:
-          type: object
-        message:
-          type: string
-        title:
-          type: string
-      type: object
-    inline_response_200:
+    _v1_deadlines_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
+          items:
+            items:
+              $ref: '#/components/schemas/deadline.Deadline'
+            type: array
+          limit:
+            type: integer
+          page:
+            type: integer
+          total:
+            type: integer
+        type: object
       example:
-        Pagination:
-          total: 10
-          limit: 10
-          page: 1
-          items: '{}'
         total: 1
         limit: 0
         page: 6
@@ -2268,27 +2256,22 @@ components:
           - 6
           status: pending
           updatedAt: 2026-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
+    _v1_reports_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline'
-          type: array
-        limit:
-          type: integer
-        page:
-          type: integer
-        total:
-          type: integer
-      type: object
-    inline_response_200_1:
+            items:
+              $ref: '#/components/schemas/report.Report'
+            type: array
+          limit:
+            type: integer
+          page:
+            type: integer
+          total:
+            type: integer
+        type: object
       example:
-        Pagination:
-          total: 10
-          limit: 10
-          page: 1
-          items: '{}'
         total: 1
         limit: 0
         page: 6
@@ -2297,7 +2280,7 @@ components:
           completedAt: completedAt
           deletedAt: deletedAt
           metadata:
-            key: '{}'
+            key: "{}"
           templateDescription: Cadoc
           templateOutputFormat: xml
           filters:
@@ -2305,29 +2288,29 @@ components:
               key:
                 key:
                   nin:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
                   in:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
                   lt:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
                   gte:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
                   eq:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
                   lte:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
                   gt:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
                   between:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
           id: 00000000-0000-0000-0000-000000000000
           templateId: 00000000-0000-0000-0000-000000000000
           status: processing
@@ -2336,7 +2319,7 @@ components:
           completedAt: completedAt
           deletedAt: deletedAt
           metadata:
-            key: '{}'
+            key: "{}"
           templateDescription: Cadoc
           templateOutputFormat: xml
           filters:
@@ -2344,54 +2327,49 @@ components:
               key:
                 key:
                   nin:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
                   in:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
                   lt:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
                   gte:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
                   eq:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
                   lte:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
                   gt:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
                   between:
-                  - '{}'
-                  - '{}'
+                  - "{}"
+                  - "{}"
           id: 00000000-0000-0000-0000-000000000000
           templateId: 00000000-0000-0000-0000-000000000000
           status: processing
           updatedAt: updatedAt
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
+    _v1_templates_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_mongodb_report.Report'
-          type: array
-        limit:
-          type: integer
-        page:
-          type: integer
-        total:
-          type: integer
-      type: object
-    inline_response_200_2:
+            items:
+              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template'
+            type: array
+          limit:
+            type: integer
+          page:
+            type: integer
+          total:
+            type: integer
+        type: object
       example:
-        Pagination:
-          total: 10
-          limit: 10
-          page: 1
-          items: '{}'
         total: 1
         limit: 0
         page: 6
@@ -2408,19 +2386,34 @@ components:
           id: 00000000-0000-0000-0000-000000000000
           outputFormat: HTML
           updatedAt: 2021-01-01T00:00:00Z
+    _v1_templates_post_request:
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
-          items:
-            $ref: '#/components/schemas/github_com_LerianStudio_reporter_pkg_mongodb_template.Template'
-          type: array
-        limit:
-          type: integer
-        page:
-          type: integer
-        total:
-          type: integer
+        template:
+          description: Template file
+          format: binary
+          type: string
+        outputFormat:
+          description: "Output format (html, pdf, txt, xml)"
+          type: string
+        description:
+          description: Template description
+          type: string
+      required:
+      - outputFormat
+      - template
+      type: object
+    _v1_templates__id__patch_request:
+      properties:
+        template:
+          description: Template file
+          format: binary
+          type: string
+        outputFormat:
+          description: "Output format (html, pdf, txt, xml)"
+          type: string
+        description:
+          description: Template description
+          type: string
       type: object
   securitySchemes:
     BearerAuth:

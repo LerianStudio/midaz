@@ -734,6 +734,15 @@ definitions:
     type: object
   internal_adapters_http_in.ReserveRequest:
     properties:
+      longLived:
+        description: |-
+          LongLived selects the reservation lifetime. false (the default, a direct
+          transaction) gets the short reaper-swept TTL; true (a PENDING transaction)
+          gets the long-lived TTL so the reservation does not expire under a
+          still-valid pending that has no existing sweep (R18). It is a sibling wire
+          field, NOT part of the embedded ValidationRequest, so the relaxed reserve
+          validation never sees it.
+        type: boolean
       transactionId:
         description: |-
           TransactionID is the ledger transaction correlation id. It is the
@@ -868,7 +877,7 @@ info:
   description: Transaction validation service with rules and limits
   termsOfService: http://swagger.io/terms/
   title: Tracer API
-  version: 0.1.0
+  version: 4.0.0
 paths:
   /health:
     get:

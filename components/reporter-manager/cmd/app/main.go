@@ -13,8 +13,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/bootstrap"
 )
 
-// @title						Reporter
-// @version					1.2.0
+// @title						Reporter API
+// @version					4.0.0
 // @description				This is a swagger documentation for Reporter
 // @termsOfService				http://swagger.io/terms/
 // @host						localhost:4005

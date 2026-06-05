@@ -182,7 +182,7 @@ const docTemplate = `{
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline"
+                                                "$ref": "#/definitions/deadline.Deadline"
                                             }
                                         },
                                         "limit": {
@@ -257,7 +257,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline"
+                            "$ref": "#/definitions/deadline.Deadline"
                         }
                     },
                     "400": {
@@ -315,7 +315,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/components_manager_internal_adapters_http_in.notificationResponse"
+                            "$ref": "#/definitions/internal_adapters_http_in.notificationResponse"
                         }
                     },
                     "400": {
@@ -441,7 +441,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline"
+                            "$ref": "#/definitions/deadline.Deadline"
                         }
                     },
                     "400": {
@@ -517,7 +517,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline"
+                            "$ref": "#/definitions/deadline.Deadline"
                         }
                     },
                     "400": {
@@ -583,7 +583,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/components_manager_internal_adapters_http_in.metricsResponse"
+                            "$ref": "#/definitions/internal_adapters_http_in.metricsResponse"
                         }
                     },
                     "400": {
@@ -746,7 +746,7 @@ const docTemplate = `{
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_report.Report"
+                                                "$ref": "#/definitions/report.Report"
                                             }
                                         },
                                         "limit": {
@@ -827,7 +827,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_report.Report"
+                            "$ref": "#/definitions/report.Report"
                         },
                         "headers": {
                             "X-Idempotency-Replayed": {
@@ -900,7 +900,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_report.Report"
+                            "$ref": "#/definitions/report.Report"
                         }
                     },
                     "400": {
@@ -1059,7 +1059,7 @@ const docTemplate = `{
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_template.Template"
+                                                "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template"
                                             }
                                         },
                                         "limit": {
@@ -1200,7 +1200,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_pongo.BlocksConfigResponse"
+                            "$ref": "#/definitions/pongo.BlocksConfigResponse"
                         }
                     },
                     "401": {
@@ -1243,7 +1243,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_pongo.FiltersResponse"
+                            "$ref": "#/definitions/pongo.FiltersResponse"
                         }
                     },
                     "401": {
@@ -1292,7 +1292,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeInput"
+                            "$ref": "#/definitions/template_builder.GenerateCodeInput"
                         }
                     }
                 ],
@@ -1300,7 +1300,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeResponse"
+                            "$ref": "#/definitions/template_builder.GenerateCodeResponse"
                         }
                     },
                     "400": {
@@ -1355,7 +1355,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksInput"
+                            "$ref": "#/definitions/template_builder.ValidateBlocksInput"
                         }
                     }
                 ],
@@ -1363,7 +1363,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksResponse"
+                            "$ref": "#/definitions/template_builder.ValidateBlocksResponse"
                         }
                     },
                     "400": {
@@ -1424,7 +1424,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_template.Template"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template"
                         }
                     },
                     "400": {
@@ -1675,7 +1675,7 @@ const docTemplate = `{
                         "additionalProperties": {
                             "type": "object",
                             "additionalProperties": {
-                                "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_model.FilterCondition"
+                                "$ref": "#/definitions/model.FilterCondition"
                             }
                         }
                     }
@@ -1812,7 +1812,7 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_datasource.ValidationWarning"
+                        "$ref": "#/definitions/datasource.ValidationWarning"
                     }
                 }
             }
@@ -1869,90 +1869,7 @@ const docTemplate = `{
                 }
             }
         },
-        "components_manager_internal_adapters_http_in.errorMetrics": {
-            "type": "object",
-            "properties": {
-                "previousPeriodTotal": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                }
-            }
-        },
-        "components_manager_internal_adapters_http_in.metricsResponse": {
-            "type": "object",
-            "properties": {
-                "dataSources": {
-                    "type": "integer"
-                },
-                "errors": {
-                    "$ref": "#/definitions/components_manager_internal_adapters_http_in.errorMetrics"
-                },
-                "reports": {
-                    "type": "integer"
-                },
-                "templates": {
-                    "type": "integer"
-                }
-            }
-        },
-        "components_manager_internal_adapters_http_in.notificationItem": {
-            "type": "object",
-            "properties": {
-                "color": {
-                    "type": "string"
-                },
-                "daysUntilDue": {
-                    "type": "integer"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "dueDate": {
-                    "type": "string"
-                },
-                "frequency": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "monthsOfYear": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "notifyDaysBefore": {
-                    "type": "integer"
-                },
-                "severity": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "components_manager_internal_adapters_http_in.notificationResponse": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/components_manager_internal_adapters_http_in.notificationItem"
-                    }
-                },
-                "total": {
-                    "type": "integer"
-                }
-            }
-        },
-        "github_com_LerianStudio_reporter_pkg_datasource.ValidationWarning": {
+        "datasource.ValidationWarning": {
             "type": "object",
             "properties": {
                 "code": {
@@ -1969,52 +1886,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_reporter_pkg_model.FilterCondition": {
-            "type": "object",
-            "properties": {
-                "between": {
-                    "description": "Between specifies a range condition with exactly two values [min, max].\nMatches records where min \u003c= field \u003c= max\nExample: {\"between\": [100, 1000]} matches records where 100 \u003c= field \u003c= 1000",
-                    "type": "array",
-                    "items": {}
-                },
-                "eq": {
-                    "description": "Equals specifies exact value matches. Multiple values treated as OR conditions.\nExample: {\"eq\": [\"active\", \"pending\"]} matches records where field equals \"active\" OR \"pending\"",
-                    "type": "array",
-                    "items": {}
-                },
-                "gt": {
-                    "description": "GreaterThan specifies values that must be greater than the provided value.\nShould contain exactly one value for comparison.\nExample: {\"gt\": [100]} matches records where field \u003e 100",
-                    "type": "array",
-                    "items": {}
-                },
-                "gte": {
-                    "description": "GreaterOrEqual specifies values that must be greater than or equal to the provided value.\nShould contain exactly one value for comparison.\nExample: {\"gte\": [\"2025-06-01\"]} matches records where field \u003e= \"2025-06-01\"",
-                    "type": "array",
-                    "items": {}
-                },
-                "in": {
-                    "description": "In specifies a list of values where the field must match any one of them.\nMultiple values treated as OR conditions.\nExample: {\"in\": [\"active\", \"pending\", \"suspended\"]} matches any of these statuses",
-                    "type": "array",
-                    "items": {}
-                },
-                "lt": {
-                    "description": "LessThan specifies values that must be less than the provided value.\nShould contain exactly one value for comparison.\nExample: {\"lt\": [1000]} matches records where field \u003c 1000",
-                    "type": "array",
-                    "items": {}
-                },
-                "lte": {
-                    "description": "LessOrEqual specifies values that must be less than or equal to the provided value.\nShould contain exactly one value for comparison.\nExample: {\"lte\": [\"2025-06-30\"]} matches records where field \u003c= \"2025-06-30\"",
-                    "type": "array",
-                    "items": {}
-                },
-                "nin": {
-                    "description": "NotIn specifies a list of values where the field must NOT match any of them.\nMultiple values treated as AND NOT conditions.\nExample: {\"nin\": [\"deleted\", \"archived\"]} excludes these statuses",
-                    "type": "array",
-                    "items": {}
-                }
-            }
-        },
-        "github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline": {
+        "deadline.Deadline": {
             "type": "object",
             "properties": {
                 "active": {
@@ -2089,7 +1961,267 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_reporter_pkg_mongodb_report.Report": {
+        "github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Template Financeiro"
+                },
+                "fileName": {
+                    "type": "string",
+                    "example": "0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "outputFormat": {
+                    "type": "string",
+                    "example": "HTML"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "internal_adapters_http_in.errorMetrics": {
+            "type": "object",
+            "properties": {
+                "previousPeriodTotal": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_adapters_http_in.metricsResponse": {
+            "type": "object",
+            "properties": {
+                "dataSources": {
+                    "type": "integer"
+                },
+                "errors": {
+                    "$ref": "#/definitions/internal_adapters_http_in.errorMetrics"
+                },
+                "reports": {
+                    "type": "integer"
+                },
+                "templates": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_adapters_http_in.notificationItem": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "daysUntilDue": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "dueDate": {
+                    "type": "string"
+                },
+                "frequency": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "monthsOfYear": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "notifyDaysBefore": {
+                    "type": "integer"
+                },
+                "severity": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_adapters_http_in.notificationResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_adapters_http_in.notificationItem"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.FilterCondition": {
+            "type": "object",
+            "properties": {
+                "between": {
+                    "description": "Between specifies a range condition with exactly two values [min, max].\nMatches records where min \u003c= field \u003c= max\nExample: {\"between\": [100, 1000]} matches records where 100 \u003c= field \u003c= 1000",
+                    "type": "array",
+                    "items": {}
+                },
+                "eq": {
+                    "description": "Equals specifies exact value matches. Multiple values treated as OR conditions.\nExample: {\"eq\": [\"active\", \"pending\"]} matches records where field equals \"active\" OR \"pending\"",
+                    "type": "array",
+                    "items": {}
+                },
+                "gt": {
+                    "description": "GreaterThan specifies values that must be greater than the provided value.\nShould contain exactly one value for comparison.\nExample: {\"gt\": [100]} matches records where field \u003e 100",
+                    "type": "array",
+                    "items": {}
+                },
+                "gte": {
+                    "description": "GreaterOrEqual specifies values that must be greater than or equal to the provided value.\nShould contain exactly one value for comparison.\nExample: {\"gte\": [\"2025-06-01\"]} matches records where field \u003e= \"2025-06-01\"",
+                    "type": "array",
+                    "items": {}
+                },
+                "in": {
+                    "description": "In specifies a list of values where the field must match any one of them.\nMultiple values treated as OR conditions.\nExample: {\"in\": [\"active\", \"pending\", \"suspended\"]} matches any of these statuses",
+                    "type": "array",
+                    "items": {}
+                },
+                "lt": {
+                    "description": "LessThan specifies values that must be less than the provided value.\nShould contain exactly one value for comparison.\nExample: {\"lt\": [1000]} matches records where field \u003c 1000",
+                    "type": "array",
+                    "items": {}
+                },
+                "lte": {
+                    "description": "LessOrEqual specifies values that must be less than or equal to the provided value.\nShould contain exactly one value for comparison.\nExample: {\"lte\": [\"2025-06-30\"]} matches records where field \u003c= \"2025-06-30\"",
+                    "type": "array",
+                    "items": {}
+                },
+                "nin": {
+                    "description": "NotIn specifies a list of values where the field must NOT match any of them.\nMultiple values treated as AND NOT conditions.\nExample: {\"nin\": [\"deleted\", \"archived\"]} excludes these statuses",
+                    "type": "array",
+                    "items": {}
+                }
+            }
+        },
+        "pkg.HTTPError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "entityType": {
+                    "type": "string"
+                },
+                "err": {},
+                "message": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "pongo.BlockDefinition": {
+            "type": "object",
+            "properties": {
+                "acceptsChildren": {
+                    "type": "boolean"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "properties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pongo.BlockProperty"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "pongo.BlockProperty": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "pongo.BlocksConfigResponse": {
+            "type": "object",
+            "properties": {
+                "blocks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pongo.BlockDefinition"
+                    }
+                }
+            }
+        },
+        "pongo.FilterDefinition": {
+            "type": "object",
+            "properties": {
+                "args": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "example": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "pongo.FiltersResponse": {
+            "type": "object",
+            "properties": {
+                "filters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pongo.FilterDefinition"
+                    }
+                }
+            }
+        },
+        "report.Report": {
             "type": "object",
             "properties": {
                 "completedAt": {
@@ -2108,7 +2240,7 @@ const docTemplate = `{
                         "additionalProperties": {
                             "type": "object",
                             "additionalProperties": {
-                                "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_model.FilterCondition"
+                                "$ref": "#/definitions/model.FilterCondition"
                             }
                         }
                     }
@@ -2142,127 +2274,13 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_reporter_pkg_mongodb_template.Template": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string",
-                    "example": "2021-01-01T00:00:00Z"
-                },
-                "description": {
-                    "type": "string",
-                    "example": "Template Financeiro"
-                },
-                "fileName": {
-                    "type": "string",
-                    "example": "0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl"
-                },
-                "id": {
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "outputFormat": {
-                    "type": "string",
-                    "example": "HTML"
-                },
-                "updatedAt": {
-                    "type": "string",
-                    "example": "2021-01-01T00:00:00Z"
-                }
-            }
-        },
-        "github_com_LerianStudio_reporter_pkg_pongo.BlockDefinition": {
-            "type": "object",
-            "properties": {
-                "acceptsChildren": {
-                    "type": "boolean"
-                },
-                "category": {
-                    "type": "string"
-                },
-                "label": {
-                    "type": "string"
-                },
-                "properties": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_pongo.BlockProperty"
-                    }
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_LerianStudio_reporter_pkg_pongo.BlockProperty": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "required": {
-                    "type": "boolean"
-                },
-                "type": {
-                    "type": "string"
-                },
-                "values": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "github_com_LerianStudio_reporter_pkg_pongo.BlocksConfigResponse": {
-            "type": "object",
-            "properties": {
-                "blocks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_pongo.BlockDefinition"
-                    }
-                }
-            }
-        },
-        "github_com_LerianStudio_reporter_pkg_pongo.FilterDefinition": {
-            "type": "object",
-            "properties": {
-                "args": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "description": {
-                    "type": "string"
-                },
-                "example": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_LerianStudio_reporter_pkg_pongo.FiltersResponse": {
-            "type": "object",
-            "properties": {
-                "filters": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_pongo.FilterDefinition"
-                    }
-                }
-            }
-        },
-        "github_com_LerianStudio_reporter_pkg_template_builder.ElifBranch": {
+        "template_builder.ElifBranch": {
             "type": "object",
             "properties": {
                 "children": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock"
+                        "$ref": "#/definitions/template_builder.TemplateBlock"
                     }
                 },
                 "condition": {
@@ -2270,7 +2288,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_reporter_pkg_template_builder.FilterChain": {
+        "template_builder.FilterChain": {
             "type": "object",
             "properties": {
                 "args": {
@@ -2281,13 +2299,13 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeInput": {
+        "template_builder.GenerateCodeInput": {
             "type": "object",
             "properties": {
                 "blocks": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock"
+                        "$ref": "#/definitions/template_builder.TemplateBlock"
                     }
                 },
                 "format": {
@@ -2295,7 +2313,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeResponse": {
+        "template_builder.GenerateCodeResponse": {
             "type": "object",
             "properties": {
                 "code": {
@@ -2315,7 +2333,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock": {
+        "template_builder.TemplateBlock": {
             "type": "object",
             "properties": {
                 "assignment": {
@@ -2327,7 +2345,7 @@ const docTemplate = `{
                 "children": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock"
+                        "$ref": "#/definitions/template_builder.TemplateBlock"
                     }
                 },
                 "collection": {
@@ -2342,13 +2360,13 @@ const docTemplate = `{
                 "elifBranches": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.ElifBranch"
+                        "$ref": "#/definitions/template_builder.ElifBranch"
                     }
                 },
                 "elseChildren": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock"
+                        "$ref": "#/definitions/template_builder.TemplateBlock"
                     }
                 },
                 "expression": {
@@ -2360,7 +2378,7 @@ const docTemplate = `{
                 "filters": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.FilterChain"
+                        "$ref": "#/definitions/template_builder.FilterChain"
                     }
                 },
                 "format": {
@@ -2396,24 +2414,24 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksInput": {
+        "template_builder.ValidateBlocksInput": {
             "type": "object",
             "properties": {
                 "blocks": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock"
+                        "$ref": "#/definitions/template_builder.TemplateBlock"
                     }
                 }
             }
         },
-        "github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksResponse": {
+        "template_builder.ValidateBlocksResponse": {
             "type": "object",
             "properties": {
                 "errors": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.ValidationError"
+                        "$ref": "#/definitions/template_builder.ValidationError"
                     }
                 },
                 "valid": {
@@ -2421,7 +2439,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_reporter_pkg_template_builder.ValidationError": {
+        "template_builder.ValidationError": {
             "type": "object",
             "properties": {
                 "blockId": {
@@ -2431,24 +2449,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "message": {
-                    "type": "string"
-                }
-            }
-        },
-        "pkg.HTTPError": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "entityType": {
-                    "type": "string"
-                },
-                "err": {},
-                "message": {
-                    "type": "string"
-                },
-                "title": {
                     "type": "string"
                 }
             }
@@ -2466,11 +2466,11 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.2.0",
+	Version:          "4.0.0",
 	Host:             "localhost:4005",
 	BasePath:         "/",
 	Schemes:          []string{},
-	Title:            "Reporter",
+	Title:            "Reporter API",
 	Description:      "This is a swagger documentation for Reporter",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,

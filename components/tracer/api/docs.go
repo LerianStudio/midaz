@@ -3289,6 +3289,10 @@ const docTemplate = `{
                 "transactionId"
             ],
             "properties": {
+                "longLived": {
+                    "description": "LongLived selects the reservation lifetime. false (the default, a direct\ntransaction) gets the short reaper-swept TTL; true (a PENDING transaction)\ngets the long-lived TTL so the reservation does not expire under a\nstill-valid pending that has no existing sweep (R18). It is a sibling wire\nfield, NOT part of the embedded ValidationRequest, so the relaxed reserve\nvalidation never sees it.",
+                    "type": "boolean"
+                },
                 "transactionId": {
                     "description": "TransactionID is the ledger transaction correlation id. It is the\nidempotency grain for retried reserves and the handle the ledger later\nconfirms or releases. Not a foreign key — the ledger transaction lives in a\ndifferent service.",
                     "type": "string",
@@ -3473,7 +3477,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "0.1.0",
+	Version:          "4.0.0",
 	Host:             "localhost:4020",
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},

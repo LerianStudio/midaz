@@ -23,7 +23,7 @@ import (
 )
 
 // @title						Tracer API
-// @version						0.1.0
+// @version						4.0.0
 // @description					Transaction validation service with rules and limits
 // @termsOfService				http://swagger.io/terms/
 // @host						localhost:4020

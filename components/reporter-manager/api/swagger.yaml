@@ -51,7 +51,7 @@ definitions:
         additionalProperties:
           additionalProperties:
             additionalProperties:
-              $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_model.FilterCondition'
+              $ref: '#/definitions/model.FilterCondition'
             type: object
           type: object
         type: object
@@ -156,7 +156,7 @@ definitions:
         type: string
       warnings:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_datasource.ValidationWarning'
+          $ref: '#/definitions/datasource.ValidationWarning'
         type: array
     type: object
   UpdateDeadlineInput:
@@ -197,25 +197,113 @@ definitions:
         example: custom
         type: string
     type: object
-  components_manager_internal_adapters_http_in.errorMetrics:
+  datasource.ValidationWarning:
+    properties:
+      code:
+        description: Code is a machine-readable warning code (e.g., "DATA_SOURCE_UNAVAILABLE").
+        type: string
+      field:
+        description: Field identifies the affected field or data source reference.
+        type: string
+      message:
+        description: Message is a human-readable description of the warning.
+        type: string
+    type: object
+  deadline.Deadline:
+    properties:
+      active:
+        example: true
+        type: boolean
+      color:
+        example: '#FF5733'
+        type: string
+      createdAt:
+        example: "2026-01-01T00:00:00Z"
+        type: string
+      deliveredAt:
+        example: "2026-03-15T10:00:00Z"
+        type: string
+      description:
+        example: Monthly regulatory compliance report
+        type: string
+      dueDate:
+        example: "2026-03-31T23:59:59Z"
+        type: string
+      frequency:
+        example: monthly
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      monthsOfYear:
+        example:
+        - 1
+        - 6
+        items:
+          type: integer
+        type: array
+      name:
+        example: Monthly Regulatory Report
+        type: string
+      notifyDaysBefore:
+        example: 5
+        type: integer
+      status:
+        example: pending
+        type: string
+      templateId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      templateName:
+        example: Template Financeiro
+        type: string
+      type:
+        example: regulatory
+        type: string
+      updatedAt:
+        example: "2026-01-01T00:00:00Z"
+        type: string
+    type: object
+  github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template:
+    properties:
+      createdAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      description:
+        example: Template Financeiro
+        type: string
+      fileName:
+        example: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      outputFormat:
+        example: HTML
+        type: string
+      updatedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+    type: object
+  internal_adapters_http_in.errorMetrics:
     properties:
       previousPeriodTotal:
         type: integer
       total:
         type: integer
     type: object
-  components_manager_internal_adapters_http_in.metricsResponse:
+  internal_adapters_http_in.metricsResponse:
     properties:
       dataSources:
         type: integer
       errors:
-        $ref: '#/definitions/components_manager_internal_adapters_http_in.errorMetrics'
+        $ref: '#/definitions/internal_adapters_http_in.errorMetrics'
       reports:
         type: integer
       templates:
         type: integer
     type: object
-  components_manager_internal_adapters_http_in.notificationItem:
+  internal_adapters_http_in.notificationItem:
     properties:
       color:
         type: string
@@ -242,28 +330,16 @@ definitions:
       type:
         type: string
     type: object
-  components_manager_internal_adapters_http_in.notificationResponse:
+  internal_adapters_http_in.notificationResponse:
     properties:
       items:
         items:
-          $ref: '#/definitions/components_manager_internal_adapters_http_in.notificationItem'
+          $ref: '#/definitions/internal_adapters_http_in.notificationItem'
         type: array
       total:
         type: integer
     type: object
-  github_com_LerianStudio_reporter_pkg_datasource.ValidationWarning:
-    properties:
-      code:
-        description: Code is a machine-readable warning code (e.g., "DATA_SOURCE_UNAVAILABLE").
-        type: string
-      field:
-        description: Field identifies the affected field or data source reference.
-        type: string
-      message:
-        description: Message is a human-readable description of the warning.
-        type: string
-    type: object
-  github_com_LerianStudio_reporter_pkg_model.FilterCondition:
+  model.FilterCondition:
     properties:
       between:
         description: |-
@@ -321,62 +397,74 @@ definitions:
         items: {}
         type: array
     type: object
-  github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline:
+  pkg.HTTPError:
     properties:
-      active:
-        example: true
-        type: boolean
-      color:
-        example: '#FF5733'
+      code:
         type: string
-      createdAt:
-        example: "2026-01-01T00:00:00Z"
+      entityType:
         type: string
-      deliveredAt:
-        example: "2026-03-15T10:00:00Z"
+      err: {}
+      message:
         type: string
-      description:
-        example: Monthly regulatory compliance report
-        type: string
-      dueDate:
-        example: "2026-03-31T23:59:59Z"
-        type: string
-      frequency:
-        example: monthly
-        type: string
-      id:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      monthsOfYear:
-        example:
-        - 1
-        - 6
-        items:
-          type: integer
-        type: array
-      name:
-        example: Monthly Regulatory Report
-        type: string
-      notifyDaysBefore:
-        example: 5
-        type: integer
-      status:
-        example: pending
-        type: string
-      templateId:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      templateName:
-        example: Template Financeiro
-        type: string
-      type:
-        example: regulatory
-        type: string
-      updatedAt:
-        example: "2026-01-01T00:00:00Z"
+      title:
         type: string
     type: object
-  github_com_LerianStudio_reporter_pkg_mongodb_report.Report:
+  pongo.BlockDefinition:
+    properties:
+      acceptsChildren:
+        type: boolean
+      category:
+        type: string
+      label:
+        type: string
+      properties:
+        items:
+          $ref: '#/definitions/pongo.BlockProperty'
+        type: array
+      type:
+        type: string
+    type: object
+  pongo.BlockProperty:
+    properties:
+      name:
+        type: string
+      required:
+        type: boolean
+      type:
+        type: string
+      values:
+        items:
+          type: string
+        type: array
+    type: object
+  pongo.BlocksConfigResponse:
+    properties:
+      blocks:
+        items:
+          $ref: '#/definitions/pongo.BlockDefinition'
+        type: array
+    type: object
+  pongo.FilterDefinition:
+    properties:
+      args:
+        items:
+          type: string
+        type: array
+      description:
+        type: string
+      example:
+        type: string
+      name:
+        type: string
+    type: object
+  pongo.FiltersResponse:
+    properties:
+      filters:
+        items:
+          $ref: '#/definitions/pongo.FilterDefinition'
+        type: array
+    type: object
+  report.Report:
     properties:
       completedAt:
         type: string
@@ -388,7 +476,7 @@ definitions:
         additionalProperties:
           additionalProperties:
             additionalProperties:
-              $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_model.FilterCondition'
+              $ref: '#/definitions/model.FilterCondition'
             type: object
           type: object
         type: object
@@ -413,108 +501,32 @@ definitions:
       updatedAt:
         type: string
     type: object
-  github_com_LerianStudio_reporter_pkg_mongodb_template.Template:
-    properties:
-      createdAt:
-        example: "2021-01-01T00:00:00Z"
-        type: string
-      description:
-        example: Template Financeiro
-        type: string
-      fileName:
-        example: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
-        type: string
-      id:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      outputFormat:
-        example: HTML
-        type: string
-      updatedAt:
-        example: "2021-01-01T00:00:00Z"
-        type: string
-    type: object
-  github_com_LerianStudio_reporter_pkg_pongo.BlockDefinition:
-    properties:
-      acceptsChildren:
-        type: boolean
-      category:
-        type: string
-      label:
-        type: string
-      properties:
-        items:
-          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_pongo.BlockProperty'
-        type: array
-      type:
-        type: string
-    type: object
-  github_com_LerianStudio_reporter_pkg_pongo.BlockProperty:
-    properties:
-      name:
-        type: string
-      required:
-        type: boolean
-      type:
-        type: string
-      values:
-        items:
-          type: string
-        type: array
-    type: object
-  github_com_LerianStudio_reporter_pkg_pongo.BlocksConfigResponse:
-    properties:
-      blocks:
-        items:
-          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_pongo.BlockDefinition'
-        type: array
-    type: object
-  github_com_LerianStudio_reporter_pkg_pongo.FilterDefinition:
-    properties:
-      args:
-        items:
-          type: string
-        type: array
-      description:
-        type: string
-      example:
-        type: string
-      name:
-        type: string
-    type: object
-  github_com_LerianStudio_reporter_pkg_pongo.FiltersResponse:
-    properties:
-      filters:
-        items:
-          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_pongo.FilterDefinition'
-        type: array
-    type: object
-  github_com_LerianStudio_reporter_pkg_template_builder.ElifBranch:
+  template_builder.ElifBranch:
     properties:
       children:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock'
+          $ref: '#/definitions/template_builder.TemplateBlock'
         type: array
       condition:
         type: string
     type: object
-  github_com_LerianStudio_reporter_pkg_template_builder.FilterChain:
+  template_builder.FilterChain:
     properties:
       args:
         type: string
       name:
         type: string
     type: object
-  github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeInput:
+  template_builder.GenerateCodeInput:
     properties:
       blocks:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock'
+          $ref: '#/definitions/template_builder.TemplateBlock'
         type: array
       format:
         type: string
     type: object
-  github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeResponse:
+  template_builder.GenerateCodeResponse:
     properties:
       code:
         type: string
@@ -527,7 +539,7 @@ definitions:
           type: object
         type: object
     type: object
-  github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock:
+  template_builder.TemplateBlock:
     properties:
       assignment:
         type: string
@@ -535,7 +547,7 @@ definitions:
         type: string
       children:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock'
+          $ref: '#/definitions/template_builder.TemplateBlock'
         type: array
       collection:
         type: string
@@ -545,11 +557,11 @@ definitions:
         type: string
       elifBranches:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.ElifBranch'
+          $ref: '#/definitions/template_builder.ElifBranch'
         type: array
       elseChildren:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock'
+          $ref: '#/definitions/template_builder.TemplateBlock'
         type: array
       expression:
         type: string
@@ -557,7 +569,7 @@ definitions:
         type: string
       filters:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.FilterChain'
+          $ref: '#/definitions/template_builder.FilterChain'
         type: array
       format:
         type: string
@@ -581,23 +593,23 @@ definitions:
       variable:
         type: string
     type: object
-  github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksInput:
+  template_builder.ValidateBlocksInput:
     properties:
       blocks:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.TemplateBlock'
+          $ref: '#/definitions/template_builder.TemplateBlock'
         type: array
     type: object
-  github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksResponse:
+  template_builder.ValidateBlocksResponse:
     properties:
       errors:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.ValidationError'
+          $ref: '#/definitions/template_builder.ValidationError'
         type: array
       valid:
         type: boolean
     type: object
-  github_com_LerianStudio_reporter_pkg_template_builder.ValidationError:
+  template_builder.ValidationError:
     properties:
       blockId:
         type: string
@@ -606,25 +618,13 @@ definitions:
       message:
         type: string
     type: object
-  pkg.HTTPError:
-    properties:
-      code:
-        type: string
-      entityType:
-        type: string
-      err: {}
-      message:
-        type: string
-      title:
-        type: string
-    type: object
 host: localhost:4005
 info:
   contact: {}
   description: This is a swagger documentation for Reporter
   termsOfService: http://swagger.io/terms/
-  title: Reporter
-  version: 1.2.0
+  title: Reporter API
+  version: 4.0.0
 paths:
   /v1/data-sources:
     get:
@@ -730,7 +730,7 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline'
+                    $ref: '#/definitions/deadline.Deadline'
                   type: array
                 limit:
                   type: integer
@@ -777,7 +777,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline'
+            $ref: '#/definitions/deadline.Deadline'
         "400":
           description: Bad Request
           schema:
@@ -858,7 +858,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline'
+            $ref: '#/definitions/deadline.Deadline'
         "400":
           description: Bad Request
           schema:
@@ -907,7 +907,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_deadline.Deadline'
+            $ref: '#/definitions/deadline.Deadline'
         "400":
           description: Bad Request
           schema:
@@ -949,7 +949,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/components_manager_internal_adapters_http_in.notificationResponse'
+            $ref: '#/definitions/internal_adapters_http_in.notificationResponse'
         "400":
           description: Bad Request
           schema:
@@ -989,7 +989,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/components_manager_internal_adapters_http_in.metricsResponse'
+            $ref: '#/definitions/internal_adapters_http_in.metricsResponse'
         "400":
           description: Bad Request
           schema:
@@ -1099,7 +1099,7 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_report.Report'
+                    $ref: '#/definitions/report.Report'
                   type: array
                 limit:
                   type: integer
@@ -1155,7 +1155,7 @@ paths:
                 processed idempotent request
               type: string
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_report.Report'
+            $ref: '#/definitions/report.Report'
         "400":
           description: Bad Request
           schema:
@@ -1198,7 +1198,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_report.Report'
+            $ref: '#/definitions/report.Report'
         "400":
           description: Bad Request
           schema:
@@ -1300,7 +1300,7 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_template.Template'
+                    $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template'
                   type: array
                 limit:
                   type: integer
@@ -1435,7 +1435,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_mongodb_template.Template'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template'
         "400":
           description: Bad Request
           schema:
@@ -1525,7 +1525,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_pongo.BlocksConfigResponse'
+            $ref: '#/definitions/pongo.BlocksConfigResponse'
         "401":
           description: Unauthorized
           schema:
@@ -1553,7 +1553,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_pongo.FiltersResponse'
+            $ref: '#/definitions/pongo.FiltersResponse'
         "401":
           description: Unauthorized
           schema:
@@ -1583,14 +1583,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeInput'
+          $ref: '#/definitions/template_builder.GenerateCodeInput'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.GenerateCodeResponse'
+            $ref: '#/definitions/template_builder.GenerateCodeResponse'
         "400":
           description: Bad Request
           schema:
@@ -1625,14 +1625,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksInput'
+          $ref: '#/definitions/template_builder.ValidateBlocksInput'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_reporter_pkg_template_builder.ValidateBlocksResponse'
+            $ref: '#/definitions/template_builder.ValidateBlocksResponse'
         "400":
           description: Bad Request
           schema:
