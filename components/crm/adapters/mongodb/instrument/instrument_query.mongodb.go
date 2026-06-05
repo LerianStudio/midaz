@@ -61,8 +61,8 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 		attribute.Bool("app.request.query.has_account_id", query.AccountID != nil),
 		attribute.Bool("app.request.query.has_ledger_id", query.LedgerID != nil),
 		attribute.Bool("app.request.query.has_document", query.Document != nil),
-		attribute.Bool("app.request.query.has_related_party_filters", query.RelatedPartyDocument != nil || query.RelatedPartyRole != nil),
-		attribute.Bool("app.request.query.has_banking_details_filters", query.BankingDetailsBranch != nil || query.BankingDetailsAccount != nil || query.BankingDetailsIban != nil),
+		attribute.Bool("app.request.query.has_related_party_filters", query.InstrumentRelatedPartyDocument != nil || query.InstrumentRelatedPartyRole != nil),
+		attribute.Bool("app.request.query.has_banking_details_filters", query.InstrumentBankingDetailsBranch != nil || query.InstrumentBankingDetailsAccount != nil || query.InstrumentBankingDetailsIban != nil),
 	)
 
 	filter, err := am.buildAliasFilter(query, holderID, includeDeleted)
@@ -140,32 +140,32 @@ func (am *MongoDBRepository) buildAliasFilter(query http.QueryHeader, holderID u
 		filter = append(filter, bson.E{Key: "search.document", Value: documentHash})
 	}
 
-	if !libCommons.IsNilOrEmpty(query.BankingDetailsAccount) {
-		bankingDetailsAccountHash := am.DataSecurity.GenerateHash(query.BankingDetailsAccount)
+	if !libCommons.IsNilOrEmpty(query.InstrumentBankingDetailsAccount) {
+		bankingDetailsAccountHash := am.DataSecurity.GenerateHash(query.InstrumentBankingDetailsAccount)
 		filter = append(filter, bson.E{Key: "search.banking_details_account", Value: bankingDetailsAccountHash})
 	}
 
-	if !libCommons.IsNilOrEmpty(query.BankingDetailsIban) {
-		bankingDetailsIbanHash := am.DataSecurity.GenerateHash(query.BankingDetailsIban)
+	if !libCommons.IsNilOrEmpty(query.InstrumentBankingDetailsIban) {
+		bankingDetailsIbanHash := am.DataSecurity.GenerateHash(query.InstrumentBankingDetailsIban)
 		filter = append(filter, bson.E{Key: "search.banking_details_iban", Value: bankingDetailsIbanHash})
 	}
 
-	if !libCommons.IsNilOrEmpty(query.BankingDetailsBranch) {
-		filter = append(filter, bson.E{Key: "banking_details.branch", Value: *query.BankingDetailsBranch})
+	if !libCommons.IsNilOrEmpty(query.InstrumentBankingDetailsBranch) {
+		filter = append(filter, bson.E{Key: "banking_details.branch", Value: *query.InstrumentBankingDetailsBranch})
 	}
 
-	if !libCommons.IsNilOrEmpty(query.RegulatoryFieldsParticipantDocument) {
-		participantDocHash := am.DataSecurity.GenerateHash(query.RegulatoryFieldsParticipantDocument)
+	if !libCommons.IsNilOrEmpty(query.InstrumentRegulatoryFieldsParticipantDocument) {
+		participantDocHash := am.DataSecurity.GenerateHash(query.InstrumentRegulatoryFieldsParticipantDocument)
 		filter = append(filter, bson.E{Key: "search.regulatory_fields_participant_document", Value: participantDocHash})
 	}
 
-	if !libCommons.IsNilOrEmpty(query.RelatedPartyDocument) {
-		relatedPartyDocHash := am.DataSecurity.GenerateHash(query.RelatedPartyDocument)
+	if !libCommons.IsNilOrEmpty(query.InstrumentRelatedPartyDocument) {
+		relatedPartyDocHash := am.DataSecurity.GenerateHash(query.InstrumentRelatedPartyDocument)
 		filter = append(filter, bson.E{Key: "search.related_party_documents", Value: relatedPartyDocHash})
 	}
 
-	if !libCommons.IsNilOrEmpty(query.RelatedPartyRole) {
-		filter = append(filter, bson.E{Key: "related_parties.role", Value: *query.RelatedPartyRole})
+	if !libCommons.IsNilOrEmpty(query.InstrumentRelatedPartyRole) {
+		filter = append(filter, bson.E{Key: "related_parties.role", Value: *query.InstrumentRelatedPartyRole})
 	}
 
 	if query.Metadata != nil {

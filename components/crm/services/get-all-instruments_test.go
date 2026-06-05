@@ -43,7 +43,7 @@ func TestGetAllAliases(t *testing.T) {
 	queryWithDocument := http.QueryHeader{Limit: 10, Page: 1, Document: &document}
 	queryWithAccountId := http.QueryHeader{Limit: 10, Page: 1, AccountID: &accountId}
 	queryWithLedgerId := http.QueryHeader{Limit: 10, Page: 1, LedgerID: &ledgerId}
-	queryWithbankingDetailsAccount := http.QueryHeader{Limit: 10, Page: 1, BankingDetailsAccount: &account}
+	queryWithbankingDetailsAccount := http.QueryHeader{Limit: 10, Page: 1, InstrumentBankingDetailsAccount: &account}
 	queryWithbankingDetailsIban := http.QueryHeader{Limit: 10, Page: 1, ExternalID: &iban}
 	queryWithbankingDetailsBranch := http.QueryHeader{Limit: 10, Page: 1, ExternalID: &branch}
 

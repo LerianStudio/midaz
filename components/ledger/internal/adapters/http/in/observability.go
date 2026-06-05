@@ -204,8 +204,8 @@ func safeQueryAttributes(query *midazhttp.QueryHeader) []attribute.KeyValue {
 		attribute.Bool("app.request.query.has_document", query.Document != nil),
 		attribute.Bool("app.request.query.has_account_id", query.AccountID != nil),
 		attribute.Bool("app.request.query.has_ledger_id", query.LedgerID != nil),
-		attribute.Bool("app.request.query.has_related_party_filters", query.RelatedPartyDocument != nil || query.RelatedPartyRole != nil),
-		attribute.Bool("app.request.query.has_banking_details_filters", query.BankingDetailsBranch != nil || query.BankingDetailsAccount != nil || query.BankingDetailsIban != nil),
+		attribute.Bool("app.request.query.has_related_party_filters", query.InstrumentRelatedPartyDocument != nil || query.InstrumentRelatedPartyRole != nil),
+		attribute.Bool("app.request.query.has_banking_details_filters", query.InstrumentBankingDetailsBranch != nil || query.InstrumentBankingDetailsAccount != nil || query.InstrumentBankingDetailsIban != nil),
 		attribute.Int("app.request.query.to_asset_codes_count", len(query.ToAssetCodes)),
 	}
 }

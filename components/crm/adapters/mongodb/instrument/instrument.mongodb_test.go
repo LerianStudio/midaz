@@ -91,7 +91,7 @@ func TestMongoDBRepository_buildAliasFilter(t *testing.T) {
 		{
 			name: "filter by banking details account",
 			query: http.QueryHeader{
-				BankingDetailsAccount: testutils.Ptr("123456"),
+				InstrumentBankingDetailsAccount: testutils.Ptr("123456"),
 			},
 			holderID:       holderID,
 			includeDeleted: false,
@@ -101,7 +101,7 @@ func TestMongoDBRepository_buildAliasFilter(t *testing.T) {
 		{
 			name: "filter by banking details IBAN",
 			query: http.QueryHeader{
-				BankingDetailsIban: testutils.Ptr("BR1234567890123456789012345"),
+				InstrumentBankingDetailsIban: testutils.Ptr("BR1234567890123456789012345"),
 			},
 			holderID:       holderID,
 			includeDeleted: false,
@@ -111,7 +111,7 @@ func TestMongoDBRepository_buildAliasFilter(t *testing.T) {
 		{
 			name: "filter by banking details branch",
 			query: http.QueryHeader{
-				BankingDetailsBranch: testutils.Ptr("0001"),
+				InstrumentBankingDetailsBranch: testutils.Ptr("0001"),
 			},
 			holderID:       holderID,
 			includeDeleted: false,
@@ -133,9 +133,9 @@ func TestMongoDBRepository_buildAliasFilter(t *testing.T) {
 		{
 			name: "combined filters",
 			query: http.QueryHeader{
-				AccountID:            testutils.Ptr("account-789"),
-				LedgerID:             testutils.Ptr("ledger-012"),
-				BankingDetailsBranch: testutils.Ptr("9999"),
+				AccountID:                      testutils.Ptr("account-789"),
+				LedgerID:                       testutils.Ptr("ledger-012"),
+				InstrumentBankingDetailsBranch: testutils.Ptr("9999"),
 			},
 			holderID:       holderID,
 			includeDeleted: false,
@@ -238,8 +238,8 @@ func TestMongoDBRepository_buildAliasFilter_BankingDetailsHashes(t *testing.T) {
 	expectedIbanHash := crypto.GenerateHash(&iban)
 
 	query := http.QueryHeader{
-		BankingDetailsAccount: &account,
-		BankingDetailsIban:    &iban,
+		InstrumentBankingDetailsAccount: &account,
+		InstrumentBankingDetailsIban:    &iban,
 	}
 
 	filter, err := repo.buildAliasFilter(query, holderID, false)
