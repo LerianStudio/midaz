@@ -1162,6 +1162,114 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/reservations/transaction/{transaction_id}/confirm": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Confirms EVERY held reservation a transaction holds, addressed by the ledger transaction id. The ledger /commit drives this with only the transaction id. Idempotent — flipped=0 (no reservations, or all already terminal) returns 200.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reservations"
+                ],
+                "summary": "Confirm a transaction's reservations (phase two — commit by transaction)",
+                "operationId": "confirmReservationByTransaction",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Transaction ID (UUID)",
+                        "name": "transaction_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Reservations confirmed",
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapters_http_in.TransactionActionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid path parameter",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/reservations/transaction/{transaction_id}/release": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Releases EVERY held reservation a transaction holds, addressed by the ledger transaction id. The ledger /cancel drives this with only the transaction id. Idempotent — flipped=0 returns 200.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reservations"
+                ],
+                "summary": "Release a transaction's reservations (phase two — abort by transaction)",
+                "operationId": "releaseReservationByTransaction",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Transaction ID (UUID)",
+                        "name": "transaction_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Reservations released",
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapters_http_in.TransactionActionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid path parameter",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/reservations/{id}/confirm": {
             "post": {
                 "security": [
@@ -3199,6 +3307,21 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "transactionId": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "internal_adapters_http_in.TransactionActionResponse": {
+            "type": "object",
+            "properties": {
+                "flipped": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
                 },
                 "transactionId": {
                     "type": "string",

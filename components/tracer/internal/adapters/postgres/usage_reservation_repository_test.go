@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -194,6 +195,129 @@ func TestUsageReservationRepository_Confirm(t *testing.T) {
 
 		err := repo.ConfirmWithTx(context.Background(), db, resID)
 		require.ErrorIs(t, err, constant.ErrReservationNotFound)
+	})
+}
+
+// expectReservedByTransactionSelect scripts the FOR UPDATE select over every
+// RESERVED row a transaction holds, returning the supplied (id, limitID, scope,
+// period) tuples — one per reservation the by-transaction confirm/release flips.
+func expectReservedByTransactionSelect(mock sqlmock.Sqlmock, txID uuid.UUID, rows ...[4]any) {
+	r := sqlmock.NewRows(reservationLockColumns())
+
+	for _, row := range rows {
+		r = r.AddRow(
+			row[0], row[1], row[2], row[3], int64(400), "RESERVED",
+			txID, testutil.FixedTime(), testutil.FixedTime(), nil, nil,
+		)
+	}
+
+	mock.ExpectQuery(`SELECT id, limit_id`).
+		WithArgs(txID).
+		WillReturnRows(r)
+}
+
+func TestUsageReservationRepository_ConfirmByTransaction(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	txID := testutil.MustDeterministicUUID(8601)
+	res1 := testutil.MustDeterministicUUID(8602)
+	res2 := testutil.MustDeterministicUUID(8603)
+	limit1 := testutil.MustDeterministicUUID(8604)
+	limit2 := testutil.MustDeterministicUUID(8605)
+
+	t.Run("Flips ALL reserved rows of the transaction - counter move + row flip each", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		// Two reservations for one transaction (two limits): the select returns both
+		// and each gets a counter move + row flip in the SAME (caller-owned) tx.
+		expectReservedByTransactionSelect(mock, txID,
+			[4]any{res1, limit1, "acct:8601", "2026-06"},
+			[4]any{res2, limit2, "global", "2026-06-05"},
+		)
+
+		for range []uuid.UUID{res1, res2} {
+			mock.ExpectExec(`UPDATE usage_counters SET current_usage`).
+				WillReturnResult(sqlmock.NewResult(0, 1))
+			mock.ExpectExec(`UPDATE usage_reservations SET status`).
+				WillReturnResult(sqlmock.NewResult(0, 1))
+		}
+
+		flipped, err := repo.ConfirmByTransactionWithTx(context.Background(), db, txID)
+		require.NoError(t, err)
+		assert.Len(t, flipped, 2, "every reserved row of the transaction is flipped")
+	})
+
+	t.Run("No reserved rows is an idempotent no-op success (re-run after confirm)", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		// A retried confirm-by-transaction sees no RESERVED rows (all already
+		// CONFIRMED): the select returns empty, NO counter move issues, flipped=0.
+		expectReservedByTransactionSelect(mock, txID)
+
+		flipped, err := repo.ConfirmByTransactionWithTx(context.Background(), db, txID)
+		require.NoError(t, err)
+		assert.Empty(t, flipped, "re-run over an already-confirmed transaction does NOT double-move")
+	})
+
+	t.Run("Nil db is rejected", func(t *testing.T) {
+		repo, _, _, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		_, err := repo.ConfirmByTransactionWithTx(context.Background(), nil, txID)
+		require.ErrorIs(t, err, pgdb.ErrNilConnection)
+	})
+}
+
+func TestUsageReservationRepository_ReleaseByTransaction(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	txID := testutil.MustDeterministicUUID(8701)
+	res1 := testutil.MustDeterministicUUID(8702)
+	res2 := testutil.MustDeterministicUUID(8703)
+	limit1 := testutil.MustDeterministicUUID(8704)
+	limit2 := testutil.MustDeterministicUUID(8705)
+
+	t.Run("Flips ALL reserved rows - reserved_usage decremented, current_usage untouched", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		expectReservedByTransactionSelect(mock, txID,
+			[4]any{res1, limit1, "acct:8701", "2026-06"},
+			[4]any{res2, limit2, "global", "2026-06-05"},
+		)
+
+		for range []uuid.UUID{res1, res2} {
+			// Release counter move touches only reserved_usage.
+			mock.ExpectExec(`UPDATE usage_counters SET reserved_usage`).
+				WillReturnResult(sqlmock.NewResult(0, 1))
+			mock.ExpectExec(`UPDATE usage_reservations SET status`).
+				WillReturnResult(sqlmock.NewResult(0, 1))
+		}
+
+		flipped, err := repo.ReleaseByTransactionWithTx(context.Background(), db, txID, model.StatusReleased)
+		require.NoError(t, err)
+		assert.Len(t, flipped, 2)
+	})
+
+	t.Run("Invalid status rejected before any SQL", func(t *testing.T) {
+		repo, db, _, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		_, err := repo.ReleaseByTransactionWithTx(context.Background(), db, txID, model.StatusConfirmed)
+		require.ErrorIs(t, err, constant.ErrReservationInvalidStatus)
+	})
+
+	t.Run("No reserved rows is an idempotent no-op success", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		expectReservedByTransactionSelect(mock, txID)
+
+		flipped, err := repo.ReleaseByTransactionWithTx(context.Background(), db, txID, model.StatusReleased)
+		require.NoError(t, err)
+		assert.Empty(t, flipped)
 	})
 }
 

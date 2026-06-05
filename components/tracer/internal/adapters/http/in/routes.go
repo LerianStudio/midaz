@@ -345,6 +345,14 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		}
 
 		api.Post("/reservations", guard.With("reservations", "post", false), reservationHandler.Reserve)
+		// By-transaction transitions FIRST: the static "transaction" segment must
+		// be matched before the "/reservations/:id/..." param routes, or Fiber binds
+		// the literal "transaction" to :id. The ledger /commit and /cancel address
+		// reservations by transaction id (the per-reservation handle does not survive
+		// the separate state-transition request), so these are the lifecycle drivers
+		// for PENDING transactions.
+		api.Post("/reservations/transaction/:transaction_id/confirm", guard.With("reservations", "post", false), reservationHandler.ConfirmByTransaction)
+		api.Post("/reservations/transaction/:transaction_id/release", guard.With("reservations", "post", false), reservationHandler.ReleaseByTransaction)
 		api.Post("/reservations/:id/confirm", guard.With("reservations", "post", false), reservationHandler.Confirm)
 		api.Post("/reservations/:id/release", guard.With("reservations", "post", false), reservationHandler.Release)
 	}

@@ -85,6 +85,21 @@ func (m *MockReservationRepository) EXPECT() *MockReservationRepositoryMockRecor
 	return m.recorder
 }
 
+// ConfirmByTransactionWithTx mocks base method.
+func (m *MockReservationRepository) ConfirmByTransactionWithTx(ctx context.Context, arg1 db.DB, transactionID uuid.UUID) ([]*model.Reservation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConfirmByTransactionWithTx", ctx, arg1, transactionID)
+	ret0, _ := ret[0].([]*model.Reservation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ConfirmByTransactionWithTx indicates an expected call of ConfirmByTransactionWithTx.
+func (mr *MockReservationRepositoryMockRecorder) ConfirmByTransactionWithTx(ctx, arg1, transactionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfirmByTransactionWithTx", reflect.TypeOf((*MockReservationRepository)(nil).ConfirmByTransactionWithTx), ctx, arg1, transactionID)
+}
+
 // ConfirmWithTx mocks base method.
 func (m *MockReservationRepository) ConfirmWithTx(ctx context.Context, arg1 db.DB, reservationID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -97,6 +112,21 @@ func (m *MockReservationRepository) ConfirmWithTx(ctx context.Context, arg1 db.D
 func (mr *MockReservationRepositoryMockRecorder) ConfirmWithTx(ctx, arg1, reservationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfirmWithTx", reflect.TypeOf((*MockReservationRepository)(nil).ConfirmWithTx), ctx, arg1, reservationID)
+}
+
+// ReleaseByTransactionWithTx mocks base method.
+func (m *MockReservationRepository) ReleaseByTransactionWithTx(ctx context.Context, arg1 db.DB, transactionID uuid.UUID, status model.ReservationStatus) ([]*model.Reservation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseByTransactionWithTx", ctx, arg1, transactionID, status)
+	ret0, _ := ret[0].([]*model.Reservation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseByTransactionWithTx indicates an expected call of ReleaseByTransactionWithTx.
+func (mr *MockReservationRepositoryMockRecorder) ReleaseByTransactionWithTx(ctx, arg1, transactionID, status any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseByTransactionWithTx", reflect.TypeOf((*MockReservationRepository)(nil).ReleaseByTransactionWithTx), ctx, arg1, transactionID, status)
 }
 
 // ReleaseWithTx mocks base method.

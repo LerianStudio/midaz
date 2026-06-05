@@ -1225,6 +1225,23 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
+	// Reserve anchor (F3-T13): hold usage-limit capacity against the
+	// FEE-INCLUSIVE transaction immediately before the balance commit. This
+	// observes the validated fee-inclusive send amount; it never mutates
+	// Send.Value or balance state. A DENIED decision (enforce) or a fail-closed
+	// unavailable tracer rejects here, before ProcessBalanceOperations moves any
+	// balance, releasing the idempotency key and the Redis-queue seed exactly as
+	// the ProcessBalanceOperations failure path does below. The returned handle
+	// is confirmed on success / released on abort at the post-commit transport.
+	reservation := handler.reserveTransaction(ctx, span, logger, ledgerSettings.Tracer, transactionID,
+		transactionInput.Send.Value, transactionInput.Send.Asset, reservationTTLForStatus(transactionStatus))
+	if reservation.Kind == reservationReject {
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+
+		return http.WithError(c, reservation.Err)
+	}
+
 	result, err := handler.Command.ProcessBalanceOperations(ctx, command.ProcessBalanceOperationsInput{
 		OrganizationID:    params.OrganizationID,
 		LedgerID:          params.LedgerID,
@@ -1241,7 +1258,22 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
 
+		// The balance commit failed (no funds moved), so return the held
+		// reservation capacity. Best-effort: a transport failure here is
+		// reconciled by the TTL reaper.
+		handler.releaseReservations(ctx, span, logger, reservation.Handle)
+
 		return http.WithError(c, err)
+	}
+
+	// Confirm anchor (F3-T14, success phase): the balance commit succeeded, so
+	// the held capacity is consumed. PENDING transactions defer the confirm to
+	// /commit (and release to /cancel) — see F3-T15 — so the reservation stays
+	// open here for them. Downstream BuildOperations/WriteTransaction failures
+	// do NOT release: the balance has already moved and the backup queue
+	// reconstructs the transaction, so the consumed capacity stands.
+	if transactionStatus != constant.PENDING {
+		handler.confirmReservations(ctx, span, logger, reservation.Handle)
 	}
 
 	balancesBefore, balancesAfter := result.Before, result.After

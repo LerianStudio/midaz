@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -45,6 +46,24 @@ func inRealTx(t *testing.T, db *sql.DB, fn func(tx *sql.Tx) error) error {
 	}
 
 	return tx.Commit()
+}
+
+// createTestLimitNamed seeds an ACTIVE limit with an explicit, unique name so
+// multiple limits can coexist in one test without colliding on the global
+// idx_limits_name_active partial unique index (the shared createTestLimit derives
+// the name from the UUID prefix, which is identical across deterministic seeds).
+func createTestLimitNamed(t *testing.T, db *sql.DB, seed int64, name string) uuid.UUID {
+	t.Helper()
+
+	limitID := testutil.MustDeterministicUUID(seed)
+
+	_, err := db.Exec(`
+		INSERT INTO limits (id, name, limit_type, max_amount, currency, scopes, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, limitID, "Test Limit "+name, "DAILY", decimal.NewFromInt(10000), "USD", "[]", "ACTIVE")
+	require.NoError(t, err, "Failed to create named test limit")
+
+	return limitID
 }
 
 func readCounter(t *testing.T, db *sql.DB, limitID uuid.UUID, scopeKey, periodKey string) (current, reserved int64) {
@@ -180,6 +199,99 @@ func TestUsageReservationRepository_ReleaseThenConfirm_Idempotent_Integration(t 
 	current, reserved = readCounter(t, db, limitID, scopeKey, periodKey)
 	assert.Equal(t, int64(0), current)
 	assert.Equal(t, int64(0), reserved)
+}
+
+// TestUsageReservationRepository_ConfirmByTransaction_FlipsAll_Integration proves
+// the by-transaction confirm flips EVERY RESERVED reservation a transaction holds
+// across two distinct limits, moving each counter ONCE (reserved -> current), and
+// that a re-run is an idempotent no-op (flipped=0, counters unchanged). This is the
+// PENDING /commit lifecycle path: the ledger addresses the tracer by transaction id
+// because the per-reservation handle does not survive the separate commit request.
+func TestUsageReservationRepository_ConfirmByTransaction_FlipsAll_Integration(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	repo := newReservationRepoIntegration(db)
+
+	// createTestLimit names the limit from the UUID prefix, which is identical for
+	// all deterministic seeds (the seed lives in the trailing bytes), so two limits
+	// in one test collide on idx_limits_name_active. This test needs two distinct
+	// limits under one transaction, so it seeds them with explicitly unique names.
+	limitA := createTestLimitNamed(t, db, 8601, "by-txn-confirm-A")
+	limitB := createTestLimitNamed(t, db, 8602, "by-txn-confirm-B")
+	t.Cleanup(func() {
+		cleanupTestLimit(t, db, limitA)
+		cleanupTestLimit(t, db, limitB)
+	})
+
+	txID := testutil.MustDeterministicUUID(8650)
+	scopeA := "acct:8601-" + testutil.MustDeterministicUUID(8611).String()[:8]
+	scopeB := "global-" + testutil.MustDeterministicUUID(8612).String()[:8]
+	periodKey := "2026-06"
+
+	ctx := context.Background()
+
+	// Two reservations under ONE transaction, on two different limits.
+	resA, err := model.NewReservation(limitA, txID, scopeA, periodKey, 400,
+		time.Now().UTC().Add(5*time.Minute), time.Now().UTC())
+	require.NoError(t, err)
+
+	resB, err := model.NewReservation(limitB, txID, scopeB, periodKey, 250,
+		time.Now().UTC().Add(5*time.Minute), time.Now().UTC())
+	require.NoError(t, err)
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		if rErr := repo.ReserveWithTx(ctx, tx, resA, 10000); rErr != nil {
+			return rErr
+		}
+
+		return repo.ReserveWithTx(ctx, tx, resB, 10000)
+	}))
+
+	// Both counters hold their amounts in reserved_usage.
+	curA, rsvA := readCounter(t, db, limitA, scopeA, periodKey)
+	curB, rsvB := readCounter(t, db, limitB, scopeB, periodKey)
+	assert.Equal(t, int64(0), curA)
+	assert.Equal(t, int64(400), rsvA)
+	assert.Equal(t, int64(0), curB)
+	assert.Equal(t, int64(250), rsvB)
+
+	// ConfirmByTransaction flips BOTH in one tx; each counter moves once.
+	var flipped []*model.Reservation
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		var cErr error
+		flipped, cErr = repo.ConfirmByTransactionWithTx(ctx, tx, txID)
+
+		return cErr
+	}))
+	assert.Len(t, flipped, 2, "both reservations of the transaction are confirmed")
+
+	curA, rsvA = readCounter(t, db, limitA, scopeA, periodKey)
+	curB, rsvB = readCounter(t, db, limitB, scopeB, periodKey)
+	assert.Equal(t, int64(400), curA, "limit A amount moved into current_usage")
+	assert.Equal(t, int64(0), rsvA)
+	assert.Equal(t, int64(250), curB, "limit B amount moved into current_usage")
+	assert.Equal(t, int64(0), rsvB)
+	assert.Equal(t, string(model.StatusConfirmed), readReservationStatus(t, db, resA.ID))
+	assert.Equal(t, string(model.StatusConfirmed), readReservationStatus(t, db, resB.ID))
+
+	// Re-run: no RESERVED rows remain, so it is an idempotent no-op and the counters
+	// do NOT double-move.
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		var cErr error
+		flipped, cErr = repo.ConfirmByTransactionWithTx(ctx, tx, txID)
+
+		return cErr
+	}))
+	assert.Empty(t, flipped, "re-run over an already-confirmed transaction flips nothing")
+
+	curA, rsvA = readCounter(t, db, limitA, scopeA, periodKey)
+	curB, rsvB = readCounter(t, db, limitB, scopeB, periodKey)
+	assert.Equal(t, int64(400), curA, "double-confirm-by-transaction must NOT double-move")
+	assert.Equal(t, int64(0), rsvA)
+	assert.Equal(t, int64(250), curB)
+	assert.Equal(t, int64(0), rsvB)
 }
 
 // TestUsageReservationRepository_Reserve_RowIdempotent_Integration proves a retried

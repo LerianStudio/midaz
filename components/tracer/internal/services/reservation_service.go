@@ -59,6 +59,8 @@ type ReservationRepository interface {
 	ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount int64) error
 	ConfirmWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) error
 	ReleaseWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID, status model.ReservationStatus) error
+	ConfirmByTransactionWithTx(ctx context.Context, db pgdb.DB, transactionID uuid.UUID) ([]*model.Reservation, error)
+	ReleaseByTransactionWithTx(ctx context.Context, db pgdb.DB, transactionID uuid.UUID, status model.ReservationStatus) ([]*model.Reservation, error)
 }
 
 // ReservationAuditWriter records reservation lifecycle audit events inside the
@@ -303,6 +305,132 @@ func (s *ReservationService) Release(ctx context.Context, reservationID uuid.UUI
 		model.AuditActionRelease,
 		"service.reservation.release",
 	)
+}
+
+// ConfirmByTransaction commits EVERY RESERVED reservation a transaction holds,
+// addressing them by the ledger transaction id alone. This is the /commit-driven
+// confirm: at /commit the ledger has only the transaction id (the reserve handle
+// from create-pending does not survive the separate commit request), so the tracer
+// resolves every RESERVED row for the transaction and confirms each — the counter
+// move, the row flip, and one audit row per flip all commit in ONE transaction.
+//
+// A transaction with no RESERVED rows is an idempotent no-op success: it never
+// reserved, or every reservation already reached a terminal state. ConfirmByTransaction
+// does NOT re-resolve limits (R38) — each reservation row already carries its limit
+// coordinates.
+func (s *ReservationService) ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "service.reservation.confirm_by_transaction")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	return s.terminateByTransaction(ctx, span, logger, transactionID,
+		model.StatusConfirmed,
+		model.AuditEventReservationConfirmed,
+		model.AuditActionConfirm,
+		"service.reservation.confirm_by_transaction",
+	)
+}
+
+// ReleaseByTransaction returns the held capacity for EVERY RESERVED reservation a
+// transaction holds, addressing them by the ledger transaction id alone. This is
+// the /cancel-driven release: reserved_usage is decremented (current_usage
+// untouched) and each row flips to RELEASED, with one audit row per flip, in ONE
+// transaction. Idempotent over "nothing to do" like ConfirmByTransaction; does NOT
+// re-resolve limits (R38).
+func (s *ReservationService) ReleaseByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "service.reservation.release_by_transaction")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	return s.terminateByTransaction(ctx, span, logger, transactionID,
+		model.StatusReleased,
+		model.AuditEventReservationReleased,
+		model.AuditActionRelease,
+		"service.reservation.release_by_transaction",
+	)
+}
+
+// terminateByTransaction is the shared confirm/release-by-transaction body: open a
+// tx, flip every RESERVED row the transaction holds via the repo, record one audit
+// row per flipped reservation in the same tx, then commit. Returns the flipped
+// count; zero rows commits cleanly and reports a no-op success (the by-transaction
+// transitions are idempotent over an absent or already-terminal transaction).
+func (s *ReservationService) terminateByTransaction(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	transactionID uuid.UUID,
+	terminalStatus model.ReservationStatus,
+	eventType model.AuditEventType,
+	action model.AuditAction,
+	operation string,
+) (int, error) {
+	if transactionID == uuid.Nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing transaction id", ErrNilReservationTransationID)
+		return 0, ErrNilReservationTransationID
+	}
+
+	flipped := 0
+
+	txErr := s.inTx(ctx, span, func(db pgdb.DB) error {
+		var (
+			reservations []*model.Reservation
+			repoErr      error
+		)
+
+		if terminalStatus == model.StatusConfirmed {
+			reservations, repoErr = s.repo.ConfirmByTransactionWithTx(ctx, db, transactionID)
+		} else {
+			reservations, repoErr = s.repo.ReleaseByTransactionWithTx(ctx, db, transactionID, terminalStatus)
+		}
+
+		if repoErr != nil {
+			return repoErr
+		}
+
+		for _, res := range reservations {
+			if err := s.auditWriter.RecordReservationEventWithTx(
+				ctx,
+				db,
+				eventType,
+				action,
+				res.ID,
+				command.ReservationAuditContext{
+					TransactionID: transactionID,
+					LimitID:       res.LimitID,
+					ScopeKey:      res.ScopeKey,
+					PeriodKey:     res.PeriodKey,
+					Amount:        res.Amount,
+					Status:        string(terminalStatus),
+				},
+			); err != nil {
+				return fmt.Errorf("failed to record %s audit event: %w", string(action), err)
+			}
+		}
+
+		flipped = len(reservations)
+
+		return nil
+	})
+	if txErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to terminate reservations by transaction", txErr)
+		return 0, txErr
+	}
+
+	logger.With(
+		libLog.String("operation", operation),
+		libLog.String("transaction_id", transactionID.String()),
+		libLog.String("status", string(terminalStatus)),
+		libLog.Int("flipped", flipped),
+	).Log(ctx, libLog.LevelInfo, "Reservations terminated by transaction")
+
+	return flipped, nil
 }
 
 // terminate is the shared confirm/release transaction body: open a tx, apply the

@@ -221,6 +221,18 @@ var (
 	// type-only validator cannot catch this, so membership is checked
 	// explicitly at write time.
 	ErrInvalidSettingsFieldValue = errors.New("0176")
+	// ErrTransactionReservationDenied is returned when the tracer reserves
+	// against the fee-inclusive transaction and the limit guard rejects it
+	// (the reservation is DENIED — capacity would be exceeded). The denial is
+	// raised before the balance commit so no balance moves.
+	ErrTransactionReservationDenied = errors.New("0177")
+	// ErrTransactionReservationUnavailable is returned when the tracer reserve
+	// call fails for an availability reason (timeout / open breaker) and the
+	// ledger's tracer.failPosture is "closed". The transaction is rejected
+	// before the balance commit. With failPosture "open" the reserve is
+	// instead skipped (a SKIPPED audit is recorded) and the transaction
+	// proceeds, so this error is the fail-closed path only.
+	ErrTransactionReservationUnavailable = errors.New("0178")
 )
 
 // List of CRM domain errors.

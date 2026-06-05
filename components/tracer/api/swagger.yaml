@@ -757,6 +757,16 @@ definitions:
         format: uuid
         type: string
     type: object
+  internal_adapters_http_in.TransactionActionResponse:
+    properties:
+      flipped:
+        type: integer
+      status:
+        type: string
+      transactionId:
+        format: uuid
+        type: string
+    type: object
   internal_adapters_http_in.UpdateLimitInput:
     properties:
       activeTimeEnd:
@@ -1712,6 +1722,81 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: Release a reservation (phase two — abort)
+      tags:
+      - reservations
+  /v1/reservations/transaction/{transaction_id}/confirm:
+    post:
+      description: Confirms EVERY held reservation a transaction holds, addressed
+        by the ledger transaction id. The ledger /commit drives this with only the
+        transaction id. Idempotent — flipped=0 (no reservations, or all already terminal)
+        returns 200.
+      operationId: confirmReservationByTransaction
+      parameters:
+      - description: Transaction ID (UUID)
+        format: uuid
+        in: path
+        name: transaction_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Reservations confirmed
+          schema:
+            $ref: '#/definitions/internal_adapters_http_in.TransactionActionResponse'
+        "400":
+          description: Invalid path parameter
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Confirm a transaction's reservations (phase two — commit by transaction)
+      tags:
+      - reservations
+  /v1/reservations/transaction/{transaction_id}/release:
+    post:
+      description: Releases EVERY held reservation a transaction holds, addressed
+        by the ledger transaction id. The ledger /cancel drives this with only the
+        transaction id. Idempotent — flipped=0 returns 200.
+      operationId: releaseReservationByTransaction
+      parameters:
+      - description: Transaction ID (UUID)
+        format: uuid
+        in: path
+        name: transaction_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Reservations released
+          schema:
+            $ref: '#/definitions/internal_adapters_http_in.TransactionActionResponse'
+        "400":
+          description: Invalid path parameter
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Release a transaction's reservations (phase two — abort by transaction)
       tags:
       - reservations
   /v1/rules:

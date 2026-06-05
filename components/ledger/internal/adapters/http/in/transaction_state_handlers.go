@@ -542,6 +542,20 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
+	// Reservation phase two by transaction (F3-T15, PENDING lifecycle). The
+	// PENDING create path reserved capacity but deferred the confirm/release to
+	// this state transition; /commit and /cancel carry only the transaction id, so
+	// the tracer is addressed by transaction id and flips every RESERVED
+	// reservation the transaction holds. Non-blocking: a transport failure never
+	// fails the request — the TTL reaper reconciles. The long-lived TTL hint set
+	// at create-pending keeps these reservations alive until this transition.
+	switch transactionStatus {
+	case constant.APPROVED:
+		handler.confirmReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID())
+	case constant.CANCELED:
+		handler.releaseReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID())
+	}
+
 	balancesBefore, balancesAfter := result.Before, result.After
 
 	fromTo = append(fromTo, mtransaction.MutateSplitAliases(transactionInput.Send.Source.From)...)

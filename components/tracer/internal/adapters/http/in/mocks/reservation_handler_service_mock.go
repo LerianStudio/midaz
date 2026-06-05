@@ -57,6 +57,21 @@ func (mr *MockReservationServiceMockRecorder) Confirm(ctx, reservationID any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Confirm", reflect.TypeOf((*MockReservationService)(nil).Confirm), ctx, reservationID)
 }
 
+// ConfirmByTransaction mocks base method.
+func (m *MockReservationService) ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConfirmByTransaction", ctx, transactionID)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ConfirmByTransaction indicates an expected call of ConfirmByTransaction.
+func (mr *MockReservationServiceMockRecorder) ConfirmByTransaction(ctx, transactionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfirmByTransaction", reflect.TypeOf((*MockReservationService)(nil).ConfirmByTransaction), ctx, transactionID)
+}
+
 // Release mocks base method.
 func (m *MockReservationService) Release(ctx context.Context, reservationID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -69,6 +84,21 @@ func (m *MockReservationService) Release(ctx context.Context, reservationID uuid
 func (mr *MockReservationServiceMockRecorder) Release(ctx, reservationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Release", reflect.TypeOf((*MockReservationService)(nil).Release), ctx, reservationID)
+}
+
+// ReleaseByTransaction mocks base method.
+func (m *MockReservationService) ReleaseByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseByTransaction", ctx, transactionID)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseByTransaction indicates an expected call of ReleaseByTransaction.
+func (mr *MockReservationServiceMockRecorder) ReleaseByTransaction(ctx, transactionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseByTransaction", reflect.TypeOf((*MockReservationService)(nil).ReleaseByTransaction), ctx, transactionID)
 }
 
 // Reserve mocks base method.

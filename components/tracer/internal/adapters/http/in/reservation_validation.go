@@ -66,3 +66,16 @@ type ReservationActionResponse struct {
 	ReservationID uuid.UUID `json:"reservationId" swaggertype:"string" format:"uuid"`
 	Status        string    `json:"status"`
 }
+
+// TransactionActionResponse is the body returned by the by-transaction confirm and
+// release endpoints. The ledger /commit and /cancel address reservations by the
+// transaction id alone (the per-reservation handle does not survive the separate
+// state-transition request), so the tracer flips every RESERVED reservation the
+// transaction holds and reports how many were transitioned. Flipped=0 is a valid,
+// idempotent no-op success: the transaction never reserved or every reservation was
+// already terminal.
+type TransactionActionResponse struct {
+	TransactionID uuid.UUID `json:"transactionId" swaggertype:"string" format:"uuid"`
+	Status        string    `json:"status"`
+	Flipped       int       `json:"flipped"`
+}

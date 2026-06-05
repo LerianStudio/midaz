@@ -239,6 +239,52 @@ func (c *TracerClient) Release(ctx context.Context, reservationID uuid.UUID) err
 	return c.transition(ctx, "release", reservationID)
 }
 
+// ConfirmByTransaction commits EVERY reservation a transaction holds (phase two
+// — commit by transaction). The ledger /commit drives this with only the
+// transaction id. Like the per-id confirm, the tracer treats it as idempotent
+// (flipped=0 when there is nothing to confirm), so any 200 here is success.
+func (c *TracerClient) ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) error {
+	return c.transitionByTransaction(ctx, "confirm", transactionID)
+}
+
+// ReleaseByTransaction returns EVERY reservation a transaction holds (phase two
+// — abort by transaction). The ledger /cancel drives this with only the
+// transaction id. Idempotent like ConfirmByTransaction.
+func (c *TracerClient) ReleaseByTransaction(ctx context.Context, transactionID uuid.UUID) error {
+	return c.transitionByTransaction(ctx, "release", transactionID)
+}
+
+// transitionByTransaction is the shared by-transaction confirm/release body: POST
+// the action under the /reservations/transaction/{id}/{action} path and require a
+// 200. Availability failures return ErrTracerUnavailable so the caller's
+// best-effort post-commit transport can swallow them (the TTL reaper backstops).
+func (c *TracerClient) transitionByTransaction(ctx context.Context, action string, transactionID uuid.UUID) error {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "tracer.client."+action+"_by_transaction")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("app.request.transaction_id", transactionID.String()))
+
+	path := fmt.Sprintf("/v1/reservations/transaction/%s/%s", transactionID.String(), action)
+
+	resp, err := c.do(ctx, http.MethodPost, path, nil)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Reservation by-transaction transition transport failed", err)
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		err := c.statusError(action+" by transaction", resp)
+		libOpentelemetry.HandleSpanError(span, "Reservation by-transaction transition returned unexpected status", err)
+
+		return err
+	}
+
+	return nil
+}
+
 // transition is the shared confirm/release body: POST the per-id action and
 // require a 200. Availability failures return ErrTracerUnavailable.
 func (c *TracerClient) transition(ctx context.Context, action string, reservationID uuid.UUID) error {

@@ -25,6 +25,14 @@ import (
 // stays unchanged — call sites guard with a nil check, mirroring the streaming
 // nil-emitter pattern.
 //
+// Confirm/Release address a single reservation by id, used inline by the direct
+// (non-PENDING) create path which still holds the reserve handle. ConfirmByTransaction
+// and ReleaseByTransaction address EVERY reservation a transaction holds by the
+// transaction id alone — the PENDING lifecycle driver: /commit and /cancel are
+// separate requests that carry only the transaction id (the reserve handle from
+// create-pending does not survive them), so the tracer resolves and flips every
+// RESERVED reservation for the transaction.
+//
 // Availability failures (timeout, transport error, open breaker) surface as
 // tracer.ErrTracerUnavailable so the anchor can branch on tracer.failPosture;
 // a DENIED decision is a successful Reserve return (handle.Denied=true), not an
@@ -33,4 +41,6 @@ type TracerReserver interface {
 	Reserve(ctx context.Context, req tracer.ReserveRequest) (*tracer.ReserveResult, error)
 	Confirm(ctx context.Context, reservationID uuid.UUID) error
 	Release(ctx context.Context, reservationID uuid.UUID) error
+	ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) error
+	ReleaseByTransaction(ctx context.Context, transactionID uuid.UUID) error
 }

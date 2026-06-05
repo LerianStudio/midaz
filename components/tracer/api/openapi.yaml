@@ -909,6 +909,95 @@ paths:
       tags:
       - reservations
       x-codegen-request-body-name: request
+  /v1/reservations/transaction/{transaction_id}/confirm:
+    post:
+      description: "Confirms EVERY held reservation a transaction holds, addressed\
+        \ by the ledger transaction id. The ledger /commit drives this with only the\
+        \ transaction id. Idempotent — flipped=0 (no reservations, or all already\
+        \ terminal) returns 200."
+      operationId: confirmReservationByTransaction
+      parameters:
+      - description: Transaction ID (UUID)
+        in: path
+        name: transaction_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_adapters_http_in.TransactionActionResponse'
+          description: Reservations confirmed
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid path parameter
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Confirm a transaction's reservations (phase two — commit by transaction)
+      tags:
+      - reservations
+  /v1/reservations/transaction/{transaction_id}/release:
+    post:
+      description: "Releases EVERY held reservation a transaction holds, addressed\
+        \ by the ledger transaction id. The ledger /cancel drives this with only the\
+        \ transaction id. Idempotent — flipped=0 returns 200."
+      operationId: releaseReservationByTransaction
+      parameters:
+      - description: Transaction ID (UUID)
+        in: path
+        name: transaction_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_adapters_http_in.TransactionActionResponse'
+          description: Reservations released
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid path parameter
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Release a transaction's reservations (phase two — abort by transaction)
+      tags:
+      - reservations
   /v1/reservations/{id}/confirm:
     post:
       description: "Commits a held reservation: the amount moves from reserved to\
@@ -2957,6 +3046,20 @@ components:
           items:
             type: string
           type: array
+        transactionId:
+          format: uuid
+          type: string
+      type: object
+    internal_adapters_http_in.TransactionActionResponse:
+      example:
+        flipped: 0
+        transactionId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        status: status
+      properties:
+        flipped:
+          type: integer
+        status:
+          type: string
         transactionId:
           format: uuid
           type: string

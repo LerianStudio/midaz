@@ -286,6 +286,244 @@ func (r *UsageReservationRepository) ReleaseWithTx(ctx context.Context, db pgdb.
 	return nil
 }
 
+// ConfirmByTransactionWithTx confirms EVERY RESERVED reservation row that carries
+// the given transaction_id, on the supplied handle, in one transaction owned by
+// the caller. For each row it applies the same counter move (reserved_usage ->
+// current_usage) and row flip (-> CONFIRMED) the by-id ConfirmWithTx performs. The
+// 4-tuple unique index leads with transaction_id, so the lookup is index-efficient.
+//
+// Returns the flipped reservations (their ids and resolved limit coordinates) so
+// the caller can record one audit row per flip in the SAME transaction. The flipped
+// count is len(result). Zero rows is an idempotent no-op success: either the
+// transaction never reserved (tracer disabled / no counter-backed limit applied) or
+// every reservation already reached a terminal state (a retried confirm). The
+// caller maps an empty result to a success either way — this is the by-transaction
+// confirm the ledger /commit drives with only the transaction id.
+func (r *UsageReservationRepository) ConfirmByTransactionWithTx(ctx context.Context, db pgdb.DB, transactionID uuid.UUID) ([]*model.Reservation, error) {
+	if db == nil {
+		return nil, pgdb.ErrNilConnection
+	}
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.usage_reservation.confirm_by_transaction")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	reservations, err := r.lockReservedByTransaction(ctx, db, transactionID)
+	if err != nil {
+		libOtel.HandleSpanError(span, "Failed to load reserved rows for transaction", err)
+		return nil, err
+	}
+
+	for i := range reservations {
+		if err := r.applyConfirm(ctx, span, db, reservations[i]); err != nil {
+			return nil, err
+		}
+	}
+
+	span.SetAttributes(attribute.Int("db.rows_flipped", len(reservations)))
+
+	logger.With(
+		libLog.String("operation", "repository.usage_reservation.confirm_by_transaction"),
+		libLog.String("transaction_id", transactionID.String()),
+		libLog.Int("flipped", len(reservations)),
+	).Log(ctx, libLog.LevelInfo, "Confirmed reservations by transaction")
+
+	return reservations, nil
+}
+
+// ReleaseByTransactionWithTx releases EVERY RESERVED reservation row that carries
+// the given transaction_id, on the supplied handle, in one transaction owned by the
+// caller. For each row it returns the held amount to capacity (reserved_usage
+// decremented, current_usage untouched) and flips the row to the given terminal
+// status, mirroring the by-id ReleaseWithTx. status MUST be StatusReleased (an
+// explicit abort) or StatusExpired (a reaper sweep).
+//
+// Returns the flipped reservations so the caller can record one audit row per flip
+// in the same transaction; the flipped count is len(result). Zero rows is an
+// idempotent no-op success, as in ConfirmByTransactionWithTx. This is the
+// by-transaction release the ledger /cancel drives with only the transaction id.
+func (r *UsageReservationRepository) ReleaseByTransactionWithTx(ctx context.Context, db pgdb.DB, transactionID uuid.UUID, status model.ReservationStatus) ([]*model.Reservation, error) {
+	if db == nil {
+		return nil, pgdb.ErrNilConnection
+	}
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.usage_reservation.release_by_transaction")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	if status != model.StatusReleased && status != model.StatusExpired {
+		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid release status", constant.ErrReservationInvalidStatus)
+		return nil, constant.ErrReservationInvalidStatus
+	}
+
+	reservations, err := r.lockReservedByTransaction(ctx, db, transactionID)
+	if err != nil {
+		libOtel.HandleSpanError(span, "Failed to load reserved rows for transaction", err)
+		return nil, err
+	}
+
+	for i := range reservations {
+		if err := r.applyRelease(ctx, span, db, reservations[i], status); err != nil {
+			return nil, err
+		}
+	}
+
+	span.SetAttributes(attribute.Int("db.rows_flipped", len(reservations)))
+
+	logger.With(
+		libLog.String("operation", "repository.usage_reservation.release_by_transaction"),
+		libLog.String("transaction_id", transactionID.String()),
+		libLog.String("status", string(status)),
+		libLog.Int("flipped", len(reservations)),
+	).Log(ctx, libLog.LevelInfo, "Released reservations by transaction")
+
+	return reservations, nil
+}
+
+// applyConfirm moves a single RESERVED reservation's amount from reserved_usage to
+// current_usage and flips the row to CONFIRMED, on the supplied handle. It is the
+// shared per-row body of ConfirmByTransactionWithTx; the row is already locked and
+// known RESERVED by the by-transaction selector, so the WHERE status='RESERVED'
+// guard on the flip stays as a belt-and-braces against a concurrent transition.
+func (r *UsageReservationRepository) applyConfirm(ctx context.Context, span trace.Span, db pgdb.DB, res *model.Reservation) error {
+	now := time.Now().UTC()
+
+	counterUpdate := sq.Update(usageCountersTable).
+		Set("current_usage", sq.Expr("current_usage + ?", res.Amount)).
+		Set("reserved_usage", sq.Expr("reserved_usage - ?", res.Amount)).
+		Set("last_updated_at", now).
+		Where(sq.Eq{
+			"limit_id":   res.LimitID,
+			"scope_key":  res.ScopeKey,
+			"period_key": res.PeriodKey,
+		}).
+		PlaceholderFormat(sq.Dollar)
+
+	if err := r.execCounterMove(ctx, span, db, counterUpdate); err != nil {
+		return err
+	}
+
+	rowUpdate := sq.Update(usageReservationsTable).
+		Set("status", string(model.StatusConfirmed)).
+		Set("confirmed_at", now).
+		Where(sq.Eq{"id": res.ID, "status": string(model.StatusReserved)}).
+		PlaceholderFormat(sq.Dollar)
+
+	if _, err := r.execRowFlip(ctx, span, db, rowUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// applyRelease returns a single RESERVED reservation's amount from reserved_usage
+// (current_usage untouched) and flips the row to the given terminal status, on the
+// supplied handle. It is the shared per-row body of ReleaseByTransactionWithTx.
+func (r *UsageReservationRepository) applyRelease(ctx context.Context, span trace.Span, db pgdb.DB, res *model.Reservation, status model.ReservationStatus) error {
+	now := time.Now().UTC()
+
+	counterUpdate := sq.Update(usageCountersTable).
+		Set("reserved_usage", sq.Expr("reserved_usage - ?", res.Amount)).
+		Set("last_updated_at", now).
+		Where(sq.Eq{
+			"limit_id":   res.LimitID,
+			"scope_key":  res.ScopeKey,
+			"period_key": res.PeriodKey,
+		}).
+		PlaceholderFormat(sq.Dollar)
+
+	if err := r.execCounterMove(ctx, span, db, counterUpdate); err != nil {
+		return err
+	}
+
+	rowUpdate := sq.Update(usageReservationsTable).
+		Set("status", string(status)).
+		Set("released_at", now).
+		Where(sq.Eq{"id": res.ID, "status": string(model.StatusReserved)}).
+		PlaceholderFormat(sq.Dollar)
+
+	if _, err := r.execRowFlip(ctx, span, db, rowUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// lockReservedByTransaction reads every RESERVED reservation row for a transaction
+// FOR UPDATE so the per-row counter moves and flips see a stable status under a
+// concurrent by-id confirm/release or the reaper. The lookup rides the 4-tuple
+// unique index (transaction_id leads). A transaction with no RESERVED rows returns
+// an empty slice, NOT an error — the by-transaction confirm/release is idempotent
+// over "nothing to do".
+func (r *UsageReservationRepository) lockReservedByTransaction(ctx context.Context, db pgdb.DB, transactionID uuid.UUID) ([]*model.Reservation, error) {
+	const selectSQL = `
+		SELECT id, limit_id, scope_key, period_key, amount, status,
+		       transaction_id, reservation_expires_at, created_at, confirmed_at, released_at
+		FROM usage_reservations
+		WHERE transaction_id = $1 AND status = 'RESERVED'
+		FOR UPDATE
+	`
+
+	rows, err := db.QueryContext(ctx, selectSQL, transactionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load reserved rows for transaction: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var reservations []*model.Reservation
+
+	for rows.Next() {
+		var (
+			res         model.Reservation
+			status      string
+			confirmedAt sql.NullTime
+			releasedAt  sql.NullTime
+		)
+
+		if err := rows.Scan(
+			&res.ID,
+			&res.LimitID,
+			&res.ScopeKey,
+			&res.PeriodKey,
+			&res.Amount,
+			&status,
+			&res.TransactionID,
+			&res.ReservationExpiresAt,
+			&res.CreatedAt,
+			&confirmedAt,
+			&releasedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan reserved row: %w", err)
+		}
+
+		res.Status = model.ReservationStatus(status)
+
+		if confirmedAt.Valid {
+			t := confirmedAt.Time
+			res.ConfirmedAt = &t
+		}
+
+		if releasedAt.Valid {
+			t := releasedAt.Time
+			res.ReleasedAt = &t
+		}
+
+		reservations = append(reservations, &res)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate reserved rows: %w", err)
+	}
+
+	return reservations, nil
+}
+
 // lockReservation reads the reservation row FOR UPDATE so the counter move and the
 // row flip see a stable status under concurrent confirm/release. Maps a missing row
 // to ErrReservationNotFound.

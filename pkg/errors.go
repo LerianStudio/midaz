@@ -455,6 +455,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Overdraft Limit Exceeded Error",
 			Message:    "The transaction could not be completed because it would exceed the configured overdraft limit for the balance. Please reduce the amount or increase the overdraft limit and try again.",
 		},
+		constant.ErrTransactionReservationDenied: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionReservationDenied.Error(),
+			Title:      "Transaction Reservation Denied Error",
+			Message:    "The transaction could not be completed because it would exceed a configured usage limit. Please reduce the amount or wait for the limit window to reset and try again.",
+		},
+		constant.ErrTransactionReservationUnavailable: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionReservationUnavailable.Error(),
+			Title:      "Transaction Reservation Unavailable Error",
+			Message:    "The transaction could not be completed because the usage-limit service is temporarily unavailable and this ledger is configured to reject transactions when it cannot be reached. Please retry shortly.",
+		},
 		constant.ErrDirectOperationOnInternalBalance: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrDirectOperationOnInternalBalance.Error(),

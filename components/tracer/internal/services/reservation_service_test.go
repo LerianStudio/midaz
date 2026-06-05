@@ -7,6 +7,7 @@ package services
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -306,5 +307,107 @@ func TestReservationService_Release(t *testing.T) {
 			Times(1)
 
 		require.NoError(t, svc.Release(context.Background(), resID))
+	})
+}
+
+func twoReservations(txID uuid.UUID) []*model.Reservation {
+	res1, _ := model.NewReservation(
+		testutil.MustDeterministicUUID(7401), txID, "acct:7401", "2026-06", 400,
+		testutil.FixedTime().Add(5*time.Minute), testutil.FixedTime(),
+	)
+	res2, _ := model.NewReservation(
+		testutil.MustDeterministicUUID(7402), txID, "global", "2026-06-05", 400,
+		testutil.FixedTime().Add(5*time.Minute), testutil.FixedTime(),
+	)
+
+	return []*model.Reservation{res1, res2}
+}
+
+func TestReservationService_ConfirmByTransaction(t *testing.T) {
+	txID := testutil.MustDeterministicUUID(7400)
+
+	t.Run("Flips ALL reserved rows in one tx, audits each", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		reservations := twoReservations(txID)
+
+		deps.expectTxCommit()
+
+		deps.repo.EXPECT().
+			ConfirmByTransactionWithTx(gomock.Any(), deps.tx, txID).
+			Return(reservations, nil).
+			Times(1)
+		// One audit row per flipped reservation, same tx.
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationConfirmed, model.AuditActionConfirm, gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(2)
+
+		flipped, err := svc.ConfirmByTransaction(context.Background(), txID)
+		require.NoError(t, err)
+		assert.Equal(t, 2, flipped, "every reserved row of the transaction is confirmed")
+	})
+
+	t.Run("No reserved rows is an idempotent no-op success (re-run), NO audit", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		deps.expectTxCommit()
+
+		deps.repo.EXPECT().
+			ConfirmByTransactionWithTx(gomock.Any(), deps.tx, txID).
+			Return(nil, nil).
+			Times(1)
+		// No audit call expected on the empty path.
+
+		flipped, err := svc.ConfirmByTransaction(context.Background(), txID)
+		require.NoError(t, err)
+		assert.Equal(t, 0, flipped, "re-run over an already-confirmed transaction is a clean no-op")
+	})
+
+	t.Run("Missing transaction id is rejected before a tx", func(t *testing.T) {
+		svc, _ := newReservationServiceDeps(t)
+
+		_, err := svc.ConfirmByTransaction(context.Background(), uuid.Nil)
+		require.ErrorIs(t, err, ErrNilReservationTransationID)
+	})
+}
+
+func TestReservationService_ReleaseByTransaction(t *testing.T) {
+	txID := testutil.MustDeterministicUUID(7500)
+
+	t.Run("Releases ALL reserved rows in one tx, audits each", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		reservations := twoReservations(txID)
+
+		deps.expectTxCommit()
+
+		deps.repo.EXPECT().
+			ReleaseByTransactionWithTx(gomock.Any(), deps.tx, txID, model.StatusReleased).
+			Return(reservations, nil).
+			Times(1)
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReleased, model.AuditActionRelease, gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(2)
+
+		flipped, err := svc.ReleaseByTransaction(context.Background(), txID)
+		require.NoError(t, err)
+		assert.Equal(t, 2, flipped)
+	})
+
+	t.Run("No reserved rows is an idempotent no-op success", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		deps.expectTxCommit()
+
+		deps.repo.EXPECT().
+			ReleaseByTransactionWithTx(gomock.Any(), deps.tx, txID, model.StatusReleased).
+			Return(nil, nil).
+			Times(1)
+
+		flipped, err := svc.ReleaseByTransaction(context.Background(), txID)
+		require.NoError(t, err)
+		assert.Equal(t, 0, flipped)
 	})
 }
