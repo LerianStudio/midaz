@@ -61,4 +61,35 @@ type AuditWriter interface {
 		after map[string]any,
 		reason string,
 	) error
+
+	// RecordReservationEventWithTx records a reserve / confirm / release transition
+	// using the provided transaction handle, so the audit row commits atomically
+	// with the counter move and the reservation-row flip.
+	RecordReservationEventWithTx(
+		ctx context.Context,
+		db pgdb.DB,
+		eventType model.AuditEventType,
+		action model.AuditAction,
+		reservationID uuid.UUID,
+		auditCtx ReservationAuditContext,
+	) error
+
+	// RecordReservationEvent records a reservation transition OUTSIDE a
+	// transaction. Used for the SKIPPED ledger-fail-open decision, which performs
+	// no counter move and has no tx to join.
+	RecordReservationEvent(
+		ctx context.Context,
+		eventType model.AuditEventType,
+		action model.AuditAction,
+		reservationID uuid.UUID,
+		auditCtx ReservationAuditContext,
+	) error
+
+	// RecordReservationExpiryBatch writes ONE summary audit row per reaper sweep of
+	// expired reservations (Q11), capping hash-chain advisory-lock contention on the
+	// high-volume expiry path.
+	RecordReservationExpiryBatch(
+		ctx context.Context,
+		summary ReservationExpiryBatchSummary,
+	) error
 }

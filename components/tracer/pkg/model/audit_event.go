@@ -91,12 +91,23 @@ const (
 	AuditActionActivate   AuditAction = "ACTIVATE"
 	AuditActionDeactivate AuditAction = "DEACTIVATE"
 	AuditActionDraft      AuditAction = "DRAFT"
+
+	// Reservation lifecycle actions (two-phase reservation seam). RESERVE holds
+	// capacity, CONFIRM commits it, RELEASE returns it on abort, EXPIRE is the
+	// reaper-driven release, and SKIP records a ledger fail-open with no counter
+	// move.
+	AuditActionReserve AuditAction = "RESERVE"
+	AuditActionConfirm AuditAction = "CONFIRM"
+	AuditActionRelease AuditAction = "RELEASE"
+	AuditActionExpire  AuditAction = "EXPIRE"
+	AuditActionSkip    AuditAction = "SKIP"
 )
 
 // IsValid checks if the AuditAction is a valid enum value.
 func (a AuditAction) IsValid() bool {
 	switch a {
-	case AuditActionValidate, AuditActionCreate, AuditActionUpdate, AuditActionDelete, AuditActionActivate, AuditActionDeactivate, AuditActionDraft:
+	case AuditActionValidate, AuditActionCreate, AuditActionUpdate, AuditActionDelete, AuditActionActivate, AuditActionDeactivate, AuditActionDraft,
+		AuditActionReserve, AuditActionConfirm, AuditActionRelease, AuditActionExpire, AuditActionSkip:
 		return true
 	default:
 		return false
@@ -136,12 +147,13 @@ const (
 	ResourceTypeTransaction ResourceType = "transaction"
 	ResourceTypeRule        ResourceType = "rule"
 	ResourceTypeLimit       ResourceType = "limit"
+	ResourceTypeReservation ResourceType = "reservation"
 )
 
 // IsValid checks if the ResourceType is a valid enum value.
 func (r ResourceType) IsValid() bool {
 	switch r {
-	case ResourceTypeTransaction, ResourceTypeRule, ResourceTypeLimit:
+	case ResourceTypeTransaction, ResourceTypeRule, ResourceTypeLimit, ResourceTypeReservation:
 		return true
 	default:
 		return false

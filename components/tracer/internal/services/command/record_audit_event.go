@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -48,6 +49,8 @@ func systemActorName(resourceType model.ResourceType) string {
 		return "Tracer Rule Manager"
 	case model.ResourceTypeLimit:
 		return "Tracer Limit Manager"
+	case model.ResourceTypeReservation:
+		return "Tracer Reservation Manager"
 	default:
 		return "Tracer"
 	}
@@ -231,6 +234,182 @@ func (c *RecordAuditEventCommand) RecordLimitEventWithTx(
 	}
 
 	return nil
+}
+
+// ReservationAuditContext is the forensic payload recorded for a single
+// reservation transition. It carries the resolved limit coordinates the
+// reservation already holds (R38) so the audit row is self-describing without a
+// limit re-query. Amount is the smallest currency unit (cents).
+type ReservationAuditContext struct {
+	TransactionID uuid.UUID
+	LimitID       uuid.UUID
+	ScopeKey      string
+	PeriodKey     string
+	Amount        int64
+	Status        string
+}
+
+// RecordReservationEventWithTx records an audit event for a reserve / confirm /
+// release transition using the provided database connection. The db parameter
+// accepts a transaction (*sql.Tx via the pgdb.Tx adapter), so the audit row commits
+// in the SAME tx as the counter move and the reservation-row flip — mirroring
+// RecordRuleEventWithTx / RecordLimitEventWithTx.
+//
+// SKIPPED is NOT recorded here: it is a ledger fail-open decision with no counter
+// move, so it flows through the non-tx RecordReservationEvent surface.
+//
+// Actor identity (Principal) and client IP are resolved from ctx — see resolveActor.
+func (c *RecordAuditEventCommand) RecordReservationEventWithTx(
+	ctx context.Context,
+	db pgdb.DB,
+	eventType model.AuditEventType,
+	action model.AuditAction,
+	reservationID uuid.UUID,
+	auditCtx ReservationAuditContext,
+) error {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+
+	ctx, span := tracer.Start(ctx, "service.RecordAuditEventCommand.RecordReservationEventWithTx")
+	defer span.End()
+
+	event, err := c.buildReservationEvent(ctx, eventType, action, reservationID, auditCtx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build reservation audit event", err)
+		return fmt.Errorf("record reservation audit event with tx: %w", err)
+	}
+
+	if err := c.repo.InsertWithTx(ctx, db, event); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to insert reservation audit event", err)
+		return fmt.Errorf("record reservation audit event with tx: %w", err)
+	}
+
+	return nil
+}
+
+// RecordReservationEvent records a reservation audit event OUTSIDE any
+// transaction. This is the SKIPPED surface: the ledger failed open (tracer
+// unreachable) so no counter move happened and there is no tx to join. The event
+// is inserted independently.
+//
+// Actor identity (Principal) and client IP are resolved from ctx — see resolveActor.
+func (c *RecordAuditEventCommand) RecordReservationEvent(
+	ctx context.Context,
+	eventType model.AuditEventType,
+	action model.AuditAction,
+	reservationID uuid.UUID,
+	auditCtx ReservationAuditContext,
+) error {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+
+	ctx, span := tracer.Start(ctx, "service.RecordAuditEventCommand.RecordReservationEvent")
+	defer span.End()
+
+	event, err := c.buildReservationEvent(ctx, eventType, action, reservationID, auditCtx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build reservation audit event", err)
+		return fmt.Errorf("record reservation audit event: %w", err)
+	}
+
+	if err := c.repo.Insert(ctx, event); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to insert reservation audit event", err)
+		return fmt.Errorf("record reservation audit event: %w", err)
+	}
+
+	return nil
+}
+
+// ReservationExpiryBatchSummary describes one reaper sweep: how many reservations
+// expired and the time window they covered. A SINGLE audit row per sweep caps
+// hash-chain advisory-lock contention on the high-volume / low-forensic-value
+// expiry path (Q11).
+type ReservationExpiryBatchSummary struct {
+	ExpiredCount int
+	SweptAt      time.Time
+	OldestExpiry *time.Time
+}
+
+// RecordReservationExpiryBatch writes ONE audit row summarizing a reaper sweep of
+// expired reservations, rather than one row per expired reservation. It goes
+// through the same hash-chain advisory-lock path as every other audit insert
+// (unchanged lock semantics) but amortizes the lock over the whole batch.
+//
+// The summary's ResourceID is the sweep timestamp (there is no single reservation
+// id for a batch). Recorded outside a tx — the per-row EXPIRED counter moves the
+// reaper performed already committed individually via ReleaseWithTx.
+func (c *RecordAuditEventCommand) RecordReservationExpiryBatch(
+	ctx context.Context,
+	summary ReservationExpiryBatchSummary,
+) error {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+
+	ctx, span := tracer.Start(ctx, "service.RecordAuditEventCommand.RecordReservationExpiryBatch")
+	defer span.End()
+
+	event, err := model.NewAuditEvent(
+		model.AuditEventReservationExpired,
+		model.AuditActionExpire,
+		model.AuditResultSuccess,
+		summary.SweptAt.UTC().Format(time.RFC3339Nano),
+		model.ResourceTypeReservation,
+		resolveActor(ctx, model.ResourceTypeReservation),
+	)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build reservation expiry batch event", err)
+		return fmt.Errorf("record reservation expiry batch: %w", err)
+	}
+
+	batchContext := map[string]any{
+		"expiredCount": summary.ExpiredCount,
+		"sweptAt":      summary.SweptAt.UTC().Format(time.RFC3339Nano),
+	}
+
+	if summary.OldestExpiry != nil {
+		batchContext["oldestExpiry"] = summary.OldestExpiry.UTC().Format(time.RFC3339Nano)
+	}
+
+	event.WithContext(batchContext)
+
+	if err := c.repo.Insert(ctx, event); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to insert reservation expiry batch event", err)
+		return fmt.Errorf("record reservation expiry batch: %w", err)
+	}
+
+	return nil
+}
+
+// buildReservationEvent constructs a reservation audit event with the resolved
+// actor and the transition's forensic context. Used by the WithTx, non-tx, and
+// SKIPPED reservation recorders.
+func (c *RecordAuditEventCommand) buildReservationEvent(
+	ctx context.Context,
+	eventType model.AuditEventType,
+	action model.AuditAction,
+	reservationID uuid.UUID,
+	auditCtx ReservationAuditContext,
+) (*model.AuditEvent, error) {
+	event, err := model.NewAuditEvent(
+		eventType,
+		action,
+		model.AuditResultSuccess,
+		reservationID.String(),
+		model.ResourceTypeReservation,
+		resolveActor(ctx, model.ResourceTypeReservation),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create audit event: %w", err)
+	}
+
+	event.WithContext(map[string]any{
+		"reservationId": reservationID.String(),
+		"transactionId": auditCtx.TransactionID.String(),
+		"limitId":       auditCtx.LimitID.String(),
+		"scopeKey":      auditCtx.ScopeKey,
+		"periodKey":     auditCtx.PeriodKey,
+		"amount":        auditCtx.Amount,
+		"status":        auditCtx.Status,
+	})
+
+	return event, nil
 }
 
 // buildRuleEvent constructs a rule audit event with the resolved actor and

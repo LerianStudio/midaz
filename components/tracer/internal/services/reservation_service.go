@@ -1,0 +1,443 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package services
+
+//go:generate mockgen -source=reservation_service.go -destination=mocks/reservation_service_mock.go -package=mocks
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
+
+	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+)
+
+// reservationTTL is the lifetime of a RESERVED row before the reaper may expire
+// it. It bounds how long an abandoned reservation can hold capacity when the
+// ledger neither confirms nor releases (crash between reserve and commit).
+const reservationTTL = 5 * time.Minute
+
+// Sentinel errors for ReservationService constructor validation.
+var (
+	ErrNilReservationConn         = errors.New("reservation: database connection cannot be nil")
+	ErrNilLimitResolver           = errors.New("reservation: limit resolver cannot be nil")
+	ErrNilReservationRepo         = errors.New("reservation: reservation repository cannot be nil")
+	ErrNilReservationAuditWriter  = errors.New("reservation: audit writer cannot be nil")
+	ErrNilReservationRequest      = errors.New("reservation: request cannot be nil")
+	ErrNilReservationTransationID = errors.New("reservation: transaction id is required")
+)
+
+// LimitResolver resolves the applicable limits for a transaction ONCE and computes
+// the per-limit reservation parameters. Implemented by query.LimitCheckerService.
+type LimitResolver interface {
+	// ResolveReservations returns one ReservationSpec per counter-backed applicable
+	// limit, or denied=true when a limit's ceiling is exceeded (the reserve must be
+	// rejected before any capacity is held).
+	ResolveReservations(ctx context.Context, input *model.CheckLimitsInput) ([]query.ReservationSpec, bool, error)
+}
+
+// ReservationRepository persists the two-phase reservation lifecycle. Every method
+// takes the caller's transaction handle so the reservation-row mutation, the
+// counter bucket move, and the audit write commit together. Implemented by
+// postgres.UsageReservationRepository.
+type ReservationRepository interface {
+	ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount int64) error
+	ConfirmWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) error
+	ReleaseWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID, status model.ReservationStatus) error
+}
+
+// ReservationAuditWriter records reservation lifecycle audit events inside the
+// transaction that owns the counter move. Implemented by
+// command.RecordAuditEventCommand.
+type ReservationAuditWriter interface {
+	RecordReservationEventWithTx(
+		ctx context.Context,
+		db pgdb.DB,
+		eventType model.AuditEventType,
+		action model.AuditAction,
+		reservationID uuid.UUID,
+		auditCtx command.ReservationAuditContext,
+	) error
+}
+
+// ReserveResult is the handle returned to the caller after a reserve attempt.
+// Denied is the limit-exceeded decision (the same shape the synchronous Validate
+// produces on a limit breach): when true, no reservation was held and
+// ReservationIDs is empty. Otherwise ReservationIDs holds one id per counter-backed
+// limit that was reserved — the ledger confirms or releases each in phase two.
+type ReserveResult struct {
+	Denied         bool
+	ReservationIDs []uuid.UUID
+}
+
+// ReservationService owns the two-phase reservation lifecycle: it resolves limits
+// once and reserves capacity (phase one), then confirms or releases (phase two).
+// Each method runs in its own transaction so the counter move, the reservation-row
+// flip, and the audit row commit atomically.
+type ReservationService struct {
+	conn        pgdb.TxBeginner
+	resolver    LimitResolver
+	repo        ReservationRepository
+	auditWriter ReservationAuditWriter
+	clock       clock.Clock
+}
+
+// NewReservationService constructs a ReservationService with dependency
+// validation. clk may be nil — a RealClock is used.
+func NewReservationService(
+	conn pgdb.TxBeginner,
+	resolver LimitResolver,
+	repo ReservationRepository,
+	auditWriter ReservationAuditWriter,
+	clk clock.Clock,
+) (*ReservationService, error) {
+	if conn == nil {
+		return nil, ErrNilReservationConn
+	}
+
+	if resolver == nil {
+		return nil, ErrNilLimitResolver
+	}
+
+	if repo == nil {
+		return nil, ErrNilReservationRepo
+	}
+
+	if auditWriter == nil {
+		return nil, ErrNilReservationAuditWriter
+	}
+
+	if clk == nil {
+		clk = clock.RealClock{}
+	}
+
+	return &ReservationService{
+		conn:        conn,
+		resolver:    resolver,
+		repo:        repo,
+		auditWriter: auditWriter,
+		clock:       clk,
+	}, nil
+}
+
+// Reserve resolves the applicable limits ONCE, holds capacity for each
+// counter-backed limit, and returns a handle the ledger uses to confirm or release.
+// This is the ALLOW-path persistence of the two-phase model.
+//
+// Resolution and reservation share ONE transaction so the per-limit reserves are
+// all-or-nothing: if any limit's guard denies, the whole transaction rolls back and
+// the result is the limit-exceeded decision (Denied=true) with no capacity held —
+// exactly the decision shape the synchronous Validate path produces today.
+//
+// The resolved limit set (LimitID/ScopeKey/PeriodKey/Amount) is carried on each
+// reservation row, so confirm/release never re-resolve limits (R38). The ledger
+// transactionID is the 4-tuple idempotency key: a retried reserve collapses onto
+// the existing rows rather than double-reserving (R11/R35).
+func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput) (*ReserveResult, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "service.reservation.reserve")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	if transactionID == uuid.Nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing transaction id", ErrNilReservationTransationID)
+		return nil, ErrNilReservationTransationID
+	}
+
+	if input == nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Nil reserve input", ErrNilReservationRequest)
+		return nil, ErrNilReservationRequest
+	}
+
+	specs, denied, err := s.resolver.ResolveReservations(ctx, input)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve reservations", err)
+		return nil, fmt.Errorf("failed to resolve reservations: %w", err)
+	}
+
+	// Denied by a PER_TRANSACTION cap or the amount-alone pre-check: no capacity
+	// to hold, return the limit-exceeded decision without opening a transaction.
+	if denied {
+		return &ReserveResult{Denied: true}, nil
+	}
+
+	// No applicable counter-backed limits: nothing to reserve, allow.
+	if len(specs) == 0 {
+		return &ReserveResult{}, nil
+	}
+
+	expiresAt := s.clock.Now().UTC().Add(reservationTTL)
+	reservationIDs := make([]uuid.UUID, 0, len(specs))
+
+	guardDenied := false
+
+	txErr := s.inTx(ctx, span, func(db pgdb.DB) error {
+		for i := range specs {
+			spec := specs[i]
+
+			reservation, err := model.NewReservation(
+				spec.LimitID,
+				transactionID,
+				spec.ScopeKey,
+				spec.PeriodKey,
+				spec.Amount,
+				expiresAt,
+				s.clock.Now().UTC(),
+			)
+			if err != nil {
+				return err
+			}
+
+			if err := s.repo.ReserveWithTx(ctx, db, reservation, spec.MaxAmount); err != nil {
+				// The reserve guard denied this limit: roll back the whole tx so no
+				// partial capacity is held, and surface the limit-exceeded decision.
+				if errors.Is(err, constant.ErrUsageCounterExceedsLimit) {
+					guardDenied = true
+					return err
+				}
+
+				return err
+			}
+
+			if err := s.auditWriter.RecordReservationEventWithTx(
+				ctx,
+				db,
+				model.AuditEventReservationReserved,
+				model.AuditActionReserve,
+				reservation.ID,
+				command.ReservationAuditContext{
+					TransactionID: transactionID,
+					LimitID:       spec.LimitID,
+					ScopeKey:      spec.ScopeKey,
+					PeriodKey:     spec.PeriodKey,
+					Amount:        spec.Amount,
+					Status:        string(model.StatusReserved),
+				},
+			); err != nil {
+				return fmt.Errorf("failed to record reserve audit event: %w", err)
+			}
+
+			reservationIDs = append(reservationIDs, reservation.ID)
+		}
+
+		return nil
+	})
+	if txErr != nil {
+		if guardDenied {
+			// Limit-exceeded is a business decision, not a service failure: the
+			// rollback already released any partial holds.
+			return &ReserveResult{Denied: true}, nil
+		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to reserve capacity", txErr)
+
+		return nil, txErr
+	}
+
+	logger.With(
+		libLog.String("operation", "service.reservation.reserve"),
+		libLog.String("transaction_id", transactionID.String()),
+		libLog.Int("reservations", len(reservationIDs)),
+	).Log(ctx, libLog.LevelInfo, "Reserved capacity")
+
+	return &ReserveResult{ReservationIDs: reservationIDs}, nil
+}
+
+// Confirm commits a reservation: the held amount moves reserved_usage ->
+// current_usage and the row flips to CONFIRMED, with the audit row, in one
+// transaction. A confirm against an already-terminal row is an idempotent success
+// (the repo's WHERE status='RESERVED' guard returns no rows; the service maps
+// ErrReservationAlreadyTerminal to nil so a retried confirm does not error).
+//
+// Confirm does NOT re-resolve limits (R38): the reservation row already carries
+// limit_id / scope_key / period_key / amount.
+func (s *ReservationService) Confirm(ctx context.Context, reservationID uuid.UUID) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "service.reservation.confirm")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	return s.terminate(ctx, span, logger, reservationID,
+		model.StatusConfirmed,
+		model.AuditEventReservationConfirmed,
+		model.AuditActionConfirm,
+		"service.reservation.confirm",
+	)
+}
+
+// Release returns a reservation's held capacity on an aborted ledger transaction:
+// reserved_usage is decremented (current_usage untouched) and the row flips to
+// RELEASED, with the audit row, in one transaction. Idempotent like Confirm.
+//
+// Release does NOT re-resolve limits (R38).
+func (s *ReservationService) Release(ctx context.Context, reservationID uuid.UUID) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "service.reservation.release")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	return s.terminate(ctx, span, logger, reservationID,
+		model.StatusReleased,
+		model.AuditEventReservationReleased,
+		model.AuditActionRelease,
+		"service.reservation.release",
+	)
+}
+
+// terminate is the shared confirm/release transaction body: open a tx, apply the
+// counter move + row flip via the repo, record the audit row in the same tx, then
+// commit. An already-terminal reservation is mapped to success (idempotent retry).
+func (s *ReservationService) terminate(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	reservationID uuid.UUID,
+	terminalStatus model.ReservationStatus,
+	eventType model.AuditEventType,
+	action model.AuditAction,
+	operation string,
+) error {
+	if reservationID == uuid.Nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing reservation id", constant.ErrReservationNotFound)
+		return constant.ErrReservationNotFound
+	}
+
+	terminal := false
+
+	txErr := s.inTx(ctx, span, func(db pgdb.DB) error {
+		var repoErr error
+
+		if terminalStatus == model.StatusConfirmed {
+			repoErr = s.repo.ConfirmWithTx(ctx, db, reservationID)
+		} else {
+			repoErr = s.repo.ReleaseWithTx(ctx, db, reservationID, terminalStatus)
+		}
+
+		if repoErr != nil {
+			// Already terminal: idempotent retry. Commit nothing further and treat
+			// as success — the original transition already moved the counter.
+			if errors.Is(repoErr, constant.ErrReservationAlreadyTerminal) {
+				terminal = true
+				return repoErr
+			}
+
+			return repoErr
+		}
+
+		if err := s.auditWriter.RecordReservationEventWithTx(
+			ctx,
+			db,
+			eventType,
+			action,
+			reservationID,
+			command.ReservationAuditContext{
+				Status: string(terminalStatus),
+			},
+		); err != nil {
+			return fmt.Errorf("failed to record %s audit event: %w", string(action), err)
+		}
+
+		return nil
+	})
+	if txErr != nil {
+		if terminal {
+			logger.With(
+				libLog.String("operation", operation),
+				libLog.String("reservation_id", reservationID.String()),
+			).Log(ctx, libLog.LevelInfo, "Reservation already terminal — idempotent no-op")
+
+			return nil
+		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to terminate reservation", txErr)
+
+		return txErr
+	}
+
+	logger.With(
+		libLog.String("operation", operation),
+		libLog.String("reservation_id", reservationID.String()),
+		libLog.String("status", string(terminalStatus)),
+	).Log(ctx, libLog.LevelInfo, "Reservation terminated")
+
+	return nil
+}
+
+// inTx runs fn inside a transaction owned by the service. Commits on success,
+// rolls back on error or panic. Mirrors ValidationService's transaction handling
+// and the command package's executeInTx so the reservation lifecycle keeps the
+// same atomicity and rollback-logging discipline.
+func (s *ReservationService) inTx(ctx context.Context, span trace.Span, fn func(pgdb.DB) error) (err error) {
+	tx, beginErr := s.conn.BeginTx(ctx, nil)
+	if beginErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to begin transaction", beginErr)
+		return fmt.Errorf("failed to begin reservation transaction: %w", beginErr)
+	}
+
+	if tx == nil {
+		return errors.New("reservation_service: BeginTx returned nil transaction without error")
+	}
+
+	committed := false
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			_ = tx.Rollback()
+
+			if recoveredErr, ok := recovered.(error); ok {
+				err = fmt.Errorf("reservation transaction callback panicked: %w", recoveredErr)
+			} else {
+				err = fmt.Errorf("reservation transaction callback panicked: %v", recovered)
+			}
+
+			return
+		}
+
+		if committed {
+			return
+		}
+
+		if rbErr := tx.Rollback(); rbErr != nil {
+			logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+			logger = logging.WithTrace(ctx, logger)
+			logger.With(
+				libLog.String("operation", "service.reservation.rollback"),
+				libLog.String("error.message", rbErr.Error()),
+			).Log(ctx, libLog.LevelWarn, "Failed to rollback reservation transaction")
+		}
+	}()
+
+	if err = fn(tx); err != nil {
+		return err
+	}
+
+	if commitErr := tx.Commit(); commitErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to commit transaction", commitErr)
+		return fmt.Errorf("failed to commit reservation transaction: %w", commitErr)
+	}
+
+	committed = true
+
+	return nil
+}

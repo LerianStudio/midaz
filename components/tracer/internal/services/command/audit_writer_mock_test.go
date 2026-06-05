@@ -15,7 +15,6 @@ import (
 
 	db "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
 	model "github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
-
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -56,6 +55,48 @@ func (m *MockAuditWriter) RecordLimitEventWithTx(ctx context.Context, arg1 db.DB
 func (mr *MockAuditWriterMockRecorder) RecordLimitEventWithTx(ctx, arg1, eventType, action, limitID, before, after, reason any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordLimitEventWithTx", reflect.TypeOf((*MockAuditWriter)(nil).RecordLimitEventWithTx), ctx, arg1, eventType, action, limitID, before, after, reason)
+}
+
+// RecordReservationEvent mocks base method.
+func (m *MockAuditWriter) RecordReservationEvent(ctx context.Context, eventType model.AuditEventType, action model.AuditAction, reservationID uuid.UUID, auditCtx ReservationAuditContext) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RecordReservationEvent", ctx, eventType, action, reservationID, auditCtx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RecordReservationEvent indicates an expected call of RecordReservationEvent.
+func (mr *MockAuditWriterMockRecorder) RecordReservationEvent(ctx, eventType, action, reservationID, auditCtx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordReservationEvent", reflect.TypeOf((*MockAuditWriter)(nil).RecordReservationEvent), ctx, eventType, action, reservationID, auditCtx)
+}
+
+// RecordReservationEventWithTx mocks base method.
+func (m *MockAuditWriter) RecordReservationEventWithTx(ctx context.Context, arg1 db.DB, eventType model.AuditEventType, action model.AuditAction, reservationID uuid.UUID, auditCtx ReservationAuditContext) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RecordReservationEventWithTx", ctx, arg1, eventType, action, reservationID, auditCtx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RecordReservationEventWithTx indicates an expected call of RecordReservationEventWithTx.
+func (mr *MockAuditWriterMockRecorder) RecordReservationEventWithTx(ctx, arg1, eventType, action, reservationID, auditCtx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordReservationEventWithTx", reflect.TypeOf((*MockAuditWriter)(nil).RecordReservationEventWithTx), ctx, arg1, eventType, action, reservationID, auditCtx)
+}
+
+// RecordReservationExpiryBatch mocks base method.
+func (m *MockAuditWriter) RecordReservationExpiryBatch(ctx context.Context, summary ReservationExpiryBatchSummary) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RecordReservationExpiryBatch", ctx, summary)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RecordReservationExpiryBatch indicates an expected call of RecordReservationExpiryBatch.
+func (mr *MockAuditWriterMockRecorder) RecordReservationExpiryBatch(ctx, summary any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordReservationExpiryBatch", reflect.TypeOf((*MockAuditWriter)(nil).RecordReservationExpiryBatch), ctx, summary)
 }
 
 // RecordRuleEventWithTx mocks base method.
