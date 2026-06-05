@@ -684,8 +684,8 @@ func TestService_GenerateSearchToken_LegacyMode(t *testing.T) {
 	token, err := svc.GenerateSearchToken(ctx, searchCtx, normalizedValue)
 	require.NoError(t, err)
 
-	// Legacy mode uses Tink-backed HMAC-SHA256 hex token matching lib-commons format
-	expectedToken := legacyKeys.legacySearchToken(normalizedValue)
+	// Legacy mode uses HMAC-SHA256 hex token matching lib-commons format
+	expectedToken := legacyKeys.GenerateHash(&normalizedValue)
 	assert.Equal(t, expectedToken, token)
 }
 
@@ -1130,7 +1130,7 @@ func TestService_Encrypt_NilLegacyKeyMaterial(t *testing.T) {
 	// Should fail with nil legacy key material
 	_, err := svc.Encrypt(ctx, fieldCtx, "plaintext")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "legacy key material is required")
+	assert.Contains(t, err.Error(), "legacy crypto is required")
 }
 
 func TestService_Decrypt_NilLegacyKeyMaterial(t *testing.T) {
@@ -1157,7 +1157,7 @@ func TestService_Decrypt_NilLegacyKeyMaterial(t *testing.T) {
 	// Should fail with nil legacy key material (ciphertext without envelope marker)
 	_, err := svc.Decrypt(ctx, fieldCtx, "some-non-envelope-ciphertext")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "legacy key material is required")
+	assert.Contains(t, err.Error(), "legacy crypto is required")
 }
 
 func TestService_Encrypt_StateResolverError(t *testing.T) {
@@ -1430,7 +1430,7 @@ func TestService_KMSNone_LegacyEncryptDecryptSearchUsesImportedLegacyKey(t *test
 	require.NoError(t, err)
 
 	// Compare with expected HMAC-SHA256 hex token
-	expectedToken := legacyKeys.legacySearchToken(plaintext)
+	expectedToken := legacyKeys.GenerateHash(&plaintext)
 	assert.Equal(t, expectedToken, token)
 }
 
@@ -1458,7 +1458,7 @@ func TestService_SearchRouting_LegacyTokenAndEnvelopeTokenDifferByMode(t *testin
 	require.NoError(t, err)
 
 	// Assert legacy token equals expected hex HMAC
-	expectedLegacyToken := legacyKeys.legacySearchToken(normalizedValue)
+	expectedLegacyToken := legacyKeys.GenerateHash(&normalizedValue)
 	assert.Equal(t, expectedLegacyToken, legacyToken)
 
 	// Build envelope mode service

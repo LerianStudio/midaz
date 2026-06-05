@@ -12,6 +12,7 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
@@ -149,11 +150,31 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, err
 	}
 
-	// Create Tink-backed legacy key material from environment variables.
-	// This replaces libCrypto.Crypto while maintaining exact ciphertext compatibility.
-	legacyKeys, err := encryption.NewLegacyKeyMaterial(cfg.EncryptSecretKey, cfg.HashSecretKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize legacy key material: %w", err)
+	// Create legacy crypto based on KMS mode:
+	// - KMS_VENDOR=none (legacy): use lib-commons crypto directly (no Tink)
+	// - KMS_VENDOR=hashicorp-vault (envelope): use Tink-backed LegacyKeyMaterial for reading legacy data
+	var legacyCrypto encryption.LegacyCrypto
+
+	if kms.Mode.IsEnvelope() {
+		// Envelope mode: use Tink for both new encryption and legacy reading
+		legacyKeys, err := encryption.NewLegacyKeyMaterial(cfg.EncryptSecretKey, cfg.HashSecretKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize legacy key material: %w", err)
+		}
+
+		legacyCrypto = legacyKeys
+	} else {
+		// Legacy mode: use lib-commons crypto directly (no Tink involved)
+		crypto := &libCrypto.Crypto{
+			HashSecretKey:    cfg.HashSecretKey,
+			EncryptSecretKey: cfg.EncryptSecretKey,
+			Logger:           logger,
+		}
+		if err := crypto.InitializeCipher(); err != nil {
+			return nil, fmt.Errorf("failed to initialize legacy crypto cipher: %w", err)
+		}
+
+		legacyCrypto = crypto
 	}
 
 	// Initialize encryption repositories for envelope mode only.
@@ -177,14 +198,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Wire encryption services (ProtectionStateResolver, KeysetManager, EncryptionService, ProvisioningService).
-	// In legacy mode, EncryptionService uses legacyKeys only.
-	// In envelope mode, services are wired with real dependencies.
+	// In legacy mode, EncryptionService uses lib-commons crypto.
+	// In envelope mode, services are wired with Tink and Vault dependencies.
 	encryptionResult := wireEncryptionServices(wireEncryptionServicesInput{
 		mode:                 kms.Mode.String(),
 		vaultClient:          kms.VaultClient,
 		keysetRepo:           keysetRepo,
 		registryRepo:         registryRepo,
-		legacyKeys:           legacyKeys,
+		legacyCrypto:         legacyCrypto,
 		vaultMountPath:       cfg.VaultMountPath,
 		allowGracefulDegrade: false, // Fail hard if envelope mode requested but dependencies unavailable
 	})

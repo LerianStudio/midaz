@@ -26,7 +26,7 @@ type wireEncryptionServicesInput struct {
 	vaultClient          *vault.Client
 	keysetRepo           mongoEncryption.KeysetRepository
 	registryRepo         mongoEncryption.RegistryRepository
-	legacyKeys           *encryption.LegacyKeyMaterial
+	legacyCrypto         encryption.LegacyCrypto
 	vaultMountPath       string
 	allowGracefulDegrade bool
 }
@@ -62,13 +62,14 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 	// Legacy mode: wire EncryptionService with nil dependencies for legacy-only operation.
 	// ProtectionStateResolver with nil registryRepo returns legacy readable state.
 	// KeysetManager is nil since no envelope encryption is available.
+	// Uses lib-commons crypto directly (no Tink).
 	if strings.EqualFold(input.mode, "legacy") {
 		protectionStateResolver := encryption.NewProtectionStateResolver(nil)
 		encryptionService := encryption.NewEncryptionService(
 			protectionStateResolver,
-			nil,              // No keyset manager in legacy mode
-			nil,              // No keyset repo in legacy mode
-			input.legacyKeys, // Tink-backed legacy keys for legacy encryption
+			nil,                // No keyset manager in legacy mode
+			nil,                // No keyset repo in legacy mode
+			input.legacyCrypto, // lib-commons crypto for legacy encryption
 			crypto.EncryptionModeLegacy,
 		)
 
@@ -139,11 +140,12 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 	// Wire EncryptionService with all dependencies
 	// Pass EncryptionModeEnvelope as globalMode to enable lazy provisioning
 	// via KeysetManager for all organizations, regardless of their registry state
+	// Uses Tink-backed LegacyKeyMaterial (passed as LegacyCrypto) for reading legacy data during migration
 	encryptionService := encryption.NewEncryptionService(
 		protectionStateResolver,
 		keysetManager,
 		input.keysetRepo,
-		input.legacyKeys,
+		input.legacyCrypto,
 		crypto.EncryptionModeEnvelope,
 	)
 

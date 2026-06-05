@@ -6,9 +6,11 @@ package alias
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
@@ -16,6 +18,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 )
+
+// testLegacySearchToken computes a search token using the same HMAC-SHA256 method
+// as LegacyKeyMaterial.legacySearchToken with the test hash key.
+func testLegacySearchToken(value string) string {
+	mac := hmac.New(sha256.New, []byte(testutils.TestHashKey))
+	mac.Write([]byte(value))
+	return hex.EncodeToString(mac.Sum(nil))
+}
 
 func TestMongoDBRepository_buildAliasFilter(t *testing.T) {
 	t.Parallel()
@@ -195,8 +205,7 @@ func TestMongoDBRepository_buildAliasFilter(t *testing.T) {
 func TestMongoDBRepository_buildAliasFilter_HashGeneration(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
-	fe := encryption.NewLegacyFieldEncryptor(crypto)
+	fe := setupTestFieldEncryptor(t)
 	ctx := context.Background()
 	holderID := uuid.New()
 	organizationID := "test-org"
@@ -207,7 +216,7 @@ func TestMongoDBRepository_buildAliasFilter_HashGeneration(t *testing.T) {
 
 	// Test that document hash is generated consistently
 	document := "12345678901"
-	expectedHash := crypto.GenerateHash(&document)
+	expectedHash := testLegacySearchToken(document)
 
 	query := http.QueryHeader{
 		Document: &document,
@@ -231,8 +240,7 @@ func TestMongoDBRepository_buildAliasFilter_HashGeneration(t *testing.T) {
 func TestMongoDBRepository_buildAliasFilter_BankingDetailsHashes(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
-	fe := encryption.NewLegacyFieldEncryptor(crypto)
+	fe := setupTestFieldEncryptor(t)
 	ctx := context.Background()
 	holderID := uuid.New()
 	organizationID := "test-org"
@@ -244,8 +252,8 @@ func TestMongoDBRepository_buildAliasFilter_BankingDetailsHashes(t *testing.T) {
 	account := "123456"
 	iban := "BR1234567890123456789012345"
 
-	expectedAccountHash := crypto.GenerateHash(&account)
-	expectedIbanHash := crypto.GenerateHash(&iban)
+	expectedAccountHash := testLegacySearchToken(account)
+	expectedIbanHash := testLegacySearchToken(iban)
 
 	query := http.QueryHeader{
 		BankingDetailsAccount: &account,

@@ -17,13 +17,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// setupTestFieldEncryptor creates a LegacyFieldEncryptor wrapping testutils crypto for testing.
+// setupTestFieldEncryptor creates a FieldEncryptorAdapter wrapping an EncryptionService
+// with lib-commons crypto for testing. This matches production KMS_VENDOR=none behavior.
 func setupTestFieldEncryptor(t *testing.T) encryption.FieldEncryptor {
 	t.Helper()
 
+	// Use lib-commons crypto directly, matching KMS_VENDOR=none production path
 	crypto := testutils.SetupCrypto(t)
 
-	return encryption.NewLegacyFieldEncryptor(crypto)
+	resolver := encryption.NewProtectionStateResolver(nil)
+	svc := encryption.NewEncryptionService(resolver, nil, nil, crypto)
+
+	return encryption.NewFieldEncryptorAdapter(svc)
 }
 
 // testEncryptionContext creates a standard EncryptionContext for tests.

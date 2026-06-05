@@ -6,15 +6,25 @@ package holder
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 )
+
+// testLegacySearchToken computes a search token using the same HMAC-SHA256 method
+// as LegacyKeyMaterial.legacySearchToken with the test hash key.
+func testLegacySearchToken(value string) string {
+	mac := hmac.New(sha256.New, []byte(testutils.TestHashKey))
+	mac.Write([]byte(value))
+	return hex.EncodeToString(mac.Sum(nil))
+}
 
 // ============================================================================
 // buildHolderFilter Tests
@@ -23,8 +33,7 @@ import (
 func TestBuildHolderFilter_ExcludeDeleted(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
-	fe := encryption.NewLegacyFieldEncryptor(crypto)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
 		FieldEncryptor: fe,
 	}
@@ -78,8 +87,7 @@ func TestBuildHolderFilter_ExcludeDeleted(t *testing.T) {
 func TestBuildHolderFilter_WithExternalID(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
-	fe := encryption.NewLegacyFieldEncryptor(crypto)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
 		FieldEncryptor: fe,
 	}
@@ -152,8 +160,7 @@ func TestBuildHolderFilter_WithExternalID(t *testing.T) {
 func TestBuildHolderFilter_WithDocument(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
-	fe := encryption.NewLegacyFieldEncryptor(crypto)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
 		FieldEncryptor: fe,
 	}
@@ -225,8 +232,7 @@ func TestBuildHolderFilter_WithDocument(t *testing.T) {
 func TestBuildHolderFilter_WithMetadata(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
-	fe := encryption.NewLegacyFieldEncryptor(crypto)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
 		FieldEncryptor: fe,
 	}
@@ -321,8 +327,7 @@ func TestBuildHolderFilter_WithMetadata(t *testing.T) {
 func TestBuildHolderFilter_InvalidMetadata(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
-	fe := encryption.NewLegacyFieldEncryptor(crypto)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
 		FieldEncryptor: fe,
 	}
@@ -374,8 +379,7 @@ func TestBuildHolderFilter_InvalidMetadata(t *testing.T) {
 func TestBuildHolderFilter_CombinedFilters(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
-	fe := encryption.NewLegacyFieldEncryptor(crypto)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
 		FieldEncryptor: fe,
 	}
@@ -426,15 +430,14 @@ func TestBuildHolderFilter_CombinedFilters(t *testing.T) {
 func TestBuildHolderFilter_HashGeneration(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
-	fe := encryption.NewLegacyFieldEncryptor(crypto)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
 		FieldEncryptor: fe,
 	}
 
 	// Test that document hash is generated consistently
 	document := "12345678901"
-	expectedHash := crypto.GenerateHash(&document)
+	expectedHash := testLegacySearchToken(document)
 
 	query := http.QueryHeader{
 		Limit:    10,
@@ -477,8 +480,7 @@ func TestBuildHolderFilter_HashGeneration(t *testing.T) {
 func TestBuildHolderFilter_EmptyQuery(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
-	fe := encryption.NewLegacyFieldEncryptor(crypto)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
 		FieldEncryptor: fe,
 	}

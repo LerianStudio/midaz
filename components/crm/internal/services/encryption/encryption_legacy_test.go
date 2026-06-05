@@ -100,7 +100,7 @@ func TestNewLegacyKeyMaterial_PreservesLibCommonsCompatibility(t *testing.T) {
 	assert.Equal(t, plaintext, *opened)
 
 	// Tink-backed legacy material produces exact same search token
-	assert.Equal(t, legacy.GenerateHash(&plaintext), material.legacySearchToken(plaintext))
+	assert.Equal(t, legacy.GenerateHash(&plaintext), material.GenerateHash(&plaintext))
 }
 
 func TestNewLegacyKeyMaterial_RejectsInvalidKeyMaterial(t *testing.T) {
