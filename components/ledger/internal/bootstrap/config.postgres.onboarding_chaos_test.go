@@ -33,8 +33,8 @@ import (
 
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	libZap "github.com/LerianStudio/lib-observability/zap"
-	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

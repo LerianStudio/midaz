@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/tracer"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 )
 
 // TracerReserver is the narrow port the transaction create seam depends on to

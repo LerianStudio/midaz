@@ -9,8 +9,8 @@ import (
 	"errors"
 	"testing"
 
-	pkg "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
+	pkg "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

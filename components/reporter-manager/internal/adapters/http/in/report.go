@@ -11,13 +11,13 @@ import (
 
 	"github.com/LerianStudio/lib-observability/log"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/services"
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/model"
-	_ "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/report"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/net/http"
+	"github.com/LerianStudio/midaz/v4/components/reporter-manager/internal/services"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
+	_ "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"

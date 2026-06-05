@@ -14,7 +14,7 @@ import (
 	sql "database/sql"
 	reflect "reflect"
 
-	db "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
+	db "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 
 	gomock "go.uber.org/mock/gomock"
 )

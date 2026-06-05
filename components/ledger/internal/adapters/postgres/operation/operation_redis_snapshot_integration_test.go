@@ -11,8 +11,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

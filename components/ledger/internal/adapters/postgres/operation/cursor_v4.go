@@ -6,7 +6,7 @@ package operation
 
 import (
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	"github.com/LerianStudio/midaz/v3/pkg/pagination"
+	"github.com/LerianStudio/midaz/v4/pkg/pagination"
 	"github.com/Masterminds/squirrel"
 )
 

@@ -7,7 +7,7 @@ package model
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"

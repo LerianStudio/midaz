@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	"github.com/LerianStudio/lib-observability/log"

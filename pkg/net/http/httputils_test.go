@@ -16,7 +16,7 @@ import (
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

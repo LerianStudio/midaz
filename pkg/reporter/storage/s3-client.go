@@ -22,8 +22,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 )
 
 // S3Config contains configuration for S3-compatible storage.

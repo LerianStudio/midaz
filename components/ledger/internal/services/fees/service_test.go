@@ -7,8 +7,8 @@ package services
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/fees/pack"
-	pkg "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
+	pkg "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"

@@ -14,7 +14,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	pkg "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
+	pkg "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/google/uuid"
 )
 

@@ -11,7 +11,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/migration"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/migration"
 )
 
 // ApplyFunctionMigrations applies all function migrations to the test database.

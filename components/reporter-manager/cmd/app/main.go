@@ -10,7 +10,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/bootstrap"
+	"github.com/LerianStudio/midaz/v4/components/reporter-manager/internal/bootstrap"
 )
 
 // @title						Reporter API

@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/seaweedfs"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs"
 )
 
 func TestNewSeaweedFSAdapter(t *testing.T) {

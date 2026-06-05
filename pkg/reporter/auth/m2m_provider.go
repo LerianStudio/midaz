@@ -22,7 +22,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/redact"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/redact"
 )
 
 // maxTokenResponseBodySize is the maximum response body size for token exchange.

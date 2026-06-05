@@ -12,7 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 )
 
 // discoverAllFieldsWithAggregation uses MongoDB aggregation with sampling for large collections.

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
-	pkgRabbitmq "github.com/LerianStudio/midaz/v3/pkg/reporter/rabbitmq"
+	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/reporter/rabbitmq"
 
 	amqp091 "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"

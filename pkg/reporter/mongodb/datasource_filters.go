@@ -9,7 +9,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/model"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 )
 
 // buildMongoFilter converts FilterCondition map to MongoDB filter format.

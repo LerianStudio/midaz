@@ -11,7 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/readyz"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/readyz"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"

@@ -9,7 +9,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/itestkit"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit"
 )
 
 type RedisConfig struct {

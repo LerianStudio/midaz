@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/datasource"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/fetcher"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/fetcher"
 
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"

@@ -24,8 +24,8 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.uber.org/mock/gomock"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/api"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/api"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 )
 
 // createReadyzTestApp registers /readyz against the supplied HealthChecker

@@ -8,7 +8,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"

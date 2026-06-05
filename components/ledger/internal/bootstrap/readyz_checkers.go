@@ -17,7 +17,7 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 

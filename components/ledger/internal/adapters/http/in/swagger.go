@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/ledger/api"
+	"github.com/LerianStudio/midaz/v4/components/ledger/api"
 	"github.com/gofiber/fiber/v2"
 )
 

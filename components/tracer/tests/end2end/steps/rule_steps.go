@@ -14,8 +14,8 @@ import (
 
 	"github.com/cucumber/godog"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v3/components/tracer/tests/end2end/support"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/tests/end2end/support"
 )
 
 func registerRuleSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) {

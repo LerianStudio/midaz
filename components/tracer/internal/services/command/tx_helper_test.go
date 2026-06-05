@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
-	pgdbMocks "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db/mocks"
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	pgdbMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
 )
 
 // TestExecuteInTx_NilTxBeginner verifies that executeInTx returns

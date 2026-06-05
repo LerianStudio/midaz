@@ -17,10 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/cel"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 func TestRuleEvaluator_Evaluate(t *testing.T) {

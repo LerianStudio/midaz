@@ -13,10 +13,10 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 
-	modelTransaction "github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	modelTransaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"

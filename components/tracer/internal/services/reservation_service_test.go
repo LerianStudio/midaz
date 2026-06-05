@@ -15,13 +15,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	pgdbMocks "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db/mocks"
-	servicesMocks "github.com/LerianStudio/midaz/v3/components/tracer/internal/services/mocks"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	pgdbMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
+	servicesMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/services/mocks"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 type reservationDeps struct {

@@ -14,17 +14,17 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/redis"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/redis"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/model"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/postgres"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/postgres"
 )
 
 func TestUseCase_GetBaseCollectionName(t *testing.T) {

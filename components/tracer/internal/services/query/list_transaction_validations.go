@@ -13,9 +13,9 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // formatTimeOrNotSet formats a time value for logging, returning "not set" for zero time.

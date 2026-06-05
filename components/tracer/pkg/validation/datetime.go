@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 )
 
 // ParseRFC3339Timestamp parses a string as RFC3339 timestamp with helpful error messages.

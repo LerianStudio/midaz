@@ -1,4 +1,4 @@
-module github.com/LerianStudio/midaz/v3
+module github.com/LerianStudio/midaz/v4
 
 go 1.26.3
 

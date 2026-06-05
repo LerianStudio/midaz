@@ -13,7 +13,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/templateutils"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/templateutils"
 )
 
 // Property 1: Template parsing deve ser determinístico

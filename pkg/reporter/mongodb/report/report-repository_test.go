@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/model"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

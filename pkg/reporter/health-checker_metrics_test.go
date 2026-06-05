@@ -8,8 +8,8 @@ import (
 	"context"
 	"testing"
 
-	mongoMock "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb"
-	pgMock "github.com/LerianStudio/midaz/v3/pkg/reporter/postgres"
+	mongoMock "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
+	pgMock "github.com/LerianStudio/midaz/v4/pkg/reporter/postgres"
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	libObservability "github.com/LerianStudio/lib-observability"

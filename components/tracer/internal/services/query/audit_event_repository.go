@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // AuditEventRepository defines the read interface for audit event queries.

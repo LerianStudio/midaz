@@ -10,8 +10,8 @@ import (
 
 	libObs "github.com/LerianStudio/lib-observability"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 

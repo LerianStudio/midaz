@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/itestkit/addons/e2ekit"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit/addons/e2ekit"
 )
 
 // AppStartConfig configures how to start a Reporter application container.

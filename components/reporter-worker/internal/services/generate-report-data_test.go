@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/model"
-	mongodb2 "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb"
-	postgres2 "github.com/LerianStudio/midaz/v3/pkg/reporter/postgres"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
+	mongodb2 "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
+	postgres2 "github.com/LerianStudio/midaz/v4/pkg/reporter/postgres"
 
 	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
 	libObservability "github.com/LerianStudio/lib-observability"

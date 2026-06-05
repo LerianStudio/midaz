@@ -11,7 +11,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )

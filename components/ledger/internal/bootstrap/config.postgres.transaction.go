@@ -12,13 +12,13 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // transactionPostgresComponents holds PostgreSQL-related components for the transaction domain.

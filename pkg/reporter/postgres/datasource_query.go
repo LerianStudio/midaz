@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/Masterminds/squirrel"

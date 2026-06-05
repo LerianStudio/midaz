@@ -20,11 +20,11 @@ import (
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
-	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
-	pkgHTTP "github.com/LerianStudio/midaz/v3/components/tracer/pkg/net/http"
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
 )
 
 // LimitRepository implements limitsvc.LimitRepository using PostgreSQL with Squirrel query builder.

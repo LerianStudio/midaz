@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	feeError "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	feeError "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // fakeFeeApplier records invocations and applies a scripted mutation/error so

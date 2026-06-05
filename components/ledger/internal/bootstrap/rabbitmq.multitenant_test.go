@@ -29,7 +29,7 @@ func goleakIgnores() []goleak.Option {
 		goleak.IgnoreAnyFunction("go.uber.org/goleak.(*opts).retry"),
 		goleak.IgnoreAnyFunction("go.uber.org/goleak.Find"),
 		goleak.IgnoreAnyFunction("github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/cache.(*InMemoryCache).cleanupLoop"),
-		goleak.IgnoreAnyFunction("github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq.(*ConsumerRoutes).runConsumerLoop"),
+		goleak.IgnoreAnyFunction("github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq.(*ConsumerRoutes).runConsumerLoop"),
 		goleak.IgnoreAnyFunction("github.com/valyala/fasthttp.updateServerDate.func1"),
 		// MongoDB driver topology background goroutines. InitServers opens client
 		// pools whose maintenance/monitor goroutines only stop on client.Disconnect,

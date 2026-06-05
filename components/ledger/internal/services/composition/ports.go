@@ -5,8 +5,8 @@
 package composition
 
 import (
-	crmservices "github.com/LerianStudio/midaz/v3/components/crm/services"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+	crmservices "github.com/LerianStudio/midaz/v4/components/crm/services"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
 // Compile-time assertions that the concrete use cases satisfy the narrow

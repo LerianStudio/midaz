@@ -18,12 +18,12 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/template"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/postgres"
-	templateSeaweedFS "github.com/LerianStudio/midaz/v3/pkg/reporter/seaweedfs/template"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/template"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/postgres"
+	templateSeaweedFS "github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs/template"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

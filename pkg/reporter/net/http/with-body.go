@@ -13,14 +13,14 @@ import (
 	"strconv"
 	"strings"
 
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 
-	cn "github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	cn "github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 
 	en2 "github.com/go-playground/validator/v10/translations/en"
 )

@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	command "github.com/LerianStudio/midaz/v3/components/tracer/internal/services/command"
+	command "github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	gomock "go.uber.org/mock/gomock"
 )
 

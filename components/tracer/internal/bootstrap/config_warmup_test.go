@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/cache"
-	cachemocks "github.com/LerianStudio/midaz/v3/components/tracer/internal/services/cache/mocks"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/cache"
+	cachemocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/services/cache/mocks"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // TestConditionalWarmUpCache_SingleTenantCallsWarmUp verifies that the

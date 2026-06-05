@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/datasource"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/fetcher"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/fetcher"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"

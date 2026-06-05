@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	h "github.com/LerianStudio/midaz/v3/tests/reporter/utils"
+	h "github.com/LerianStudio/midaz/v4/tests/reporter/utils"
 )
 
 // TestMultiTenant_BackwardCompatibility is the canonical regression guard for

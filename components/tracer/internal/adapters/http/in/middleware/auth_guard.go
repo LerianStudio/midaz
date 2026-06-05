@@ -8,9 +8,9 @@ import (
 	authMiddleware "github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/contextutil"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
-	pkgHTTP "github.com/LerianStudio/midaz/v3/components/tracer/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
 )
 
 // CodeUnauthorizedMissingSub is the response code returned when a Bearer token

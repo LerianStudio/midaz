@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/storage"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/storage"
 )
 
 // initStorageClient creates the S3-compatible storage client from configuration.

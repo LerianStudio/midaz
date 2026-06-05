@@ -44,7 +44,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	testutil_integration "github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil_integration"
+	testutil_integration "github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil_integration"
 )
 
 // TestMultiTenant_RulesIsolation_TwoTenants is the read-surface isolation gate.

@@ -7,7 +7,7 @@ package mtransaction
 import (
 	"github.com/shopspring/decimal"
 
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // CreateTransactionInput is a struct design to encapsulate payload data.

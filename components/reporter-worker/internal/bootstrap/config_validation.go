@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 )
 
 // Validate checks that all required configuration fields are present.

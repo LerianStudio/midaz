@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/redact"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/redact"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/lib-observability/log"

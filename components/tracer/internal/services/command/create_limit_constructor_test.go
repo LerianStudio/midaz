@@ -14,12 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
-	pgdbMocks "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db/mocks"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testhelper"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	pgdbMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testhelper"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // TestNewCreateLimitCommand_NilAuditWriter exercises the auditWriter-nil

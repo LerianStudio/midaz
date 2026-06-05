@@ -5,9 +5,9 @@
 package in
 
 import (
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
-	feehttp "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	feehttp "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	"github.com/gofiber/fiber/v2"

@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 )
 
 // The two reporter-specific filters that synthesize a field at render time from

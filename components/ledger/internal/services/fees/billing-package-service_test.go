@@ -9,10 +9,10 @@ import (
 	"errors"
 	"testing"
 
-	billing_package "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/fees/billing_package"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
+	billing_package "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"

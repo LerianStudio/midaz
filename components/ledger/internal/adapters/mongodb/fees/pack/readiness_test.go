@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	mmongoDB "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/fees"
+	mmongoDB "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	mg "go.mongodb.org/mongo-driver/v2/mongo"

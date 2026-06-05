@@ -18,8 +18,8 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 )
 
 // UsageCleanupWorkerConfig holds configuration for the cleanup worker.

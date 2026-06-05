@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // UsageCounterPostgreSQLModel is the database representation of a UsageCounter entity.

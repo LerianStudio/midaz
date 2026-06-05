@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/template_builder"
-	h "github.com/LerianStudio/midaz/v3/tests/reporter/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/template_builder"
+	h "github.com/LerianStudio/midaz/v4/tests/reporter/utils"
 )
 
 const generateCodePath = "/v1/templates/generate-code"

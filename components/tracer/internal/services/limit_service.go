@@ -12,10 +12,10 @@ import (
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // LimitService is a facade that combines limit commands and queries.

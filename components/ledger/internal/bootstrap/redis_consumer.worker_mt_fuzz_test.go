@@ -10,8 +10,8 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
 // FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled fuzzes the

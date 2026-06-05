@@ -21,15 +21,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/workers"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // ---------------------------------------------------------------------------

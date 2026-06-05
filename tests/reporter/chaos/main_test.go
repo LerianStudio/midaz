@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	h "github.com/LerianStudio/midaz/v3/tests/reporter/utils"
-	chaosutil "github.com/LerianStudio/midaz/v3/tests/reporter/utils/chaos"
-	"github.com/LerianStudio/midaz/v3/tests/reporter/utils/containers"
-	"github.com/LerianStudio/midaz/v3/tests/reporter/utils/services"
+	h "github.com/LerianStudio/midaz/v4/tests/reporter/utils"
+	chaosutil "github.com/LerianStudio/midaz/v4/tests/reporter/utils/chaos"
+	"github.com/LerianStudio/midaz/v4/tests/reporter/utils/containers"
+	"github.com/LerianStudio/midaz/v4/tests/reporter/utils/services"
 )
 
 var (

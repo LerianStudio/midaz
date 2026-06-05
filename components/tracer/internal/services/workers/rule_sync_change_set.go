@@ -7,8 +7,8 @@ package workers
 import (
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/cache"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/cache"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // ChangeSet holds the result of classifying fetched rules against cached state.

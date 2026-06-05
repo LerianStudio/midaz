@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 )
 
 // RedactConnectionString masks credentials in a connection URI.

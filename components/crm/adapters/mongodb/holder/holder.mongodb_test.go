@@ -7,8 +7,8 @@ package holder
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"

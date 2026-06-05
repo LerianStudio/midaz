@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/deadline"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/deadline"
 )
 
 // validTypes is the set of valid deadline types for generating test inputs.

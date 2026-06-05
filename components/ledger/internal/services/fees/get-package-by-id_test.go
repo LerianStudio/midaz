@@ -8,9 +8,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/fees/pack"
-	mongoPack "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
+	mongoPack "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"

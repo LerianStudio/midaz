@@ -11,11 +11,11 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/fees/pack"
-	feeerrors "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
-	feeconstant "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
-	feehttp "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
+	feeerrors "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	feehttp "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"

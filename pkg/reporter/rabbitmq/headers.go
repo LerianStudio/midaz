@@ -8,7 +8,7 @@ import (
 	"context"
 	"maps"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/datasource"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/fetcher"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/fetcher"
 
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"

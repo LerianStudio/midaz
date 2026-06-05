@@ -20,12 +20,12 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
-	pkgHTTP "github.com/LerianStudio/midaz/v3/components/tracer/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
 )
 
 // ReservationService defines the two-phase reservation operations the handler

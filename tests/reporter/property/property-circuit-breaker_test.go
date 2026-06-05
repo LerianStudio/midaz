@@ -15,7 +15,7 @@ import (
 	"github.com/LerianStudio/lib-observability/zap"
 	"github.com/sony/gobreaker"
 
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 )
 
 func newTestLogger() *zap.Logger {

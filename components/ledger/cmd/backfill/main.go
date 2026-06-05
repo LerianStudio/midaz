@@ -17,7 +17,7 @@ import (
 	"os"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/bootstrap"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/bootstrap"
 )
 
 func main() {

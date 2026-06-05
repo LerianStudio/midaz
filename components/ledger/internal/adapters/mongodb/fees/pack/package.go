@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/bsondecimal"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/bsondecimal"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/google/uuid"

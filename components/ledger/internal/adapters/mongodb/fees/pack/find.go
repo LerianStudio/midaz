@@ -13,11 +13,11 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/bsondecimal"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/bsondecimal"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"

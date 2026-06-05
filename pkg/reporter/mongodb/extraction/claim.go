@@ -8,8 +8,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"go.mongodb.org/mongo-driver/v2/bson"

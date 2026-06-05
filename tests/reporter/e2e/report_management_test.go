@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v3/tests/reporter/e2e/shared"
+	"github.com/LerianStudio/midaz/v4/tests/reporter/e2e/shared"
 )
 
 // createTestTemplate creates a template for report tests and returns its ID.

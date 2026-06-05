@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 
 	"github.com/moby/moby/api/types/container"
 	"github.com/stretchr/testify/require"

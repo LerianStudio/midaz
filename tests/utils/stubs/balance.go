@@ -11,8 +11,8 @@ import (
 	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/google/uuid"
 )
 

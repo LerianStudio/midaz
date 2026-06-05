@@ -9,8 +9,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 )
 
 // WithError returns an error with the given status code and message.

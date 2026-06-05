@@ -46,7 +46,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	tracermodel "github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	tracermodel "github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // tracerReserveEndpoint is the real tracer reserve validation mounted over

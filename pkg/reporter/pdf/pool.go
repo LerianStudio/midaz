@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	cn "github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	cn "github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/chromedp/cdproto/fetch"

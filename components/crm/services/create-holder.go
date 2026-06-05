@@ -12,7 +12,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"go.opentelemetry.io/otel/attribute"
 
 	// CreateHolder inserts a holder data in the repository

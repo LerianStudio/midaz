@@ -12,7 +12,7 @@ import (
 
 	clog "github.com/LerianStudio/lib-observability/log"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/readyz"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/readyz"
 )
 
 // Config holds the application's configurable parameters read from environment variables.

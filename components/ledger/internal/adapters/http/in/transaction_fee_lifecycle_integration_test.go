@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"

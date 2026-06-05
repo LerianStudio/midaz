@@ -19,9 +19,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	mongoContainer "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
-	pgContainer "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
-	redisContainer "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	mongoContainer "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
+	pgContainer "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
+	redisContainer "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
 // newReadyHandler (the shared ready-handler test helper) is defined once in

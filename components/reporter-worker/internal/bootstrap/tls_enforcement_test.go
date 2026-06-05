@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/readyz"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/readyz"
 )
 
 // validSaaSTLSWorkerConfig returns a Worker Config where every DSN uses TLS,

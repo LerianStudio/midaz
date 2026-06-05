@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 
 	"github.com/flosch/pongo2/v6"
 	"github.com/shopspring/decimal"

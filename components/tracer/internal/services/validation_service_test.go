@@ -16,15 +16,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
-	pgdbMocks "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db/mocks"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/command"
-	commandMocks "github.com/LerianStudio/midaz/v3/components/tracer/internal/services/command/mocks"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/mocks"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/query"
-	queryMocks "github.com/LerianStudio/midaz/v3/components/tracer/internal/services/query/mocks"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	pgdbMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
+	commandMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command/mocks"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/mocks"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
+	queryMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query/mocks"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 func TestValidateTransaction(t *testing.T) {

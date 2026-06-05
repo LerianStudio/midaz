@@ -8,8 +8,8 @@ import (
 	"context"
 	"fmt"
 
-	rabbitmqadapter "github.com/LerianStudio/midaz/v3/components/reporter-worker/internal/adapters/rabbitmq"
-	reportData "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/report"
+	rabbitmqadapter "github.com/LerianStudio/midaz/v4/components/reporter-worker/internal/adapters/rabbitmq"
+	reportData "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
 
 	libRabbitMQ "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"

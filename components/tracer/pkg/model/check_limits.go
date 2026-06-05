@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 )
 
 // CheckLimitsInput represents the input for limit checking operations.

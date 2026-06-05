@@ -9,7 +9,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/gofiber/fiber/v2"
 )
 

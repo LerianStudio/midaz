@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	extractionRepo "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/extraction"
-	reportData "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/report"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/redis"
+	extractionRepo "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/extraction"
+	reportData "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/redis"
 
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/stretchr/testify/assert"

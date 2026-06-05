@@ -7,7 +7,7 @@ package http
 import (
 	"encoding/json"
 
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 
 	"github.com/gofiber/fiber/v2"
 )

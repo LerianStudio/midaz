@@ -10,9 +10,9 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
-	feesservices "github.com/LerianStudio/midaz/v3/components/ledger/internal/services/fees"
-	feesmidaz "github.com/LerianStudio/midaz/v3/components/ledger/internal/services/fees/midaz"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
+	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
+	feesmidaz "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/midaz"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 )
 
 // feesComponents holds the fee/billing slice of the unified ledger binary: the

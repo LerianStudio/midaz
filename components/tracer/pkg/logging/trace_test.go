@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 )
 
 // Note: This test sets global tracer provider via otel.SetTracerProvider.

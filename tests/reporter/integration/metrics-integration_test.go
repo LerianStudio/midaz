@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	h "github.com/LerianStudio/midaz/v3/tests/reporter/utils"
+	h "github.com/LerianStudio/midaz/v4/tests/reporter/utils"
 
-	libMongo "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb"
-	reportRepo "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/report"
-	templateRepo "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/template"
+	libMongo "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
+	reportRepo "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
+	templateRepo "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/template"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

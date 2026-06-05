@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pg "github.com/LerianStudio/midaz/v3/pkg/reporter/postgres"
+	pg "github.com/LerianStudio/midaz/v4/pkg/reporter/postgres"
 )
 
 func TestIsFatalError(t *testing.T) {

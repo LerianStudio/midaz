@@ -7,7 +7,7 @@ package billing_package
 import (
 	"fmt"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"

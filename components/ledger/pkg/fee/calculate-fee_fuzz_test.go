@@ -10,12 +10,12 @@ package fee
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	libZap "github.com/LerianStudio/lib-observability/zap"
-	transaction "github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )

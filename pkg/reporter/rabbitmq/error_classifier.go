@@ -9,7 +9,7 @@ import (
 	"errors"
 	"strings"
 
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 )

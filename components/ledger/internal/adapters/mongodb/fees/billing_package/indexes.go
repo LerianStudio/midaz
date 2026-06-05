@@ -8,9 +8,9 @@ import (
 	"context"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 
-	mmongoDB "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/fees"
+	mmongoDB "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"

@@ -9,11 +9,11 @@ import (
 	"errors"
 	nethttp "net/http"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/model"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/deadline"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/net/http"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/readyz"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/deadline"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/readyz"
 
 	middlewareAuth "github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"

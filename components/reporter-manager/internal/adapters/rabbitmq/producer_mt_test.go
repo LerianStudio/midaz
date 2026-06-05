@@ -9,7 +9,7 @@ package rabbitmq
 import (
 	"testing"
 
-	pkgRabbitmq "github.com/LerianStudio/midaz/v3/pkg/reporter/rabbitmq"
+	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/reporter/rabbitmq"
 
 	"github.com/stretchr/testify/assert"
 )

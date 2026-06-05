@@ -12,8 +12,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/pongo"
-	h "github.com/LerianStudio/midaz/v3/tests/reporter/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/pongo"
+	h "github.com/LerianStudio/midaz/v4/tests/reporter/utils"
 )
 
 // TestIntegration_TemplateBuilder_GetBlocksConfig_ReturnsAllBlockTypes verifies that

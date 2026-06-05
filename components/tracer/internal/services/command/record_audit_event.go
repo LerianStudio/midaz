@@ -14,9 +14,9 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
 
-	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/contextutil"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // systemActorID is the fallback actor identifier used for events that

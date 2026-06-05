@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 )
 
 func TestErrDataSourceNotFound_ImplementsError(t *testing.T) {

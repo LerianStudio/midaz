@@ -9,8 +9,8 @@ import (
 	"time"
 
 	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

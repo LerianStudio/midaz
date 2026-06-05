@@ -11,10 +11,10 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/google/uuid"
 
-	feeError "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	feeError "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // FeeApplier drives the in-process fee engine over a transaction's validated

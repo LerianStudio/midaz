@@ -11,7 +11,7 @@ import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	pkgHTTP "github.com/LerianStudio/midaz/v3/pkg/net/http"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

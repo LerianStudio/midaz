@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
-	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
+	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )

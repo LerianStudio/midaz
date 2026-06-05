@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	pkg "github.com/LerianStudio/midaz/v3/pkg"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

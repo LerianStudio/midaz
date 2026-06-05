@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 )
 
 // =============================================================================

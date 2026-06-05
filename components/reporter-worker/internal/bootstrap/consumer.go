@@ -13,12 +13,12 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter-worker/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/v3/components/reporter-worker/internal/services"
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
-	pkgHTTP "github.com/LerianStudio/midaz/v3/pkg/reporter/net/http"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/readyz"
+	"github.com/LerianStudio/midaz/v4/components/reporter-worker/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v4/components/reporter-worker/internal/services"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/readyz"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"

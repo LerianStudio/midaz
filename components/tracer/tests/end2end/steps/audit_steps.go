@@ -14,7 +14,7 @@ import (
 	"github.com/cucumber/godog"
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/tests/end2end/support"
+	"github.com/LerianStudio/midaz/v4/components/tracer/tests/end2end/support"
 )
 
 func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) {

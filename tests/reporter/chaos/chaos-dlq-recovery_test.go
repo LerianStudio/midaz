@@ -15,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	h "github.com/LerianStudio/midaz/v3/tests/reporter/utils"
+	h "github.com/LerianStudio/midaz/v4/tests/reporter/utils"
 )
 
 func fetchFirstTemplateID(t *testing.T, ctx context.Context, cli *h.HTTPClient, headers map[string]string) string {

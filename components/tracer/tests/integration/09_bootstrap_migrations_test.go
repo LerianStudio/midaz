@@ -18,7 +18,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 )
 
 // TestBootstrapAppliesAllMigrations verifies that bootstrap.InitServers()

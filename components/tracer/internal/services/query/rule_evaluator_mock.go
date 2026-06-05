@@ -13,8 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	cel "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/cel"
-	model "github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	cel "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
+	model "github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 
 	gomock "go.uber.org/mock/gomock"
 )

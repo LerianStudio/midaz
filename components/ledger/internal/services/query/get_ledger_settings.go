@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // SettingsCacheTTL is the TTL for cached ledger settings (5 minutes).

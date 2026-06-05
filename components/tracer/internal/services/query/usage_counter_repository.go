@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // UsageCounterRepository defines the interface for usage counter persistence in queries.

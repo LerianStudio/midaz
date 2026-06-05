@@ -7,8 +7,8 @@ package services
 import (
 	"context"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
-	pkgHTTP "github.com/LerianStudio/midaz/v3/pkg/reporter/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 
 	"github.com/LerianStudio/lib-observability/log"
 	opentelemetry "github.com/LerianStudio/lib-observability/tracing"

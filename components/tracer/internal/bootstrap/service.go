@@ -19,8 +19,8 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libRuntime "github.com/LerianStudio/lib-observability/runtime"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/workers"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
 )
 
 // Service is the application glue where we put all top level components to be used.

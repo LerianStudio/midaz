@@ -9,8 +9,8 @@ package in
 import (
 	"testing"
 
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	postgrestestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"

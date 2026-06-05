@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/redis"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/redis"
 
 	tmValkey "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/valkey"
 	"github.com/LerianStudio/lib-observability/log"

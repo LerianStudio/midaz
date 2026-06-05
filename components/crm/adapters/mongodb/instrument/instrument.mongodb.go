@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
@@ -22,7 +22,7 @@ import (
 	libObs "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
-	mongoUtils "github.com/LerianStudio/midaz/v3/pkg/mongo"
+	mongoUtils "github.com/LerianStudio/midaz/v4/pkg/mongo"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"

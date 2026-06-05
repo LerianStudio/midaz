@@ -20,15 +20,15 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 
-	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/metrics"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/sanitize"
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/metrics"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/sanitize"
 )
 
 // validationPersistTimeout is the maximum duration for transaction validation record persistence.

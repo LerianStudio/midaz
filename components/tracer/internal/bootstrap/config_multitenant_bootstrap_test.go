@@ -18,11 +18,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/cache"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/workers"
-	workermocks "github.com/LerianStudio/midaz/v3/components/tracer/internal/services/workers/mocks"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/cache"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
+	workermocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers/mocks"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 )
 
 // splitHostPort returns the host and port segments for a miniredis address.

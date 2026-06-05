@@ -15,9 +15,9 @@ import (
 
 	"github.com/LerianStudio/lib-observability/log"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter-manager/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/deadline"
+	"github.com/LerianStudio/midaz/v4/components/reporter-manager/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/deadline"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"

@@ -11,8 +11,8 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/model"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/rabbitmq"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/rabbitmq"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

@@ -17,11 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/cache"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/workers/mocks"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/resilience"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/cache"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers/mocks"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/resilience"
 )
 
 // newTestCircuitBreaker creates a circuit breaker with fast thresholds for testing.

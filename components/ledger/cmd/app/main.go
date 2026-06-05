@@ -13,7 +13,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libZap "github.com/LerianStudio/lib-observability/zap"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/bootstrap"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/bootstrap"
 )
 
 // @title			Midaz Ledger API

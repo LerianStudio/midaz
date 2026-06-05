@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	h "github.com/LerianStudio/midaz/v3/tests/reporter/utils"
+	h "github.com/LerianStudio/midaz/v4/tests/reporter/utils"
 )
 
 func sendReportRequests(t *testing.T, ctx context.Context, cli *h.HTTPClient, headers map[string]string, templateID string, count int) (successCount, failureCount int) {

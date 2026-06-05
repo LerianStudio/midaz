@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	reportData "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/report"
+	reportData "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
 
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/google/uuid"

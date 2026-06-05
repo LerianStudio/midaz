@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	"github.com/stretchr/testify/assert"
 )
 

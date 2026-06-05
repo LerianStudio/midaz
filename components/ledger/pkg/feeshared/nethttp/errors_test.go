@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 )

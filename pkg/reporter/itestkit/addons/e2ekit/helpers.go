@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/itestkit"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit"
 )
 
 var (

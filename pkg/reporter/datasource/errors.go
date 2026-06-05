@@ -4,7 +4,7 @@
 
 package datasource
 
-import "github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+import "github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 
 // Error sentinels for datasource operations. Each sentinel wraps a constant
 // from pkg/constant with a TPL-XXXX code, enabling integration with

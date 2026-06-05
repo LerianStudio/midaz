@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 func TestCreateTransactionInput_BuildTransaction(t *testing.T) {

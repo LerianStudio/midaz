@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	feemodel "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"

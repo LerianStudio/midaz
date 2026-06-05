@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	mmongoDB "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/fees"
+	mmongoDB "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
 )
 

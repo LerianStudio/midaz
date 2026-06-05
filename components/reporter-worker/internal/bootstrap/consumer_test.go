@@ -10,10 +10,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter-worker/internal/services"
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
-	reportData "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/report"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/seaweedfs/template"
+	"github.com/LerianStudio/midaz/v4/components/reporter-worker/internal/services"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	reportData "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs/template"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	"github.com/LerianStudio/lib-observability/log"

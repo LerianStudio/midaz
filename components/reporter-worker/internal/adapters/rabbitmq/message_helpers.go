@@ -7,7 +7,7 @@ package rabbitmq
 import (
 	"context"
 
-	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"

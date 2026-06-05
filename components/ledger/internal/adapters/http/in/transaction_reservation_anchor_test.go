@@ -19,10 +19,10 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/tracer"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // fixedReserveTimestamp is a deterministic timestamp the anchor tests pass for

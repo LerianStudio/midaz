@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/ctxutil"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/net/http"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/lib-observability/log"
@@ -25,7 +25,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
 
-	libMongo "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb"
+	libMongo "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
 )
 
 // Repository provides an interface for operations related on mongo a metadata entities.

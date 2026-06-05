@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/seaweedfs/report"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs/report"
 
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/google/uuid"

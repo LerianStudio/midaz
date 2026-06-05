@@ -7,7 +7,7 @@ package mongo
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/tests/utils/stubs"
+	"github.com/LerianStudio/midaz/v4/tests/utils/stubs"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )

@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	transaction "github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

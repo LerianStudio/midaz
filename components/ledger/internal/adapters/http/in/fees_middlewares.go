@@ -5,9 +5,9 @@
 package in
 
 import (
-	feeerrors "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
-	feeconstant "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
-	feehttp "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
+	feeerrors "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feehttp "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/gofiber/fiber/v2"

@@ -12,8 +12,8 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 
-	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // ruleSyncColumns defines the column list for rule sync queries.

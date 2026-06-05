@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 )
 
 // GetMimeType return a MIME type correctly based with outputFormat

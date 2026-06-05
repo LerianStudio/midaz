@@ -17,10 +17,10 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
-	pkgHTTP "github.com/LerianStudio/midaz/v3/components/tracer/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
 )
 
 // AuditEventService defines the interface for audit event query operations.

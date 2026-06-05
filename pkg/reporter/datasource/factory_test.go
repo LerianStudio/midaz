@@ -7,7 +7,7 @@ package datasource
 import (
 	"testing"
 
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

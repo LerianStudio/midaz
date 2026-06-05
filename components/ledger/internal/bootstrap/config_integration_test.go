@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 	_ "github.com/jackc/pgx/v5/stdlib" // register the "pgx" database/sql driver
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

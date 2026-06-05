@@ -18,9 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/workers/mocks"
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers/mocks"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 )
 
 // fixedReaperTime is the deterministic "now" used across reaper tests. Per the

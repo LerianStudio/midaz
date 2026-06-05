@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/gofiber/fiber/v2"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"

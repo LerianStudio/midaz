@@ -23,10 +23,10 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/tracer"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // F3-T19 — fail-posture PROOFS (Gates 4 and 5). These complement the

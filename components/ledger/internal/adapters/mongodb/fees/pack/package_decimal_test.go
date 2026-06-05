@@ -7,7 +7,7 @@ package pack
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	"github.com/stretchr/testify/assert"
 )

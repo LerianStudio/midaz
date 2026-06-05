@@ -15,12 +15,12 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
-	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/holder"
-	crmservices "github.com/LerianStudio/midaz/v3/components/crm/services"
-	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
+	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/instrument"
+	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/holder"
+	crmservices "github.com/LerianStudio/midaz/v4/components/crm/services"
+	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgMongo "github.com/LerianStudio/midaz/v4/pkg/mongo"
 )
 
 // crmComponents holds the CRM (holder/alias) components wired into the unified

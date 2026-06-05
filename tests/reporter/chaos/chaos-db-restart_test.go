@@ -14,7 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	h "github.com/LerianStudio/midaz/v3/tests/reporter/utils"
+	h "github.com/LerianStudio/midaz/v4/tests/reporter/utils"
 )
 
 // TestIntegration_Chaos_Datastores_RestartAndRecover restarts MongoDB and Valkey containers and

@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 )
 
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.

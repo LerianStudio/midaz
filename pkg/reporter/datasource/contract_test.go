@@ -9,8 +9,8 @@ import (
 	"errors"
 	"testing"
 
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/fetcher"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/fetcher"
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 

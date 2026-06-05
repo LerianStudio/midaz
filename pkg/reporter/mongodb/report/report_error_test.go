@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
-	libMongo "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb"
+	libMongo "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
 )
 
 func TestResolveDatabase_FailsClosed_WhenTenantIDExistsWithoutMongoDatabase(t *testing.T) {

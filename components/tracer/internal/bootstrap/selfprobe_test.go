@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/observability"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/observability"
 )
 
 // newProbeRecorderForTest builds a Recorder backed by a fresh per-test

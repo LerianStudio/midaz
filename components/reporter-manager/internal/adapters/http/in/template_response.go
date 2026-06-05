@@ -5,8 +5,8 @@
 package in
 
 import (
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/datasource"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/template"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/template"
 )
 
 // TemplateResponse wraps a Template with optional warnings from schema

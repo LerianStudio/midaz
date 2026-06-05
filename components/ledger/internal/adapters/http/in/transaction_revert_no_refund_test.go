@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/tracer"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // TestRevertNoReservationRefund is the permanent behavioral lock for Q9

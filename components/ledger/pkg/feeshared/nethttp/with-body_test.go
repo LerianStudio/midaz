@@ -9,8 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	transaction "github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
+	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"

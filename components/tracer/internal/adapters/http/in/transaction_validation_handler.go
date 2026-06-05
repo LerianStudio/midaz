@@ -20,12 +20,12 @@ import (
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/logging"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
-	pkgHTTP "github.com/LerianStudio/midaz/v3/components/tracer/pkg/net/http"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/validation"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/validation"
 )
 
 // TransactionValidationService defines the interface for transaction validation operations.

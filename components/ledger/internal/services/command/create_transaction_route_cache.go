@@ -10,8 +10,8 @@ import (
 
 	libObs "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	// CreateAccountingRouteCache creates a cache for the accounting route.
 	// It converts the transaction route into a cache structure and stores it in Redis.

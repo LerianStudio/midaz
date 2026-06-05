@@ -11,11 +11,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/datasource"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/fetcher"
-	extractionRepo "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/extraction"
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/redis"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/fetcher"
+	extractionRepo "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/extraction"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/redis"
 
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"

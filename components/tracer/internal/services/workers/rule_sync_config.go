@@ -7,7 +7,7 @@ package workers
 import (
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/resilience"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/resilience"
 )
 
 // RuleSyncWorkerConfig holds configuration for the rule sync worker.

@@ -9,7 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg"
 )
 
 // Unauthorized sends an HTTP 401 Unauthorized response with a custom code, title and message.

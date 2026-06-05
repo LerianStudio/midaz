@@ -7,8 +7,8 @@ package command
 import (
 	"context"
 
-	pgdb "github.com/LerianStudio/midaz/v3/components/tracer/internal/adapters/postgres/db"
-	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 //go:generate mockgen -source=audit_event_repository.go -destination=mocks/audit_event_repository_mock.go -package=mocks

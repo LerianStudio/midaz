@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	h "github.com/LerianStudio/midaz/v3/tests/reporter/utils"
-	chaosutil "github.com/LerianStudio/midaz/v3/tests/reporter/utils/chaos"
+	h "github.com/LerianStudio/midaz/v4/tests/reporter/utils"
+	chaosutil "github.com/LerianStudio/midaz/v4/tests/reporter/utils/chaos"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

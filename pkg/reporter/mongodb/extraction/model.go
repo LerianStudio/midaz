@@ -7,7 +7,7 @@ package extraction
 import (
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/datasource"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
 )
 
 // ExtractionMappingMongoDBModel represents the MongoDB document model for ExtractionMapping.

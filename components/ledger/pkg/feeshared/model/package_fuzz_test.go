@@ -10,7 +10,7 @@ package model
 import (
 	"testing"
 
-	pkgHttp "github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/nethttp"
+	pkgHttp "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
 )
 
 // FuzzCreatePackageInput_Validate fuzzes the CreatePackageInput validation

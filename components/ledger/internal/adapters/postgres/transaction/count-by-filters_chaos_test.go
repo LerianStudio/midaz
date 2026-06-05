@@ -27,8 +27,8 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"

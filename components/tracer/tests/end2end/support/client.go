@@ -20,7 +20,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 )
 
 // HTTPClient is a shared HTTP client with timeout for E2E tests.

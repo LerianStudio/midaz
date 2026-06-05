@@ -8,7 +8,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	amqp "github.com/rabbitmq/amqp091-go"

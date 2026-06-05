@@ -11,7 +11,7 @@ import (
 
 	"github.com/cucumber/godog"
 
-	"github.com/LerianStudio/midaz/v3/components/tracer/tests/end2end/support"
+	"github.com/LerianStudio/midaz/v4/components/tracer/tests/end2end/support"
 )
 
 // InitializeScenario registers all step definitions for a Godog scenario.

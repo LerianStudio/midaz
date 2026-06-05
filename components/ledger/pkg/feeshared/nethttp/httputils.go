@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v3/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"

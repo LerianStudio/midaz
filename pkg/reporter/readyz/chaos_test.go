@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v3/pkg/reporter/datasource"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
 )
 
 // Layer 8 of the canonical 9-test-layer matrix in dev-readyz/SKILL.md.

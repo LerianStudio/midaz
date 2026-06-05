@@ -7,8 +7,8 @@ package in
 import (
 	"os"
 
-	"github.com/LerianStudio/midaz/v3/components/reporter-manager/api"
-	pkg "github.com/LerianStudio/midaz/v3/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/components/reporter-manager/api"
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 
 	"github.com/gofiber/fiber/v2"
 )

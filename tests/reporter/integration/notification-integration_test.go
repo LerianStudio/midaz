@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	h "github.com/LerianStudio/midaz/v3/tests/reporter/utils"
+	h "github.com/LerianStudio/midaz/v4/tests/reporter/utils"
 
-	libMongo "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb"
-	deadlineRepo "github.com/LerianStudio/midaz/v3/pkg/reporter/mongodb/deadline"
+	libMongo "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
+	deadlineRepo "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/deadline"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

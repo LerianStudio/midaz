@@ -14,7 +14,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	attribute "go.opentelemetry.io/otel/attribute"
