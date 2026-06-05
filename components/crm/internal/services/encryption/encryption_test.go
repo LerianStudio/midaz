@@ -1208,7 +1208,7 @@ func TestService_GenerateSearchToken_StateResolverError(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Global Mode Tests (ST-002-01: Lazy Provisioning via Global Mode)
+// Global Mode Tests (Lazy Provisioning via Global Mode)
 // ---------------------------------------------------------------------------
 
 // TestService_Encrypt_GlobalModeEnvelope_TriggersLazyProvisioning tests that when

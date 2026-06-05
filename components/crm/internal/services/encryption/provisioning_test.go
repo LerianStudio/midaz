@@ -351,6 +351,8 @@ func TestProvisioningService_Provision_Success(t *testing.T) {
 	assert.Equal(t, "tenant-123", savedRegistry.TenantID)
 	assert.Equal(t, "org-456", savedRegistry.OrganizationID)
 	assert.Equal(t, mmodel.RegistryStatusActive, savedRegistry.Status)
+	assert.Equal(t, mmodel.ProtectionModelEnvelope, savedRegistry.ProtectionModel,
+		"provisioned registry must have ProtectionModel=envelope")
 	assert.True(t, savedRegistry.LegacyReadable, "provisioned registry must have LegacyReadable=true")
 
 	// Verify generators were called

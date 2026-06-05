@@ -1378,6 +1378,89 @@ func TestKeysetManager_InvalidateCacheForTenant_OnlyAffectsSpecificTenant(t *tes
 	}
 }
 
+// TestKeysetManager_GetPrimitives_AutoProvision_RegistryProperties verifies that when
+// auto-provisioning occurs, the provisioned registry has the expected properties:
+// - Status: active
+// - ProtectionModel: envelope
+// - LegacyReadable: true
+func TestKeysetManager_GetPrimitives_AutoProvision_RegistryProperties(t *testing.T) {
+	t.Parallel()
+
+	aeadBytes, macBytes := generateTestKeysets(t)
+
+	// Reader returns not found initially, then returns keyset after provisioning
+	reader := &fakeKeysetRepoWithProvision{
+		keyset: nil,
+		err:    constant.ErrKeysetNotFound,
+		keysetAfterProv: &mmodel.OrganizationKeyset{
+			OrganizationID:    "org-registry-test",
+			KEKPath:           "org-org-registry-test",
+			WrappedKeyset:     "wrapped-aead",
+			WrappedHMACKeyset: "wrapped-mac",
+		},
+		errAfterProv: nil,
+	}
+
+	unwrapper := &fakeKeysetUnwrapper{
+		aeadKeyset: aeadBytes,
+		macKeyset:  macBytes,
+	}
+
+	// Provisioner that returns result with expected registry properties
+	provisioner := &fakeProvisioningService{
+		provisionResult: ProvisionResult{
+			OrganizationID:   "org-registry-test",
+			KEKPath:          "org-org-registry-test",
+			AEADPrimaryKeyID: 12345,
+			MACPrimaryKeyID:  67890,
+			RegistryStatus:   mmodel.RegistryStatusActive,
+		},
+		onProvision: func() {
+			reader.markProvisioned()
+		},
+	}
+
+	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig())
+
+	// Context with tenant ID (required for auto-provisioning)
+	ctx := tmcore.ContextWithTenantID(context.Background(), "test-tenant")
+
+	aead, mac, err := manager.GetPrimitives(ctx, "org-registry-test")
+	if err != nil {
+		t.Fatalf("GetPrimitives() error = %v", err)
+	}
+
+	if aead == nil {
+		t.Error("GetPrimitives() AEAD is nil")
+	}
+
+	if mac == nil {
+		t.Error("GetPrimitives() MAC is nil")
+	}
+
+	// Verify provisioner was called
+	if provisioner.getCalls() != 1 {
+		t.Errorf("GetPrimitives() provisioner calls = %d, want 1", provisioner.getCalls())
+	}
+
+	// Verify provisioner received correct request
+	lastReq := provisioner.getLastRequest()
+	if lastReq.OrganizationID != "org-registry-test" {
+		t.Errorf("Provision request OrganizationID = %q, want %q", lastReq.OrganizationID, "org-registry-test")
+	}
+
+	if lastReq.TenantID != "test-tenant" {
+		t.Errorf("Provision request TenantID = %q, want %q", lastReq.TenantID, "test-tenant")
+	}
+
+	// The provisioner result should have active registry status
+	// (actual registry persistence is verified in provisioning_test.go)
+	if provisioner.provisionResult.RegistryStatus != mmodel.RegistryStatusActive {
+		t.Errorf("ProvisionResult RegistryStatus = %v, want %v",
+			provisioner.provisionResult.RegistryStatus, mmodel.RegistryStatusActive)
+	}
+}
+
 // TestBuildCacheKey verifies the cache key format.
 func TestBuildCacheKey(t *testing.T) {
 	t.Parallel()

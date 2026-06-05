@@ -2,12 +2,12 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-// T-008 + T-014: Accounting Entries Extension — Overdraft
+// Accounting Entries Extension — Overdraft
 //
 // These tests capture the expected behavior for the `Overdraft` field on
-// the AccountingEntries struct. After T-014, the separate `Refund` field
-// was collapsed into Overdraft — the single entry covers the full overdraft
-// lifecycle (Debit rubric = deficit grows, Credit rubric = repayment).
+// the AccountingEntries struct. The separate `Refund` field was collapsed
+// into Overdraft — the single entry covers the full overdraft lifecycle
+// (Debit rubric = deficit grows, Credit rubric = repayment).
 //
 // The field follows the same pattern as the existing scenario fields
 // (Direct, Hold, Commit, Cancel, Revert) and requires BOTH `Debit` +
@@ -45,7 +45,7 @@ func TestAccountingEntries_HasOverdraftField(t *testing.T) {
 
 // TestAccountingEntries_Actions_IncludesOverdraft ensures that the
 // Actions() helper reports "overdraft" when the field is non-nil.
-// After T-014, "refund" is no longer a valid action.
+// Note: "refund" is no longer a valid action.
 func TestAccountingEntries_Actions_IncludesOverdraft(t *testing.T) {
 	t.Parallel()
 
@@ -126,9 +126,9 @@ func TestAccountingEntries_Overdraft_JSONMarshal(t *testing.T) {
 	_, hasOverdraft := ae["overdraft"]
 	assert.True(t, hasOverdraft, `JSON must contain the "overdraft" key`)
 
-	// Refund key must NOT appear (field removed in T-014)
+	// Refund key must NOT appear (field was removed)
 	_, hasRefund := ae["refund"]
-	assert.False(t, hasRefund, `JSON must NOT contain the "refund" key (removed in T-014)`)
+	assert.False(t, hasRefund, `JSON must NOT contain the "refund" key (field was removed)`)
 
 	// Nil Overdraft must be omitted (omitempty) — backward compatible payload.
 	routeWithoutNew := OperationRoute{
