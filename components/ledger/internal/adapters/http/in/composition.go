@@ -53,7 +53,7 @@ type CompositionHandler struct {
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		422					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
-//	@Router			/v1/holders/{holder_id}/accounts [post]
+//	@Router			/v1/holders/{id}/accounts [post]
 func (handler *CompositionHandler) CreateHolderAccount(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

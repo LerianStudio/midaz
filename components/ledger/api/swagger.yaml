@@ -338,6 +338,16 @@ definitions:
         maxLength: 20
         type: string
     type: object
+  Addresses:
+    description: Addresses object
+    properties:
+      additional1:
+        $ref: '#/definitions/Address'
+      additional2:
+        $ref: '#/definitions/Address'
+      primary:
+        $ref: '#/definitions/Address'
+    type: object
   Amount:
     description: Amount is the struct designed to represent the amount of an operation.
       Contains the value and scale (decimal places) of an operation amount.
@@ -727,6 +737,26 @@ definitions:
           $ref: '#/definitions/Calculation'
         type: array
     type: object
+  Contact:
+    description: Contact object
+    properties:
+      mobilePhone:
+        description: The mobile phone number of the holder, including country code.
+        example: "+1555555555"
+        type: string
+      otherPhone:
+        description: Any additional phone number of the holder.
+        example: "+1555555555"
+        type: string
+      primaryEmail:
+        description: The primary email address of the holder.
+        example: john.doe@example.com
+        type: string
+      secondaryEmail:
+        description: The secondary email address of the holder.
+        example: john.doe@example.com
+        type: string
+    type: object
   CreateAccountInput:
     description: Request payload for creating a new account within a ledger. Accounts
       represent individual financial entities such as bank accounts, credit cards,
@@ -1017,6 +1047,93 @@ definitions:
     - to
     type: object
   CreateHolderAccountInput:
+    type: object
+  CreateHolderRequest:
+    description: CreateHolderRequest payload
+    properties:
+      addresses:
+        allOf:
+        - $ref: '#/definitions/Addresses'
+        description: Object of addresses.
+      contact:
+        allOf:
+        - $ref: '#/definitions/Contact'
+        description: Object with contact information.
+      document:
+        description: The holder's identification document.
+        example: "91315026015"
+        type: string
+      externalId:
+        description: Optional field for an external identifier to client correlation
+          purposes.
+        example: G4K7N8M2
+        type: string
+      legalPerson:
+        allOf:
+        - $ref: '#/definitions/LegalPerson'
+        description: Object with legal person information.
+      metadata:
+        additionalProperties: {}
+        description: An object containing key-value pairs to add as metadata, where
+          the field name is the key and the field value is the value.
+        type: object
+      name:
+        description: |-
+          Holders name.
+          **Notes:** If the person type is LEGAL_PERSON, this must be the full legal name. If the person type is NATURAL_PERSON, this should be the individuals full name.
+        example: John Doe
+        type: string
+      naturalPerson:
+        allOf:
+        - $ref: '#/definitions/NaturalPerson'
+        description: Object with natural person information.
+      type:
+        description: |-
+          Type of person.
+          * NATURAL_PERSON - Individual
+          * LEGAL_PERSON - Company
+        enum:
+        - NATURAL_PERSON
+        - LEGAL_PERSON
+        example: NATURAL_PERSON
+        type: string
+    required:
+    - document
+    - name
+    - type
+    type: object
+  CreateInstrumentRequest:
+    description: CreateInstrumentRequest payload
+    properties:
+      accountId:
+        description: Unique identifier of the related account on ledger.
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      bankingDetails:
+        allOf:
+        - $ref: '#/definitions/BankingDetails'
+        description: Object with banking information of the related account.
+      ledgerId:
+        description: Unique identifier of the ledger of the related account.
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      metadata:
+        additionalProperties: {}
+        description: An object containing key-value pairs to add as metadata, where
+          the field name is the key and the field value is the value.
+        type: object
+      regulatoryFields:
+        allOf:
+        - $ref: '#/definitions/RegulatoryFields'
+        description: Object with regulatory fields.
+      relatedParties:
+        description: List of related parties to add at creation.
+        items:
+          $ref: '#/definitions/RelatedParty'
+        type: array
+    required:
+    - accountId
+    - ledgerId
     type: object
   CreateLedgerInput:
     description: Request payload for creating a new ledger. Contains the ledger name
@@ -1734,6 +1851,48 @@ definitions:
           instrument write failed. Omitted on full success and on the account-only
           path.
     type: object
+  HolderResponse:
+    description: HolderResponse payload
+    properties:
+      addresses:
+        $ref: '#/definitions/Addresses'
+      contact:
+        $ref: '#/definitions/Contact'
+      createdAt:
+        example: "2025-01-01T00:00:00Z"
+        type: string
+      deletedAt:
+        example: "2025-01-01T00:00:00Z"
+        type: string
+      document:
+        example: "91315026015"
+        type: string
+      externalId:
+        example: G4K7N8M2
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      legalPerson:
+        $ref: '#/definitions/LegalPerson'
+      metadata:
+        additionalProperties: {}
+        type: object
+      name:
+        example: John Doe
+        type: string
+      naturalPerson:
+        $ref: '#/definitions/NaturalPerson'
+      type:
+        enum:
+        - NATURAL_PERSON
+        - LEGAL_PERSON
+        example: NATURAL_PERSON
+        type: string
+      updatedAt:
+        example: "2025-01-01T00:00:00Z"
+        type: string
+    type: object
   IndexStats:
     description: Usage statistics collected by MongoDB for an index
     properties:
@@ -1883,6 +2042,39 @@ definitions:
         format: date-time
         type: string
     type: object
+  LegalPerson:
+    description: LegalPerson is a struct designed to encapsulate response payload
+      data.
+    properties:
+      activity:
+        description: The type of business or activity the company engages in.
+        example: Electronic devices development
+        type: string
+      foundingDate:
+        description: The date when the company was established.
+        example: "2025-01-01"
+        type: string
+      representative:
+        allOf:
+        - $ref: '#/definitions/Representative'
+        description: Object with details of the company's legal representative.
+      size:
+        description: The size classification of the company.
+        example: Medium
+        type: string
+      status:
+        description: The current status of the legal entity.
+        example: Closed
+        type: string
+      tradeName:
+        description: The registered business name of the company, if applicable.
+        example: Lerian Studio
+        type: string
+      type:
+        description: The legal structure of the company.
+        example: Limited Liability
+        type: string
+    type: object
   MetadataIndex:
     description: Represents a custom MongoDB index on a metadata field
     properties:
@@ -1911,6 +2103,47 @@ definitions:
         description: Whether the index enforces uniqueness
         example: false
         type: boolean
+    type: object
+  NaturalPerson:
+    description: NaturalPerson object
+    properties:
+      birthDate:
+        description: Person's birth date, formatted as YYYY-MM-DD.
+        example: "1990-01-01"
+        type: string
+      civilStatus:
+        description: 'Person''s civil status, for example: "Single", "Married", or
+          "Divorced".'
+        example: Single
+        type: string
+      fatherName:
+        description: The name of the person's father.
+        example: John Doe
+        type: string
+      favoriteName:
+        description: The person's nickname or preferred name.
+        example: John
+        type: string
+      gender:
+        description: Person's gender.
+        example: Male
+        type: string
+      motherName:
+        description: The name of the person's mother.
+        example: Jane Doe
+        type: string
+      nationality:
+        description: The nationality of the person, for example, "Brazilian".
+        example: Brazilian
+        type: string
+      socialName:
+        description: The social name or alternate name used by the person, if applicable.
+        example: John Doe
+        type: string
+      status:
+        description: The current status of the individual.
+        example: Active
+        type: string
     type: object
   Operation:
     description: Operation is a struct designed to store operation data. Represents
@@ -2405,6 +2638,26 @@ definitions:
     - name
     - role
     - startDate
+    type: object
+  Representative:
+    description: Representative object from LegalPerson
+    properties:
+      document:
+        description: The document number of the legal representative.
+        example: "91315026015"
+        type: string
+      email:
+        description: The email address of the legal representative.
+        example: john.doe@example.com
+        type: string
+      name:
+        description: The legal representative’s name.
+        example: John Doe
+        type: string
+      role:
+        description: The role of the legal representative within the company.
+        example: CFO
+        type: string
     type: object
   Segment:
     description: Segment represents a logical division within a ledger such as a business
@@ -2913,6 +3166,62 @@ definitions:
           scope). When provided, replaces the existing settings in full.
           Direction is intentionally absent: it is immutable after creation.
           required: false
+    type: object
+  UpdateHolderRequest:
+    description: UpdateHolderRequest payload
+    properties:
+      addresses:
+        allOf:
+        - $ref: '#/definitions/Addresses'
+        description: Object of addresses.
+      contact:
+        allOf:
+        - $ref: '#/definitions/Contact'
+        description: Object with contact information.
+      externalId:
+        description: Optional field for an external identifier to client correlation
+          purposes.
+        example: G4K7N8M
+        type: string
+      legalPerson:
+        allOf:
+        - $ref: '#/definitions/LegalPerson'
+        description: Object with legal person information.
+      metadata:
+        additionalProperties: {}
+        description: An object containing key-value pairs to add as metadata, where
+          the field name is the key and the field value is the value.
+        type: object
+      name:
+        description: Holders name.
+        example: John Doe
+        type: string
+      naturalPerson:
+        allOf:
+        - $ref: '#/definitions/NaturalPerson'
+        description: Object with natural person information.
+    type: object
+  UpdateInstrumentRequest:
+    description: UpdateInstrumentRequest payload
+    properties:
+      bankingDetails:
+        allOf:
+        - $ref: '#/definitions/BankingDetails'
+        description: Object with banking information of the related account.
+      metadata:
+        additionalProperties: {}
+        description: An object containing key-value pairs to add as metadata, where
+          the field name is the key and the field value is the value.
+        type: object
+      regulatoryFields:
+        allOf:
+        - $ref: '#/definitions/RegulatoryFields'
+        description: Object with regulatory fields.
+      relatedParties:
+        description: List of related parties to add (appends to existing).
+        items:
+          $ref: '#/definitions/RelatedParty'
+        type: array
     type: object
   UpdateLedgerInput:
     description: Request payload for updating an existing ledger. All fields are optional
@@ -3666,16 +3975,18 @@ info:
   contact:
     name: Discord community
     url: https://discord.gg/DnhqKwkGv3
-  description: This is a swagger documentation for the Midaz Ledger API. This API
-    combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios,
-    segments), Transaction endpoints (transactions, balances, operations, asset-rates),
-    and Metadata Index endpoints in a single service.
+  description: This is a swagger documentation for the Midaz Ledger API. This unified
+    service combines Onboarding endpoints (organizations, ledgers, accounts, assets,
+    portfolios, segments), Transaction endpoints (transactions, balances, operations,
+    asset-rates), Holders and Instruments endpoints (holder and instrument account
+    management), Fees endpoints (packages, estimates, billing), the Holder-Account
+    composition endpoint, and Metadata Index endpoints in a single service.
   license:
     name: Elastic License 2.0
     url: https://www.elastic.co/licensing/elastic-license
   termsOfService: http://swagger.io/terms/
   title: Midaz Ledger API
-  version: v3.7.0
+  version: v4.0.0
 paths:
   /v1/billing-packages:
     get:
@@ -4065,7 +4376,596 @@ paths:
       summary: Create a fee estimate calculation
       tags:
       - Fees
-  /v1/holders/{holder_id}/accounts:
+  /v1/holders:
+    get:
+      description: List all Holders. CRM listing endpoints support pagination using
+        the page, limit, and sort parameters. The sort parameter orders results by
+        the entity ID using the UUID v7 standard, which is time-sortable, ensuring
+        chronological ordering of the results.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: Metadata
+        in: query
+        name: metadata
+        type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Sort Order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort_order
+        type: string
+      - description: Return includes logically deleted holders.
+        in: query
+        name: include_deleted
+        type: string
+      - description: Filter holders by externalID
+        in: query
+        name: external_id
+        type: string
+      - description: Filter holders by document
+        in: query
+        name: document
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/HolderResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: List Holders
+      tags:
+      - Holders
+    post:
+      consumes:
+      - application/json
+      description: Creates a new holder with the provided details.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: Holder Input
+        in: body
+        name: holder
+        required: true
+        schema:
+          $ref: '#/definitions/CreateHolderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/HolderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create a Holder
+      tags:
+      - Holders
+  /v1/holders/{holder_id}/instruments:
+    post:
+      consumes:
+      - application/json
+      description: Enables a creation of an instrument account, which represents an
+        account in the ledger. The instrument account is linked to specific business
+        information, making it easier to manage and abstract account data within the
+        system.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        type: string
+      - description: Instrument Input
+        in: body
+        name: instrument
+        required: true
+        schema:
+          $ref: '#/definitions/CreateInstrumentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/InstrumentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create an Instrument Account
+      tags:
+      - Instruments
+  /v1/holders/{holder_id}/instruments/{instrument_id}:
+    delete:
+      description: Delete an Instrument. **Note:** By default, the delete endpoint
+        performs a logical deletion (soft delete) of the entity in the system. If
+        a physical deletion (hard delete) is required, you can use the query parameter
+        outlined in the documentation.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        type: string
+      - description: The unique identifier of the Instrument account.
+        in: path
+        name: instrument_id
+        required: true
+        type: string
+      - description: Use only to perform a physical deletion of the data. This action
+          is irreversible.
+        in: query
+        name: hard_delete
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Delete an Instrument
+      tags:
+      - Instruments
+    get:
+      description: Retrieves detailed information about a specific instrument using
+        its unique identifier.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        type: string
+      - description: The unique identifier of the Instrument account.
+        in: path
+        name: instrument_id
+        required: true
+        type: string
+      - description: Returns the instrument even if it was logically deleted.
+        in: query
+        name: include_deleted
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/InstrumentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Retrieve Instrument details
+      tags:
+      - Instruments
+    patch:
+      consumes:
+      - application/json
+      description: Update details of an instrument.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        type: string
+      - description: The unique identifier of the Instrument account.
+        in: path
+        name: instrument_id
+        required: true
+        type: string
+      - description: Instrument Input
+        in: body
+        name: instrument
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateInstrumentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/InstrumentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Update an Instrument
+      tags:
+      - Instruments
+  /v1/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}:
+    delete:
+      description: Delete a Related Party from an Instrument. This operation performs
+        a physical deletion (hard delete) of the related party.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        type: string
+      - description: The unique identifier of the Instrument account.
+        in: path
+        name: instrument_id
+        required: true
+        type: string
+      - description: The unique identifier of the Related Party.
+        in: path
+        name: related_party_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Delete a Related Party
+      tags:
+      - Instruments
+  /v1/holders/{id}:
+    delete:
+      description: Delete a Holder. **Note:** By default, the delete endpoint performs
+        a logical deletion (soft delete) of the entity in the system. If a physical
+        deletion (hard delete) is required, you can use the query parameter outlined
+        in the documentation.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Use only to perform a physical deletion of the data. This action
+          is irreversible.
+        in: query
+        name: hard_delete
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Delete a Holder
+      tags:
+      - Holders
+    get:
+      description: Retrieves detailed information about a specific holder using its
+        unique identifier.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Returns the holder even if it was logically deleted
+        in: query
+        name: include_deleted
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/HolderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Retrieve Holder details
+      tags:
+      - Holders
+    patch:
+      consumes:
+      - application/json
+      description: Update details of a holder.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Holder Input
+        in: body
+        name: holder
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateHolderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/HolderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Update a Holder
+      tags:
+      - Holders
+  /v1/holders/{id}/accounts:
+    get:
+      description: Lists the accounts owned by a holder, identified by the holder's
+        ownership link.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Sort Order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort_order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/Account'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: List Accounts by Holder
+      tags:
+      - Holders
     post:
       consumes:
       - application/json
@@ -4129,6 +5029,118 @@ paths:
       summary: Open a holder-owned account (with optional instrument)
       tags:
       - Composition
+  /v1/instruments:
+    get:
+      description: List all Instruments with or without filters. CRM listing endpoints
+        support pagination using the page, limit, and sort parameters. The sort parameter
+        orders results by the entity ID using the UUID v7 standard, which is time-sortable,
+        ensuring chronological ordering of the results.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: The unique identifier of the Holder.
+        in: query
+        name: holder_id
+        type: string
+      - description: Metadata
+        in: query
+        name: metadata
+        type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Sort Order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort_order
+        type: string
+      - description: Return includes logically deleted instruments.
+        in: query
+        name: include_deleted
+        type: string
+      - description: Filter instrument by accountID
+        in: query
+        name: account_id
+        type: string
+      - description: Filter instrument by ledgerID
+        in: query
+        name: ledger_id
+        type: string
+      - description: Filter instrument by document
+        in: query
+        name: document
+        type: string
+      - description: Filter instrument by banking details branch
+        in: query
+        name: banking_details_branch
+        type: string
+      - description: Filter instrument by banking details account
+        in: query
+        name: banking_details_account
+        type: string
+      - description: Filter instrument by banking details iban
+        in: query
+        name: banking_details_iban
+        type: string
+      - description: Filter instrument by regulatory fields participant document
+        in: query
+        name: regulatory_fields_participant_document
+        type: string
+      - description: Filter instrument by related party document
+        in: query
+        name: related_party_document
+        type: string
+      - description: Filter instrument by related party role
+        in: query
+        name: related_party_role
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/InstrumentResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: List Instruments
+      tags:
+      - Instruments
   /v1/organizations:
     get:
       description: Returns a paginated list of organizations, optionally filtered

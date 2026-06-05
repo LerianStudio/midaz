@@ -597,7 +597,832 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/holders/{holder_id}/accounts": {
+        "/v1/holders": {
+            "get": {
+                "description": "List all Holders. CRM listing endpoints support pagination using the page, limit, and sort parameters. The sort parameter orders results by the entity ID using the UUID v7 standard, which is time-sortable, ensuring chronological ordering of the results.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Holders"
+                ],
+                "summary": "List Holders",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Metadata",
+                        "name": "metadata",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Return includes logically deleted holders.",
+                        "name": "include_deleted",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter holders by externalID",
+                        "name": "external_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter holders by document",
+                        "name": "document",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/HolderResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a new holder with the provided details.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Holders"
+                ],
+                "summary": "Create a Holder",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Holder Input",
+                        "name": "holder",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateHolderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/HolderResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/holders/{holder_id}/instruments": {
+            "post": {
+                "description": "Enables a creation of an instrument account, which represents an account in the ledger. The instrument account is linked to specific business information, making it easier to manage and abstract account data within the system.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Instruments"
+                ],
+                "summary": "Create an Instrument Account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Holder.",
+                        "name": "holder_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Instrument Input",
+                        "name": "instrument",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateInstrumentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/InstrumentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/holders/{holder_id}/instruments/{instrument_id}": {
+            "get": {
+                "description": "Retrieves detailed information about a specific instrument using its unique identifier.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Instruments"
+                ],
+                "summary": "Retrieve Instrument details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Holder.",
+                        "name": "holder_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Instrument account.",
+                        "name": "instrument_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Returns the instrument even if it was logically deleted.",
+                        "name": "include_deleted",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/InstrumentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an Instrument. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.",
+                "tags": [
+                    "Instruments"
+                ],
+                "summary": "Delete an Instrument",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Holder.",
+                        "name": "holder_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Instrument account.",
+                        "name": "instrument_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Use only to perform a physical deletion of the data. This action is irreversible.",
+                        "name": "hard_delete",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Update details of an instrument.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Instruments"
+                ],
+                "summary": "Update an Instrument",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Holder.",
+                        "name": "holder_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Instrument account.",
+                        "name": "instrument_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Instrument Input",
+                        "name": "instrument",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdateInstrumentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/InstrumentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}": {
+            "delete": {
+                "description": "Delete a Related Party from an Instrument. This operation performs a physical deletion (hard delete) of the related party.",
+                "tags": [
+                    "Instruments"
+                ],
+                "summary": "Delete a Related Party",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Holder.",
+                        "name": "holder_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Instrument account.",
+                        "name": "instrument_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Related Party.",
+                        "name": "related_party_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/holders/{id}": {
+            "get": {
+                "description": "Retrieves detailed information about a specific holder using its unique identifier.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Holders"
+                ],
+                "summary": "Retrieve Holder details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Holder.",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Returns the holder even if it was logically deleted",
+                        "name": "include_deleted",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/HolderResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a Holder. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.",
+                "tags": [
+                    "Holders"
+                ],
+                "summary": "Delete a Holder",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Holder.",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Use only to perform a physical deletion of the data. This action is irreversible.",
+                        "name": "hard_delete",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Update details of a holder.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Holders"
+                ],
+                "summary": "Update a Holder",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Holder.",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Holder Input",
+                        "name": "holder",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdateHolderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/HolderResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/holders/{id}/accounts": {
+            "get": {
+                "description": "Lists the accounts owned by a holder, identified by the holder's ownership link.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Holders"
+                ],
+                "summary": "List Accounts by Holder",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Holder.",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/Account"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
             "post": {
                 "description": "Opens an account owned by the holder identified in the path and, when banking/regulatory/related-party fields are present, an instrument linked to the new account. The account is created first; if it commits but the instrument write fails the account remains persisted and a typed instrumentError block is returned (no rollback). The holder is always taken from the path, never the body.",
                 "consumes": [
@@ -677,6 +1502,170 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/instruments": {
+            "get": {
+                "description": "List all Instruments with or without filters. CRM listing endpoints support pagination using the page, limit, and sort parameters. The sort parameter orders results by the entity ID using the UUID v7 standard, which is time-sortable, ensuring chronological ordering of the results.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Instruments"
+                ],
+                "summary": "List Instruments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Holder.",
+                        "name": "holder_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Metadata",
+                        "name": "metadata",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Return includes logically deleted instruments.",
+                        "name": "include_deleted",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by accountID",
+                        "name": "account_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by ledgerID",
+                        "name": "ledger_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by document",
+                        "name": "document",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by banking details branch",
+                        "name": "banking_details_branch",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by banking details account",
+                        "name": "banking_details_account",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by banking details iban",
+                        "name": "banking_details_iban",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by regulatory fields participant document",
+                        "name": "regulatory_fields_participant_document",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by related party document",
+                        "name": "related_party_document",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by related party role",
+                        "name": "related_party_role",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/InstrumentResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -9490,6 +10479,21 @@ const docTemplate = `{
                 }
             }
         },
+        "Addresses": {
+            "description": "Addresses object",
+            "type": "object",
+            "properties": {
+                "additional1": {
+                    "$ref": "#/definitions/Address"
+                },
+                "additional2": {
+                    "$ref": "#/definitions/Address"
+                },
+                "primary": {
+                    "$ref": "#/definitions/Address"
+                }
+            }
+        },
         "Amount": {
             "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
             "type": "object",
@@ -9835,6 +10839,32 @@ const docTemplate = `{
                 }
             }
         },
+        "Contact": {
+            "description": "Contact object",
+            "type": "object",
+            "properties": {
+                "mobilePhone": {
+                    "description": "The mobile phone number of the holder, including country code.",
+                    "type": "string",
+                    "example": "+1555555555"
+                },
+                "otherPhone": {
+                    "description": "Any additional phone number of the holder.",
+                    "type": "string",
+                    "example": "+1555555555"
+                },
+                "primaryEmail": {
+                    "description": "The primary email address of the holder.",
+                    "type": "string",
+                    "example": "john.doe@example.com"
+                },
+                "secondaryEmail": {
+                    "description": "The secondary email address of the holder.",
+                    "type": "string",
+                    "example": "john.doe@example.com"
+                }
+            }
+        },
         "CreateAccountInput": {
             "description": "Request payload for creating a new account within a ledger. Accounts represent individual financial entities such as bank accounts, credit cards, expense categories, or any other financial buckets within a ledger. Accounts are identified by a unique ID, can have aliases for easy reference, and are associated with a specific asset type.",
             "type": "object",
@@ -10085,6 +11115,126 @@ const docTemplate = `{
         },
         "CreateHolderAccountInput": {
             "type": "object"
+        },
+        "CreateHolderRequest": {
+            "description": "CreateHolderRequest payload",
+            "type": "object",
+            "required": [
+                "document",
+                "name",
+                "type"
+            ],
+            "properties": {
+                "addresses": {
+                    "description": "Object of addresses.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Addresses"
+                        }
+                    ]
+                },
+                "contact": {
+                    "description": "Object with contact information.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Contact"
+                        }
+                    ]
+                },
+                "document": {
+                    "description": "The holder's identification document.",
+                    "type": "string",
+                    "example": "91315026015"
+                },
+                "externalId": {
+                    "description": "Optional field for an external identifier to client correlation purposes.",
+                    "type": "string",
+                    "example": "G4K7N8M2"
+                },
+                "legalPerson": {
+                    "description": "Object with legal person information.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/LegalPerson"
+                        }
+                    ]
+                },
+                "metadata": {
+                    "description": "An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "description": "Holders name.\n**Notes:** If the person type is LEGAL_PERSON, this must be the full legal name. If the person type is NATURAL_PERSON, this should be the individuals full name.",
+                    "type": "string",
+                    "example": "John Doe"
+                },
+                "naturalPerson": {
+                    "description": "Object with natural person information.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/NaturalPerson"
+                        }
+                    ]
+                },
+                "type": {
+                    "description": "Type of person.\n* NATURAL_PERSON - Individual\n* LEGAL_PERSON - Company",
+                    "type": "string",
+                    "enum": [
+                        "NATURAL_PERSON",
+                        "LEGAL_PERSON"
+                    ],
+                    "example": "NATURAL_PERSON"
+                }
+            }
+        },
+        "CreateInstrumentRequest": {
+            "description": "CreateInstrumentRequest payload",
+            "type": "object",
+            "required": [
+                "accountId",
+                "ledgerId"
+            ],
+            "properties": {
+                "accountId": {
+                    "description": "Unique identifier of the related account on ledger.",
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "bankingDetails": {
+                    "description": "Object with banking information of the related account.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/BankingDetails"
+                        }
+                    ]
+                },
+                "ledgerId": {
+                    "description": "Unique identifier of the ledger of the related account.",
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "metadata": {
+                    "description": "An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "regulatoryFields": {
+                    "description": "Object with regulatory fields.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/RegulatoryFields"
+                        }
+                    ]
+                },
+                "relatedParties": {
+                    "description": "List of related parties to add at creation.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/RelatedParty"
+                    }
+                }
+            }
         },
         "CreateLedgerInput": {
             "description": "Request payload for creating a new ledger. Contains the ledger name (required), status, and optional metadata. Ledgers are organizational units within an organization that group related financial accounts and assets together.",
@@ -10839,6 +11989,64 @@ const docTemplate = `{
                 }
             }
         },
+        "HolderResponse": {
+            "description": "HolderResponse payload",
+            "type": "object",
+            "properties": {
+                "addresses": {
+                    "$ref": "#/definitions/Addresses"
+                },
+                "contact": {
+                    "$ref": "#/definitions/Contact"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "document": {
+                    "type": "string",
+                    "example": "91315026015"
+                },
+                "externalId": {
+                    "type": "string",
+                    "example": "G4K7N8M2"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "legalPerson": {
+                    "$ref": "#/definitions/LegalPerson"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "type": "string",
+                    "example": "John Doe"
+                },
+                "naturalPerson": {
+                    "$ref": "#/definitions/NaturalPerson"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "NATURAL_PERSON",
+                        "LEGAL_PERSON"
+                    ],
+                    "example": "NATURAL_PERSON"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                }
+            }
+        },
         "IndexStats": {
             "description": "Usage statistics collected by MongoDB for an index",
             "type": "object",
@@ -10993,6 +12201,50 @@ const docTemplate = `{
                 }
             }
         },
+        "LegalPerson": {
+            "description": "LegalPerson is a struct designed to encapsulate response payload data.",
+            "type": "object",
+            "properties": {
+                "activity": {
+                    "description": "The type of business or activity the company engages in.",
+                    "type": "string",
+                    "example": "Electronic devices development"
+                },
+                "foundingDate": {
+                    "description": "The date when the company was established.",
+                    "type": "string",
+                    "example": "2025-01-01"
+                },
+                "representative": {
+                    "description": "Object with details of the company's legal representative.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Representative"
+                        }
+                    ]
+                },
+                "size": {
+                    "description": "The size classification of the company.",
+                    "type": "string",
+                    "example": "Medium"
+                },
+                "status": {
+                    "description": "The current status of the legal entity.",
+                    "type": "string",
+                    "example": "Closed"
+                },
+                "tradeName": {
+                    "description": "The registered business name of the company, if applicable.",
+                    "type": "string",
+                    "example": "Lerian Studio"
+                },
+                "type": {
+                    "description": "The legal structure of the company.",
+                    "type": "string",
+                    "example": "Limited Liability"
+                }
+            }
+        },
         "MetadataIndex": {
             "description": "Represents a custom MongoDB index on a metadata field",
             "type": "object",
@@ -11029,6 +12281,57 @@ const docTemplate = `{
                     "description": "Whether the index enforces uniqueness",
                     "type": "boolean",
                     "example": false
+                }
+            }
+        },
+        "NaturalPerson": {
+            "description": "NaturalPerson object",
+            "type": "object",
+            "properties": {
+                "birthDate": {
+                    "description": "Person's birth date, formatted as YYYY-MM-DD.",
+                    "type": "string",
+                    "example": "1990-01-01"
+                },
+                "civilStatus": {
+                    "description": "Person's civil status, for example: \"Single\", \"Married\", or \"Divorced\".",
+                    "type": "string",
+                    "example": "Single"
+                },
+                "fatherName": {
+                    "description": "The name of the person's father.",
+                    "type": "string",
+                    "example": "John Doe"
+                },
+                "favoriteName": {
+                    "description": "The person's nickname or preferred name.",
+                    "type": "string",
+                    "example": "John"
+                },
+                "gender": {
+                    "description": "Person's gender.",
+                    "type": "string",
+                    "example": "Male"
+                },
+                "motherName": {
+                    "description": "The name of the person's mother.",
+                    "type": "string",
+                    "example": "Jane Doe"
+                },
+                "nationality": {
+                    "description": "The nationality of the person, for example, \"Brazilian\".",
+                    "type": "string",
+                    "example": "Brazilian"
+                },
+                "socialName": {
+                    "description": "The social name or alternate name used by the person, if applicable.",
+                    "type": "string",
+                    "example": "John Doe"
+                },
+                "status": {
+                    "description": "The current status of the individual.",
+                    "type": "string",
+                    "example": "Active"
                 }
             }
         },
@@ -11536,6 +12839,32 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date",
                     "example": "2025-01-01"
+                }
+            }
+        },
+        "Representative": {
+            "description": "Representative object from LegalPerson",
+            "type": "object",
+            "properties": {
+                "document": {
+                    "description": "The document number of the legal representative.",
+                    "type": "string",
+                    "example": "91315026015"
+                },
+                "email": {
+                    "description": "The email address of the legal representative.",
+                    "type": "string",
+                    "example": "john.doe@example.com"
+                },
+                "name": {
+                    "description": "The legal representative’s name.",
+                    "type": "string",
+                    "example": "John Doe"
+                },
+                "role": {
+                    "description": "The role of the legal representative within the company.",
+                    "type": "string",
+                    "example": "CFO"
                 }
             }
         },
@@ -12067,6 +13396,93 @@ const docTemplate = `{
                             "$ref": "#/definitions/mmodel.BalanceSettings"
                         }
                     ]
+                }
+            }
+        },
+        "UpdateHolderRequest": {
+            "description": "UpdateHolderRequest payload",
+            "type": "object",
+            "properties": {
+                "addresses": {
+                    "description": "Object of addresses.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Addresses"
+                        }
+                    ]
+                },
+                "contact": {
+                    "description": "Object with contact information.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Contact"
+                        }
+                    ]
+                },
+                "externalId": {
+                    "description": "Optional field for an external identifier to client correlation purposes.",
+                    "type": "string",
+                    "example": "G4K7N8M"
+                },
+                "legalPerson": {
+                    "description": "Object with legal person information.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/LegalPerson"
+                        }
+                    ]
+                },
+                "metadata": {
+                    "description": "An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "description": "Holders name.",
+                    "type": "string",
+                    "example": "John Doe"
+                },
+                "naturalPerson": {
+                    "description": "Object with natural person information.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/NaturalPerson"
+                        }
+                    ]
+                }
+            }
+        },
+        "UpdateInstrumentRequest": {
+            "description": "UpdateInstrumentRequest payload",
+            "type": "object",
+            "properties": {
+                "bankingDetails": {
+                    "description": "Object with banking information of the related account.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/BankingDetails"
+                        }
+                    ]
+                },
+                "metadata": {
+                    "description": "An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "regulatoryFields": {
+                    "description": "Object with regulatory fields.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/RegulatoryFields"
+                        }
+                    ]
+                },
+                "relatedParties": {
+                    "description": "List of related parties to add (appends to existing).",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/RelatedParty"
+                    }
                 }
             }
         },
@@ -12923,12 +14339,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "v3.7.0",
+	Version:          "v4.0.0",
 	Host:             "localhost:3002",
 	BasePath:         "/",
 	Schemes:          []string{"http"},
 	Title:            "Midaz Ledger API",
-	Description:      "This is a swagger documentation for the Midaz Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments), Transaction endpoints (transactions, balances, operations, asset-rates), and Metadata Index endpoints in a single service.",
+	Description:      "This is a swagger documentation for the Midaz Ledger API. This unified service combines Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments), Transaction endpoints (transactions, balances, operations, asset-rates), Holders and Instruments endpoints (holder and instrument account management), Fees endpoints (packages, estimates, billing), the Holder-Account composition endpoint, and Metadata Index endpoints in a single service.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

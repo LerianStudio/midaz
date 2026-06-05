@@ -20,7 +20,6 @@ CONVERTER="${SCRIPTS_DIR}/convert-openapi.js"
 POSTMAN_DIR="${MIDAZ_ROOT}/postman"
 TEMP_DIR="${MIDAZ_ROOT}/postman/temp"
 LEDGER_API="${MIDAZ_ROOT}/components/ledger/api"
-CRM_API="${MIDAZ_ROOT}/components/crm/api"
 POSTMAN_COLLECTION="${POSTMAN_DIR}/MIDAZ.postman_collection.json"
 POSTMAN_ENVIRONMENT="${POSTMAN_DIR}/MIDAZ.postman_environment.json"
 BACKUP_DIR="${POSTMAN_DIR}/backups"
@@ -89,17 +88,13 @@ echo "Converting OpenAPI specs to Postman collections..."
 convert_component "ledger" "${LEDGER_API}/swagger.json"
 LEDGER_PID=$!
 
-convert_component "crm" "${CRM_API}/swagger.json"
-CRM_PID=$!
-
 # Wait for all conversions to complete
 set +e
-wait "$LEDGER_PID" "$CRM_PID"
+wait "$LEDGER_PID"
 set -e
 
 # Check conversion results
 LEDGER_STATUS=$(cat "${TEMP_DIR}/ledger.status" 2>/dev/null || echo "FAILED")
-CRM_STATUS=$(cat "${TEMP_DIR}/crm.status" 2>/dev/null || echo "FAILED")
 
 # Function to merge multiple collections efficiently
 merge_all_collections() {
@@ -107,7 +102,7 @@ merge_all_collections() {
     local -a environments=()
 
     # Collect all successful collections and environments
-    for component in ledger crm; do
+    for component in ledger; do
         local status=$(cat "${TEMP_DIR}/${component}.status" 2>/dev/null || echo "FAILED")
         if [ "$status" != "SUCCESS" ]; then
             echo "Skipping ${component}: conversion status is ${status}"
@@ -174,9 +169,9 @@ merge_all_collections() {
 }
 
 # Process based on what was successfully converted
-# Require both component conversions to succeed
-if [ "$LEDGER_STATUS" != "SUCCESS" ] || [ "$CRM_STATUS" != "SUCCESS" ]; then
-	echo -e "${RED}OpenAPI conversion failed (ledger=${LEDGER_STATUS}, crm=${CRM_STATUS}).${NC}"
+# Require the ledger conversion to succeed
+if [ "$LEDGER_STATUS" != "SUCCESS" ]; then
+	echo -e "${RED}OpenAPI conversion failed (ledger=${LEDGER_STATUS}).${NC}"
 	rm -rf "${TEMP_DIR}"
 	exit 1
 fi

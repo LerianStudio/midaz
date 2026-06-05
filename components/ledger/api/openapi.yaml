@@ -3,16 +3,18 @@ info:
   contact:
     name: Discord community
     url: https://discord.gg/DnhqKwkGv3
-  description: This is a swagger documentation for the Midaz Ledger API. This API
-    combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios,
-    segments), Transaction endpoints (transactions, balances, operations, asset-rates),
-    and Metadata Index endpoints in a single service.
+  description: This is a swagger documentation for the Midaz Ledger API. This unified
+    service combines Onboarding endpoints (organizations, ledgers, accounts, assets,
+    portfolios, segments), Transaction endpoints (transactions, balances, operations,
+    asset-rates), Holders and Instruments endpoints (holder and instrument account
+    management), Fees endpoints (packages, estimates, billing), the Holder-Account
+    composition endpoint, and Metadata Index endpoints in a single service.
   license:
     name: Elastic License 2.0
     url: https://www.elastic.co/licensing/elastic-license
   termsOfService: http://swagger.io/terms/
   title: Midaz Ledger API
-  version: v3.7.0
+  version: v4.0.0
 servers:
 - url: http://localhost:3002/
 paths:
@@ -487,6 +489,904 @@ paths:
       tags:
       - Fees
       x-codegen-request-body-name: fee
+  /v1/holders:
+    get:
+      description: List all Holders. CRM listing endpoints support pagination using
+        the page, limit, and sort parameters. The sort parameter orders results by
+        the entity ID using the UUID v7 standard, which is time-sortable, ensuring
+        chronological ordering of the results.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: Metadata
+        in: query
+        name: metadata
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Page
+        in: query
+        name: page
+        schema:
+          default: 1
+          type: integer
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+      - description: Return includes logically deleted holders.
+        in: query
+        name: include_deleted
+        schema:
+          type: string
+      - description: Filter holders by externalID
+        in: query
+        name: external_id
+        schema:
+          type: string
+      - description: Filter holders by document
+        in: query
+        name: document
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_1'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: List Holders
+      tags:
+      - Holders
+    post:
+      description: Creates a new holder with the provided details.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHolderRequest'
+        description: Holder Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HolderResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Create a Holder
+      tags:
+      - Holders
+      x-codegen-request-body-name: holder
+  /v1/holders/{holder_id}/instruments:
+    post:
+      description: Enables a creation of an instrument account, which represents an
+        account in the ledger. The instrument account is linked to specific business
+        information, making it easier to manage and abstract account data within the
+        system.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInstrumentRequest'
+        description: Instrument Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstrumentResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Create an Instrument Account
+      tags:
+      - Instruments
+      x-codegen-request-body-name: instrument
+  /v1/holders/{holder_id}/instruments/{instrument_id}:
+    delete:
+      description: Delete an Instrument. **Note:** By default, the delete endpoint
+        performs a logical deletion (soft delete) of the entity in the system. If
+        a physical deletion (hard delete) is required, you can use the query parameter
+        outlined in the documentation.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Instrument account.
+        in: path
+        name: instrument_id
+        required: true
+        schema:
+          type: string
+      - description: Use only to perform a physical deletion of the data. This action
+          is irreversible.
+        in: query
+        name: hard_delete
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: No Content
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Delete an Instrument
+      tags:
+      - Instruments
+    get:
+      description: Retrieves detailed information about a specific instrument using
+        its unique identifier.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Instrument account.
+        in: path
+        name: instrument_id
+        required: true
+        schema:
+          type: string
+      - description: Returns the instrument even if it was logically deleted.
+        in: query
+        name: include_deleted
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstrumentResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Retrieve Instrument details
+      tags:
+      - Instruments
+    patch:
+      description: Update details of an instrument.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Instrument account.
+        in: path
+        name: instrument_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInstrumentRequest'
+        description: Instrument Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstrumentResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Update an Instrument
+      tags:
+      - Instruments
+      x-codegen-request-body-name: instrument
+  /v1/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}:
+    delete:
+      description: Delete a Related Party from an Instrument. This operation performs
+        a physical deletion (hard delete) of the related party.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Instrument account.
+        in: path
+        name: instrument_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Related Party.
+        in: path
+        name: related_party_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: No Content
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Delete a Related Party
+      tags:
+      - Instruments
+  /v1/holders/{id}:
+    delete:
+      description: Delete a Holder. **Note:** By default, the delete endpoint performs
+        a logical deletion (soft delete) of the entity in the system. If a physical
+        deletion (hard delete) is required, you can use the query parameter outlined
+        in the documentation.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: Use only to perform a physical deletion of the data. This action
+          is irreversible.
+        in: query
+        name: hard_delete
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: No Content
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Delete a Holder
+      tags:
+      - Holders
+    get:
+      description: Retrieves detailed information about a specific holder using its
+        unique identifier.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: Returns the holder even if it was logically deleted
+        in: query
+        name: include_deleted
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HolderResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Retrieve Holder details
+      tags:
+      - Holders
+    patch:
+      description: Update details of a holder.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateHolderRequest'
+        description: Holder Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HolderResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Update a Holder
+      tags:
+      - Holders
+      x-codegen-request-body-name: holder
+  /v1/holders/{id}/accounts:
+    get:
+      description: Lists the accounts owned by a holder, identified by the holder's
+        ownership link.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Page
+        in: query
+        name: page
+        schema:
+          default: 1
+          type: integer
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_2'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: List Accounts by Holder
+      tags:
+      - Holders
+    post:
+      description: Opens an account owned by the holder identified in the path and,
+        when banking/regulatory/related-party fields are present, an instrument linked
+        to the new account. The account is created first; if it commits but the instrument
+        write fails the account remains persisted and a typed instrumentError block
+        is returned (no rollback). The holder is always taken from the path, never
+        the body.
+      parameters:
+      - description: The authorization token in the 'Bearer access_token' format.
+          Only required when auth plugin is enabled.
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Ledger the account is opened in.
+        in: header
+        name: X-Ledger-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder that will own the account.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHolderAccountInput'
+        description: Composite account (and optional instrument) details
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HolderAccountResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg.HTTPError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg.HTTPError'
+          description: Not Found
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg.HTTPError'
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg.HTTPError'
+          description: Internal Server Error
+      summary: Open a holder-owned account (with optional instrument)
+      tags:
+      - Composition
+      x-codegen-request-body-name: composition
+  /v1/instruments:
+    get:
+      description: List all Instruments with or without filters. CRM listing endpoints
+        support pagination using the page, limit, and sort parameters. The sort parameter
+        orders results by the entity ID using the UUID v7 standard, which is time-sortable,
+        ensuring chronological ordering of the results.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: query
+        name: holder_id
+        schema:
+          type: string
+      - description: Metadata
+        in: query
+        name: metadata
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Page
+        in: query
+        name: page
+        schema:
+          default: 1
+          type: integer
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+      - description: Return includes logically deleted instruments.
+        in: query
+        name: include_deleted
+        schema:
+          type: string
+      - description: Filter instrument by accountID
+        in: query
+        name: account_id
+        schema:
+          type: string
+      - description: Filter instrument by ledgerID
+        in: query
+        name: ledger_id
+        schema:
+          type: string
+      - description: Filter instrument by document
+        in: query
+        name: document
+        schema:
+          type: string
+      - description: Filter instrument by banking details branch
+        in: query
+        name: banking_details_branch
+        schema:
+          type: string
+      - description: Filter instrument by banking details account
+        in: query
+        name: banking_details_account
+        schema:
+          type: string
+      - description: Filter instrument by banking details iban
+        in: query
+        name: banking_details_iban
+        schema:
+          type: string
+      - description: Filter instrument by regulatory fields participant document
+        in: query
+        name: regulatory_fields_participant_document
+        schema:
+          type: string
+      - description: Filter instrument by related party document
+        in: query
+        name: related_party_document
+        schema:
+          type: string
+      - description: Filter instrument by related party role
+        in: query
+        name: related_party_role
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_3'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: List Instruments
+      tags:
+      - Instruments
   /v1/organizations:
     get:
       description: Returns a paginated list of organizations, optionally filtered
@@ -572,7 +1472,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_1'
+                $ref: '#/components/schemas/inline_response_200_4'
           description: Successfully retrieved organizations list
         "400":
           content:
@@ -965,7 +1865,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_2'
+                $ref: '#/components/schemas/inline_response_200_5'
           description: Successfully retrieved ledgers list
         "400":
           content:
@@ -1396,7 +2296,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_3'
+                $ref: '#/components/schemas/inline_response_200_6'
           description: Successfully retrieved account types
         "400":
           content:
@@ -1842,7 +2742,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_4'
+                $ref: '#/components/schemas/inline_response_200_2'
           description: Successfully retrieved accounts list
         "400":
           content:
@@ -2068,7 +2968,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_5'
+                $ref: '#/components/schemas/inline_response_200_7'
           description: OK
         "401":
           content:
@@ -2204,7 +3104,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_5'
+                $ref: '#/components/schemas/inline_response_200_7'
           description: OK
         "401":
           content:
@@ -2585,7 +3485,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_5'
+                $ref: '#/components/schemas/inline_response_200_7'
           description: OK
         "400":
           content:
@@ -2874,7 +3774,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_6'
+                $ref: '#/components/schemas/inline_response_200_8'
           description: OK
         "400":
           content:
@@ -3133,7 +4033,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_7'
+                $ref: '#/components/schemas/inline_response_200_9'
           description: OK
         "400":
           content:
@@ -3306,7 +4206,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_8'
+                $ref: '#/components/schemas/inline_response_200_10'
           description: Successfully retrieved assets list
         "400":
           content:
@@ -3770,7 +4670,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_5'
+                $ref: '#/components/schemas/inline_response_200_7'
           description: OK
         "400":
           content:
@@ -4158,7 +5058,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_9'
+                $ref: '#/components/schemas/inline_response_200_11'
           description: OK
         "400":
           content:
@@ -4537,7 +5437,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_10'
+                $ref: '#/components/schemas/inline_response_200_12'
           description: Successfully retrieved portfolios list
         "400":
           content:
@@ -5018,7 +5918,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_11'
+                $ref: '#/components/schemas/inline_response_200_13'
           description: Successfully retrieved segments list
         "400":
           content:
@@ -5490,7 +6390,8 @@ paths:
         objects (like ''accounting'') are deep-merged, preserving existing properties
         not specified in the update. Example: updating only ''accounting.validateRoutes''
         preserves the existing ''accounting.validateAccountType'' value. Allowed fields:
-        accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).'
+        accounting.validateAccountType (boolean), accounting.validateRoutes (boolean),
+        accounting.requireHolder (boolean).'
       parameters:
       - description: 'Bearer token authentication. Format: Bearer {access_token}.
           Only required when auth plugin is enabled.'
@@ -5522,7 +6423,7 @@ paths:
               type: object
         description: 'Settings to merge with existing settings. Only known fields
           allowed: accounting.validateAccountType (bool), accounting.validateRoutes
-          (bool)'
+          (bool), accounting.requireHolder (bool)'
         required: true
       responses:
         "200":
@@ -5627,7 +6528,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_12'
+                $ref: '#/components/schemas/inline_response_200_14'
           description: OK
         "400":
           content:
@@ -6001,7 +6902,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_13'
+                $ref: '#/components/schemas/inline_response_200_15'
           description: OK
         "400":
           content:
@@ -7040,7 +7941,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_14'
+                $ref: '#/components/schemas/inline_response_200_16'
           description: OK
         "400":
           content:
@@ -7576,6 +8477,7 @@ components:
         assetCode: USD
         entityId: EXT-ACC-12345
         type: deposit
+        holderId: 00000000-0000-0000-0000-000000000000
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
         parentAccountId: 00000000-0000-0000-0000-000000000000
@@ -7627,11 +8529,20 @@ components:
           type: string
         entityId:
           description: |-
-            Optional external identifier for linking to external systems
+            Free-form external reference for linking to external systems. This is NOT the
+            ownership link: holderId is the formal owner of the account.
             example: EXT-ACC-12345
             maxLength: 256
           example: EXT-ACC-12345
           maxLength: 256
+          type: string
+        holderId:
+          description: |-
+            ID of the holder that formally owns this account (UUID format)
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         id:
           description: |-
@@ -7877,6 +8788,14 @@ components:
       description: Structured address information following standard postal address
         format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country
         codes). Used for organization physical locations and other address needs.
+      example:
+        country: US
+        zipCode: "10001"
+        city: New York
+        description: Home
+        state: NY
+        line2: Suite 1500
+        line1: 123 Financial Avenue
       properties:
         city:
           description: |-
@@ -7936,6 +8855,41 @@ components:
           example: "10001"
           maxLength: 20
           type: string
+      type: object
+    Addresses:
+      description: Addresses object
+      example:
+        additional1:
+          country: US
+          zipCode: "10001"
+          city: New York
+          description: Home
+          state: NY
+          line2: Suite 1500
+          line1: 123 Financial Avenue
+        additional2:
+          country: US
+          zipCode: "10001"
+          city: New York
+          description: Home
+          state: NY
+          line2: Suite 1500
+          line1: 123 Financial Avenue
+        primary:
+          country: US
+          zipCode: "10001"
+          city: New York
+          description: Home
+          state: NY
+          line2: Suite 1500
+          line1: 123 Financial Avenue
+      properties:
+        additional1:
+          $ref: '#/components/schemas/Address'
+        additional2:
+          $ref: '#/components/schemas/Address'
+        primary:
+          $ref: '#/components/schemas/Address'
       type: object
     Amount:
       description: Amount is the struct designed to represent the amount of an operation.
@@ -8344,6 +9298,8 @@ components:
           minimum: 1
           type: integer
       type: object
+    BankingDetails:
+      type: object
     Calculation:
       description: Calculation is a struct designed to store the calculation details
         of a fee from a pack.
@@ -8385,6 +9341,31 @@ components:
             $ref: '#/components/schemas/Calculation'
           type: array
       type: object
+    Contact:
+      description: Contact object
+      example:
+        secondaryEmail: john.doe@example.com
+        mobilePhone: +1555555555
+        otherPhone: +1555555555
+        primaryEmail: john.doe@example.com
+      properties:
+        mobilePhone:
+          description: The mobile phone number of the holder, including country code.
+          example: +1555555555
+          type: string
+        otherPhone:
+          description: Any additional phone number of the holder.
+          example: +1555555555
+          type: string
+        primaryEmail:
+          description: The primary email address of the holder.
+          example: john.doe@example.com
+          type: string
+        secondaryEmail:
+          description: The secondary email address of the holder.
+          example: john.doe@example.com
+          type: string
+      type: object
     CreateAccountInput:
       description: Request payload for creating a new account within a ledger. Accounts
         represent individual financial entities such as bank accounts, credit cards,
@@ -8403,6 +9384,7 @@ components:
         alias: '@treasury_checking'
         entityId: EXT-ACC-12345
         type: deposit
+        holderId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         status: '{}'
       properties:
         alias:
@@ -8431,12 +9413,20 @@ components:
           type: boolean
         entityId:
           description: |-
-            Optional external identifier for linking to external systems
+            Free-form external reference for linking to external systems. This is NOT the
+            ownership link: use holderId to formally tie the account to a holder.
             required: false
             example: EXT-ACC-12345
             maxLength: 256
           example: EXT-ACC-12345
           maxLength: 256
+          type: string
+        holderId:
+          description: |-
+            ID of the holder that formally owns this account (optional)
+            required: false
+            format: uuid
+          format: uuid
           type: string
         metadata:
           additionalProperties:
@@ -8715,6 +9705,134 @@ components:
       - from
       - rate
       - to
+      type: object
+    CreateHolderAccountInput:
+      type: object
+    CreateHolderRequest:
+      description: CreateHolderRequest payload
+      example:
+        addresses: '{}'
+        metadata:
+          key: '{}'
+        contact: '{}'
+        document: "91315026015"
+        legalPerson: '{}'
+        name: John Doe
+        externalId: G4K7N8M2
+        type: NATURAL_PERSON
+        naturalPerson: '{}'
+      properties:
+        addresses:
+          allOf:
+          - $ref: '#/components/schemas/Addresses'
+          description: Object of addresses.
+          type: object
+        contact:
+          allOf:
+          - $ref: '#/components/schemas/Contact'
+          description: Object with contact information.
+          type: object
+        document:
+          description: The holder's identification document.
+          example: "91315026015"
+          type: string
+        externalId:
+          description: Optional field for an external identifier to client correlation
+            purposes.
+          example: G4K7N8M2
+          type: string
+        legalPerson:
+          allOf:
+          - $ref: '#/components/schemas/LegalPerson'
+          description: Object with legal person information.
+          type: object
+        metadata:
+          additionalProperties:
+            type: object
+          description: An object containing key-value pairs to add as metadata, where
+            the field name is the key and the field value is the value.
+          type: object
+        name:
+          description: |-
+            Holders name.
+            **Notes:** If the person type is LEGAL_PERSON, this must be the full legal name. If the person type is NATURAL_PERSON, this should be the individuals full name.
+          example: John Doe
+          type: string
+        naturalPerson:
+          allOf:
+          - $ref: '#/components/schemas/NaturalPerson'
+          description: Object with natural person information.
+          type: object
+        type:
+          description: |-
+            Type of person.
+            * NATURAL_PERSON - Individual
+            * LEGAL_PERSON - Company
+          enum:
+          - NATURAL_PERSON
+          - LEGAL_PERSON
+          example: NATURAL_PERSON
+          type: string
+      required:
+      - document
+      - name
+      - type
+      type: object
+    CreateInstrumentRequest:
+      description: CreateInstrumentRequest payload
+      example:
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        accountId: 00000000-0000-0000-0000-000000000000
+        metadata:
+          key: '{}'
+        regulatoryFields: '{}'
+        bankingDetails: '{}'
+        relatedParties:
+        - role: PRIMARY_HOLDER
+          endDate: 2026-01-01T00:00:00.000+0000
+          document: "12345678900"
+          name: John Smith
+          id: 00000000-0000-0000-0000-000000000000
+          startDate: 2025-01-01T00:00:00.000+0000
+        - role: PRIMARY_HOLDER
+          endDate: 2026-01-01T00:00:00.000+0000
+          document: "12345678900"
+          name: John Smith
+          id: 00000000-0000-0000-0000-000000000000
+          startDate: 2025-01-01T00:00:00.000+0000
+      properties:
+        accountId:
+          description: Unique identifier of the related account on ledger.
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        bankingDetails:
+          allOf:
+          - $ref: '#/components/schemas/BankingDetails'
+          description: Object with banking information of the related account.
+          type: object
+        ledgerId:
+          description: Unique identifier of the ledger of the related account.
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: An object containing key-value pairs to add as metadata, where
+            the field name is the key and the field value is the value.
+          type: object
+        regulatoryFields:
+          allOf:
+          - $ref: '#/components/schemas/RegulatoryFields'
+          description: Object with regulatory fields.
+          type: object
+        relatedParties:
+          description: List of related parties to add at creation.
+          items:
+            $ref: '#/components/schemas/RelatedParty'
+          type: array
+      required:
+      - accountId
+      - ledgerId
       type: object
     CreateLedgerInput:
       description: Request payload for creating a new ledger. Contains the ledger
@@ -9925,6 +11043,140 @@ components:
         share:
           $ref: '#/components/schemas/Share'
       type: object
+    HolderAccountResponse:
+      description: Composite response for opening a holder-owned account. Account
+        is always present on success. Instrument is present when one was requested
+        and created. When the account succeeded but the instrument write failed, instrumentError
+        carries a typed, client-actionable failure block and the account remains persisted
+        (no rollback).
+      example:
+        instrumentError: '{}'
+        instrument: '{}'
+        account: '{}'
+      properties:
+        account:
+          allOf:
+          - $ref: '#/components/schemas/Account'
+          description: The account that was created (always present on success).
+          type: object
+        instrument:
+          allOf:
+          - $ref: '#/components/schemas/InstrumentResponse'
+          description: |-
+            The instrument that was created, or null when none was requested or the
+            instrument write failed.
+          type: object
+        instrumentError:
+          allOf:
+          - $ref: '#/components/schemas/InstrumentFailure'
+          description: |-
+            Typed failure block, set only when the account committed but the
+            instrument write failed. Omitted on full success and on the account-only
+            path.
+          type: object
+      type: object
+    HolderResponse:
+      description: HolderResponse payload
+      example:
+        addresses:
+          additional1:
+            country: US
+            zipCode: "10001"
+            city: New York
+            description: Home
+            state: NY
+            line2: Suite 1500
+            line1: 123 Financial Avenue
+          additional2:
+            country: US
+            zipCode: "10001"
+            city: New York
+            description: Home
+            state: NY
+            line2: Suite 1500
+            line1: 123 Financial Avenue
+          primary:
+            country: US
+            zipCode: "10001"
+            city: New York
+            description: Home
+            state: NY
+            line2: Suite 1500
+            line1: 123 Financial Avenue
+        metadata:
+          key: '{}'
+        document: "91315026015"
+        externalId: G4K7N8M2
+        type: NATURAL_PERSON
+        createdAt: 2025-01-01T00:00:00Z
+        deletedAt: 2025-01-01T00:00:00Z
+        contact:
+          secondaryEmail: john.doe@example.com
+          mobilePhone: +1555555555
+          otherPhone: +1555555555
+          primaryEmail: john.doe@example.com
+        legalPerson:
+          foundingDate: 2025-01-01
+          tradeName: Lerian Studio
+          activity: Electronic devices development
+          size: Medium
+          type: Limited Liability
+          representative: '{}'
+          status: Closed
+        name: John Doe
+        id: 00000000-0000-0000-0000-000000000000
+        naturalPerson:
+          fatherName: John Doe
+          socialName: John Doe
+          gender: Male
+          nationality: Brazilian
+          favoriteName: John
+          motherName: Jane Doe
+          birthDate: 1990-01-01
+          civilStatus: Single
+          status: Active
+        updatedAt: 2025-01-01T00:00:00Z
+      properties:
+        addresses:
+          $ref: '#/components/schemas/Addresses'
+        contact:
+          $ref: '#/components/schemas/Contact'
+        createdAt:
+          example: 2025-01-01T00:00:00Z
+          type: string
+        deletedAt:
+          example: 2025-01-01T00:00:00Z
+          type: string
+        document:
+          example: "91315026015"
+          type: string
+        externalId:
+          example: G4K7N8M2
+          type: string
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        legalPerson:
+          $ref: '#/components/schemas/LegalPerson'
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        name:
+          example: John Doe
+          type: string
+        naturalPerson:
+          $ref: '#/components/schemas/NaturalPerson'
+        type:
+          enum:
+          - NATURAL_PERSON
+          - LEGAL_PERSON
+          example: NATURAL_PERSON
+          type: string
+        updatedAt:
+          example: 2025-01-01T00:00:00Z
+          type: string
+      type: object
     IndexStats:
       description: Usage statistics collected by MongoDB for an index
       properties:
@@ -9941,6 +11193,95 @@ components:
             format: date-time
           example: 2024-12-01T10:30:00Z
           format: date-time
+          type: string
+      type: object
+    InstrumentFailure:
+      description: Typed partial-failure block returned when an account was created
+        but its instrument could not be written. Status reflects the instrument outcome;
+        Reason is a stable, client-actionable code (not internal error text).
+      properties:
+        reason:
+          description: |-
+            Stable, client-actionable reason code for the instrument-write failure.
+            example: 0001
+          example: "0001"
+          type: string
+        status:
+          description: |-
+            Outcome status of the instrument write (e.g. FAILED).
+            example: FAILED
+          example: FAILED
+          type: string
+      type: object
+    InstrumentResponse:
+      description: InstrumentResponse payload
+      example:
+        metadata:
+          key: '{}'
+        regulatoryFields:
+          participantDocument: "12345678912345"
+        document: "91315026015"
+        type: LEGAL_PERSON
+        holderId: 00000000-0000-0000-0000-000000000000
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        accountId: 00000000-0000-0000-0000-000000000000
+        createdAt: 2025-01-01T00:00:00Z
+        deletedAt: 2025-01-01T00:00:00Z
+        bankingDetails: '{}'
+        relatedParties:
+        - role: PRIMARY_HOLDER
+          endDate: 2026-01-01T00:00:00.000+0000
+          document: "12345678900"
+          name: John Smith
+          id: 00000000-0000-0000-0000-000000000000
+          startDate: 2025-01-01T00:00:00.000+0000
+        - role: PRIMARY_HOLDER
+          endDate: 2026-01-01T00:00:00.000+0000
+          document: "12345678900"
+          name: John Smith
+          id: 00000000-0000-0000-0000-000000000000
+          startDate: 2025-01-01T00:00:00.000+0000
+        id: 00000000-0000-0000-0000-000000000000
+        updatedAt: 2025-01-01T00:00:00Z
+      properties:
+        accountId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        bankingDetails:
+          type: object
+        createdAt:
+          example: 2025-01-01T00:00:00Z
+          type: string
+        deletedAt:
+          example: 2025-01-01T00:00:00Z
+          type: string
+        document:
+          example: "91315026015"
+          type: string
+        holderId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        regulatoryFields:
+          $ref: '#/components/schemas/RegulatoryFields'
+        relatedParties:
+          items:
+            $ref: '#/components/schemas/RelatedParty'
+          type: array
+        type:
+          example: LEGAL_PERSON
+          type: string
+        updatedAt:
+          example: 2025-01-01T00:00:00Z
           type: string
       type: object
     Ledger:
@@ -10028,6 +11369,48 @@ components:
           format: date-time
           type: string
       type: object
+    LegalPerson:
+      description: LegalPerson is a struct designed to encapsulate response payload
+        data.
+      example:
+        foundingDate: 2025-01-01
+        tradeName: Lerian Studio
+        activity: Electronic devices development
+        size: Medium
+        type: Limited Liability
+        representative: '{}'
+        status: Closed
+      properties:
+        activity:
+          description: The type of business or activity the company engages in.
+          example: Electronic devices development
+          type: string
+        foundingDate:
+          description: The date when the company was established.
+          example: 2025-01-01
+          type: string
+        representative:
+          allOf:
+          - $ref: '#/components/schemas/Representative'
+          description: Object with details of the company's legal representative.
+          type: object
+        size:
+          description: The size classification of the company.
+          example: Medium
+          type: string
+        status:
+          description: The current status of the legal entity.
+          example: Closed
+          type: string
+        tradeName:
+          description: The registered business name of the company, if applicable.
+          example: Lerian Studio
+          type: string
+        type:
+          description: The legal structure of the company.
+          example: Limited Liability
+          type: string
+      type: object
     MetadataIndex:
       description: Represents a custom MongoDB index on a metadata field
       example:
@@ -10064,6 +11447,57 @@ components:
           description: Whether the index enforces uniqueness
           example: false
           type: boolean
+      type: object
+    NaturalPerson:
+      description: NaturalPerson object
+      example:
+        fatherName: John Doe
+        socialName: John Doe
+        gender: Male
+        nationality: Brazilian
+        favoriteName: John
+        motherName: Jane Doe
+        birthDate: 1990-01-01
+        civilStatus: Single
+        status: Active
+      properties:
+        birthDate:
+          description: Person's birth date, formatted as YYYY-MM-DD.
+          example: 1990-01-01
+          type: string
+        civilStatus:
+          description: 'Person''s civil status, for example: "Single", "Married",
+            or "Divorced".'
+          example: Single
+          type: string
+        fatherName:
+          description: The name of the person's father.
+          example: John Doe
+          type: string
+        favoriteName:
+          description: The person's nickname or preferred name.
+          example: John
+          type: string
+        gender:
+          description: Person's gender.
+          example: Male
+          type: string
+        motherName:
+          description: The name of the person's mother.
+          example: Jane Doe
+          type: string
+        nationality:
+          description: The nationality of the person, for example, "Brazilian".
+          example: Brazilian
+          type: string
+        socialName:
+          description: The social name or alternate name used by the person, if applicable.
+          example: John Doe
+          type: string
+        status:
+          description: The current status of the individual.
+          example: Active
+          type: string
       type: object
     Operation:
       description: Operation is a struct designed to store operation data. Represents
@@ -10601,6 +12035,86 @@ components:
       - from
       - to
       - value
+      type: object
+    RegulatoryFields:
+      description: RegulatoryFields object
+      example:
+        participantDocument: "12345678912345"
+      properties:
+        participantDocument:
+          description: Document of the participant (identifies which financial-group
+            entity owns the relationship)
+          example: "12345678912345"
+          type: string
+      type: object
+    RelatedParty:
+      description: RelatedParty object
+      example:
+        role: PRIMARY_HOLDER
+        endDate: 2026-01-01T00:00:00.000+0000
+        document: "12345678900"
+        name: John Smith
+        id: 00000000-0000-0000-0000-000000000000
+        startDate: 2025-01-01T00:00:00.000+0000
+      properties:
+        document:
+          description: Document of the related party.
+          example: "12345678900"
+          type: string
+        endDate:
+          description: End date of the relationship (optional). Accepts both "2025-01-01"
+            and "2025-01-01T00:00:00Z" formats.
+          example: 2026-01-01
+          format: date
+          type: string
+        id:
+          description: Unique identifier of the related party.
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        name:
+          description: Name of the related party.
+          example: John Smith
+          type: string
+        role:
+          description: Role of the related party (PRIMARY_HOLDER, LEGAL_REPRESENTATIVE,
+            RESPONSIBLE_PARTY).
+          enum:
+          - PRIMARY_HOLDER
+          - LEGAL_REPRESENTATIVE
+          - RESPONSIBLE_PARTY
+          example: PRIMARY_HOLDER
+          type: string
+        startDate:
+          description: Start date of the relationship. Accepts both "2025-01-01" and
+            "2025-01-01T00:00:00Z" formats.
+          example: 2025-01-01
+          format: date
+          type: string
+      required:
+      - document
+      - name
+      - role
+      - startDate
+      type: object
+    Representative:
+      description: Representative object from LegalPerson
+      properties:
+        document:
+          description: The document number of the legal representative.
+          example: "91315026015"
+          type: string
+        email:
+          description: The email address of the legal representative.
+          example: john.doe@example.com
+          type: string
+        name:
+          description: The legal representative’s name.
+          example: John Doe
+          type: string
+        role:
+          description: The role of the legal representative within the company.
+          example: CFO
+          type: string
       type: object
     Segment:
       description: Segment represents a logical division within a ledger such as a
@@ -11374,7 +12888,8 @@ components:
           type: boolean
         entityId:
           description: |-
-            Optional external identifier for linking to external systems
+            Free-form external reference for linking to external systems. This is NOT the
+            ownership link, and holderId is immutable: ownership cannot be changed via update.
             required: false
             example: EXT-ACC-12345
             maxLength: 256
@@ -11506,6 +13021,97 @@ components:
             Direction is intentionally absent: it is immutable after creation.
             required: false
           type: object
+      type: object
+    UpdateHolderRequest:
+      description: UpdateHolderRequest payload
+      example:
+        addresses: '{}'
+        metadata:
+          key: '{}'
+        contact: '{}'
+        legalPerson: '{}'
+        name: John Doe
+        externalId: G4K7N8M
+        naturalPerson: '{}'
+      properties:
+        addresses:
+          allOf:
+          - $ref: '#/components/schemas/Addresses'
+          description: Object of addresses.
+          type: object
+        contact:
+          allOf:
+          - $ref: '#/components/schemas/Contact'
+          description: Object with contact information.
+          type: object
+        externalId:
+          description: Optional field for an external identifier to client correlation
+            purposes.
+          example: G4K7N8M
+          type: string
+        legalPerson:
+          allOf:
+          - $ref: '#/components/schemas/LegalPerson'
+          description: Object with legal person information.
+          type: object
+        metadata:
+          additionalProperties:
+            type: object
+          description: An object containing key-value pairs to add as metadata, where
+            the field name is the key and the field value is the value.
+          type: object
+        name:
+          description: Holders name.
+          example: John Doe
+          type: string
+        naturalPerson:
+          allOf:
+          - $ref: '#/components/schemas/NaturalPerson'
+          description: Object with natural person information.
+          type: object
+      type: object
+    UpdateInstrumentRequest:
+      description: UpdateInstrumentRequest payload
+      example:
+        metadata:
+          key: '{}'
+        regulatoryFields: '{}'
+        bankingDetails: '{}'
+        relatedParties:
+        - role: PRIMARY_HOLDER
+          endDate: 2026-01-01T00:00:00.000+0000
+          document: "12345678900"
+          name: John Smith
+          id: 00000000-0000-0000-0000-000000000000
+          startDate: 2025-01-01T00:00:00.000+0000
+        - role: PRIMARY_HOLDER
+          endDate: 2026-01-01T00:00:00.000+0000
+          document: "12345678900"
+          name: John Smith
+          id: 00000000-0000-0000-0000-000000000000
+          startDate: 2025-01-01T00:00:00.000+0000
+      properties:
+        bankingDetails:
+          allOf:
+          - $ref: '#/components/schemas/BankingDetails'
+          description: Object with banking information of the related account.
+          type: object
+        metadata:
+          additionalProperties:
+            type: object
+          description: An object containing key-value pairs to add as metadata, where
+            the field name is the key and the field value is the value.
+          type: object
+        regulatoryFields:
+          allOf:
+          - $ref: '#/components/schemas/RegulatoryFields'
+          description: Object with regulatory fields.
+          type: object
+        relatedParties:
+          description: List of related parties to add (appends to existing).
+          items:
+            $ref: '#/components/schemas/RelatedParty'
+          type: array
       type: object
     UpdateLedgerInput:
       description: Request payload for updating an existing ledger. All fields are
@@ -12195,6 +13801,19 @@ components:
           example: "1.50"
           type: string
       type: object
+    github_com_LerianStudio_midaz_v3_pkg.HTTPError:
+      properties:
+        code:
+          type: string
+        entityType:
+          type: string
+        err:
+          type: object
+        message:
+          type: string
+        title:
+          type: string
+      type: object
     github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
       example:
         prev_cursor: prev_cursor
@@ -12216,6 +13835,12 @@ components:
       type: object
     mmodel.AccountingValidation:
       properties:
+        requireHolder:
+          description: |-
+            RequireHolder enables enforcement that accounts must reference an existing holder.
+            When true, account creation rejects accounts whose resolved holder does not exist.
+            Default: false (permissive - no validation)
+          type: boolean
         validateAccountType:
           description: |-
             ValidateAccountType enables validation of account types during transaction processing.
@@ -12450,15 +14075,47 @@ components:
           example: false
           type: boolean
       type: object
+    mmodel.Date:
+      description: Date in YYYY-MM-DD format (e.g., "2025-06-15") or null
+      properties:
+        time.Time:
+          type: string
+      type: object
     mmodel.LedgerSettings:
       example:
         accounting: '{}'
+        tracer: '{}'
       properties:
         accounting:
           allOf:
           - $ref: '#/components/schemas/mmodel.AccountingValidation'
           description: Accounting contains validation settings for accounting operations.
           type: object
+        tracer:
+          allOf:
+          - $ref: '#/components/schemas/mmodel.TracerSettings'
+          description: Tracer contains the per-ledger tracer-integration settings.
+          type: object
+      type: object
+    mmodel.TracerSettings:
+      properties:
+        failPosture:
+          description: |-
+            FailPosture controls behavior when the tracer is unavailable (timeout/breaker-open).
+            One of: "open" (proceed, record SKIPPED audit), "closed" (reject the transaction).
+            Default: "open".
+          type: string
+        mode:
+          description: |-
+            Mode controls tracer participation in transaction processing.
+            One of: "off" (skip), "advisory" (call but never block), "enforce" (call and gate).
+            Default: "off".
+          type: string
+        timeoutMs:
+          description: |-
+            TimeoutMs is the per-call tracer reserve timeout, in milliseconds.
+            Default: 250.
+          type: integer
       type: object
     inline_response_200:
       example:
@@ -12562,6 +14219,265 @@ components:
     inline_response_200_1:
       example:
         items:
+        - addresses:
+            additional1:
+              country: US
+              zipCode: "10001"
+              city: New York
+              description: Home
+              state: NY
+              line2: Suite 1500
+              line1: 123 Financial Avenue
+            additional2:
+              country: US
+              zipCode: "10001"
+              city: New York
+              description: Home
+              state: NY
+              line2: Suite 1500
+              line1: 123 Financial Avenue
+            primary:
+              country: US
+              zipCode: "10001"
+              city: New York
+              description: Home
+              state: NY
+              line2: Suite 1500
+              line1: 123 Financial Avenue
+          metadata:
+            key: '{}'
+          document: "91315026015"
+          externalId: G4K7N8M2
+          type: NATURAL_PERSON
+          createdAt: 2025-01-01T00:00:00Z
+          deletedAt: 2025-01-01T00:00:00Z
+          contact:
+            secondaryEmail: john.doe@example.com
+            mobilePhone: +1555555555
+            otherPhone: +1555555555
+            primaryEmail: john.doe@example.com
+          legalPerson:
+            foundingDate: 2025-01-01
+            tradeName: Lerian Studio
+            activity: Electronic devices development
+            size: Medium
+            type: Limited Liability
+            representative: '{}'
+            status: Closed
+          name: John Doe
+          id: 00000000-0000-0000-0000-000000000000
+          naturalPerson:
+            fatherName: John Doe
+            socialName: John Doe
+            gender: Male
+            nationality: Brazilian
+            favoriteName: John
+            motherName: Jane Doe
+            birthDate: 1990-01-01
+            civilStatus: Single
+            status: Active
+          updatedAt: 2025-01-01T00:00:00Z
+        - addresses:
+            additional1:
+              country: US
+              zipCode: "10001"
+              city: New York
+              description: Home
+              state: NY
+              line2: Suite 1500
+              line1: 123 Financial Avenue
+            additional2:
+              country: US
+              zipCode: "10001"
+              city: New York
+              description: Home
+              state: NY
+              line2: Suite 1500
+              line1: 123 Financial Avenue
+            primary:
+              country: US
+              zipCode: "10001"
+              city: New York
+              description: Home
+              state: NY
+              line2: Suite 1500
+              line1: 123 Financial Avenue
+          metadata:
+            key: '{}'
+          document: "91315026015"
+          externalId: G4K7N8M2
+          type: NATURAL_PERSON
+          createdAt: 2025-01-01T00:00:00Z
+          deletedAt: 2025-01-01T00:00:00Z
+          contact:
+            secondaryEmail: john.doe@example.com
+            mobilePhone: +1555555555
+            otherPhone: +1555555555
+            primaryEmail: john.doe@example.com
+          legalPerson:
+            foundingDate: 2025-01-01
+            tradeName: Lerian Studio
+            activity: Electronic devices development
+            size: Medium
+            type: Limited Liability
+            representative: '{}'
+            status: Closed
+          name: John Doe
+          id: 00000000-0000-0000-0000-000000000000
+          naturalPerson:
+            fatherName: John Doe
+            socialName: John Doe
+            gender: Male
+            nationality: Brazilian
+            favoriteName: John
+            motherName: Jane Doe
+            birthDate: 1990-01-01
+            civilStatus: Single
+            status: Active
+          updatedAt: 2025-01-01T00:00:00Z
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
+      properties:
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/HolderResponse'
+          type: array
+      type: object
+    inline_response_200_2:
+      example:
+        items:
+        - metadata:
+            key: '{}'
+          assetCode: USD
+          entityId: EXT-ACC-12345
+          type: deposit
+          holderId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          parentAccountId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          portfolioId: 00000000-0000-0000-0000-000000000000
+          blocked: true
+          segmentId: 00000000-0000-0000-0000-000000000000
+          name: Corporate Checking Account
+          alias: '@treasury_checking'
+          id: 00000000-0000-0000-0000-000000000000
+          status: '{}'
+          updatedAt: 2021-01-01T00:00:00Z
+        - metadata:
+            key: '{}'
+          assetCode: USD
+          entityId: EXT-ACC-12345
+          type: deposit
+          holderId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          parentAccountId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          portfolioId: 00000000-0000-0000-0000-000000000000
+          blocked: true
+          segmentId: 00000000-0000-0000-0000-000000000000
+          name: Corporate Checking Account
+          alias: '@treasury_checking'
+          id: 00000000-0000-0000-0000-000000000000
+          status: '{}'
+          updatedAt: 2021-01-01T00:00:00Z
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
+      properties:
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/Account'
+          type: array
+      type: object
+    inline_response_200_3:
+      example:
+        items:
+        - metadata:
+            key: '{}'
+          regulatoryFields:
+            participantDocument: "12345678912345"
+          document: "91315026015"
+          type: LEGAL_PERSON
+          holderId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2025-01-01T00:00:00Z
+          deletedAt: 2025-01-01T00:00:00Z
+          bankingDetails: '{}'
+          relatedParties:
+          - role: PRIMARY_HOLDER
+            endDate: 2026-01-01T00:00:00.000+0000
+            document: "12345678900"
+            name: John Smith
+            id: 00000000-0000-0000-0000-000000000000
+            startDate: 2025-01-01T00:00:00.000+0000
+          - role: PRIMARY_HOLDER
+            endDate: 2026-01-01T00:00:00.000+0000
+            document: "12345678900"
+            name: John Smith
+            id: 00000000-0000-0000-0000-000000000000
+            startDate: 2025-01-01T00:00:00.000+0000
+          id: 00000000-0000-0000-0000-000000000000
+          updatedAt: 2025-01-01T00:00:00Z
+        - metadata:
+            key: '{}'
+          regulatoryFields:
+            participantDocument: "12345678912345"
+          document: "91315026015"
+          type: LEGAL_PERSON
+          holderId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2025-01-01T00:00:00Z
+          deletedAt: 2025-01-01T00:00:00Z
+          bankingDetails: '{}'
+          relatedParties:
+          - role: PRIMARY_HOLDER
+            endDate: 2026-01-01T00:00:00.000+0000
+            document: "12345678900"
+            name: John Smith
+            id: 00000000-0000-0000-0000-000000000000
+            startDate: 2025-01-01T00:00:00.000+0000
+          - role: PRIMARY_HOLDER
+            endDate: 2026-01-01T00:00:00.000+0000
+            document: "12345678900"
+            name: John Smith
+            id: 00000000-0000-0000-0000-000000000000
+            startDate: 2025-01-01T00:00:00.000+0000
+          id: 00000000-0000-0000-0000-000000000000
+          updatedAt: 2025-01-01T00:00:00Z
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
+      properties:
+        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/InstrumentResponse'
+          type: array
+      type: object
+    inline_response_200_4:
+      example:
+        items:
         - legalName: Lerian Financial Services Ltd.
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
@@ -12600,7 +14516,7 @@ components:
             $ref: '#/components/schemas/Organization'
           type: array
       type: object
-    inline_response_200_2:
+    inline_response_200_5:
       example:
         items:
         - organizationId: 00000000-0000-0000-0000-000000000000
@@ -12637,7 +14553,7 @@ components:
             $ref: '#/components/schemas/Ledger'
           type: array
       type: object
-    inline_response_200_3:
+    inline_response_200_6:
       example:
         items:
         - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -12678,60 +14594,7 @@ components:
             $ref: '#/components/schemas/AccountType'
           type: array
       type: object
-    inline_response_200_4:
-      example:
-        items:
-        - metadata:
-            key: '{}'
-          assetCode: USD
-          entityId: EXT-ACC-12345
-          type: deposit
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          parentAccountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
-          blocked: true
-          segmentId: 00000000-0000-0000-0000-000000000000
-          name: Corporate Checking Account
-          alias: '@treasury_checking'
-          id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
-        - metadata:
-            key: '{}'
-          assetCode: USD
-          entityId: EXT-ACC-12345
-          type: deposit
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          parentAccountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
-          blocked: true
-          segmentId: 00000000-0000-0000-0000-000000000000
-          name: Corporate Checking Account
-          alias: '@treasury_checking'
-          id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
-        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
-          prev_cursor: prev_cursor
-          next_cursor: next_cursor
-          limit: 0
-          page: 6
-          items: '{}'
-      properties:
-        github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
-        items:
-          items:
-            $ref: '#/components/schemas/Account'
-          type: array
-      type: object
-    inline_response_200_5:
+    inline_response_200_7:
       example:
         items:
         - settings: '{}'
@@ -12790,7 +14653,7 @@ components:
             $ref: '#/components/schemas/mmodel.Balance'
           type: array
       type: object
-    inline_response_200_6:
+    inline_response_200_8:
       example:
         items:
         - accountAlias: '@person1'
@@ -12861,7 +14724,7 @@ components:
             $ref: '#/components/schemas/Operation'
           type: array
       type: object
-    inline_response_200_7:
+    inline_response_200_9:
       example:
         items:
         - metadata:
@@ -12906,7 +14769,7 @@ components:
             $ref: '#/components/schemas/AssetRate'
           type: array
       type: object
-    inline_response_200_8:
+    inline_response_200_10:
       example:
         items:
         - ledgerId: 00000000-0000-0000-0000-000000000000
@@ -12947,7 +14810,7 @@ components:
             $ref: '#/components/schemas/Asset'
           type: array
       type: object
-    inline_response_200_9:
+    inline_response_200_11:
       example:
         items:
         - metadata:
@@ -12994,7 +14857,7 @@ components:
             $ref: '#/components/schemas/OperationRoute'
           type: array
       type: object
-    inline_response_200_10:
+    inline_response_200_12:
       example:
         items:
         - ledgerId: 00000000-0000-0000-0000-000000000000
@@ -13033,7 +14896,7 @@ components:
             $ref: '#/components/schemas/Portfolio'
           type: array
       type: object
-    inline_response_200_11:
+    inline_response_200_13:
       example:
         items:
         - ledgerId: 00000000-0000-0000-0000-000000000000
@@ -13070,7 +14933,7 @@ components:
             $ref: '#/components/schemas/Segment'
           type: array
       type: object
-    inline_response_200_12:
+    inline_response_200_14:
       example:
         items:
         - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -13169,7 +15032,7 @@ components:
             $ref: '#/components/schemas/TransactionRoute'
           type: array
       type: object
-    inline_response_200_13:
+    inline_response_200_15:
       example:
         items:
         - amount: 1500.0
@@ -13336,7 +15199,7 @@ components:
             $ref: '#/components/schemas/Transaction'
           type: array
       type: object
-    inline_response_200_14:
+    inline_response_200_16:
       example:
         Pagination:
           total: 10
