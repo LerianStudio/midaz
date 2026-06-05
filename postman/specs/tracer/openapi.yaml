@@ -1,0 +1,3195 @@
+openapi: 3.0.1
+info:
+  contact: {}
+  description: Transaction validation service with rules and limits
+  termsOfService: http://swagger.io/terms/
+  title: Tracer API
+  version: 4.0.0
+servers:
+- url: http://localhost:4020/
+- url: https://localhost:4020/
+paths:
+  /health:
+    get:
+      description: Returns 503 until startup self-probe completes; 200 "healthy" thereafter.
+      operationId: getHealth
+      responses:
+        "200":
+          content:
+            text/plain:
+              schema:
+                type: string
+          description: healthy
+        "503":
+          content:
+            text/plain:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+          description: self-probe has not completed
+      summary: Health check (liveness probe)
+      tags:
+      - health
+  /readyz:
+    get:
+      description: Live dependency probes — never cached. Returns 200 only when every
+        check is up/skipped/n/a; any down or degraded forces 503.
+      operationId: getReadyz
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ReadyzResponse'
+          description: Service is ready
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ReadyzResponse'
+          description: Service is not ready
+      summary: Readiness check (Lerian canonical contract)
+      tags:
+      - health
+  /v1/audit-events:
+    get:
+      description: Lists audit events with filters and cursor-based pagination. SOX/GLBA
+        compliance endpoint.
+      operationId: listAuditEvents
+      parameters:
+      - description: Start date (RFC3339 format)
+        in: query
+        name: start_date
+        schema:
+          format: date-time
+          type: string
+      - description: End date (RFC3339 format)
+        in: query
+        name: end_date
+        schema:
+          format: date-time
+          type: string
+      - description: Filter by event type
+        in: query
+        name: event_type
+        schema:
+          enum:
+          - TRANSACTION_VALIDATED
+          - RULE_CREATED
+          - RULE_UPDATED
+          - RULE_ACTIVATED
+          - RULE_DEACTIVATED
+          - RULE_DRAFTED
+          - RULE_DELETED
+          - LIMIT_CREATED
+          - LIMIT_UPDATED
+          - LIMIT_ACTIVATED
+          - LIMIT_DEACTIVATED
+          - LIMIT_DRAFTED
+          - LIMIT_DELETED
+          type: string
+      - description: Filter by action
+        in: query
+        name: action
+        schema:
+          enum:
+          - VALIDATE
+          - CREATE
+          - UPDATE
+          - DELETE
+          - ACTIVATE
+          - DEACTIVATE
+          - DRAFT
+          type: string
+      - description: Filter by result
+        in: query
+        name: result
+        schema:
+          enum:
+          - SUCCESS
+          - FAILED
+          - ALLOW
+          - DENY
+          - REVIEW
+          type: string
+      - description: Filter by resource type
+        in: query
+        name: resource_type
+        schema:
+          enum:
+          - transaction
+          - rule
+          - limit
+          type: string
+      - description: Filter by resource ID
+        in: query
+        name: resource_id
+        schema:
+          type: string
+      - description: Filter by actor type
+        in: query
+        name: actor_type
+        schema:
+          enum:
+          - user
+          - system
+          type: string
+      - description: Filter by actor ID
+        in: query
+        name: actor_id
+        schema:
+          type: string
+      - description: Filter by account ID (UUID)
+        in: query
+        name: account_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by segment ID (UUID)
+        in: query
+        name: segment_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by portfolio ID (UUID)
+        in: query
+        name: portfolio_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by transaction type
+        in: query
+        name: transaction_type
+        schema:
+          enum:
+          - CARD
+          - WIRE
+          - PIX
+          - CRYPTO
+          type: string
+      - description: Filter by matched rule ID (UUID)
+        in: query
+        name: matched_rule_id
+        schema:
+          format: uuid
+          type: string
+      - description: "Max items per page (1-1000, default: 100)"
+        in: query
+        name: limit
+        schema:
+          maximum: 1000
+          minimum: 1
+          type: integer
+      - description: Pagination token (empty for first page)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      - description: Sort field
+        in: query
+        name: sort_by
+        schema:
+          enum:
+          - created_at
+          - event_type
+          type: string
+      - description: Sort direction
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - ASC
+          - DESC
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_adapters_http_in.ListAuditEventsResponse'
+          description: Audit events listed successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid parameters
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: List audit events
+      tags:
+      - audit
+  /v1/audit-events/{id}:
+    get:
+      description: Retrieves a single audit event by its unique identifier. SOX/GLBA
+        compliance endpoint.
+      operationId: getAuditEvent
+      parameters:
+      - description: Event ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEvent'
+          description: Audit event retrieved successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid event ID
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Audit event not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Get an audit event by ID
+      tags:
+      - audit
+  /v1/audit-events/{id}/verify:
+    get:
+      description: Verifies the integrity of the audit event hash chain up to a specific
+        event. Detects tampering attempts. SOX/GLBA compliance endpoint.
+      operationId: verifyAuditEvent
+      parameters:
+      - description: Event ID to verify up to (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.HashChainVerificationResult'
+          description: Hash chain verification completed
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid event ID
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Event not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Verify audit event hash chain integrity
+      tags:
+      - audit
+  /v1/limits:
+    get:
+      description: Lists limits with cursor-based pagination and optional filters.
+      operationId: listLimits
+      parameters:
+      - description: "Max items per page (1-100, default: 10)"
+        in: query
+        name: limit
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+      - description: Pagination cursor (empty for first page)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      - description: Filter by name (case-insensitive partial match)
+        in: query
+        name: name
+        schema:
+          maxLength: 255
+          type: string
+      - description: Filter by status
+        in: query
+        name: status
+        schema:
+          enum:
+          - DRAFT
+          - ACTIVE
+          - INACTIVE
+          type: string
+      - description: Filter by limit type
+        in: query
+        name: limit_type
+        schema:
+          enum:
+          - DAILY
+          - WEEKLY
+          - MONTHLY
+          - CUSTOM
+          - PER_TRANSACTION
+          type: string
+      - description: Filter by scope account_id (UUID)
+        in: query
+        name: account_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope segment_id (UUID)
+        in: query
+        name: segment_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope portfolio_id (UUID)
+        in: query
+        name: portfolio_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope merchant_id (UUID)
+        in: query
+        name: merchant_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope transaction_type
+        in: query
+        name: transaction_type
+        schema:
+          enum:
+          - CARD
+          - WIRE
+          - PIX
+          - CRYPTO
+          type: string
+      - description: "Filter by scope sub_type (case-insensitive, normalized to lowercase;\
+          \ max 50 chars)"
+        in: query
+        name: sub_type
+        schema:
+          maxLength: 50
+          type: string
+      - description: Sort field
+        in: query
+        name: sort_by
+        schema:
+          enum:
+          - created_at
+          - updated_at
+          - name
+          - max_amount
+          type: string
+      - description: Sort direction
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - ASC
+          - DESC
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_adapters_http_in.ListLimitsResponse'
+          description: Limits listed successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid parameters
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: List spending limits
+      tags:
+      - limits
+    post:
+      description: Creates a limit with scopes array. Limits are created in DRAFT
+        status.
+      operationId: createLimit
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_adapters_http_in.CreateLimitInput'
+        description: Limit details
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
+          description: Limit created successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid input
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Limit name already exists
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Create a new spending limit
+      tags:
+      - limits
+      x-codegen-request-body-name: limit
+  /v1/limits/{id}:
+    delete:
+      description: Soft-deletes a limit (transitions to DELETED status). Only DRAFT
+        and INACTIVE limits can be deleted. ACTIVE limits must be deactivated first.
+      operationId: deleteLimit
+      parameters:
+      - description: Limit ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: Limit deleted successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid limit ID or transition
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Limit not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Delete a spending limit
+      tags:
+      - limits
+    get:
+      description: Retrieves a limit by its unique identifier.
+      operationId: getLimit
+      parameters:
+      - description: Limit ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
+          description: Limit retrieved successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid limit ID
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Limit not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Get a spending limit by ID
+      tags:
+      - limits
+    patch:
+      description: "Partially updates a limit. Only provided fields are updated, omitted\
+        \ fields remain unchanged."
+      operationId: updateLimit
+      parameters:
+      - description: Limit ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_adapters_http_in.UpdateLimitInput'
+        description: Fields to update
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
+          description: Limit updated successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid input
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Limit not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Limit name already exists
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Partially update an existing spending limit
+      tags:
+      - limits
+      x-codegen-request-body-name: limit
+  /v1/limits/{id}/activate:
+    post:
+      description: Activates an inactive limit (INACTIVE → ACTIVE).
+      operationId: activateLimit
+      parameters:
+      - description: Limit ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
+          description: Limit activated successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid limit ID or transition
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Limit not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Activate a spending limit
+      tags:
+      - limits
+  /v1/limits/{id}/deactivate:
+    post:
+      description: Deactivates an active limit (ACTIVE → INACTIVE).
+      operationId: deactivateLimit
+      parameters:
+      - description: Limit ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
+          description: Limit deactivated successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid limit ID or transition
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Limit not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Deactivate a spending limit
+      tags:
+      - limits
+  /v1/limits/{id}/draft:
+    post:
+      description: Transitions a limit from INACTIVE to DRAFT status. Allows re-editing
+        a previously deactivated limit.
+      operationId: draftLimit
+      parameters:
+      - description: Limit ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
+          description: Limit transitioned to draft successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid limit ID or transition
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Limit not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Transition a limit back to draft
+      tags:
+      - limits
+  /v1/limits/{id}/usage:
+    get:
+      description: "Retrieves current usage snapshot for a limit, showing aggregated\
+        \ usage, utilization percentage, and reset time."
+      operationId: getLimitUsage
+      parameters:
+      - description: Limit ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.UsageSnapshot'
+          description: Usage snapshot retrieved successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid limit ID
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Limit not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Get usage snapshot for a limit
+      tags:
+      - limits
+  /v1/reservations:
+    post:
+      description: "Holds limit capacity for a ledger transaction without committing\
+        \ it. Returns one reservation id per counter-backed limit, or denied=true\
+        \ when a limit would be exceeded."
+      operationId: createReservation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_adapters_http_in.ReserveRequest'
+        description: Reservation request
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_adapters_http_in.ReserveResponse'
+          description: Capacity reserved
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid input
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Payload too large (exceeds 100KB)
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Reserve transaction capacity (phase one)
+      tags:
+      - reservations
+      x-codegen-request-body-name: request
+  /v1/reservations/transaction/{transaction_id}/confirm:
+    post:
+      description: "Confirms EVERY held reservation a transaction holds, addressed\
+        \ by the ledger transaction id. The ledger /commit drives this with only the\
+        \ transaction id. Idempotent — flipped=0 (no reservations, or all already\
+        \ terminal) returns 200."
+      operationId: confirmReservationByTransaction
+      parameters:
+      - description: Transaction ID (UUID)
+        in: path
+        name: transaction_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_adapters_http_in.TransactionActionResponse'
+          description: Reservations confirmed
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid path parameter
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Confirm a transaction's reservations (phase two — commit by transaction)
+      tags:
+      - reservations
+  /v1/reservations/transaction/{transaction_id}/release:
+    post:
+      description: "Releases EVERY held reservation a transaction holds, addressed\
+        \ by the ledger transaction id. The ledger /cancel drives this with only the\
+        \ transaction id. Idempotent — flipped=0 returns 200."
+      operationId: releaseReservationByTransaction
+      parameters:
+      - description: Transaction ID (UUID)
+        in: path
+        name: transaction_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_adapters_http_in.TransactionActionResponse'
+          description: Reservations released
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid path parameter
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Release a transaction's reservations (phase two — abort by transaction)
+      tags:
+      - reservations
+  /v1/reservations/{id}/confirm:
+    post:
+      description: "Commits a held reservation: the amount moves from reserved to\
+        \ current usage. Idempotent — a retry against an already-terminal reservation\
+        \ returns 200."
+      operationId: confirmReservation
+      parameters:
+      - description: Reservation ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_adapters_http_in.ReservationActionResponse'
+          description: Reservation confirmed
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid path parameter
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Confirm a reservation (phase two — commit)
+      tags:
+      - reservations
+  /v1/reservations/{id}/release:
+    post:
+      description: Returns a held reservation's capacity on an aborted ledger transaction.
+        Idempotent — a retry against an already-terminal reservation returns 200.
+      operationId: releaseReservation
+      parameters:
+      - description: Reservation ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_adapters_http_in.ReservationActionResponse'
+          description: Reservation released
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid path parameter
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Release a reservation (phase two — abort)
+      tags:
+      - reservations
+  /v1/rules:
+    get:
+      description: Lists rules with cursor-based pagination and optional filters.
+        Supports filtering by scope fields to find rules applicable to specific contexts.
+        Global rules (empty scopes) are always included in scope-filtered results.
+      operationId: listRules
+      parameters:
+      - description: "Max items per page (1-100, default: 10)"
+        in: query
+        name: limit
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+      - description: Pagination cursor (empty for first page)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      - description: Filter by name (case-insensitive partial match)
+        in: query
+        name: name
+        schema:
+          type: string
+      - description: Filter by status (DELETED not allowed)
+        in: query
+        name: status
+        schema:
+          enum:
+          - DRAFT
+          - ACTIVE
+          - INACTIVE
+          type: string
+      - description: Filter by action
+        in: query
+        name: action
+        schema:
+          enum:
+          - ALLOW
+          - DENY
+          - REVIEW
+          type: string
+      - description: Filter by scope account_id (UUID)
+        in: query
+        name: account_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope segment_id (UUID)
+        in: query
+        name: segment_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope portfolio_id (UUID)
+        in: query
+        name: portfolio_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope merchant_id (UUID)
+        in: query
+        name: merchant_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope transaction_type
+        in: query
+        name: transaction_type
+        schema:
+          enum:
+          - CARD
+          - WIRE
+          - PIX
+          - CRYPTO
+          type: string
+      - description: "Filter by scope sub_type (case-insensitive, normalized to lowercase;\
+          \ max 50 chars)"
+        in: query
+        name: sub_type
+        schema:
+          maxLength: 50
+          type: string
+      - description: Sort field
+        in: query
+        name: sort_by
+        schema:
+          enum:
+          - created_at
+          - updated_at
+          - name
+          - status
+          type: string
+      - description: Sort direction
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - ASC
+          - DESC
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_adapters_http_in.ListRulesResponse'
+          description: Rules listed successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid parameters
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: List fraud rules
+      tags:
+      - rules
+    post:
+      description: Creates a rule with CEL expression and scopes array. Rules are
+        created in DRAFT status.
+      operationId: createRule
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_adapters_http_in.CreateRuleInput'
+        description: Rule details
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
+          description: Rule created successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid input
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Rule name already exists
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Create a new fraud rule
+      tags:
+      - rules
+      x-codegen-request-body-name: rule
+  /v1/rules/{id}:
+    delete:
+      description: Soft-deletes a rule (transitions to DELETED status). Only DRAFT
+        and INACTIVE rules can be deleted. ACTIVE rules must be deactivated first.
+      operationId: deleteRule
+      parameters:
+      - description: Rule ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: Rule deleted successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid rule ID or transition
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Rule not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Delete a fraud rule
+      tags:
+      - rules
+    get:
+      description: Retrieves a rule by its unique identifier.
+      operationId: getRule
+      parameters:
+      - description: Rule ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
+          description: Rule retrieved successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid rule ID
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Rule not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Get a fraud rule by ID
+      tags:
+      - rules
+    patch:
+      description: "Partially updates a rule. Only provided fields are updated, omitted\
+        \ fields remain unchanged."
+      operationId: updateRule
+      parameters:
+      - description: Rule ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_adapters_http_in.UpdateRuleInput'
+        description: Fields to update
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
+          description: Rule updated successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid input
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Rule not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Rule name already exists
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Partially update an existing fraud rule
+      tags:
+      - rules
+      x-codegen-request-body-name: rule
+  /v1/rules/{id}/activate:
+    post:
+      description: Activates a rule (DRAFT/INACTIVE → ACTIVE). Validates CEL expression
+        before activation.
+      operationId: activateRule
+      parameters:
+      - description: Rule ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
+          description: Rule activated successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid rule ID or transition
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Rule not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Activate a fraud rule
+      tags:
+      - rules
+  /v1/rules/{id}/deactivate:
+    post:
+      description: Deactivates a rule (ACTIVE/DRAFT → INACTIVE).
+      operationId: deactivateRule
+      parameters:
+      - description: Rule ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
+          description: Rule deactivated successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid rule ID or transition
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Rule not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Deactivate a fraud rule
+      tags:
+      - rules
+  /v1/rules/{id}/draft:
+    post:
+      description: Transitions a rule from INACTIVE to DRAFT status. Allows re-editing
+        a previously deactivated rule.
+      operationId: draftRule
+      parameters:
+      - description: Rule ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
+          description: Rule transitioned to draft successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid rule ID or transition
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Rule not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Transition a rule back to draft
+      tags:
+      - rules
+  /v1/validations:
+    get:
+      description: Lists transaction validation records with cursor-based pagination
+        and filters.
+      operationId: listValidations
+      parameters:
+      - description: "Max items per page (1-1000, default: 100)"
+        in: query
+        name: limit
+        schema:
+          maximum: 1000
+          minimum: 1
+          type: integer
+      - description: Pagination cursor from previous response
+        in: query
+        name: cursor
+        schema:
+          type: string
+      - description: "Field to sort by (default: created_at)"
+        in: query
+        name: sort_by
+        schema:
+          enum:
+          - created_at
+          - processing_time_ms
+          type: string
+      - description: "Sort direction (default: DESC)"
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - ASC
+          - DESC
+          type: string
+      - description: Filter from this date (RFC3339)
+        in: query
+        name: start_date
+        schema:
+          format: date-time
+          type: string
+      - description: Filter to this date (RFC3339)
+        in: query
+        name: end_date
+        schema:
+          format: date-time
+          type: string
+      - description: Filter by decision
+        in: query
+        name: decision
+        schema:
+          enum:
+          - ALLOW
+          - DENY
+          - REVIEW
+          type: string
+      - description: Filter by account ID (UUID)
+        in: query
+        name: account_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by matched rule ID (UUID)
+        in: query
+        name: matched_rule_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by exceeded limit ID (UUID)
+        in: query
+        name: exceeded_limit_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by segment ID (UUID)
+        in: query
+        name: segment_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by portfolio ID (UUID)
+        in: query
+        name: portfolio_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by transaction type
+        in: query
+        name: transaction_type
+        schema:
+          enum:
+          - CARD
+          - WIRE
+          - PIX
+          - CRYPTO
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_adapters_http_in.ListTransactionValidationsResponse'
+          description: Transaction validations listed successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid parameters
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: List transaction validation records
+      tags:
+      - validations
+    post:
+      description: Validates a transaction against configured rules and limits.
+      operationId: validateTransaction
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationRequest'
+        description: Validation request
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationResponse'
+          description: Duplicate request (idempotent)
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationResponse'
+          description: New validation created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid input
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Payload too large (exceeds 100KB)
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Service unavailable
+        "504":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Gateway timeout
+      security:
+      - ApiKeyAuth: []
+      summary: Validate a transaction
+      tags:
+      - validations
+      x-codegen-request-body-name: request
+  /v1/validations/{id}:
+    get:
+      description: Retrieves a transaction validation record by its unique identifier.
+      operationId: getValidation
+      parameters:
+      - description: Transaction Validation ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionValidation'
+          description: Transaction validation retrieved successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid transaction validation ID
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Transaction validation not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Get a transaction validation record by ID
+      tags:
+      - validations
+  /version:
+    get:
+      description: Returns the current version of the service
+      operationId: getVersion
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.VersionResponse'
+          description: Version information
+      summary: Get service version
+      tags:
+      - info
+components:
+  schemas:
+    api.ErrorResponse:
+      example:
+        code: TRC-0001
+        message: Invalid input provided
+        title: Bad Request
+      properties:
+        code:
+          example: TRC-0001
+          type: string
+        message:
+          example: Invalid input provided
+          type: string
+        title:
+          example: Bad Request
+          type: string
+      required:
+      - code
+      - message
+      - title
+      type: object
+    api.ReadyzCheck:
+      example:
+        tls: true
+        error: error
+        latency_ms: 3
+        status: up
+      properties:
+        error:
+          type: string
+        latency_ms:
+          example: 3
+          type: integer
+        status:
+          enum:
+          - up
+          - down
+          - degraded
+          - skipped
+          - n/a
+          example: up
+          type: string
+        tls:
+          example: true
+          type: boolean
+      type: object
+    api.ReadyzResponse:
+      example:
+        checks:
+          key:
+            tls: true
+            error: error
+            latency_ms: 3
+            status: up
+        draining: false
+        version: 1.2.3
+        deployment_mode: saas
+        status: healthy
+      properties:
+        checks:
+          additionalProperties:
+            $ref: '#/components/schemas/api.ReadyzCheck'
+          type: object
+        deployment_mode:
+          example: saas
+          type: string
+        draining:
+          example: false
+          type: boolean
+        status:
+          enum:
+          - healthy
+          - unhealthy
+          example: healthy
+          type: string
+        version:
+          example: 1.2.3
+          type: string
+      type: object
+    api.VersionResponse:
+      example:
+        requestDate: 2025-01-01T00:00:00Z
+        version: 1.0.0
+      properties:
+        requestDate:
+          example: 2025-01-01T00:00:00Z
+          type: string
+        version:
+          example: 1.0.0
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AccountContext:
+      example:
+        accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        metadata:
+          key: "{}"
+        type: type
+        status: status
+      properties:
+        accountId:
+          format: uuid
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        status:
+          type: string
+        type:
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Actor:
+      properties:
+        actorType:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ActorType'
+        id:
+          type: string
+        ipAddress:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ActorType:
+      enum:
+      - user
+      - api_key
+      - system
+      type: string
+      x-enum-varnames:
+      - ActorTypeUser
+      - ActorTypeAPIKey
+      - ActorTypeSystem
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEvent:
+      example:
+        actor: "{}"
+        result: result
+        createdAt: 2000-01-23T04:56:07.000+00:00
+        eventId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        metadata:
+          key: "{}"
+        resourceId: resourceId
+        previousHash: previousHash
+        context:
+          key: "{}"
+        action: action
+        eventType: TRANSACTION_VALIDATED
+        hash: hash
+        resourceType: transaction
+      properties:
+        action:
+          type: string
+        actor:
+          allOf:
+          - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Actor'
+          description: Actor fields
+          type: object
+        context:
+          additionalProperties:
+            type: object
+          description: |-
+            Context (JSONB)
+            Note: accountId, segmentId, portfolioId are in context.request.account (not first-level fields)
+            For validations: { request: {...}, response: {reason, processingTimeMs, matchedRuleIds, ...} }
+            For CRUD: { before: {...}, after: {...}, reason: "..." }
+          type: object
+        createdAt:
+          description: When event occurred
+          format: date-time
+          type: string
+        eventId:
+          description: Core fields
+          format: uuid
+          type: string
+        eventType:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEventType'
+        hash:
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: "Metadata (JSONB) - additional info like ticketId, correlationId"
+          type: object
+        previousHash:
+          type: string
+        resourceId:
+          description: Resource fields
+          type: string
+        resourceType:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ResourceType'
+        result:
+          description: "Unified: ALLOW/DENY/REVIEW for validations, SUCCESS/FAILED\
+            \ for CRUD"
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEventType:
+      enum:
+      - TRANSACTION_VALIDATED
+      - RULE_CREATED
+      - RULE_UPDATED
+      - RULE_ACTIVATED
+      - RULE_DEACTIVATED
+      - RULE_DRAFTED
+      - RULE_DELETED
+      - LIMIT_CREATED
+      - LIMIT_UPDATED
+      - LIMIT_DELETED
+      - LIMIT_ACTIVATED
+      - LIMIT_DEACTIVATED
+      - LIMIT_DRAFTED
+      - RESERVATION_RESERVED
+      - RESERVATION_CONFIRMED
+      - RESERVATION_RELEASED
+      - RESERVATION_EXPIRED
+      - RESERVATION_SKIPPED
+      type: string
+      x-enum-varnames:
+      - AuditEventTransactionValidated
+      - AuditEventRuleCreated
+      - AuditEventRuleUpdated
+      - AuditEventRuleActivated
+      - AuditEventRuleDeactivated
+      - AuditEventRuleDrafted
+      - AuditEventRuleDeleted
+      - AuditEventLimitCreated
+      - AuditEventLimitUpdated
+      - AuditEventLimitDeleted
+      - AuditEventLimitActivated
+      - AuditEventLimitDeactivated
+      - AuditEventLimitDrafted
+      - AuditEventReservationReserved
+      - AuditEventReservationConfirmed
+      - AuditEventReservationReleased
+      - AuditEventReservationExpired
+      - AuditEventReservationSkipped
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision:
+      enum:
+      - ALLOW
+      - DENY
+      - REVIEW
+      type: string
+      x-enum-varnames:
+      - DecisionAllow
+      - DecisionDeny
+      - DecisionReview
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.HashChainVerificationResult:
+      example:
+        isValid: true
+        totalChecked: 6
+        firstInvalidId: 0
+        message: message
+      properties:
+        firstInvalidId:
+          type: integer
+        isValid:
+          type: boolean
+        message:
+          type: string
+        totalChecked:
+          type: integer
+      type: object
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit:
+      example:
+        resetAt: 2000-01-23T04:56:07.000+00:00
+        customEndDate: 2000-01-23T04:56:07.000+00:00
+        activeTimeEnd: 17:00
+        description: description
+        limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        limitType: DAILY
+        activeTimeStart: 09:00
+        createdAt: 2000-01-23T04:56:07.000+00:00
+        deletedAt: 2000-01-23T04:56:07.000+00:00
+        name: name
+        currency: currency
+        scopes:
+        - transactionType: CARD
+          accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          subType: subType
+        - transactionType: CARD
+          accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          subType: subType
+        maxAmount: "1000.00"
+        customStartDate: 2000-01-23T04:56:07.000+00:00
+        status: DRAFT
+        updatedAt: 2000-01-23T04:56:07.000+00:00
+      properties:
+        activeTimeEnd:
+          example: 17:00
+          type: string
+        activeTimeStart:
+          example: 09:00
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        currency:
+          type: string
+        customEndDate:
+          format: date-time
+          type: string
+        customStartDate:
+          format: date-time
+          type: string
+        deletedAt:
+          format: date-time
+          type: string
+        description:
+          type: string
+        limitId:
+          format: uuid
+          type: string
+        limitType:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitType'
+        maxAmount:
+          example: "1000.00"
+          type: string
+        name:
+          type: string
+        resetAt:
+          format: date-time
+          type: string
+        scopes:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
+          type: array
+        status:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitStatus'
+        updatedAt:
+          format: date-time
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitStatus:
+      enum:
+      - DRAFT
+      - ACTIVE
+      - INACTIVE
+      - DELETED
+      type: string
+      x-enum-varnames:
+      - LimitStatusDraft
+      - LimitStatusActive
+      - LimitStatusInactive
+      - LimitStatusDeleted
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitType:
+      enum:
+      - DAILY
+      - MONTHLY
+      - PER_TRANSACTION
+      - WEEKLY
+      - CUSTOM
+      type: string
+      x-enum-varnames:
+      - LimitTypeDaily
+      - LimitTypeMonthly
+      - LimitTypePerTransaction
+      - LimitTypeWeekly
+      - LimitTypeCustom
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitUsageDetail:
+      example:
+        period: period
+        exceeded: true
+        attemptedAmount: "100.00"
+        scope: scope
+        currentUsage: "500.00"
+        limitAmount: "1000.00"
+        limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        skipReason: outside_time_window
+        skipped: true
+      properties:
+        attemptedAmount:
+          description: |-
+            AttemptedAmount is the transaction amount being validated against this limit.
+            Matches the amount from the validation request.
+          example: "100.00"
+          type: string
+        currentUsage:
+          description: |-
+            CurrentUsage represents the PROJECTED usage after applying the transaction amount,
+            not the actual persisted counter value. This is calculated as:
+            (counter.CurrentUsage + input.Amount) for DAILY/WEEKLY/MONTHLY/CUSTOM limits, or 0 for PER_TRANSACTION.
+            When Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows
+            what the usage would have been if the transaction were allowed.
+          example: "500.00"
+          type: string
+        exceeded:
+          type: boolean
+        limitAmount:
+          example: "1000.00"
+          type: string
+        limitId:
+          format: uuid
+          type: string
+        period:
+          description: "Period indicates the type of limit (DAILY, WEEKLY, MONTHLY,\
+            \ CUSTOM, PER_TRANSACTION)."
+          type: string
+        scope:
+          description: |-
+            Scope is a human-readable string representation of the limit's scope
+            (e.g., "account:uuid" or "segment:uuid" or "global").
+          type: string
+        skipReason:
+          description: |-
+            SkipReason explains why the limit was skipped (only set when Skipped=true).
+            Values: "outside_time_window" (outside active hours), "outside_custom_period" (outside custom date range).
+          example: outside_time_window
+          type: string
+        skipped:
+          description: |-
+            Skipped indicates whether this limit was skipped during evaluation (not enforced).
+            When true, the counter was NOT incremented and Exceeded is always false.
+          type: boolean
+      type: object
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.MerchantContext:
+      example:
+        country: country
+        metadata:
+          key: "{}"
+        merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        name: name
+        category: category
+      properties:
+        category:
+          description: "e.g., ISO 18245 MCC code"
+          type: string
+        country:
+          description: ISO 3166-1 alpha-2 code
+          type: string
+        merchantId:
+          format: uuid
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        name:
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.PortfolioContext:
+      example:
+        metadata:
+          key: "{}"
+        portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        name: name
+      properties:
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        name:
+          type: string
+        portfolioId:
+          format: uuid
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ResourceType:
+      enum:
+      - transaction
+      - rule
+      - limit
+      - reservation
+      type: string
+      x-enum-varnames:
+      - ResourceTypeTransaction
+      - ResourceTypeRule
+      - ResourceTypeLimit
+      - ResourceTypeReservation
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule:
+      example:
+        createdAt: 2000-01-23T04:56:07.000+00:00
+        deletedAt: 2000-01-23T04:56:07.000+00:00
+        expression: expression
+        activatedAt: 2000-01-23T04:56:07.000+00:00
+        name: name
+        action: ALLOW
+        description: description
+        deactivatedAt: 2000-01-23T04:56:07.000+00:00
+        scopes:
+        - transactionType: CARD
+          accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          subType: subType
+        - transactionType: CARD
+          accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          subType: subType
+        ruleId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        status: DRAFT
+        updatedAt: 2000-01-23T04:56:07.000+00:00
+      properties:
+        action:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision'
+        activatedAt:
+          format: date-time
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        deactivatedAt:
+          format: date-time
+          type: string
+        deletedAt:
+          format: date-time
+          type: string
+        description:
+          type: string
+        expression:
+          type: string
+        name:
+          type: string
+        ruleId:
+          format: uuid
+          type: string
+        scopes:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
+          type: array
+        status:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.RuleStatus'
+        updatedAt:
+          format: date-time
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.RuleStatus:
+      enum:
+      - DRAFT
+      - ACTIVE
+      - INACTIVE
+      - DELETED
+      type: string
+      x-enum-varnames:
+      - RuleStatusDraft
+      - RuleStatusActive
+      - RuleStatusInactive
+      - RuleStatusDeleted
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope:
+      example:
+        transactionType: CARD
+        accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        subType: subType
+      properties:
+        accountId:
+          format: uuid
+          type: string
+        merchantId:
+          format: uuid
+          type: string
+        portfolioId:
+          format: uuid
+          type: string
+        segmentId:
+          format: uuid
+          type: string
+        subType:
+          description: SubType is normalized to lowercase canonical form; matching
+            is case-insensitive.
+          maxLength: 50
+          type: string
+          x-normalization: lowercase
+        transactionType:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType'
+      type: object
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.SegmentContext:
+      example:
+        metadata:
+          key: "{}"
+        segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        name: name
+      properties:
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        name:
+          type: string
+        segmentId:
+          format: uuid
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType:
+      enum:
+      - CARD
+      - WIRE
+      - PIX
+      - CRYPTO
+      type: string
+      x-enum-varnames:
+      - TransactionTypeCard
+      - TransactionTypeWire
+      - TransactionTypePix
+      - TransactionTypeCrypto
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionValidation:
+      example:
+        limitUsageDetails:
+        - period: period
+          exceeded: true
+          attemptedAmount: "100.00"
+          scope: scope
+          currentUsage: "500.00"
+          limitAmount: "1000.00"
+          limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          skipReason: outside_time_window
+          skipped: true
+        - period: period
+          exceeded: true
+          attemptedAmount: "100.00"
+          scope: scope
+          currentUsage: "500.00"
+          limitAmount: "1000.00"
+          limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          skipReason: outside_time_window
+          skipped: true
+        reason: reason
+        amount: "100.00"
+        metadata:
+          key: "{}"
+        validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        decision: ALLOW
+        merchant:
+          country: country
+          metadata:
+            key: "{}"
+          merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          name: name
+          category: category
+        truncated: true
+        evaluatedRuleIds:
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        matchedRuleIds:
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        transactionTimestamp: 2000-01-23T04:56:07.000+00:00
+        transactionType: CARD
+        createdAt: 2000-01-23T04:56:07.000+00:00
+        portfolio:
+          metadata:
+            key: "{}"
+          portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          name: name
+        processingTimeMs: 0.8008281904610115
+        requestId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        segment:
+          metadata:
+            key: "{}"
+          segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          name: name
+        totalRulesLoaded: 6
+        currency: currency
+        subType: subType
+        account:
+          accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          metadata:
+            key: "{}"
+          type: type
+          status: status
+      properties:
+        account:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AccountContext'
+        amount:
+          example: "100.00"
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        currency:
+          type: string
+        decision:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision'
+        evaluatedRuleIds:
+          items:
+            format: uuid
+            type: string
+          type: array
+        limitUsageDetails:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitUsageDetail'
+          type: array
+        matchedRuleIds:
+          items:
+            format: uuid
+            type: string
+          type: array
+        merchant:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.MerchantContext'
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        portfolio:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.PortfolioContext'
+        processingTimeMs:
+          type: number
+        reason:
+          type: string
+        requestId:
+          format: uuid
+          type: string
+        segment:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.SegmentContext'
+        subType:
+          description: SubType is stored in its lowercase canonical form; matching
+            is case-insensitive.
+          maxLength: 50
+          type: string
+          x-normalization: lowercase
+        totalRulesLoaded:
+          type: integer
+        transactionTimestamp:
+          format: date-time
+          type: string
+        transactionType:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType'
+        truncated:
+          type: boolean
+        validationId:
+          format: uuid
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.UsageSnapshot:
+      example:
+        nearLimit: false
+        utilizationPercent: 50.0
+        resetAt: 2000-01-23T04:56:07.000+00:00
+        currentUsage: "500.00"
+        limitAmount: "1000.00"
+        limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+      properties:
+        currentUsage:
+          description: Current usage amount (sum of all counters)
+          example: "500.00"
+          type: string
+        limitAmount:
+          description: Total limit amount (from Limit.MaxAmount)
+          example: "1000.00"
+          type: string
+        limitId:
+          description: Limit identifier
+          format: uuid
+          type: string
+        nearLimit:
+          description: True if usage > 80%
+          example: false
+          type: boolean
+        resetAt:
+          description: When counter resets (nil for PER_TRANSACTION)
+          format: date-time
+          type: string
+        utilizationPercent:
+          description: Usage percentage (currentUsage / limitAmount * 100)
+          example: 50.0
+          type: number
+      type: object
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationRequest:
+      properties:
+        account:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AccountContext'
+        amount:
+          example: "100.00"
+          type: string
+        currency:
+          type: string
+        merchant:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.MerchantContext'
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        portfolio:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.PortfolioContext'
+        requestId:
+          format: uuid
+          type: string
+        segment:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.SegmentContext'
+        subType:
+          description: SubType is normalized to lowercase canonical form; matching
+            is case-insensitive.
+          maxLength: 50
+          type: string
+          x-normalization: lowercase
+        transactionTimestamp:
+          format: date-time
+          type: string
+        transactionType:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType'
+      required:
+      - account
+      - amount
+      - currency
+      - requestId
+      - transactionTimestamp
+      - transactionType
+      type: object
+    github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationResponse:
+      example:
+        limitUsageDetails:
+        - period: period
+          exceeded: true
+          attemptedAmount: "100.00"
+          scope: scope
+          currentUsage: "500.00"
+          limitAmount: "1000.00"
+          limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          skipReason: outside_time_window
+          skipped: true
+        - period: period
+          exceeded: true
+          attemptedAmount: "100.00"
+          scope: scope
+          currentUsage: "500.00"
+          limitAmount: "1000.00"
+          limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          skipReason: outside_time_window
+          skipped: true
+        validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        processingTimeMs: 0.8008281904610115
+        requestId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        evaluatedAt: 2000-01-23T04:56:07.000+00:00
+      properties:
+        evaluatedAt:
+          format: date-time
+          type: string
+        limitUsageDetails:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitUsageDetail'
+          type: array
+        processingTimeMs:
+          type: number
+        requestId:
+          format: uuid
+          type: string
+        validationId:
+          format: uuid
+          type: string
+      type: object
+    internal_adapters_http_in.CreateLimitInput:
+      properties:
+        activeTimeEnd:
+          example: 17:00
+          type: string
+        activeTimeStart:
+          example: 09:00
+          type: string
+        currency:
+          example: USD
+          maxLength: 3
+          minLength: 3
+          type: string
+        customEndDate:
+          example: 2026-11-29T00:00:00Z
+          format: date-time
+          type: string
+        customStartDate:
+          example: 2026-11-27T00:00:00Z
+          format: date-time
+          type: string
+        description:
+          maxLength: 1000
+          type: string
+        limitType:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitType'
+        maxAmount:
+          example: "1000.00"
+          type: string
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        scopes:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
+          maxItems: 100
+          minItems: 1
+          type: array
+      required:
+      - currency
+      - limitType
+      - maxAmount
+      - name
+      - scopes
+      type: object
+    internal_adapters_http_in.CreateRuleInput:
+      properties:
+        action:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision'
+        description:
+          maxLength: 1000
+          type: string
+        expression:
+          maxLength: 5000
+          minLength: 1
+          type: string
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        scopes:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
+          maxItems: 100
+          type: array
+      required:
+      - action
+      - expression
+      - name
+      type: object
+    internal_adapters_http_in.ListAuditEventsResponse:
+      example:
+        nextCursor: nextCursor
+        hasMore: true
+        auditEvents:
+        - actor: "{}"
+          result: result
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          eventId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          metadata:
+            key: "{}"
+          resourceId: resourceId
+          previousHash: previousHash
+          context:
+            key: "{}"
+          action: action
+          eventType: TRANSACTION_VALIDATED
+          hash: hash
+          resourceType: transaction
+        - actor: "{}"
+          result: result
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          eventId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          metadata:
+            key: "{}"
+          resourceId: resourceId
+          previousHash: previousHash
+          context:
+            key: "{}"
+          action: action
+          eventType: TRANSACTION_VALIDATED
+          hash: hash
+          resourceType: transaction
+        - actor: "{}"
+          result: result
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          eventId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          metadata:
+            key: "{}"
+          resourceId: resourceId
+          previousHash: previousHash
+          context:
+            key: "{}"
+          action: action
+          eventType: TRANSACTION_VALIDATED
+          hash: hash
+          resourceType: transaction
+        - actor: "{}"
+          result: result
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          eventId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          metadata:
+            key: "{}"
+          resourceId: resourceId
+          previousHash: previousHash
+          context:
+            key: "{}"
+          action: action
+          eventType: TRANSACTION_VALIDATED
+          hash: hash
+          resourceType: transaction
+        - actor: "{}"
+          result: result
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          eventId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          metadata:
+            key: "{}"
+          resourceId: resourceId
+          previousHash: previousHash
+          context:
+            key: "{}"
+          action: action
+          eventType: TRANSACTION_VALIDATED
+          hash: hash
+          resourceType: transaction
+      properties:
+        auditEvents:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEvent'
+          maxItems: 1000
+          type: array
+        hasMore:
+          type: boolean
+        nextCursor:
+          type: string
+      type: object
+    internal_adapters_http_in.ListLimitsResponse:
+      example:
+        nextCursor: nextCursor
+        hasMore: true
+        limits:
+        - resetAt: 2000-01-23T04:56:07.000+00:00
+          customEndDate: 2000-01-23T04:56:07.000+00:00
+          activeTimeEnd: 17:00
+          description: description
+          limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          limitType: DAILY
+          activeTimeStart: 09:00
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          deletedAt: 2000-01-23T04:56:07.000+00:00
+          name: name
+          currency: currency
+          scopes:
+          - transactionType: CARD
+            accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            subType: subType
+          - transactionType: CARD
+            accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            subType: subType
+          maxAmount: "1000.00"
+          customStartDate: 2000-01-23T04:56:07.000+00:00
+          status: DRAFT
+          updatedAt: 2000-01-23T04:56:07.000+00:00
+        - resetAt: 2000-01-23T04:56:07.000+00:00
+          customEndDate: 2000-01-23T04:56:07.000+00:00
+          activeTimeEnd: 17:00
+          description: description
+          limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          limitType: DAILY
+          activeTimeStart: 09:00
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          deletedAt: 2000-01-23T04:56:07.000+00:00
+          name: name
+          currency: currency
+          scopes:
+          - transactionType: CARD
+            accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            subType: subType
+          - transactionType: CARD
+            accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            subType: subType
+          maxAmount: "1000.00"
+          customStartDate: 2000-01-23T04:56:07.000+00:00
+          status: DRAFT
+          updatedAt: 2000-01-23T04:56:07.000+00:00
+      properties:
+        hasMore:
+          type: boolean
+        limits:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
+          type: array
+        nextCursor:
+          type: string
+      type: object
+    internal_adapters_http_in.ListRulesResponse:
+      example:
+        nextCursor: nextCursor
+        hasMore: true
+        rules:
+        - createdAt: 2000-01-23T04:56:07.000+00:00
+          deletedAt: 2000-01-23T04:56:07.000+00:00
+          expression: expression
+          activatedAt: 2000-01-23T04:56:07.000+00:00
+          name: name
+          action: ALLOW
+          description: description
+          deactivatedAt: 2000-01-23T04:56:07.000+00:00
+          scopes:
+          - transactionType: CARD
+            accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            subType: subType
+          - transactionType: CARD
+            accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            subType: subType
+          ruleId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          status: DRAFT
+          updatedAt: 2000-01-23T04:56:07.000+00:00
+        - createdAt: 2000-01-23T04:56:07.000+00:00
+          deletedAt: 2000-01-23T04:56:07.000+00:00
+          expression: expression
+          activatedAt: 2000-01-23T04:56:07.000+00:00
+          name: name
+          action: ALLOW
+          description: description
+          deactivatedAt: 2000-01-23T04:56:07.000+00:00
+          scopes:
+          - transactionType: CARD
+            accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            subType: subType
+          - transactionType: CARD
+            accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            subType: subType
+          ruleId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          status: DRAFT
+          updatedAt: 2000-01-23T04:56:07.000+00:00
+      properties:
+        hasMore:
+          type: boolean
+        nextCursor:
+          type: string
+        rules:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
+          type: array
+      type: object
+    internal_adapters_http_in.ListTransactionValidationsResponse:
+      example:
+        nextCursor: nextCursor
+        hasMore: true
+        transactionValidations:
+        - reason: reason
+          amount: "100.00"
+          validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          decision: ALLOW
+          matchedRuleIds:
+          - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          transactionType: CARD
+          accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          exceededLimitIds:
+          - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          processingTimeMs: 0.8008281904610115
+          segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          currency: currency
+        - reason: reason
+          amount: "100.00"
+          validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          decision: ALLOW
+          matchedRuleIds:
+          - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          transactionType: CARD
+          accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          exceededLimitIds:
+          - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          processingTimeMs: 0.8008281904610115
+          segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          currency: currency
+      properties:
+        hasMore:
+          type: boolean
+        nextCursor:
+          type: string
+        transactionValidations:
+          items:
+            $ref: '#/components/schemas/internal_adapters_http_in.ValidationSummary'
+          type: array
+      type: object
+    internal_adapters_http_in.ReservationActionResponse:
+      example:
+        reservationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        status: status
+      properties:
+        reservationId:
+          format: uuid
+          type: string
+        status:
+          type: string
+      type: object
+    internal_adapters_http_in.ReserveRequest:
+      properties:
+        longLived:
+          description: |-
+            LongLived selects the reservation lifetime. false (the default, a direct
+            transaction) gets the short reaper-swept TTL; true (a PENDING transaction)
+            gets the long-lived TTL so the reservation does not expire under a
+            still-valid pending that has no existing sweep (R18). It is a sibling wire
+            field, NOT part of the embedded ValidationRequest, so the relaxed reserve
+            validation never sees it.
+          type: boolean
+        transactionId:
+          description: |-
+            TransactionID is the ledger transaction correlation id. It is the
+            idempotency grain for retried reserves and the handle the ledger later
+            confirms or releases. Not a foreign key — the ledger transaction lives in a
+            different service.
+          format: uuid
+          type: string
+      required:
+      - transactionId
+      type: object
+    internal_adapters_http_in.ReserveResponse:
+      example:
+        reservationIds:
+        - reservationIds
+        - reservationIds
+        denied: true
+        transactionId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+      properties:
+        denied:
+          type: boolean
+        reservationIds:
+          items:
+            type: string
+          type: array
+        transactionId:
+          format: uuid
+          type: string
+      type: object
+    internal_adapters_http_in.TransactionActionResponse:
+      example:
+        flipped: 0
+        transactionId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        status: status
+      properties:
+        flipped:
+          type: integer
+        status:
+          type: string
+        transactionId:
+          format: uuid
+          type: string
+      type: object
+    internal_adapters_http_in.UpdateLimitInput:
+      properties:
+        activeTimeEnd:
+          example: 17:00
+          type: string
+        activeTimeStart:
+          example: 09:00
+          type: string
+        customEndDate:
+          example: 2026-11-29T00:00:00Z
+          format: date-time
+          type: string
+        customStartDate:
+          example: 2026-11-27T00:00:00Z
+          format: date-time
+          type: string
+        description:
+          maxLength: 1000
+          type: string
+        maxAmount:
+          example: "1000.00"
+          type: string
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        scopes:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
+          maxItems: 100
+          minItems: 1
+          type: array
+      type: object
+    internal_adapters_http_in.UpdateRuleInput:
+      properties:
+        action:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision'
+        description:
+          maxLength: 1000
+          type: string
+        expression:
+          maxLength: 5000
+          minLength: 1
+          type: string
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        scopes:
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
+          maxItems: 100
+          type: array
+      type: object
+    internal_adapters_http_in.ValidationSummary:
+      example:
+        reason: reason
+        amount: "100.00"
+        validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        decision: ALLOW
+        matchedRuleIds:
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        transactionType: CARD
+        accountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        createdAt: 2000-01-23T04:56:07.000+00:00
+        exceededLimitIds:
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        processingTimeMs: 0.8008281904610115
+        segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        currency: currency
+      properties:
+        accountId:
+          format: uuid
+          type: string
+        amount:
+          example: "100.00"
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        currency:
+          type: string
+        decision:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision'
+        exceededLimitIds:
+          items:
+            format: uuid
+            type: string
+          type: array
+        matchedRuleIds:
+          items:
+            format: uuid
+            type: string
+          type: array
+        portfolioId:
+          format: uuid
+          type: string
+        processingTimeMs:
+          type: number
+        reason:
+          type: string
+        segmentId:
+          format: uuid
+          type: string
+        transactionType:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType'
+        validationId:
+          format: uuid
+          type: string
+      type: object
+  securitySchemes:
+    ApiKeyAuth:
+      description: API Key for authentication
+      in: header
+      name: X-API-Key
+      type: apiKey
+x-original-swagger-version: "2.0"

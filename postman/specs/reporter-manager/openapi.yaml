@@ -1,0 +1,2425 @@
+openapi: 3.0.1
+info:
+  contact: {}
+  description: This is a swagger documentation for Reporter
+  termsOfService: http://swagger.io/terms/
+  title: Reporter API
+  version: 4.0.0
+servers:
+- url: //localhost:4005/
+paths:
+  /v1/data-sources:
+    get:
+      description: Retrieves all data sources connected on plugin with all information
+        from the database
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/DataSourceInformation'
+                type: array
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Get all data sources connected on reporter
+      tags:
+      - Data source
+  /v1/data-sources/{dataSourceId}:
+    get:
+      description: Retrieves a data sources information with data source id passed
+      parameters:
+      - description: Data source ID
+        in: path
+        name: dataSourceId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataSourceDetails'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Get a data sources information
+      tags:
+      - Data source
+  /v1/deadlines:
+    get:
+      description: List all the deadlines
+      parameters:
+      - description: Deadline status
+        in: query
+        name: status
+        schema:
+          enum:
+          - pending
+          - overdue
+          - delivered
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Page
+        in: query
+        name: page
+        schema:
+          default: 1
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_v1_deadlines_get_200_response'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Get all Deadlines
+      tags:
+      - Deadlines
+    post:
+      description: Create a Deadline with the input payload
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDeadlineInput'
+        description: Deadline Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/deadline.Deadline'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Create a Deadline
+      tags:
+      - Deadlines
+      x-codegen-request-body-name: deadline
+  /v1/deadlines/notifications:
+    get:
+      description: "Returns active deadlines within their notification window, sorted\
+        \ by urgency"
+      parameters:
+      - description: Maximum number of notifications (1-100)
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_adapters_http_in.notificationResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Get deadline notifications
+      tags:
+      - Deadlines
+  /v1/deadlines/{id}:
+    delete:
+      description: Delete a Deadline by its ID
+      parameters:
+      - description: Deadline ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: No Content
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Not Found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Delete a Deadline
+      tags:
+      - Deadlines
+    patch:
+      description: Update a Deadline by its ID
+      parameters:
+      - description: Deadline ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDeadlineInput'
+        description: Deadline Update Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/deadline.Deadline'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Update a Deadline
+      tags:
+      - Deadlines
+      x-codegen-request-body-name: deadline
+  /v1/deadlines/{id}/deliver:
+    patch:
+      description: Mark a Deadline as delivered by its ID
+      parameters:
+      - description: Deadline ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliverDeadlineInput'
+        description: Deliver Deadline Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/deadline.Deadline'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Deliver a Deadline
+      tags:
+      - Deadlines
+      x-codegen-request-body-name: deadline
+  /v1/metrics:
+    get:
+      description: "Returns aggregated counts of templates, reports, data sources,\
+        \ and errors"
+      parameters:
+      - description: Number of days for error period
+        in: query
+        name: errorPeriodDays
+        schema:
+          default: 7
+          maximum: 365
+          minimum: 1
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_adapters_http_in.metricsResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Get system metrics
+      tags:
+      - Metrics
+  /v1/reports:
+    get:
+      description: List all the reports
+      parameters:
+      - description: Report status
+        in: query
+        name: status
+        schema:
+          enum:
+          - Processing
+          - Finished
+          - Error
+          - PendingExtraction
+          type: string
+      - description: Template UUID (also accepts templateId)
+        in: query
+        name: template_id
+        schema:
+          format: uuid
+          type: string
+      - description: "Created at date, YYYY-MM-DD (also accepts createdAt)"
+        in: query
+        name: created_at
+        schema:
+          format: date
+          type: string
+      - description: "Filter window start, YYYY-MM-DD"
+        in: query
+        name: start_date
+        schema:
+          format: date
+          type: string
+      - description: "Filter window end, YYYY-MM-DD"
+        in: query
+        name: end_date
+        schema:
+          format: date
+          type: string
+      - description: Filter by description
+        in: query
+        name: description
+        schema:
+          type: string
+      - description: Filter by output format
+        in: query
+        name: output_format
+        schema:
+          enum:
+          - PDF
+          - HTML
+          - XML
+          - TXT
+          - CSV
+          type: string
+      - description: Filter by active flag
+        in: query
+        name: active
+        schema:
+          type: boolean
+      - description: Filter by type
+        in: query
+        name: type
+        schema:
+          type: string
+      - description: Opaque cursor for cursor-based pagination
+        in: query
+        name: cursor
+        schema:
+          type: string
+      - description: Sort order
+        in: query
+        name: sort_order
+        schema:
+          default: desc
+          enum:
+          - asc
+          - desc
+          type: string
+      - description: Page size
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Page number
+        in: query
+        name: page
+        schema:
+          default: 1
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_v1_reports_get_200_response'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Get all reports
+      tags:
+      - Reports
+    post:
+      description: Create a Report of existent template with the input payload
+      parameters:
+      - description: Client-provided idempotency key to prevent duplicate report creation
+        in: header
+        name: X-Idempotency
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReportInput'
+        description: Report Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/report.Report'
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              description: Set to 'true' when the response is a replay of a previously
+                processed idempotent request
+              schema:
+                type: string
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Create a Report
+      tags:
+      - Reports
+      x-codegen-request-body-name: reports
+  /v1/reports/{id}:
+    get:
+      description: Get information of a Report passing the ID
+      parameters:
+      - description: Report ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/report.Report'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Get a Report
+      tags:
+      - Reports
+  /v1/reports/{id}/download:
+    get:
+      description: Make a download of a Report passing the ID
+      parameters:
+      - description: Report ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                format: binary
+                type: string
+            application/octet-stream:
+              schema:
+                format: binary
+                type: string
+          description: OK
+          headers:
+            Content-Disposition:
+              description: attachment; filename=report.pdf
+              schema:
+                type: string
+            Content-Type:
+              description: application/pdf | text/html | application/xml | text/csv
+              schema:
+                type: string
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+            application/octet-stream:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+            application/octet-stream:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+            application/octet-stream:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+            application/octet-stream:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+            application/octet-stream:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Download a Report
+      tags:
+      - Reports
+  /v1/templates:
+    get:
+      description: List all the templates
+      parameters:
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Page
+        in: query
+        name: page
+        schema:
+          default: 1
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_v1_templates_get_200_response'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Get all Templates
+      tags:
+      - Templates
+    post:
+      description: Create a Template with the input payload (multipart form)
+      parameters:
+      - description: Client-provided idempotency key to prevent duplicate template
+          creation
+        in: header
+        name: X-Idempotency
+        schema:
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/_v1_templates_post_request'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Create a Template
+      tags:
+      - Templates
+  /v1/templates/blocks-config:
+    get:
+      description: Returns all available block type definitions including properties
+        and categories
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pongo.BlocksConfigResponse'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Get block definitions for template builder
+      tags:
+      - Template Builder
+  /v1/templates/filters:
+    get:
+      description: Returns all available Pongo2 filter definitions including DIMP
+        filters
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pongo.FiltersResponse'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Get filter definitions for template builder
+      tags:
+      - Template Builder
+  /v1/templates/generate-code:
+    post:
+      description: Converts a JSON block structure into Pongo2 template code and extracts
+        mapped fields
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/template_builder.GenerateCodeInput'
+        description: Block structure
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/template_builder.GenerateCodeResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Generate Pongo2 code from template blocks
+      tags:
+      - Template Builder
+      x-codegen-request-body-name: body
+  /v1/templates/validate:
+    post:
+      description: Validates a sequence of template blocks. Validation errors are
+        returned in the **200 envelope** with `valid:false` and per-block error messages.
+        HTTP **400** is reserved for malformed request bodies (JSON parse failures).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/template_builder.ValidateBlocksInput'
+        description: Blocks to validate
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/template_builder.ValidateBlocksResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Validate template blocks
+      tags:
+      - Template Builder
+      x-codegen-request-body-name: body
+  /v1/templates/{id}:
+    delete:
+      description: Delete a Template by its ID
+      parameters:
+      - description: Template ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: No Content
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Not Found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Delete a Template
+      tags:
+      - Templates
+    get:
+      description: Get information of a Template passing the ID
+      parameters:
+      - description: Template ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Get a Template
+      tags:
+      - Templates
+    patch:
+      description: Update a Template by its ID (multipart form)
+      parameters:
+      - description: Template ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/_v1_templates__id__patch_request'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      security:
+      - BearerAuth: []
+      summary: Update a Template
+      tags:
+      - Templates
+components:
+  schemas:
+    CreateDeadlineInput:
+      description: CreateDeadlineInput is the input payload to create a deadline.
+      example:
+        color: '#FF5733'
+        dueDate: 2026-03-31T23:59:59Z
+        name: Monthly Regulatory Report
+        notifyDaysBefore: 5
+        active: true
+        description: Monthly regulatory compliance report
+        templateId: 00000000-0000-0000-0000-000000000000
+        type: regulatory
+        monthsOfYear:
+        - 1
+        - 6
+        frequency: monthly
+      properties:
+        active:
+          example: true
+          type: boolean
+        color:
+          example: '#FF5733'
+          type: string
+        description:
+          example: Monthly regulatory compliance report
+          type: string
+        dueDate:
+          example: 2026-03-31T23:59:59Z
+          type: string
+        frequency:
+          example: monthly
+          type: string
+        monthsOfYear:
+          example:
+          - 1
+          - 6
+          items:
+            type: integer
+          type: array
+        name:
+          example: Monthly Regulatory Report
+          type: string
+        notifyDaysBefore:
+          example: 5
+          type: integer
+        templateId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        type:
+          example: regulatory
+          type: string
+      required:
+      - color
+      - dueDate
+      - frequency
+      - name
+      - type
+      type: object
+    CreateReportInput:
+      description: CreateReportInput is the input payload to create a report.
+      example:
+        filters:
+          key:
+            key:
+              key:
+                nin:
+                - "{}"
+                - "{}"
+                in:
+                - "{}"
+                - "{}"
+                lt:
+                - "{}"
+                - "{}"
+                gte:
+                - "{}"
+                - "{}"
+                eq:
+                - "{}"
+                - "{}"
+                lte:
+                - "{}"
+                - "{}"
+                gt:
+                - "{}"
+                - "{}"
+                between:
+                - "{}"
+                - "{}"
+        templateId: 00000000-0000-0000-0000-000000000000
+      properties:
+        filters:
+          additionalProperties:
+            additionalProperties:
+              additionalProperties:
+                $ref: '#/components/schemas/model.FilterCondition'
+              type: object
+            type: object
+          type: object
+        templateId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+      required:
+      - filters
+      - templateId
+      type: object
+    DataSourceDetails:
+      description: DataSourceDetails is the data source details of database
+      example:
+        tables:
+        - name: account
+          fields:
+          - "['id'"
+          - ' ''name'''
+          - " 'parent_account_id']"
+        - name: account
+          fields:
+          - "['id'"
+          - ' ''name'''
+          - " 'parent_account_id']"
+        externalName: onboarding
+        id: midaz_onboarding
+        type: postgresql
+      properties:
+        externalName:
+          example: onboarding
+          type: string
+        id:
+          example: midaz_onboarding
+          type: string
+        tables:
+          items:
+            $ref: '#/components/schemas/TableDetails'
+          type: array
+        type:
+          example: postgresql
+          type: string
+      type: object
+    DataSourceInformation:
+      description: DataSourceInformation is the data source information of database
+        connected on plugin
+      example:
+        externalName: onboarding
+        id: midaz_onboarding
+        type: postgresql
+      properties:
+        externalName:
+          example: onboarding
+          type: string
+        id:
+          example: midaz_onboarding
+          type: string
+        type:
+          example: postgresql
+          type: string
+      type: object
+    DeliverDeadlineInput:
+      description: DeliverDeadlineInput is the input payload to mark a deadline as
+        delivered or not.
+      example:
+        delivered: true
+      properties:
+        delivered:
+          example: true
+          type: boolean
+      required:
+      - delivered
+      type: object
+    Pagination:
+      description: Pagination is the struct designed to store the pagination data
+        of an entity list.
+      properties:
+        items:
+          type: object
+        limit:
+          example: 10
+          type: integer
+        page:
+          example: 1
+          type: integer
+        total:
+          example: 10
+          type: integer
+      type: object
+    TableDetails:
+      description: TableDetails is the struct of table information
+      example:
+        name: account
+        fields:
+        - "['id'"
+        - ' ''name'''
+        - " 'parent_account_id']"
+      properties:
+        fields:
+          example:
+          - "['id'"
+          - ' ''name'''
+          - " 'parent_account_id']"
+          items:
+            type: string
+          type: array
+        name:
+          example: account
+          type: string
+      type: object
+    TemplateResponse:
+      description: TemplateResponse wraps a template with optional validation warnings.
+      example:
+        createdAt: 2021-01-01T00:00:00Z
+        fileName: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
+        warnings:
+        - code: code
+          field: field
+          message: message
+        - code: code
+          field: field
+          message: message
+        description: Template Financeiro
+        id: 00000000-0000-0000-0000-000000000000
+        outputFormat: HTML
+        updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        createdAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        description:
+          example: Template Financeiro
+          type: string
+        fileName:
+          example: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
+          type: string
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        outputFormat:
+          example: HTML
+          type: string
+        updatedAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        warnings:
+          items:
+            $ref: '#/components/schemas/datasource.ValidationWarning'
+          type: array
+      type: object
+    UpdateDeadlineInput:
+      description: UpdateDeadlineInput is the input payload to update a deadline.
+      example:
+        color: '#00FF00'
+        dueDate: 2026-06-30T23:59:59Z
+        name: Updated Report Name
+        notifyDaysBefore: 10
+        active: false
+        description: Updated description
+        templateId: 00000000-0000-0000-0000-000000000000
+        type: custom
+        monthsOfYear:
+        - 1
+        - 6
+        frequency: annual
+      properties:
+        active:
+          example: false
+          type: boolean
+        color:
+          example: '#00FF00'
+          type: string
+        description:
+          example: Updated description
+          type: string
+        dueDate:
+          example: 2026-06-30T23:59:59Z
+          type: string
+        frequency:
+          example: annual
+          type: string
+        monthsOfYear:
+          example:
+          - 1
+          - 6
+          items:
+            type: integer
+          type: array
+        name:
+          example: Updated Report Name
+          type: string
+        notifyDaysBefore:
+          example: 10
+          type: integer
+        templateId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        type:
+          example: custom
+          type: string
+      type: object
+    datasource.ValidationWarning:
+      example:
+        code: code
+        field: field
+        message: message
+      properties:
+        code:
+          description: "Code is a machine-readable warning code (e.g., \"DATA_SOURCE_UNAVAILABLE\"\
+            )."
+          type: string
+        field:
+          description: Field identifies the affected field or data source reference.
+          type: string
+        message:
+          description: Message is a human-readable description of the warning.
+          type: string
+      type: object
+    deadline.Deadline:
+      example:
+        color: '#FF5733'
+        dueDate: 2026-03-31T23:59:59Z
+        notifyDaysBefore: 5
+        active: true
+        description: Monthly regulatory compliance report
+        templateId: 00000000-0000-0000-0000-000000000000
+        type: regulatory
+        deliveredAt: 2026-03-15T10:00:00Z
+        frequency: monthly
+        createdAt: 2026-01-01T00:00:00Z
+        templateName: Template Financeiro
+        name: Monthly Regulatory Report
+        id: 00000000-0000-0000-0000-000000000000
+        monthsOfYear:
+        - 1
+        - 6
+        status: pending
+        updatedAt: 2026-01-01T00:00:00Z
+      properties:
+        active:
+          example: true
+          type: boolean
+        color:
+          example: '#FF5733'
+          type: string
+        createdAt:
+          example: 2026-01-01T00:00:00Z
+          type: string
+        deliveredAt:
+          example: 2026-03-15T10:00:00Z
+          type: string
+        description:
+          example: Monthly regulatory compliance report
+          type: string
+        dueDate:
+          example: 2026-03-31T23:59:59Z
+          type: string
+        frequency:
+          example: monthly
+          type: string
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        monthsOfYear:
+          example:
+          - 1
+          - 6
+          items:
+            type: integer
+          type: array
+        name:
+          example: Monthly Regulatory Report
+          type: string
+        notifyDaysBefore:
+          example: 5
+          type: integer
+        status:
+          example: pending
+          type: string
+        templateId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        templateName:
+          example: Template Financeiro
+          type: string
+        type:
+          example: regulatory
+          type: string
+        updatedAt:
+          example: 2026-01-01T00:00:00Z
+          type: string
+      type: object
+    github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template:
+      example:
+        createdAt: 2021-01-01T00:00:00Z
+        fileName: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
+        description: Template Financeiro
+        id: 00000000-0000-0000-0000-000000000000
+        outputFormat: HTML
+        updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        createdAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        description:
+          example: Template Financeiro
+          type: string
+        fileName:
+          example: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
+          type: string
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        outputFormat:
+          example: HTML
+          type: string
+        updatedAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+      type: object
+    internal_adapters_http_in.errorMetrics:
+      example:
+        previousPeriodTotal: 6
+        total: 1
+      properties:
+        previousPeriodTotal:
+          type: integer
+        total:
+          type: integer
+      type: object
+    internal_adapters_http_in.metricsResponse:
+      example:
+        reports: 5
+        templates: 5
+        dataSources: 0
+        errors:
+          previousPeriodTotal: 6
+          total: 1
+      properties:
+        dataSources:
+          type: integer
+        errors:
+          $ref: '#/components/schemas/internal_adapters_http_in.errorMetrics'
+        reports:
+          type: integer
+        templates:
+          type: integer
+      type: object
+    internal_adapters_http_in.notificationItem:
+      example:
+        daysUntilDue: 0
+        severity: severity
+        color: color
+        dueDate: dueDate
+        name: name
+        notifyDaysBefore: 1
+        description: description
+        id: id
+        type: type
+        monthsOfYear:
+        - 6
+        - 6
+        frequency: frequency
+      properties:
+        color:
+          type: string
+        daysUntilDue:
+          type: integer
+        description:
+          type: string
+        dueDate:
+          type: string
+        frequency:
+          type: string
+        id:
+          type: string
+        monthsOfYear:
+          items:
+            type: integer
+          type: array
+        name:
+          type: string
+        notifyDaysBefore:
+          type: integer
+        severity:
+          type: string
+        type:
+          type: string
+      type: object
+    internal_adapters_http_in.notificationResponse:
+      example:
+        total: 5
+        items:
+        - daysUntilDue: 0
+          severity: severity
+          color: color
+          dueDate: dueDate
+          name: name
+          notifyDaysBefore: 1
+          description: description
+          id: id
+          type: type
+          monthsOfYear:
+          - 6
+          - 6
+          frequency: frequency
+        - daysUntilDue: 0
+          severity: severity
+          color: color
+          dueDate: dueDate
+          name: name
+          notifyDaysBefore: 1
+          description: description
+          id: id
+          type: type
+          monthsOfYear:
+          - 6
+          - 6
+          frequency: frequency
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/internal_adapters_http_in.notificationItem'
+          type: array
+        total:
+          type: integer
+      type: object
+    model.FilterCondition:
+      example:
+        nin:
+        - "{}"
+        - "{}"
+        in:
+        - "{}"
+        - "{}"
+        lt:
+        - "{}"
+        - "{}"
+        gte:
+        - "{}"
+        - "{}"
+        eq:
+        - "{}"
+        - "{}"
+        lte:
+        - "{}"
+        - "{}"
+        gt:
+        - "{}"
+        - "{}"
+        between:
+        - "{}"
+        - "{}"
+      properties:
+        between:
+          description: |-
+            Between specifies a range condition with exactly two values [min, max].
+            Matches records where min <= field <= max
+            Example: {"between": [100, 1000]} matches records where 100 <= field <= 1000
+          items:
+            type: object
+          type: array
+        eq:
+          description: |-
+            Equals specifies exact value matches. Multiple values treated as OR conditions.
+            Example: {"eq": ["active", "pending"]} matches records where field equals "active" OR "pending"
+          items:
+            type: object
+          type: array
+        gt:
+          description: |-
+            GreaterThan specifies values that must be greater than the provided value.
+            Should contain exactly one value for comparison.
+            Example: {"gt": [100]} matches records where field > 100
+          items:
+            type: object
+          type: array
+        gte:
+          description: |-
+            GreaterOrEqual specifies values that must be greater than or equal to the provided value.
+            Should contain exactly one value for comparison.
+            Example: {"gte": ["2025-06-01"]} matches records where field >= "2025-06-01"
+          items:
+            type: object
+          type: array
+        in:
+          description: |-
+            In specifies a list of values where the field must match any one of them.
+            Multiple values treated as OR conditions.
+            Example: {"in": ["active", "pending", "suspended"]} matches any of these statuses
+          items:
+            type: object
+          type: array
+        lt:
+          description: |-
+            LessThan specifies values that must be less than the provided value.
+            Should contain exactly one value for comparison.
+            Example: {"lt": [1000]} matches records where field < 1000
+          items:
+            type: object
+          type: array
+        lte:
+          description: |-
+            LessOrEqual specifies values that must be less than or equal to the provided value.
+            Should contain exactly one value for comparison.
+            Example: {"lte": ["2025-06-30"]} matches records where field <= "2025-06-30"
+          items:
+            type: object
+          type: array
+        nin:
+          description: |-
+            NotIn specifies a list of values where the field must NOT match any of them.
+            Multiple values treated as AND NOT conditions.
+            Example: {"nin": ["deleted", "archived"]} excludes these statuses
+          items:
+            type: object
+          type: array
+      type: object
+    pkg.HTTPError:
+      example:
+        code: code
+        err: "{}"
+        entityType: entityType
+        message: message
+        title: title
+      properties:
+        code:
+          type: string
+        entityType:
+          type: string
+        err:
+          type: object
+        message:
+          type: string
+        title:
+          type: string
+      type: object
+    pongo.BlockDefinition:
+      example:
+        acceptsChildren: true
+        label: label
+        category: category
+        type: type
+        properties:
+        - values:
+          - values
+          - values
+          name: name
+          type: type
+          required: true
+        - values:
+          - values
+          - values
+          name: name
+          type: type
+          required: true
+      properties:
+        acceptsChildren:
+          type: boolean
+        category:
+          type: string
+        label:
+          type: string
+        properties:
+          items:
+            $ref: '#/components/schemas/pongo.BlockProperty'
+          type: array
+        type:
+          type: string
+      type: object
+    pongo.BlockProperty:
+      example:
+        values:
+        - values
+        - values
+        name: name
+        type: type
+        required: true
+      properties:
+        name:
+          type: string
+        required:
+          type: boolean
+        type:
+          type: string
+        values:
+          items:
+            type: string
+          type: array
+      type: object
+    pongo.BlocksConfigResponse:
+      example:
+        blocks:
+        - acceptsChildren: true
+          label: label
+          category: category
+          type: type
+          properties:
+          - values:
+            - values
+            - values
+            name: name
+            type: type
+            required: true
+          - values:
+            - values
+            - values
+            name: name
+            type: type
+            required: true
+        - acceptsChildren: true
+          label: label
+          category: category
+          type: type
+          properties:
+          - values:
+            - values
+            - values
+            name: name
+            type: type
+            required: true
+          - values:
+            - values
+            - values
+            name: name
+            type: type
+            required: true
+      properties:
+        blocks:
+          items:
+            $ref: '#/components/schemas/pongo.BlockDefinition'
+          type: array
+      type: object
+    pongo.FilterDefinition:
+      example:
+        args:
+        - args
+        - args
+        name: name
+        description: description
+        example: example
+      properties:
+        args:
+          items:
+            type: string
+          type: array
+        description:
+          type: string
+        example:
+          type: string
+        name:
+          type: string
+      type: object
+    pongo.FiltersResponse:
+      example:
+        filters:
+        - args:
+          - args
+          - args
+          name: name
+          description: description
+          example: example
+        - args:
+          - args
+          - args
+          name: name
+          description: description
+          example: example
+      properties:
+        filters:
+          items:
+            $ref: '#/components/schemas/pongo.FilterDefinition'
+          type: array
+      type: object
+    report.Report:
+      example:
+        createdAt: createdAt
+        completedAt: completedAt
+        deletedAt: deletedAt
+        metadata:
+          key: "{}"
+        templateDescription: Cadoc
+        templateOutputFormat: xml
+        filters:
+          key:
+            key:
+              key:
+                nin:
+                - "{}"
+                - "{}"
+                in:
+                - "{}"
+                - "{}"
+                lt:
+                - "{}"
+                - "{}"
+                gte:
+                - "{}"
+                - "{}"
+                eq:
+                - "{}"
+                - "{}"
+                lte:
+                - "{}"
+                - "{}"
+                gt:
+                - "{}"
+                - "{}"
+                between:
+                - "{}"
+                - "{}"
+        id: 00000000-0000-0000-0000-000000000000
+        templateId: 00000000-0000-0000-0000-000000000000
+        status: processing
+        updatedAt: updatedAt
+      properties:
+        completedAt:
+          type: string
+        createdAt:
+          type: string
+        deletedAt:
+          type: string
+        filters:
+          additionalProperties:
+            additionalProperties:
+              additionalProperties:
+                $ref: '#/components/schemas/model.FilterCondition'
+              type: object
+            type: object
+          type: object
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        status:
+          example: processing
+          type: string
+        templateDescription:
+          example: Cadoc
+          type: string
+        templateId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        templateOutputFormat:
+          example: xml
+          type: string
+        updatedAt:
+          type: string
+      type: object
+    template_builder.ElifBranch:
+      properties:
+        children:
+          items:
+            $ref: '#/components/schemas/template_builder.TemplateBlock'
+          type: array
+        condition:
+          type: string
+      type: object
+    template_builder.FilterChain:
+      properties:
+        args:
+          type: string
+        name:
+          type: string
+      type: object
+    template_builder.GenerateCodeInput:
+      properties:
+        blocks:
+          items:
+            $ref: '#/components/schemas/template_builder.TemplateBlock'
+          type: array
+        format:
+          type: string
+      type: object
+    template_builder.GenerateCodeResponse:
+      example:
+        mappedFields:
+          key:
+            key:
+            - mappedFields
+            - mappedFields
+        code: code
+      properties:
+        code:
+          type: string
+        mappedFields:
+          additionalProperties:
+            additionalProperties:
+              items:
+                type: string
+              type: array
+            type: object
+          type: object
+      type: object
+    template_builder.TemplateBlock:
+      properties:
+        assignment:
+          type: string
+        blockId:
+          type: string
+        children:
+          items:
+            $ref: '#/components/schemas/template_builder.TemplateBlock'
+          type: array
+        collection:
+          type: string
+        condition:
+          type: string
+        content:
+          type: string
+        elifBranches:
+          items:
+            $ref: '#/components/schemas/template_builder.ElifBranch'
+          type: array
+        elseChildren:
+          items:
+            $ref: '#/components/schemas/template_builder.TemplateBlock'
+          type: array
+        expression:
+          type: string
+        field:
+          type: string
+        filters:
+          items:
+            $ref: '#/components/schemas/template_builder.FilterChain'
+          type: array
+        format:
+          type: string
+        function:
+          type: string
+        inline:
+          type: boolean
+        iterator:
+          type: string
+        properties:
+          additionalProperties:
+            type: object
+          type: object
+        tagArgs:
+          type: string
+        tagName:
+          type: string
+        trimWhitespace:
+          type: boolean
+        type:
+          type: string
+        variable:
+          type: string
+      type: object
+    template_builder.ValidateBlocksInput:
+      properties:
+        blocks:
+          items:
+            $ref: '#/components/schemas/template_builder.TemplateBlock'
+          type: array
+      type: object
+    template_builder.ValidateBlocksResponse:
+      example:
+        valid: true
+        errors:
+        - blockId: blockId
+          field: field
+          message: message
+        - blockId: blockId
+          field: field
+          message: message
+      properties:
+        errors:
+          items:
+            $ref: '#/components/schemas/template_builder.ValidationError'
+          type: array
+        valid:
+          type: boolean
+      type: object
+    template_builder.ValidationError:
+      example:
+        blockId: blockId
+        field: field
+        message: message
+      properties:
+        blockId:
+          type: string
+        field:
+          type: string
+        message:
+          type: string
+      type: object
+    _v1_deadlines_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
+          items:
+            items:
+              $ref: '#/components/schemas/deadline.Deadline'
+            type: array
+          limit:
+            type: integer
+          page:
+            type: integer
+          total:
+            type: integer
+        type: object
+      example:
+        total: 1
+        limit: 0
+        page: 6
+        items:
+        - color: '#FF5733'
+          dueDate: 2026-03-31T23:59:59Z
+          notifyDaysBefore: 5
+          active: true
+          description: Monthly regulatory compliance report
+          templateId: 00000000-0000-0000-0000-000000000000
+          type: regulatory
+          deliveredAt: 2026-03-15T10:00:00Z
+          frequency: monthly
+          createdAt: 2026-01-01T00:00:00Z
+          templateName: Template Financeiro
+          name: Monthly Regulatory Report
+          id: 00000000-0000-0000-0000-000000000000
+          monthsOfYear:
+          - 1
+          - 6
+          status: pending
+          updatedAt: 2026-01-01T00:00:00Z
+        - color: '#FF5733'
+          dueDate: 2026-03-31T23:59:59Z
+          notifyDaysBefore: 5
+          active: true
+          description: Monthly regulatory compliance report
+          templateId: 00000000-0000-0000-0000-000000000000
+          type: regulatory
+          deliveredAt: 2026-03-15T10:00:00Z
+          frequency: monthly
+          createdAt: 2026-01-01T00:00:00Z
+          templateName: Template Financeiro
+          name: Monthly Regulatory Report
+          id: 00000000-0000-0000-0000-000000000000
+          monthsOfYear:
+          - 1
+          - 6
+          status: pending
+          updatedAt: 2026-01-01T00:00:00Z
+    _v1_reports_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
+          items:
+            items:
+              $ref: '#/components/schemas/report.Report'
+            type: array
+          limit:
+            type: integer
+          page:
+            type: integer
+          total:
+            type: integer
+        type: object
+      example:
+        total: 1
+        limit: 0
+        page: 6
+        items:
+        - createdAt: createdAt
+          completedAt: completedAt
+          deletedAt: deletedAt
+          metadata:
+            key: "{}"
+          templateDescription: Cadoc
+          templateOutputFormat: xml
+          filters:
+            key:
+              key:
+                key:
+                  nin:
+                  - "{}"
+                  - "{}"
+                  in:
+                  - "{}"
+                  - "{}"
+                  lt:
+                  - "{}"
+                  - "{}"
+                  gte:
+                  - "{}"
+                  - "{}"
+                  eq:
+                  - "{}"
+                  - "{}"
+                  lte:
+                  - "{}"
+                  - "{}"
+                  gt:
+                  - "{}"
+                  - "{}"
+                  between:
+                  - "{}"
+                  - "{}"
+          id: 00000000-0000-0000-0000-000000000000
+          templateId: 00000000-0000-0000-0000-000000000000
+          status: processing
+          updatedAt: updatedAt
+        - createdAt: createdAt
+          completedAt: completedAt
+          deletedAt: deletedAt
+          metadata:
+            key: "{}"
+          templateDescription: Cadoc
+          templateOutputFormat: xml
+          filters:
+            key:
+              key:
+                key:
+                  nin:
+                  - "{}"
+                  - "{}"
+                  in:
+                  - "{}"
+                  - "{}"
+                  lt:
+                  - "{}"
+                  - "{}"
+                  gte:
+                  - "{}"
+                  - "{}"
+                  eq:
+                  - "{}"
+                  - "{}"
+                  lte:
+                  - "{}"
+                  - "{}"
+                  gt:
+                  - "{}"
+                  - "{}"
+                  between:
+                  - "{}"
+                  - "{}"
+          id: 00000000-0000-0000-0000-000000000000
+          templateId: 00000000-0000-0000-0000-000000000000
+          status: processing
+          updatedAt: updatedAt
+    _v1_templates_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
+          items:
+            items:
+              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template'
+            type: array
+          limit:
+            type: integer
+          page:
+            type: integer
+          total:
+            type: integer
+        type: object
+      example:
+        total: 1
+        limit: 0
+        page: 6
+        items:
+        - createdAt: 2021-01-01T00:00:00Z
+          fileName: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
+          description: Template Financeiro
+          id: 00000000-0000-0000-0000-000000000000
+          outputFormat: HTML
+          updatedAt: 2021-01-01T00:00:00Z
+        - createdAt: 2021-01-01T00:00:00Z
+          fileName: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
+          description: Template Financeiro
+          id: 00000000-0000-0000-0000-000000000000
+          outputFormat: HTML
+          updatedAt: 2021-01-01T00:00:00Z
+    _v1_templates_post_request:
+      properties:
+        template:
+          description: Template file
+          format: binary
+          type: string
+        outputFormat:
+          description: "Output format (html, pdf, txt, xml)"
+          type: string
+        description:
+          description: Template description
+          type: string
+      required:
+      - outputFormat
+      - template
+      type: object
+    _v1_templates__id__patch_request:
+      properties:
+        template:
+          description: Template file
+          format: binary
+          type: string
+        outputFormat:
+          description: "Output format (html, pdf, txt, xml)"
+          type: string
+        description:
+          description: Template description
+          type: string
+      type: object
+  securitySchemes:
+    BearerAuth:
+      description: The authorization token in the 'Bearer access_token' format. Only
+        required when auth plugin is enabled.
+      in: header
+      name: Authorization
+      type: apiKey
+x-original-swagger-version: "2.0"
