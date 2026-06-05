@@ -18,7 +18,12 @@ import (
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
-const ApplicationName = "plugin-crm"
+// ApplicationName is the authz namespace the CRM (holders/instruments) routes
+// register under. CRM is folded into the ledger binary, so it authorizes under
+// the host ledger's "midaz" namespace rather than a standalone plugin namespace.
+// This value is the X1 RBAC contract: tenant-manager grants migrate from
+// plugin-crm:* to midaz:{holders,instruments}:* at v4 release (X1, Fred-owned).
+const ApplicationName = "midaz"
 
 // ReadyzHandler is the interface for the readyz endpoint handler.
 // This interface is defined here to avoid circular imports with the bootstrap package.
@@ -79,7 +84,7 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 // route-local tenant middleware so CRM's tenant Mongo never overwrites the
 // onboarding/transaction tenant DB injected for ledger routes).
 //
-// The routes, paths, authz namespace (plugin-crm via ApplicationName),
+// The routes, paths, authz namespace (midaz via ApplicationName),
 // UUID-path validation and body binding are identical in both callers.
 //
 // hah may be nil (standalone CRM router has no ledger account-query backing);
@@ -95,13 +100,13 @@ func RegisterCRMRoutesToApp(f fiber.Router, auth *middleware.AuthClient, hh *Hol
 	f.Delete("/v1/holders/:id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "delete"), routeOptions, http.ParseUUIDPathParameters("holder"), hh.DeleteHolderByID)...)
 	f.Get("/v1/holders", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "get"), routeOptions, hh.GetAllHolders)...)
 
-	// Aliases
-	f.Get("/v1/aliases", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "get"), routeOptions, ah.GetAllInstruments)...)
-	f.Post("/v1/holders/:holder_id/aliases", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "post"), routeOptions, http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.CreateInstrumentInput), ah.CreateInstrument))...)
-	f.Get("/v1/holders/:holder_id/aliases/:alias_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "get"), routeOptions, http.ParseUUIDPathParameters("aliases"), ah.GetInstrumentByID)...)
-	f.Patch("/v1/holders/:holder_id/aliases/:alias_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "patch"), routeOptions, http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.UpdateInstrumentInput), ah.UpdateInstrument))...)
-	f.Delete("/v1/holders/:holder_id/aliases/:alias_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "delete"), routeOptions, http.ParseUUIDPathParameters("aliases"), ah.DeleteInstrumentByID)...)
-	f.Delete("/v1/holders/:holder_id/aliases/:alias_id/related-parties/:related_party_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "delete"), routeOptions, http.ParseUUIDPathParameters("related-parties"), ah.DeleteRelatedParty)...)
+	// Instruments
+	f.Get("/v1/instruments", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "get"), routeOptions, ah.GetAllInstruments)...)
+	f.Post("/v1/holders/:holder_id/instruments", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "post"), routeOptions, http.ParseUUIDPathParameters("instruments"), http.WithBody(new(mmodel.CreateInstrumentInput), ah.CreateInstrument))...)
+	f.Get("/v1/holders/:holder_id/instruments/:instrument_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "get"), routeOptions, http.ParseUUIDPathParameters("instruments"), ah.GetInstrumentByID)...)
+	f.Patch("/v1/holders/:holder_id/instruments/:instrument_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "patch"), routeOptions, http.ParseUUIDPathParameters("instruments"), http.WithBody(new(mmodel.UpdateInstrumentInput), ah.UpdateInstrument))...)
+	f.Delete("/v1/holders/:holder_id/instruments/:instrument_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "delete"), routeOptions, http.ParseUUIDPathParameters("instruments"), ah.DeleteInstrumentByID)...)
+	f.Delete("/v1/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "delete"), routeOptions, http.ParseUUIDPathParameters("related-parties"), ah.DeleteRelatedParty)...)
 }
 
 // CreateCRMRouteRegistrar returns a registrar that mounts the CRM routes on the

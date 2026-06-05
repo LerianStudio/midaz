@@ -316,7 +316,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Post("/v1/holders/:holder_id/aliases",
+			app.Post("/v1/holders/:holder_id/instruments",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
@@ -325,7 +325,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 				http.WithBody(new(mmodel.CreateInstrumentInput), handler.CreateInstrument),
 			)
 
-			req := httptest.NewRequest("POST", "/v1/holders/"+holderID.String()+"/aliases", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest("POST", "/v1/holders/"+holderID.String()+"/instruments", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
@@ -480,17 +480,17 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Get("/v1/holders/:holder_id/aliases/:alias_id",
+			app.Get("/v1/holders/:holder_id/instruments/:instrument_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
-					c.Locals("alias_id", aliasID)
+					c.Locals("instrument_id", aliasID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
 					return c.Next()
 				},
 				handler.GetInstrumentByID,
 			)
 
-			url := "/v1/holders/" + holderID.String() + "/aliases/" + aliasID.String()
+			url := "/v1/holders/" + holderID.String() + "/instruments/" + aliasID.String()
 			if tt.includeDeleted != "" {
 				url += "?include_deleted=" + tt.includeDeleted
 			}
@@ -738,17 +738,17 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Patch("/v1/holders/:holder_id/aliases/:alias_id",
+			app.Patch("/v1/holders/:holder_id/instruments/:instrument_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
-					c.Locals("alias_id", aliasID)
+					c.Locals("instrument_id", aliasID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
 					return c.Next()
 				},
 				http.WithBody(new(mmodel.UpdateInstrumentInput), handler.UpdateInstrument),
 			)
 
-			req := httptest.NewRequest("PATCH", "/v1/holders/"+holderID.String()+"/aliases/"+aliasID.String(), bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest("PATCH", "/v1/holders/"+holderID.String()+"/instruments/"+aliasID.String(), bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
@@ -859,17 +859,17 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Delete("/v1/holders/:holder_id/aliases/:alias_id",
+			app.Delete("/v1/holders/:holder_id/instruments/:instrument_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
-					c.Locals("alias_id", aliasID)
+					c.Locals("instrument_id", aliasID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
 					return c.Next()
 				},
 				handler.DeleteInstrumentByID,
 			)
 
-			url := "/v1/holders/" + holderID.String() + "/aliases/" + aliasID.String()
+			url := "/v1/holders/" + holderID.String() + "/instruments/" + aliasID.String()
 			if tt.hardDelete != "" {
 				url += "?hard_delete=" + tt.hardDelete
 			}
@@ -968,10 +968,10 @@ func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Delete("/v1/holders/:holder_id/aliases/:alias_id/related-parties/:related_party_id",
+			app.Delete("/v1/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
-					c.Locals("alias_id", aliasID)
+					c.Locals("instrument_id", aliasID)
 					c.Locals("related_party_id", relatedPartyID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
 					return c.Next()
@@ -979,7 +979,7 @@ func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
 				handler.DeleteRelatedParty,
 			)
 
-			url := "/v1/holders/" + holderID.String() + "/aliases/" + aliasID.String() + "/related-parties/" + relatedPartyID.String()
+			url := "/v1/holders/" + holderID.String() + "/instruments/" + aliasID.String() + "/related-parties/" + relatedPartyID.String()
 			req := httptest.NewRequest("DELETE", url, nil)
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
@@ -1175,7 +1175,7 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Get("/v1/aliases",
+			app.Get("/v1/instruments",
 				func(c *fiber.Ctx) error {
 					c.Request().Header.Set("X-Organization-Id", orgID)
 					return c.Next()
@@ -1183,7 +1183,7 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 				handler.GetAllInstruments,
 			)
 
-			req := httptest.NewRequest("GET", "/v1/aliases"+tt.queryParams, nil)
+			req := httptest.NewRequest("GET", "/v1/instruments"+tt.queryParams, nil)
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 

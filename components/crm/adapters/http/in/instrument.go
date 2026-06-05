@@ -103,7 +103,7 @@ func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_instrument_by_id")
 	defer span.End()
 
-	id, err := http.GetUUIDFromLocals(c, "alias_id")
+	id, err := http.GetUUIDFromLocals(c, "instrument_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -163,7 +163,7 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_instrument")
 	defer span.End()
 
-	id, err := http.GetUUIDFromLocals(c, "alias_id")
+	id, err := http.GetUUIDFromLocals(c, "instrument_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -238,7 +238,7 @@ func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.remove_instrument_by_id")
 	defer span.End()
 
-	id, err := http.GetUUIDFromLocals(c, "alias_id")
+	id, err := http.GetUUIDFromLocals(c, "instrument_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -395,7 +395,7 @@ func (handler *InstrumentHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	aliasID, err := http.GetUUIDFromLocals(c, "alias_id")
+	aliasID, err := http.GetUUIDFromLocals(c, "instrument_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}

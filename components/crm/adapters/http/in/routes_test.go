@@ -26,7 +26,7 @@ func TestApplicationNameConstant(t *testing.T) {
 	}{
 		{
 			name:     "ApplicationName has correct value",
-			expected: "plugin-crm",
+			expected: "midaz",
 		},
 	}
 
@@ -244,9 +244,9 @@ func TestNewRouter_APIRoutesRequireTenantMiddleware(t *testing.T) {
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			name:       "aliases endpoint requires tenant context",
+			name:       "instruments endpoint requires tenant context",
 			method:     http.MethodGet,
-			path:       "/v1/aliases",
+			path:       "/v1/instruments",
 			wantStatus: http.StatusUnauthorized,
 		},
 	}
@@ -269,7 +269,7 @@ func TestNewRouter_APIRoutesRequireTenantMiddleware(t *testing.T) {
 			app.Get("/v1/holders", func(c *fiber.Ctx) error {
 				return c.SendStatus(http.StatusOK)
 			})
-			app.Get("/v1/aliases", func(c *fiber.Ctx) error {
+			app.Get("/v1/instruments", func(c *fiber.Ctx) error {
 				return c.SendStatus(http.StatusOK)
 			})
 
