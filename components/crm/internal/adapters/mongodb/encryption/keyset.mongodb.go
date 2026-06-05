@@ -62,7 +62,12 @@ func (r *KeysetMongoDBRepository) Save(ctx context.Context, keyset *mmodel.Organ
 		return fmt.Errorf("keyset is required")
 	}
 
-	span.SetAttributes(attribute.String("app.request.organization_id", keyset.OrganizationID))
+	tenantID := extractTenantID(ctx)
+
+	span.SetAttributes(
+		attribute.String("app.request.tenant_id", tenantID),
+		attribute.String("app.request.organization_id", keyset.OrganizationID),
+	)
 
 	if err := keyset.Validate(); err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Keyset validation failed", err)
@@ -71,6 +76,11 @@ func (r *KeysetMongoDBRepository) Save(ctx context.Context, keyset *mmodel.Organ
 
 	if keyset.Revision == 0 {
 		keyset.Revision = 1
+	}
+
+	// Ensure tenant_id is set on the keyset
+	if keyset.TenantID == "" {
+		keyset.TenantID = tenantID
 	}
 
 	collection, err := r.collection(ctx)
@@ -86,6 +96,7 @@ func (r *KeysetMongoDBRepository) Save(ctx context.Context, keyset *mmodel.Organ
 
 	model := KeysetFromEntity(keyset)
 
+	// Database isolation handles multi-tenancy - filter by organization_id only
 	filter := bson.M{"organization_id": keyset.OrganizationID}
 	update := bson.M{"$setOnInsert": model}
 
@@ -108,7 +119,12 @@ func (r *KeysetMongoDBRepository) Get(ctx context.Context, organizationID string
 	ctx, span := tracer.Start(ctx, "mongodb.keyset.get")
 	defer span.End()
 
-	span.SetAttributes(attribute.String("app.request.organization_id", organizationID))
+	tenantID := extractTenantID(ctx)
+
+	span.SetAttributes(
+		attribute.String("app.request.tenant_id", tenantID),
+		attribute.String("app.request.organization_id", organizationID),
+	)
 
 	collection, err := r.collection(ctx)
 	if err != nil {
@@ -118,7 +134,10 @@ func (r *KeysetMongoDBRepository) Get(ctx context.Context, organizationID string
 
 	var model KeysetMongoDBModel
 
-	if err := collection.FindOne(ctx, bson.M{"organization_id": organizationID}).Decode(&model); err != nil {
+	// Database isolation handles multi-tenancy - filter by organization_id only
+	filter := bson.M{"organization_id": organizationID}
+
+	if err := collection.FindOne(ctx, filter).Decode(&model); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, mmodel.ErrKeysetNotFound
 		}
@@ -141,7 +160,10 @@ func (r *KeysetMongoDBRepository) Update(ctx context.Context, keyset *mmodel.Org
 		return fmt.Errorf("keyset is required")
 	}
 
+	tenantID := extractTenantID(ctx)
+
 	span.SetAttributes(
+		attribute.String("app.request.tenant_id", tenantID),
 		attribute.String("app.request.organization_id", keyset.OrganizationID),
 		attribute.Int64("app.request.expected_revision", expectedRevision),
 	)
@@ -149,6 +171,11 @@ func (r *KeysetMongoDBRepository) Update(ctx context.Context, keyset *mmodel.Org
 	if err := keyset.Validate(); err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Keyset validation failed", err)
 		return err
+	}
+
+	// Ensure tenant_id is set on the keyset
+	if keyset.TenantID == "" {
+		keyset.TenantID = tenantID
 	}
 
 	collection, err := r.collection(ctx)
@@ -162,7 +189,13 @@ func (r *KeysetMongoDBRepository) Update(ctx context.Context, keyset *mmodel.Org
 	model := KeysetFromEntity(keyset)
 	model.Revision = expectedRevision + 1
 
-	result, err := collection.ReplaceOne(ctx, bson.M{"organization_id": keyset.OrganizationID, "revision": expectedRevision}, model)
+	// Database isolation handles multi-tenancy - filter by organization_id and revision only
+	filter := bson.M{
+		"organization_id": keyset.OrganizationID,
+		"revision":        expectedRevision,
+	}
+
+	result, err := collection.ReplaceOne(ctx, filter, model)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to update organization keyset", err)
 		return fmt.Errorf("update organization keyset: %w", err)
@@ -220,7 +253,8 @@ func (r *KeysetMongoDBRepository) ensureIndexes(ctx context.Context, collection 
 func (r *KeysetMongoDBRepository) createIndexes(ctx context.Context, collection *mongo.Collection) error {
 	indexModels := []mongo.IndexModel{
 		{
-			Keys:    bson.D{{Key: "organization_id", Value: 1}},
+			// Compound unique index on tenant_id + organization_id for proper tenant isolation
+			Keys:    bson.D{{Key: "tenant_id", Value: 1}, {Key: "organization_id", Value: 1}},
 			Options: options.Index().SetUnique(true),
 		},
 	}
@@ -228,6 +262,15 @@ func (r *KeysetMongoDBRepository) createIndexes(ctx context.Context, collection 
 	_, err := collection.Indexes().CreateMany(ctx, indexModels)
 
 	return err
+}
+
+// extractTenantID extracts tenant ID from context or returns "default" for single-tenant mode.
+func extractTenantID(ctx context.Context) string {
+	if tenantID := tmcore.GetTenantIDContext(ctx); tenantID != "" {
+		return tenantID
+	}
+
+	return "default"
 }
 
 var _ KeysetRepository = (*KeysetMongoDBRepository)(nil)

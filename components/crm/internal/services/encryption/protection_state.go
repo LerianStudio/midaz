@@ -9,16 +9,11 @@ import (
 	"errors"
 	"fmt"
 
+	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
-
-// RegistryReader defines the interface for reading organization registry records.
-// This interface is compatible with the RegistryRepository in the MongoDB adapter.
-type RegistryReader interface {
-	Get(ctx context.Context, organizationID string) (*mmodel.OrganizationRegistryRecord, error)
-}
 
 // ProtectionState contains the resolved encryption state for an organization.
 type ProtectionState struct {
@@ -42,36 +37,33 @@ func (ps ProtectionState) MustUseEnvelope() bool {
 // ProtectionStateResolver determines the encryption mode for an organization
 // based on its registry state.
 type ProtectionStateResolver struct {
-	registryReader RegistryReader
+	registryRepo mongoEncryption.RegistryRepository
 }
 
-// NewProtectionStateResolver creates a new resolver with the given registry reader.
-func NewProtectionStateResolver(registryReader RegistryReader) *ProtectionStateResolver {
+// NewProtectionStateResolver creates a new resolver with the given registry repository.
+func NewProtectionStateResolver(registryRepo mongoEncryption.RegistryRepository) *ProtectionStateResolver {
 	return &ProtectionStateResolver{
-		registryReader: registryReader,
+		registryRepo: registryRepo,
 	}
 }
 
 // Resolve determines the protection state for an organization.
 //
 // Returns ProtectionState with Mode=Legacy if:
-//   - Registry record not found (organization not migrated)
-//   - Registry status is "legacy" or "pending_migration"
+//   - Registry record not found (organization not provisioned)
 //
 // Returns ProtectionState with Mode=Envelope if:
-//   - Registry status is "active", "partially_migrated", or "migration_complete"
+//   - Registry record exists with "active" status
 //
 // Returns error if:
-//   - Registry status is "failed" (ErrOrganizationEncryptionFailed)
-//   - Registry status is "blocked" (ErrOrganizationEncryptionBlocked)
 //   - Repository returns an unexpected error
 //   - Reader is nil
 func (r *ProtectionStateResolver) Resolve(ctx context.Context, organizationID string) (ProtectionState, error) {
-	if r.registryReader == nil {
-		return ProtectionState{}, fmt.Errorf("registry reader is not configured")
+	if r.registryRepo == nil {
+		return ProtectionState{}, fmt.Errorf("registry repository is not configured")
 	}
 
-	record, err := r.registryReader.Get(ctx, organizationID)
+	record, err := r.registryRepo.Get(ctx, organizationID)
 	if err != nil {
 		if errors.Is(err, constant.ErrRegistryNotFound) {
 			// Organization hasn't been provisioned for envelope encryption yet.
@@ -105,17 +97,8 @@ func (r *ProtectionStateResolver) resolveFromRecord(record *mmodel.OrganizationR
 		}, nil
 	}
 
-	switch record.Status {
-	case mmodel.RegistryStatusLegacy, mmodel.RegistryStatusPendingMigration:
-		return ProtectionState{
-			Mode:                 crypto.EncryptionModeLegacy,
-			CanReadLegacy:        true,
-			CurrentKeysetVersion: 0,
-			OrganizationID:       record.OrganizationID,
-			TenantID:             record.TenantID,
-		}, nil
-
-	case mmodel.RegistryStatusActive, mmodel.RegistryStatusMigrationComplete:
+	// Registry record exists → organization is provisioned for envelope encryption
+	if record.Status == mmodel.RegistryStatusActive {
 		return ProtectionState{
 			Mode:                 crypto.EncryptionModeEnvelope,
 			CanReadLegacy:        record.LegacyReadable,
@@ -123,25 +106,8 @@ func (r *ProtectionStateResolver) resolveFromRecord(record *mmodel.OrganizationR
 			OrganizationID:       record.OrganizationID,
 			TenantID:             record.TenantID,
 		}, nil
-
-	case mmodel.RegistryStatusPartiallyMigrated:
-		// Partially migrated always allows legacy read
-		return ProtectionState{
-			Mode:                 crypto.EncryptionModeEnvelope,
-			CanReadLegacy:        true,
-			CurrentKeysetVersion: record.CurrentVersion,
-			OrganizationID:       record.OrganizationID,
-			TenantID:             record.TenantID,
-		}, nil
-
-	case mmodel.RegistryStatusFailed:
-		return ProtectionState{}, constant.ErrOrganizationEncryptionFailed
-
-	case mmodel.RegistryStatusBlocked:
-		return ProtectionState{}, constant.ErrOrganizationEncryptionBlocked
-
-	default:
-		// Unknown status - treat as error to avoid silent misconfiguration
-		return ProtectionState{}, fmt.Errorf("unknown registry status: %s", record.Status)
 	}
+
+	// Unknown status - treat as error to avoid silent misconfiguration
+	return ProtectionState{}, fmt.Errorf("unknown registry status: %s", record.Status)
 }

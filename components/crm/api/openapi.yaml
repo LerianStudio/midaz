@@ -758,59 +758,6 @@ paths:
       tags:
       - Holders
       x-codegen-request-body-name: holder
-  /v1/organizations/{organization_id}/encryption/activate:
-    post:
-      description: Activates envelope encryption for an organization that has been
-        provisioned.
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.\
-          \ Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        schema:
-          type: string
-      - description: The unique identifier of the Organization.
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ActivateEncryptionRequest'
-        description: Activate Input
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ActivateEncryptionResponse'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/pkg.HTTPError'
-          description: Bad Request
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/pkg.HTTPError'
-          description: Not Found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/pkg.HTTPError'
-          description: Internal Server Error
-      summary: Activate Envelope Encryption for an Organization
-      tags:
-      - Encryption
-      x-codegen-request-body-name: input
   /v1/organizations/{organization_id}/encryption/provision:
     post:
       description: Provisions an organization for envelope encryption by generating
@@ -905,39 +852,6 @@ paths:
       - Encryption
 components:
   schemas:
-    ActivateEncryptionRequest:
-      description: ActivateEncryptionRequest payload
-      example:
-        actor: admin@example.com
-        reason: Ready for production
-      properties:
-        actor:
-          description: The actor performing the activation operation.
-          example: admin@example.com
-          type: string
-        reason:
-          description: The reason for activating the organization's encryption.
-          example: Ready for production
-          type: string
-      required:
-      - actor
-      - reason
-      type: object
-    ActivateEncryptionResponse:
-      description: ActivateEncryptionResponse payload
-      example:
-        organization_id: 00000000-0000-0000-0000-000000000000
-        status: active
-      properties:
-        organization_id:
-          description: The unique identifier of the organization.
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
-        status:
-          description: The current provisioning status.
-          example: active
-          type: string
-      type: object
     Address:
       description: Structured address information following standard postal address
         format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country
@@ -1541,7 +1455,7 @@ components:
         aead_primary_key_id: 1
         kek_path: transit/keys/org-00000000-0000-0000-0000-000000000000
         mac_primary_key_id: 1
-        status: pending_migration
+        status: active
       properties:
         aead_primary_key_id:
           description: The primary key ID for AEAD encryption.
@@ -1561,7 +1475,7 @@ components:
           type: string
         status:
           description: The current provisioning status.
-          example: pending_migration
+          example: active
           type: string
       type: object
     ProvisioningStatusResponse:

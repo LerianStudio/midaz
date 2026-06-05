@@ -14,14 +14,22 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// fakeRegistryReader is a test double for RegistryReader.
-type fakeRegistryReader struct {
+// fakeRegistryRepoForProtection is a test double for mongoEncryption.RegistryRepository.
+type fakeRegistryRepoForProtection struct {
 	record *mmodel.OrganizationRegistryRecord
 	err    error
 }
 
-func (f *fakeRegistryReader) Get(_ context.Context, _ string) (*mmodel.OrganizationRegistryRecord, error) {
+func (f *fakeRegistryRepoForProtection) Get(_ context.Context, _ string) (*mmodel.OrganizationRegistryRecord, error) {
 	return f.record, f.err
+}
+
+func (f *fakeRegistryRepoForProtection) Save(_ context.Context, _ *mmodel.OrganizationRegistryRecord) error {
+	return nil
+}
+
+func (f *fakeRegistryRepoForProtection) Update(_ context.Context, _ *mmodel.OrganizationRegistryRecord, _ int64) error {
+	return nil
 }
 
 func TestProtectionStateResolver_Resolve(t *testing.T) {
@@ -49,44 +57,6 @@ func TestProtectionStateResolver_Resolve(t *testing.T) {
 			wantCurrentKeysetVersion: 0,
 			wantTenantID:             "",
 			wantOrganizationID:       "org-123",
-			wantErr:                  nil,
-		},
-		{
-			name:           "status legacy returns legacy mode",
-			organizationID: "org-456",
-			readerRecord: &mmodel.OrganizationRegistryRecord{
-				TenantID:        "tenant-abc",
-				OrganizationID:  "org-456",
-				Status:          mmodel.RegistryStatusLegacy,
-				CurrentVersion:  0,
-				LegacyReadable:  true,
-				ProtectionModel: mmodel.ProtectionModelLegacy,
-			},
-			readerErr:                nil,
-			wantMode:                 crypto.EncryptionModeLegacy,
-			wantCanReadLegacy:        true,
-			wantCurrentKeysetVersion: 0,
-			wantTenantID:             "tenant-abc",
-			wantOrganizationID:       "org-456",
-			wantErr:                  nil,
-		},
-		{
-			name:           "status pending_migration returns legacy mode",
-			organizationID: "org-789",
-			readerRecord: &mmodel.OrganizationRegistryRecord{
-				TenantID:        "tenant-def",
-				OrganizationID:  "org-789",
-				Status:          mmodel.RegistryStatusPendingMigration,
-				CurrentVersion:  0,
-				LegacyReadable:  true,
-				ProtectionModel: mmodel.ProtectionModelLegacy,
-			},
-			readerErr:                nil,
-			wantMode:                 crypto.EncryptionModeLegacy,
-			wantCanReadLegacy:        true,
-			wantCurrentKeysetVersion: 0,
-			wantTenantID:             "tenant-def",
-			wantOrganizationID:       "org-789",
 			wantErr:                  nil,
 		},
 		{
@@ -128,64 +98,15 @@ func TestProtectionStateResolver_Resolve(t *testing.T) {
 			wantErr:                  nil,
 		},
 		{
-			name:           "status partially_migrated returns envelope mode with legacy readable",
-			organizationID: "org-partial",
+			name:           "unknown status returns error",
+			organizationID: "org-unknown",
 			readerRecord: &mmodel.OrganizationRegistryRecord{
-				TenantID:        "tenant-mno",
-				OrganizationID:  "org-partial",
-				Status:          mmodel.RegistryStatusPartiallyMigrated,
-				CurrentVersion:  3,
-				LegacyReadable:  true,
-				ProtectionModel: mmodel.ProtectionModelEnvelope,
-			},
-			readerErr:                nil,
-			wantMode:                 crypto.EncryptionModeEnvelope,
-			wantCanReadLegacy:        true,
-			wantCurrentKeysetVersion: 3,
-			wantTenantID:             "tenant-mno",
-			wantOrganizationID:       "org-partial",
-			wantErr:                  nil,
-		},
-		{
-			name:           "status migration_complete returns envelope mode",
-			organizationID: "org-complete",
-			readerRecord: &mmodel.OrganizationRegistryRecord{
-				TenantID:        "tenant-pqr",
-				OrganizationID:  "org-complete",
-				Status:          mmodel.RegistryStatusMigrationComplete,
-				CurrentVersion:  5,
-				LegacyReadable:  false,
-				ProtectionModel: mmodel.ProtectionModelEnvelope,
-			},
-			readerErr:                nil,
-			wantMode:                 crypto.EncryptionModeEnvelope,
-			wantCanReadLegacy:        false,
-			wantCurrentKeysetVersion: 5,
-			wantTenantID:             "tenant-pqr",
-			wantOrganizationID:       "org-complete",
-			wantErr:                  nil,
-		},
-		{
-			name:           "status failed returns error",
-			organizationID: "org-failed",
-			readerRecord: &mmodel.OrganizationRegistryRecord{
-				TenantID:       "tenant-stu",
-				OrganizationID: "org-failed",
-				Status:         mmodel.RegistryStatusFailed,
+				TenantID:       "tenant-xyz",
+				OrganizationID: "org-unknown",
+				Status:         "unknown_status",
 			},
 			readerErr: nil,
-			wantErr:   constant.ErrOrganizationEncryptionFailed,
-		},
-		{
-			name:           "status blocked returns error",
-			organizationID: "org-blocked",
-			readerRecord: &mmodel.OrganizationRegistryRecord{
-				TenantID:       "tenant-vwx",
-				OrganizationID: "org-blocked",
-				Status:         mmodel.RegistryStatusBlocked,
-			},
-			readerErr: nil,
-			wantErr:   constant.ErrOrganizationEncryptionBlocked,
+			wantErr:   errors.New("unknown registry status"),
 		},
 		{
 			name:           "repository error is propagated",
@@ -200,7 +121,7 @@ func TestProtectionStateResolver_Resolve(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			reader := &fakeRegistryReader{
+			reader := &fakeRegistryRepoForProtection{
 				record: tt.readerRecord,
 				err:    tt.readerErr,
 			}
@@ -214,18 +135,7 @@ func TestProtectionStateResolver_Resolve(t *testing.T) {
 					return
 				}
 
-				// Check for sentinel errors using errors.Is
-				if errors.Is(tt.wantErr, constant.ErrOrganizationEncryptionFailed) ||
-					errors.Is(tt.wantErr, constant.ErrOrganizationEncryptionBlocked) ||
-					errors.Is(tt.wantErr, constant.ErrRegistryNotFound) {
-					if !errors.Is(err, tt.wantErr) {
-						t.Errorf("Resolve() error = %v, want %v", err, tt.wantErr)
-					}
-
-					return
-				}
-
-				// For non-sentinel errors, check that we got an error
+				// For non-sentinel errors, just check that we got an error
 				return
 			}
 
@@ -293,7 +203,7 @@ func TestProtectionState_MustUseEnvelope(t *testing.T) {
 func TestNewProtectionStateResolver(t *testing.T) {
 	t.Parallel()
 
-	reader := &fakeRegistryReader{}
+	reader := &fakeRegistryRepoForProtection{}
 	resolver := NewProtectionStateResolver(reader)
 
 	if resolver == nil {
@@ -318,7 +228,7 @@ func TestProtectionStateResolver_Resolve_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	reader := &fakeRegistryReader{
+	reader := &fakeRegistryRepoForProtection{
 		record: nil,
 		err:    context.Canceled,
 	}

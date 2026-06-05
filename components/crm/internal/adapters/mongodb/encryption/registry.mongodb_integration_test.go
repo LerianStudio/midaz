@@ -137,11 +137,11 @@ func TestIntegration_RegistryRepo_Save_InitialStatus(t *testing.T) {
 	err := repo.Save(ctx, registry)
 	require.NoError(t, err)
 
-	// Assert - Get and verify initial status (NewOrganizationRegistryRecord sets pending_migration)
+	// Assert - Get and verify initial status (NewOrganizationRegistryRecord sets active)
 	result, err := repo.Get(ctx, organizationID)
 	require.NoError(t, err)
-	assert.Equal(t, mmodel.RegistryStatusPendingMigration, result.Status, "initial status should be pending_migration")
-	assert.Equal(t, mmodel.ProtectionModelLegacy, result.ProtectionModel, "initial protection model should be legacy")
+	assert.Equal(t, mmodel.RegistryStatusActive, result.Status, "initial status should be active")
+	assert.Equal(t, mmodel.ProtectionModelEnvelope, result.ProtectionModel, "initial protection model should be envelope")
 }
 
 func TestIntegration_RegistryRepo_Save_WithReadableVersions(t *testing.T) {
@@ -192,7 +192,7 @@ func TestIntegration_RegistryRepo_Get(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, organizationID, result.OrganizationID)
 	assert.Equal(t, tenantID, result.TenantID)
-	assert.Equal(t, mmodel.RegistryStatusPendingMigration, result.Status)
+	assert.Equal(t, mmodel.RegistryStatusActive, result.Status)
 }
 
 func TestIntegration_RegistryRepo_Get_NotFound(t *testing.T) {
@@ -237,8 +237,8 @@ func TestIntegration_RegistryRepo_Get_ReturnsAllFields(t *testing.T) {
 
 	assert.Equal(t, tenantID, result.TenantID)
 	assert.Equal(t, organizationID, result.OrganizationID)
-	assert.Equal(t, mmodel.RegistryStatusPendingMigration, result.Status)
-	assert.Equal(t, mmodel.ProtectionModelLegacy, result.ProtectionModel)
+	assert.Equal(t, mmodel.RegistryStatusActive, result.Status)
+	assert.Equal(t, mmodel.ProtectionModelEnvelope, result.ProtectionModel)
 	assert.Equal(t, 2, result.CurrentVersion)
 	assert.Equal(t, []int{1, 2}, result.ReadableVersions)
 	assert.True(t, result.LegacyReadable)
@@ -312,8 +312,8 @@ func TestIntegration_RegistryRepo_Update_IncrementRevision(t *testing.T) {
 	require.NoError(t, err)
 	initialRevision := saved.Revision
 
-	// Act
-	saved.Status = mmodel.RegistryStatusPendingMigration
+	// Act - Update a field to trigger revision increment
+	saved.LegacyReadable = !saved.LegacyReadable
 	err = repo.Update(ctx, saved, initialRevision)
 	require.NoError(t, err)
 
@@ -340,7 +340,7 @@ func TestIntegration_RegistryRepo_Update_RevisionConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	// Act - Try to update with wrong revision
-	saved.Status = mmodel.RegistryStatusFailed
+	saved.LegacyReadable = true
 	wrongRevision := int64(999)
 	err = repo.Update(ctx, saved, wrongRevision)
 
@@ -351,7 +351,7 @@ func TestIntegration_RegistryRepo_Update_RevisionConflict(t *testing.T) {
 	// Verify original data unchanged
 	result, err := repo.Get(ctx, organizationID)
 	require.NoError(t, err)
-	assert.NotEqual(t, mmodel.RegistryStatusFailed, result.Status, "status should not be updated")
+	assert.False(t, result.LegacyReadable, "LegacyReadable should not be updated")
 }
 
 func TestIntegration_RegistryRepo_Update_DoesNotMutateInputOnFailure(t *testing.T) {
@@ -412,80 +412,56 @@ func TestIntegration_RegistryRepo_Update_MultipleUpdates(t *testing.T) {
 	err := repo.Save(ctx, registry)
 	require.NoError(t, err)
 
-	// Act - Perform multiple sequential updates (simulating migration workflow)
-	statusTransitions := []mmodel.RegistryStatus{
-		mmodel.RegistryStatusPendingMigration,
-		mmodel.RegistryStatusPartiallyMigrated,
-		mmodel.RegistryStatusMigrationComplete,
-		mmodel.RegistryStatusActive,
-	}
-
-	for _, status := range statusTransitions {
+	// Act - Perform multiple sequential updates
+	for i := 1; i <= 4; i++ {
 		current, err := repo.Get(ctx, organizationID)
 		require.NoError(t, err)
 
-		current.Status = status
-		current.LastTransitionReason = "transition to " + string(status)
+		current.CurrentVersion = i
+		current.LastTransitionReason = "update " + string(rune('0'+i))
 		err = repo.Update(ctx, current, current.Revision)
-		require.NoError(t, err, "update to %s should succeed", status)
+		require.NoError(t, err, "update %d should succeed", i)
 	}
 
 	// Assert
 	final, err := repo.Get(ctx, organizationID)
 	require.NoError(t, err)
 	assert.Equal(t, mmodel.RegistryStatusActive, final.Status)
+	assert.Equal(t, 4, final.CurrentVersion)
 	assert.Equal(t, int64(5), final.Revision, "revision should be 5 after 4 updates") // 1 initial + 4 updates
 }
 
 // ============================================================================
-// Status Transition Tests
+// Status Tests
 // ============================================================================
 
-func TestIntegration_RegistryRepo_Update_StatusTransitions(t *testing.T) {
-	tests := []struct {
-		name       string
-		fromStatus mmodel.RegistryStatus
-		toStatus   mmodel.RegistryStatus
-	}{
-		{"pending_to_partially", mmodel.RegistryStatusPendingMigration, mmodel.RegistryStatusPartiallyMigrated},
-		{"partially_to_complete", mmodel.RegistryStatusPartiallyMigrated, mmodel.RegistryStatusMigrationComplete},
-		{"complete_to_active", mmodel.RegistryStatusMigrationComplete, mmodel.RegistryStatusActive},
-		{"pending_to_failed", mmodel.RegistryStatusPendingMigration, mmodel.RegistryStatusFailed},
-		{"failed_to_pending", mmodel.RegistryStatusFailed, mmodel.RegistryStatusPendingMigration},
-		{"active_to_blocked", mmodel.RegistryStatusActive, mmodel.RegistryStatusBlocked},
-		{"active_to_legacy", mmodel.RegistryStatusActive, mmodel.RegistryStatusLegacy},
-	}
+func TestIntegration_RegistryRepo_Update_Status(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupContainer(t)
+	repo := createRegistryRepository(t, container)
+	ctx := context.Background()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Arrange
-			container := mongotestutil.SetupContainer(t)
-			repo := createRegistryRepository(t, container)
-			ctx := context.Background()
+	tenantID := "tenant-" + uuid.New().String()[:8]
+	organizationID := "org-" + uuid.New().String()[:8]
+	registry := createValidRegistry(t, tenantID, organizationID)
 
-			tenantID := "tenant-" + uuid.New().String()[:8]
-			organizationID := "org-" + uuid.New().String()[:8]
-			registry := createValidRegistry(t, tenantID, organizationID)
-			registry.Status = tt.fromStatus
+	err := repo.Save(ctx, registry)
+	require.NoError(t, err)
 
-			err := repo.Save(ctx, registry)
-			require.NoError(t, err)
+	saved, err := repo.Get(ctx, organizationID)
+	require.NoError(t, err)
+	assert.Equal(t, mmodel.RegistryStatusActive, saved.Status)
 
-			saved, err := repo.Get(ctx, organizationID)
-			require.NoError(t, err)
+	// Act - Update the reason field
+	saved.LastTransitionReason = "updated reason"
+	err = repo.Update(ctx, saved, saved.Revision)
 
-			// Act
-			saved.Status = tt.toStatus
-			saved.LastTransitionReason = tt.name
-			err = repo.Update(ctx, saved, saved.Revision)
-
-			// Assert
-			require.NoError(t, err)
-			result, err := repo.Get(ctx, organizationID)
-			require.NoError(t, err)
-			assert.Equal(t, tt.toStatus, result.Status)
-		})
-	}
+	// Assert
+	require.NoError(t, err)
+	result, err := repo.Get(ctx, organizationID)
+	require.NoError(t, err)
+	assert.Equal(t, mmodel.RegistryStatusActive, result.Status)
+	assert.Equal(t, "updated reason", result.LastTransitionReason)
 }
 
 // ============================================================================
@@ -507,10 +483,10 @@ func TestIntegration_RegistryRepo_Update_ProtectionModel(t *testing.T) {
 
 	saved, err := repo.Get(ctx, organizationID)
 	require.NoError(t, err)
-	assert.Equal(t, mmodel.ProtectionModelLegacy, saved.ProtectionModel)
+	assert.Equal(t, mmodel.ProtectionModelEnvelope, saved.ProtectionModel)
 
-	// Act - Switch to envelope encryption
-	saved.ProtectionModel = mmodel.ProtectionModelEnvelope
+	// Act - Switch to legacy encryption (to test protection model updates work both directions)
+	saved.ProtectionModel = mmodel.ProtectionModelLegacy
 	saved.Status = mmodel.RegistryStatusActive
 	err = repo.Update(ctx, saved, saved.Revision)
 
@@ -518,7 +494,7 @@ func TestIntegration_RegistryRepo_Update_ProtectionModel(t *testing.T) {
 	require.NoError(t, err)
 	result, err := repo.Get(ctx, organizationID)
 	require.NoError(t, err)
-	assert.Equal(t, mmodel.ProtectionModelEnvelope, result.ProtectionModel)
+	assert.Equal(t, mmodel.ProtectionModelLegacy, result.ProtectionModel)
 }
 
 // ============================================================================
@@ -577,7 +553,7 @@ func TestIntegration_RegistryRepo_RoundTrip(t *testing.T) {
 
 	assert.Equal(t, original.TenantID, result.TenantID)
 	assert.Equal(t, original.OrganizationID, result.OrganizationID)
-	assert.Equal(t, mmodel.RegistryStatusPendingMigration, result.Status, "status should be pending_migration from constructor")
+	assert.Equal(t, mmodel.RegistryStatusActive, result.Status, "status should be active from constructor")
 	assert.Equal(t, original.ProtectionModel, result.ProtectionModel)
 	assert.Equal(t, original.CurrentVersion, result.CurrentVersion)
 	assert.Equal(t, original.ReadableVersions, result.ReadableVersions)
@@ -634,12 +610,12 @@ func TestIntegration_RegistryRepo_ConcurrentUpdate_OptimisticLocking(t *testing.
 	require.NoError(t, err)
 
 	// First update succeeds
-	snapshot1.Status = mmodel.RegistryStatusPendingMigration
+	snapshot1.CurrentVersion = 2
 	err = repo.Update(ctx, snapshot1, snapshot1.Revision)
 	require.NoError(t, err, "first update should succeed")
 
 	// Act - Second update should fail (stale revision)
-	snapshot2.Status = mmodel.RegistryStatusActive
+	snapshot2.CurrentVersion = 3
 	err = repo.Update(ctx, snapshot2, snapshot2.Revision)
 
 	// Assert
@@ -649,6 +625,6 @@ func TestIntegration_RegistryRepo_ConcurrentUpdate_OptimisticLocking(t *testing.
 	// Verify first update was applied
 	result, err := repo.Get(ctx, organizationID)
 	require.NoError(t, err)
-	assert.Equal(t, mmodel.RegistryStatusPendingMigration, result.Status)
+	assert.Equal(t, 2, result.CurrentVersion)
 	assert.Equal(t, int64(2), result.Revision)
 }

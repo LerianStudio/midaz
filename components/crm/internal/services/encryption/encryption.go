@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 
+	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -60,31 +62,63 @@ type EncryptionService interface {
 
 // encryptionService provides field-level encryption for CRM sensitive data.
 // It routes between legacy (libCommons) and envelope (Tink/KMS) encryption
-// based on organization protection state.
+// based on organization protection state or encryption mode.
+//
+// When encryptionMode is EncryptionModeEnvelope, the service always uses envelope
+// encryption regardless of per-organization registry state. This enables lazy
+// provisioning via KeysetManager for organizations that have not been explicitly
+// provisioned yet.
 type encryptionService struct {
-	stateResolver *ProtectionStateResolver
-	keysetManager *KeysetManager
-	keysetReader  KeysetReader
-	legacyCrypto  LegacyCrypto
+	stateResolver  *ProtectionStateResolver
+	keysetManager  *KeysetManager
+	keysetRepo     mongoEncryption.KeysetRepository
+	legacyCrypto   LegacyCrypto
+	encryptionMode crypto.EncryptionMode
 }
 
 // NewEncryptionService creates a new encryption service with the given dependencies.
+//
+// The encryptionMode parameter determines the encryption strategy:
+//   - EncryptionModeEnvelope: Always use envelope encryption, triggering lazy
+//     provisioning via KeysetManager for non-provisioned organizations.
+//   - EncryptionModeLegacy: Fall back to per-organization protection state
+//     resolution (default behavior for backwards compatibility).
+//
+// When encryptionMode is omitted or set to EncryptionModeLegacy, the service routes
+// encryption based on the per-organization registry state resolved by stateResolver.
 func NewEncryptionService(
 	stateResolver *ProtectionStateResolver,
 	keysetManager *KeysetManager,
-	keysetReader KeysetReader,
+	keysetRepo mongoEncryption.KeysetRepository,
 	legacyCrypto LegacyCrypto,
+	encryptionMode ...crypto.EncryptionMode,
 ) EncryptionService {
+	mode := crypto.EncryptionModeLegacy
+	if len(encryptionMode) > 0 {
+		mode = encryptionMode[0]
+	}
+
 	return &encryptionService{
-		stateResolver: stateResolver,
-		keysetManager: keysetManager,
-		keysetReader:  keysetReader,
-		legacyCrypto:  legacyCrypto,
+		stateResolver:  stateResolver,
+		keysetManager:  keysetManager,
+		keysetRepo:     keysetRepo,
+		legacyCrypto:   legacyCrypto,
+		encryptionMode: mode,
 	}
 }
 
 // Encrypt encrypts a plaintext value for the given field context.
-// Uses envelope encryption if organization is active, legacy otherwise.
+// Uses envelope encryption if encryptionMode is envelope or organization is active,
+// legacy otherwise.
+//
+// When encryptionMode is EncryptionModeEnvelope:
+//   - Always uses envelope encryption regardless of per-org registry state
+//   - Triggers lazy provisioning via KeysetManager.GetPrimitives() for non-provisioned orgs
+//
+// When encryptionMode is EncryptionModeLegacy (or unset):
+//   - Routes based on per-organization protection state
+//   - Uses envelope if organization registry shows active status
+//   - Uses legacy if organization has no registry record
 //
 // For envelope mode:
 //   - Validates field context
@@ -106,13 +140,18 @@ func (s *encryptionService) Encrypt(ctx context.Context, fieldCtx FieldContext, 
 		return "", fmt.Errorf("%w: %v", ErrFieldContextInvalid, err)
 	}
 
-	// Resolve protection state
+	// Encryption mode envelope: always use envelope encryption (triggers lazy provisioning)
+	if s.encryptionMode == crypto.EncryptionModeEnvelope {
+		return s.encryptEnvelope(ctx, fieldCtx, plaintext)
+	}
+
+	// Legacy encryption mode: resolve protection state per organization
 	state, err := s.stateResolver.Resolve(ctx, fieldCtx.OrganizationID)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve protection state: %w", err)
 	}
 
-	// Route based on mode
+	// Route based on per-org mode
 	if state.MustUseEnvelope() {
 		return s.encryptEnvelope(ctx, fieldCtx, plaintext)
 	}
@@ -129,7 +168,7 @@ func (s *encryptionService) encryptEnvelope(ctx context.Context, fieldCtx FieldC
 	}
 
 	// Get keyset info for primary key ID
-	keyset, err := s.keysetReader.Get(ctx, fieldCtx.OrganizationID)
+	keyset, err := s.keysetRepo.Get(ctx, fieldCtx.OrganizationID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get keyset info: %w", err)
 	}
@@ -270,6 +309,13 @@ func (s *encryptionService) decryptLegacy(ctx context.Context, fieldCtx FieldCon
 // GenerateSearchToken generates a deterministic search token for a field value.
 // Used for encrypted field searching without exposing plaintext.
 //
+// When encryptionMode is EncryptionModeEnvelope:
+//   - Always uses envelope MAC generation regardless of per-org registry state
+//   - Triggers lazy provisioning via KeysetManager.GetPrimitives() for non-provisioned orgs
+//
+// When encryptionMode is EncryptionModeLegacy (or unset):
+//   - Routes based on per-organization protection state
+//
 // For envelope mode:
 //   - Gets MAC primitive from KeysetManager
 //   - Computes HMAC of canonical input (tenant:org:field:value)
@@ -289,13 +335,18 @@ func (s *encryptionService) GenerateSearchToken(ctx context.Context, searchCtx S
 		return "", fmt.Errorf("%w: %v", ErrSearchContextInvalid, err)
 	}
 
-	// Resolve protection state
+	// encryption mode envelope: always use envelope MAC (triggers lazy provisioning)
+	if s.encryptionMode == crypto.EncryptionModeEnvelope {
+		return s.generateSearchTokenEnvelope(ctx, searchCtx, normalizedValue)
+	}
+
+	// Legacy encryption mode: resolve protection state per organization
 	state, err := s.stateResolver.Resolve(ctx, searchCtx.OrganizationID)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve protection state: %w", err)
 	}
 
-	// Route based on mode
+	// Route based on per-org mode
 	if state.MustUseEnvelope() {
 		return s.generateSearchTokenEnvelope(ctx, searchCtx, normalizedValue)
 	}
@@ -362,7 +413,7 @@ func (s *encryptionService) GetKeysetInfo(ctx context.Context, organizationID st
 		return nil, err
 	}
 
-	keyset, err := s.keysetReader.Get(ctx, organizationID)
+	keyset, err := s.keysetRepo.Get(ctx, organizationID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get keyset: %w", err)
 	}
