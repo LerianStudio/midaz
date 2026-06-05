@@ -5,7 +5,7 @@ Concise rules for AI agents working in Midaz. For expanded references, use `AGEN
 ## Project
 
 - Midaz is an enterprise double-entry ledger system.
-- Module: `github.com/LerianStudio/midaz/v3` (single root `go.mod`, no `go.work`).
+- Module: `github.com/LerianStudio/midaz/v4` (single root `go.mod`, no `go.work`).
 - Go: 1.26.3+ (toolchain go1.26.4).
 - lib-commons: `github.com/LerianStudio/lib-commons/v5` v5.4.1; `lib-observability` v1.0.1.
 - License: Elastic License 2.0.
@@ -167,7 +167,7 @@ Producer is `github.com/LerianStudio/lib-streaming`. Wire format: CloudEvents 1.
 
 ### Producer conventions
 
-- Import aliases: `libStreaming` for `github.com/LerianStudio/lib-streaming`; `pkgStreaming` for `github.com/LerianStudio/midaz/v3/pkg/streaming`. Keep both distinct.
+- Import aliases: `libStreaming` for `github.com/LerianStudio/lib-streaming`; `pkgStreaming` for `github.com/LerianStudio/midaz/v4/pkg/streaming`. Keep both distinct.
 - Build config via `libStreaming.LoadConfig()` (reads `STREAMING_*` env with correct franz-go defaults). NEVER construct `libStreaming.Config{}` manually. Master flag stays in midaz `Config.StreamingEnabled`.
 - `CloudEventsSource` is validated but NOT auto-applied. Every `libStreaming.Event` must set `Source` explicitly. Hold the value on `UseCase.StreamingSource`, populate at bootstrap, read at each emit.
 - Tenant value from `pkgStreaming.ResolveTenantID(ctx)` — returns the multi-tenant context value or `pkgStreaming.DefaultTenantID` (literal `"default"`). Reference the constant, not the literal. NEVER hardcode tenants or call `tmcore.GetTenantIDContext` at emit sites. For IMPORTANT events, `pkgStreaming.EmitImportant` resolves the tenant internally and passes it to the typed event builder closure.
@@ -257,5 +257,5 @@ Drift discipline: wire-contract change updates (a) Payload struct, (b) construct
 - Do not depend on `*libStreaming.Producer` in service code; depend on `libStreaming.Emitter` interface.
 - Do not build payload maps or call `json.Marshal` inline in use cases; route every payload through `pkg/streaming/events/<event>.go` (`New<Event>(...).ToEvent(...)`).
 - Do not embed `mmodel.*` types directly in event Payload structs; mirror the shape explicitly so domain evolution does not leak onto the wire.
-- Do not import `github.com/LerianStudio/lib-streaming` without the `libStreaming` alias, and do not import `github.com/LerianStudio/midaz/v3/pkg/streaming` without the `pkgStreaming` alias.
+- Do not import `github.com/LerianStudio/lib-streaming` without the `libStreaming` alias, and do not import `github.com/LerianStudio/midaz/v4/pkg/streaming` without the `pkgStreaming` alias.
 - Do not add comments that narrate refactor history or describe the behavior of code being called (e.g. "X now does Y", "the Z call short-circuits W"). They rot when the referenced code changes. Comment WHAT the code does and WHY it has to be that way — let the referenced code speak for itself.

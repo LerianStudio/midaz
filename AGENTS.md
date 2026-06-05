@@ -9,7 +9,7 @@ Midaz is an **open-source double-entry ledger** written in Go. It provides HTTP 
 | Aspect | Detail |
 |--------|--------|
 | Language | Go 1.26.3 (toolchain go1.26.4) |
-| Module | `github.com/LerianStudio/midaz/v3` (single root `go.mod`, no `go.work`) |
+| Module | `github.com/LerianStudio/midaz/v4` (single root `go.mod`, no `go.work`) |
 | License | Elastic License 2.0 |
 | Architecture | Hexagonal + CQRS |
 | HTTP Framework | Fiber v2 |

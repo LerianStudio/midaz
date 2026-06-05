@@ -125,7 +125,7 @@ midaz/
 ├── docs/auth/RBAC-NAMESPACES.md  # The three authz namespaces (R9)
 ├── docs/api/SCOPING.md      # Path vs X-Organization-Id header scoping (R22)
 ├── Makefile                 # Root orchestrator
-├── go.mod                   # Module: github.com/LerianStudio/midaz/v3 (single root go.mod)
+├── go.mod                   # Module: github.com/LerianStudio/midaz/v4 (single root go.mod)
 └── go.sum
 ```
 

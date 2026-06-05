@@ -4,7 +4,7 @@ Reporter Worker is the asynchronous report generator for Midaz's reporting subsy
 
 ## How It Fits
 
-- **Monorepo deploy unit.** Co-located in the Midaz monorepo under a single root `go.mod` (module `github.com/LerianStudio/midaz/v3`, Go 1.26.3 / toolchain go1.26.4). It builds from `components/reporter-worker/cmd/app/main.go`; it ships no own `go.mod`.
+- **Monorepo deploy unit.** Co-located in the Midaz monorepo under a single root `go.mod` (module `github.com/LerianStudio/midaz/v4`, Go 1.26.3 / toolchain go1.26.4). It builds from `components/reporter-worker/cmd/app/main.go`; it ships no own `go.mod`.
 - **Consumer in a producer/consumer pair.** Worker is the consumer; [`reporter-manager`](../reporter-manager/) is the producer. They share infrastructure: the same RabbitMQ topology (`reporter.generate-report.*`), the same MongoDB database (`reporter-db`), and the same S3-compatible object store (`reporter-storage`).
 - **Ports.** No REST API. A stdlib `net/http` health server exposes `/health` (liveness) and `/readyz` (readiness) on `HEALTH_PORT=4006`. Do not confuse this with the Fetcher service, whose default port is also `4006` on a different host.
 - **Runtime image.** `alpine:3.23` with system Chromium installed: the worker renders PDFs via `chromedp` driving headless Chromium, which the distroless base cannot host. The image carries an embedded Docker `HEALTHCHECK` against `/health`.

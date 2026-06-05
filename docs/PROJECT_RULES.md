@@ -209,8 +209,8 @@ import (
     libLog "github.com/LerianStudio/lib-observability/log"
 
     // 4. Internal: midaz project packages
-    "github.com/LerianStudio/midaz/v3/pkg"
-    "github.com/LerianStudio/midaz/v3/pkg/mmodel"
+    "github.com/LerianStudio/midaz/v4/pkg"
+    "github.com/LerianStudio/midaz/v4/pkg/mmodel"
 
     // 5. External: frameworks
     "github.com/gofiber/fiber/v2"

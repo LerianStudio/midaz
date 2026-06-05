@@ -43,4 +43,4 @@ Midaz operates under a meritocratic governance model. We make decisions based on
 
 ## 4. Code of Conduct and Enforcement
 
-Our [Midaz - Code of Conduct](https://github.com/LerianStudio/midaz/v3/blob/main/CODE_OF_CONDUCT.md) is central to fostering an inclusive and productive environment. All community members follow the principles of respect, fairness, and openness.
+Our [Midaz - Code of Conduct](https://github.com/LerianStudio/midaz/blob/main/CODE_OF_CONDUCT.md) is central to fostering an inclusive and productive environment. All community members follow the principles of respect, fairness, and openness.

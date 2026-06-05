@@ -1,6 +1,6 @@
 # Midaz Test Suites
 
-This directory hosts black-box test suites for the Midaz stack when running locally via Docker Compose. The tests target the HTTP API of the unified `ledger` binary (onboarding + transaction + CRM + fees on `:3002`) and exercise the system end-to-end against the local infrastructure (PostgreSQL, MongoDB, Valkey, RabbitMQ, OTEL LGTM) brought up from `components/infra`. The repo is a single Go module (`github.com/LerianStudio/midaz/v3`, one root `go.mod`); these suites compile against it directly.
+This directory hosts black-box test suites for the Midaz stack when running locally via Docker Compose. The tests target the HTTP API of the unified `ledger` binary (onboarding + transaction + CRM + fees on `:3002`) and exercise the system end-to-end against the local infrastructure (PostgreSQL, MongoDB, Valkey, RabbitMQ, OTEL LGTM) brought up from `components/infra`. The repo is a single Go module (`github.com/LerianStudio/midaz/v4`, one root `go.mod`); these suites compile against it directly.
 
 Layout:
 

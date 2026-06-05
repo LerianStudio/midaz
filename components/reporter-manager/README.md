@@ -4,7 +4,7 @@ Reporter Manager is the REST API for Midaz's reporting subsystem. It manages rep
 
 ## How It Fits
 
-- **Monorepo deploy unit.** Co-located in the Midaz monorepo under a single root `go.mod` (module `github.com/LerianStudio/midaz/v3`, Go 1.26.3 / toolchain go1.26.4). It builds from `components/reporter-manager/cmd/app/main.go`; it ships no own `go.mod`.
+- **Monorepo deploy unit.** Co-located in the Midaz monorepo under a single root `go.mod` (module `github.com/LerianStudio/midaz/v4`, Go 1.26.3 / toolchain go1.26.4). It builds from `components/reporter-manager/cmd/app/main.go`; it ships no own `go.mod`.
 - **Producer in a producer/consumer pair.** Manager is the producer; [`reporter-worker`](../reporter-worker/) is the consumer. They share infrastructure: the same RabbitMQ topology (`reporter.generate-report.*`), the same MongoDB database (`reporter-db`), and the same S3-compatible object store (`reporter-storage`).
 - **Ports.** REST API on `SERVER_PORT=4005`. The production image is `gcr.io/distroless/static-debian12:nonroot` (no shell), so health is probed externally by the orchestrator against `/health`.
 - **Shared infra.** PostgreSQL, MongoDB, RabbitMQ, and the SeaweedFS object store come from [`components/infra`](../infra/). This component's `docker-compose.yml` carries only the `reporter-manager` app service and joins the external `infra-network`.

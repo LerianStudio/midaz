@@ -2,7 +2,7 @@
 
 > Real-time transaction validation and fraud prevention API. Go 1.26.3 service (toolchain go1.26.4) using hexagonal architecture + CQRS with Google CEL rule engine, multi-scope spending limits, and immutable audit trail with hash chain verification. PostgreSQL 17. Elastic License 2.0.
 
-Tracer is a co-located deploy unit in the Midaz monorepo (module `github.com/LerianStudio/midaz/v3`, single root `go.mod`, no own `go.mod`). It is a product-agnostic validation service that provides instant ALLOW/DENY/REVIEW decisions for financial transactions. It is part of the Lerian Studio ecosystem alongside Midaz (ledger) and Matcher (reconciliation). Designed for sub-100ms P99 latency with in-memory rule cache, background sync worker, and circuit breaker resilience.
+Tracer is a co-located deploy unit in the Midaz monorepo (module `github.com/LerianStudio/midaz/v4`, single root `go.mod`, no own `go.mod`). It is a product-agnostic validation service that provides instant ALLOW/DENY/REVIEW decisions for financial transactions. It is part of the Lerian Studio ecosystem alongside Midaz (ledger) and Matcher (reconciliation). Designed for sub-100ms P99 latency with in-memory rule cache, background sync worker, and circuit breaker resilience.
 
 ## Core Domain Concepts
 
@@ -79,7 +79,7 @@ Every validation creates immutable audit event. Hash chain verification for SOX/
 
 ### Hexagonal + CQRS
 
-Paths below are relative to `components/tracer/`. Go import paths prefix them with the module root, e.g. `github.com/LerianStudio/midaz/v3/components/tracer/internal/services/command`.
+Paths below are relative to `components/tracer/`. Go import paths prefix them with the module root, e.g. `github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command`.
 
 ```
 cmd/app/main.go                    — Entry point, bootstrap

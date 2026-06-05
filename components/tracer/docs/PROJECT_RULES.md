@@ -705,7 +705,7 @@ func (l *Limit) Validate() error {
 
 ### Go Version and Modern Syntax (Go 1.26+)
 
-Tracer is a co-located deploy unit in the `midaz` monorepo and builds against the single root `go.mod` (module `github.com/LerianStudio/midaz/v3`, `go 1.26.3`, toolchain `go1.26.4`) — there is no component-local `go.mod`. This project requires Go 1.26 or later. Use modern Go syntax:
+Tracer is a co-located deploy unit in the `midaz` monorepo and builds against the single root `go.mod` (module `github.com/LerianStudio/midaz/v4`, `go 1.26.3`, toolchain `go1.26.4`) — there is no component-local `go.mod`. This project requires Go 1.26 or later. Use modern Go syntax:
 
 #### Use `any` Instead of `interface{}`
 
@@ -927,8 +927,8 @@ import (
     "github.com/google/uuid"
 
     // Internal packages
-    "github.com/LerianStudio/midaz/v3/components/tracer/internal/services"
-    "github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
+    "github.com/LerianStudio/midaz/v4/components/tracer/internal/services"
+    "github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 ```
 
@@ -2366,7 +2366,7 @@ func UUIDPtr(u uuid.UUID) *uuid.UUID {
 Usage in tests:
 
 ```go
-import "github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+import "github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 
 // In test:
 {AccountID: testutil.UUIDPtr(uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"))}

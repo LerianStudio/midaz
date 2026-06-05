@@ -19,7 +19,7 @@ Readiness: `GET http://localhost:4020/readyz`
 | Attribute | Value |
 |-----------|-------|
 | **Project** | Real-time transaction validation and fraud prevention API |
-| **Component** | Co-located deploy unit in the `midaz` monorepo (module `github.com/LerianStudio/midaz/v3`, single root `go.mod`, no own `go.mod`) |
+| **Component** | Co-located deploy unit in the `midaz` monorepo (module `github.com/LerianStudio/midaz/v4`, single root `go.mod`, no own `go.mod`) |
 | **Language** | Go (root `go.mod`: `go 1.26.3`, toolchain `go1.26.4`; Dockerfile builder: `golang:1.26.3-alpine`) |
 | **Architecture** | Hexagonal (Ports & Adapters) + CQRS |
 | **Database** | PostgreSQL 16 |

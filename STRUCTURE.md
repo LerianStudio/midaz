@@ -1,7 +1,7 @@
 # Project Structure Overview
 
 This guide covers the project structure after the monorepo consolidation. The codebase is a
-single Go module (`github.com/LerianStudio/midaz/v3`, Go 1.26.3, single root `go.mod` — no
+single Go module (`github.com/LerianStudio/midaz/v4`, Go 1.26.3, single root `go.mod` — no
 `go.work`, no `replace`) following hexagonal architecture with Command Query Responsibility
 Segregation (CQRS).
 

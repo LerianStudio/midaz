@@ -279,7 +279,7 @@ func (a *Adapter) Method(ctx context.Context) error {
 
 ```go
 // ✅ CORRECT - Deterministic
-import "github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+import "github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 
 fixedTime := testutil.FixedTime()
 validID := testutil.MustDeterministicUUID(1)
@@ -494,7 +494,7 @@ const (
 
 ```go
 // ✅ CORRECT - Centralized in internal/testutil/
-import "github.com/LerianStudio/midaz/v3/components/tracer/internal/testutil"
+import "github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 
 validID := testutil.MustDeterministicUUID(1)
 ptrID := testutil.UUIDPtr(validID)
