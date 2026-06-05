@@ -85,7 +85,7 @@ func NewOrganizationRegistryRecord(tenantID, organizationID, actor, reason strin
 		CurrentVersion:       1,
 		ReadableVersions:     []int{1},
 		Revision:             1,
-		LegacyReadable:       false,
+		LegacyReadable:       true,
 		CreatedAt:            now,
 		UpdatedAt:            now,
 		CreatedBy:            actor,

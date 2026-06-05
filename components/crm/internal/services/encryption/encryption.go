@@ -6,12 +6,14 @@ package encryption
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
+	cryptoTink "github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -32,12 +34,40 @@ var (
 	ErrEnvelopeDecryptFailed = errors.New("envelope decryption failed")
 )
 
-// LegacyCrypto defines the interface for legacy encryption operations.
-// This is compatible with libCommons crypto.Crypto.
-type LegacyCrypto interface {
-	Encrypt(value *string) (*string, error)
-	Decrypt(value *string) (*string, error)
-	GenerateHash(value *string) string
+// LegacyKeyMaterial holds Tink-backed primitives for legacy encryption operations.
+// It replaces lib-commons crypto.Crypto while maintaining exact ciphertext and
+// search token compatibility for existing data.
+type LegacyKeyMaterial struct {
+	aead *cryptoTink.AEADPrimitive
+	mac  *cryptoTink.LegacyMACPrimitive
+}
+
+// NewLegacyKeyMaterial creates Tink-backed primitives from legacy key material.
+// The encryptHexKey is a hex-encoded AES key (32 bytes for AES-256).
+// The hashSecretKey is the plain string secret for HMAC-SHA256.
+func NewLegacyKeyMaterial(encryptHexKey, hashSecretKey string) (*LegacyKeyMaterial, error) {
+	aeadPrimitive, err := cryptoTink.NewLegacyAESGCMPrimitiveFromHexKey(encryptHexKey)
+	if err != nil {
+		return nil, fmt.Errorf("initialize legacy AES-GCM import: %w", err)
+	}
+
+	macPrimitive, err := cryptoTink.NewLegacyMACPrimitiveFromSecret(hashSecretKey)
+	if err != nil {
+		return nil, fmt.Errorf("initialize legacy HMAC import: %w", err)
+	}
+
+	return &LegacyKeyMaterial{aead: aeadPrimitive, mac: macPrimitive}, nil
+}
+
+// legacySearchToken computes a lowercase hex HMAC-SHA256 token.
+// Output matches lib-commons GenerateHash exactly.
+func (m *LegacyKeyMaterial) legacySearchToken(value string) string {
+	token, err := m.mac.ComputeLegacyHexToken([]byte(value))
+	if err != nil {
+		return ""
+	}
+
+	return token
 }
 
 // EncryptionService defines the contract for encryption operations.
@@ -61,7 +91,7 @@ type EncryptionService interface {
 }
 
 // encryptionService provides field-level encryption for CRM sensitive data.
-// It routes between legacy (libCommons) and envelope (Tink/KMS) encryption
+// It routes between Tink-backed legacy key material and envelope (Tink/KMS) encryption
 // based on organization protection state or encryption mode.
 //
 // When encryptionMode is EncryptionModeEnvelope, the service always uses envelope
@@ -72,11 +102,15 @@ type encryptionService struct {
 	stateResolver  *ProtectionStateResolver
 	keysetManager  *KeysetManager
 	keysetRepo     mongoEncryption.KeysetRepository
-	legacyCrypto   LegacyCrypto
+	legacyKeys     *LegacyKeyMaterial
 	encryptionMode crypto.EncryptionMode
 }
 
 // NewEncryptionService creates a new encryption service with the given dependencies.
+//
+// The legacyKeys parameter provides Tink-backed primitives for legacy encryption
+// operations, replacing the lib-commons crypto.Crypto dependency while maintaining
+// exact ciphertext and search token compatibility.
 //
 // The encryptionMode parameter determines the encryption strategy:
 //   - EncryptionModeEnvelope: Always use envelope encryption, triggering lazy
@@ -90,7 +124,7 @@ func NewEncryptionService(
 	stateResolver *ProtectionStateResolver,
 	keysetManager *KeysetManager,
 	keysetRepo mongoEncryption.KeysetRepository,
-	legacyCrypto LegacyCrypto,
+	legacyKeys *LegacyKeyMaterial,
 	encryptionMode ...crypto.EncryptionMode,
 ) EncryptionService {
 	mode := crypto.EncryptionModeLegacy
@@ -102,7 +136,7 @@ func NewEncryptionService(
 		stateResolver:  stateResolver,
 		keysetManager:  keysetManager,
 		keysetRepo:     keysetRepo,
-		legacyCrypto:   legacyCrypto,
+		legacyKeys:     legacyKeys,
 		encryptionMode: mode,
 	}
 }
@@ -192,23 +226,24 @@ func (s *encryptionService) encryptEnvelope(ctx context.Context, fieldCtx FieldC
 	return marked, nil
 }
 
-// encryptLegacy performs legacy encryption using libCommons crypto.
+// encryptLegacy performs legacy encryption using Tink-backed legacy key material.
+// The output is base64-encoded and compatible with lib-commons Decrypt.
 func (s *encryptionService) encryptLegacy(ctx context.Context, plaintext string) (string, error) {
 	// Check context before crypto operation
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
 
-	encrypted, err := s.legacyCrypto.Encrypt(&plaintext)
+	if s.legacyKeys == nil {
+		return "", fmt.Errorf("legacy key material is required")
+	}
+
+	cipherBytes, err := s.legacyKeys.aead.Encrypt([]byte(plaintext), nil)
 	if err != nil {
-		return "", fmt.Errorf("legacy encryption failed: %w", err)
+		return "", fmt.Errorf("legacy AES-GCM encrypt: %w", err)
 	}
 
-	if encrypted == nil {
-		return "", nil
-	}
-
-	return *encrypted, nil
+	return base64.StdEncoding.EncodeToString(cipherBytes), nil
 }
 
 // Decrypt decrypts a ciphertext value for the given field context.
@@ -275,7 +310,8 @@ func (s *encryptionService) decryptEnvelope(ctx context.Context, fieldCtx FieldC
 	return string(plaintext), nil
 }
 
-// decryptLegacy performs legacy decryption using libCommons crypto.
+// decryptLegacy performs legacy decryption using Tink-backed legacy key material.
+// Decrypts base64-encoded ciphertext from lib-commons Encrypt using Tink AES-GCM with RAW prefix.
 // Returns ErrLegacyReadNotAllowed if the organization doesn't permit legacy reads.
 func (s *encryptionService) decryptLegacy(ctx context.Context, fieldCtx FieldContext, ciphertext string) (string, error) {
 	// Check protection state for legacy read permission
@@ -293,17 +329,21 @@ func (s *encryptionService) decryptLegacy(ctx context.Context, fieldCtx FieldCon
 		return "", err
 	}
 
-	// Decrypt using legacy crypto
-	decrypted, err := s.legacyCrypto.Decrypt(&ciphertext)
+	if s.legacyKeys == nil {
+		return "", fmt.Errorf("legacy key material is required")
+	}
+
+	cipherBytes, err := base64.StdEncoding.DecodeString(ciphertext)
 	if err != nil {
-		return "", fmt.Errorf("legacy decryption failed: %w", err)
+		return "", fmt.Errorf("legacy base64 decode: %w", err)
 	}
 
-	if decrypted == nil {
-		return "", nil
+	plaintext, err := s.legacyKeys.aead.Decrypt(cipherBytes, nil)
+	if err != nil {
+		return "", fmt.Errorf("legacy AES-GCM decrypt: %w", err)
 	}
 
-	return *decrypted, nil
+	return string(plaintext), nil
 }
 
 // GenerateSearchToken generates a deterministic search token for a field value.
@@ -373,9 +413,13 @@ func (s *encryptionService) generateSearchTokenEnvelope(ctx context.Context, sea
 	return token, nil
 }
 
-// generateSearchTokenLegacy generates a hash-based search token using legacy crypto.
+// generateSearchTokenLegacy generates a hash-based search token using Tink-backed legacy key material.
 func (s *encryptionService) generateSearchTokenLegacy(normalizedValue string) string {
-	return s.legacyCrypto.GenerateHash(&normalizedValue)
+	if s.legacyKeys == nil {
+		return ""
+	}
+
+	return s.legacyKeys.legacySearchToken(normalizedValue)
 }
 
 // MustUseEnvelope returns true if the organization must use envelope encryption.

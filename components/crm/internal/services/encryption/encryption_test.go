@@ -6,6 +6,7 @@ package encryption
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"testing"
 
@@ -97,65 +98,15 @@ func (f *serviceTestKeysetUnwrapper) UnwrapKeyset(_ context.Context, _ string, w
 	return f.aeadKeyset, nil
 }
 
-// fakeLegacyCrypto implements a basic legacy crypto interface for tests.
-type fakeLegacyCrypto struct {
-	encryptedValues map[string]string // plaintext -> ciphertext
-	decryptedValues map[string]string // ciphertext -> plaintext
-	hashValues      map[string]string // plaintext -> hash
-	encryptErr      error
-	decryptErr      error
-}
+// newTestLegacyKeyMaterial creates a real LegacyKeyMaterial for testing.
+// Uses the same keys as the characterization tests.
+func newTestLegacyKeyMaterial(t *testing.T) *LegacyKeyMaterial {
+	t.Helper()
 
-func newFakeLegacyCrypto() *fakeLegacyCrypto {
-	return &fakeLegacyCrypto{
-		encryptedValues: make(map[string]string),
-		decryptedValues: make(map[string]string),
-		hashValues:      make(map[string]string),
-	}
-}
+	material, err := NewLegacyKeyMaterial(legacyEncryptHexKey, legacyHashKey)
+	require.NoError(t, err)
 
-func (f *fakeLegacyCrypto) Encrypt(value *string) (*string, error) {
-	if f.encryptErr != nil {
-		return nil, f.encryptErr
-	}
-
-	if value == nil {
-		return nil, nil
-	}
-
-	encrypted := "legacy-encrypted:" + *value
-	f.encryptedValues[*value] = encrypted
-	f.decryptedValues[encrypted] = *value
-
-	return &encrypted, nil
-}
-
-func (f *fakeLegacyCrypto) Decrypt(value *string) (*string, error) {
-	if f.decryptErr != nil {
-		return nil, f.decryptErr
-	}
-
-	if value == nil {
-		return nil, nil
-	}
-
-	decrypted, ok := f.decryptedValues[*value]
-	if !ok {
-		return nil, errors.New("cannot decrypt: unknown ciphertext")
-	}
-
-	return &decrypted, nil
-}
-
-func (f *fakeLegacyCrypto) GenerateHash(value *string) string {
-	if value == nil {
-		return ""
-	}
-
-	hash := "legacy-hash:" + *value
-	f.hashValues[*value] = hash
-
-	return hash
+	return material
 }
 
 // generateServiceTestKeysets creates real Tink keysets for encryption service testing.
@@ -182,7 +133,7 @@ func generateServiceTestKeysets(t *testing.T) ([]byte, []byte, uint32, uint32) {
 }
 
 // createEncryptionTestService creates a Service with test dependencies for envelope mode tests.
-func createEncryptionTestService(t *testing.T, state ProtectionState, legacyCrypto LegacyCrypto) (EncryptionService, *mmodel.OrganizationKeyset) {
+func createEncryptionTestService(t *testing.T, state ProtectionState, legacyKeys *LegacyKeyMaterial) (EncryptionService, *mmodel.OrganizationKeyset) {
 	t.Helper()
 
 	aeadBytes, macBytes, aeadKeyID, _ := generateServiceTestKeysets(t)
@@ -228,7 +179,7 @@ func createEncryptionTestService(t *testing.T, state ProtectionState, legacyCryp
 
 	stateResolver := NewProtectionStateResolver(registryRepo)
 
-	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyCrypto)
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys)
 
 	return svc, keyset
 }
@@ -249,8 +200,8 @@ func TestService_Encrypt_EnvelopeMode(t *testing.T) {
 		TenantID:             "tenant-abc",
 	}
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc, keyset := createEncryptionTestService(t, state, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, keyset := createEncryptionTestService(t, state, legacyKeys)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -279,7 +230,7 @@ func TestService_Encrypt_LegacyMode(t *testing.T) {
 
 	ctx := context.Background()
 
-	legacyCrypto := newFakeLegacyCrypto()
+	legacyKeys := newTestLegacyKeyMaterial(t)
 
 	// Create service with empty registry (no record = legacy mode)
 	registryRepo := &serviceTestRegistryRepo{
@@ -288,7 +239,7 @@ func TestService_Encrypt_LegacyMode(t *testing.T) {
 	stateResolver := NewProtectionStateResolver(registryRepo)
 
 	// KeysetManager and KeysetReader can be nil for legacy mode since they won't be used
-	svc := NewEncryptionService(stateResolver, nil, nil, legacyCrypto)
+	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-legacy",
@@ -305,8 +256,10 @@ func TestService_Encrypt_LegacyMode(t *testing.T) {
 	// Verify it does NOT have envelope marker
 	assert.False(t, HasEnvelopeMarker(ciphertext), "legacy ciphertext should not have envelope marker")
 
-	// Verify legacy crypto was used
-	assert.Equal(t, "legacy-encrypted:ABC123", ciphertext)
+	// Verify ciphertext can be decrypted back to original plaintext using service
+	decrypted, err := svc.Decrypt(ctx, fieldCtx, ciphertext)
+	require.NoError(t, err)
+	assert.Equal(t, plaintext, decrypted)
 }
 
 func TestService_Encrypt_InvalidFieldContext(t *testing.T) {
@@ -321,8 +274,8 @@ func TestService_Encrypt_InvalidFieldContext(t *testing.T) {
 		TenantID:             "tenant-abc",
 	}
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc, _ := createEncryptionTestService(t, state, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
 
 	tests := []struct {
 		name     string
@@ -404,8 +357,8 @@ func TestService_Encrypt_KeysetManagerError(t *testing.T) {
 	}
 	stateResolver := NewProtectionStateResolver(registryRepo)
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -434,8 +387,8 @@ func TestService_Decrypt_EnvelopeMarked(t *testing.T) {
 		TenantID:             "tenant-abc",
 	}
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc, _ := createEncryptionTestService(t, state, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -462,11 +415,13 @@ func TestService_Decrypt_LegacyAllowed(t *testing.T) {
 
 	ctx := context.Background()
 
-	legacyCrypto := newFakeLegacyCrypto()
+	legacyKeys := newTestLegacyKeyMaterial(t)
 
-	// Pre-populate decryption mapping
-	legacyCiphertext := "legacy-encrypted:secret-value"
-	legacyCrypto.decryptedValues[legacyCiphertext] = "secret-value"
+	// Create actual legacy ciphertext using Tink-backed legacy crypto
+	plaintext := "secret-value"
+	cipherBytes, err := legacyKeys.aead.Encrypt([]byte(plaintext), nil)
+	require.NoError(t, err)
+	legacyCiphertext := base64.StdEncoding.EncodeToString(cipherBytes)
 
 	// Create service with envelope mode but legacy read allowed
 	registryRepo := &serviceTestRegistryRepo{
@@ -482,7 +437,7 @@ func TestService_Decrypt_LegacyAllowed(t *testing.T) {
 	}
 	stateResolver := NewProtectionStateResolver(registryRepo)
 
-	svc := NewEncryptionService(stateResolver, nil, nil, legacyCrypto)
+	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -494,7 +449,7 @@ func TestService_Decrypt_LegacyAllowed(t *testing.T) {
 	// Decrypt legacy ciphertext (no envelope marker)
 	decrypted, err := svc.Decrypt(ctx, fieldCtx, legacyCiphertext)
 	require.NoError(t, err)
-	assert.Equal(t, "secret-value", decrypted)
+	assert.Equal(t, plaintext, decrypted)
 }
 
 func TestService_Decrypt_LegacyNotAllowed(t *testing.T) {
@@ -502,8 +457,12 @@ func TestService_Decrypt_LegacyNotAllowed(t *testing.T) {
 
 	ctx := context.Background()
 
-	legacyCrypto := newFakeLegacyCrypto()
-	legacyCiphertext := "legacy-encrypted:secret-value"
+	legacyKeys := newTestLegacyKeyMaterial(t)
+
+	// Create actual legacy ciphertext
+	cipherBytes, err := legacyKeys.aead.Encrypt([]byte("secret-value"), nil)
+	require.NoError(t, err)
+	legacyCiphertext := base64.StdEncoding.EncodeToString(cipherBytes)
 
 	// Create service with envelope mode and legacy read NOT allowed
 	registryRepo := &serviceTestRegistryRepo{
@@ -519,7 +478,7 @@ func TestService_Decrypt_LegacyNotAllowed(t *testing.T) {
 	}
 	stateResolver := NewProtectionStateResolver(registryRepo)
 
-	svc := NewEncryptionService(stateResolver, nil, nil, legacyCrypto)
+	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -529,7 +488,7 @@ func TestService_Decrypt_LegacyNotAllowed(t *testing.T) {
 	}
 
 	// Try to decrypt legacy ciphertext - should fail
-	_, err := svc.Decrypt(ctx, fieldCtx, legacyCiphertext)
+	_, err = svc.Decrypt(ctx, fieldCtx, legacyCiphertext)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrLegacyReadNotAllowed)
 }
@@ -546,8 +505,8 @@ func TestService_Decrypt_EnvelopeFailure_NoFallback(t *testing.T) {
 		TenantID:             "tenant-abc",
 	}
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc, keyset := createEncryptionTestService(t, state, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, keyset := createEncryptionTestService(t, state, legacyKeys)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -577,8 +536,8 @@ func TestService_Decrypt_WrongAAD(t *testing.T) {
 		TenantID:             "tenant-abc",
 	}
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc, _ := createEncryptionTestService(t, state, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
 
 	// Encrypt with one field context
 	encryptFieldCtx := FieldContext{
@@ -620,8 +579,8 @@ func TestService_GenerateSearchToken_EnvelopeMode(t *testing.T) {
 		TenantID:             "tenant-abc",
 	}
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc, _ := createEncryptionTestService(t, state, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-abc",
@@ -649,8 +608,8 @@ func TestService_GenerateSearchToken_Deterministic(t *testing.T) {
 		TenantID:             "tenant-abc",
 	}
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc, _ := createEncryptionTestService(t, state, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-abc",
@@ -681,8 +640,8 @@ func TestService_GenerateSearchToken_DifferentInputs(t *testing.T) {
 		TenantID:             "tenant-abc",
 	}
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc, _ := createEncryptionTestService(t, state, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-abc",
@@ -705,7 +664,7 @@ func TestService_GenerateSearchToken_LegacyMode(t *testing.T) {
 
 	ctx := context.Background()
 
-	legacyCrypto := newFakeLegacyCrypto()
+	legacyKeys := newTestLegacyKeyMaterial(t)
 
 	// Create service with empty registry (no record = legacy mode)
 	registryRepo := &serviceTestRegistryRepo{
@@ -713,7 +672,7 @@ func TestService_GenerateSearchToken_LegacyMode(t *testing.T) {
 	}
 	stateResolver := NewProtectionStateResolver(registryRepo)
 
-	svc := NewEncryptionService(stateResolver, nil, nil, legacyCrypto)
+	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys)
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-legacy",
@@ -721,11 +680,13 @@ func TestService_GenerateSearchToken_LegacyMode(t *testing.T) {
 		FieldName:      "document",
 	}
 
-	token, err := svc.GenerateSearchToken(ctx, searchCtx, "ABC123")
+	normalizedValue := "ABC123"
+	token, err := svc.GenerateSearchToken(ctx, searchCtx, normalizedValue)
 	require.NoError(t, err)
 
-	// Legacy mode should use legacy hash
-	assert.Contains(t, token, "legacy-hash")
+	// Legacy mode uses Tink-backed HMAC-SHA256 hex token matching lib-commons format
+	expectedToken := legacyKeys.legacySearchToken(normalizedValue)
+	assert.Equal(t, expectedToken, token)
 }
 
 func TestService_GenerateSearchToken_InvalidContext(t *testing.T) {
@@ -740,8 +701,8 @@ func TestService_GenerateSearchToken_InvalidContext(t *testing.T) {
 		TenantID:             "tenant-abc",
 	}
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc, _ := createEncryptionTestService(t, state, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
 
 	tests := []struct {
 		name      string
@@ -847,8 +808,8 @@ func TestService_Encrypt_EmptyPlaintext(t *testing.T) {
 		TenantID:             "tenant-abc",
 	}
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc, _ := createEncryptionTestService(t, state, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -882,8 +843,8 @@ func TestService_ContextCanceled(t *testing.T) {
 		TenantID:             "tenant-abc",
 	}
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc, _ := createEncryptionTestService(t, state, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -911,8 +872,8 @@ func TestService_Decrypt_ContextCanceled(t *testing.T) {
 		TenantID:             "tenant-abc",
 	}
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc, _ := createEncryptionTestService(t, state, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -938,8 +899,8 @@ func TestService_Decrypt_InvalidFieldContext(t *testing.T) {
 		TenantID:             "tenant-abc",
 	}
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc, _ := createEncryptionTestService(t, state, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
 
 	invalidFieldCtx := FieldContext{
 		TenantID:       "",
@@ -965,8 +926,8 @@ func TestService_Decrypt_MalformedEnvelopeMarker(t *testing.T) {
 		TenantID:             "tenant-abc",
 	}
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc, _ := createEncryptionTestService(t, state, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -995,8 +956,8 @@ func TestService_GenerateSearchToken_ContextCanceled(t *testing.T) {
 		TenantID:             "tenant-abc",
 	}
 
-	legacyCrypto := newFakeLegacyCrypto()
-	svc, _ := createEncryptionTestService(t, state, legacyCrypto)
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-abc",
@@ -1145,12 +1106,10 @@ func TestService_GetKeysetInfo_NotFound(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestService_Encrypt_LegacyMode_NilResult(t *testing.T) {
+func TestService_Encrypt_NilLegacyKeyMaterial(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-
-	legacyCrypto := &fakeLegacyCryptoNilResult{}
 
 	// Empty registry = legacy mode (no record found)
 	registryRepo := &serviceTestRegistryRepo{
@@ -1158,7 +1117,8 @@ func TestService_Encrypt_LegacyMode_NilResult(t *testing.T) {
 	}
 	stateResolver := NewProtectionStateResolver(registryRepo)
 
-	svc := NewEncryptionService(stateResolver, nil, nil, legacyCrypto)
+	// Service with nil legacy key material
+	svc := NewEncryptionService(stateResolver, nil, nil, nil)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-legacy",
@@ -1167,17 +1127,16 @@ func TestService_Encrypt_LegacyMode_NilResult(t *testing.T) {
 		FieldName:      "document",
 	}
 
-	ciphertext, err := svc.Encrypt(ctx, fieldCtx, "plaintext")
-	require.NoError(t, err)
-	assert.Equal(t, "", ciphertext)
+	// Should fail with nil legacy key material
+	_, err := svc.Encrypt(ctx, fieldCtx, "plaintext")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "legacy key material is required")
 }
 
-func TestService_Decrypt_LegacyMode_NilResult(t *testing.T) {
+func TestService_Decrypt_NilLegacyKeyMaterial(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-
-	legacyCrypto := &fakeLegacyCryptoNilResult{}
 
 	// Empty registry = legacy mode (no record found)
 	registryRepo := &serviceTestRegistryRepo{
@@ -1185,7 +1144,8 @@ func TestService_Decrypt_LegacyMode_NilResult(t *testing.T) {
 	}
 	stateResolver := NewProtectionStateResolver(registryRepo)
 
-	svc := NewEncryptionService(stateResolver, nil, nil, legacyCrypto)
+	// Service with nil legacy key material
+	svc := NewEncryptionService(stateResolver, nil, nil, nil)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-legacy",
@@ -1194,24 +1154,10 @@ func TestService_Decrypt_LegacyMode_NilResult(t *testing.T) {
 		FieldName:      "document",
 	}
 
-	plaintext, err := svc.Decrypt(ctx, fieldCtx, "ciphertext")
-	require.NoError(t, err)
-	assert.Equal(t, "", plaintext)
-}
-
-// fakeLegacyCryptoNilResult returns nil from Encrypt/Decrypt to test nil handling.
-type fakeLegacyCryptoNilResult struct{}
-
-func (f *fakeLegacyCryptoNilResult) Encrypt(_ *string) (*string, error) {
-	return nil, nil
-}
-
-func (f *fakeLegacyCryptoNilResult) Decrypt(_ *string) (*string, error) {
-	return nil, nil
-}
-
-func (f *fakeLegacyCryptoNilResult) GenerateHash(_ *string) string {
-	return ""
+	// Should fail with nil legacy key material (ciphertext without envelope marker)
+	_, err := svc.Decrypt(ctx, fieldCtx, "some-non-envelope-ciphertext")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "legacy key material is required")
 }
 
 func TestService_Encrypt_StateResolverError(t *testing.T) {
@@ -1320,12 +1266,12 @@ func TestService_Encrypt_GlobalModeEnvelope_TriggersLazyProvisioning(t *testing.
 
 	keysetManager := NewKeysetManager(keysetRepo, unwrapper, mockProvisioner, DefaultKeysetManagerConfig())
 
-	legacyCrypto := newFakeLegacyCrypto()
+	legacyKeys := newTestLegacyKeyMaterial(t)
 
 	// KEY CHANGE: Pass globalMode = EncryptionModeEnvelope to constructor
 	// This tells the service to use envelope encryption globally, triggering
 	// lazy provisioning even when per-org registry does not exist
-	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyCrypto, crypto.EncryptionModeEnvelope)
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys, crypto.EncryptionModeEnvelope)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -1433,6 +1379,107 @@ func (m *mockProvisioningService) IsActive(_ context.Context, _ string) (bool, e
 //
 // This ensures lazy provisioning is triggered via KeysetManager.GetPrimitives()
 // instead of incorrectly falling back to legacy hash generation.
+// ---------------------------------------------------------------------------
+// Task 5 Routing Tests - KMS None / Legacy Mode with Imported Legacy Key
+// ---------------------------------------------------------------------------
+
+func TestService_KMSNone_LegacyEncryptDecryptSearchUsesImportedLegacyKey(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Build legacyKeys with real Tink-backed legacy key material
+	legacyKeys, err := NewLegacyKeyMaterial(legacyEncryptHexKey, legacyHashKey)
+	require.NoError(t, err)
+
+	// Build resolver with nil registry repo (KMS_VENDOR=none scenario)
+	resolver := NewProtectionStateResolver(nil)
+
+	// Build service with nil keyset manager and nil keyset repo (legacy-only mode)
+	svc := NewEncryptionService(resolver, nil, nil, legacyKeys)
+
+	fieldCtx := FieldContext{
+		TenantID:       "tenant-legacy",
+		OrganizationID: "org-legacy",
+		RecordID:       "record-789",
+		FieldName:      "document",
+	}
+
+	plaintext := "crm-sensitive-value"
+
+	// Test Encrypt
+	ciphertext, err := svc.Encrypt(ctx, fieldCtx, plaintext)
+	require.NoError(t, err)
+
+	// Assert ciphertext does NOT have envelope marker
+	assert.False(t, HasEnvelopeMarker(ciphertext), "legacy ciphertext should not have envelope marker")
+
+	// Test Decrypt
+	decrypted, err := svc.Decrypt(ctx, fieldCtx, ciphertext)
+	require.NoError(t, err)
+	assert.Equal(t, plaintext, decrypted)
+
+	// Test GenerateSearchToken equals characterization HMAC hex token
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-legacy",
+		OrganizationID: "org-legacy",
+		FieldName:      "document",
+	}
+
+	token, err := svc.GenerateSearchToken(ctx, searchCtx, plaintext)
+	require.NoError(t, err)
+
+	// Compare with expected HMAC-SHA256 hex token
+	expectedToken := legacyKeys.legacySearchToken(plaintext)
+	assert.Equal(t, expectedToken, token)
+}
+
+func TestService_SearchRouting_LegacyTokenAndEnvelopeTokenDifferByMode(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	normalizedValue := "ABC123"
+
+	// Build legacy mode service with imported legacy key
+	legacyKeys, err := NewLegacyKeyMaterial(legacyEncryptHexKey, legacyHashKey)
+	require.NoError(t, err)
+
+	legacyResolver := NewProtectionStateResolver(nil)
+	legacySvc := NewEncryptionService(legacyResolver, nil, nil, legacyKeys)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-123",
+		FieldName:      "document",
+	}
+
+	// Generate legacy token
+	legacyToken, err := legacySvc.GenerateSearchToken(ctx, searchCtx, normalizedValue)
+	require.NoError(t, err)
+
+	// Assert legacy token equals expected hex HMAC
+	expectedLegacyToken := legacyKeys.legacySearchToken(normalizedValue)
+	assert.Equal(t, expectedLegacyToken, legacyToken)
+
+	// Build envelope mode service
+	state := ProtectionState{
+		Mode:                 crypto.EncryptionModeEnvelope,
+		CanReadLegacy:        false,
+		CurrentKeysetVersion: 1,
+		OrganizationID:       "org-123",
+		TenantID:             "tenant-abc",
+	}
+
+	envelopeSvc, _ := createEncryptionTestService(t, state, legacyKeys)
+
+	// Generate envelope token
+	envelopeToken, err := envelopeSvc.GenerateSearchToken(ctx, searchCtx, normalizedValue)
+	require.NoError(t, err)
+
+	// Assert envelope token differs from legacy token
+	assert.NotEqual(t, legacyToken, envelopeToken, "envelope and legacy tokens should differ")
+}
+
 func TestService_GenerateSearchToken_GlobalModeEnvelope_TriggersLazyProvisioning(t *testing.T) {
 	t.Parallel()
 
@@ -1482,12 +1529,12 @@ func TestService_GenerateSearchToken_GlobalModeEnvelope_TriggersLazyProvisioning
 
 	keysetManager := NewKeysetManager(keysetRepo, unwrapper, mockProvisioner, DefaultKeysetManagerConfig())
 
-	legacyCrypto := newFakeLegacyCrypto()
+	legacyKeys := newTestLegacyKeyMaterial(t)
 
 	// KEY CHANGE: Pass globalMode = EncryptionModeEnvelope to constructor
 	// This tells the service to use envelope encryption globally, triggering
 	// lazy provisioning even when per-org registry does not exist
-	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyCrypto, crypto.EncryptionModeEnvelope)
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys, crypto.EncryptionModeEnvelope)
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-abc",

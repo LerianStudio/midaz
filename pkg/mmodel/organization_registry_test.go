@@ -74,3 +74,13 @@ func TestNewOrganizationRegistryRecord_SetsVersionFields(t *testing.T) {
 	assert.Equal(t, []int{1}, record.ReadableVersions,
 		"newly created registry records should have ReadableVersions = [1]")
 }
+
+func TestNewOrganizationRegistryRecord_SetsLegacyReadableTrue(t *testing.T) {
+	t.Parallel()
+
+	record, err := NewOrganizationRegistryRecord("tenant-123", "org-456", "provisioning-service", "initial provisioning")
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	assert.True(t, record.LegacyReadable,
+		"newly created registry records should have LegacyReadable = true to allow reading existing legacy data")
+}

@@ -351,6 +351,7 @@ func TestProvisioningService_Provision_Success(t *testing.T) {
 	assert.Equal(t, "tenant-123", savedRegistry.TenantID)
 	assert.Equal(t, "org-456", savedRegistry.OrganizationID)
 	assert.Equal(t, mmodel.RegistryStatusActive, savedRegistry.Status)
+	assert.True(t, savedRegistry.LegacyReadable, "provisioned registry must have LegacyReadable=true")
 
 	// Verify generators were called
 	assert.Equal(t, 1, keysetGenerator.aeadCalled)
@@ -443,6 +444,7 @@ func TestProvisioningService_Provision_RecoveryFromPartialFailure(t *testing.T) 
 	savedRegistry := registryRepo.records["org-456"]
 	require.NotNil(t, savedRegistry)
 	assert.Equal(t, mmodel.RegistryStatusActive, savedRegistry.Status)
+	assert.True(t, savedRegistry.LegacyReadable, "provisioned registry must have LegacyReadable=true")
 }
 
 func TestProvisioningService_Provision_InvalidRequest(t *testing.T) {
@@ -937,6 +939,7 @@ func TestProvisioningService_Provision_RegistrySaveFailure_ThenRetryRecovers(t *
 	savedRegistry := registryRepo.records["org-456"]
 	require.NotNil(t, savedRegistry, "registry should be created on retry")
 	assert.Equal(t, mmodel.RegistryStatusActive, savedRegistry.Status)
+	assert.True(t, savedRegistry.LegacyReadable, "provisioned registry must have LegacyReadable=true")
 
 	// STEP 3: Third attempt should succeed (idempotent behavior)
 	thirdResult, err := svc.Provision(ctx, req)

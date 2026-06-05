@@ -26,7 +26,7 @@ type wireEncryptionServicesInput struct {
 	vaultClient          *vault.Client
 	keysetRepo           mongoEncryption.KeysetRepository
 	registryRepo         mongoEncryption.RegistryRepository
-	legacyCrypto         encryption.LegacyCrypto
+	legacyKeys           *encryption.LegacyKeyMaterial
 	vaultMountPath       string
 	allowGracefulDegrade bool
 }
@@ -59,9 +59,23 @@ type wireEncryptionServicesOutput struct {
 //
 // For testing with mock dependencies, use testWireEncryptionServicesWithMocks in encryption_test.go.
 func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionServicesOutput {
-	// Legacy mode: no envelope encryption services needed
+	// Legacy mode: wire EncryptionService with nil dependencies for legacy-only operation.
+	// ProtectionStateResolver with nil registryRepo returns legacy readable state.
+	// KeysetManager is nil since no envelope encryption is available.
 	if strings.EqualFold(input.mode, "legacy") {
-		return wireEncryptionServicesOutput{}
+		protectionStateResolver := encryption.NewProtectionStateResolver(nil)
+		encryptionService := encryption.NewEncryptionService(
+			protectionStateResolver,
+			nil,              // No keyset manager in legacy mode
+			nil,              // No keyset repo in legacy mode
+			input.legacyKeys, // Tink-backed legacy keys for legacy encryption
+			crypto.EncryptionModeLegacy,
+		)
+
+		return wireEncryptionServicesOutput{
+			protectionStateResolver: protectionStateResolver,
+			encryptionService:       encryptionService,
+		}
 	}
 
 	// Envelope mode: validate required dependencies
@@ -129,7 +143,7 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 		protectionStateResolver,
 		keysetManager,
 		input.keysetRepo,
-		input.legacyCrypto,
+		input.legacyKeys,
 		crypto.EncryptionModeEnvelope,
 	)
 
