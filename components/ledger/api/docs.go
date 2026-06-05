@@ -597,6 +597,91 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/holders/{holder_id}/accounts": {
+            "post": {
+                "description": "Opens an account owned by the holder identified in the path and, when banking/regulatory/related-party fields are present, an instrument linked to the new account. The account is created first; if it commits but the instrument write fails the account remains persisted and a typed instrumentError block is returned (no rollback). The holder is always taken from the path, never the body.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Composition"
+                ],
+                "summary": "Open a holder-owned account (with optional instrument)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer access_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Ledger the account is opened in.",
+                        "name": "X-Ledger-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Holder that will own the account.",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Composite account (and optional instrument) details",
+                        "name": "composition",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateHolderAccountInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/HolderAccountResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations": {
             "get": {
                 "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria",
@@ -6577,7 +6662,7 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).",
+                "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean), accounting.requireHolder (boolean).",
                 "consumes": [
                     "application/json"
                 ],
@@ -6616,7 +6701,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)",
+                        "description": "Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool), accounting.requireHolder (bool)",
                         "name": "settings",
                         "in": "body",
                         "required": true,
@@ -9106,10 +9191,16 @@ const docTemplate = `{
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "entityId": {
-                    "description": "Optional external identifier for linking to external systems\nexample: EXT-ACC-12345\nmaxLength: 256",
+                    "description": "Free-form external reference for linking to external systems. This is NOT the\nownership link: holderId is the formal owner of the account.\nexample: EXT-ACC-12345\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
                     "example": "EXT-ACC-12345"
+                },
+                "holderId": {
+                    "description": "ID of the holder that formally owns this account (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "id": {
                     "description": "Unique identifier for the account (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
@@ -9700,6 +9791,9 @@ const docTemplate = `{
                 }
             }
         },
+        "BankingDetails": {
+            "type": "object"
+        },
         "Calculation": {
             "description": "Calculation is a struct designed to store the calculation details of a fee from a pack.",
             "type": "object",
@@ -9766,10 +9860,15 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "entityId": {
-                    "description": "Optional external identifier for linking to external systems\nrequired: false\nexample: EXT-ACC-12345\nmaxLength: 256",
+                    "description": "Free-form external reference for linking to external systems. This is NOT the\nownership link: use holderId to formally tie the account to a holder.\nrequired: false\nexample: EXT-ACC-12345\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
                     "example": "EXT-ACC-12345"
+                },
+                "holderId": {
+                    "description": "ID of the holder that formally owns this account (optional)\nrequired: false\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "metadata": {
                     "description": "Custom key-value pairs for extending the account information\nrequired: false\nexample: {\"department\": \"Treasury\", \"purpose\": \"Operating Expenses\", \"region\": \"Global\"}",
@@ -9983,6 +10082,9 @@ const docTemplate = `{
                     "example": 3600
                 }
             }
+        },
+        "CreateHolderAccountInput": {
+            "type": "object"
         },
         "CreateLedgerInput": {
             "description": "Request payload for creating a new ledger. Contains the ledger name (required), status, and optional metadata. Ledgers are organizational units within an organization that group related financial accounts and assets together.",
@@ -10707,6 +10809,36 @@ const docTemplate = `{
                 }
             }
         },
+        "HolderAccountResponse": {
+            "description": "Composite response for opening a holder-owned account. Account is always present on success. Instrument is present when one was requested and created. When the account succeeded but the instrument write failed, instrumentError carries a typed, client-actionable failure block and the account remains persisted (no rollback).",
+            "type": "object",
+            "properties": {
+                "account": {
+                    "description": "The account that was created (always present on success).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Account"
+                        }
+                    ]
+                },
+                "instrument": {
+                    "description": "The instrument that was created, or null when none was requested or the\ninstrument write failed.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/InstrumentResponse"
+                        }
+                    ]
+                },
+                "instrumentError": {
+                    "description": "Typed failure block, set only when the account committed but the\ninstrument write failed. Omitted on full success and on the account-only\npath.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/InstrumentFailure"
+                        }
+                    ]
+                }
+            }
+        },
         "IndexStats": {
             "description": "Usage statistics collected by MongoDB for an index",
             "type": "object",
@@ -10721,6 +10853,80 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time",
                     "example": "2024-12-01T10:30:00Z"
+                }
+            }
+        },
+        "InstrumentFailure": {
+            "description": "Typed partial-failure block returned when an account was created but its instrument could not be written. Status reflects the instrument outcome; Reason is a stable, client-actionable code (not internal error text).",
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "description": "Stable, client-actionable reason code for the instrument-write failure.\nexample: 0001",
+                    "type": "string",
+                    "example": "0001"
+                },
+                "status": {
+                    "description": "Outcome status of the instrument write (e.g. FAILED).\nexample: FAILED",
+                    "type": "string",
+                    "example": "FAILED"
+                }
+            }
+        },
+        "InstrumentResponse": {
+            "description": "InstrumentResponse payload",
+            "type": "object",
+            "properties": {
+                "accountId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "bankingDetails": {
+                    "$ref": "#/definitions/BankingDetails"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "document": {
+                    "type": "string",
+                    "example": "91315026015"
+                },
+                "holderId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "regulatoryFields": {
+                    "$ref": "#/definitions/RegulatoryFields"
+                },
+                "relatedParties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/RelatedParty"
+                    }
+                },
+                "type": {
+                    "type": "string",
+                    "example": "LEGAL_PERSON"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
                 }
             }
         },
@@ -11273,6 +11479,66 @@ const docTemplate = `{
                 }
             }
         },
+        "RegulatoryFields": {
+            "description": "RegulatoryFields object",
+            "type": "object",
+            "properties": {
+                "participantDocument": {
+                    "description": "Document of the participant (identifies which financial-group entity owns the relationship)",
+                    "type": "string",
+                    "example": "12345678912345"
+                }
+            }
+        },
+        "RelatedParty": {
+            "description": "RelatedParty object",
+            "type": "object",
+            "required": [
+                "document",
+                "name",
+                "role",
+                "startDate"
+            ],
+            "properties": {
+                "document": {
+                    "description": "Document of the related party.",
+                    "type": "string",
+                    "example": "12345678900"
+                },
+                "endDate": {
+                    "description": "End date of the relationship (optional). Accepts both \"2025-01-01\" and \"2025-01-01T00:00:00Z\" formats.",
+                    "type": "string",
+                    "format": "date",
+                    "example": "2026-01-01"
+                },
+                "id": {
+                    "description": "Unique identifier of the related party.",
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "name": {
+                    "description": "Name of the related party.",
+                    "type": "string",
+                    "example": "John Smith"
+                },
+                "role": {
+                    "description": "Role of the related party (PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, RESPONSIBLE_PARTY).",
+                    "type": "string",
+                    "enum": [
+                        "PRIMARY_HOLDER",
+                        "LEGAL_REPRESENTATIVE",
+                        "RESPONSIBLE_PARTY"
+                    ],
+                    "example": "PRIMARY_HOLDER"
+                },
+                "startDate": {
+                    "description": "Start date of the relationship. Accepts both \"2025-01-01\" and \"2025-01-01T00:00:00Z\" formats.",
+                    "type": "string",
+                    "format": "date",
+                    "example": "2025-01-01"
+                }
+            }
+        },
         "Segment": {
             "description": "Segment represents a logical division within a ledger such as a business area, product line, or customer category.",
             "type": "object",
@@ -11696,7 +11962,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "entityId": {
-                    "description": "Optional external identifier for linking to external systems\nrequired: false\nexample: EXT-ACC-12345\nmaxLength: 256",
+                    "description": "Free-form external reference for linking to external systems. This is NOT the\nownership link, and holderId is immutable: ownership cannot be changed via update.\nrequired: false\nexample: EXT-ACC-12345\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
                     "example": "EXT-ACC-12345"
@@ -12394,6 +12660,24 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_LerianStudio_midaz_v3_pkg.HTTPError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "entityType": {
+                    "type": "string"
+                },
+                "err": {},
+                "message": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination": {
             "type": "object",
             "properties": {
@@ -12415,6 +12699,10 @@ const docTemplate = `{
         "mmodel.AccountingValidation": {
             "type": "object",
             "properties": {
+                "requireHolder": {
+                    "description": "RequireHolder enables enforcement that accounts must reference an existing holder.\nWhen true, account creation rejects accounts whose resolved holder does not exist.\nDefault: false (permissive - no validation)",
+                    "type": "boolean"
+                },
                 "validateAccountType": {
                     "description": "ValidateAccountType enables validation of account types during transaction processing.\nWhen true, accounts must have types that match the operation route rules.\nDefault: false (permissive - no validation)",
                     "type": "boolean"
@@ -12575,6 +12863,15 @@ const docTemplate = `{
                 }
             }
         },
+        "mmodel.Date": {
+            "description": "Date in YYYY-MM-DD format (e.g., \"2025-06-15\") or null",
+            "type": "object",
+            "properties": {
+                "time.Time": {
+                    "type": "string"
+                }
+            }
+        },
         "mmodel.LedgerSettings": {
             "type": "object",
             "properties": {
@@ -12585,6 +12882,31 @@ const docTemplate = `{
                             "$ref": "#/definitions/mmodel.AccountingValidation"
                         }
                     ]
+                },
+                "tracer": {
+                    "description": "Tracer contains the per-ledger tracer-integration settings.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/mmodel.TracerSettings"
+                        }
+                    ]
+                }
+            }
+        },
+        "mmodel.TracerSettings": {
+            "type": "object",
+            "properties": {
+                "failPosture": {
+                    "description": "FailPosture controls behavior when the tracer is unavailable (timeout/breaker-open).\nOne of: \"open\" (proceed, record SKIPPED audit), \"closed\" (reject the transaction).\nDefault: \"open\".",
+                    "type": "string"
+                },
+                "mode": {
+                    "description": "Mode controls tracer participation in transaction processing.\nOne of: \"off\" (skip), \"advisory\" (call but never block), \"enforce\" (call and gate).\nDefault: \"off\".",
+                    "type": "string"
+                },
+                "timeoutMs": {
+                    "description": "TimeoutMs is the per-call tracer reserve timeout, in milliseconds.\nDefault: 250.",
+                    "type": "integer"
                 }
             }
         }

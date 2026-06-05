@@ -33,9 +33,9 @@ type RelatedParty struct {
 	// Role of the related party (PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, RESPONSIBLE_PARTY).
 	Role string `json:"role" validate:"required,oneof=PRIMARY_HOLDER LEGAL_REPRESENTATIVE RESPONSIBLE_PARTY" example:"PRIMARY_HOLDER"`
 	// Start date of the relationship. Accepts both "2025-01-01" and "2025-01-01T00:00:00Z" formats.
-	StartDate Date `json:"startDate" validate:"required" example:"2025-01-01"`
+	StartDate Date `json:"startDate" validate:"required" swaggertype:"string" format:"date" example:"2025-01-01"`
 	// End date of the relationship (optional). Accepts both "2025-01-01" and "2025-01-01T00:00:00Z" formats.
-	EndDate *Date `json:"endDate,omitempty" example:"2026-01-01"`
+	EndDate *Date `json:"endDate,omitempty" swaggertype:"string" format:"date" example:"2026-01-01"`
 } // @name RelatedParty
 
 // CreateInstrumentInput is a struct designed to encapsulate request create payload data.

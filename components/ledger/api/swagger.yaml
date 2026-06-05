@@ -44,11 +44,20 @@ definitions:
         type: string
       entityId:
         description: |-
-          Optional external identifier for linking to external systems
+          Free-form external reference for linking to external systems. This is NOT the
+          ownership link: holderId is the formal owner of the account.
           example: EXT-ACC-12345
           maxLength: 256
         example: EXT-ACC-12345
         maxLength: 256
+        type: string
+      holderId:
+        description: |-
+          ID of the holder that formally owns this account (UUID format)
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       id:
         description: |-
@@ -685,6 +694,8 @@ definitions:
         minimum: 1
         type: integer
     type: object
+  BankingDetails:
+    type: object
   Calculation:
     description: Calculation is a struct designed to store the calculation details
       of a fee from a pack.
@@ -749,12 +760,20 @@ definitions:
         type: boolean
       entityId:
         description: |-
-          Optional external identifier for linking to external systems
+          Free-form external reference for linking to external systems. This is NOT the
+          ownership link: use holderId to formally tie the account to a holder.
           required: false
           example: EXT-ACC-12345
           maxLength: 256
         example: EXT-ACC-12345
         maxLength: 256
+        type: string
+      holderId:
+        description: |-
+          ID of the holder that formally owns this account (optional)
+          required: false
+          format: uuid
+        format: uuid
         type: string
       metadata:
         additionalProperties: {}
@@ -996,6 +1015,8 @@ definitions:
     - from
     - rate
     - to
+    type: object
+  CreateHolderAccountInput:
     type: object
   CreateLedgerInput:
     description: Request payload for creating a new ledger. Contains the ledger name
@@ -1688,6 +1709,31 @@ definitions:
       share:
         $ref: '#/definitions/Share'
     type: object
+  HolderAccountResponse:
+    description: Composite response for opening a holder-owned account. Account is
+      always present on success. Instrument is present when one was requested and
+      created. When the account succeeded but the instrument write failed, instrumentError
+      carries a typed, client-actionable failure block and the account remains persisted
+      (no rollback).
+    properties:
+      account:
+        allOf:
+        - $ref: '#/definitions/Account'
+        description: The account that was created (always present on success).
+      instrument:
+        allOf:
+        - $ref: '#/definitions/InstrumentResponse'
+        description: |-
+          The instrument that was created, or null when none was requested or the
+          instrument write failed.
+      instrumentError:
+        allOf:
+        - $ref: '#/definitions/InstrumentFailure'
+        description: |-
+          Typed failure block, set only when the account committed but the
+          instrument write failed. Omitted on full success and on the account-only
+          path.
+    type: object
   IndexStats:
     description: Usage statistics collected by MongoDB for an index
     properties:
@@ -1704,6 +1750,66 @@ definitions:
           format: date-time
         example: "2024-12-01T10:30:00Z"
         format: date-time
+        type: string
+    type: object
+  InstrumentFailure:
+    description: Typed partial-failure block returned when an account was created
+      but its instrument could not be written. Status reflects the instrument outcome;
+      Reason is a stable, client-actionable code (not internal error text).
+    properties:
+      reason:
+        description: |-
+          Stable, client-actionable reason code for the instrument-write failure.
+          example: 0001
+        example: "0001"
+        type: string
+      status:
+        description: |-
+          Outcome status of the instrument write (e.g. FAILED).
+          example: FAILED
+        example: FAILED
+        type: string
+    type: object
+  InstrumentResponse:
+    description: InstrumentResponse payload
+    properties:
+      accountId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      bankingDetails:
+        $ref: '#/definitions/BankingDetails'
+      createdAt:
+        example: "2025-01-01T00:00:00Z"
+        type: string
+      deletedAt:
+        example: "2025-01-01T00:00:00Z"
+        type: string
+      document:
+        example: "91315026015"
+        type: string
+      holderId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      ledgerId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      regulatoryFields:
+        $ref: '#/definitions/RegulatoryFields'
+      relatedParties:
+        items:
+          $ref: '#/definitions/RelatedParty'
+        type: array
+      type:
+        example: LEGAL_PERSON
+        type: string
+      updatedAt:
+        example: "2025-01-01T00:00:00Z"
         type: string
     type: object
   Ledger:
@@ -2249,6 +2355,57 @@ definitions:
     - to
     - value
     type: object
+  RegulatoryFields:
+    description: RegulatoryFields object
+    properties:
+      participantDocument:
+        description: Document of the participant (identifies which financial-group
+          entity owns the relationship)
+        example: "12345678912345"
+        type: string
+    type: object
+  RelatedParty:
+    description: RelatedParty object
+    properties:
+      document:
+        description: Document of the related party.
+        example: "12345678900"
+        type: string
+      endDate:
+        description: End date of the relationship (optional). Accepts both "2025-01-01"
+          and "2025-01-01T00:00:00Z" formats.
+        example: "2026-01-01"
+        format: date
+        type: string
+      id:
+        description: Unique identifier of the related party.
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      name:
+        description: Name of the related party.
+        example: John Smith
+        type: string
+      role:
+        description: Role of the related party (PRIMARY_HOLDER, LEGAL_REPRESENTATIVE,
+          RESPONSIBLE_PARTY).
+        enum:
+        - PRIMARY_HOLDER
+        - LEGAL_REPRESENTATIVE
+        - RESPONSIBLE_PARTY
+        example: PRIMARY_HOLDER
+        type: string
+      startDate:
+        description: Start date of the relationship. Accepts both "2025-01-01" and
+          "2025-01-01T00:00:00Z" formats.
+        example: "2025-01-01"
+        format: date
+        type: string
+    required:
+    - document
+    - name
+    - role
+    - startDate
+    type: object
   Segment:
     description: Segment represents a logical division within a ledger such as a business
       area, product line, or customer category.
@@ -2643,7 +2800,8 @@ definitions:
         type: boolean
       entityId:
         description: |-
-          Optional external identifier for linking to external systems
+          Free-form external reference for linking to external systems. This is NOT the
+          ownership link, and holderId is immutable: ownership cannot be changed via update.
           required: false
           example: EXT-ACC-12345
           maxLength: 256
@@ -3224,6 +3382,18 @@ definitions:
         example: "1.50"
         type: string
     type: object
+  github_com_LerianStudio_midaz_v3_pkg.HTTPError:
+    properties:
+      code:
+        type: string
+      entityType:
+        type: string
+      err: {}
+      message:
+        type: string
+      title:
+        type: string
+    type: object
   github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
     properties:
       items: {}
@@ -3238,6 +3408,12 @@ definitions:
     type: object
   mmodel.AccountingValidation:
     properties:
+      requireHolder:
+        description: |-
+          RequireHolder enables enforcement that accounts must reference an existing holder.
+          When true, account creation rejects accounts whose resolved holder does not exist.
+          Default: false (permissive - no validation)
+        type: boolean
       validateAccountType:
         description: |-
           ValidateAccountType enables validation of account types during transaction processing.
@@ -3448,12 +3624,42 @@ definitions:
         example: false
         type: boolean
     type: object
+  mmodel.Date:
+    description: Date in YYYY-MM-DD format (e.g., "2025-06-15") or null
+    properties:
+      time.Time:
+        type: string
+    type: object
   mmodel.LedgerSettings:
     properties:
       accounting:
         allOf:
         - $ref: '#/definitions/mmodel.AccountingValidation'
         description: Accounting contains validation settings for accounting operations.
+      tracer:
+        allOf:
+        - $ref: '#/definitions/mmodel.TracerSettings'
+        description: Tracer contains the per-ledger tracer-integration settings.
+    type: object
+  mmodel.TracerSettings:
+    properties:
+      failPosture:
+        description: |-
+          FailPosture controls behavior when the tracer is unavailable (timeout/breaker-open).
+          One of: "open" (proceed, record SKIPPED audit), "closed" (reject the transaction).
+          Default: "open".
+        type: string
+      mode:
+        description: |-
+          Mode controls tracer participation in transaction processing.
+          One of: "off" (skip), "advisory" (call but never block), "enforce" (call and gate).
+          Default: "off".
+        type: string
+      timeoutMs:
+        description: |-
+          TimeoutMs is the per-call tracer reserve timeout, in milliseconds.
+          Default: 250.
+        type: integer
     type: object
 host: localhost:3002
 info:
@@ -3859,6 +4065,70 @@ paths:
       summary: Create a fee estimate calculation
       tags:
       - Fees
+  /v1/holders/{holder_id}/accounts:
+    post:
+      consumes:
+      - application/json
+      description: Opens an account owned by the holder identified in the path and,
+        when banking/regulatory/related-party fields are present, an instrument linked
+        to the new account. The account is created first; if it commits but the instrument
+        write fails the account remains persisted and a typed instrumentError block
+        is returned (no rollback). The holder is always taken from the path, never
+        the body.
+      parameters:
+      - description: The authorization token in the 'Bearer access_token' format.
+          Only required when auth plugin is enabled.
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: The unique identifier of the Ledger the account is opened in.
+        in: header
+        name: X-Ledger-Id
+        required: true
+        type: string
+      - description: The unique identifier of the Holder that will own the account.
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Composite account (and optional instrument) details
+        in: body
+        name: composition
+        required: true
+        schema:
+          $ref: '#/definitions/CreateHolderAccountInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/HolderAccountResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError'
+      summary: Open a holder-owned account (with optional instrument)
+      tags:
+      - Composition
   /v1/organizations:
     get:
       description: Returns a paginated list of organizations, optionally filtered
@@ -7909,7 +8179,8 @@ paths:
         objects (like ''accounting'') are deep-merged, preserving existing properties
         not specified in the update. Example: updating only ''accounting.validateRoutes''
         preserves the existing ''accounting.validateAccountType'' value. Allowed fields:
-        accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).'
+        accounting.validateAccountType (boolean), accounting.validateRoutes (boolean),
+        accounting.requireHolder (boolean).'
       parameters:
       - description: 'Bearer token authentication. Format: Bearer {access_token}.
           Only required when auth plugin is enabled.'
@@ -7932,7 +8203,7 @@ paths:
         type: string
       - description: 'Settings to merge with existing settings. Only known fields
           allowed: accounting.validateAccountType (bool), accounting.validateRoutes
-          (bool)'
+          (bool), accounting.requireHolder (bool)'
         in: body
         name: settings
         required: true

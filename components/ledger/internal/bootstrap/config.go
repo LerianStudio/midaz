@@ -35,6 +35,7 @@ import (
 	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/composition"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -895,6 +896,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		libLog.String("default_currency", fees.useCase.DefaultCurrency()),
 	)
 
+	// Composition reuses the SAME account-create and instrument-create use-case
+	// instances the onboarding and CRM registrars already use — it composes them,
+	// it never reimplements them. The cross-store composition tenant middleware
+	// travels via routeSetup.compositionRouteOptions so it applies ONLY to the
+	// composition route.
+	compositionService := composition.NewService(commandUseCase, crmMgo.instrumentHandler.Service)
+	compositionHandler := &httpin.CompositionHandler{Service: compositionService}
+	compositionRouteRegistrar := httpin.CreateCompositionRouteRegistrar(auth, compositionHandler, routeSetup.compositionRouteOptions)
+
 	logger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
 
 	// === Readyz handler ===
@@ -924,6 +934,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		ledgerRouteRegistrar,
 		crmRouteRegistrar,
 		feesRouteRegistrar,
+		compositionRouteRegistrar,
 	)
 
 	// === Workers ===
