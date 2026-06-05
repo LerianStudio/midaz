@@ -1172,6 +1172,7 @@ type unifiedRouteSetup struct {
 	ledgerRouteOptions      *midazhttp.ProtectedRouteOptions
 	crmRouteOptions         *midazhttp.ProtectedRouteOptions
 	feesRouteOptions        *midazhttp.ProtectedRouteOptions
+	compositionRouteOptions *midazhttp.ProtectedRouteOptions
 }
 
 func buildUnifiedRouteSetup(
@@ -1272,6 +1273,34 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
+	// Composition tenant middleware is its own SEPARATE instance spanning BOTH
+	// stores the holder-account composition touches: the onboarding PostgreSQL
+	// (module-keyed) for the account write AND the CRM Mongo (generic key) for
+	// the instrument write. It is attached ONLY to composition routes via
+	// compositionRouteOptions below — never global, never on ledger routes.
+	// Mounting it globally (or on the onboarding/transaction middleware) would
+	// bleed the generic CRM Mongo key onto ledger routes and overwrite the
+	// tenant Mongo that ledger handlers resolve, leaking one tenant's CRM DB
+	// into a concurrent ledger request — the precise cross-store leak this
+	// instance exists to prevent.
+	//
+	// WithPG carries constant.ModuleOnboarding because composition writes the
+	// account through the onboarding account repo, which resolves the
+	// module-keyed PG context. WithMB is called WITHOUT a module name
+	// (single-manager mode), matching the CRM block above: the CRM instrument
+	// repo reads tmcore.GetMBContext(ctx) on the GENERIC key. Route scoping
+	// keeps that generic-key write from colliding with the module-keyed
+	// onboarding/transaction injection on ledger routes. The transaction PG
+	// manager is DELIBERATELY excluded: composition writes the onboarding
+	// account and the CRM instrument only and never touches the transaction PG.
+	// Same tenantCache/tenantLoader are reused (no second cache/loader).
+	compositionTenantMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
+		tmmiddleware.WithMB(crmMongoManager),
+		tmmiddleware.WithTenantCache(tenantCache),
+		tmmiddleware.WithTenantLoader(tenantLoader),
+	)
+
 	logger.Log(context.Background(), libLog.LevelInfo, "Tenant middleware configured",
 		libLog.String("modules", "onboarding,transaction,crm-api,plugin-fees"),
 	)
@@ -1299,6 +1328,13 @@ func buildUnifiedRouteSetup(
 	// (P4-T10) consumes feesRouteOptions when it mounts the fee RouteRegistrar.
 	setup.feesRouteOptions = &midazhttp.ProtectedRouteOptions{
 		PostAuthMiddlewares: []fiber.Handler{authAssertion, feesTenantMiddleware.WithTenantDB},
+	}
+
+	// Composition routes get the cross-store composition tenant middleware
+	// instance, scoping the onboarding-PG + CRM-Mongo injection to composition
+	// routes only.
+	setup.compositionRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, compositionTenantMiddleware.WithTenantDB},
 	}
 
 	return setup, nil
