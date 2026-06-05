@@ -6,6 +6,8 @@ package in
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -89,6 +91,8 @@ func (handler *TransactionHandler) reserveTransaction(
 	transactionID uuid.UUID,
 	amount decimal.Decimal,
 	asset string,
+	accountID string,
+	transactionTimestamp time.Time,
 	ttl reservationTTLPolicy,
 ) reservationOutcome {
 	// off, unconfigured, or no client injected: the create path is unchanged.
@@ -99,12 +103,13 @@ func (handler *TransactionHandler) reserveTransaction(
 	advisory := settings.Mode == mmodel.TracerModeAdvisory
 
 	req := tracer.ReserveRequest{
-		TransactionID: transactionID,
-		Amount:        amount.String(),
-		Currency:      asset,
-	}
-	if ttl == reservationTTLLongLived {
-		req.TransactionType = reservationLongLivedHint
+		TransactionID:        transactionID,
+		RequestID:            reservationRequestID(transactionID).String(),
+		Amount:               amount.String(),
+		Currency:             asset,
+		Account:              tracer.ReserveAccount{AccountID: accountID},
+		TransactionTimestamp: transactionTimestamp.UTC().Format(time.RFC3339Nano),
+		LongLived:            ttl == reservationTTLLongLived,
 	}
 
 	result, err := handler.TracerReserver.Reserve(ctx, req)
@@ -183,11 +188,60 @@ func (handler *TransactionHandler) handleReserveError(
 	return reservationOutcome{Kind: reservationProceed}
 }
 
-// reservationLongLivedHint is the transactionType marker the ledger sends so the
-// tracer assigns a long-lived reservation_expires_at to a PENDING-transaction
-// reservation (F3-T15). It is distinct from the sub-minute direct-transaction
-// TTL and from the 300s pending Redis mutual-exclusion lock (do not conflate).
-const reservationLongLivedHint = "pending-long-lived"
+// reservationRequestIDNamespace is the UUIDv5 namespace used to derive a
+// reserve requestId from a transactionID. A fixed namespace makes the requestId
+// deterministic per transaction, so a retried reserve carries the same requestId
+// and dedups against the prior attempt rather than minting a fresh request.
+var reservationRequestIDNamespace = uuid.MustParse("6f3c2d1e-4b5a-4c6d-8e7f-0a1b2c3d4e5f")
+
+// reservationRequestID derives the deterministic reserve requestId for a
+// transaction. The tracer reserve contract requires a non-nil requestId; the
+// ledger has no separate request handle at the anchor, so it derives one from
+// the transactionID. Determinism is the contract: identical transactionID →
+// identical requestId, so retries do not present as distinct requests.
+func reservationRequestID(transactionID uuid.UUID) uuid.UUID {
+	return uuid.NewSHA1(reservationRequestIDNamespace, transactionID[:])
+}
+
+// firstSourceAccountID resolves the account UUID of the first internal source
+// leg so the reserve request carries the account scope the tracer matches
+// account-scoped limits against. Spend/usage limits apply to the debited
+// (source) account, so the first source's account is the honest scope handle.
+// sources carries "<alias>#<balanceKey>" entries; the bare alias is matched
+// against the loaded balances. Companion (overdraft) and any source with no
+// matching internal balance are skipped. Returns "" when no internal source
+// account resolves (e.g. an external-only source) — the reserve path treats the
+// account scope as optional, so the tracer still matches non-account-scoped
+// limits.
+func firstSourceAccountID(sources []string, balances []*mmodel.Balance) string {
+	if len(sources) == 0 || len(balances) == 0 {
+		return ""
+	}
+
+	byAlias := make(map[string]string, len(balances))
+	for _, b := range balances {
+		if b == nil || b.Key == constant.OverdraftBalanceKey {
+			continue
+		}
+
+		if _, seen := byAlias[b.Alias]; !seen {
+			byAlias[b.Alias] = b.AccountID
+		}
+	}
+
+	for _, src := range filterCompanionAliases(sources) {
+		alias := src
+		if idx := strings.IndexByte(alias, '#'); idx >= 0 {
+			alias = alias[:idx]
+		}
+
+		if accountID, ok := byAlias[alias]; ok && accountID != "" {
+			return accountID
+		}
+	}
+
+	return ""
+}
 
 // confirmReservations commits held reservations after a successful balance
 // commit (F3-T14, the success phase). Transport is best-effort: a failure is

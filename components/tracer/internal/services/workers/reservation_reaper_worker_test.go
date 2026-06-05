@@ -201,6 +201,97 @@ func TestReservationReaperWorker_RunOnce_FreshUntouched(t *testing.T) {
 	assert.Equal(t, 0, released)
 }
 
+// ttlPredicateRepo is a fake ReservationReaperRepository that honors the
+// FindExpiredReservations contract (return only rows whose reservation_expires_at
+// is strictly before now) against an in-memory set of seeded reservations. Unlike
+// the gomock mock, it does NOT let the test script which rows come back — the TTL
+// predicate decides, so the test proves the reaper respects expiry rather than
+// asserting a hand-fed slice.
+type ttlPredicateRepo struct {
+	expiresAt map[uuid.UUID]time.Time
+	released  []uuid.UUID
+}
+
+func (r *ttlPredicateRepo) FindExpiredReservations(_ context.Context, now time.Time) ([]uuid.UUID, error) {
+	var ids []uuid.UUID
+
+	for id, exp := range r.expiresAt {
+		if exp.Before(now) {
+			ids = append(ids, id)
+		}
+	}
+
+	return ids, nil
+}
+
+func (r *ttlPredicateRepo) ReleaseExpired(_ context.Context, reservationID uuid.UUID) error {
+	r.released = append(r.released, reservationID)
+	delete(r.expiresAt, reservationID)
+
+	return nil
+}
+
+// TestReservationReaperWorker_RunOnce_LongLivedNotSweptBeforeTTL proves the R18
+// guarantee at the reaper seam: a long-lived (PENDING) reservation whose
+// reservation_expires_at is far in the future is NOT reaped while the clock is
+// before its TTL, and IS reaped once the clock advances past it. A short-TTL
+// (direct) reservation alongside it expires immediately, so the test also proves
+// the two TTL classes are swept independently.
+func TestReservationReaperWorker_RunOnce_LongLivedNotSweptBeforeTTL(t *testing.T) {
+	_, cleanup := setupTestTracer(t)
+	defer cleanup()
+
+	now := fixedReaperTime()
+
+	directID := testutil.MustDeterministicUUID(1)
+	longLivedID := testutil.MustDeterministicUUID(2)
+
+	repo := &ttlPredicateRepo{
+		expiresAt: map[uuid.UUID]time.Time{
+			// Direct reservation: short TTL, already expired relative to now.
+			directID: now.Add(-1 * time.Minute),
+			// Long-lived PENDING reservation: 30-day TTL, far past now.
+			longLivedID: now.Add(720 * time.Hour),
+		},
+	}
+
+	auditor := mocks.NewMockReservationExpiryAuditor(gomock.NewController(t))
+	logger := testutil.NewMockLogger()
+
+	// First sweep at now: only the direct row is past its TTL; the long-lived row
+	// must survive. One batch audit row for the single expiry.
+	auditor.EXPECT().
+		RecordReservationExpiryBatch(gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(1)
+
+	worker, err := NewReservationReaperWorker(repo, auditor, DefaultReservationReaperWorkerConfig(), logger, mockClock{fixedTime: now}, "")
+	require.NoError(t, err)
+
+	released, err := worker.RunOnce(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, released, "only the expired direct reservation is reaped")
+	require.Len(t, repo.released, 1)
+	assert.Equal(t, directID, repo.released[0])
+	assert.Contains(t, repo.expiresAt, longLivedID, "the long-lived reservation must NOT be swept before its TTL")
+
+	// Advance the clock past the long-lived TTL: now the reaper sweeps it too.
+	auditor.EXPECT().
+		RecordReservationExpiryBatch(gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(1)
+
+	afterTTL := now.Add(721 * time.Hour)
+	workerAfter, err := NewReservationReaperWorker(repo, auditor, DefaultReservationReaperWorkerConfig(), logger, mockClock{fixedTime: afterTTL}, "")
+	require.NoError(t, err)
+
+	released, err = workerAfter.RunOnce(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, released, "once the clock passes the long-lived TTL the row is reaped")
+	require.Len(t, repo.released, 2)
+	assert.Equal(t, longLivedID, repo.released[1])
+}
+
 // TestReservationReaperWorker_RunOnce_FindError asserts a find failure is returned
 // and no release / audit is attempted.
 func TestReservationReaperWorker_RunOnce_FindError(t *testing.T) {

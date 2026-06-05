@@ -32,7 +32,7 @@ import (
 // depends on. Interface defined locally per Ring pattern; satisfied by
 // *services.ReservationService.
 type ReservationService interface {
-	Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput) (*services.ReserveResult, error)
+	Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool) (*services.ReserveResult, error)
 	Confirm(ctx context.Context, reservationID uuid.UUID) error
 	Release(ctx context.Context, reservationID uuid.UUID) error
 	ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error)
@@ -136,7 +136,7 @@ func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
-	result, err := h.service.Reserve(ctx, request.TransactionID, request.ToReserveInput())
+	result, err := h.service.Reserve(ctx, request.TransactionID, request.ToReserveInput(), request.LongLived)
 	if err != nil {
 		return h.handleReservationServiceError(c, span, err)
 	}

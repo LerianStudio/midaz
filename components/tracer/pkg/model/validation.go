@@ -167,6 +167,24 @@ func NewValidationRequest(
 //
 // For programmatic construction with automatic currency normalization, use NewValidationRequest() instead.
 func (r *ValidationRequest) NormalizeAndValidate(now time.Time) error {
+	return r.normalizeAndValidateWith(now, (*ValidationRequest).Validate)
+}
+
+// NormalizeAndValidateForReserve normalizes the request exactly as
+// NormalizeAndValidate does, then validates it with the relaxed reserve rules
+// (ValidateForReserve): transactionType and account are optional. Same atomic
+// commit semantics — the receiver is only mutated when validation succeeds.
+func (r *ValidationRequest) NormalizeAndValidateForReserve(now time.Time) error {
+	return r.normalizeAndValidateWith(now, (*ValidationRequest).ValidateForReserve)
+}
+
+// normalizeAndValidateWith applies the shared normalization (subType canonical
+// form, defensive metadata copies at all levels) on a temporary copy, runs the
+// supplied validator against that copy, and commits the normalized values to
+// the receiver only when validation succeeds. The validate parameter is the one
+// difference between the strict (Validate) and reserve (ValidateForReserve)
+// paths, so both share one normalization body.
+func (r *ValidationRequest) normalizeAndValidateWith(now time.Time, validate func(*ValidationRequest, time.Time) error) error {
 	// Prepare normalized values without mutating the receiver yet
 	// SubType canonical form is lowercase (trim + lower).
 	normalizedSubType := normalizeSubTypeRaw(r.SubType)
@@ -189,7 +207,7 @@ func (r *ValidationRequest) NormalizeAndValidate(now time.Time) error {
 	temp.Merchant = temp.Merchant.Clone()
 
 	// Validate on temp - if error, original r remains unchanged
-	if err := temp.Validate(now); err != nil {
+	if err := validate(&temp, now); err != nil {
 		return err
 	}
 
@@ -298,8 +316,20 @@ func (d Decision) String() string {
 // In tests with MOCK_TIME, pass the mocked time.
 // Returns specific error constants for each validation failure.
 func (r *ValidationRequest) Validate(now time.Time) error {
-	if err := r.validateRequiredFields(now); err != nil {
+	if r.RequestID == uuid.Nil {
+		return constant.ErrValidationRequestIDRequired
+	}
+
+	if !r.TransactionType.IsValid() {
+		return constant.ErrValidationInvalidTransactionType
+	}
+
+	if err := r.validateAmountCurrencyTimestamp(now); err != nil {
 		return err
+	}
+
+	if r.Account.ID == uuid.Nil {
+		return constant.ErrValidationAccountRequired
 	}
 
 	if err := r.validateOptionalFields(); err != nil {
@@ -313,15 +343,53 @@ func (r *ValidationRequest) Validate(now time.Time) error {
 	return r.validateMetadata()
 }
 
-func (r *ValidationRequest) validateRequiredFields(now time.Time) error {
+// ValidateForReserve validates the request for the two-phase reserve path. It
+// runs the SAME core checks as the synchronous validate path (requestId,
+// positive amount, ISO-4217 currency, in-window timestamp) but relaxes two
+// fields the ledger legitimately cannot supply at the reserve anchor:
+//
+//   - transactionType: optional. The ledger is a double-entry ledger with no
+//     card-rail nature; when empty the tracer matches account-scoped limits
+//     without a transaction-type constraint. When present it must still be a
+//     valid type.
+//   - account: optional. A ledger transaction whose only source is an external
+//     account has no internal account UUID to scope on; when absent the tracer
+//     matches non-account-scoped (segment/portfolio/global) limits. When
+//     present it must be a non-nil UUID.
+//
+// The synchronous /v1/validations path keeps both fields mandatory via
+// Validate; this relaxation is scoped to reserve only.
+func (r *ValidationRequest) ValidateForReserve(now time.Time) error {
 	if r.RequestID == uuid.Nil {
 		return constant.ErrValidationRequestIDRequired
 	}
 
-	if !r.TransactionType.IsValid() {
+	if err := r.validateAmountCurrencyTimestamp(now); err != nil {
+		return err
+	}
+
+	if r.TransactionType != "" && !r.TransactionType.IsValid() {
 		return constant.ErrValidationInvalidTransactionType
 	}
 
+	if err := r.validateOptionalFields(); err != nil {
+		return err
+	}
+
+	if err := r.validateMerchant(); err != nil {
+		return err
+	}
+
+	return r.validateMetadata()
+}
+
+// validateAmountCurrencyTimestamp validates the value/currency/timestamp core
+// shared by the synchronous validate path and the reserve path: a positive
+// amount, an ISO-4217 currency, and an in-window (not-future / not-too-far-past)
+// timestamp. The requestId, transactionType-enum, and account-presence checks
+// live in the orchestrators (Validate / ValidateForReserve) because their
+// requiredness differs between the two paths.
+func (r *ValidationRequest) validateAmountCurrencyTimestamp(now time.Time) error {
 	if r.Amount.LessThanOrEqual(decimal.Zero) {
 		return constant.ErrValidationAmountNonPositive
 	}
@@ -347,10 +415,6 @@ func (r *ValidationRequest) validateRequiredFields(now time.Time) error {
 	minAllowedTime := now.Add(-MaxTimestampAge)
 	if !r.TransactionTimestamp.After(minAllowedTime) {
 		return constant.ErrValidationTimestampPast
-	}
-
-	if r.Account.ID == uuid.Nil {
-		return constant.ErrValidationAccountRequired
 	}
 
 	return nil

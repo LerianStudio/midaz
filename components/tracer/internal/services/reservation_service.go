@@ -27,10 +27,21 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/tracer/pkg/model"
 )
 
-// reservationTTL is the lifetime of a RESERVED row before the reaper may expire
-// it. It bounds how long an abandoned reservation can hold capacity when the
-// ledger neither confirms nor releases (crash between reserve and commit).
+// reservationTTL is the lifetime of a DIRECT-transaction RESERVED row before the
+// reaper may expire it. It bounds how long an abandoned reservation can hold
+// capacity when the ledger neither confirms nor releases (crash between reserve
+// and commit). Direct transactions resolve in seconds, so a short TTL keeps the
+// reaper converging quickly.
 const reservationTTL = 5 * time.Minute
+
+// defaultLongLivedReservationTTL is the lifetime granted to a PENDING-transaction
+// reservation (long-lived hint). PENDING transactions persist indefinitely with no
+// existing sweep (R18), so a 5-minute direct TTL would expire a reservation backing
+// a still-valid pending and the reaper would wrongly return its hold. 30 days is the
+// pragmatic ceiling: long enough that real pending lifetimes never hit it, short
+// enough that the reaper still converges a genuinely abandoned pending instead of
+// holding capacity forever. Operators tune it via RESERVATION_LONG_LIVED_TTL_HOURS.
+const defaultLongLivedReservationTTL = 720 * time.Hour // 30 days
 
 // Sentinel errors for ReservationService constructor validation.
 var (
@@ -92,21 +103,39 @@ type ReserveResult struct {
 // Each method runs in its own transaction so the counter move, the reservation-row
 // flip, and the audit row commit atomically.
 type ReservationService struct {
-	conn        pgdb.TxBeginner
-	resolver    LimitResolver
-	repo        ReservationRepository
-	auditWriter ReservationAuditWriter
-	clock       clock.Clock
+	conn         pgdb.TxBeginner
+	resolver     LimitResolver
+	repo         ReservationRepository
+	auditWriter  ReservationAuditWriter
+	clock        clock.Clock
+	longLivedTTL time.Duration
 }
 
 // NewReservationService constructs a ReservationService with dependency
-// validation. clk may be nil — a RealClock is used.
+// validation. clk may be nil — a RealClock is used. The long-lived TTL defaults
+// to defaultLongLivedReservationTTL (30 days); use
+// NewReservationServiceWithLongLivedTTL to override it from configuration.
 func NewReservationService(
 	conn pgdb.TxBeginner,
 	resolver LimitResolver,
 	repo ReservationRepository,
 	auditWriter ReservationAuditWriter,
 	clk clock.Clock,
+) (*ReservationService, error) {
+	return NewReservationServiceWithLongLivedTTL(conn, resolver, repo, auditWriter, clk, 0)
+}
+
+// NewReservationServiceWithLongLivedTTL is the full constructor. longLivedTTL is
+// the lifetime granted to PENDING-transaction reservations (the longLived reserve
+// hint, R18); a non-positive value falls back to defaultLongLivedReservationTTL.
+// Direct-transaction reservations always use the short reservationTTL.
+func NewReservationServiceWithLongLivedTTL(
+	conn pgdb.TxBeginner,
+	resolver LimitResolver,
+	repo ReservationRepository,
+	auditWriter ReservationAuditWriter,
+	clk clock.Clock,
+	longLivedTTL time.Duration,
 ) (*ReservationService, error) {
 	if conn == nil {
 		return nil, ErrNilReservationConn
@@ -128,12 +157,17 @@ func NewReservationService(
 		clk = clock.RealClock{}
 	}
 
+	if longLivedTTL <= 0 {
+		longLivedTTL = defaultLongLivedReservationTTL
+	}
+
 	return &ReservationService{
-		conn:        conn,
-		resolver:    resolver,
-		repo:        repo,
-		auditWriter: auditWriter,
-		clock:       clk,
+		conn:         conn,
+		resolver:     resolver,
+		repo:         repo,
+		auditWriter:  auditWriter,
+		clock:        clk,
+		longLivedTTL: longLivedTTL,
 	}, nil
 }
 
@@ -150,7 +184,12 @@ func NewReservationService(
 // reservation row, so confirm/release never re-resolve limits (R38). The ledger
 // transactionID is the 4-tuple idempotency key: a retried reserve collapses onto
 // the existing rows rather than double-reserving (R11/R35).
-func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput) (*ReserveResult, error) {
+//
+// longLived selects the reservation lifetime: false (direct transaction) uses the
+// short reservationTTL so the reaper converges quickly; true (PENDING transaction,
+// R18) uses the configured long-lived TTL so a reservation backing a still-valid
+// pending does not expire before the pending commits or cancels.
+func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool) (*ReserveResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.reservation.reserve")
@@ -185,7 +224,12 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 		return &ReserveResult{}, nil
 	}
 
-	expiresAt := s.clock.Now().UTC().Add(reservationTTL)
+	ttl := reservationTTL
+	if longLived {
+		ttl = s.longLivedTTL
+	}
+
+	expiresAt := s.clock.Now().UTC().Add(ttl)
 	reservationIDs := make([]uuid.UUID, 0, len(specs))
 
 	guardDenied := false

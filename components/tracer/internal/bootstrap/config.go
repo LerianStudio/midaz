@@ -151,6 +151,10 @@ type Config struct {
 	ReservationReaperEnabled bool `env:"RESERVATION_REAPER_ENABLED"`
 	// ReservationReaperIntervalSeconds is the sub-minute interval between reaper sweeps in seconds (default: 30).
 	ReservationReaperIntervalSeconds string `env:"RESERVATION_REAPER_INTERVAL_SECONDS"`
+	// ReservationLongLivedTTLHours is the lifetime granted to a PENDING-transaction
+	// reservation (the longLived reserve hint, R18), in hours (default: 720 = 30 days).
+	// Direct-transaction reservations use a fixed short TTL and ignore this knob.
+	ReservationLongLivedTTLHours string `env:"RESERVATION_LONG_LIVED_TTL_HOURS"`
 
 	// Rule Sync Worker
 	// RuleSyncPollIntervalSeconds is how often the worker polls for rule changes (default: 10)
@@ -323,6 +327,38 @@ func parseReservationReaperIntervalSeconds(s string) (time.Duration, error) {
 	}
 
 	return time.Duration(seconds) * time.Second, nil
+}
+
+// parseReservationLongLivedTTLHours parses the long-lived reservation TTL from
+// string to time.Duration. Returns 0 when empty so the service applies its own
+// default (defaultLongLivedReservationTTL, 30 days). The unit is hours because a
+// long-lived pending reservation spans days, not seconds (unlike the reaper
+// interval). Returns an error if the value is invalid, non-positive, or exceeds
+// 1 year — beyond that the reaper effectively never converges an abandoned pending.
+func parseReservationLongLivedTTLHours(s string) (time.Duration, error) {
+	// maxAllowedHours caps the long-lived TTL at 1 year (8760 hours), mirroring the
+	// cleanup-interval ceiling: past it the reaper would hold an abandoned pending's
+	// capacity for an operationally unbounded time.
+	const maxAllowedHours = 8760
+
+	if s == "" {
+		return 0, nil
+	}
+
+	hours, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid RESERVATION_LONG_LIVED_TTL_HOURS value '%s': %w", s, err)
+	}
+
+	if hours <= 0 {
+		return 0, fmt.Errorf("RESERVATION_LONG_LIVED_TTL_HOURS must be positive, got %d", hours)
+	}
+
+	if hours > maxAllowedHours {
+		return 0, fmt.Errorf("RESERVATION_LONG_LIVED_TTL_HOURS exceeds maximum allowed (%d hours = 1 year), got %d", maxAllowedHours, hours)
+	}
+
+	return time.Duration(hours) * time.Hour, nil
 }
 
 // parseRuleSyncPollInterval parses the poll interval from string to time.Duration.
@@ -999,7 +1035,12 @@ func initHTTPServer(
 	// audit rows — the same atomicity discipline as the validate path.
 	reservationRepo := postgres.NewUsageReservationRepositoryWithConnection(limitDeps.usageCounterRepo)
 
-	reservationService, err := services.NewReservationService(txBeginner, limitChecker, reservationRepo, auditWriter, clk)
+	longLivedTTL, err := parseReservationLongLivedTTLHours(cfg.ReservationLongLivedTTLHours)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse reservation long-lived TTL: %w", err)
+	}
+
+	reservationService, err := services.NewReservationServiceWithLongLivedTTL(txBeginner, limitChecker, reservationRepo, auditWriter, clk, longLivedTTL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reservation service: %w", err)
 	}

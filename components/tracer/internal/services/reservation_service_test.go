@@ -155,7 +155,7 @@ func TestReservationService_Reserve(t *testing.T) {
 			Return(nil).
 			Times(2)
 
-		result, err := svc.Reserve(context.Background(), txID, input)
+		result, err := svc.Reserve(context.Background(), txID, input, false)
 		require.NoError(t, err)
 		require.False(t, result.Denied)
 		assert.Len(t, result.ReservationIDs, 2)
@@ -172,7 +172,7 @@ func TestReservationService_Reserve(t *testing.T) {
 			Times(1)
 		// No BeginTx expected — denial short-circuits before the transaction.
 
-		result, err := svc.Reserve(context.Background(), txID, input)
+		result, err := svc.Reserve(context.Background(), txID, input, false)
 		require.NoError(t, err)
 		assert.True(t, result.Denied)
 		assert.Empty(t, result.ReservationIDs)
@@ -197,7 +197,7 @@ func TestReservationService_Reserve(t *testing.T) {
 			Return(constant.ErrUsageCounterExceedsLimit).
 			Times(1)
 
-		result, err := svc.Reserve(context.Background(), txID, input)
+		result, err := svc.Reserve(context.Background(), txID, input, false)
 		require.NoError(t, err)
 		assert.True(t, result.Denied, "guard-denied reserve must surface the limit-exceeded decision")
 		assert.Empty(t, result.ReservationIDs)
@@ -213,7 +213,7 @@ func TestReservationService_Reserve(t *testing.T) {
 			Return(nil, false, nil).
 			Times(1)
 
-		result, err := svc.Reserve(context.Background(), txID, input)
+		result, err := svc.Reserve(context.Background(), txID, input, false)
 		require.NoError(t, err)
 		assert.False(t, result.Denied)
 		assert.Empty(t, result.ReservationIDs)
@@ -222,9 +222,142 @@ func TestReservationService_Reserve(t *testing.T) {
 	t.Run("Missing transaction id is rejected", func(t *testing.T) {
 		svc, _ := newReservationServiceDeps(t)
 
-		_, err := svc.Reserve(context.Background(), uuid.Nil, testCheckLimitsInput(t))
+		_, err := svc.Reserve(context.Background(), uuid.Nil, testCheckLimitsInput(t), false)
 		require.ErrorIs(t, err, ErrNilReservationTransationID)
 	})
+
+	t.Run("longLived=false sets the short direct TTL on the reservation", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		input := testCheckLimitsInput(t)
+		now := testutil.FixedTime()
+
+		deps.resolver.EXPECT().
+			ResolveReservations(gomock.Any(), input).
+			Return(oneSpec(), false, nil).
+			Times(1)
+
+		deps.expectTxCommit()
+
+		var captured time.Time
+		deps.repo.EXPECT().
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) error {
+				captured = r.ReservationExpiresAt
+
+				return nil
+			}).
+			Times(1)
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		_, err := svc.Reserve(context.Background(), txID, input, false)
+		require.NoError(t, err)
+
+		// Direct transactions use the fixed short TTL, NOT the long-lived knob.
+		assert.Equal(t, now.UTC().Add(reservationTTL), captured)
+	})
+
+	t.Run("longLived=true sets the configured long-lived TTL on the reservation", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		testutil.SetupTestTracing(t)
+
+		const longLivedTTL = 48 * time.Hour
+
+		conn := pgdbMocks.NewMockTxBeginner(ctrl)
+		tx := pgdbMocks.NewMockTx(ctrl)
+		resolver := servicesMocks.NewMockLimitResolver(ctrl)
+		repo := servicesMocks.NewMockReservationRepository(ctrl)
+		auditWriter := servicesMocks.NewMockReservationAuditWriter(ctrl)
+		clk := testutil.NewMockClock(testutil.FixedTime())
+
+		svc, err := NewReservationServiceWithLongLivedTTL(conn, resolver, repo, auditWriter, clk, longLivedTTL)
+		require.NoError(t, err)
+
+		input := testCheckLimitsInput(t)
+		now := testutil.FixedTime()
+
+		resolver.EXPECT().
+			ResolveReservations(gomock.Any(), input).
+			Return(oneSpec(), false, nil).
+			Times(1)
+
+		conn.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil).Times(1)
+		tx.EXPECT().Commit().Return(nil).Times(1)
+
+		var captured time.Time
+		repo.EXPECT().
+			ReserveWithTx(gomock.Any(), tx, gomock.Any(), int64(10000)).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) error {
+				captured = r.ReservationExpiresAt
+
+				return nil
+			}).
+			Times(1)
+		auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		_, err = svc.Reserve(context.Background(), txID, input, true)
+		require.NoError(t, err)
+
+		// PENDING reservations expire far out (the configured long-lived TTL), well
+		// beyond the short direct TTL the reaper sweeps on (R18).
+		assert.Equal(t, now.UTC().Add(longLivedTTL), captured)
+		assert.True(t, captured.After(now.UTC().Add(reservationTTL)), "long-lived TTL must outlive the direct TTL")
+	})
+
+	t.Run("longLived=true with default service TTL uses the 30-day ceiling", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		input := testCheckLimitsInput(t)
+		now := testutil.FixedTime()
+
+		deps.resolver.EXPECT().
+			ResolveReservations(gomock.Any(), input).
+			Return(oneSpec(), false, nil).
+			Times(1)
+
+		deps.expectTxCommit()
+
+		var captured time.Time
+		deps.repo.EXPECT().
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) error {
+				captured = r.ReservationExpiresAt
+
+				return nil
+			}).
+			Times(1)
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		_, err := svc.Reserve(context.Background(), txID, input, true)
+		require.NoError(t, err)
+
+		// newReservationServiceDeps passes longLivedTTL=0, so the service falls back
+		// to defaultLongLivedReservationTTL (30 days).
+		assert.Equal(t, now.UTC().Add(defaultLongLivedReservationTTL), captured)
+	})
+}
+
+// oneSpec returns a single counter-backed reservation spec with MaxAmount 10000,
+// used by the TTL-assertion subtests so exactly one ReserveWithTx is captured.
+func oneSpec() []query.ReservationSpec {
+	return []query.ReservationSpec{
+		{
+			LimitID:   testutil.MustDeterministicUUID(7101),
+			ScopeKey:  "acct:7001",
+			PeriodKey: "2026-06",
+			Amount:    400,
+			MaxAmount: 10000,
+		},
+	}
 }
 
 func TestReservationService_Confirm(t *testing.T) {

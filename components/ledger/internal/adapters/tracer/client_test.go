@@ -69,7 +69,7 @@ func TestTracerClient_Reserve_201ParsesHandle(t *testing.T) {
 		TransactionID: fixedTransactionID,
 		Amount:        "100",
 		Currency:      "USD",
-		Account:       "acc-1",
+		Account:       ReserveAccount{AccountID: "acc-1"},
 	})
 
 	require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestTracerClient_Reserve_DeniedIsSuccessfulReturn(t *testing.T) {
 		TransactionID: fixedTransactionID,
 		Amount:        "100",
 		Currency:      "USD",
-		Account:       "acc-1",
+		Account:       ReserveAccount{AccountID: "acc-1"},
 	})
 
 	// A DENIED decision is a successful Reserve return, NOT an error.
@@ -123,7 +123,7 @@ func TestTracerClient_Reserve_TimeoutReturnsUnavailable(t *testing.T) {
 		TransactionID: fixedTransactionID,
 		Amount:        "100",
 		Currency:      "USD",
-		Account:       "acc-1",
+		Account:       ReserveAccount{AccountID: "acc-1"},
 	})
 
 	require.Error(t, err)
@@ -149,7 +149,7 @@ func TestTracerClient_Reserve_AttachesM2MHeaderWhenProviderSet(t *testing.T) {
 		TransactionID: fixedTransactionID,
 		Amount:        "100",
 		Currency:      "USD",
-		Account:       "acc-1",
+		Account:       ReserveAccount{AccountID: "acc-1"},
 	})
 
 	require.NoError(t, err)
@@ -174,7 +174,7 @@ func TestTracerClient_Reserve_NoAuthHeaderWhenProviderNil(t *testing.T) {
 		TransactionID: fixedTransactionID,
 		Amount:        "100",
 		Currency:      "USD",
-		Account:       "acc-1",
+		Account:       ReserveAccount{AccountID: "acc-1"},
 	})
 
 	require.NoError(t, err)
@@ -195,7 +195,7 @@ func TestTracerClient_Reserve_NonCreatedStatusErrors(t *testing.T) {
 		TransactionID: fixedTransactionID,
 		Amount:        "100",
 		Currency:      "USD",
-		Account:       "acc-1",
+		Account:       ReserveAccount{AccountID: "acc-1"},
 	})
 
 	require.Error(t, err)
@@ -290,7 +290,7 @@ func TestTracerClient_Reserve_RoutesThroughCircuitBreaker(t *testing.T) {
 		TransactionID: fixedTransactionID,
 		Amount:        "100",
 		Currency:      "USD",
-		Account:       "acc-1",
+		Account:       ReserveAccount{AccountID: "acc-1"},
 	})
 
 	require.NoError(t, err)
@@ -312,7 +312,7 @@ func TestTracerClient_Reserve_OpenBreakerReturnsUnavailable(t *testing.T) {
 		TransactionID: fixedTransactionID,
 		Amount:        "100",
 		Currency:      "USD",
-		Account:       "acc-1",
+		Account:       ReserveAccount{AccountID: "acc-1"},
 	})
 
 	require.Error(t, err)

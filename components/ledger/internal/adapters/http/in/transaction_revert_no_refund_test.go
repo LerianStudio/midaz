@@ -53,7 +53,7 @@ func TestRevertNoReservationRefund(t *testing.T) {
 	// Reserve for the reverse transaction (what the revert's executeCreateTransaction does).
 	out := handler.reserveTransaction(ctx, sp, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", reservationTTLDefault)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault)
 	require.Equal(t, reservationProceed, out.Kind)
 
 	// On a successful reverse-transaction commit the ledger confirms the

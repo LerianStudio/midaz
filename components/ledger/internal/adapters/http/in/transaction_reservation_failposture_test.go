@@ -98,7 +98,7 @@ func TestTracerFailOpenSkipped(t *testing.T) {
 
 	out := handler.reserveTransaction(ctx, span, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", reservationTTLDefault)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault)
 
 	assert.Equal(t, reservationProceed, out.Kind, "fail-open must COMMIT (proceed) when the tracer is unavailable")
 	assert.Empty(t, out.Handle.ReservationIDs, "no reservation is held when the reserve call never succeeded")
@@ -119,7 +119,7 @@ func TestTracerFailClosedDoesNotMarkSkipped(t *testing.T) {
 
 	out := handler.reserveTransaction(ctx, span, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureClosed},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", reservationTTLDefault)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault)
 
 	require.Equal(t, reservationReject, out.Kind)
 

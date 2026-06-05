@@ -185,6 +185,117 @@ func TestValidationRequest_Validate(t *testing.T) {
 	}
 }
 
+// TestValidationRequest_ValidateForReserve locks the reserve-path relaxation:
+// transactionType and account are OPTIONAL on reserve (the ledger has no card
+// rail and may reserve for an external-only source), while requestId, amount,
+// currency and the timestamp window stay mandatory. This is the contract that
+// closed the F3 enforce gap; tightening it back re-breaks the ledger reserve.
+func TestValidationRequest_ValidateForReserve(t *testing.T) {
+	validRequest := func() *ValidationRequest {
+		return &ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(2),
+			TransactionType:      TransactionTypeCard,
+			Amount:               decimal.RequireFromString("100"),
+			Currency:             "USD",
+			TransactionTimestamp: testutil.FixedTime(),
+			Account: AccountContext{
+				ID: testutil.MustDeterministicUUID(1),
+			},
+		}
+	}
+
+	tests := []struct {
+		name        string
+		modify      func(*ValidationRequest)
+		expectedErr error
+	}{
+		{
+			name:        "fully-populated ledger-style request passes",
+			modify:      func(r *ValidationRequest) {},
+			expectedErr: nil,
+		},
+		{
+			name: "empty transactionType is ACCEPTED on reserve (relaxed)",
+			modify: func(r *ValidationRequest) {
+				r.TransactionType = ""
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "missing account is ACCEPTED on reserve (relaxed)",
+			modify: func(r *ValidationRequest) {
+				r.Account = AccountContext{}
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "ledger-shaped request (no account, no transactionType) passes",
+			modify: func(r *ValidationRequest) {
+				r.Account = AccountContext{}
+				r.TransactionType = ""
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "INVALID (non-empty, non-enum) transactionType still fails",
+			modify: func(r *ValidationRequest) {
+				r.TransactionType = TransactionType("PIXIE")
+			},
+			expectedErr: constant.ErrValidationInvalidTransactionType,
+		},
+		{
+			name: "missing requestId still fails",
+			modify: func(r *ValidationRequest) {
+				r.RequestID = uuid.Nil
+			},
+			expectedErr: constant.ErrValidationRequestIDRequired,
+		},
+		{
+			name: "zero amount still fails",
+			modify: func(r *ValidationRequest) {
+				r.Amount = decimal.RequireFromString("0")
+			},
+			expectedErr: constant.ErrValidationAmountNonPositive,
+		},
+		{
+			name: "invalid currency still fails",
+			modify: func(r *ValidationRequest) {
+				r.Currency = "usd"
+			},
+			expectedErr: constant.ErrValidationInvalidCurrency,
+		},
+		{
+			name: "zero timestamp still fails",
+			modify: func(r *ValidationRequest) {
+				r.TransactionTimestamp = time.Time{}
+			},
+			expectedErr: constant.ErrValidationTimestampRequired,
+		},
+		{
+			name: "future timestamp still fails",
+			modify: func(r *ValidationRequest) {
+				r.TransactionTimestamp = testutil.FixedTime().Add(2 * time.Minute)
+			},
+			expectedErr: constant.ErrValidationTimestampFuture,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := validRequest()
+			tt.modify(req)
+
+			err := req.ValidateForReserve(testutil.FixedTime())
+
+			if tt.expectedErr == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorIs(t, err, tt.expectedErr)
+			}
+		})
+	}
+}
+
 func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 	t.Run("converts required fields correctly", func(t *testing.T) {
 		subType := "Credit"

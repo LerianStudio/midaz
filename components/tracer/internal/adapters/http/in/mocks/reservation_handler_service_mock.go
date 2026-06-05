@@ -102,16 +102,16 @@ func (mr *MockReservationServiceMockRecorder) ReleaseByTransaction(ctx, transact
 }
 
 // Reserve mocks base method.
-func (m *MockReservationService) Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput) (*services.ReserveResult, error) {
+func (m *MockReservationService) Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool) (*services.ReserveResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Reserve", ctx, transactionID, input)
+	ret := m.ctrl.Call(m, "Reserve", ctx, transactionID, input, longLived)
 	ret0, _ := ret[0].(*services.ReserveResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Reserve indicates an expected call of Reserve.
-func (mr *MockReservationServiceMockRecorder) Reserve(ctx, transactionID, input any) *gomock.Call {
+func (mr *MockReservationServiceMockRecorder) Reserve(ctx, transactionID, input, longLived any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reserve", reflect.TypeOf((*MockReservationService)(nil).Reserve), ctx, transactionID, input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reserve", reflect.TypeOf((*MockReservationService)(nil).Reserve), ctx, transactionID, input, longLived)
 }

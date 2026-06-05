@@ -1234,7 +1234,8 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 	// the ProcessBalanceOperations failure path does below. The returned handle
 	// is confirmed on success / released on abort at the post-commit transport.
 	reservation := handler.reserveTransaction(ctx, span, logger, ledgerSettings.Tracer, transactionID,
-		transactionInput.Send.Value, transactionInput.Send.Asset, reservationTTLForStatus(transactionStatus))
+		transactionInput.Send.Value, transactionInput.Send.Asset, firstSourceAccountID(validate.Sources, balances),
+		transactionDate, reservationTTLForStatus(transactionStatus))
 	if reservation.Kind == reservationReject {
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())

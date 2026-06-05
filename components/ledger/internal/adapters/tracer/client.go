@@ -75,24 +75,52 @@ type CircuitBreakerExecutor interface {
 	Execute(name string, fn func() (any, error)) (any, error)
 }
 
+// ReserveAccount is the account scope the tracer matches limits against. It
+// serializes to the tracer's AccountContext shape ({"accountId": "..."}). The
+// ledger populates AccountID with the source balance's account UUID; Type and
+// Status are left empty (the ledger does not carry the tracer's card-account
+// taxonomy), which the tracer treats as unconstrained optional fields.
+type ReserveAccount struct {
+	// AccountID is omitempty: when the ledger has no internal source account
+	// (an external-only source), the account object serializes as {} rather than
+	// {"accountId":""}. An empty-string accountId fails the tracer's
+	// uuid.UUID parse; an absent key parses cleanly to uuid.Nil, which the
+	// relaxed reserve validation accepts.
+	AccountID string `json:"accountId,omitempty"`
+}
+
 // ReserveRequest is the wire body of POST /v1/reservations. It is typed
 // independently of the tracer's internal model so the tracer's domain
-// evolution does not leak onto the ledger's outbound contract. The reserve
-// anchor (F3-T13) populates it from the fee-inclusive transaction state; this
-// client only transports it.
+// evolution does not leak onto the ledger's outbound contract, but its JSON
+// shape is a faithful subset of the tracer's reserve contract (transactionId +
+// the embedded ValidationRequest). The reserve anchor (F3-T13) populates it
+// from the fee-inclusive transaction state; this client only transports it.
+//
+// The tracer's reserve validation requires requestId, a positive amount, a
+// valid ISO-4217 currency, an in-window transactionTimestamp, and a non-nil
+// account.accountId. transactionType is OPTIONAL on the reserve path (the
+// ledger has no card-rail nature to honestly report; when empty the tracer
+// matches account-scoped limits without a transaction-type constraint).
 type ReserveRequest struct {
-	TransactionID   uuid.UUID `json:"transactionId"`
-	Amount          string    `json:"amount"`
-	Currency        string    `json:"currency"`
-	Account         string    `json:"account"`
-	SegmentID       string    `json:"segmentId,omitempty"`
-	PortfolioID     string    `json:"portfolioId,omitempty"`
-	MerchantID      string    `json:"merchantId,omitempty"`
-	TransactionType string    `json:"transactionType,omitempty"`
+	TransactionID uuid.UUID      `json:"transactionId"`
+	RequestID     string         `json:"requestId"`
+	Amount        string         `json:"amount"`
+	Currency      string         `json:"currency"`
+	Account       ReserveAccount `json:"account"`
+	SegmentID     string         `json:"segmentId,omitempty"`
+	PortfolioID   string         `json:"portfolioId,omitempty"`
+	MerchantID    string         `json:"merchantId,omitempty"`
+	// TransactionType is optional on reserve. When set it must be a valid
+	// tracer transaction type; the ledger leaves it empty.
+	TransactionType string `json:"transactionType,omitempty"`
 	// TransactionTimestamp is RFC3339; the tracer enforces a not-future /
 	// not-too-far-past window against its injected clock.
-	TransactionTimestamp string `json:"transactionTimestamp,omitempty"`
-	RequestID            string `json:"requestId,omitempty"`
+	TransactionTimestamp string `json:"transactionTimestamp"`
+	// LongLived hints the tracer to assign a long-lived reservation lifetime to
+	// a PENDING-transaction reservation (F3-T15). It replaces the former
+	// overload of transactionType=pending-long-lived, which polluted the
+	// transaction-type field and broke the tracer's reserve validation.
+	LongLived bool `json:"longLived,omitempty"`
 }
 
 // ReserveResult is the handle returned by a successful reserve. Denied is the

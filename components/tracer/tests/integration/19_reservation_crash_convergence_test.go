@@ -269,7 +269,7 @@ func TestReservationCrashConvergence(t *testing.T) {
 		ctx := context.Background()
 
 		// Phase one: reserve. Capacity is held in reserved_usage.
-		res, err := svc.Reserve(ctx, txID, resCheckInput(t))
+		res, err := svc.Reserve(ctx, txID, resCheckInput(t), false)
 		require.NoError(t, err)
 		require.False(t, res.Denied)
 		require.Len(t, res.ReservationIDs, 1)
@@ -322,7 +322,7 @@ func TestReservationCrashConvergence(t *testing.T) {
 
 		ctx := context.Background()
 
-		res, err := svc.Reserve(ctx, txID, resCheckInput(t))
+		res, err := svc.Reserve(ctx, txID, resCheckInput(t), false)
 		require.NoError(t, err)
 		require.Len(t, res.ReservationIDs, 1)
 
@@ -385,7 +385,7 @@ func TestReservationCrashConvergence(t *testing.T) {
 				specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, c.amount, 10000)},
 			}, audit)
 
-			res, err := svc.Reserve(ctx, testutil.MustDeterministicUUID(c.txSeed), resCheckInput(t))
+			res, err := svc.Reserve(ctx, testutil.MustDeterministicUUID(c.txSeed), resCheckInput(t), false)
 			require.NoError(t, err)
 			require.Len(t, res.ReservationIDs, 1)
 
@@ -455,7 +455,7 @@ func TestReservationCrashConvergence(t *testing.T) {
 		ctx := context.Background()
 
 		// One transaction, two reservations, in ONE service call.
-		res, err := svc.Reserve(ctx, txID, resCheckInput(t))
+		res, err := svc.Reserve(ctx, txID, resCheckInput(t), false)
 		require.NoError(t, err)
 		require.Len(t, res.ReservationIDs, 2, "one reservation per counter-backed limit")
 
@@ -565,7 +565,7 @@ func TestReservationOverCommit(t *testing.T) {
 
 				txID := testutil.MustDeterministicUUID(8820 + int64(idx))
 
-				res, err := svc.Reserve(context.Background(), txID, resCheckInput(t))
+				res, err := svc.Reserve(context.Background(), txID, resCheckInput(t), false)
 				switch {
 				case err != nil:
 					hardError.Add(1)
@@ -646,7 +646,7 @@ func TestReservationOverCommit(t *testing.T) {
 
 					txID := testutil.MustDeterministicUUID(int64(810000 + round*100 + idx))
 
-					res, err := svc.Reserve(context.Background(), txID, resCheckInput(t))
+					res, err := svc.Reserve(context.Background(), txID, resCheckInput(t), false)
 					if err == nil && !res.Denied {
 						acceptedSum.Add(amounts[idx])
 

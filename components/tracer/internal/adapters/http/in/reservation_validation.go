@@ -25,20 +25,31 @@ type ReserveRequest struct {
 	// idempotency grain for retried reserves and the handle the ledger later
 	// confirms or releases. Not a foreign key — the ledger transaction lives in a
 	// different service.
-	TransactionID           uuid.UUID `json:"transactionId" validate:"required" swaggertype:"string" format:"uuid"`
+	TransactionID uuid.UUID `json:"transactionId" validate:"required" swaggertype:"string" format:"uuid"`
+	// LongLived selects the reservation lifetime. false (the default, a direct
+	// transaction) gets the short reaper-swept TTL; true (a PENDING transaction)
+	// gets the long-lived TTL so the reservation does not expire under a
+	// still-valid pending that has no existing sweep (R18). It is a sibling wire
+	// field, NOT part of the embedded ValidationRequest, so the relaxed reserve
+	// validation never sees it.
+	LongLived               bool `json:"longLived,omitempty"`
 	model.ValidationRequest `swaggerignore:"true"`
 }
 
 // NormalizeAndReserveValidate validates the reserve body: the transactionId must be
 // present, then the embedded validation-request fields are normalized and validated
-// with the same rules the synchronous validate path enforces. now drives the
-// timestamp-window check (injected clock for MOCK_TIME determinism in tests).
+// with the relaxed reserve rules (NormalizeAndValidateForReserve) — requestId,
+// amount, currency and timestamp stay mandatory, but transactionType and account
+// are optional because the ledger (a double-entry ledger with external-source
+// transactions) cannot always supply a card-rail type or an internal account UUID
+// at the reserve anchor. now drives the timestamp-window check (injected clock for
+// MOCK_TIME determinism in tests).
 func (r *ReserveRequest) NormalizeAndReserveValidate(now time.Time) error {
 	if r.TransactionID == uuid.Nil {
 		return constant.ErrReservationTransactionIDReq
 	}
 
-	return r.NormalizeAndValidate(now)
+	return r.NormalizeAndValidateForReserve(now)
 }
 
 // ToReserveInput builds the CheckLimitsInput the reservation service resolves

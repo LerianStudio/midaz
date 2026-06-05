@@ -65,7 +65,7 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
 				m := mocks.NewMockReservationService(ctrl)
 				m.EXPECT().
-					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any()).
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), false).
 					Return(&services.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}, nil)
 				return m
 			},
@@ -80,12 +80,37 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			},
 		},
 		{
+			// A PENDING-transaction reserve sets longLived=true on the wire; the
+			// handler must forward that hint to the service so the reservation gets
+			// the long-lived TTL (R18). The matcher asserts true reaches the service.
+			name: "long-lived - longLived=true is forwarded to the service",
+			requestBody: func() any {
+				r := newValidReserveRequest()
+				r.LongLived = true
+				return r
+			}(),
+			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
+				m := mocks.NewMockReservationService(ctrl)
+				m.EXPECT().
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), true).
+					Return(&services.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}, nil)
+				return m
+			},
+			expectedStatus: http.StatusCreated,
+			expectedBody: func(t *testing.T, body []byte) {
+				var resp ReserveResponse
+				require.NoError(t, json.Unmarshal(body, &resp))
+				assert.False(t, resp.Denied)
+				require.Len(t, resp.ReservationIDs, 1)
+			},
+		},
+		{
 			name:        "denied - limit exceeded returns 201 with denied=true and empty ids",
 			requestBody: newValidReserveRequest(),
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
 				m := mocks.NewMockReservationService(ctrl)
 				m.EXPECT().
-					Reserve(gomock.Any(), gomock.Any(), gomock.Any()).
+					Reserve(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&services.ReserveResult{Denied: true}, nil)
 				return m
 			},
@@ -116,10 +141,62 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			},
 		},
 		{
-			name: "bad input - missing account returns 400, service not called",
+			// The reserve path RELAXES the account requirement (the ledger may
+			// reserve for an external-only source with no internal account UUID).
+			// A reserve with no account is accepted and reaches the service, which
+			// matches non-account-scoped limits.
+			name: "relaxed - missing account is accepted (reserve path), service called",
 			requestBody: func() any {
 				r := newValidReserveRequest()
 				r.Account = model.AccountContext{}
+				return r
+			}(),
+			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
+				m := mocks.NewMockReservationService(ctrl)
+				m.EXPECT().
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), false).
+					Return(&services.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}, nil)
+				return m
+			},
+			expectedStatus: http.StatusCreated,
+			expectedBody: func(t *testing.T, body []byte) {
+				var resp ReserveResponse
+				require.NoError(t, json.Unmarshal(body, &resp))
+				assert.False(t, resp.Denied)
+			},
+		},
+		{
+			// The reserve path RELAXES the transactionType requirement (the ledger
+			// has no card-rail nature). An EMPTY transactionType is accepted; this
+			// is exactly the shape the ledger anchor sends.
+			name: "relaxed - empty transactionType is accepted (reserve path), service called",
+			requestBody: func() any {
+				r := newValidReserveRequest()
+				r.TransactionType = ""
+				r.Account = model.AccountContext{} // ledger-shaped: no account either
+				return r
+			}(),
+			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
+				m := mocks.NewMockReservationService(ctrl)
+				m.EXPECT().
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), false).
+					Return(&services.ReserveResult{}, nil)
+				return m
+			},
+			expectedStatus: http.StatusCreated,
+			expectedBody: func(t *testing.T, body []byte) {
+				var resp ReserveResponse
+				require.NoError(t, json.Unmarshal(body, &resp))
+				assert.False(t, resp.Denied)
+			},
+		},
+		{
+			// An INVALID (non-empty, non-enum) transactionType is still rejected on
+			// the reserve path — relaxation makes it optional, not unvalidated.
+			name: "bad input - invalid transactionType returns 400, service not called",
+			requestBody: func() any {
+				r := newValidReserveRequest()
+				r.TransactionType = model.TransactionType("PIXIE")
 				return r
 			}(),
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
@@ -127,7 +204,7 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), "account")
+				assert.Contains(t, string(body), "transactionType")
 			},
 		},
 		{
@@ -162,7 +239,7 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
 				m := mocks.NewMockReservationService(ctrl)
 				m.EXPECT().
-					Reserve(gomock.Any(), gomock.Any(), gomock.Any()).
+					Reserve(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, assertErr)
 				return m
 			},
