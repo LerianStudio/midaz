@@ -54,6 +54,17 @@ const (
 	AuditEventLimitActivated   AuditEventType = "LIMIT_ACTIVATED"
 	AuditEventLimitDeactivated AuditEventType = "LIMIT_DEACTIVATED"
 	AuditEventLimitDrafted     AuditEventType = "LIMIT_DRAFTED"
+
+	// Reservation lifecycle events (two-phase reservation seam).
+	// RESERVED/CONFIRMED/RELEASED/EXPIRED mirror the persisted
+	// usage_reservations.status transitions. SKIPPED is audit-only: it records
+	// the ledger fail-open decision when the tracer is unreachable, and is NEVER
+	// a usage_reservations.status value (no reservation row is written).
+	AuditEventReservationReserved  AuditEventType = "RESERVATION_RESERVED"
+	AuditEventReservationConfirmed AuditEventType = "RESERVATION_CONFIRMED"
+	AuditEventReservationReleased  AuditEventType = "RESERVATION_RELEASED"
+	AuditEventReservationExpired   AuditEventType = "RESERVATION_EXPIRED"
+	AuditEventReservationSkipped   AuditEventType = "RESERVATION_SKIPPED"
 )
 
 // IsValid checks if the AuditEventType is a valid enum value.
@@ -61,7 +72,8 @@ func (t AuditEventType) IsValid() bool {
 	switch t {
 	case AuditEventTransactionValidated,
 		AuditEventRuleCreated, AuditEventRuleUpdated, AuditEventRuleActivated, AuditEventRuleDeactivated, AuditEventRuleDrafted, AuditEventRuleDeleted,
-		AuditEventLimitCreated, AuditEventLimitUpdated, AuditEventLimitDeleted, AuditEventLimitActivated, AuditEventLimitDeactivated, AuditEventLimitDrafted:
+		AuditEventLimitCreated, AuditEventLimitUpdated, AuditEventLimitDeleted, AuditEventLimitActivated, AuditEventLimitDeactivated, AuditEventLimitDrafted,
+		AuditEventReservationReserved, AuditEventReservationConfirmed, AuditEventReservationReleased, AuditEventReservationExpired, AuditEventReservationSkipped:
 		return true
 	default:
 		return false

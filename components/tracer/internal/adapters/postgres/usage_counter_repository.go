@@ -71,6 +71,54 @@ const upsertAndIncrementCTEQuery = `
 		) as succeeded
 `
 
+// upsertAndReserveCTEQuery is the CTE query for the two-phase reserve path.
+// It mirrors upsertAndIncrementCTEQuery but moves the amount into the
+// reserved_usage bucket (not current_usage) and guards against the COMBINED
+// committed + outstanding usage so concurrent reservations cannot over-commit.
+//
+// Strategy (identical control flow to the increment CTE):
+// 1. CTE 'attempt' tries INSERT ... ON CONFLICT DO UPDATE with the WHERE guard
+// 2. If succeeds: returns (new reserved_usage, true)
+// 3. If WHERE guard fails: CTE returns 0 rows
+// 4. Outer query uses COALESCE: if CTE empty, fallback to SELECT + false flag
+//
+// THE critical correctness line is the WHERE guard:
+//
+//	current_usage + reserved_usage + $9 <= $10
+//
+// Accounting for reserved_usage is what prevents the TOCTOU over-limit bug: two
+// reservers each see capacity individually but their reservations sum past the
+// limit. The INSERT branch seeds reserved_usage = amount and current_usage = 0.
+//
+// Parameters: $1=counterID, $2=limitID, $3=scopeKey, $4=periodKey, $5=amount (INSERT reserved_usage),
+//
+//	$6=now (INSERT last_updated_at), $7=amount (UPDATE reserved_usage increment), $8=now (UPDATE last_updated_at),
+//	$9=amount (WHERE check), $10=maxAmount, $11=expiresAt
+const upsertAndReserveCTEQuery = `
+	WITH attempt AS (
+		INSERT INTO usage_counters (id, limit_id, scope_key, period_key, current_usage, reserved_usage, last_updated_at, expires_at)
+		VALUES ($1, $2, $3, $4, 0, $5, $6, $11)
+		ON CONFLICT (limit_id, scope_key, period_key)
+		DO UPDATE SET
+			reserved_usage = usage_counters.reserved_usage + $7,
+			last_updated_at = $8,
+			expires_at = $11
+		WHERE usage_counters.current_usage + usage_counters.reserved_usage + $9 <= $10
+		RETURNING reserved_usage, true as succeeded
+	)
+	SELECT
+		COALESCE(
+			(SELECT reserved_usage FROM attempt),
+			(SELECT reserved_usage FROM usage_counters
+			 WHERE limit_id = $2 AND scope_key = $3 AND period_key = $4),
+			$5
+		) as reserved_usage,
+		COALESCE(
+			(SELECT succeeded FROM attempt),
+			false
+		) as succeeded
+`
+
 // UsageCounterRepository implements query.UsageCounterRepository using PostgreSQL.
 // Provides atomic usage counter operations with row-level locking (SELECT FOR UPDATE).
 // Tenant resolution is handled by the underlying pgdb.Connection (M1).
@@ -439,6 +487,126 @@ func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
 	).Log(ctx, libLog.LevelInfo, "Upsert and increment completed")
 
 	return currentUsage, nil
+}
+
+// UpsertAndReserveAtomic atomically creates or reserves capacity on a usage counter
+// using the provided database connection. It is the reserve-path twin of
+// UpsertAndIncrementAtomic: instead of committing into current_usage, it moves the
+// amount into reserved_usage and guards against the COMBINED committed + outstanding
+// usage so concurrent reservers cannot over-commit a limit.
+//
+// IMPORTANT: The WHERE guard only applies to the DO UPDATE (conflict) path. The
+// INSERT path seeds reserved_usage = amount and current_usage = 0 WITHOUT a WHERE
+// guard, so the caller MUST pre-check amount > maxAmount before calling this method
+// (a fresh counter would otherwise reserve past the limit on the first request).
+//
+// Returns the resulting reserved_usage and a success flag wrapped as an error: on a
+// failed guard it returns the current reserved_usage with constant.ErrUsageCounterExceedsLimit.
+//
+// The expiresAt parameter feeds usage_counters.expires_at for counter cleanup; it is
+// distinct from the per-reservation TTL tracked on usage_reservations.
+func (r *UsageCounterRepository) UpsertAndReserveAtomic(
+	ctx context.Context,
+	db pgdb.DB,
+	limitID uuid.UUID,
+	scopeKey string,
+	periodKey string,
+	amount decimal.Decimal,
+	maxAmount decimal.Decimal,
+	expiresAt *time.Time,
+) (decimal.Decimal, error) {
+	if db == nil {
+		return decimal.Zero, pgdb.ErrNilConnection
+	}
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.usage_counter.upsert_and_reserve_atomic")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	const operationName = "repository.usage_counter.upsert_and_reserve_atomic"
+
+	// Early return for zero amount: no-op, avoids an unnecessary DB round-trip.
+	if amount.IsZero() {
+		return decimal.Zero, nil
+	}
+
+	// Pre-check: reject negative amounts before any SQL.
+	if amount.IsNegative() {
+		return decimal.Zero, constant.ErrUsageCounterIncrementNonNegative
+	}
+
+	// Pre-check: amount > maxAmount means even a brand-new counter would exceed the
+	// limit. MANDATORY because the INSERT path has no WHERE guard.
+	if amount.GreaterThan(maxAmount) {
+		logger.With(
+			libLog.String("operation", operationName),
+			libLog.String("amount", amount.String()),
+			libLog.String("max_amount", maxAmount.String()),
+			libLog.String("limit_id", limitID.String()),
+		).Log(ctx, libLog.LevelInfo, "Reserve amount exceeds maxAmount (pre-check)")
+		libOtel.HandleSpanBusinessErrorEvent(span, "Reserve amount exceeds limit (pre-check)", constant.ErrUsageCounterExceedsLimit)
+
+		return decimal.Zero, constant.ErrUsageCounterExceedsLimit
+	}
+
+	now := time.Now().UTC()
+	counterID := uuid.New()
+
+	args := []any{
+		counterID.String(), // $1
+		limitID.String(),   // $2
+		scopeKey,           // $3
+		periodKey,          // $4
+		amount,             // $5 (INSERT initial reserved_usage)
+		now,                // $6 (INSERT last_updated_at)
+		amount,             // $7 (UPDATE reserved_usage increment)
+		now,                // $8 (UPDATE last_updated_at)
+		amount,             // $9 (WHERE guard check)
+		maxAmount,          // $10 (WHERE guard limit)
+		expiresAt,          // $11 (expires_at for cleanup)
+	}
+
+	var (
+		reservedUsage decimal.Decimal
+		succeeded     bool
+	)
+
+	err := db.QueryRowContext(ctx, upsertAndReserveCTEQuery, args...).Scan(&reservedUsage, &succeeded)
+	if err != nil {
+		libOtel.HandleSpanError(span, "Database error in CTE reserve", err)
+
+		return decimal.Zero, fmt.Errorf("failed to scan reserve CTE result for limit %s scope %s period %s: %w",
+			limitID, scopeKey, periodKey, err)
+	}
+
+	if !succeeded {
+		// WHERE guard failed: current_usage + reserved_usage + amount > maxAmount.
+		logger.With(
+			libLog.String("operation", operationName),
+			libLog.String("limit_id", limitID.String()),
+			libLog.String("scope_key", scopeKey),
+			libLog.String("period_key", periodKey),
+			libLog.String("reserved_usage", reservedUsage.String()),
+			libLog.String("amount", amount.String()),
+			libLog.String("max_amount", maxAmount.String()),
+		).Log(ctx, libLog.LevelInfo, "Limit exceeded (reserve WHERE guard)")
+		libOtel.HandleSpanBusinessErrorEvent(span, "Limit exceeded", constant.ErrUsageCounterExceedsLimit)
+
+		return reservedUsage, constant.ErrUsageCounterExceedsLimit
+	}
+
+	logger.With(
+		libLog.String("operation", operationName),
+		libLog.String("limit_id", limitID.String()),
+		libLog.String("scope_key", scopeKey),
+		libLog.String("period_key", periodKey),
+		libLog.String("new_reserved_usage", reservedUsage.String()),
+	).Log(ctx, libLog.LevelInfo, "Upsert and reserve completed")
+
+	return reservedUsage, nil
 }
 
 // GetByLimitID retrieves all usage counters for a specific limit.

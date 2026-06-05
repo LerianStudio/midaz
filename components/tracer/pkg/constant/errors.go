@@ -274,6 +274,24 @@ var (
 	// responses retain their upstream codes.
 	// =============================================================================
 	ErrUnauthorizedMissingSub = errors.New("TRC-0350") // JWT lacks required 'sub' claim — identity cannot be attributed
+
+	// =============================================================================
+	// Reservation Errors (TRC-0370 to TRC-0389)
+	//
+	// Sentinels for the two-phase reservation seam: domain-model constructor
+	// invariants and repository confirm/release lifecycle outcomes. A fresh block
+	// after the authentication range (TRC-0350..0369) — TRC-0280..0369 are all
+	// already allocated at HEAD, so the reservation block starts at 0370.
+	// =============================================================================
+	ErrReservationLimitIDRequired   = errors.New("TRC-0370") // reservation: limitId is required
+	ErrReservationTransactionIDReq  = errors.New("TRC-0371") // reservation: transactionId is required
+	ErrReservationScopeKeyRequired  = errors.New("TRC-0372") // reservation: scopeKey is required
+	ErrReservationPeriodKeyRequired = errors.New("TRC-0373") // reservation: periodKey is required
+	ErrReservationAmountInvalid     = errors.New("TRC-0374") // reservation: amount must be non-negative
+	ErrReservationInvalidStatus     = errors.New("TRC-0375") // reservation: status must be one of RESERVED, CONFIRMED, RELEASED, EXPIRED
+	ErrReservationExpiresAtRequired = errors.New("TRC-0376") // reservation: reservationExpiresAt is required
+	ErrReservationNotFound          = errors.New("TRC-0377") // reservation: reservation not found
+	ErrReservationAlreadyTerminal   = errors.New("TRC-0378") // reservation: reservation is already in a terminal state
 )
 
 // Error code constants for HTTP responses.
