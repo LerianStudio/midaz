@@ -766,6 +766,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionRedisRepo:    txnRedisRepo,
 	}
 
+	// === Holder ownership wiring (F1) ===
+	// The command UseCase reads cached settings and asserts holder existence
+	// through narrow ports so it never imports the query or CRM packages.
+	// HolderReader adapts the CRM holder service; SettingsReader is satisfied
+	// directly by the query UseCase (signatures match); HolderProvisioner is
+	// satisfied directly by the CRM holder service's CreateHolderWithID.
+	commandUseCase.HolderReader = holderReaderAdapter{service: crmMgo.holderHandler.Service}
+	commandUseCase.SettingsReader = queryUseCase
+	commandUseCase.HolderProvisioner = crmMgo.holderHandler.Service
+
 	// === Fee use cases ===
 	// Built from the fee Mongo slice + the ledger query.UseCase so fee
 	// account/segment/count reads run in-process. HTTP route mounting is
@@ -835,8 +845,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// CRM uses the SAME auth client as ledger; only the authz resource namespace
 	// differs (plugin-crm, encoded in the route definitions). The CRM-scoped
-	// tenant middleware travels via routeSetup.crmRouteOptions.
-	crmRouteRegistrar := crmhttp.CreateCRMRouteRegistrar(auth, crmMgo.holderHandler, crmMgo.aliasHandler, routeSetup.crmRouteOptions)
+	// tenant middleware travels via routeSetup.crmRouteOptions. The
+	// holder-accounts handler reads ledger accounts through a thin adapter over
+	// the query UseCase so the CRM HTTP layer never imports ledger internals.
+	holderAccountsHandler := &crmhttp.HolderAccountsHandler{
+		Reader: holderAccountsReaderAdapter{query: queryUseCase},
+	}
+	crmRouteRegistrar := crmhttp.CreateCRMRouteRegistrar(auth, crmMgo.holderHandler, crmMgo.aliasHandler, holderAccountsHandler, routeSetup.crmRouteOptions)
 
 	// Fee/billing handlers wire directly to the in-process fee use cases built by
 	// initFees (no reconstruction). The fee UseCase satisfies both the package CRUD
