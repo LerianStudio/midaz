@@ -51,9 +51,16 @@ type HolderProvisioner interface {
 	CreateHolderWithID(ctx context.Context, organizationID string, id uuid.UUID, chi *mmodel.CreateHolderInput) (*mmodel.Holder, error)
 }
 
-// deriveSelfHolderID computes the deterministic self-holder ID for an organization.
+// DeriveSelfHolderID computes the deterministic self-holder ID for an organization.
 // The derivation is pure (no I/O), so the create hot path can materialise the
-// default holder_id without a Mongo lookup.
-func deriveSelfHolderID(organizationID uuid.UUID) uuid.UUID {
+// default holder_id without a Mongo lookup. It is exported so the cross-store
+// backfill runner derives the SAME ID from the SAME namespace as the create and
+// org-provision paths, without redefining the namespace constant.
+func DeriveSelfHolderID(organizationID uuid.UUID) uuid.UUID {
 	return uuid.NewSHA1(midazNamespace, organizationID[:])
+}
+
+// deriveSelfHolderID is the internal alias used by the create/org-provision paths.
+func deriveSelfHolderID(organizationID uuid.UUID) uuid.UUID {
+	return DeriveSelfHolderID(organizationID)
 }

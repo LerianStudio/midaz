@@ -26,7 +26,7 @@ type ReadyzHandler interface {
 	HandleReadyz(c *fiber.Ctx) error
 }
 
-func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, readyzHandler ReadyzHandler, hh *HolderHandler, ah *AliasHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, readyzHandler ReadyzHandler, hh *HolderHandler, ah *AliasHandler, hah *HolderAccountsHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -65,7 +65,7 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 
 	// Standalone mode applies tenant middleware globally (above), so the routes
 	// themselves carry no PostAuthMiddlewares.
-	RegisterCRMRoutesToApp(f, auth, hh, ah, nil)
+	RegisterCRMRoutesToApp(f, auth, hh, ah, hah, nil)
 
 	f.Use(tlMid.EndTracingSpans)
 
@@ -79,12 +79,18 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 // route-local tenant middleware so CRM's tenant Mongo never overwrites the
 // onboarding/transaction tenant DB injected for ledger routes).
 //
-// The 11 routes, paths, authz namespace (plugin-crm via ApplicationName),
+// The routes, paths, authz namespace (plugin-crm via ApplicationName),
 // UUID-path validation and body binding are identical in both callers.
-func RegisterCRMRoutesToApp(f fiber.Router, auth *middleware.AuthClient, hh *HolderHandler, ah *AliasHandler, routeOptions *http.ProtectedRouteOptions) {
+//
+// hah may be nil (standalone CRM router has no ledger account-query backing);
+// when nil the holder-accounts route is not mounted.
+func RegisterCRMRoutesToApp(f fiber.Router, auth *middleware.AuthClient, hh *HolderHandler, ah *AliasHandler, hah *HolderAccountsHandler, routeOptions *http.ProtectedRouteOptions) {
 	// Holders
 	f.Post("/v1/holders", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "post"), routeOptions, http.WithBody(new(mmodel.CreateHolderInput), hh.CreateHolder))...)
 	f.Get("/v1/holders/:id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "get"), routeOptions, http.ParseUUIDPathParameters("holder"), hh.GetHolderByID)...)
+	if hah != nil {
+		f.Get("/v1/holders/:id/accounts", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "get"), routeOptions, http.ParseUUIDPathParameters("holder"), hah.GetAccountsByHolder)...)
+	}
 	f.Patch("/v1/holders/:id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "patch"), routeOptions, http.ParseUUIDPathParameters("holder"), http.WithBody(new(mmodel.UpdateHolderInput), hh.UpdateHolder))...)
 	f.Delete("/v1/holders/:id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "delete"), routeOptions, http.ParseUUIDPathParameters("holder"), hh.DeleteHolderByID)...)
 	f.Get("/v1/holders", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "get"), routeOptions, hh.GetAllHolders)...)
@@ -102,8 +108,8 @@ func RegisterCRMRoutesToApp(f fiber.Router, auth *middleware.AuthClient, hh *Hol
 // unified ledger server. The routeOptions carries the CRM-scoped tenant
 // middleware (built in the ledger composition root) so it applies ONLY to CRM
 // routes.
-func CreateCRMRouteRegistrar(auth *middleware.AuthClient, hh *HolderHandler, ah *AliasHandler, routeOptions *http.ProtectedRouteOptions) func(fiber.Router) {
+func CreateCRMRouteRegistrar(auth *middleware.AuthClient, hh *HolderHandler, ah *AliasHandler, hah *HolderAccountsHandler, routeOptions *http.ProtectedRouteOptions) func(fiber.Router) {
 	return func(router fiber.Router) {
-		RegisterCRMRoutesToApp(router, auth, hh, ah, routeOptions)
+		RegisterCRMRoutesToApp(router, auth, hh, ah, hah, routeOptions)
 	}
 }
