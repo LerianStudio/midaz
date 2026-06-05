@@ -1,6 +1,6 @@
 # Lerian Midaz — Full Reference
 
-> Enterprise-grade open-source double-entry ledger system. Go 1.26.3 monorepo (v3 module path, single root go.mod — no go.work) on `github.com/LerianStudio/lib-commons/v5` v5.4.1 + `lib-observability` v1.0.1. Five deploy units: a unified Ledger HTTP API (onboarding + transaction + CRM holders/aliases + fees, :3002), a Tracer fraud-prevention API (:4020), and a two-unit Reporter (manager :4005 + worker :4006), plus an Infra docker-compose backing stack. Uses PostgreSQL (primary/replica), MongoDB (metadata + CRM + fees), RabbitMQ (async transactions, reporter jobs), Valkey/Redis (caching), and SeaweedFS (reporter object storage). Supports multi-tenant isolation via the lib-commons v5 tenant-manager. Elastic License 2.0.
+> Enterprise-grade open-source double-entry ledger system. Go 1.26.3 monorepo (v3 module path, single root go.mod — no go.work) on `github.com/LerianStudio/lib-commons/v5` v5.4.1 + `lib-observability` v1.0.1. Five deploy units: a unified Ledger HTTP API (onboarding + transaction + CRM holders/instruments + fees, :3002), a Tracer fraud-prevention API (:4020), and a two-unit Reporter (manager :4005 + worker :4006), plus an Infra docker-compose backing stack. Uses PostgreSQL (primary/replica), MongoDB (metadata + CRM + fees), RabbitMQ (async transactions, reporter jobs), Valkey/Redis (caching), and SeaweedFS (reporter object storage). Supports multi-tenant isolation via the lib-commons v5 tenant-manager. Elastic License 2.0.
 
 ---
 
@@ -26,7 +26,7 @@ Key capabilities:
 - **Multi-tenant**: Database-per-tenant isolation via the lib-commons v5 tenant-manager
 - **Accounting routes**: Configurable operation routes and transaction routes for validation
 - **Fees (embedded)**: fee engine + billing packages embedded in the ledger binary; fees applied on transaction create
-- **CRM (folded)**: holder/alias management folded into the ledger binary (`plugin-crm` namespace, `X-Organization-Id` scoping)
+- **CRM (folded)**: holder/instrument management folded into the ledger binary (host ledger's `midaz` namespace, `X-Organization-Id` scoping)
 
 ## 2. Architecture
 
@@ -38,7 +38,7 @@ ledger binary. Both are served on the ledger port `:3002`.
 
 | Deploy unit | Port | Description | Data Stores |
 |-------------|------|-------------|-------------|
-| **Ledger** | 3002 | Unified HTTP API: onboarding + transaction + **CRM** (holders/aliases) + **fees** (engine + billing) | PostgreSQL (onboarding DB + transaction DB), MongoDB (metadata + CRM + fees), Redis/Valkey, RabbitMQ |
+| **Ledger** | 3002 | Unified HTTP API: onboarding + transaction + **CRM** (holders/instruments) + **fees** (engine + billing) | PostgreSQL (onboarding DB + transaction DB), MongoDB (metadata + CRM + fees), Redis/Valkey, RabbitMQ |
 | **Tracer** | 4020 | Real-time transaction validation / fraud-prevention API (CEL rule engine, hash-chained audit) | PostgreSQL (own migrations) |
 | **Reporter Manager** | 4005 | REST API that accepts report-generation requests and publishes jobs to RabbitMQ | MongoDB, RabbitMQ |
 | **Reporter Worker** | 4006 | Async consumer rendering PDFs via headless Chromium, writing to S3-compatible storage | MongoDB, RabbitMQ, SeaweedFS |
@@ -63,7 +63,7 @@ midaz/
 │   │   ├── cmd/app/         # main.go entry point
 │   │   ├── internal/
 │   │   │   ├── adapters/
-│   │   │   │   ├── http/in/ # Fiber HTTP handlers + routes (incl. fees_routes.go)
+│   │   │   │   ├── http/in/ # Fiber HTTP handlers + routes (incl. fees_routes.go, crm_routes.go, holder/instrument handlers)
 │   │   │   │   ├── http/out/# Outbound HTTP clients
 │   │   │   │   ├── postgres/# PostgreSQL repositories (onboarding + transaction)
 │   │   │   │   ├── mongodb/ # MongoDB metadata + fees repositories
@@ -83,10 +83,9 @@ midaz/
 │   │   └── api/             # Swagger docs
 │   ├── crm/                 # PACKAGE TREE (not a deploy unit) — imported by ledger
 │   │   ├── adapters/
-│   │   │   ├── http/in/     # Fiber holder/alias handlers + routes (plugin-crm namespace)
-│   │   │   └── mongodb/     # holder/ + alias/ repositories
-│   │   ├── services/        # CRM business logic
-│   │   └── api/             # Swagger docs
+│   │   │   └── mongodb/     # holder/ + instrument/ repositories
+│   │   └── services/        # CRM business logic
+│   │   # HTTP handlers/routes live in ledger http/in/ (midaz namespace); spec folds into ledger api/
 │   ├── tracer/              # DEPLOY UNIT :4020 — fraud-prevention API (CEL, audit log)
 │   │   ├── cmd/app/
 │   │   ├── internal/
@@ -123,7 +122,7 @@ midaz/
 ├── scripts/                 # Build/CI scripts
 ├── mk/                      # Makefile includes (coverage, tests, quality)
 ├── docs/PROJECT_RULES.md    # Coding standards (1130 lines)
-├── docs/auth/RBAC-NAMESPACES.md  # The four authz namespaces (R9)
+├── docs/auth/RBAC-NAMESPACES.md  # The three authz namespaces (R9)
 ├── docs/api/SCOPING.md      # Path vs X-Organization-Id header scoping (R22)
 ├── Makefile                 # Root orchestrator
 ├── go.mod                   # Module: github.com/LerianStudio/midaz/v3 (single root go.mod)
@@ -175,7 +174,7 @@ All models live in `pkg/mmodel/`. Key entities:
 
 ### 3.9 Holder (CRM)
 - Customer/entity management with encrypted PII
-- Alias management with account associations
+- Instrument management with account associations
 - Related parties support
 
 ## 4. API Reference
@@ -290,9 +289,12 @@ Base path: `/v1`
 
 ### 4.2 CRM API (served by the ledger binary on port 3002)
 
-CRM (holders, aliases, related parties) is folded into the ledger binary — it is **not** a
-standalone service. Routes are served on `:3002` under the `plugin-crm` authz namespace. Uses
-MongoDB for persistence; supports encrypted PII fields.
+CRM (holders, instruments, related parties) is folded into the ledger binary — it is **not** a
+standalone service. The holder/instrument handlers and routes live in the ledger HTTP tree
+(`components/ledger/internal/adapters/http/in/`) so the swagger fold discovers them; they are
+served on `:3002` under the host ledger's `midaz` authz namespace (the resources `holders` and
+`instruments`); the standalone CRM plugin namespace was collapsed into `midaz` at v4 (see
+`docs/auth/RBAC-NAMESPACES.md`, X1). Uses MongoDB for persistence; supports encrypted PII fields.
 
 Scoping is **header-based**: CRM endpoints read the organization from the `X-Organization-Id`
 HTTP header, not the URL path (legacy from the standalone CRM service). See
@@ -305,12 +307,18 @@ HTTP header, not the URL path (legacy from the standalone CRM service). See
 | GET | /v1/holders/:id | Get holder |
 | PATCH | /v1/holders/:id | Update holder |
 | DELETE | /v1/holders/:id | Delete holder |
-| GET | /v1/aliases | List aliases |
-| POST | /v1/holders/:holder_id/aliases | Create alias |
-| GET | /v1/holders/:holder_id/aliases/:alias_id | Get alias |
-| PATCH | /v1/holders/:holder_id/aliases/:alias_id | Update alias |
-| DELETE | /v1/holders/:holder_id/aliases/:alias_id | Delete alias |
-| DELETE | /v1/holders/:holder_id/aliases/:alias_id/related-parties/:related_party_id | Delete related party |
+| GET | /v1/holders/:id/accounts | List accounts owned by a holder (composition: holder → ledger accounts) |
+| GET | /v1/instruments | List instruments |
+| POST | /v1/holders/:holder_id/instruments | Create instrument |
+| GET | /v1/holders/:holder_id/instruments/:instrument_id | Get instrument |
+| PATCH | /v1/holders/:holder_id/instruments/:instrument_id | Update instrument |
+| DELETE | /v1/holders/:holder_id/instruments/:instrument_id | Delete instrument |
+| DELETE | /v1/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id | Delete related party |
+
+The `GET /v1/holders/:id/accounts` composition endpoint is mounted only when the ledger
+account-query backing is wired (the holder-accounts handler is non-nil); it joins CRM holders to
+the ledger's own accounts. Holder ownership is org-scoped (matching Mongo storage), not
+ledger-scoped.
 
 CRM error responses carry **canonical midaz codes** (e.g. `0009`, `0046`, `0047`, `0094`) — the
 legacy `CRM-00xx` transform shim was removed. The 16 surviving CRM domain sentinels (section 5.1)
@@ -319,7 +327,43 @@ are still emitted on their own paths.
 ### 4.3 Tracer API (port 4020)
 
 Real-time transaction validation / fraud-prevention API. Hexagonal + CQRS, CEL rule engine,
-hash-chained audit log. Ships its own SQL migrations under `components/tracer/migrations`.
+hash-chained audit log. Ships its own SQL migrations under `components/tracer/migrations`. This is
+an INDEPENDENT spec/port/deploy unit — it is not folded into `:3002`. Base path: `/v1`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /v1/rules | Create rule |
+| GET | /v1/rules | List rules |
+| GET | /v1/rules/:id | Get rule |
+| PATCH | /v1/rules/:id | Update rule |
+| DELETE | /v1/rules/:id | Delete rule |
+| POST | /v1/rules/:id/draft | Move rule to draft |
+| POST | /v1/rules/:id/activate | Activate rule |
+| POST | /v1/rules/:id/deactivate | Deactivate rule |
+| POST | /v1/limits | Create limit |
+| GET | /v1/limits | List limits |
+| GET | /v1/limits/:id | Get limit |
+| PATCH | /v1/limits/:id | Update limit |
+| DELETE | /v1/limits/:id | Delete limit |
+| POST | /v1/limits/:id/draft | Move limit to draft |
+| POST | /v1/limits/:id/activate | Activate limit |
+| POST | /v1/limits/:id/deactivate | Deactivate limit |
+| GET | /v1/limits/:id/usage | Get limit usage |
+| POST | /v1/validations | Run validation |
+| GET | /v1/validations | List validations |
+| GET | /v1/validations/:id | Get validation |
+| POST | /v1/reservations | Create reservation (two-phase: reserve) |
+| POST | /v1/reservations/:id/confirm | Confirm a reservation by ID |
+| POST | /v1/reservations/:id/release | Release a reservation by ID |
+| POST | /v1/reservations/transaction/:transaction_id/confirm | Confirm reservations for a transaction |
+| POST | /v1/reservations/transaction/:transaction_id/release | Release reservations for a transaction |
+| GET | /v1/audit-events | List audit events |
+| GET | /v1/audit-events/:id | Get audit event |
+| GET | /v1/audit-events/:id/verify | Verify the audit-event hash chain |
+
+The `/v1/reservations` two-phase surface backs the transaction reserve → confirm/release flow:
+a reservation holds projected limit usage, then is confirmed (commit) or released (rollback),
+either by reservation ID or by the originating transaction ID.
 
 ### 4.4 Reporter (ports 4005 / 4006)
 
@@ -428,7 +472,7 @@ are set programmatically by `applyConfigDefaults()`.
 |----------|---------|-------------|
 | APPLICATION_NAME | — | Application identity (tenant-manager service name) |
 | ENV_NAME | development | Environment: development, staging, uat, production, local |
-| VERSION | v3.6.0 | Application version |
+| VERSION | v4.0.0 | Application version |
 | SERVER_ADDRESS | :3002 | Listen address (single port for all APIs) |
 | LOG_LEVEL | debug | Log level |
 
@@ -796,8 +840,9 @@ When `MULTI_TENANT_ENABLED=true`:
 6. On tenant suspend/delete: all connections (PG, Mongo, RabbitMQ) are closed and cache invalidated
 7. RabbitMQ consumers are started/stopped per tenant dynamically
 8. Modules: `onboarding` and `transaction` with independent PG and Mongo managers; CRM
-   (`plugin-crm`) and fees (`plugin-fees`) add their own namespaced Mongo tenant clients within
-   the ledger binary (resolution via the lib-commons v5 tenant-manager)
+   (authz namespace `midaz`, `MONGO_CRM_*`) and fees (authz namespace `plugin-fees`,
+   `MONGO_FEES_*`) add their own namespaced Mongo tenant clients within the ledger binary
+   (resolution via the lib-commons v5 tenant-manager)
 
 ## 10. Gold DSL
 
