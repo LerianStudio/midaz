@@ -83,9 +83,9 @@ const yaml = require('js-yaml');
  */
 function parseCommandLineArgs() {
   const args = process.argv.slice(2);
-  
+
   if (args.length < 2) {
-    console.error('Usage: node convert-openapi.js <input-file> <output-file> [--env <env-output-file>]');
+    console.error('Usage: node convert-openapi.js <input-file> <output-file> [--env <env-output-file>] [--component <name>]');
     process.exit(1);
   }
 
@@ -98,8 +98,20 @@ function parseCommandLineArgs() {
     envOutputFile = args[args.indexOf('--env') + 1];
   }
 
-  return { inputFile, outputFile, envOutputFile };
+  // Component name drives ledger-only enrichment (base-URL routing, env template).
+  // Non-ledger components (tracer, reporter-manager) get a generic single-base-URL
+  // collection and a minimal environment.
+  let component = 'ledger';
+  if (args.includes('--component') && args.indexOf('--component') + 1 < args.length) {
+    component = args[args.indexOf('--component') + 1];
+  }
+
+  return { inputFile, outputFile, envOutputFile, component };
 }
+
+// Component currently being converted. Set in main() from CLI args; defaults to
+// 'ledger' so direct/legacy invocations preserve the original behavior.
+let COMPONENT = 'ledger';
 
 /**
  * Ensure all required directories exist
@@ -695,13 +707,19 @@ function getTagDescription(spec, tagName) {
  * @returns {Object} The request item
  */
 function createRequestItem(operation, path, method, spec) {
-  // Determine which service this endpoint belongs to
-  let baseUrlVariable = "{{baseUrl}}";
-  if (path.includes('/transactions') || path.includes('/operations') || path.includes('/balances') || 
-      path.includes('/assetrates') || path.includes('/balance')) {
-    baseUrlVariable = "{{transactionUrl}}";
-  } else {
-    baseUrlVariable = "{{onboardingUrl}}";
+  // Determine the base URL variable. Ledger's unified binary historically split
+  // onboarding vs transaction surfaces; both now serve on :3002, but the env
+  // template keeps both aliases for backward compatibility. Non-ledger components
+  // (tracer, reporter-manager) expose a single base URL under a component-scoped
+  // variable so the merged MIDAZ environment carries distinct, non-colliding keys.
+  let baseUrlVariable = `{{${componentEnvPrefix(COMPONENT)}Url}}`;
+  if (COMPONENT === 'ledger') {
+    if (path.includes('/transactions') || path.includes('/operations') || path.includes('/balances') ||
+        path.includes('/assetrates') || path.includes('/balance')) {
+      baseUrlVariable = "{{transactionUrl}}";
+    } else {
+      baseUrlVariable = "{{onboardingUrl}}";
+    }
   }
   
   // Create request item
@@ -1134,7 +1152,36 @@ function addResponseExamples(requestItem, operation, spec) {
  * @param {Object} spec - The OpenAPI spec
  * @returns {Object} The environment template
  */
+// Default host port per non-ledger component (single base URL each).
+const COMPONENT_PORTS = {
+  tracer: '4020',
+  'reporter-manager': '4005'
+};
+
+// camelCase env-variable prefix for a component (e.g. reporter-manager -> reportermanager).
+function componentEnvPrefix(component) {
+  return component.replace(/-/g, '');
+}
+
 function createEnvironmentTemplate(spec) {
+  // Non-ledger components get a minimal environment (host + component-scoped url/port)
+  // so tracer and reporter collections are not polluted with ledger resource keys,
+  // and their keys do not collide with ledger's on merge into the MIDAZ environment.
+  if (COMPONENT !== 'ledger') {
+    const prefix = componentEnvPrefix(COMPONENT);
+    const port = COMPONENT_PORTS[COMPONENT] || '3002';
+
+    return {
+      name: 'MIDAZ',
+      values: [
+        { key: 'authToken', value: '', type: 'secret', enabled: true },
+        { key: 'host', value: 'http://localhost', type: 'default', enabled: true },
+        { key: `${prefix}Port`, value: port, type: 'default', enabled: true },
+        { key: `${prefix}Url`, value: `{{host}}:{{${prefix}Port}}`, type: 'default', enabled: true }
+      ]
+    };
+  }
+
   const environment = {
     name: 'MIDAZ',
     values: [
@@ -1145,7 +1192,7 @@ function createEnvironmentTemplate(spec) {
         type: 'secret',
         enabled: true
       },
-      
+
       // Base URLs
       {
         key: 'baseUrl',
@@ -2229,7 +2276,8 @@ function removeIgnoredFields(example, schema, spec) {
 
 // Main function
 function main() {
-  const { inputFile, outputFile, envOutputFile } = parseCommandLineArgs();
+  const { inputFile, outputFile, envOutputFile, component } = parseCommandLineArgs();
+  COMPONENT = component;
   ensureDirectoriesExist(outputFile, envOutputFile);
   
   // Read and parse the OpenAPI spec

@@ -1,7 +1,7 @@
 # Midaz Project Rules
 
 > **Auto-generated from codebase exploration on 2026-02-02, updated 2026-03-02**
-> This document captures the coding standards, architectural patterns, and conventions discovered in the Midaz open-source ledger project.
+> This document captures the coding standards, architectural patterns, and conventions discovered in the Midaz source-available ledger project.
 
 ---
 
@@ -30,7 +30,7 @@
 
 Midaz implements hexagonal architecture with clear separation between:
 - **Domain Layer**: Business logic in `services/command/` and `services/query/`
-- **Port Layer**: Interfaces in `pkg/mbootstrap/` defining contracts
+- **Port Layer**: Interfaces defined where they are used (in the adapter or service package that owns the contract); the only cross-module port in `pkg/mbootstrap/` is the metadata-index contract
 - **Adapter Layer**: Technology-specific implementations in `adapters/`
 - **Bootstrap Layer**: Dependency injection in `bootstrap/`
 
@@ -44,7 +44,7 @@ Services split into:
 
 | Deploy unit | Description | Port |
 |-------------|-------------|------|
-| **`components/ledger`** | Unified binary: single process serving onboarding + transaction + CRM (holders/aliases) + fees | 3002 |
+| **`components/ledger`** | Unified binary: single process serving onboarding + transaction + CRM (holders/instruments) + fees | 3002 |
 | **`components/tracer`** | Transaction validation / fraud-prevention API (CEL rules, spending limits, audit trail) | 4020 |
 | **`components/reporter-manager`** | Async report-generation REST API (templates, reports, deadlines) | 4005 |
 | **`components/reporter-worker`** | Headless RabbitMQ consumer rendering report artifacts (health probe only) | 4006 (HEALTH_PORT) |
@@ -89,6 +89,12 @@ server := bootstrap.NewUnifiedServer(
 
 ### Component Layout
 
+This layout describes the Go service deploy units only — `ledger`, `tracer`, and the two
+`reporter-*` units. `components/crm` is the exception: it is a package tree (no `cmd/`, no
+`internal/`) imported by the ledger binary, holding only `adapters/mongodb/` and `services/`
+(plus shared models); its entire HTTP surface lives in the ledger tree at
+`components/ledger/internal/adapters/http/in/`. `components/infra` is docker-compose only.
+
 ```
 components/{service}/
 ├── cmd/app/main.go           # Entry point
@@ -132,8 +138,8 @@ components/{service}/
 
 | Component | Port | Responsibility | Notes |
 |-----------|------|----------------|-------|
-| `ledger` | 3002 | Unified binary: onboarding + transaction + CRM (holders/aliases) + fees | Single Go service deploy unit; absorbs `crm` and fees |
-| `crm` | - | Customer/holder management, aliases | Package tree (no `cmd/`, no `internal/`) imported by the ledger binary; routes under `plugin-crm` authz namespace. Not a deploy unit, emits no image. |
+| `ledger` | 3002 | Unified binary: onboarding + transaction + CRM (holders/instruments) + fees | Single Go service deploy unit; absorbs `crm` and fees |
+| `crm` | - | Customer/holder management, instruments | Package tree (no `cmd/`, no `internal/`) imported by the ledger binary; its HTTP surface lives in the ledger tree at `components/ledger/internal/adapters/http/in/` and registers under the `midaz` authz namespace. Not a deploy unit, emits no image. |
 | `tracer` | 4020 | Transaction validation / fraud-prevention API (CEL rules, spending limits, audit trail) | Separate Go service deploy unit |
 | `reporter-manager` | 4005 | Async report-generation REST API (templates, reports, deadlines) | Separate Go service deploy unit |
 | `reporter-worker` | 4006 (HEALTH_PORT) | Headless RabbitMQ consumer rendering report artifacts | Separate Go service deploy unit; health probe only, no business REST surface |
@@ -147,7 +153,7 @@ The `ledger` binary composes four route surfaces in-process (no gRPC). Capabilit
 |---------|------------|---------|--------------|----------|------------|
 | onboarding | Yes | Yes (metadata) | Yes (cache) | No | Yes (onboarding) |
 | transaction | Yes | Yes (metadata) | Yes (cache/sync) | Yes (async balance) | Yes (transaction) |
-| CRM (`plugin-crm`) | No | Yes (holders, aliases) | No | No | None |
+| CRM (`midaz`) | No | Yes (holders, instruments) | No | No | None |
 | fees (`plugin-fees`) | No | Yes (packages, billing) | No | No | None |
 
 ---
@@ -266,7 +272,7 @@ if err != nil {
 
 **Location:** `pkg/constant/errors.go`
 
-Core errors use 4-digit numeric codes (0001-0175). CRM-specific errors use a `CRM-` prefix (CRM-0006 to CRM-0029, non-contiguous):
+Core errors use 4-digit numeric codes (0001-0178, with a gap at 0130). CRM-specific errors use a `CRM-` prefix (CRM-0006 to CRM-0029, non-contiguous):
 
 ```go
 var (
@@ -278,7 +284,7 @@ var (
     ErrInternalServer          = errors.New("0046")
 
     // CRM errors (same file, "List of CRM domain errors" var block)
-    // CRM-0006 through CRM-0029: holder/alias validation, relationships, metadata (gaps intentional)
+    // CRM-0006 through CRM-0029: holder/instrument validation, relationships, metadata (gaps intentional)
 )
 ```
 
@@ -884,7 +890,7 @@ docs/documentation-update
 refactor/code-improvement
 ```
 
-**Protected branches:** `main`, `develop`, `release/*`
+**Protected branches:** `main`, `develop`, `release-candidate` (enforced by `.githooks/pre-commit`)
 
 ### Commit Message Format
 
@@ -1048,7 +1054,7 @@ Midaz supports multi-tenant deployment where each tenant gets isolated database 
 |-----------|----------|-----------------|
 | Onboarding | PostgreSQL | Database-per-tenant (separate connection pools) |
 | Transaction | PostgreSQL + Redis + RabbitMQ | Database-per-tenant + per-tenant vhosts |
-| CRM | MongoDB | Collection-per-organization (`holders_{orgId}`, `aliases_{orgId}`) |
+| CRM | MongoDB | Collection-per-organization (`holders_{orgId}`; instruments persist in the `aliases_{orgId}` collection — the storage name predates the v4 instruments rename) |
 
 ### Tenant Context Flow
 
@@ -1111,8 +1117,8 @@ Multi-tenancy is provided by `lib-commons/v5`:
 
 ## References
 
-- **API Documentation:** https://docs.midaz.io/
-- **Error Catalog:** https://docs.midaz.io/midaz/api-reference/resources/errors-list
+- **API Documentation:** https://docs.lerian.studio/
+- **Error Catalog:** https://docs.lerian.studio/midaz/api-reference/resources/errors-list
 - **Project Structure:** `STRUCTURE.md`
 - **Linter Config:** `.golangci.yml`
 - **Go Version:** 1.26.3 (toolchain go1.26.4)

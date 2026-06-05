@@ -1059,7 +1059,7 @@ const docTemplate = `{
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template"
+                                                "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template"
                                             }
                                         },
                                         "limit": {
@@ -1424,7 +1424,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template"
                         }
                     },
                     "400": {
@@ -1961,7 +1961,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template": {
+        "github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template": {
             "type": "object",
             "properties": {
                 "createdAt": {

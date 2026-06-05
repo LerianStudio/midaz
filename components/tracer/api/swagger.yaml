@@ -67,7 +67,7 @@ definitions:
         example: 1.0.0
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AccountContext:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AccountContext:
     properties:
       accountId:
         format: uuid
@@ -80,10 +80,10 @@ definitions:
       type:
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Actor:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Actor:
     properties:
       actorType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ActorType'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ActorType'
       id:
         type: string
       ipAddress:
@@ -93,7 +93,7 @@ definitions:
       role:
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ActorType:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ActorType:
     enum:
     - user
     - api_key
@@ -103,13 +103,13 @@ definitions:
     - ActorTypeUser
     - ActorTypeAPIKey
     - ActorTypeSystem
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AuditEvent:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEvent:
     properties:
       action:
         type: string
       actor:
         allOf:
-        - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Actor'
+        - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Actor'
         description: Actor fields
       context:
         additionalProperties: {}
@@ -128,7 +128,7 @@ definitions:
         format: uuid
         type: string
       eventType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AuditEventType'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEventType'
       hash:
         type: string
       metadata:
@@ -141,13 +141,13 @@ definitions:
         description: Resource fields
         type: string
       resourceType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ResourceType'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ResourceType'
       result:
         description: 'Unified: ALLOW/DENY/REVIEW for validations, SUCCESS/FAILED for
           CRUD'
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AuditEventType:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEventType:
     enum:
     - TRANSACTION_VALIDATED
     - RULE_CREATED
@@ -187,7 +187,7 @@ definitions:
     - AuditEventReservationReleased
     - AuditEventReservationExpired
     - AuditEventReservationSkipped
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Decision:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision:
     enum:
     - ALLOW
     - DENY
@@ -197,7 +197,7 @@ definitions:
     - DecisionAllow
     - DecisionDeny
     - DecisionReview
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.HashChainVerificationResult:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.HashChainVerificationResult:
     properties:
       firstInvalidId:
         type: integer
@@ -208,7 +208,7 @@ definitions:
       totalChecked:
         type: integer
     type: object
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit:
     properties:
       activeTimeEnd:
         example: "17:00"
@@ -236,7 +236,7 @@ definitions:
         format: uuid
         type: string
       limitType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitType'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitType'
       maxAmount:
         example: "1000.00"
         type: string
@@ -247,15 +247,15 @@ definitions:
         type: string
       scopes:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Scope'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
         type: array
       status:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitStatus'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitStatus'
       updatedAt:
         format: date-time
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitStatus:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitStatus:
     enum:
     - DRAFT
     - ACTIVE
@@ -267,7 +267,7 @@ definitions:
     - LimitStatusActive
     - LimitStatusInactive
     - LimitStatusDeleted
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitType:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitType:
     enum:
     - DAILY
     - MONTHLY
@@ -281,7 +281,7 @@ definitions:
     - LimitTypePerTransaction
     - LimitTypeWeekly
     - LimitTypeCustom
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitUsageDetail:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitUsageDetail:
     properties:
       attemptedAmount:
         description: |-
@@ -327,7 +327,7 @@ definitions:
           When true, the counter was NOT incremented and Exceeded is always false.
         type: boolean
     type: object
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.MerchantContext:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.MerchantContext:
     properties:
       category:
         description: e.g., ISO 18245 MCC code
@@ -344,7 +344,7 @@ definitions:
       name:
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.PortfolioContext:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.PortfolioContext:
     properties:
       metadata:
         additionalProperties: {}
@@ -355,7 +355,7 @@ definitions:
         format: uuid
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ResourceType:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ResourceType:
     enum:
     - transaction
     - rule
@@ -367,10 +367,10 @@ definitions:
     - ResourceTypeRule
     - ResourceTypeLimit
     - ResourceTypeReservation
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule:
     properties:
       action:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Decision'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision'
       activatedAt:
         format: date-time
         type: string
@@ -394,15 +394,15 @@ definitions:
         type: string
       scopes:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Scope'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
         type: array
       status:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.RuleStatus'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.RuleStatus'
       updatedAt:
         format: date-time
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.RuleStatus:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.RuleStatus:
     enum:
     - DRAFT
     - ACTIVE
@@ -414,7 +414,7 @@ definitions:
     - RuleStatusActive
     - RuleStatusInactive
     - RuleStatusDeleted
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Scope:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope:
     properties:
       accountId:
         format: uuid
@@ -435,9 +435,9 @@ definitions:
         type: string
         x-normalization: lowercase
       transactionType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.TransactionType'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType'
     type: object
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.SegmentContext:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.SegmentContext:
     properties:
       metadata:
         additionalProperties: {}
@@ -448,7 +448,7 @@ definitions:
         format: uuid
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.TransactionType:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType:
     enum:
     - CARD
     - WIRE
@@ -460,10 +460,10 @@ definitions:
     - TransactionTypeWire
     - TransactionTypePix
     - TransactionTypeCrypto
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.TransactionValidation:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionValidation:
     properties:
       account:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AccountContext'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AccountContext'
       amount:
         example: "100.00"
         type: string
@@ -473,7 +473,7 @@ definitions:
       currency:
         type: string
       decision:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Decision'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision'
       evaluatedRuleIds:
         items:
           format: uuid
@@ -481,7 +481,7 @@ definitions:
         type: array
       limitUsageDetails:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitUsageDetail'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitUsageDetail'
         type: array
       matchedRuleIds:
         items:
@@ -489,12 +489,12 @@ definitions:
           type: string
         type: array
       merchant:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.MerchantContext'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.MerchantContext'
       metadata:
         additionalProperties: {}
         type: object
       portfolio:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.PortfolioContext'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.PortfolioContext'
       processingTimeMs:
         type: number
       reason:
@@ -503,7 +503,7 @@ definitions:
         format: uuid
         type: string
       segment:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.SegmentContext'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.SegmentContext'
       subType:
         description: SubType is stored in its lowercase canonical form; matching is
           case-insensitive.
@@ -516,14 +516,14 @@ definitions:
         format: date-time
         type: string
       transactionType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.TransactionType'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType'
       truncated:
         type: boolean
       validationId:
         format: uuid
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.UsageSnapshot:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.UsageSnapshot:
     properties:
       currentUsage:
         description: Current usage amount (sum of all counters)
@@ -550,27 +550,27 @@ definitions:
         example: 50
         type: number
     type: object
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ValidationRequest:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationRequest:
     properties:
       account:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AccountContext'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AccountContext'
       amount:
         example: "100.00"
         type: string
       currency:
         type: string
       merchant:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.MerchantContext'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.MerchantContext'
       metadata:
         additionalProperties: {}
         type: object
       portfolio:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.PortfolioContext'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.PortfolioContext'
       requestId:
         format: uuid
         type: string
       segment:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.SegmentContext'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.SegmentContext'
       subType:
         description: SubType is normalized to lowercase canonical form; matching is
           case-insensitive.
@@ -581,7 +581,7 @@ definitions:
         format: date-time
         type: string
       transactionType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.TransactionType'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType'
     required:
     - account
     - amount
@@ -590,14 +590,14 @@ definitions:
     - transactionTimestamp
     - transactionType
     type: object
-  github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ValidationResponse:
+  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationResponse:
     properties:
       evaluatedAt:
         format: date-time
         type: string
       limitUsageDetails:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitUsageDetail'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitUsageDetail'
         type: array
       processingTimeMs:
         type: number
@@ -633,7 +633,7 @@ definitions:
         maxLength: 1000
         type: string
       limitType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitType'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitType'
       maxAmount:
         example: "1000.00"
         type: string
@@ -643,7 +643,7 @@ definitions:
         type: string
       scopes:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Scope'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
         maxItems: 100
         minItems: 1
         type: array
@@ -657,7 +657,7 @@ definitions:
   internal_adapters_http_in.CreateRuleInput:
     properties:
       action:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Decision'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision'
       description:
         maxLength: 1000
         type: string
@@ -671,7 +671,7 @@ definitions:
         type: string
       scopes:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Scope'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
         maxItems: 100
         type: array
     required:
@@ -683,7 +683,7 @@ definitions:
     properties:
       auditEvents:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AuditEvent'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEvent'
         maxItems: 1000
         type: array
       hasMore:
@@ -697,7 +697,7 @@ definitions:
         type: boolean
       limits:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
         type: array
       nextCursor:
         type: string
@@ -710,7 +710,7 @@ definitions:
         type: string
       rules:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
         type: array
     type: object
   internal_adapters_http_in.ListTransactionValidationsResponse:
@@ -804,7 +804,7 @@ definitions:
         type: string
       scopes:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Scope'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
         maxItems: 100
         minItems: 1
         type: array
@@ -812,7 +812,7 @@ definitions:
   internal_adapters_http_in.UpdateRuleInput:
     properties:
       action:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Decision'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision'
       description:
         maxLength: 1000
         type: string
@@ -826,7 +826,7 @@ definitions:
         type: string
       scopes:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Scope'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
         maxItems: 100
         type: array
     type: object
@@ -844,7 +844,7 @@ definitions:
       currency:
         type: string
       decision:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Decision'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision'
       exceededLimitIds:
         items:
           format: uuid
@@ -866,7 +866,7 @@ definitions:
         format: uuid
         type: string
       transactionType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.TransactionType'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType'
       validationId:
         format: uuid
         type: string
@@ -1100,7 +1100,7 @@ paths:
         "200":
           description: Audit event retrieved successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AuditEvent'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEvent'
         "400":
           description: Invalid event ID
           schema:
@@ -1142,7 +1142,7 @@ paths:
         "200":
           description: Hash chain verification completed
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.HashChainVerificationResult'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.HashChainVerificationResult'
         "400":
           description: Invalid event ID
           schema:
@@ -1298,7 +1298,7 @@ paths:
         "201":
           description: Limit created successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
         "400":
           description: Invalid input
           schema:
@@ -1378,7 +1378,7 @@ paths:
         "200":
           description: Limit retrieved successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
         "400":
           description: Invalid limit ID
           schema:
@@ -1425,7 +1425,7 @@ paths:
         "200":
           description: Limit updated successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
         "400":
           description: Invalid input
           schema:
@@ -1470,7 +1470,7 @@ paths:
         "200":
           description: Limit activated successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
         "400":
           description: Invalid limit ID or transition
           schema:
@@ -1511,7 +1511,7 @@ paths:
         "200":
           description: Limit deactivated successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
         "400":
           description: Invalid limit ID or transition
           schema:
@@ -1553,7 +1553,7 @@ paths:
         "200":
           description: Limit transitioned to draft successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
         "400":
           description: Invalid limit ID or transition
           schema:
@@ -1595,7 +1595,7 @@ paths:
         "200":
           description: Usage snapshot retrieved successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.UsageSnapshot'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.UsageSnapshot'
         "400":
           description: Invalid limit ID
           schema:
@@ -1941,7 +1941,7 @@ paths:
         "201":
           description: Rule created successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
         "400":
           description: Invalid input
           schema:
@@ -2021,7 +2021,7 @@ paths:
         "200":
           description: Rule retrieved successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
         "400":
           description: Invalid rule ID
           schema:
@@ -2068,7 +2068,7 @@ paths:
         "200":
           description: Rule updated successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
         "400":
           description: Invalid input
           schema:
@@ -2114,7 +2114,7 @@ paths:
         "200":
           description: Rule activated successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
         "400":
           description: Invalid rule ID or transition
           schema:
@@ -2155,7 +2155,7 @@ paths:
         "200":
           description: Rule deactivated successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
         "400":
           description: Invalid rule ID or transition
           schema:
@@ -2197,7 +2197,7 @@ paths:
         "200":
           description: Rule transitioned to draft successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
         "400":
           description: Invalid rule ID or transition
           schema:
@@ -2338,18 +2338,18 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ValidationRequest'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationRequest'
       produces:
       - application/json
       responses:
         "200":
           description: Duplicate request (idempotent)
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ValidationResponse'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationResponse'
         "201":
           description: New validation created
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ValidationResponse'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationResponse'
         "400":
           description: Invalid input
           schema:
@@ -2398,7 +2398,7 @@ paths:
         "200":
           description: Transaction validation retrieved successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.TransactionValidation'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionValidation'
         "400":
           description: Invalid transaction validation ID
           schema:

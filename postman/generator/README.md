@@ -1,26 +1,29 @@
-# Workflow Generator - Simplified Modular Architecture
+# Postman Generator
 
-## Overview
+Tooling for the Midaz API documentation hub. This directory converts each
+service's OpenAPI spec into a single merged Postman collection and environment,
+and builds the ledger end-to-end workflow folder.
 
-This is the Midaz API Workflow Generator: a simplified, modular implementation built for maintainability, debugging, and extensibility.
+Normal usage is via the root target:
 
-### Key Benefits
+```bash
+make generate-docs
+```
 
-- **30% Reduction in Lines of Code**: From 896 to ~600 lines in core logic
-- **Modular Architecture**: Separate concerns with dedicated classes
-- **Configuration-Driven**: All hardcoded values moved to config files
-- **Enhanced Error Handling**: Comprehensive validation and error reporting
-- **Preserved Business Logic**: Critical dependency chains maintained exactly
+which runs `generate-docs.sh` here. The pieces below document the tooling for
+maintainers.
 
-## Architecture
-
-### Core Components
+## Components
 
 ```
-scripts/postman-coll-generation/
-├── create-workflow.js             # Main entry point (npm run workflow)
+postman/generator/
+├── generate-docs.sh               # Orchestrator: swag -> openapi -> publish specs -> postman
+├── sync-postman.sh                # Converts published specs and merges the collection
+├── convert-openapi.js             # Per-spec OpenAPI -> Postman converter (+ env template)
+├── enhance-tests.js               # Adds test scripts to requests
+├── create-workflow.js             # Main entry point for the workflow folder (npm run workflow)
 ├── config/
-│   └── workflow.config.js         # Centralized configuration
+│   └── workflow.config.js         # Centralized workflow configuration
 └── lib/
     ├── workflow-processor.js      # Main orchestration
     ├── markdown-parser.js         # Markdown parsing & validation
@@ -30,26 +33,38 @@ scripts/postman-coll-generation/
     └── request-body-generator.js  # Transaction body templates
 ```
 
+## Scope
+
+`generate-docs.sh` and `sync-postman.sh` cover **ledger, tracer and
+reporter-manager**. The ledger spec is primary; tracer and reporter-manager
+contribute their own folders to the merged collection.
+
+The **workflow generator** (`create-workflow.js`, `config/`, `lib/`) is
+**ledger-only by design**: it consumes `postman/WORKFLOW.md` (the ledger
+end-to-end flow) and produces the "Complete API Workflow" folder. Tracer and
+reporter-manager are documented as plain endpoint folders without a scripted
+workflow.
+
 ## Usage
 
-### Direct Usage
+### Workflow folder generation
+
 ```bash
 node create-workflow.js input.json WORKFLOW.md output.json
-```
-
-Or via the npm script:
-```bash
+# or
 npm run workflow input.json WORKFLOW.md output.json
 ```
 
-### Environment Variables
-- `DEBUG=true/false` - Enable debug output
+### Environment variables
+
+- `DEBUG=true/false` — enable debug output
 
 ## Configuration
 
-All configuration is centralized in `config/workflow.config.js`:
+All workflow configuration is centralized in `config/workflow.config.js`.
 
-### API Pattern Management
+### API pattern management
+
 ```javascript
 apiPatterns: {
   pathCorrections: [
@@ -62,7 +77,8 @@ apiPatterns: {
 }
 ```
 
-### Variable Mapping
+### Variable mapping
+
 ```javascript
 variables: {
   mapping: {
@@ -82,7 +98,8 @@ variables: {
 }
 ```
 
-### Transaction Templates
+### Transaction templates
+
 ```javascript
 transactions: {
   templates: {
@@ -96,7 +113,8 @@ transactions: {
 
 ## Testing
 
-### Run the Generated Collection
+### Run the generated collection
+
 ```bash
 npm run test:collection
 ```
@@ -104,42 +122,47 @@ npm run test:collection
 This delegates to `make newman` at the repo root, which runs the generated
 collection (`postman/MIDAZ.postman_collection.json`) against the configured
 environment. For verbose output of just the workflow folder:
+
 ```bash
 npm run test:collection:verbose
 ```
 
-### Validate Collection/Environment JSON
+### Validate collection/environment JSON
+
 ```bash
 npm run validate:all
 ```
 
-## Critical Preserved Logic
+## Critical preserved logic (workflow generator)
 
-### 1. Dependency Chain Integrity
-The exact variable dependency chain is preserved:
+### 1. Dependency chain integrity
+
+The ledger workflow's variable dependency chain is preserved:
+
 ```
-Step 1 → organizationId
-Step 5 → ledgerId (uses organizationId)
-Step 13 → accountId (uses organizationId, ledgerId)
-Step 48 → currentBalanceAmount (reads balance)
-Step 49 → Zero Out (uses currentBalanceAmount)
+organizationId -> ledgerId -> accountId -> currentBalanceAmount -> Zero Out
 ```
 
-### 2. Balance Zeroing Pattern (IMMUTABLE)
-Steps 48-49 implement critical accounting pattern that CANNOT be modified:
-- Step 48: Extract `Math.abs(balance.available)` → `currentBalanceAmount`
-- Step 49: Create reverse transaction using exact extracted amount
+### 2. Balance zeroing pattern (IMMUTABLE)
 
-### 3. Transaction Type Differentiation
-Three distinct transaction patterns maintained:
-- **JSON**: Explicit source and destination
-- **Inflow**: Money coming in (no source)
-- **Outflow**: Money going out (no destination)
+The balance zero-out steps implement a critical accounting pattern that must not
+be modified:
+
+- Extract `Math.abs(balance.available)` -> `currentBalanceAmount`
+- Create a reverse transaction using the exact extracted amount
+
+### 3. Transaction type differentiation
+
+Three distinct transaction patterns are maintained:
+
+- **JSON**: explicit source and destination
+- **Inflow**: money coming in (no source)
+- **Outflow**: money going out (no destination)
 
 ## Debugging
 
-### Enhanced Logging
-The generator provides detailed logging:
+### Enhanced logging
+
 ```
 Searching for: POST /v1/organizations
    Generated 2 alternative paths:
@@ -148,8 +171,8 @@ Searching for: POST /v1/organizations
 Selected: Create Organization
 ```
 
-### Error Context
-Comprehensive error reporting with context:
+### Error context
+
 ```javascript
 if (error instanceof ValidationError) {
   error.issues.forEach(issue => {
@@ -158,30 +181,10 @@ if (error instanceof ValidationError) {
 }
 ```
 
-### Statistics
-Processing statistics for optimization:
-```javascript
-const stats = processor.getStatistics();
-// matcherStats: success rates, failed requests
-// variableMapperStats: mapping coverage
-```
+## Extending the system
 
-## Performance
+### Adding new path corrections
 
-### Optimizations
-- **Reduced Complexity**: Cyclomatic complexity from 45 to ~15
-- **Efficient Matching**: Path alternatives generated once, reused
-- **Memory Management**: Proper object cloning and cleanup
-- **Early Termination**: Stop processing on critical errors
-
-### Metrics
-- **Processing Time**: < 10% increase over original
-- **Memory Usage**: Reduced due to modular architecture
-- **Code Maintainability**: Improved
-
-## Extending the System
-
-### Adding New Path Corrections
 ```javascript
 // In config/workflow.config.js
 pathCorrections: [
@@ -193,7 +196,8 @@ pathCorrections: [
 ]
 ```
 
-### Adding Transaction Types
+### Adding transaction types
+
 ```javascript
 // In config/workflow.config.js
 transactions: {
@@ -208,38 +212,9 @@ if (step.path.includes('/transactions/newtype')) {
 }
 ```
 
-### Custom Validation Rules
-```javascript
-// In lib/markdown-parser.js
-validateCustomRules(steps, issues) {
-  // Add custom validation logic
-}
-```
-
-## Validation Checklist
-
-Before deploying to production:
-
-- [ ] Run the generated collection: `npm run test:collection`
-- [ ] Validate collection/environment JSON: `npm run validate:all`
-- [ ] Test with actual collection and workflow files
-- [ ] Verify zero-out balance logic produces identical transactions
-- [ ] Check all 56 workflow steps are generated correctly
-- [ ] Validate dependency chains are preserved
-- [ ] Confirm enhanced test scripts work in Postman
-
-## Critical Warnings
+## Critical warnings
 
 1. **DO NOT MODIFY** the balance zeroing templates without extensive testing
 2. **DO NOT CHANGE** variable names in the dependency chain
-3. **ALWAYS RUN** the generated collection (`npm run test:collection`) before deployment
-4. **TEST THOROUGHLY** with production data before switching
-
-## Support
-
-For issues or questions:
-1. Check the debug output with `DEBUG=true`
-2. Run the generated collection (`npm run test:collection`) to identify the issue
-3. Review the configuration for missing patterns
-
-The modular architecture makes it easy to isolate and fix issues in specific components without affecting the entire system.
+3. **ALWAYS RUN** the generated collection (`npm run test:collection`) before relying on it
+4. `postman/WORKFLOW.md` is DO-NOT-MODIFY — it is the source of truth for the ledger workflow

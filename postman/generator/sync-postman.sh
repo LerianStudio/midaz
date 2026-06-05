@@ -13,16 +13,19 @@ set -e
 # 3. Optimized JSON merging
 # 4. Skip unnecessary dependency checks
 
-# Define paths
-MIDAZ_ROOT=$(pwd)
-SCRIPTS_DIR="${MIDAZ_ROOT}/scripts/postman-coll-generation"
+# Define paths (this script lives in postman/generator/)
+SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MIDAZ_ROOT="$(cd "${SCRIPTS_DIR}/../.." && pwd)"
 CONVERTER="${SCRIPTS_DIR}/convert-openapi.js"
 POSTMAN_DIR="${MIDAZ_ROOT}/postman"
-TEMP_DIR="${MIDAZ_ROOT}/postman/temp"
-LEDGER_API="${MIDAZ_ROOT}/components/ledger/api"
+TEMP_DIR="${POSTMAN_DIR}/temp"
+SPECS_DIR="${POSTMAN_DIR}/specs"
 POSTMAN_COLLECTION="${POSTMAN_DIR}/MIDAZ.postman_collection.json"
 POSTMAN_ENVIRONMENT="${POSTMAN_DIR}/MIDAZ.postman_environment.json"
 BACKUP_DIR="${POSTMAN_DIR}/backups"
+
+# Components merged into the unified MIDAZ collection (ledger is primary)
+COMPONENTS=("ledger" "tracer" "reporter-manager")
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -65,11 +68,11 @@ convert_component() {
     local output_collection="${TEMP_DIR}/${component}.postman_collection.json"
     local output_env="${TEMP_DIR}/${component}.environment.json"
     local status_file="${TEMP_DIR}/${component}.status"
-    
+
     {
         if [ -f "${input_file}" ]; then
             echo "Processing ${component}..." >&2
-            if node "${CONVERTER}" "${input_file}" "${output_collection}" --env "${output_env}" 2>"${TEMP_DIR}/${component}.err"; then
+            if node "${CONVERTER}" "${input_file}" "${output_collection}" --env "${output_env}" --component "${component}" 2>"${TEMP_DIR}/${component}.err"; then
                 echo "SUCCESS" > "${status_file}"
             else
                 echo "FAILED" > "${status_file}"
@@ -84,16 +87,21 @@ convert_component() {
 
 echo "Converting OpenAPI specs to Postman collections..."
 
-# Process components in parallel
-convert_component "ledger" "${LEDGER_API}/swagger.json"
-LEDGER_PID=$!
+# Process all components in parallel from their published specs
+declare -a CONVERT_PIDS=()
+for component in "${COMPONENTS[@]}"; do
+    convert_component "${component}" "${SPECS_DIR}/${component}/swagger.json"
+    CONVERT_PIDS+=("$!")
+done
 
 # Wait for all conversions to complete
 set +e
-wait "$LEDGER_PID"
+for pid in "${CONVERT_PIDS[@]}"; do
+    wait "${pid}"
+done
 set -e
 
-# Check conversion results
+# Check ledger conversion result (ledger is the required primary collection)
 LEDGER_STATUS=$(cat "${TEMP_DIR}/ledger.status" 2>/dev/null || echo "FAILED")
 
 # Function to merge multiple collections efficiently
@@ -102,7 +110,7 @@ merge_all_collections() {
     local -a environments=()
 
     # Collect all successful collections and environments
-    for component in ledger; do
+    for component in "${COMPONENTS[@]}"; do
         local status=$(cat "${TEMP_DIR}/${component}.status" 2>/dev/null || echo "FAILED")
         if [ "$status" != "SUCCESS" ]; then
             echo "Skipping ${component}: conversion status is ${status}"

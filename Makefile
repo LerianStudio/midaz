@@ -571,7 +571,7 @@ all-components:
 
 .PHONY: generate-docs
 generate-docs:
-	@./scripts/generate-docs.sh
+	@./postman/generator/generate-docs.sh
 
 #-------------------------------------------------------
 # Developer Helper Commands

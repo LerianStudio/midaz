@@ -114,11 +114,11 @@ Before sending a pull request, ensure that:
 
 - Fork the midaz repo on GitHub, clone it on your machine.
 - Create a feature or fix branch with your changes.
-- You are working against the latest source on the `main` branch.
+- You are working against the latest source on the `develop` branch (we follow GitFlow: PRs target `develop`).
 - Modify the source. Focus only on the specific change you are contributing.
 - Ensure local tests pass.
 - Commit to your fork using clear commit messages.
 - Send us a pull request, answering any default questions in the pull request interface.
 - Pay attention to any automated CI failures reported in the pull request, and stay involved in the conversation
-- Once you've pushed your commits to GitHub, make sure that your branch can be auto-merged (there are no merge conflicts). If not, on your computer, merge main into your branch, resolve any merge conflicts, make sure everything still runs correctly and passes all the tests, and then push up those changes.
+- Once you've pushed your commits to GitHub, make sure that your branch can be auto-merged (there are no merge conflicts). If not, on your computer, merge `develop` into your branch, resolve any merge conflicts, make sure everything still runs correctly and passes all the tests, and then push up those changes.
 - Once the change has been approved and merged, we will inform you in a comment.

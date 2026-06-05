@@ -27,7 +27,7 @@ MIDAZ
  |   |   |---   internal
  |   |   |   |---   adapters
  |   |   |   |   |---   http
- |   |   |   |   |   |---   in     # Fiber handlers + routes (incl. fees_routes.go)
+ |   |   |   |   |   |---   in     # Fiber handlers + routes (incl. CRM holder/instrument + fees_routes.go)
  |   |   |   |   |---   mongodb    # metadata + fees repositories
  |   |   |   |   |---   postgres   # onboarding + transaction repositories
  |   |   |   |   |---   rabbitmq
@@ -43,13 +43,10 @@ MIDAZ
  |   |   |   |---   feeshared      # embedded fee shared types/constants (plugin-fees)
  |   |---   crm                    # PACKAGE TREE (not a deploy unit) — imported by ledger
  |   |   |---   adapters
- |   |   |   |---   http
- |   |   |   |   |---   in         # holder/instrument handlers + routes (midaz namespace)
- |   |   |   |---   mongodb
+ |   |   |   |---   mongodb        # CRM persistence (only adapter in the package tree)
  |   |   |   |   |---   holder
  |   |   |   |   |---   instrument
- |   |   |   |---   api
- |   |   |   |---   services
+ |   |   |   |---   services       # holder/instrument command/query use cases
  |   |---   tracer                 # DEPLOY UNIT :4020
  |   |   |---   api
  |   |   |---   cmd
@@ -124,14 +121,18 @@ transaction, `initCRM`, and fees).
 ##### CRM (`./components/crm`) — package tree, NOT a deploy unit
 
 CRM was lifted out of `internal/` so the ledger binary can import it across the component
-boundary. It has **no** `cmd/` and **no** standalone binary.
+boundary. It has **no** `cmd/`, **no** standalone binary, and **no** HTTP or API tree of its
+own — the package tree holds only persistence and use cases:
 
-* **Adapters** (`./components/crm/adapters`):
-  * **HTTP** (`./adapters/http/in`): holder/instrument handlers + `routes.go`, registered into the
-    ledger Fiber app. Authorizes under the `midaz` namespace.
-  * **MongoDB** (`./adapters/mongodb/{holder,instrument}`): CRM persistence.
+* **Adapters** (`./components/crm/adapters/mongodb/{holder,instrument}`): CRM persistence (the
+  only adapter in the package tree).
 * **Services** (`./components/crm/services`): holder/instrument command/query use cases.
-* **API** (`./components/crm/api`): CRM OpenAPI/Swagger specs.
+
+The entire CRM HTTP surface lives in the ledger tree under
+`components/ledger/internal/adapters/http/in/`: `crm_routes.go` (holder/instrument registration,
+`midaz` namespace), `composition_routes.go` (holder↔account composition), and the
+`holder.go`, `holder_accounts.go`, and `instrument.go` handlers. CRM endpoints are folded into
+the ledger Swagger spec (`components/ledger/api`); there is no separate CRM OpenAPI spec.
 
 CRM scopes requests by the `X-Organization-Id` HTTP header (not path-based org hierarchy) — see
 `docs/api/SCOPING.md` (R22). CRM error responses now carry canonical midaz codes; the legacy
@@ -175,7 +176,7 @@ Cross-component Go libraries (root module):
 | Package | Purpose |
 |---------|---------|
 | `pkg/mmodel` | Domain models (Organization, Ledger, Account, Asset, Transaction, Balance, Holder, Instrument, etc.) |
-| `pkg/constant` | Error codes (`errors.go`, ledger `0001`–`0175` + 16 `CRM-00xx`), entity/action/module constants |
+| `pkg/constant` | Error codes (`errors.go`, ledger `0001`–`0178` + 16 `CRM-00xx`), entity/action/module constants |
 | `pkg/gold` | ANTLR4 Gold DSL grammar + parser for transactions |
 | `pkg/mtransaction` | Transaction processing utilities (formerly `pkg/transaction`) |
 | `pkg/net` | HTTP middleware, pagination, protected-route helpers |

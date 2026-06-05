@@ -44,8 +44,9 @@ The shared infrastructure must be running first (see [`components/infra`](../inf
 make build           # build the binary into ./.bin
 make test            # run tests
 make lint            # run golangci-lint
-make generate-docs   # regenerate Swagger docs into ./api
 ```
+
+API docs are generated from the repo root with `make generate-docs` (covers ledger, tracer, and reporter-manager, refreshing each `./api` spec).
 
 The Swagger spec declares host `localhost:4005`.
 

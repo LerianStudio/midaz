@@ -20,8 +20,7 @@ import (
 // These tests round-trip high-precision decimals through the two real
 // serialization seams that the persisted transaction body and the async
 // (RabbitMQ) recovery payload pass through, and assert decimal.Equal on the
-// way back. They lock the "no lossy boundary" finding documented in
-// docs/monorepo/plan/artifacts/P4-decimal-precision-boundary.md: both codecs
+// way back. They lock the "no lossy boundary" guarantee: both codecs
 // route decimal.Decimal through its full string representation, so neither
 // truncates. The Postgres amount column is unbounded DECIMAL and out of scope.
 

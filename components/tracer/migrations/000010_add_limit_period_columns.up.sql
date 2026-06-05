@@ -17,7 +17,7 @@ ALTER TABLE limits ADD COLUMN IF NOT EXISTS custom_end_date TIMESTAMP WITH TIME 
 --
 -- PostgreSQL has no ADD CONSTRAINT IF NOT EXISTS, so each ADD CONSTRAINT is
 -- gated by a pg_constraint lookup. This is required by the Migration Renumbering
--- Invariant (docs/PROJECT_RULES.md) so the file can replay safely on a database
+-- Invariant (docs/tracer/INVARIANTS.md) so the file can replay safely on a database
 -- where the constraints already exist (origin/develop → HEAD upgrade path).
 --
 -- Note: we do NOT re-introduce NOT VALID on chk_limits_custom_dates_required.

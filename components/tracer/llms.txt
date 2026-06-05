@@ -8,7 +8,8 @@ Tracer provides instant ALLOW/DENY/REVIEW decisions for financial transactions. 
 
 - [README](README.md): Project overview, getting started, API examples, architecture diagram
 - [License](LICENSE): Elastic License 2.0
-- [Project Rules](docs/PROJECT_RULES.md): Architecture patterns, coding conventions, testing standards
+- [Project Rules](../../docs/PROJECT_RULES.md): Monorepo-wide architecture patterns, coding conventions, testing standards
+- [Tracer Invariants](../../docs/tracer/INVARIANTS.md): Tracer-specific invariants — CEL conventions, hash-chained audit, migration renumbering, latency budget
 
 ## AI Agent Guides
 

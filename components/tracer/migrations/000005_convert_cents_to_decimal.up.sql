@@ -18,7 +18,7 @@
 -- data_type check against information_schema.columns. Running divide-by-100
 -- twice would silently corrupt financial records (SOX/GLBA catastrophic
 -- violation), so the conversion must execute ONLY when the column is still
--- bigint. Required by the Migration Renumbering Invariant (docs/PROJECT_RULES.md).
+-- bigint. Required by the Migration Renumbering Invariant (docs/tracer/INVARIANTS.md).
 -- COMMENT ON COLUMN is naturally idempotent and stays outside the guard.
 
 -- limits.max_amount

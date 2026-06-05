@@ -1121,7 +1121,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template'
+                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template'
           description: OK
         "400":
           content:
@@ -1602,7 +1602,7 @@ components:
           example: 2026-01-01T00:00:00Z
           type: string
       type: object
-    github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template:
+    github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template:
       example:
         createdAt: 2021-01-01T00:00:00Z
         fileName: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
@@ -2360,7 +2360,7 @@ components:
       - properties:
           items:
             items:
-              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template'
+              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template'
             type: array
           limit:
             type: integer

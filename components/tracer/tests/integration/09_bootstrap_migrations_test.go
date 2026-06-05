@@ -43,7 +43,7 @@ import (
 //     row without supplying a hash must yield a populated event_hash.
 //  5. A second libPostgres.NewMigrator.Up on an already-migrated DB is a no-op
 //     (idempotent replay invariant — second pillar of the Migration
-//     Renumbering Invariant in docs/PROJECT_RULES.md).
+//     Renumbering Invariant in docs/tracer/INVARIANTS.md).
 func TestBootstrapAppliesAllMigrations(t *testing.T) {
 	// Parent ctx bounds the non-migration work only (DB asserts, queries,
 	// subtest cleanup). Each migrator.Up() call below derives its own
@@ -205,7 +205,7 @@ func TestBootstrapAppliesAllMigrations(t *testing.T) {
 	// Shared suite DB; no t.Parallel() — see file-level note above.
 	t.Run("idempotent_replay_on_already_migrated_db", func(t *testing.T) {
 		// Second pillar of the Migration Renumbering Invariant (see
-		// docs/PROJECT_RULES.md): a second Up() on a fully-migrated DB must be
+		// docs/tracer/INVARIANTS.md): a second Up() on a fully-migrated DB must be
 		// a clean no-op. We build a brand-new libPostgres.NewMigrator against
 		// the same suite DSN (simulating a process restart) and assert:
 		//   - Up() returns nil

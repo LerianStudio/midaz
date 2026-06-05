@@ -17,8 +17,7 @@ import (
 // with Data JSON (map[string]any) under the bson:"metadata" tag, encoded by the
 // go.mongodb.org/mongo-driver/v2 bson codec. These tests round-trip
 // high-precision decimal-derived values through the real bson codec and assert
-// decimal.Equal, locking the "no lossy boundary" finding documented in
-// docs/monorepo/plan/artifacts/P4-decimal-precision-boundary.md.
+// decimal.Equal, locking the "no lossy boundary" guarantee for this seam.
 //
 // IMPORTANT: bson has no native arbitrary-precision decimal type that
 // decimal.Decimal marshals to automatically (its fields are unexported, so a

@@ -54,7 +54,7 @@ install_swag() {
     
     if ! command_exists swag; then
         echo "  Installing swag tool..."
-        go install github.com/swaggo/swag/cmd/swag@latest
+        go install github.com/swaggo/swag/cmd/swag@v1.16.6
         echo "  ✅ swag installed"
     else
         echo "  ✅ swag available"
@@ -65,7 +65,7 @@ install_swag() {
 install_node_dependencies() {
     echo "Installing Node.js dependencies..."
     
-    local postman_dir="${ROOT_DIR}/scripts/postman-coll-generation"
+    local postman_dir="${ROOT_DIR}/postman/generator"
     
     if [ ! -f "$postman_dir/package.json" ]; then
         echo "❌ package.json not found in $postman_dir"

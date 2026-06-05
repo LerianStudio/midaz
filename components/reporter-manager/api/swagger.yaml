@@ -264,7 +264,7 @@ definitions:
         example: "2026-01-01T00:00:00Z"
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template:
+  github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template:
     properties:
       createdAt:
         example: "2021-01-01T00:00:00Z"
@@ -1300,7 +1300,7 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template'
+                    $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template'
                   type: array
                 limit:
                   type: integer
@@ -1435,7 +1435,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_reporter_mongodb_template.Template'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template'
         "400":
           description: Bad Request
           schema:

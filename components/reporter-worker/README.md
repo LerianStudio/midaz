@@ -1,6 +1,6 @@
 # Reporter Worker
 
-Reporter Worker is the asynchronous report generator for Midaz's reporting subsystem. It is a RabbitMQ consumer, not a REST service: it pulls generation jobs off the queue, renders reports (HTML, CSV, JSON), optionally converts them to PDF, and stores the artifacts in S3-compatible object storage. Its only HTTP surface is a bare `net/http` health server.
+Reporter Worker is the asynchronous report generator for Midaz's reporting subsystem. It is a RabbitMQ consumer, not a REST service: it pulls generation jobs off the queue, renders reports in the requested output format (HTML, PDF, CSV, XML, TXT — PDF is produced by converting rendered HTML via headless Chromium), and stores the artifacts in S3-compatible object storage. Its only HTTP surface is a bare `net/http` health server.
 
 ## How It Fits
 
@@ -13,7 +13,7 @@ Reporter Worker is the asynchronous report generator for Midaz's reporting subsy
 ## Key Behaviors
 
 - Consumes generation jobs from the RabbitMQ queue `reporter.generate-report.queue` (exchange `reporter.generate-report.exchange`, routing key `reporter.generate-report.key`); failures route to the dead-letter queue `reporter.dlq`.
-- Renders report output as HTML, CSV, or JSON; when the job requests PDF, converts the rendered HTML via a pooled `chromedp` worker set.
+- Renders report output as HTML, CSV, XML, or TXT; when the job requests PDF, converts the rendered HTML via a pooled `chromedp` worker set.
 - Uploads finished artifacts to the S3-compatible store (bucket `reporter-storage`).
 - Reads ledger/onboarding data either via read-only Postgres queries (`FETCHER_ENABLED=false`, single-tenant only) or via an external Fetcher service (`FETCHER_ENABLED=true`). Multi-tenant mode requires Fetcher mode.
 

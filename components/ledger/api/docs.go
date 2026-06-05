@@ -88,7 +88,7 @@ const docTemplate = `{
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage"
+                                                "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage"
                                             }
                                         },
                                         "limit": {
@@ -163,7 +163,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage"
                         }
                     }
                 ],
@@ -171,7 +171,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage"
                         }
                     },
                     "400": {
@@ -243,7 +243,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage"
                         }
                     },
                     "400": {
@@ -381,7 +381,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackageUpdate"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackageUpdate"
                         }
                     }
                 ],
@@ -389,7 +389,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage"
                         }
                     },
                     "400": {
@@ -464,7 +464,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateRequest"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateRequest"
                         }
                     }
                 ],
@@ -472,7 +472,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateResponse"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateResponse"
                         }
                     },
                     "400": {
@@ -676,7 +676,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -1387,7 +1387,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -1483,25 +1483,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg.HTTPError"
                         }
                     },
                     "422": {
                         "description": "Unprocessable Entity",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg.HTTPError"
                         }
                     }
                 }
@@ -1634,7 +1634,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -1772,7 +1772,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -2239,7 +2239,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -2750,7 +2750,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -3287,7 +3287,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -3560,7 +3560,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -3733,7 +3733,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -4185,7 +4185,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -4539,7 +4539,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -4860,7 +4860,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -5077,7 +5077,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -5622,7 +5622,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -6090,7 +6090,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -6552,7 +6552,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -7113,7 +7113,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -7821,7 +7821,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -8285,7 +8285,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -9532,7 +9532,7 @@ const docTemplate = `{
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package"
+                                                "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package"
                                             }
                                         },
                                         "limit": {
@@ -9621,7 +9621,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package"
                         }
                     },
                     "400": {
@@ -9699,7 +9699,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package"
                         }
                     },
                     "400": {
@@ -9845,7 +9845,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package"
                         }
                     },
                     "400": {
@@ -13763,7 +13763,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package": {
+        "github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package": {
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -13833,7 +13833,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.AccountTarget": {
+        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.AccountTarget": {
             "type": "object",
             "properties": {
                 "aliases": {
@@ -13850,7 +13850,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateRequest": {
+        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateRequest": {
             "type": "object",
             "required": [
                 "ledgerId",
@@ -13870,21 +13870,21 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateResponse": {
+        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateResponse": {
             "type": "object",
             "properties": {
                 "results": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculationResult"
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculationResult"
                     }
                 },
                 "summary": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateSummary"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateSummary"
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateSummary": {
+        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateSummary": {
             "type": "object",
             "properties": {
                 "totalMaintenance": {
@@ -13902,7 +13902,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculationResult": {
+        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculationResult": {
             "type": "object",
             "properties": {
                 "billingPackageId": {
@@ -13939,11 +13939,11 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage": {
+        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage": {
             "type": "object",
             "properties": {
                 "accountTarget": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.AccountTarget"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.AccountTarget"
                 },
                 "assetCode": {
                     "type": "string"
@@ -13970,7 +13970,7 @@ const docTemplate = `{
                 "discountTiers": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.DiscountTier"
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.DiscountTier"
                     }
                 },
                 "enable": {
@@ -13980,7 +13980,7 @@ const docTemplate = `{
                     "description": "Volume-specific fields.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.EventFilter"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.EventFilter"
                         }
                     ]
                 },
@@ -14013,7 +14013,7 @@ const docTemplate = `{
                 "tiers": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.PricingTier"
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.PricingTier"
                     }
                 },
                 "type": {
@@ -14024,7 +14024,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackageUpdate": {
+        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackageUpdate": {
             "type": "object",
             "properties": {
                 "description": {
@@ -14038,7 +14038,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.DiscountTier": {
+        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.DiscountTier": {
             "type": "object",
             "properties": {
                 "discountPercentage": {
@@ -14050,7 +14050,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.EventFilter": {
+        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.EventFilter": {
             "type": "object",
             "properties": {
                 "status": {
@@ -14061,7 +14061,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.PricingTier": {
+        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.PricingTier": {
             "type": "object",
             "properties": {
                 "maxQuantity": {
@@ -14076,7 +14076,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_pkg.HTTPError": {
+        "github_com_LerianStudio_midaz_v4_pkg.HTTPError": {
             "type": "object",
             "properties": {
                 "code": {
@@ -14094,7 +14094,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination": {
+        "github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination": {
             "type": "object",
             "properties": {
                 "items": {},

@@ -22,7 +22,7 @@ Readiness: `GET http://localhost:4020/readyz`
 | **Component** | Co-located deploy unit in the `midaz` monorepo (module `github.com/LerianStudio/midaz/v4`, single root `go.mod`, no own `go.mod`) |
 | **Language** | Go (root `go.mod`: `go 1.26.3`, toolchain `go1.26.4`; Dockerfile builder: `golang:1.26.3-alpine`) |
 | **Architecture** | Hexagonal (Ports & Adapters) + CQRS |
-| **Database** | PostgreSQL 16 |
+| **Database** | PostgreSQL 17 |
 | **Rule Engine** | Google CEL (cel-go v0.28.1) |
 | **Auth** | lib-auth v2 (API Key + Access Manager plugin) |
 | **Observability** | OpenTelemetry via lib-observability |
@@ -79,9 +79,7 @@ make sec              # gosec + govulncheck security scan
 make sec SARIF=1      # SARIF output for GitHub Security tab
 make quality          # lint + test aggregator
 make generate         # go generate (mocks via mockgen)
-make generate-docs    # Generate Swagger/OpenAPI docs to api/ (uses swaggo/swag under the hood)
-make verify-api-docs  # Check annotation coverage
-make validate-api-docs # Validate generated OpenAPI spec
+make generate-docs    # Generate Swagger/OpenAPI docs (run from repo root; covers ledger, tracer, reporter-manager)
 ```
 
 ### Docker
@@ -210,7 +208,7 @@ tracer/
 ├── tests/
 │   ├── integration/               # 45 testcontainers-based API test files
 │   └── end2end/                   # BDD (Godog) with Gherkin features
-├── migrations/                    # 17 migrations + seeds/
+├── migrations/                    # 20 migrations + seeds/
 ├── api/                           # Generated Swagger docs
 └── .golangci.yml                  # Linter config (golangci-lint v2)
 ```
@@ -429,7 +427,7 @@ All CI uses shared workflows from `LerianStudio/github-actions-shared-workflows`
 1. `make lint` — linters pass
 2. `make test-unit` — unit tests pass
 3. `make sec` — no security issues
-4. `make generate-docs` — Swagger updated (if API changed)
+4. `make generate-docs` (run from the repo root) — Swagger updated (if API changed)
 5. Commit message follows conventional commits
 
 ## Common Tasks
@@ -440,7 +438,7 @@ All CI uses shared workflows from `LerianStudio/github-actions-shared-workflows`
 2. Add input validation in `{resource}_validation.go`
 3. Register route in `routes.go`
 4. Add Swagger annotations
-5. Run `make generate-docs`
+5. Run `make generate-docs` from the repo root
 6. Write tests for handler
 
 ### Adding a New Command
@@ -475,7 +473,8 @@ All CI uses shared workflows from `LerianStudio/github-actions-shared-workflows`
 | File | Purpose |
 |------|---------|
 | [`AGENTS.md`](AGENTS.md) | Concise agent overview (read first) |
-| [`docs/PROJECT_RULES.md`](docs/PROJECT_RULES.md) | Full architectural rules, domain model, testing standards |
+| [`../../docs/PROJECT_RULES.md`](../../docs/PROJECT_RULES.md) | Monorepo-wide architectural rules, domain model, testing standards |
+| [`../../docs/tracer/INVARIANTS.md`](../../docs/tracer/INVARIANTS.md) | Tracer-specific invariants (CEL, hash-chained audit, migration renumbering, latency budget) |
 | [`.env.example`](.env.example) | All environment variables with documentation |
 | [`.golangci.yml`](.golangci.yml) | Linter configuration |
 | [`internal/bootstrap/config.go`](internal/bootstrap/config.go) | Composition root — all DI wiring |
@@ -490,4 +489,4 @@ All CI uses shared workflows from `LerianStudio/github-actions-shared-workflows`
 
 **Last Updated**: June 2026
 **Go Version**: root `go.mod` `go 1.26.3` (toolchain `go1.26.4`), Docker builder image `golang:1.26.3-alpine`
-**Migrations**: 17 (000001 through 000017)
+**Migrations**: 20 (000001 through 000020)

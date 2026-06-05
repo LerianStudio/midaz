@@ -8,7 +8,7 @@ Universal entry point for any AI coding agent working on the Tracer codebase.
 
 - **Language**: Go 1.26.3 (single root `go.mod` for the midaz monorepo, module `github.com/LerianStudio/midaz/v4`, toolchain go1.26.4 — tracer has no own go.mod)
 - **Architecture**: Hexagonal Architecture (Ports & Adapters) + CQRS
-- **Database**: PostgreSQL 16
+- **Database**: PostgreSQL 17
 - **Rule Engine**: Google CEL (cel-go v0.28.1) with in-memory cache
 - **Auth**: lib-auth/v2 (v2.8.0) (API Key + Access Manager plugin)
 - **License**: Elastic License 2.0
@@ -70,7 +70,7 @@ pkg/
 | `make lint` | golangci-lint v2 with auto-fix |
 | `make sec` | gosec + govulncheck |
 | `make generate` | go generate (mocks) |
-| `make generate-docs` | Regenerate Swagger docs |
+| `make generate-docs` (repo root) | Regenerate Swagger docs for all three REST services (ledger, tracer, reporter-manager) |
 | `make migrate` | Apply database migrations |
 | `make up` / `make down` | Docker Compose lifecycle |
 
@@ -129,7 +129,7 @@ Always start with tracking + span. Enrich logger with trace context.
 
 - Conventional commit format in PR titles
 - Run `make lint && make test-unit && make sec` before pushing
-- Run `make generate-docs` if API changed
+- Run `make generate-docs` from the repo root if the API changed (regenerates ledger, tracer, and reporter-manager together)
 - All code, comments, and docs in English
 
 ## Key Files to Read
@@ -138,7 +138,8 @@ Always start with tracking + span. Enrich logger with trace context.
 |----------|------|-----|
 | 1 | `AGENTS.md` (this file) | Quick orientation |
 | 2 | `CLAUDE.md` | Deep patterns, interfaces, commands, debugging |
-| 3 | `docs/PROJECT_RULES.md` | Full architectural rules and testing standards |
+| 3 | `../../docs/PROJECT_RULES.md` | Monorepo-wide architectural rules and testing standards |
+| 3 | `../../docs/tracer/INVARIANTS.md` | Tracer-specific invariants (CEL, hash-chained audit, migration renumbering, latency budget) |
 | 4 | `.env.example` | All configuration variables |
 | 5 | `.golangci.yml` | Linter rules |
 | 6 | `internal/bootstrap/config.go` | Composition root — how everything is wired |

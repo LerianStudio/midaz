@@ -62,7 +62,7 @@ help:
 	@echo "  make destroy                     - Alias for clean-docker (maintained for compatibility)"
 	@echo ""
 	@echo "$(BOLD)Ledger-Specific Commands:$(NC)"
-	@echo "  make generate-docs               - Generate Swagger API documentation"
+	@echo "  (API docs are generated from the repo root: make generate-docs)"
 	@echo ""
 	@echo "$(BOLD)Developer Helper Commands:$(NC)"
 	@echo "  make dev-setup                   - Set up development environment"
@@ -244,21 +244,8 @@ run:
 	@go run cmd/app/main.go .env
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Application started successfully$(GREEN) ✔️$(NC)"
 
-.PHONY: generate-docs
-generate-docs:
-	$(call title1,"Generating Swagger API documentation - Ledger")
-	@SWAG_BIN=$$(command -v swag 2>/dev/null || true); \
-	if [ -z "$$SWAG_BIN" ]; then \
-		echo "$(YELLOW)Installing swag...$(NC)"; \
-		go install github.com/swaggo/swag/cmd/swag@v1.16.6; \
-		GO_BIN=$$(go env GOBIN); \
-		if [ -z "$$GO_BIN" ]; then \
-			GO_BIN="$$(go env GOPATH)/bin"; \
-		fi; \
-		SWAG_BIN="$$GO_BIN/swag"; \
-	fi; \
-	cd $(MIDAZ_ROOT)/components/ledger && "$$SWAG_BIN" init -g cmd/app/main.go -o api --parseDependency --parseInternal --outputTypes go,json,yaml
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger documentation generated$(GREEN) ✔️$(NC)"
+# API documentation is generated from the repo root: `make generate-docs`
+# (postman/generator/generate-docs.sh covers ledger, tracer and reporter-manager).
 
 #-------------------------------------------------------
 # Setup Commands

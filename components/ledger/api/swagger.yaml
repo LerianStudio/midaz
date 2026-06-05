@@ -3479,7 +3479,7 @@ definitions:
         maxLength: 255
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package:
+  github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package:
     properties:
       createdAt:
         example: "2021-01-01T00:00:00Z"
@@ -3530,7 +3530,7 @@ definitions:
           type: string
         type: array
     type: object
-  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.AccountTarget:
+  github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.AccountTarget:
     properties:
       aliases:
         items:
@@ -3541,7 +3541,7 @@ definitions:
       segmentId:
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateRequest:
+  github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateRequest:
     properties:
       ledgerId:
         type: string
@@ -3555,16 +3555,16 @@ definitions:
     - ledgerId
     - period
     type: object
-  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateResponse:
+  github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateResponse:
     properties:
       results:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculationResult'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculationResult'
         type: array
       summary:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateSummary'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateSummary'
     type: object
-  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateSummary:
+  github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateSummary:
     properties:
       totalMaintenance:
         type: integer
@@ -3576,7 +3576,7 @@ definitions:
       totalVolume:
         type: integer
     type: object
-  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculationResult:
+  github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculationResult:
     properties:
       billingPackageId:
         type: string
@@ -3601,10 +3601,10 @@ definitions:
           type: integer
         type: array
     type: object
-  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage:
+  github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage:
     properties:
       accountTarget:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.AccountTarget'
+        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.AccountTarget'
       assetCode:
         type: string
       countMode:
@@ -3622,13 +3622,13 @@ definitions:
         type: string
       discountTiers:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.DiscountTier'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.DiscountTier'
         type: array
       enable:
         type: boolean
       eventFilter:
         allOf:
-        - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.EventFilter'
+        - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.EventFilter'
         description: Volume-specific fields.
       feeAmount:
         description: Maintenance-specific fields.
@@ -3650,14 +3650,14 @@ definitions:
         type: string
       tiers:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.PricingTier'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.PricingTier'
         type: array
       type:
         type: string
       updatedAt:
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackageUpdate:
+  github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackageUpdate:
     properties:
       description:
         type: string
@@ -3666,7 +3666,7 @@ definitions:
       label:
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.DiscountTier:
+  github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.DiscountTier:
     properties:
       discountPercentage:
         example: "10.00"
@@ -3674,14 +3674,14 @@ definitions:
       minQuantity:
         type: integer
     type: object
-  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.EventFilter:
+  github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.EventFilter:
     properties:
       status:
         type: string
       transactionRoute:
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.PricingTier:
+  github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.PricingTier:
     properties:
       maxQuantity:
         type: integer
@@ -3691,7 +3691,7 @@ definitions:
         example: "1.50"
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_pkg.HTTPError:
+  github_com_LerianStudio_midaz_v4_pkg.HTTPError:
     properties:
       code:
         type: string
@@ -3703,7 +3703,7 @@ definitions:
       title:
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination:
+  github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination:
     properties:
       items: {}
       limit:
@@ -4031,7 +4031,7 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage'
+                    $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
                   type: array
                 limit:
                   type: integer
@@ -4079,14 +4079,14 @@ paths:
         name: billingPackage
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
         "400":
           description: Bad Request
           schema:
@@ -4179,7 +4179,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
         "400":
           description: Bad Request
           schema:
@@ -4228,14 +4228,14 @@ paths:
         name: billingPackage
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackageUpdate'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackageUpdate'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingPackage'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
         "400":
           description: Bad Request
           schema:
@@ -4284,14 +4284,14 @@ paths:
         name: billingCalculate
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateRequest'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_pkg_feeshared_model.BillingCalculateResponse'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateResponse'
         "400":
           description: Bad Request
           schema:
@@ -4434,7 +4434,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -4944,7 +4944,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -5013,19 +5013,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg.HTTPError'
         "422":
           description: Unprocessable Entity
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg.HTTPError'
       summary: Open a holder-owned account (with optional instrument)
       tags:
       - Composition
@@ -5119,7 +5119,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -5216,7 +5216,7 @@ paths:
           description: Successfully retrieved organizations list
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -5502,7 +5502,7 @@ paths:
           description: Successfully retrieved ledgers list
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -5811,7 +5811,7 @@ paths:
           description: Successfully retrieved account types
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -6182,7 +6182,7 @@ paths:
           description: Successfully retrieved accounts list
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -6519,7 +6519,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -6760,7 +6760,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -6940,7 +6940,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -7057,7 +7057,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -7310,7 +7310,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -7403,7 +7403,7 @@ paths:
           description: Successfully retrieved assets list
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -7780,7 +7780,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -8100,7 +8100,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -8418,7 +8418,7 @@ paths:
           description: Successfully retrieved portfolios list
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -8809,7 +8809,7 @@ paths:
           description: Successfully retrieved segments list
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -9308,7 +9308,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -9622,7 +9622,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_LerianStudio_midaz_v3_pkg_net_http.Pagination'
+            - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
             - properties:
                 items:
                   items:
@@ -10547,7 +10547,7 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+                    $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package'
                   type: array
                 limit:
                   type: integer
@@ -10607,7 +10607,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package'
         "400":
           description: Bad Request
           schema:
@@ -10706,7 +10706,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package'
         "400":
           description: Bad Request
           schema:
@@ -10763,7 +10763,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package'
         "400":
           description: Bad Request
           schema:

@@ -9,7 +9,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Enum types
 -- Idempotency: wrap each CREATE TYPE in a DO block that swallows duplicate_object.
--- Required by the Migration Renumbering Invariant (docs/PROJECT_RULES.md): when
+-- Required by the Migration Renumbering Invariant (docs/tracer/INVARIANTS.md): when
 -- an already-populated database has this file replayed at a new version number
 -- (origin/develop → HEAD upgrade path), naive CREATE TYPE would fail.
 DO $$ BEGIN

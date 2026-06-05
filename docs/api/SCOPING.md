@@ -37,8 +37,8 @@ X-Organization-Id: 0192f5a1-...-...
 ```
 
 The header is read in the CRM handlers via `c.Get("X-Organization-Id")`
-(`components/crm/adapters/http/in/holder.go`, `instrument.go`). This is **legacy** behavior
-inherited from when CRM was a standalone service; the route merge did not rework it.
+(`components/ledger/internal/adapters/http/in/holder.go`, `instrument.go`). This is **legacy**
+behavior inherited from when CRM was a standalone service; the route merge did not rework it.
 
 ## Why it persists
 

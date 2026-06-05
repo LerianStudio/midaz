@@ -9,11 +9,15 @@ set -euo pipefail
 # Clean documentation generation script
 # Abstracts swag complexity and provides beautiful output
 
-# Root directory of the repo
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Root directory of the repo (this script lives in postman/generator/)
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-# Components to process
-COMPONENTS=("ledger")
+# Generator tooling and published-spec directories
+GENERATOR_DIR="${ROOT_DIR}/postman/generator"
+SPECS_DIR="${ROOT_DIR}/postman/specs"
+
+# Components to process (each must have a cmd/app/main.go entry point)
+COMPONENTS=("ledger" "tracer" "reporter-manager")
 
 # Temporary log dir
 LOG_DIR="${ROOT_DIR}/tmp"
@@ -119,7 +123,7 @@ generate_openapi_yaml() {
 
     if (cd "${component_dir}" && \
         docker run --rm -v ./:/workspace --user "$(id -u):$(id -g)" \
-            openapitools/openapi-generator-cli:v5.1.1 generate \
+            openapitools/openapi-generator-cli:v7.10.0 generate \
             -i "/workspace/api/${swagger_file}" \
             -g openapi-yaml \
             -o /workspace/api > "${out_log}" 2> "${err_log}" && \
@@ -137,14 +141,32 @@ generate_openapi_yaml() {
     fi
 }
 
+# Copy generated spec artifacts into postman/specs/<component>/ for the hub
+publish_specs() {
+    local component="$1"
+    local api_dir="${ROOT_DIR}/components/${component}/api"
+    local dest_dir="${SPECS_DIR}/${component}"
+
+    print_step "Publishing ${component} specs to postman/specs" "PROCESSING"
+
+    if mkdir -p "${dest_dir}" && \
+        cp "${api_dir}/swagger.json" "${api_dir}/swagger.yaml" "${api_dir}/openapi.yaml" "${dest_dir}/"; then
+        print_step "Published ${component} specs to postman/specs" "SUCCESS"
+        return 0
+    else
+        print_step "Publish ${component} specs to postman/specs" "FAILED"
+        return 1
+    fi
+}
+
 # Install Node.js dependencies for Postman generation
 install_npm_dependencies() {
     print_step "Installing Node.js dependencies" "PROCESSING"
-    
+
     local npm_out="${LOG_DIR}/npm.out"
     local npm_err="${LOG_DIR}/npm.err"
     local start_time=$(date +%s.%N)
-    local postman_dir="${ROOT_DIR}/scripts/postman-coll-generation"
+    local postman_dir="${GENERATOR_DIR}"
     
     # Check if node_modules exists and package.json hasn't changed
     if [ -d "${postman_dir}/node_modules" ] && [ "${postman_dir}/node_modules" -nt "${postman_dir}/package.json" ]; then
@@ -180,7 +202,7 @@ convert_to_postman() {
     local sync_err="${LOG_DIR}/sync.err"
     local start_time=$(date +%s.%N)
     
-    if "${ROOT_DIR}/scripts/postman-coll-generation/sync-postman.sh" > "${sync_out}" 2> "${sync_err}"; then
+    if "${GENERATOR_DIR}/sync-postman.sh" > "${sync_out}" 2> "${sync_err}"; then
         local end_time=$(date +%s.%N)
         local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
         print_step "Converted to Postman collection" "SUCCESS" "${elapsed}"
@@ -242,6 +264,17 @@ main() {
     if [ "$overall_success" = true ]; then
         for component in "${COMPONENTS[@]}"; do
             if ! generate_openapi_yaml "$component"; then
+                overall_success=false
+                break
+            fi
+        done
+    fi
+
+    # Publish spec artifacts into postman/specs/<component>/ (copies; the api/
+    # directory stays the swag output home that Go and the contract test import)
+    if [ "$overall_success" = true ]; then
+        for component in "${COMPONENTS[@]}"; do
+            if ! publish_specs "$component"; then
                 overall_success=false
                 break
             fi

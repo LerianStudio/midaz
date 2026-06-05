@@ -57,7 +57,7 @@ const legacyDevelopRef = "0a77ac3e4945db1846626aab91f9899079877365"
 // version = 12) can be upgraded in place to the HEAD sequence (unified
 // single-runner) without corruption.
 //
-// This is the behavioral proof of the invariant codified in docs/PROJECT_RULES.md
+// This is the behavioral proof of the invariant codified in docs/tracer/INVARIANTS.md
 // ("Migration Renumbering Invariant"). It simulates:
 //
 //  1. A fresh container boot with migrations from the pinned legacy commit
@@ -77,7 +77,7 @@ const legacyDevelopRef = "0a77ac3e4945db1846626aab91f9899079877365"
 // SetupTestSuite container) and shells out to `git archive <legacyDevelopRef>`
 // to materialize the legacy migration set. It runs unconditionally in the
 // integration suite so that any future regression to the Migration
-// Renumbering Invariant (docs/PROJECT_RULES.md) is caught in CI.
+// Renumbering Invariant (docs/tracer/INVARIANTS.md) is caught in CI.
 //
 // The test calls t.Skipf with an actionable message when legacyDevelopRef is
 // not fetched locally (e.g. a shallow clone), rather than failing with a

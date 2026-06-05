@@ -10,7 +10,7 @@ package tracer
 // requestId / a valid transactionTimestamp, and the tracer's reserve endpoint —
 // which embeds the ValidationRequest shape — rejected it with HTTP 400, so
 // `tracer.mode=enforce` never enforced (it fail-open SKIPPED on every
-// transaction). See docs/v4/plan/F3-T20-latency-report.md §5 finding #1.
+// transaction).
 //
 // What is REAL on each side here:
 //   - LEDGER: the real *TracerClient.Reserve — the actual production marshaling

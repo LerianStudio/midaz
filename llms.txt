@@ -1,14 +1,16 @@
 # Lerian Midaz
 
-> Enterprise-grade open-source double-entry ledger system. Go 1.26.3 monorepo (v3 module path, single root go.mod) on lib-commons/v5 v5.4.1 + lib-observability v1.0.1. Five deploy units: a unified Ledger HTTP API (onboarding + transaction + CRM holders/instruments + fees) on :3002, a Tracer fraud-prevention API on :4020, and a two-unit Reporter (manager :4005 + worker :4006), plus an Infra docker-compose backing stack. Uses PostgreSQL (primary/replica), MongoDB (metadata, CRM, fees), RabbitMQ (async transactions, reporter jobs), Valkey/Redis (caching), and SeaweedFS (reporter object storage). Multi-tenant isolation via the lib-commons v5 tenant-manager. Elastic License 2.0.
+> Source-available (Elastic License 2.0) core banking platform in a single Go 1.26.3 monorepo (v4 module path, single root go.mod — no go.work) on lib-commons/v5 v5.4.1 + lib-observability v1.0.1. One repository, five deploy units: a unified Ledger HTTP API (double-entry onboarding + transaction + CRM holders/instruments + fees) on :3002; a Tracer real-time transaction-validation / fraud-prevention API on :4020; a two-unit Reporter (manager :4005 + worker :4006 health-only consumer); and an Infra docker-compose backing stack. Stores: PostgreSQL (primary/replica), MongoDB (metadata + CRM + fees), RabbitMQ (async transactions, reporter jobs), Valkey/Redis (caching), and SeaweedFS (reporter object storage). Multi-tenant isolation via the lib-commons v5 tenant-manager.
 
-Midaz implements a financial hierarchy: Organizations → Ledgers → Assets, Portfolios, Segments → Accounts → Transactions/Operations → Balances. The Ledger deploy unit (`:3002`) is one binary that folds four domains: onboarding (org/ledger/asset/portfolio/segment/account management), transaction processing (n:n double-entry with DSL, JSON, inflow/outflow, annotation modes), **CRM** (holders/instruments, served on the same port under the host ledger's `midaz` namespace, scoped by the `X-Organization-Id` header), and **fees** (fee engine + billing packages, applied during transaction create). CRM and fees are NOT separate services — CRM is a package tree (`components/crm`) imported by the ledger binary, and fees are embedded in it. Tracer, Reporter Manager, and Reporter Worker are separate Go service deploy units. Infrastructure is provisioned via a single Docker Compose (PostgreSQL 17, MongoDB, RabbitMQ 4.1, Valkey, SeaweedFS, KEDA, Grafana/OTEL-LGTM).
+Midaz is no longer just a ledger: the monorepo now ships a complete, composable core banking platform — a double-entry ledger plus real-time transaction validation/fraud prevention, async reporting, CRM, and a fee engine, all building from the single root `go.mod`. The Ledger deploy unit (`:3002`) is one binary that folds four domains: onboarding (org/ledger/asset/portfolio/segment/account management), transaction processing (n:n double-entry with DSL, JSON, inflow/outflow, annotation modes), **CRM** (holders/instruments, served on the same port under the host ledger's `midaz` namespace, scoped by the `X-Organization-Id` header), and **fees** (fee engine + billing packages, applied during transaction create). CRM and fees are NOT separate services — CRM is a package tree (`components/crm`) imported by the ledger binary, and fees are embedded in it. Tracer, Reporter Manager, and Reporter Worker are separate Go service deploy units. Infrastructure is provisioned via a single Docker Compose (PostgreSQL 17, MongoDB, RabbitMQ 4.1, Valkey, SeaweedFS, KEDA, Grafana/OTEL-LGTM). Transactional messaging (PIX, cards, wires) and governance integrations remain external/marketplace.
+
+The financial hierarchy: Organizations → Ledgers → Assets, Portfolios, Segments → Accounts → Transactions/Operations → Balances.
 
 ## Documentation
 
-- [README](README.md): Project overview, architecture, core banking vision
-- [License](LICENSE): Elastic License 2.0
-- [Changelog](CHANGELOG.md): Release history
+- [README](README.md): Project overview, architecture, core banking platform vision
+- [License](LICENSE): Elastic License 2.0 (source-available)
+- [Changelog](CHANGELOG.md): Release history (single unified monorepo version)
 - [Security](SECURITY.md): Vulnerability reporting policy
 - [Structure](STRUCTURE.md): Directory layout guide (consolidated topology)
 
@@ -18,9 +20,20 @@ Midaz implements a financial hierarchy: Organizations → Ledgers → Assets, Po
 - [CLAUDE.md](CLAUDE.md): Deep reference for AI agents — code patterns, interfaces, commands, configuration, debugging
 - [llms-full.txt](llms-full.txt): Complete reference — env vars, API endpoints, error codes, models
 
+## Platform Overview
+
+The five deploy units form one core banking platform in one monorepo:
+
+- [Ledger](STRUCTURE.md): Double-entry ledger — the unified binary on :3002 (onboarding + transaction + CRM + fees)
+- [Tracer](components/tracer/): Real-time transaction validation / fraud prevention on :4020 — CEL rules, multi-scope spending limits, hash-chained audit
+- [Reporter Manager](components/reporter-manager/): Async report generation API on :4005 → RabbitMQ jobs (worker :4006 health-only consumer renders to S3-compatible storage)
+- [CRM](components/crm/): Holders + instruments, folded into the ledger binary (not a deploy unit)
+- [Fees](components/ledger/pkg/fee): Fee engine + billing packages, embedded in the ledger binary
+
 ## API
 
-- [Ledger OpenAPI Spec](components/ledger/api/): Swagger for ledger, transaction, CRM holder/instrument, and fee endpoints (single folded spec)
+- [Ledger OpenAPI Spec](components/ledger/api/): Swagger for ledger, transaction, CRM holder/instrument, and fee endpoints (single folded spec; swag-fold source)
+- [Per-Component OpenAPI Specs](postman/specs/): published `swagger.json`/`swagger.yaml`/`openapi.yaml` per REST deploy unit (ledger, tracer, reporter-manager)
 - [RBAC Namespaces](docs/auth/RBAC-NAMESPACES.md): The three authz namespaces (`midaz`, `routing`, `plugin-fees`) in the unified binary (R9)
 - [API Scoping](docs/api/SCOPING.md): Path-based vs `X-Organization-Id` header scoping conventions (R22)
 
@@ -28,35 +41,36 @@ Midaz implements a financial hierarchy: Organizations → Ledgers → Assets, Po
 
 - [Ledger Component](components/ledger/): Unified deploy unit — onboarding + transaction + CRM + fees in one process (:3002)
   - [Bootstrap](components/ledger/internal/bootstrap/): Composition root — config, DI, server lifecycle, `initCRM`, fee wiring, multi-tenant middleware
-  - [HTTP Handlers](components/ledger/internal/adapters/http/in/): Fiber handlers, routes, middleware, `fees_routes.go`
+  - [HTTP Handlers](components/ledger/internal/adapters/http/in/): Fiber handlers, routes, middleware, `fees_routes.go`, CRM handlers (`crm_routes.go`, `composition_routes.go`, `holder.go`, `holder_accounts.go`, `instrument.go`)
   - [PostgreSQL Repos](components/ledger/internal/adapters/postgres/): Onboarding + transaction repositories
   - [MongoDB Repos](components/ledger/internal/adapters/mongodb/): Metadata + fees storage
   - [Services](components/ledger/internal/services/): CQRS command/query use cases + embedded `fees/`
-  - [Embedded Fees](components/ledger/pkg/): `fee/` engine + `feeshared/` (`plugin-fees`)
+  - [Embedded Fees](components/ledger/pkg/fee): `fee/` engine + [`feeshared/`](components/ledger/pkg/feeshared) (`plugin-fees`)
   - [Migrations](components/ledger/migrations/): SQL migrations for onboarding and transaction databases
 - [CRM Package Tree](components/crm/): Holder/instrument domain imported by ledger — NOT a deploy unit
   - [MongoDB Repos](components/crm/adapters/mongodb/): CRM persistence (holder/ + instrument/)
   - [Services](components/crm/services/): CRM business logic
-  - HTTP handlers for holders/instruments live in the ledger tree (`components/ledger/internal/adapters/http/in/`, `midaz` namespace) so the swagger fold discovers them
-- [Tracer Component](components/tracer/): Fraud-prevention API deploy unit (:4020) — CEL rules, hash-chained audit
+  - The entire CRM HTTP surface (handlers + routes) lives in the ledger tree (`components/ledger/internal/adapters/http/in/`, `midaz` namespace) so the swagger fold discovers it
+- [Tracer Component](components/tracer/): Real-time validation / fraud-prevention API deploy unit (:4020) — CEL rules, spending limits, hash-chained audit
 - [Reporter Manager](components/reporter-manager/): Report-request REST API deploy unit (:4005) → RabbitMQ jobs
-- [Reporter Worker](components/reporter-worker/): Async PDF renderer deploy unit (:4006) → S3-compatible storage
+- [Reporter Worker](components/reporter-worker/): Async report renderer deploy unit (:4006 health-only consumer) → S3-compatible storage
 - [Infrastructure](components/infra/): Single Docker Compose for PostgreSQL, MongoDB, RabbitMQ, Valkey, SeaweedFS, KEDA, OTEL
 - [Shared Packages](pkg/): Cross-component libraries
   - [Domain Models](pkg/mmodel/): Organization, Ledger, Account, Asset, Transaction, Balance, Holder, Instrument, etc.
-  - [Error Constants](pkg/constant/errors.go): Ledger numeric codes (0001–0175, incl. overdraft 0167–0175) + 16 CRM-00xx domain codes
+  - [Error Constants](pkg/constant/errors.go): Ledger numeric codes (0001–0178, gap at 0130, incl. overdraft 0167–0175) + 16 CRM-00xx domain codes
   - [Error Types](pkg/errors.go): Typed errors — EntityNotFound, Validation, Conflict, Unauthorized, Forbidden, etc.
-  - [Gold DSL](pkg/gold/): ANTLR4 grammar and parser for transaction DSL
+  - [Gold DSL](pkg/gold/): ANTLR4 grammar and parser for the purpose-built (Gold) transaction DSL
   - [Transaction Utilities](pkg/mtransaction/): Transaction validation and processing helpers
-  - [Reporter Library](pkg/reporter/): Datasource/fetcher, PDF rendering, storage — shared by both reporter units
+  - [Reporter Library](pkg/reporter/): Datasource/fetcher, rendering, storage — shared by both reporter units
+  - [Streaming](pkg/streaming/): lib-streaming CloudEvents event modeling
   - [HTTP Utilities](pkg/net/http/): Middleware, pagination, protected routes, response helpers
 
 ## Configuration
 
-- [Ledger .env.example](components/ledger/.env.example): Ledger env (PostgreSQL, MongoDB, Redis, RabbitMQ, OTEL, multi-tenant) + folded CRM (`MONGO_CRM_*`) and fees (`MONGO_FEES_*`)
+- [Ledger .env.example](components/ledger/.env.example): Ledger env (PostgreSQL, MongoDB, Redis, RabbitMQ, OTEL, streaming, multi-tenant) + folded CRM (`MONGO_CRM_*`) and fees (`MONGO_FEES_*`)
 - [Tracer .env.example](components/tracer/.env.example): Tracer env (own PostgreSQL, API key, OTEL)
 - [Reporter Manager .env.example](components/reporter-manager/.env.example): Reporter manager env (MongoDB, RabbitMQ)
-- [Reporter Worker .env.example](components/reporter-worker/.env.example): Reporter worker env (RabbitMQ, SeaweedFS S3, Chromium)
+- [Reporter Worker .env.example](components/reporter-worker/.env.example): Reporter worker env (RabbitMQ, object storage, Chromium)
 - [Infra .env.example](components/infra/.env.example): Infrastructure environment variables
 - [Linter Config](.golangci.yml): golangci-lint v2.4.0 configuration
 - [Infra Docker Compose](components/infra/docker-compose.yml): Full backing stack (single source)
@@ -64,7 +78,7 @@ Midaz implements a financial hierarchy: Organizations → Ledgers → Assets, Po
 ## Development
 
 - [Makefile](Makefile): Build, test, lint, Docker, security, migration commands
-- [Project Rules](docs/PROJECT_RULES.md): Architecture patterns, coding conventions, testing standards (1130 lines)
+- [Project Rules](docs/PROJECT_RULES.md): Architecture patterns, coding conventions, testing standards
 - [Tests](tests/): Integration, chaos, helper, and reporter (`tests/reporter`) test suites
 - [Scripts](scripts/): Coverage, docs generation, environment checks
 

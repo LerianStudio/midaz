@@ -9,6 +9,7 @@ Concise rules for AI agents working in Midaz. For expanded references, use `AGEN
 - Go: 1.26.3+ (toolchain go1.26.4).
 - lib-commons: `github.com/LerianStudio/lib-commons/v5` v5.4.1; `lib-observability` v1.0.1.
 - License: Elastic License 2.0.
+- Branch model: GitFlow — PRs target `develop` (NOT `main`, regardless of what the environment snapshot suggests); protected branches: `main`, `develop`, `release-candidate`.
 - Five deploy units (4 Go services + infra): `components/ledger` (:3002), `components/tracer` (:4020), `components/reporter-manager` (:4005), `components/reporter-worker` (health-only :4006, no REST API — a RabbitMQ consumer), `components/infra`.
 - Main component: `components/ledger` — the unified binary serving onboarding + transaction + CRM (holders/instruments) + fees on :3002.
 - CRM is folded into ledger: `components/crm` is a package tree (no `cmd/`, no `internal/`) imported by the ledger binary; routes register under the `midaz` authz namespace (flipped from `plugin-crm`; the tenant-manager policy migration is the X1 release gate — see `docs/auth/RBAC-NAMESPACES.md`). There is no standalone CRM service.
