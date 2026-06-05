@@ -20,10 +20,10 @@ The `:organization_id` and `:ledger_id` path parameters are parsed and UUID-vali
 protected-route chain. This is the convention for everything that descended from the original
 midaz ledger.
 
-### 2. Header-based scoping — CRM (holders / aliases)
+### 2. Header-based scoping — CRM (holders / instruments)
 
 CRM endpoints scope the organization through the `X-Organization-Id` **HTTP header**, not the
-path. The holder/alias routes carry no `:organization_id` path segment:
+path. The holder/instrument routes carry no `:organization_id` path segment:
 
 ```
 POST /v1/holders
@@ -32,13 +32,13 @@ X-Organization-Id: 0192f5a1-...-...
 GET  /v1/holders/{id}
 X-Organization-Id: 0192f5a1-...-...
 
-POST /v1/holders/{holder_id}/aliases
+POST /v1/holders/{holder_id}/instruments
 X-Organization-Id: 0192f5a1-...-...
 ```
 
 The header is read in the CRM handlers via `c.Get("X-Organization-Id")`
-(`components/crm/adapters/http/in/holder.go`, `alias.go`). This is **legacy** behavior inherited
-from when CRM was a standalone service; the route merge did not rework it.
+(`components/crm/adapters/http/in/holder.go`, `instrument.go`). This is **legacy** behavior
+inherited from when CRM was a standalone service; the route merge did not rework it.
 
 ## Why it persists
 
@@ -51,7 +51,7 @@ as risk **R22**.
 For now:
 
 - ledger / routing / fees: **path-based** org/ledger scoping.
-- CRM (holders / aliases): **header-based** scoping via `X-Organization-Id`.
+- CRM (holders / instruments): **header-based** scoping via `X-Organization-Id`.
 - Both are intentional. Clients integrating CRM endpoints must send `X-Organization-Id`; clients
   integrating ledger endpoints must use the path hierarchy.
 

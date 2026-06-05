@@ -44,10 +44,10 @@ MIDAZ
  |   |---   crm                    # PACKAGE TREE (not a deploy unit) — imported by ledger
  |   |   |---   adapters
  |   |   |   |---   http
- |   |   |   |   |---   in         # holder/alias handlers + routes (plugin-crm namespace)
+ |   |   |   |   |---   in         # holder/instrument handlers + routes (midaz namespace)
  |   |   |   |---   mongodb
- |   |   |   |   |---   alias
  |   |   |   |   |---   holder
+ |   |   |   |   |---   instrument
  |   |   |   |---   api
  |   |   |   |---   services
  |   |---   tracer                 # DEPLOY UNIT :4020
@@ -94,7 +94,7 @@ MIDAZ
 | Unit | Port | Role |
 |------|------|------|
 | **infra** | — | Single `components/infra/docker-compose.yml`: PostgreSQL 17 (primary/replica), MongoDB, Valkey, RabbitMQ, SeaweedFS, KEDA, OTEL-LGTM. All units join `infra-network`. |
-| **ledger** | `:3002` | Unified binary: onboarding + transaction, **CRM** (holders/aliases), and **fees** (fee engine + billing). |
+| **ledger** | `:3002` | Unified binary: onboarding + transaction, **CRM** (holders/instruments), and **fees** (fee engine + billing). |
 | **tracer** | `:4020` | Real-time transaction validation / fraud-prevention API. Hexagonal + CQRS, CEL rule engine, hash-chained audit log. Ships its own migrations under `components/tracer/migrations`. |
 | **reporter-manager** | `:4005` | REST API that accepts report-generation requests and publishes jobs to RabbitMQ (`reporter.generate-report.{exchange,queue,key}`). Distroless image. |
 | **reporter-worker** | `:4006` | Async consumer that renders PDFs via headless Chromium (chromedp) and writes output to S3-compatible object storage (SeaweedFS). Fat alpine image with the Chromium userland (cannot be distroless — R20). |
@@ -108,8 +108,8 @@ The unified ledger binary folds four domains into one process:
 * **Onboarding + Transaction**: the original midaz ledger (organizations, ledgers, assets,
   portfolios, segments, accounts, transactions, operations, balances; routing via
   account-types / operation-routes / transaction-routes).
-* **CRM (folded)**: holder/alias routes registered from the `components/crm` package tree. See
-  below.
+* **CRM (folded)**: holder/instrument routes registered from the `components/crm` package tree.
+  See below.
 * **Fees (embedded)**: fee engine at `components/ledger/pkg/fee`, shared types at
   `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`,
   Mongo repos at `components/ledger/internal/adapters/mongodb/fees`, routes at
@@ -127,10 +127,10 @@ CRM was lifted out of `internal/` so the ledger binary can import it across the 
 boundary. It has **no** `cmd/` and **no** standalone binary.
 
 * **Adapters** (`./components/crm/adapters`):
-  * **HTTP** (`./adapters/http/in`): holder/alias handlers + `routes.go`, registered into the
-    ledger Fiber app. Authorizes under the `plugin-crm` namespace.
-  * **MongoDB** (`./adapters/mongodb/{holder,alias}`): CRM persistence.
-* **Services** (`./components/crm/services`): holder/alias command/query use cases.
+  * **HTTP** (`./adapters/http/in`): holder/instrument handlers + `routes.go`, registered into the
+    ledger Fiber app. Authorizes under the `midaz` namespace.
+  * **MongoDB** (`./adapters/mongodb/{holder,instrument}`): CRM persistence.
+* **Services** (`./components/crm/services`): holder/instrument command/query use cases.
 * **API** (`./components/crm/api`): CRM OpenAPI/Swagger specs.
 
 CRM scopes requests by the `X-Organization-Id` HTTP header (not path-based org hierarchy) — see
@@ -174,7 +174,7 @@ Cross-component Go libraries (root module):
 
 | Package | Purpose |
 |---------|---------|
-| `pkg/mmodel` | Domain models (Organization, Ledger, Account, Asset, Transaction, Balance, Holder, Alias, etc.) |
+| `pkg/mmodel` | Domain models (Organization, Ledger, Account, Asset, Transaction, Balance, Holder, Instrument, etc.) |
 | `pkg/constant` | Error codes (`errors.go`, ledger `0001`–`0175` + 16 `CRM-00xx`), entity/action/module constants |
 | `pkg/gold` | ANTLR4 Gold DSL grammar + parser for transactions |
 | `pkg/mtransaction` | Transaction processing utilities (formerly `pkg/transaction`) |

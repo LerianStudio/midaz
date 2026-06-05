@@ -634,15 +634,15 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 	tests := []struct {
 		name           string
 		hardDelete     string
-		setupMocks     func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID)
+		setupMocks     func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name:       "success soft delete returns 204",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
-				aliasRepo.EXPECT().
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+				instrumentRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(0), nil).
 					Times(1)
@@ -658,8 +658,8 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 		{
 			name:       "success hard delete returns 204",
 			hardDelete: "true",
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
-				aliasRepo.EXPECT().
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+				instrumentRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(0), nil).
 					Times(1)
@@ -673,10 +673,10 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			validateBody:   nil,
 		},
 		{
-			name:       "holder has aliases returns 400",
+			name:       "holder has instruments returns 400",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
-				aliasRepo.EXPECT().
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+				instrumentRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(1), nil).
 					Times(1)
@@ -694,8 +694,8 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 		{
 			name:       "not found returns 404",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
-				aliasRepo.EXPECT().
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+				instrumentRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(0), nil).
 					Times(1)
@@ -718,8 +718,8 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 		{
 			name:       "repository error on count returns 500",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
-				aliasRepo.EXPECT().
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+				instrumentRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(0), pkg.InternalServerError{
 						Code:    "0046",
@@ -741,8 +741,8 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 		{
 			name:       "repository error on delete returns 500",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
-				aliasRepo.EXPECT().
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+				instrumentRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(0), nil).
 					Times(1)
@@ -776,12 +776,12 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			orgID := uuid.New().String()
 			holderID := uuid.New()
 
-			mockAliasRepo := instrument.NewMockRepository(ctrl)
+			mockInstrumentRepo := instrument.NewMockRepository(ctrl)
 			mockHolderRepo := holder.NewMockRepository(ctrl)
-			tt.setupMocks(mockAliasRepo, mockHolderRepo, orgID, holderID)
+			tt.setupMocks(mockInstrumentRepo, mockHolderRepo, orgID, holderID)
 
 			uc := &services.UseCase{
-				InstrumentRepo: mockAliasRepo,
+				InstrumentRepo: mockInstrumentRepo,
 				HolderRepo:     mockHolderRepo,
 			}
 			handler := &HolderHandler{Service: uc}

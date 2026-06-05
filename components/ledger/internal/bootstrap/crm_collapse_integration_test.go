@@ -25,8 +25,8 @@ import (
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	crmhttp "github.com/LerianStudio/midaz/v3/components/crm/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 	crmservices "github.com/LerianStudio/midaz/v3/components/crm/services"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -40,7 +40,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestIntegration_CRMCollapse is the in-module proof that the CRM holder/alias
+// TestIntegration_CRMCollapse is the in-module proof that the CRM holder/instrument
 // surface works correctly inside the unified ledger binary. It exercises the
 // collapsed components end-to-end:
 //
@@ -66,7 +66,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 		require.NoError(t, err, "initCRM single-tenant must succeed")
 		require.NotNil(t, crm.connection, "single-tenant must build a static Mongo connection")
 		require.NotNil(t, crm.holderHandler, "holder handler must be wired")
-		require.NotNil(t, crm.instrumentHandler, "alias handler must be wired")
+		require.NotNil(t, crm.instrumentHandler, "instrument handler must be wired")
 		require.Nil(t, crm.mongoManager, "single-tenant must NOT build a tenant Mongo manager")
 		t.Cleanup(func() { _ = crm.connection.Close(context.Background()) })
 
@@ -105,10 +105,10 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 		// MT-style repos: nil static connection => DB comes from context per request.
 		holderRepo, err := holder.NewMongoDBRepository(nil, cipher)
 		require.NoError(t, err)
-		aliasRepo, err := instrument.NewMongoDBRepository(nil, cipher)
+		instrumentRepo, err := instrument.NewMongoDBRepository(nil, cipher)
 		require.NoError(t, err)
 
-		uc := &crmservices.UseCase{HolderRepo: holderRepo, InstrumentRepo: aliasRepo}
+		uc := &crmservices.UseCase{HolderRepo: holderRepo, InstrumentRepo: instrumentRepo}
 
 		// Two separate tenant databases inside the same Mongo container.
 		dbA := mongotestutil.CreateConnection(t, container.URI, "tenant_a")
@@ -119,7 +119,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 		require.NoError(t, err)
 
 		// Per-tenant contexts inject the tenant DB under the GENERIC MB key,
-		// which is the key the CRM holder/alias repos read via
+		// which is the key the CRM holder/instrument repos read via
 		// tmcore.GetMBContext(ctx). The route-scoped crmTenantMiddleware writes
 		// this same generic key (it is built with single-arg WithMB); the
 		// HTTP-level test below proves that wiring, this one isolates the repo.
@@ -330,9 +330,9 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 	cipher := testutils.SetupCrypto(t)
 	holderRepo, err := holder.NewMongoDBRepository(nil, cipher)
 	require.NoError(t, err)
-	aliasRepo, err := instrument.NewMongoDBRepository(nil, cipher)
+	instrumentRepo, err := instrument.NewMongoDBRepository(nil, cipher)
 	require.NoError(t, err)
-	useCases := &crmservices.UseCase{HolderRepo: holderRepo, InstrumentRepo: aliasRepo}
+	useCases := &crmservices.UseCase{HolderRepo: holderRepo, InstrumentRepo: instrumentRepo}
 	holderHandler := &crmhttp.HolderHandler{Service: useCases}
 	instrumentHandler := &crmhttp.InstrumentHandler{Service: useCases}
 

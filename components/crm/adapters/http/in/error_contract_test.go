@@ -48,7 +48,7 @@ var transformedCRMCodeRegex = regexp.MustCompile(`^CRM-00(01|02|03|04|05|07|09|1
 //   - unexpected fields         CRM-0007 -> 0053 (ErrUnexpectedFieldsInTheRequest)
 //
 // Note: the shim's CRM-0015 -> 0047 (ErrBadRequest) mapping is intentionally not
-// pinned here. 0047 is not reachable through the CRM holder/alias handlers
+// pinned here. 0047 is not reachable through the CRM holder/instrument handlers
 // (it is absent from pkg.ValidateBusinessError and no struct-validator path on
 // the CRM inputs emits it), so asserting it would be a fabricated expectation.
 // The four pinned paths above are the genuinely-thrown formerly-transformed

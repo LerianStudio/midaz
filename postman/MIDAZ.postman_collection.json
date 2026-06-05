@@ -16140,11 +16140,11 @@
       ]
     },
     {
-      "name": "Aliases",
-      "description": "Endpoints related to Aliases.",
+      "name": "Instruments",
+      "description": "Endpoints related to Instruments.",
       "item": [
         {
-          "name": "List Aliases",
+          "name": "List Instruments",
           "request": {
             "method": "GET",
             "header": [
@@ -16168,13 +16168,13 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/aliases",
+              "raw": "{{onboardingUrl}}/v1/instruments",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "aliases"
+                "instruments"
               ],
               "query": [
                 {
@@ -16210,66 +16210,66 @@
                 {
                   "key": "include_deleted",
                   "value": "",
-                  "description": "Return includes logically deleted aliases.",
+                  "description": "Return includes logically deleted instruments.",
                   "disabled": true
                 },
                 {
                   "key": "account_id",
                   "value": "",
-                  "description": "Filter alias by accountID",
+                  "description": "Filter instrument by accountID",
                   "disabled": true
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Filter alias by ledgerID",
+                  "description": "Filter instrument by ledgerID",
                   "disabled": true
                 },
                 {
                   "key": "document",
                   "value": "",
-                  "description": "Filter alias by document",
+                  "description": "Filter instrument by document",
                   "disabled": true
                 },
                 {
                   "key": "banking_details_branch",
                   "value": "",
-                  "description": "Filter alias by banking details branch",
+                  "description": "Filter instrument by banking details branch",
                   "disabled": true
                 },
                 {
                   "key": "banking_details_account",
                   "value": "",
-                  "description": "Filter alias by banking details account",
+                  "description": "Filter instrument by banking details account",
                   "disabled": true
                 },
                 {
                   "key": "banking_details_iban",
                   "value": "",
-                  "description": "Filter alias by banking details iban",
+                  "description": "Filter instrument by banking details iban",
                   "disabled": true
                 },
                 {
                   "key": "regulatory_fields_participant_document",
                   "value": "",
-                  "description": "Filter alias by regulatory fields participant document",
+                  "description": "Filter instrument by regulatory fields participant document",
                   "disabled": true
                 },
                 {
                   "key": "related_party_document",
                   "value": "",
-                  "description": "Filter alias by related party document",
+                  "description": "Filter instrument by related party document",
                   "disabled": true
                 },
                 {
                   "key": "related_party_role",
                   "value": "",
-                  "description": "Filter alias by related party role",
+                  "description": "Filter instrument by related party role",
                   "disabled": true
                 }
               ]
             },
-            "description": "List all Aliases with or without filters. CRM listing endpoints support pagination using the page, limit, and sort parameters. The sort parameter orders results by the entity ID using the UUID v7 standard, which is time-sortable, ensuring chronological ordering of the results."
+            "description": "List all Instruments with or without filters. CRM listing endpoints support pagination using the page, limit, and sort parameters. The sort parameter orders results by the entity ID using the UUID v7 standard, which is time-sortable, ensuring chronological ordering of the results."
           },
           "response": [],
           "event": [
@@ -16342,7 +16342,7 @@
           ]
         },
         {
-          "name": "Create an Alias Account",
+          "name": "Create an Instrument Account",
           "request": {
             "method": "POST",
             "header": [
@@ -16366,7 +16366,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/holders/{{holderId}}/aliases",
+              "raw": "{{onboardingUrl}}/v1/holders/{{holderId}}/instruments",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -16374,7 +16374,7 @@
                 "v1",
                 "holders",
                 "{{holderId}}",
-                "aliases"
+                "instruments"
               ],
               "variable": [
                 {
@@ -16384,7 +16384,7 @@
                 }
               ]
             },
-            "description": "Enables a creation of an alias account, which represents an account in the ledger. The alias account is linked to specific business information, making it easier to manage and abstract account data within the system.",
+            "description": "Enables a creation of an instrument account, which represents an account in the ledger. The instrument account is linked to specific business information, making it easier to manage and abstract account data within the system.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"bankingDetails\": null,\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": null,\n  \"relatedParties\": [\n    null\n  ]\n}",
@@ -16466,7 +16466,7 @@
           ]
         },
         {
-          "name": "Retrieve Alias details",
+          "name": "Retrieve Instrument details",
           "request": {
             "method": "GET",
             "header": [
@@ -16490,7 +16490,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/holders/{{holderId}}/aliases/{{aliasId}}",
+              "raw": "{{onboardingUrl}}/v1/holders/{{holderId}}/instruments/{{instrumentId}}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -16498,8 +16498,8 @@
                 "v1",
                 "holders",
                 "{{holderId}}",
-                "aliases",
-                "{{aliasId}}"
+                "instruments",
+                "{{instrumentId}}"
               ],
               "variable": [
                 {
@@ -16508,21 +16508,21 @@
                   "description": "The unique identifier of the Holder."
                 },
                 {
-                  "key": "alias_id",
-                  "value": "{{aliasId}}",
-                  "description": "The unique identifier of the Alias account."
+                  "key": "instrument_id",
+                  "value": "{{instrumentId}}",
+                  "description": "The unique identifier of the Instrument account."
                 }
               ],
               "query": [
                 {
                   "key": "include_deleted",
                   "value": "",
-                  "description": "Returns the alias even if it was logically deleted.",
+                  "description": "Returns the instrument even if it was logically deleted.",
                   "disabled": true
                 }
               ]
             },
-            "description": "Retrieves detailed information about a specific alias using its unique identifier."
+            "description": "Retrieves detailed information about a specific instrument using its unique identifier."
           },
           "response": [],
           "event": [
@@ -16595,7 +16595,7 @@
           ]
         },
         {
-          "name": "Delete an Alias",
+          "name": "Delete an Instrument",
           "request": {
             "method": "DELETE",
             "header": [
@@ -16619,7 +16619,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/holders/{{holderId}}/aliases/{{aliasId}}",
+              "raw": "{{onboardingUrl}}/v1/holders/{{holderId}}/instruments/{{instrumentId}}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -16627,8 +16627,8 @@
                 "v1",
                 "holders",
                 "{{holderId}}",
-                "aliases",
-                "{{aliasId}}"
+                "instruments",
+                "{{instrumentId}}"
               ],
               "variable": [
                 {
@@ -16637,9 +16637,9 @@
                   "description": "The unique identifier of the Holder."
                 },
                 {
-                  "key": "alias_id",
-                  "value": "{{aliasId}}",
-                  "description": "The unique identifier of the Alias account."
+                  "key": "instrument_id",
+                  "value": "{{instrumentId}}",
+                  "description": "The unique identifier of the Instrument account."
                 }
               ],
               "query": [
@@ -16651,7 +16651,7 @@
                 }
               ]
             },
-            "description": "Delete an Alias. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation."
+            "description": "Delete an Instrument. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation."
           },
           "response": [],
           "event": [
@@ -16724,7 +16724,7 @@
           ]
         },
         {
-          "name": "Update an Alias",
+          "name": "Update an Instrument",
           "request": {
             "method": "PATCH",
             "header": [
@@ -16748,7 +16748,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/holders/{{holderId}}/aliases/{{aliasId}}",
+              "raw": "{{onboardingUrl}}/v1/holders/{{holderId}}/instruments/{{instrumentId}}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -16756,8 +16756,8 @@
                 "v1",
                 "holders",
                 "{{holderId}}",
-                "aliases",
-                "{{aliasId}}"
+                "instruments",
+                "{{instrumentId}}"
               ],
               "variable": [
                 {
@@ -16766,13 +16766,13 @@
                   "description": "The unique identifier of the Holder."
                 },
                 {
-                  "key": "alias_id",
-                  "value": "{{aliasId}}",
-                  "description": "The unique identifier of the Alias account."
+                  "key": "instrument_id",
+                  "value": "{{instrumentId}}",
+                  "description": "The unique identifier of the Instrument account."
                 }
               ]
             },
-            "description": "Update details of an alias.",
+            "description": "Update details of an instrument.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"bankingDetails\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": null,\n  \"relatedParties\": [\n    null\n  ]\n}",
@@ -16878,7 +16878,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/holders/{{holderId}}/aliases/{{aliasId}}/related-parties/{{relatedPartyId}}",
+              "raw": "{{onboardingUrl}}/v1/holders/{{holderId}}/instruments/{{instrumentId}}/related-parties/{{relatedPartyId}}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -16886,8 +16886,8 @@
                 "v1",
                 "holders",
                 "{{holderId}}",
-                "aliases",
-                "{{aliasId}}",
+                "instruments",
+                "{{instrumentId}}",
                 "related-parties",
                 "{{relatedPartyId}}"
               ],
@@ -16898,9 +16898,9 @@
                   "description": "The unique identifier of the Holder."
                 },
                 {
-                  "key": "alias_id",
-                  "value": "{{aliasId}}",
-                  "description": "The unique identifier of the Alias account."
+                  "key": "instrument_id",
+                  "value": "{{instrumentId}}",
+                  "description": "The unique identifier of the Instrument account."
                 },
                 {
                   "key": "related_party_id",
@@ -16909,7 +16909,7 @@
                 }
               ]
             },
-            "description": "Delete a Related Party from an Alias. This operation performs a physical deletion (hard delete) of the related party."
+            "description": "Delete a Related Party from an Instrument. This operation performs a physical deletion (hard delete) of the related party."
           },
           "response": [],
           "event": [

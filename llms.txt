@@ -44,7 +44,7 @@ Midaz implements a financial hierarchy: Organizations → Ledgers → Assets, Po
 - [Reporter Worker](components/reporter-worker/): Async PDF renderer deploy unit (:4006) → S3-compatible storage
 - [Infrastructure](components/infra/): Single Docker Compose for PostgreSQL, MongoDB, RabbitMQ, Valkey, SeaweedFS, KEDA, OTEL
 - [Shared Packages](pkg/): Cross-component libraries
-  - [Domain Models](pkg/mmodel/): Organization, Ledger, Account, Asset, Transaction, Balance, Holder, Alias, etc.
+  - [Domain Models](pkg/mmodel/): Organization, Ledger, Account, Asset, Transaction, Balance, Holder, Instrument, etc.
   - [Error Constants](pkg/constant/errors.go): Ledger numeric codes (0001–0175, incl. overdraft 0167–0175) + 16 CRM-00xx domain codes
   - [Error Types](pkg/errors.go): Typed errors — EntityNotFound, Validation, Conflict, Unauthorized, Forbidden, etc.
   - [Gold DSL](pkg/gold/): ANTLR4 grammar and parser for transaction DSL

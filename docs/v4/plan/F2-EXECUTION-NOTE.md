@@ -229,6 +229,64 @@ pattern removed).
 
 ---
 
+## F2-T17 — Docs/postman sweep (instruments noun, namespace flip, X1 note)
+
+Edited (8 files, docs/postman only — zero `.go` files touched):
+
+- `docs/api/SCOPING.md` — header-scoping section: `holders / aliases` → `holders / instruments`;
+  `POST /v1/holders/{holder_id}/aliases` → `.../instruments`; handler-file ref `alias.go` →
+  `instrument.go`.
+- `docs/auth/RBAC-NAMESPACES.md` — flipped the matrix: **four namespaces → three** (`plugin-crm`
+  collapsed into `midaz`; `holders`+`instruments` resources folded under the `midaz` row; CRM
+  `ApplicationName = "midaz"` cited as a second owner of the row). Replaced the "preserved as-is /
+  deferred" framing with the executed-flip framing. Added a dedicated **"X1 — policy migration"**
+  section with the grant matrix (`plugin-crm:* → midaz:{holders,instruments}:*`), Fred-owned +
+  plugin-auth, release/deploy gate NOT merge gate. Kept the policy-key coupling block intact;
+  fixed the residual "four"→"three" counts. R9 marked closed for CRM by the flip; `plugin-fees`
+  stays distinct by design. Every `plugin-crm` occurrence is now flip/migration-note context.
+- `postman/MIDAZ.postman_collection.json` — "Aliases" folder → "Instruments" (lines 16143–16986):
+  folder + 5 request names, 6 raw URLs, all `path[]` segments `aliases`→`instruments`, the 4
+  url-variable `"alias_id"` keys → `"instrument_id"`, the `{{aliasId}}` template var →
+  `{{instrumentId}}`, and the in-folder descriptions. JSON round-trip validated. The two
+  routing-handle items ("31. Get Account by Alias" `:2712`, "44. List Balances by Account Alias"
+  `:3946`) are DO-NOT-TOUCH and confirmed untouched.
+- `AGENTS.md` (`:21,47,48,50`), `STRUCTURE.md` (`:47,49,97,111,130-133,177`), `CLAUDE.md`
+  (`:13,14`) — `holders/aliases`→`holders/instruments`, `plugin-crm`→`midaz` namespace prose,
+  `mongodb/alias`→`mongodb/instrument` (matches the F2-T05 dir rename), `mmodel.Alias`→`Instrument`
+  in the model lists. CLAUDE.md `:14` keeps one `plugin-crm` mention as explicit flip-context with
+  an X1 pointer to the RBAC doc.
+
+### llms*.txt judgment call (boundary with F5)
+
+Spec: "LEAVE for F5 (served-surface wording) — only fix lines that name the Go entity directly."
+Applied that carve-out narrowly. **Fixed** four lines that name renamed **Go identifiers**:
+
+- `llms.txt:47` and `llms-full.txt:108` — `pkg/mmodel` model list `Alias` → `Instrument` (the Go
+  domain model; parallel to the STRUCTURE.md:177 fix).
+- `llms-full.txt:372,375,380` — the renamed Go error sentinels `ErrAliasNotFound` →
+  `ErrInstrumentNotFound`, `ErrHolderHasAliases` → `ErrHolderHasInstruments`,
+  `ErrAliasClosingDateBeforeCreation` → `ErrInstrumentClosingDateBeforeCreation` (F2-T10 renames;
+  the `CRM-0008/0017/0023` wire codes stay byte-for-byte — DO-NOT-TOUCH). Updated the coupled
+  human description token on those three lines so the line is not self-contradictory.
+
+**LEFT for F5** (served-surface wording, explicitly F5-owned): the `/v1/aliases*` route tables
+(`llms-full.txt:308-313`), the `plugin-crm` namespace prose (`llms.txt:5,39`; `llms-full.txt:29`),
+the "CRM holders/aliases" descriptions (`llms.txt:3,5,24,38,39,40`; `llms-full.txt:3,41,86,87,293`),
+and all Account/Balance `Alias` routing-handle refs (`llms-full.txt:146,147,162,170,178,222,261` —
+DO-NOT-TOUCH). Coordinate at F5 to avoid double-editing the served-surface lines.
+
+### Verification (F2-T17)
+
+- `grep -rn '/v1/holders/{holder_id}/aliases\|/v1/aliases' docs/api/SCOPING.md postman/...json` → ZERO.
+- `grep -n 'plugin-crm' docs/auth/RBAC-NAMESPACES.md` → only flip/X1-migration context.
+- postman: 6 raw URLs `/instruments`, all `path[]`+`{{instrumentId}}`+`instrument_id` consistent,
+  `aliasId`/`alias_id`/`/aliases` count ZERO in-folder, routing-handle items intact (count 8),
+  `python3 json.load` VALID.
+- DO-NOT-TOUCH re-proven: 6 numeric sentinels unchanged, 7 `aliases_` Mongo literals unchanged,
+  zero `.go` files modified by this task.
+
+---
+
 ## HEAD-drift summary (for the orchestrator)
 
 1. **F2-T01 guard grep `'Alias \*string'` is wrong** — gofmt column alignment means the literal pattern

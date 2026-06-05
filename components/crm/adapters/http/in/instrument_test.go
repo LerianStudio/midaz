@@ -27,21 +27,36 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func TestAliasHandler_CreateAlias(t *testing.T) {
+// TestInstrumentEntityFieldContract locks the R43 contract: the typed business
+// error built for the Instrument entity carries EntityType "Instrument" (the
+// renamed value), not the former "Alias". This is the layer where the flip is
+// observable — the CRM HTTP envelope (code/title/message) deliberately omits the
+// entity field, so the typed error is the right place to pin it.
+func TestInstrumentEntityFieldContract(t *testing.T) {
+	err := pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, reflect.TypeOf(mmodel.Instrument{}).Name())
+
+	notFound, ok := err.(pkg.EntityNotFoundError)
+	require.True(t, ok, "ErrInstrumentNotFound must map to EntityNotFoundError")
+	assert.Equal(t, cn.EntityInstrument, notFound.EntityType,
+		"entity field must reflect the renamed Instrument entity")
+	assert.Equal(t, cn.ErrInstrumentNotFound.Error(), notFound.Code)
+}
+
+func TestInstrumentHandler_CreateInstrument(t *testing.T) {
 	tests := []struct {
 		name           string
 		jsonBody       string
-		setupMocks     func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID)
+		setupMocks     func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
-			name: "success returns 201 with created alias",
+			name: "success returns 201 with created instrument",
 			jsonBody: `{
 				"ledgerId": "00000000-0000-0000-0000-000000000001",
 				"accountId": "00000000-0000-0000-0000-000000000002"
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				document := "12345678901"
 				holderType := "individual"
 
@@ -54,7 +69,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				aliasRepo.EXPECT().
+				instrumentRepo.EXPECT().
 					Create(gomock.Any(), orgID, gomock.Any()).
 					DoAndReturn(func(ctx any, org string, a *mmodel.Instrument) (*mmodel.Instrument, error) {
 						a.CreatedAt = time.Now()
@@ -80,7 +95,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 				"ledgerId": "00000000-0000-0000-0000-000000000001",
 				"accountId": "00000000-0000-0000-0000-000000000002"
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				holderRepo.EXPECT().
 					Find(gomock.Any(), orgID, holderID, false).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())).
@@ -102,7 +117,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 				"ledgerId": "00000000-0000-0000-0000-000000000001",
 				"accountId": "00000000-0000-0000-0000-000000000002"
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				document := "12345678901"
 				holderType := "individual"
 
@@ -115,7 +130,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				aliasRepo.EXPECT().
+				instrumentRepo.EXPECT().
 					Create(gomock.Any(), orgID, gomock.Any()).
 					Return(nil, pkg.InternalServerError{
 						Code:    "0046",
@@ -139,7 +154,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 			jsonBody: `{
 				"accountId": "00000000-0000-0000-0000-000000000002"
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				// No mock calls expected - validation fails before service layer
 			},
 			expectedStatus: 400,
@@ -157,7 +172,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 			jsonBody: `{
 				"ledgerId": "00000000-0000-0000-0000-000000000001"
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				// No mock calls expected - validation fails before service layer
 			},
 			expectedStatus: 400,
@@ -182,7 +197,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 					"startDate": "2025-01-01"
 				}]
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				// No mock calls expected - validation fails before any repository call
 			},
 			expectedStatus: 400,
@@ -207,7 +222,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 					"startDate": "2025-01-01"
 				}]
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				// No mock calls expected - validation fails before any repository call
 			},
 			expectedStatus: 400,
@@ -232,7 +247,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 					"startDate": "2025-01-01"
 				}]
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				// No mock calls expected - validation fails before any repository call
 			},
 			expectedStatus: 400,
@@ -256,7 +271,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 					"role": "PRIMARY_HOLDER"
 				}]
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				// No mock calls expected - validation fails before any repository call
 			},
 			expectedStatus: 400,
@@ -282,7 +297,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 					"endDate": "2025-01-01"
 				}]
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				// No mock calls expected - validation fails before any repository call
 			},
 			expectedStatus: 400,
@@ -305,12 +320,12 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 			orgID := uuid.New().String()
 			holderID := uuid.New()
 
-			mockAliasRepo := instrument.NewMockRepository(ctrl)
+			mockInstrumentRepo := instrument.NewMockRepository(ctrl)
 			mockHolderRepo := holder.NewMockRepository(ctrl)
-			tt.setupMocks(mockAliasRepo, mockHolderRepo, orgID, holderID)
+			tt.setupMocks(mockInstrumentRepo, mockHolderRepo, orgID, holderID)
 
 			uc := &services.UseCase{
-				InstrumentRepo: mockAliasRepo,
+				InstrumentRepo: mockInstrumentRepo,
 				HolderRepo:     mockHolderRepo,
 			}
 			handler := &InstrumentHandler{Service: uc}
@@ -342,27 +357,27 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 	}
 }
 
-func TestAliasHandler_GetAliasByID(t *testing.T) {
+func TestInstrumentHandler_GetInstrumentByID(t *testing.T) {
 	tests := []struct {
 		name           string
 		includeDeleted string
-		setupMocks     func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID)
+		setupMocks     func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
-			name:           "success returns 200 with alias",
+			name:           "success returns 200 with instrument",
 			includeDeleted: "",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
 				ledgerID := "00000000-0000-0000-0000-000000000001"
 				accountID := "00000000-0000-0000-0000-000000000002"
 				document := "12345678901"
 				holderType := "individual"
 
-				aliasRepo.EXPECT().
-					Find(gomock.Any(), orgID, holderID, aliasID, false).
+				instrumentRepo.EXPECT().
+					Find(gomock.Any(), orgID, holderID, instrumentID, false).
 					Return(&mmodel.Instrument{
-						ID:        &aliasID,
+						ID:        &instrumentID,
 						LedgerID:  &ledgerID,
 						AccountID: &accountID,
 						HolderID:  &holderID,
@@ -385,18 +400,18 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 			},
 		},
 		{
-			name:           "success with include_deleted returns 200 with alias",
+			name:           "success with include_deleted returns 200 with instrument",
 			includeDeleted: "true",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
 				ledgerID := "00000000-0000-0000-0000-000000000001"
 				accountID := "00000000-0000-0000-0000-000000000002"
 				document := "12345678901"
 				holderType := "individual"
 
-				aliasRepo.EXPECT().
-					Find(gomock.Any(), orgID, holderID, aliasID, true).
+				instrumentRepo.EXPECT().
+					Find(gomock.Any(), orgID, holderID, instrumentID, true).
 					Return(&mmodel.Instrument{
-						ID:        &aliasID,
+						ID:        &instrumentID,
 						LedgerID:  &ledgerID,
 						AccountID: &accountID,
 						HolderID:  &holderID,
@@ -421,9 +436,9 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 		{
 			name:           "not found returns 404",
 			includeDeleted: "",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
-				aliasRepo.EXPECT().
-					Find(gomock.Any(), orgID, holderID, aliasID, false).
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
+				instrumentRepo.EXPECT().
+					Find(gomock.Any(), orgID, holderID, instrumentID, false).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, reflect.TypeOf(mmodel.Instrument{}).Name())).
 					Times(1)
 			},
@@ -440,9 +455,9 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 		{
 			name:           "repository error returns 500",
 			includeDeleted: "",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
-				aliasRepo.EXPECT().
-					Find(gomock.Any(), orgID, holderID, aliasID, false).
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
+				instrumentRepo.EXPECT().
+					Find(gomock.Any(), orgID, holderID, instrumentID, false).
 					Return(nil, pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
@@ -469,13 +484,13 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 
 			orgID := uuid.New().String()
 			holderID := uuid.New()
-			aliasID := uuid.New()
+			instrumentID := uuid.New()
 
-			mockAliasRepo := instrument.NewMockRepository(ctrl)
-			tt.setupMocks(mockAliasRepo, orgID, holderID, aliasID)
+			mockInstrumentRepo := instrument.NewMockRepository(ctrl)
+			tt.setupMocks(mockInstrumentRepo, orgID, holderID, instrumentID)
 
 			uc := &services.UseCase{
-				InstrumentRepo: mockAliasRepo,
+				InstrumentRepo: mockInstrumentRepo,
 			}
 			handler := &InstrumentHandler{Service: uc}
 
@@ -483,14 +498,14 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 			app.Get("/v1/holders/:holder_id/instruments/:instrument_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
-					c.Locals("instrument_id", aliasID)
+					c.Locals("instrument_id", instrumentID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
 					return c.Next()
 				},
 				handler.GetInstrumentByID,
 			)
 
-			url := "/v1/holders/" + holderID.String() + "/instruments/" + aliasID.String()
+			url := "/v1/holders/" + holderID.String() + "/instruments/" + instrumentID.String()
 			if tt.includeDeleted != "" {
 				url += "?include_deleted=" + tt.includeDeleted
 			}
@@ -510,29 +525,29 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 	}
 }
 
-func TestAliasHandler_UpdateAlias(t *testing.T) {
+func TestInstrumentHandler_UpdateInstrument(t *testing.T) {
 	tests := []struct {
 		name           string
 		jsonBody       string
-		setupMocks     func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID)
+		setupMocks     func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
-			name: "success returns 200 with updated alias",
+			name: "success returns 200 with updated instrument",
 			jsonBody: `{
 				"metadata": {"key": "value"}
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
 				ledgerID := "00000000-0000-0000-0000-000000000001"
 				accountID := "00000000-0000-0000-0000-000000000002"
 				document := "12345678901"
 				holderType := "individual"
 
-				aliasRepo.EXPECT().
-					Update(gomock.Any(), orgID, holderID, aliasID, gomock.Any(), gomock.Any()).
+				instrumentRepo.EXPECT().
+					Update(gomock.Any(), orgID, holderID, instrumentID, gomock.Any(), gomock.Any()).
 					Return(&mmodel.Instrument{
-						ID:        &aliasID,
+						ID:        &instrumentID,
 						LedgerID:  &ledgerID,
 						AccountID: &accountID,
 						HolderID:  &holderID,
@@ -562,9 +577,9 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			jsonBody: `{
 				"metadata": {"key": "value"}
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
-				aliasRepo.EXPECT().
-					Update(gomock.Any(), orgID, holderID, aliasID, gomock.Any(), gomock.Any()).
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
+				instrumentRepo.EXPECT().
+					Update(gomock.Any(), orgID, holderID, instrumentID, gomock.Any(), gomock.Any()).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, reflect.TypeOf(mmodel.Instrument{}).Name())).
 					Times(1)
 			},
@@ -583,9 +598,9 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			jsonBody: `{
 				"metadata": {"key": "value"}
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
-				aliasRepo.EXPECT().
-					Update(gomock.Any(), orgID, holderID, aliasID, gomock.Any(), gomock.Any()).
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
+				instrumentRepo.EXPECT().
+					Update(gomock.Any(), orgID, holderID, instrumentID, gomock.Any(), gomock.Any()).
 					Return(nil, pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
@@ -613,7 +628,7 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 					"startDate": "2025-01-01"
 				}]
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
 				// No mock calls expected - validation fails before repository call
 			},
 			expectedStatus: 400,
@@ -636,7 +651,7 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 					"startDate": "2025-01-01"
 				}]
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
 				// No mock calls expected - validation fails before repository call
 			},
 			expectedStatus: 400,
@@ -659,7 +674,7 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 					"startDate": "2025-01-01"
 				}]
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
 				// No mock calls expected - validation fails before repository call
 			},
 			expectedStatus: 400,
@@ -681,7 +696,7 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 					"role": "PRIMARY_HOLDER"
 				}]
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
 				// No mock calls expected - validation fails before repository call
 			},
 			expectedStatus: 400,
@@ -705,7 +720,7 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 					"endDate": "2025-01-01"
 				}]
 			}`,
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
 				// No mock calls expected - validation fails before repository call
 			},
 			expectedStatus: 400,
@@ -727,13 +742,13 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 
 			orgID := uuid.New().String()
 			holderID := uuid.New()
-			aliasID := uuid.New()
+			instrumentID := uuid.New()
 
-			mockAliasRepo := instrument.NewMockRepository(ctrl)
-			tt.setupMocks(mockAliasRepo, orgID, holderID, aliasID)
+			mockInstrumentRepo := instrument.NewMockRepository(ctrl)
+			tt.setupMocks(mockInstrumentRepo, orgID, holderID, instrumentID)
 
 			uc := &services.UseCase{
-				InstrumentRepo: mockAliasRepo,
+				InstrumentRepo: mockInstrumentRepo,
 			}
 			handler := &InstrumentHandler{Service: uc}
 
@@ -741,14 +756,14 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			app.Patch("/v1/holders/:holder_id/instruments/:instrument_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
-					c.Locals("instrument_id", aliasID)
+					c.Locals("instrument_id", instrumentID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
 					return c.Next()
 				},
 				http.WithBody(new(mmodel.UpdateInstrumentInput), handler.UpdateInstrument),
 			)
 
-			req := httptest.NewRequest("PATCH", "/v1/holders/"+holderID.String()+"/instruments/"+aliasID.String(), bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest("PATCH", "/v1/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
@@ -765,20 +780,20 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 	}
 }
 
-func TestAliasHandler_DeleteAliasByID(t *testing.T) {
+func TestInstrumentHandler_DeleteInstrumentByID(t *testing.T) {
 	tests := []struct {
 		name           string
 		hardDelete     string
-		setupMocks     func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID)
+		setupMocks     func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name:       "success returns 204 no content",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
-				aliasRepo.EXPECT().
-					Delete(gomock.Any(), orgID, holderID, aliasID, false).
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
+				instrumentRepo.EXPECT().
+					Delete(gomock.Any(), orgID, holderID, instrumentID, false).
 					Return(nil).
 					Times(1)
 			},
@@ -788,9 +803,9 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 		{
 			name:       "success with hard delete returns 204",
 			hardDelete: "true",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
-				aliasRepo.EXPECT().
-					Delete(gomock.Any(), orgID, holderID, aliasID, true).
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
+				instrumentRepo.EXPECT().
+					Delete(gomock.Any(), orgID, holderID, instrumentID, true).
 					Return(nil).
 					Times(1)
 			},
@@ -800,9 +815,9 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 		{
 			name:       "not found returns 404",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
-				aliasRepo.EXPECT().
-					Delete(gomock.Any(), orgID, holderID, aliasID, false).
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
+				instrumentRepo.EXPECT().
+					Delete(gomock.Any(), orgID, holderID, instrumentID, false).
 					Return(pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, reflect.TypeOf(mmodel.Instrument{}).Name())).
 					Times(1)
 			},
@@ -819,9 +834,9 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 		{
 			name:       "repository error returns 500",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
-				aliasRepo.EXPECT().
-					Delete(gomock.Any(), orgID, holderID, aliasID, false).
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
+				instrumentRepo.EXPECT().
+					Delete(gomock.Any(), orgID, holderID, instrumentID, false).
 					Return(pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
@@ -848,13 +863,13 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 
 			orgID := uuid.New().String()
 			holderID := uuid.New()
-			aliasID := uuid.New()
+			instrumentID := uuid.New()
 
-			mockAliasRepo := instrument.NewMockRepository(ctrl)
-			tt.setupMocks(mockAliasRepo, orgID, holderID, aliasID)
+			mockInstrumentRepo := instrument.NewMockRepository(ctrl)
+			tt.setupMocks(mockInstrumentRepo, orgID, holderID, instrumentID)
 
 			uc := &services.UseCase{
-				InstrumentRepo: mockAliasRepo,
+				InstrumentRepo: mockInstrumentRepo,
 			}
 			handler := &InstrumentHandler{Service: uc}
 
@@ -862,14 +877,14 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 			app.Delete("/v1/holders/:holder_id/instruments/:instrument_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
-					c.Locals("instrument_id", aliasID)
+					c.Locals("instrument_id", instrumentID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
 					return c.Next()
 				},
 				handler.DeleteInstrumentByID,
 			)
 
-			url := "/v1/holders/" + holderID.String() + "/instruments/" + aliasID.String()
+			url := "/v1/holders/" + holderID.String() + "/instruments/" + instrumentID.String()
 			if tt.hardDelete != "" {
 				url += "?hard_delete=" + tt.hardDelete
 			}
@@ -889,18 +904,18 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 	}
 }
 
-func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
+func TestInstrumentHandler_DeleteRelatedParty(t *testing.T) {
 	tests := []struct {
 		name           string
-		setupMocks     func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID, relatedPartyID uuid.UUID)
+		setupMocks     func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID, relatedPartyID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name: "success returns 204 no content",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID, relatedPartyID uuid.UUID) {
-				aliasRepo.EXPECT().
-					DeleteRelatedParty(gomock.Any(), orgID, holderID, aliasID, relatedPartyID).
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID, relatedPartyID uuid.UUID) {
+				instrumentRepo.EXPECT().
+					DeleteRelatedParty(gomock.Any(), orgID, holderID, instrumentID, relatedPartyID).
 					Return(nil).
 					Times(1)
 			},
@@ -909,9 +924,9 @@ func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
 		},
 		{
 			name: "not found returns 404",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID, relatedPartyID uuid.UUID) {
-				aliasRepo.EXPECT().
-					DeleteRelatedParty(gomock.Any(), orgID, holderID, aliasID, relatedPartyID).
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID, relatedPartyID uuid.UUID) {
+				instrumentRepo.EXPECT().
+					DeleteRelatedParty(gomock.Any(), orgID, holderID, instrumentID, relatedPartyID).
 					Return(pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, reflect.TypeOf(mmodel.Instrument{}).Name())).
 					Times(1)
 			},
@@ -927,9 +942,9 @@ func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
 		},
 		{
 			name: "repository error returns 500",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string, holderID, aliasID, relatedPartyID uuid.UUID) {
-				aliasRepo.EXPECT().
-					DeleteRelatedParty(gomock.Any(), orgID, holderID, aliasID, relatedPartyID).
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID, relatedPartyID uuid.UUID) {
+				instrumentRepo.EXPECT().
+					DeleteRelatedParty(gomock.Any(), orgID, holderID, instrumentID, relatedPartyID).
 					Return(pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
@@ -956,14 +971,14 @@ func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
 
 			orgID := uuid.New().String()
 			holderID := uuid.New()
-			aliasID := uuid.New()
+			instrumentID := uuid.New()
 			relatedPartyID := uuid.New()
 
-			mockAliasRepo := instrument.NewMockRepository(ctrl)
-			tt.setupMocks(mockAliasRepo, orgID, holderID, aliasID, relatedPartyID)
+			mockInstrumentRepo := instrument.NewMockRepository(ctrl)
+			tt.setupMocks(mockInstrumentRepo, orgID, holderID, instrumentID, relatedPartyID)
 
 			uc := &services.UseCase{
-				InstrumentRepo: mockAliasRepo,
+				InstrumentRepo: mockInstrumentRepo,
 			}
 			handler := &InstrumentHandler{Service: uc}
 
@@ -971,7 +986,7 @@ func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
 			app.Delete("/v1/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
-					c.Locals("instrument_id", aliasID)
+					c.Locals("instrument_id", instrumentID)
 					c.Locals("related_party_id", relatedPartyID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
 					return c.Next()
@@ -979,7 +994,7 @@ func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
 				handler.DeleteRelatedParty,
 			)
 
-			url := "/v1/holders/" + holderID.String() + "/instruments/" + aliasID.String() + "/related-parties/" + relatedPartyID.String()
+			url := "/v1/holders/" + holderID.String() + "/instruments/" + instrumentID.String() + "/related-parties/" + relatedPartyID.String()
 			req := httptest.NewRequest("DELETE", url, nil)
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
@@ -996,19 +1011,19 @@ func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
 	}
 }
 
-func TestAliasHandler_GetAllAliases(t *testing.T) {
+func TestInstrumentHandler_GetAllInstruments(t *testing.T) {
 	tests := []struct {
 		name           string
 		queryParams    string
-		setupMocks     func(aliasRepo *instrument.MockRepository, orgID string)
+		setupMocks     func(instrumentRepo *instrument.MockRepository, orgID string)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name:        "empty list returns 200 with pagination structure",
 			queryParams: "",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string) {
-				aliasRepo.EXPECT().
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string) {
+				instrumentRepo.EXPECT().
 					FindAll(gomock.Any(), orgID, uuid.Nil, gomock.Any(), false).
 					Return([]*mmodel.Instrument{}, nil).
 					Times(1)
@@ -1029,22 +1044,22 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 			},
 		},
 		{
-			name:        "success with items returns aliases",
+			name:        "success with items returns instruments",
 			queryParams: "?limit=5&page=1",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string) {
-				alias1ID := uuid.New()
-				alias2ID := uuid.New()
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string) {
+				instrument1ID := uuid.New()
+				instrument2ID := uuid.New()
 				holderID := uuid.New()
 				ledgerID := "00000000-0000-0000-0000-000000000001"
 				accountID := "00000000-0000-0000-0000-000000000002"
 				document := "12345678901"
 				holderType := "individual"
 
-				aliasRepo.EXPECT().
+				instrumentRepo.EXPECT().
 					FindAll(gomock.Any(), orgID, uuid.Nil, gomock.Any(), false).
 					Return([]*mmodel.Instrument{
 						{
-							ID:        &alias1ID,
+							ID:        &instrument1ID,
 							LedgerID:  &ledgerID,
 							AccountID: &accountID,
 							HolderID:  &holderID,
@@ -1054,7 +1069,7 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 							UpdatedAt: time.Now(),
 						},
 						{
-							ID:        &alias2ID,
+							ID:        &instrument2ID,
 							LedgerID:  &ledgerID,
 							AccountID: &accountID,
 							HolderID:  &holderID,
@@ -1074,12 +1089,12 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 
 				items, ok := result["items"].([]any)
 				require.True(t, ok, "items should be an array")
-				assert.Len(t, items, 2, "should have two aliases")
+				assert.Len(t, items, 2, "should have two instruments")
 
 				firstItem, ok := items[0].(map[string]any)
 				require.True(t, ok, "item should be an object")
-				assert.Contains(t, firstItem, "id", "alias should have id field")
-				assert.Contains(t, firstItem, "ledgerId", "alias should have ledgerId field")
+				assert.Contains(t, firstItem, "id", "instrument should have id field")
+				assert.Contains(t, firstItem, "ledgerId", "instrument should have ledgerId field")
 
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
@@ -1089,8 +1104,8 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 		{
 			name:        "repository error returns 500",
 			queryParams: "",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string) {
-				aliasRepo.EXPECT().
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string) {
+				instrumentRepo.EXPECT().
 					FindAll(gomock.Any(), orgID, uuid.Nil, gomock.Any(), false).
 					Return(nil, pkg.InternalServerError{
 						Code:    "0046",
@@ -1112,7 +1127,7 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 		{
 			name:        "zero limit returns 400",
 			queryParams: "?limit=0",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string) {
 			},
 			expectedStatus: 400,
 			validateBody:   assertInvalidQueryParameterResponse,
@@ -1120,7 +1135,7 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 		{
 			name:        "negative limit returns 400",
 			queryParams: "?limit=-1",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string) {
 			},
 			expectedStatus: 400,
 			validateBody:   assertInvalidQueryParameterResponse,
@@ -1128,7 +1143,7 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 		{
 			name:        "non-numeric limit returns 400",
 			queryParams: "?limit=abc",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string) {
 			},
 			expectedStatus: 400,
 			validateBody:   assertInvalidQueryParameterResponse,
@@ -1136,7 +1151,7 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 		{
 			name:        "zero page returns 400",
 			queryParams: "?page=0",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string) {
 			},
 			expectedStatus: 400,
 			validateBody:   assertInvalidQueryParameterResponse,
@@ -1144,7 +1159,7 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 		{
 			name:        "negative page returns 400",
 			queryParams: "?page=-1",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string) {
 			},
 			expectedStatus: 400,
 			validateBody:   assertInvalidQueryParameterResponse,
@@ -1152,7 +1167,7 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 		{
 			name:        "non-numeric page returns 400",
 			queryParams: "?page=abc",
-			setupMocks: func(aliasRepo *instrument.MockRepository, orgID string) {
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string) {
 			},
 			expectedStatus: 400,
 			validateBody:   assertInvalidQueryParameterResponse,
@@ -1166,11 +1181,11 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 
 			orgID := uuid.New().String()
 
-			mockAliasRepo := instrument.NewMockRepository(ctrl)
-			tt.setupMocks(mockAliasRepo, orgID)
+			mockInstrumentRepo := instrument.NewMockRepository(ctrl)
+			tt.setupMocks(mockInstrumentRepo, orgID)
 
 			uc := &services.UseCase{
-				InstrumentRepo: mockAliasRepo,
+				InstrumentRepo: mockInstrumentRepo,
 			}
 			handler := &InstrumentHandler{Service: uc}
 

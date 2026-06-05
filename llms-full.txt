@@ -105,7 +105,7 @@ midaz/
 │       ├── seaweedfs/       # S3 config (s3.json, init-bucket.sh)
 │       └── grafana/         # OTEL collector config
 ├── pkg/                     # Shared packages (root)
-│   ├── mmodel/              # Domain models (incl. Holder, Alias)
+│   ├── mmodel/              # Domain models (incl. Holder, Instrument)
 │   ├── constant/            # Error codes (ledger 0001–0175, 16 CRM-00xx), action/module constants
 │   ├── errors.go            # Typed error structs + ValidateBusinessError
 │   ├── gold/                # ANTLR4 transaction DSL grammar + parser
@@ -369,15 +369,15 @@ object storage (SeaweedFS). Shared library: `pkg/reporter`. Shared suites: `test
 
 #### CRM Error Codes (all 16)
 - `CRM-0006` ErrHolderNotFound — holder not found
-- `CRM-0008` ErrAliasNotFound — alias not found
+- `CRM-0008` ErrInstrumentNotFound — instrument not found
 - `CRM-0010` ErrDocumentAssociationError — document association error
 - `CRM-0013` ErrAccountAlreadyAssociated — account already associated
-- `CRM-0017` ErrHolderHasAliases — holder has aliases (cannot delete)
+- `CRM-0017` ErrHolderHasInstruments — holder has instruments (cannot delete)
 - `CRM-0019` ErrMetadataQueryInvalidFormat — metadata query format error
 - `CRM-0020` ErrMetadataQueryInvalidKey — metadata query invalid key
 - `CRM-0021` ErrMetadataQueryContainsOperator — metadata query contains operator
 - `CRM-0022` ErrInvalidHeaderValue — invalid header value
-- `CRM-0023` ErrAliasClosingDateBeforeCreation — closing date before creation
+- `CRM-0023` ErrInstrumentClosingDateBeforeCreation — closing date before creation
 - `CRM-0024` ErrRelatedPartyNotFound — related party not found
 - `CRM-0025` ErrInvalidRelatedPartyRole — invalid related party role
 - `CRM-0026` ErrRelatedPartyDocumentRequired — document required

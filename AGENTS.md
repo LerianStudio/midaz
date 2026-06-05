@@ -18,7 +18,7 @@ Midaz is an **open-source double-entry ledger** written in Go. It provides HTTP 
 | Deploy units | Ledger+CRM+Fees (:3002), Tracer (:4020), Reporter Manager (:4005), Reporter Worker (:4006), Infra (Docker Compose) |
 
 > **CRM and fees are not deploy units.** CRM is a package tree at `components/crm`, imported by
-> the ledger binary (holder/alias routes served on :3002). Fees are embedded in the ledger
+> the ledger binary (holder/instrument routes served on :3002). Fees are embedded in the ledger
 > binary (`components/ledger/pkg/fee`, `components/ledger/internal/services/fees`, fee seam in
 > `transaction_create.go`). Tracer and the two reporter components are separate Go services.
 
@@ -44,10 +44,10 @@ components/ledger/internal/
   services/command/   → Write use cases (one file per operation)
   services/query/     → Read use cases (one file per operation)
 
-components/crm/         → CRM package tree (holders/aliases), imported by ledger — NOT a deploy unit
-  adapters/http/in/     → Holder/alias handlers + routes (plugin-crm namespace)
+components/crm/         → CRM package tree (holders/instruments), imported by ledger — NOT a deploy unit
+  adapters/http/in/     → Holder/instrument handlers + routes (midaz namespace)
   adapters/mongodb/     → CRM persistence
-  services/             → Holder/alias use cases
+  services/             → Holder/instrument use cases
 
 components/ledger/pkg/  → Embedded fees: fee/ (engine), feeshared/ (plugin-fees types)
   (fee use cases at components/ledger/internal/services/fees; fee seam in transaction_create.go)
