@@ -203,7 +203,6 @@ func buildOverdraftEvents(tran *transaction.Transaction) []overdraftEventItem {
 		return nil
 	}
 
-	//nolint:prealloc // contract: return nil (not empty slice) when no operation qualifies; tests assert nil.
 	var items []overdraftEventItem
 
 	for _, op := range tran.Operations {

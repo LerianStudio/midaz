@@ -31,7 +31,7 @@ permissions:
 
 jobs:
   security-scan:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@v1.27.5
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@v1.28.9
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
       # Analysis-class filter: covers every component that still has Go code in-tree

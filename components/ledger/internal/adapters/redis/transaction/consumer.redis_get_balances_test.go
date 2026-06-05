@@ -282,6 +282,40 @@ func TestGetBalancesByKeys_AllKeysNotFound(t *testing.T) {
 	assert.Nil(t, result["key3"])
 }
 
+// TestGetBalancesByKeys_SingleTenant_KeyReachesMGetUnchanged proves the single-tenant
+// path is unaffected by the multi-tenant double-namespacing fix: with no tenant in
+// context, the key must reach MGET exactly as provided and the value must be found.
+func TestGetBalancesByKeys_SingleTenant_KeyReachesMGetUnchanged(t *testing.T) {
+	const plainKey = "balance:{transactions}:org:ledger:@alias#default"
+
+	validJSON := `{"id":"uuid-st","alias":"@alias","key":"default","accountId":"acc-st","assetCode":"USD","available":"7.00","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
+
+	var capturedKeys []string
+
+	mockClient := &mockMGetClient{
+		mGetFunc: func(_ context.Context, keys ...string) *redis.SliceCmd {
+			capturedKeys = append(capturedKeys, keys...)
+
+			cmd := redis.NewSliceCmd(context.Background())
+			cmd.SetVal([]any{validJSON})
+
+			return cmd
+		},
+	}
+
+	repo := &RedisConsumerRepository{
+		conn: newMockMGetConnection(mockClient),
+	}
+
+	// context.Background() carries no tenant — single-tenant / default mode.
+	result, err := repo.GetBalancesByKeys(context.Background(), []string{plainKey})
+	require.NoError(t, err)
+
+	require.Equal(t, []string{plainKey}, capturedKeys, "single-tenant key must reach MGET unchanged")
+	require.NotNil(t, result[plainKey], "balance value must be found in single-tenant mode")
+	assert.Equal(t, "uuid-st", result[plainKey].ID)
+}
+
 func TestGetBalancesByKeys_InterfaceCompliance(t *testing.T) {
 	// Type assertion to verify method exists with correct signature
 	type BalanceGetter interface {

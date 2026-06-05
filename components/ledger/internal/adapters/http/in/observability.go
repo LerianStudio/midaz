@@ -90,7 +90,7 @@ func resolvePayloadValue(payload any) reflect.Value {
 		return v
 	}
 
-	for v.Kind() == reflect.Ptr {
+	for v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return reflect.Value{}
 		}
