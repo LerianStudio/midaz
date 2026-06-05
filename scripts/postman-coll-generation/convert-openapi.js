@@ -1155,13 +1155,13 @@ function createEnvironmentTemplate(spec) {
       },
       {
         key: 'onboardingPort',
-        value: '3000',
+        value: '3002',
         type: 'default',
         enabled: true
       },
       {
         key: 'transactionPort',
-        value: '3001',
+        value: '3002',
         type: 'default',
         enabled: true
       },
