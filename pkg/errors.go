@@ -1313,6 +1313,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Settings Field Type",
 			Message:    fmt.Sprintf("The settings field '%v' has an invalid type. Expected %v.", args...),
 		},
+		constant.ErrInvalidSettingsFieldValue: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidSettingsFieldValue.Error(),
+			Title:      "Invalid Settings Field Value",
+			Message:    fmt.Sprintf("The settings field '%v' has an invalid value. Allowed values are: %v.", args...),
+		},
 		constant.ErrSettingsRootLevelField: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrSettingsRootLevelField.Error(),

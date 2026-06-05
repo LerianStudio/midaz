@@ -215,6 +215,12 @@ var (
 	// system-managed (e.g. overdraft companions) and cannot be modified
 	// through the public API.
 	ErrUpdateOfInternalBalance = errors.New("0175")
+	// ErrInvalidSettingsFieldValue is returned when a settings field has the
+	// correct primitive type but a value outside its allowed enum set
+	// (e.g. tracer.mode = "enfroce" instead of off|advisory|enforce). The
+	// type-only validator cannot catch this, so membership is checked
+	// explicitly at write time.
+	ErrInvalidSettingsFieldValue = errors.New("0176")
 )
 
 // List of CRM domain errors.

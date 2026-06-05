@@ -34,6 +34,23 @@ func TestDefaultLedgerSettings(t *testing.T) {
 	assert.False(t, settings.Accounting.ValidateAccountType, "ValidateAccountType must default to false")
 	assert.False(t, settings.Accounting.ValidateRoutes, "ValidateRoutes must default to false")
 	assert.False(t, settings.Accounting.RequireHolder, "RequireHolder must default to false")
+
+	assert.Equal(t, "off", settings.Tracer.Mode, "Tracer.Mode must default to off")
+	assert.Equal(t, "open", settings.Tracer.FailPosture, "Tracer.FailPosture must default to open")
+	assert.Equal(t, 250, settings.Tracer.TimeoutMs, "Tracer.TimeoutMs must default to 250")
+}
+
+// TestLedgerSettings_Comparable enforces L1: LedgerSettings must stay ==-comparable
+// (LedgerSettingsIsDefault relies on struct equality). This fails to compile if any
+// field is changed to a non-comparable type such as a slice, map, or func.
+func TestLedgerSettings_Comparable(t *testing.T) {
+	a := DefaultLedgerSettings()
+	b := DefaultLedgerSettings()
+
+	assert.True(t, a == b, "default settings must be == equal")
+
+	b.Tracer.Mode = "enforce"
+	assert.False(t, a == b, "settings differing in Tracer.Mode must not be == equal")
 }
 
 func TestDefaultLedgerSettingsMap(t *testing.T) {
@@ -45,6 +62,39 @@ func TestDefaultLedgerSettingsMap(t *testing.T) {
 	assert.Equal(t, false, accounting["validateAccountType"])
 	assert.Equal(t, false, accounting["validateRoutes"])
 	assert.Equal(t, false, accounting["requireHolder"])
+
+	tracer, ok := settings["tracer"].(map[string]any)
+	assert.True(t, ok, "tracer section must exist")
+	assert.Equal(t, "off", tracer["mode"])
+	assert.Equal(t, "open", tracer["failPosture"])
+	assert.Equal(t, 250, tracer["timeoutMs"])
+}
+
+// TestDefaultLedgerSettingsMap_SerializesIdenticallyForExistingLedgers asserts that the
+// default map is deterministic and round-trips through JSON to a stable shape. Existing
+// ledgers that never set tracer settings must resolve to these defaults, so the default
+// map serialization is the contract their stored/absent settings are compared against.
+func TestDefaultLedgerSettingsMap_SerializesIdenticallyForExistingLedgers(t *testing.T) {
+	// The default map and the map produced from default typed settings must be identical.
+	assert.Equal(t, DefaultLedgerSettingsMap(), LedgerSettingsToMap(DefaultLedgerSettings()),
+		"DefaultLedgerSettingsMap must equal LedgerSettingsToMap(DefaultLedgerSettings())")
+
+	// JSON serialization must be stable across repeated calls (deterministic keys).
+	first, err := json.Marshal(DefaultLedgerSettingsMap())
+	require.NoError(t, err)
+	second, err := json.Marshal(DefaultLedgerSettingsMap())
+	require.NoError(t, err)
+	assert.JSONEq(t, string(first), string(second))
+
+	// An existing ledger with no tracer group parses to the tracer defaults: behavior
+	// is unchanged for settings written before the tracer group existed.
+	legacy := ParseLedgerSettings(map[string]any{
+		"accounting": map[string]any{
+			"validateAccountType": true,
+		},
+	})
+	assert.Equal(t, defaultTracerSettings, legacy.Tracer,
+		"legacy settings without a tracer group must resolve to tracer defaults")
 }
 
 func TestParseLedgerSettings(t *testing.T) {
@@ -92,6 +142,7 @@ func TestParseLedgerSettings(t *testing.T) {
 					ValidateRoutes:      true,
 					RequireHolder:       true,
 				},
+				Tracer: defaultTracerSettings,
 			},
 		},
 		{
@@ -107,6 +158,7 @@ func TestParseLedgerSettings(t *testing.T) {
 					ValidateRoutes:      false,
 					RequireHolder:       true,
 				},
+				Tracer: defaultTracerSettings,
 			},
 		},
 		{
@@ -122,6 +174,7 @@ func TestParseLedgerSettings(t *testing.T) {
 					ValidateRoutes:      false,
 					RequireHolder:       false,
 				},
+				Tracer: defaultTracerSettings,
 			},
 		},
 		{
@@ -136,6 +189,7 @@ func TestParseLedgerSettings(t *testing.T) {
 					ValidateAccountType: true,
 					ValidateRoutes:      false,
 				},
+				Tracer: defaultTracerSettings,
 			},
 		},
 		{
@@ -150,6 +204,7 @@ func TestParseLedgerSettings(t *testing.T) {
 					ValidateAccountType: false,
 					ValidateRoutes:      true,
 				},
+				Tracer: defaultTracerSettings,
 			},
 		},
 		{
@@ -165,6 +220,7 @@ func TestParseLedgerSettings(t *testing.T) {
 					ValidateAccountType: false,
 					ValidateRoutes:      true,
 				},
+				Tracer: defaultTracerSettings,
 			},
 		},
 		{
@@ -181,6 +237,7 @@ func TestParseLedgerSettings(t *testing.T) {
 					ValidateAccountType: true,
 					ValidateRoutes:      true,
 				},
+				Tracer: defaultTracerSettings,
 			},
 		},
 		{
@@ -195,6 +252,74 @@ func TestParseLedgerSettings(t *testing.T) {
 				Accounting: AccountingValidation{
 					ValidateAccountType: false,
 					ValidateRoutes:      false,
+				},
+				Tracer: defaultTracerSettings,
+			},
+		},
+		{
+			name: "explicit tracer values are parsed",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"mode":        "enforce",
+					"failPosture": "closed",
+					"timeoutMs":   float64(500), // JSON numbers unmarshal to float64
+				},
+			},
+			expected: LedgerSettings{
+				Accounting: defaultAccountingValidation,
+				Tracer: TracerSettings{
+					Mode:        "enforce",
+					FailPosture: "closed",
+					TimeoutMs:   500,
+				},
+			},
+		},
+		{
+			name: "partial tracer keeps other tracer defaults",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"mode": "advisory",
+				},
+			},
+			expected: LedgerSettings{
+				Accounting: defaultAccountingValidation,
+				Tracer: TracerSettings{
+					Mode:        "advisory",
+					FailPosture: "open",
+					TimeoutMs:   250,
+				},
+			},
+		},
+		{
+			name: "tracer not a map returns tracer defaults",
+			input: map[string]any{
+				"tracer": "not a map",
+			},
+			expected: DefaultLedgerSettings(),
+		},
+		{
+			name: "wrong type for tracer fields uses tracer defaults",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"mode":        123,
+					"timeoutMs":   "not a number",
+				},
+			},
+			expected: DefaultLedgerSettings(),
+		},
+		{
+			name: "tracer timeoutMs as int is parsed",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": 750,
+				},
+			},
+			expected: LedgerSettings{
+				Accounting: defaultAccountingValidation,
+				Tracer: TracerSettings{
+					Mode:        "off",
+					FailPosture: "open",
+					TimeoutMs:   750,
 				},
 			},
 		},
@@ -357,6 +482,97 @@ func TestValidateSettings(t *testing.T) {
 			wantErr:     true,
 			errContains: "validateAccountType", // Deterministic: alphabetically first field is reported
 			wantErrCode: "0149",
+		},
+		{
+			name: "valid tracer enums accepted",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"mode":        "enforce",
+					"failPosture": "closed",
+					"timeoutMs":   float64(500),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "all valid tracer mode values accepted",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"mode": "advisory",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "tracer mode typo rejected with field-value error",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"mode": "enfroce",
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.mode",
+			wantErrCode: "0176",
+		},
+		{
+			name: "tracer failPosture typo rejected with field-value error",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"failPosture": "closd",
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.failPosture",
+			wantErrCode: "0176",
+		},
+		{
+			name: "tracer mode wrong type rejected as type error not value error",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"mode": 123,
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.mode",
+			wantErrCode: "0148", // type check fires before membership check
+		},
+		{
+			name: "tracer timeoutMs wrong type rejected",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": "fast",
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0148",
+		},
+		{
+			name: "unknown tracer nested field rejected",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"unknownField": "x",
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.unknownField",
+			wantErrCode: "0147",
+		},
+		{
+			name: "null tracer value is valid",
+			input: map[string]any{
+				"tracer": nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "null tracer mode is valid",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"mode": nil,
+				},
+			},
+			wantErr: false,
 		},
 	}
 
