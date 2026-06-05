@@ -230,6 +230,7 @@ func (c *TracerClient) Reserve(ctx context.Context, req ReserveRequest) (*Reserv
 		libOpentelemetry.HandleSpanError(span, "Reserve transport failed", err)
 		return nil, err
 	}
+
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
@@ -287,7 +288,7 @@ func (c *TracerClient) ReleaseByTransaction(ctx context.Context, transactionID u
 // 200. Availability failures return ErrTracerUnavailable so the caller's
 // best-effort post-commit transport can swallow them (the TTL reaper backstops).
 func (c *TracerClient) transitionByTransaction(ctx context.Context, action string, transactionID uuid.UUID) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // lib-observability API returns 4 values, only tracer needed here
 
 	ctx, span := tracer.Start(ctx, "tracer.client."+action+"_by_transaction")
 	defer span.End()
@@ -301,6 +302,7 @@ func (c *TracerClient) transitionByTransaction(ctx context.Context, action strin
 		libOpentelemetry.HandleSpanError(span, "Reservation by-transaction transition transport failed", err)
 		return err
 	}
+
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
@@ -316,7 +318,7 @@ func (c *TracerClient) transitionByTransaction(ctx context.Context, action strin
 // transition is the shared confirm/release body: POST the per-id action and
 // require a 200. Availability failures return ErrTracerUnavailable.
 func (c *TracerClient) transition(ctx context.Context, action string, reservationID uuid.UUID) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // lib-observability API returns 4 values, only tracer needed here
 
 	ctx, span := tracer.Start(ctx, "tracer.client."+action)
 	defer span.End()
@@ -330,6 +332,7 @@ func (c *TracerClient) transition(ctx context.Context, action string, reservatio
 		libOpentelemetry.HandleSpanError(span, "Reservation transition transport failed", err)
 		return err
 	}
+
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
@@ -374,7 +377,7 @@ func (c *TracerClient) do(ctx context.Context, method, path string, body []byte)
 	}
 
 	exec := func() (any, error) {
-		return c.httpClient.Do(req)
+		return c.httpClient.Do(req) //nolint:bodyclose // response is returned to the caller (Reserve/transition*), which owns and closes the body
 	}
 
 	if c.cbExecutor != nil {
