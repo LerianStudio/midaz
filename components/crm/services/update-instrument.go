@@ -18,17 +18,17 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, uai *mmodel.UpdateAliasInput, fieldsToRemove []string) (*mmodel.Alias, error) {
+func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, uai *mmodel.UpdateInstrumentInput, fieldsToRemove []string) (*mmodel.Instrument, error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.update_alias")
+	ctx, span := tracer.Start(ctx, "service.update_instrument")
 	defer span.End()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID),
 		attribute.String("app.request.holder_id", holderID.String()),
-		attribute.String("app.request.alias_id", id.String()),
+		attribute.String("app.request.instrument_id", id.String()),
 	)
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update alias: %v", id.String()))
@@ -43,7 +43,7 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 		}
 	}
 
-	alias := &mmodel.Alias{
+	alias := &mmodel.Instrument{
 		Metadata:       uai.Metadata,
 		BankingDetails: uai.BankingDetails,
 		UpdatedAt:      time.Now(),
@@ -56,7 +56,7 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 	}
 
 	if len(uai.RelatedParties) > 0 {
-		existingAlias, err := uc.AliasRepo.Find(ctx, organizationID, holderID, id, false)
+		existingAlias, err := uc.InstrumentRepo.Find(ctx, organizationID, holderID, id, false)
 		if err != nil {
 			libOpenTelemetry.HandleSpanError(span, "Failed to fetch existing alias for related parties append", err)
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to fetch existing alias: %v", err))
@@ -92,7 +92,7 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 	}
 
 	if uai.BankingDetails != nil && uai.BankingDetails.ClosingDate != nil {
-		err := uc.validateAliasClosingDate(ctx, organizationID, holderID, id, uai.BankingDetails.ClosingDate)
+		err := uc.validateInstrumentClosingDate(ctx, organizationID, holderID, id, uai.BankingDetails.ClosingDate)
 		if err != nil {
 			libOpenTelemetry.HandleSpanError(span, "Failed to validate alias closing date", err)
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate alias closing date: %v", err))
@@ -101,7 +101,7 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 		}
 	}
 
-	updatedAlias, err := uc.AliasRepo.Update(ctx, organizationID, holderID, id, alias, fieldsToRemove)
+	updatedAlias, err := uc.InstrumentRepo.Update(ctx, organizationID, holderID, id, alias, fieldsToRemove)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to update alias", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update alias: %v", err))

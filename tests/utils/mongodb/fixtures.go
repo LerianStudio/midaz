@@ -87,11 +87,11 @@ func ClearCollection(tb testing.TB, db *mongo.Database, collection string) {
 }
 
 // ============================================================================
-// Alias Fixtures
+// Instrument Fixtures
 // ============================================================================
 
-// AliasParams holds parameters for creating a test alias.
-type AliasParams struct {
+// InstrumentParams holds parameters for creating a test instrument.
+type InstrumentParams struct {
 	Document  string
 	Type      string
 	LedgerID  string
@@ -100,9 +100,9 @@ type AliasParams struct {
 	DeletedAt *time.Time
 }
 
-// DefaultAliasParams returns default parameters for creating a test alias.
-func DefaultAliasParams() AliasParams {
-	return AliasParams{
+// DefaultInstrumentParams returns default parameters for creating a test instrument.
+func DefaultInstrumentParams() InstrumentParams {
+	return InstrumentParams{
 		Document: "12345678901",
 		Type:     "NATURAL_PERSON",
 		LedgerID: "ledger-" + uuid.New().String()[:8],
@@ -110,14 +110,14 @@ func DefaultAliasParams() AliasParams {
 	}
 }
 
-// CreateTestAlias builds a test alias with the given holder ID and params.
-func CreateTestAlias(t *testing.T, holderID uuid.UUID, params AliasParams) *mmodel.Alias {
+// CreateTestInstrument builds a test instrument with the given holder ID and params.
+func CreateTestInstrument(t *testing.T, holderID uuid.UUID, params InstrumentParams) *mmodel.Instrument {
 	t.Helper()
 
 	id := uuid.New()
 	now := time.Now().UTC().Truncate(time.Second)
 
-	return &mmodel.Alias{
+	return &mmodel.Instrument{
 		ID:        &id,
 		Document:  testutils.Ptr(params.Document),
 		Type:      testutils.Ptr(params.Type),
@@ -131,15 +131,15 @@ func CreateTestAlias(t *testing.T, holderID uuid.UUID, params AliasParams) *mmod
 	}
 }
 
-// CreateTestAliasSimple builds a test alias with default values.
-func CreateTestAliasSimple(t *testing.T, holderID uuid.UUID, accountID, document string) *mmodel.Alias {
+// CreateTestInstrumentSimple builds a test instrument with default values.
+func CreateTestInstrumentSimple(t *testing.T, holderID uuid.UUID, accountID, document string) *mmodel.Instrument {
 	t.Helper()
 
-	params := DefaultAliasParams()
+	params := DefaultInstrumentParams()
 	params.AccountID = accountID
 	params.Document = document
 
-	return CreateTestAlias(t, holderID, params)
+	return CreateTestInstrument(t, holderID, params)
 }
 
 // BankingDetailsParams holds parameters for banking details.
@@ -179,11 +179,11 @@ func CreateBankingDetails(params BankingDetailsParams) *mmodel.BankingDetails {
 	}
 }
 
-// CreateTestAliasWithBanking builds a test alias with banking details.
-func CreateTestAliasWithBanking(t *testing.T, holderID uuid.UUID, accountID, document string) *mmodel.Alias {
+// CreateTestInstrumentWithBanking builds a test instrument with banking details.
+func CreateTestInstrumentWithBanking(t *testing.T, holderID uuid.UUID, accountID, document string) *mmodel.Instrument {
 	t.Helper()
 
-	alias := CreateTestAliasSimple(t, holderID, accountID, document)
+	alias := CreateTestInstrumentSimple(t, holderID, accountID, document)
 	alias.BankingDetails = CreateBankingDetails(DefaultBankingDetailsParams())
 
 	return alias

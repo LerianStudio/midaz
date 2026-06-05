@@ -18,10 +18,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holderID uuid.UUID, cai *mmodel.CreateAliasInput) (*mmodel.Alias, error) {
+func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, holderID uuid.UUID, cai *mmodel.CreateInstrumentInput) (*mmodel.Instrument, error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.create_alias")
+	ctx, span := tracer.Start(ctx, "service.create_instrument")
 	defer span.End()
 
 	span.SetAttributes(
@@ -38,7 +38,7 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		return nil, err
 	}
 
-	alias := &mmodel.Alias{
+	alias := &mmodel.Instrument{
 		ID:        &aliasID,
 		LedgerID:  &cai.LedgerID,
 		AccountID: &cai.AccountID,
@@ -101,7 +101,7 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 	alias.Document = holder.Document
 	alias.Type = holder.Type
 
-	createdAlias, err := uc.AliasRepo.Create(ctx, organizationID, alias)
+	createdAlias, err := uc.InstrumentRepo.Create(ctx, organizationID, alias)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to create alias", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create alias: %v", err))

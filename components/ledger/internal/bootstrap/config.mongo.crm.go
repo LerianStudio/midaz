@@ -16,7 +16,7 @@ import (
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	crmhttp "github.com/LerianStudio/midaz/v3/components/crm/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/holder"
 	crmservices "github.com/LerianStudio/midaz/v3/components/crm/services"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -30,7 +30,7 @@ type crmComponents struct {
 	connection    *libMongo.Client  // nil in multi-tenant mode
 	cipher        *libCrypto.Crypto // holder/alias PII encryption (R7)
 	holderHandler *crmhttp.HolderHandler
-	aliasHandler  *crmhttp.AliasHandler
+	instrumentHandler  *crmhttp.InstrumentHandler
 	mongoManager  *tmmongo.Manager // nil in single-tenant mode; exposed for middleware/eviction wiring
 }
 
@@ -84,12 +84,12 @@ func initCRMMultiTenant(opts *Options, cfg *Config, logger libLog.Logger, cipher
 		return nil, err
 	}
 
-	holderHandler, aliasHandler := buildCRMHandlers(holderRepo, aliasRepo)
+	holderHandler, instrumentHandler := buildCRMHandlers(holderRepo, aliasRepo)
 
 	return &crmComponents{
 		cipher:        cipher,
 		holderHandler: holderHandler,
-		aliasHandler:  aliasHandler,
+		instrumentHandler:  instrumentHandler,
 		mongoManager:  mongoMgr,
 	}, nil
 }
@@ -128,13 +128,13 @@ func initCRMSingleTenant(cfg *Config, logger libLog.Logger, cipher *libCrypto.Cr
 		return nil, err
 	}
 
-	holderHandler, aliasHandler := buildCRMHandlers(holderRepo, aliasRepo)
+	holderHandler, instrumentHandler := buildCRMHandlers(holderRepo, aliasRepo)
 
 	return &crmComponents{
 		connection:    mongoConnection,
 		cipher:        cipher,
 		holderHandler: holderHandler,
-		aliasHandler:  aliasHandler,
+		instrumentHandler:  instrumentHandler,
 	}, nil
 }
 
@@ -178,13 +178,13 @@ func resolveCRMMongoURI(cfg *Config, logger libLog.Logger) (string, error) {
 
 // buildCRMRepositories constructs the holder/alias Mongo repositories.
 // connection is nil in multi-tenant mode (database resolved per-request).
-func buildCRMRepositories(connection *libMongo.Client, cipher *libCrypto.Crypto) (*holder.MongoDBRepository, *alias.MongoDBRepository, error) {
+func buildCRMRepositories(connection *libMongo.Client, cipher *libCrypto.Crypto) (*holder.MongoDBRepository, *instrument.MongoDBRepository, error) {
 	holderRepo, err := holder.NewMongoDBRepository(connection, cipher)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize CRM holder repository: %w", err)
 	}
 
-	aliasRepo, err := alias.NewMongoDBRepository(connection, cipher)
+	aliasRepo, err := instrument.NewMongoDBRepository(connection, cipher)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize CRM alias repository: %w", err)
 	}
@@ -193,11 +193,11 @@ func buildCRMRepositories(connection *libMongo.Client, cipher *libCrypto.Crypto)
 }
 
 // buildCRMHandlers assembles the CRM use cases and HTTP handlers.
-func buildCRMHandlers(holderRepo *holder.MongoDBRepository, aliasRepo *alias.MongoDBRepository) (*crmhttp.HolderHandler, *crmhttp.AliasHandler) {
+func buildCRMHandlers(holderRepo *holder.MongoDBRepository, aliasRepo *instrument.MongoDBRepository) (*crmhttp.HolderHandler, *crmhttp.InstrumentHandler) {
 	useCases := &crmservices.UseCase{
 		HolderRepo: holderRepo,
-		AliasRepo:  aliasRepo,
+		InstrumentRepo:  aliasRepo,
 	}
 
-	return &crmhttp.HolderHandler{Service: useCases}, &crmhttp.AliasHandler{Service: useCases}
+	return &crmhttp.HolderHandler{Service: useCases}, &crmhttp.InstrumentHandler{Service: useCases}
 }

@@ -4,7 +4,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package alias
+package instrument
 
 import (
 	"context"
@@ -55,7 +55,7 @@ func TestIntegration_AliasRepo_Create(t *testing.T) {
 	holderID := uuid.New()
 	originalDocument := "12345678901"
 
-	alias := mongotestutil.CreateTestAliasSimple(t, holderID, "account-create-1", originalDocument)
+	alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-create-1", originalDocument)
 
 	// Act
 	result, err := repo.Create(ctx, organizationID, alias)
@@ -82,7 +82,7 @@ func TestIntegration_AliasRepo_Create_EncryptsData(t *testing.T) {
 	holderID := uuid.New()
 	originalDocument := "99988877766"
 
-	alias := mongotestutil.CreateTestAliasWithBanking(t, holderID, "account-encrypt-1", originalDocument)
+	alias := mongotestutil.CreateTestInstrumentWithBanking(t, holderID, "account-encrypt-1", originalDocument)
 
 	// Act
 	_, err := repo.Create(ctx, organizationID, alias)
@@ -125,12 +125,12 @@ func TestIntegration_AliasRepo_Create_DuplicateAccount(t *testing.T) {
 	sharedAccountID := "account-duplicate-test"
 
 	// Create first alias
-	alias1 := mongotestutil.CreateTestAliasSimple(t, holderID, sharedAccountID, "11111111111")
+	alias1 := mongotestutil.CreateTestInstrumentSimple(t, holderID, sharedAccountID, "11111111111")
 	_, err := repo.Create(ctx, organizationID, alias1)
 	require.NoError(t, err, "first create should succeed")
 
 	// Act - Try to create second alias with same account_id
-	alias2 := mongotestutil.CreateTestAliasSimple(t, holderID, sharedAccountID, "22222222222")
+	alias2 := mongotestutil.CreateTestInstrumentSimple(t, holderID, sharedAccountID, "22222222222")
 	_, err = repo.Create(ctx, organizationID, alias2)
 
 	// Assert
@@ -154,7 +154,7 @@ func TestIntegration_AliasRepo_Find(t *testing.T) {
 	holderID := uuid.New()
 	originalDocument := "44455566677"
 
-	alias := mongotestutil.CreateTestAliasWithBanking(t, holderID, "account-find-1", originalDocument)
+	alias := mongotestutil.CreateTestInstrumentWithBanking(t, holderID, "account-find-1", originalDocument)
 	_, err := repo.Create(ctx, organizationID, alias)
 	require.NoError(t, err)
 
@@ -186,7 +186,7 @@ func TestIntegration_AliasRepo_Find_NotFound(t *testing.T) {
 	// Assert
 	require.Error(t, err, "should return error for non-existent alias")
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "alias ID does not exist", "should return ErrAliasNotFound")
+	assert.Contains(t, err.Error(), "alias ID does not exist", "should return ErrInstrumentNotFound")
 }
 
 func TestIntegration_AliasRepo_Find_ExcludesDeleted(t *testing.T) {
@@ -198,7 +198,7 @@ func TestIntegration_AliasRepo_Find_ExcludesDeleted(t *testing.T) {
 	organizationID := "org-deleted-" + uuid.New().String()[:8]
 	holderID := uuid.New()
 
-	alias := mongotestutil.CreateTestAliasSimple(t, holderID, "account-deleted-1", "77788899900")
+	alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-deleted-1", "77788899900")
 	_, err := repo.Create(ctx, organizationID, alias)
 	require.NoError(t, err)
 
@@ -224,7 +224,7 @@ func TestIntegration_AliasRepo_Find_IncludesDeleted(t *testing.T) {
 	organizationID := "org-incldel-" + uuid.New().String()[:8]
 	holderID := uuid.New()
 
-	alias := mongotestutil.CreateTestAliasSimple(t, holderID, "account-incldel-1", "66655544433")
+	alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-incldel-1", "66655544433")
 	_, err := repo.Create(ctx, organizationID, alias)
 	require.NoError(t, err)
 
@@ -258,7 +258,7 @@ func TestIntegration_AliasRepo_FindAll(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		accountID := fmt.Sprintf("account-findall-%d", i)
 		document := fmt.Sprintf("1111111111%d", i)
-		alias := mongotestutil.CreateTestAliasSimple(t, holderID, accountID, document)
+		alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, accountID, document)
 		_, err := repo.Create(ctx, organizationID, alias)
 		require.NoError(t, err)
 	}
@@ -285,7 +285,7 @@ func TestIntegration_AliasRepo_FindAll_Pagination(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		accountID := fmt.Sprintf("account-page-%d", i)
 		document := fmt.Sprintf("2222222222%d", i)
-		alias := mongotestutil.CreateTestAliasSimple(t, holderID, accountID, document)
+		alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, accountID, document)
 		_, err := repo.Create(ctx, organizationID, alias)
 		require.NoError(t, err)
 	}
@@ -327,11 +327,11 @@ func TestIntegration_AliasRepo_FindAll_FilterByDocument(t *testing.T) {
 	targetDocument := "33344455566"
 
 	// Create aliases with different documents
-	alias1 := mongotestutil.CreateTestAliasSimple(t, holderID, "account-filterdoc-1", targetDocument)
+	alias1 := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-filterdoc-1", targetDocument)
 	_, err := repo.Create(ctx, organizationID, alias1)
 	require.NoError(t, err)
 
-	alias2 := mongotestutil.CreateTestAliasSimple(t, holderID, "account-filterdoc-2", "99988877766")
+	alias2 := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-filterdoc-2", "99988877766")
 	_, err = repo.Create(ctx, organizationID, alias2)
 	require.NoError(t, err)
 
@@ -360,11 +360,11 @@ func TestIntegration_AliasRepo_FindAll_FilterByAccountID(t *testing.T) {
 	targetAccountID := "account-target-xyz"
 
 	// Create aliases with different account IDs
-	alias1 := mongotestutil.CreateTestAliasSimple(t, holderID, targetAccountID, "11122233344")
+	alias1 := mongotestutil.CreateTestInstrumentSimple(t, holderID, targetAccountID, "11122233344")
 	_, err := repo.Create(ctx, organizationID, alias1)
 	require.NoError(t, err)
 
-	alias2 := mongotestutil.CreateTestAliasSimple(t, holderID, "account-other-abc", "55566677788")
+	alias2 := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-other-abc", "55566677788")
 	_, err = repo.Create(ctx, organizationID, alias2)
 	require.NoError(t, err)
 
@@ -413,12 +413,12 @@ func TestIntegration_AliasRepo_Update(t *testing.T) {
 	organizationID := "org-update-" + uuid.New().String()[:8]
 	holderID := uuid.New()
 
-	alias := mongotestutil.CreateTestAliasSimple(t, holderID, "account-update-1", "88899900011")
+	alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-update-1", "88899900011")
 	_, err := repo.Create(ctx, organizationID, alias)
 	require.NoError(t, err)
 
 	// Act - Update document and type
-	updatedAlias := &mmodel.Alias{
+	updatedAlias := &mmodel.Instrument{
 		Document: testutils.Ptr("11100099988"),
 		Type:     testutils.Ptr("LEGAL_PERSON"),
 	}
@@ -442,13 +442,13 @@ func TestIntegration_AliasRepo_Update_NotFound(t *testing.T) {
 	nonExistentID := uuid.New()
 
 	// Act
-	updatedAlias := &mmodel.Alias{Document: testutils.Ptr("00000000000")}
+	updatedAlias := &mmodel.Instrument{Document: testutils.Ptr("00000000000")}
 	result, err := repo.Update(ctx, organizationID, holderID, nonExistentID, updatedAlias, nil)
 
 	// Assert
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "alias ID does not exist", "should return ErrAliasNotFound")
+	assert.Contains(t, err.Error(), "alias ID does not exist", "should return ErrInstrumentNotFound")
 }
 
 func TestIntegration_AliasRepo_Update_FieldsToRemove(t *testing.T) {
@@ -460,13 +460,13 @@ func TestIntegration_AliasRepo_Update_FieldsToRemove(t *testing.T) {
 	organizationID := "org-remove-" + uuid.New().String()[:8]
 	holderID := uuid.New()
 
-	alias := mongotestutil.CreateTestAliasWithBanking(t, holderID, "account-remove-1", "77766655544")
+	alias := mongotestutil.CreateTestInstrumentWithBanking(t, holderID, "account-remove-1", "77766655544")
 	alias.Metadata = map[string]any{"key1": "value1", "key2": "value2"}
 	_, err := repo.Create(ctx, organizationID, alias)
 	require.NoError(t, err)
 
 	// Act - Remove metadata.key1
-	result, err := repo.Update(ctx, organizationID, holderID, *alias.ID, &mmodel.Alias{}, []string{"metadata.key1"})
+	result, err := repo.Update(ctx, organizationID, holderID, *alias.ID, &mmodel.Instrument{}, []string{"metadata.key1"})
 
 	// Assert
 	require.NoError(t, err)
@@ -488,7 +488,7 @@ func TestIntegration_AliasRepo_Delete_Soft(t *testing.T) {
 	organizationID := "org-softdel-" + uuid.New().String()[:8]
 	holderID := uuid.New()
 
-	alias := mongotestutil.CreateTestAliasSimple(t, holderID, "account-softdel-1", "55544433322")
+	alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-softdel-1", "55544433322")
 	_, err := repo.Create(ctx, organizationID, alias)
 	require.NoError(t, err)
 
@@ -514,7 +514,7 @@ func TestIntegration_AliasRepo_Delete_Hard(t *testing.T) {
 	organizationID := "org-harddel-" + uuid.New().String()[:8]
 	holderID := uuid.New()
 
-	alias := mongotestutil.CreateTestAliasSimple(t, holderID, "account-harddel-1", "22211100099")
+	alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-harddel-1", "22211100099")
 	_, err := repo.Create(ctx, organizationID, alias)
 	require.NoError(t, err)
 
@@ -545,7 +545,7 @@ func TestIntegration_AliasRepo_Delete_NotFound(t *testing.T) {
 
 	// Assert
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "alias ID does not exist", "should return ErrAliasNotFound")
+	assert.Contains(t, err.Error(), "alias ID does not exist", "should return ErrInstrumentNotFound")
 }
 
 // ============================================================================
@@ -565,7 +565,7 @@ func TestIntegration_AliasRepo_Count(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		accountID := fmt.Sprintf("account-count-%d", i)
 		document := fmt.Sprintf("4444444444%d", i)
-		alias := mongotestutil.CreateTestAliasSimple(t, holderID, accountID, document)
+		alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, accountID, document)
 		_, err := repo.Create(ctx, organizationID, alias)
 		require.NoError(t, err)
 	}
@@ -588,11 +588,11 @@ func TestIntegration_AliasRepo_Count_ExcludesDeleted(t *testing.T) {
 	holderID := uuid.New()
 
 	// Create 3 aliases
-	aliases := make([]*mmodel.Alias, 3)
+	aliases := make([]*mmodel.Instrument, 3)
 	for i := 0; i < 3; i++ {
 		accountID := fmt.Sprintf("account-countdel-%d", i)
 		document := fmt.Sprintf("5555555555%d", i)
-		alias := mongotestutil.CreateTestAliasSimple(t, holderID, accountID, document)
+		alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, accountID, document)
 		_, err := repo.Create(ctx, organizationID, alias)
 		require.NoError(t, err)
 		aliases[i] = alias
@@ -648,7 +648,7 @@ func TestIntegration_AliasRepo_EncryptionRoundTrip(t *testing.T) {
 	originalParticipantDoc := "11223344556677"
 	originalRelatedPartyDoc := "99988877766"
 
-	alias := mongotestutil.CreateTestAliasWithBanking(t, holderID, "account-roundtrip-1", originalDocument)
+	alias := mongotestutil.CreateTestInstrumentWithBanking(t, holderID, "account-roundtrip-1", originalDocument)
 	alias.BankingDetails.Account = testutils.Ptr(originalAccount)
 	alias.BankingDetails.IBAN = testutils.Ptr(originalIBAN)
 	alias.RegulatoryFields = &mmodel.RegulatoryFields{

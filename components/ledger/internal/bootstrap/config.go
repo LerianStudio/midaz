@@ -851,7 +851,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	holderAccountsHandler := &crmhttp.HolderAccountsHandler{
 		Reader: holderAccountsReaderAdapter{query: queryUseCase},
 	}
-	crmRouteRegistrar := crmhttp.CreateCRMRouteRegistrar(auth, crmMgo.holderHandler, crmMgo.aliasHandler, holderAccountsHandler, routeSetup.crmRouteOptions)
+	crmRouteRegistrar := crmhttp.CreateCRMRouteRegistrar(auth, crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, routeSetup.crmRouteOptions)
 
 	// Fee/billing handlers wire directly to the in-process fee use cases built by
 	// initFees (no reconstruction). The fee UseCase satisfies both the package CRUD

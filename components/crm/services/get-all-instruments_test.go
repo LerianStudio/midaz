@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
@@ -22,7 +22,7 @@ func TestGetAllAliases(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockAliasRepo := alias.NewMockRepository(ctrl)
+	mockAliasRepo := instrument.NewMockRepository(ctrl)
 
 	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
@@ -36,7 +36,7 @@ func TestGetAllAliases(t *testing.T) {
 	branch := "0001"
 
 	uc := &UseCase{
-		AliasRepo: mockAliasRepo,
+		InstrumentRepo: mockAliasRepo,
 	}
 
 	query := http.QueryHeader{Limit: 10, Page: 1}
@@ -53,7 +53,7 @@ func TestGetAllAliases(t *testing.T) {
 		filter         http.QueryHeader
 		mockSetup      func()
 		expectedErr    error
-		expectedResult []*mmodel.Alias
+		expectedResult []*mmodel.Instrument
 	}{
 		{
 			name:     "Success get all aliases",
@@ -62,13 +62,13 @@ func TestGetAllAliases(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), holderID, query, false).
-					Return([]*mmodel.Alias{
+					Return([]*mmodel.Instrument{
 						{ID: &id1},
 						{ID: &id2},
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: []*mmodel.Alias{
+			expectedResult: []*mmodel.Instrument{
 				{ID: &id1},
 				{ID: &id2},
 			},
@@ -80,12 +80,12 @@ func TestGetAllAliases(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithDocument, false).
-					Return([]*mmodel.Alias{
+					Return([]*mmodel.Instrument{
 						{ID: &id1, Document: &document},
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: []*mmodel.Alias{
+			expectedResult: []*mmodel.Instrument{
 				{ID: &id1, Document: &document},
 			},
 		},
@@ -96,12 +96,12 @@ func TestGetAllAliases(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithAccountId, false).
-					Return([]*mmodel.Alias{
+					Return([]*mmodel.Instrument{
 						{ID: &id1, AccountID: &accountId},
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: []*mmodel.Alias{
+			expectedResult: []*mmodel.Instrument{
 				{ID: &id1, AccountID: &accountId},
 			},
 		},
@@ -112,12 +112,12 @@ func TestGetAllAliases(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithLedgerId, false).
-					Return([]*mmodel.Alias{
+					Return([]*mmodel.Instrument{
 						{ID: &id1, LedgerID: &ledgerId},
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: []*mmodel.Alias{
+			expectedResult: []*mmodel.Instrument{
 				{ID: &id1, LedgerID: &ledgerId},
 			},
 		},
@@ -128,12 +128,12 @@ func TestGetAllAliases(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithbankingDetailsAccount, false).
-					Return([]*mmodel.Alias{
+					Return([]*mmodel.Instrument{
 						{ID: &id1, BankingDetails: &mmodel.BankingDetails{Account: &account}},
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: []*mmodel.Alias{
+			expectedResult: []*mmodel.Instrument{
 				{ID: &id1, BankingDetails: &mmodel.BankingDetails{Account: &account}},
 			},
 		},
@@ -144,12 +144,12 @@ func TestGetAllAliases(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithbankingDetailsIban, false).
-					Return([]*mmodel.Alias{
+					Return([]*mmodel.Instrument{
 						{ID: &id1, BankingDetails: &mmodel.BankingDetails{IBAN: &iban}},
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: []*mmodel.Alias{
+			expectedResult: []*mmodel.Instrument{
 				{ID: &id1, BankingDetails: &mmodel.BankingDetails{IBAN: &iban}},
 			},
 		},
@@ -160,12 +160,12 @@ func TestGetAllAliases(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithbankingDetailsBranch, false).
-					Return([]*mmodel.Alias{
+					Return([]*mmodel.Instrument{
 						{ID: &id1, BankingDetails: &mmodel.BankingDetails{Branch: &branch}},
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: []*mmodel.Alias{
+			expectedResult: []*mmodel.Instrument{
 				{ID: &id1, BankingDetails: &mmodel.BankingDetails{Branch: &branch}},
 			},
 		},
@@ -176,10 +176,10 @@ func TestGetAllAliases(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), holderID, query, false).
-					Return([]*mmodel.Alias{}, nil)
+					Return([]*mmodel.Instrument{}, nil)
 			},
 			expectedErr:    nil,
-			expectedResult: []*mmodel.Alias{},
+			expectedResult: []*mmodel.Instrument{},
 		},
 		{
 			name:     "Error when repository fails to find all aliases",
@@ -200,7 +200,7 @@ func TestGetAllAliases(t *testing.T) {
 			testCase.mockSetup()
 
 			ctx := context.Background()
-			accounts, err := uc.GetAllAliases(ctx, uuid.New().String(), testCase.holderId, testCase.filter, false)
+			accounts, err := uc.GetAllInstruments(ctx, uuid.New().String(), testCase.holderId, testCase.filter, false)
 
 			if testCase.expectedErr != nil {
 				assert.NotNil(t, err)

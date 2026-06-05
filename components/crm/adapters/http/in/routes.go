@@ -26,7 +26,7 @@ type ReadyzHandler interface {
 	HandleReadyz(c *fiber.Ctx) error
 }
 
-func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, readyzHandler ReadyzHandler, hh *HolderHandler, ah *AliasHandler, hah *HolderAccountsHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, readyzHandler ReadyzHandler, hh *HolderHandler, ah *InstrumentHandler, hah *HolderAccountsHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -84,7 +84,7 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 //
 // hah may be nil (standalone CRM router has no ledger account-query backing);
 // when nil the holder-accounts route is not mounted.
-func RegisterCRMRoutesToApp(f fiber.Router, auth *middleware.AuthClient, hh *HolderHandler, ah *AliasHandler, hah *HolderAccountsHandler, routeOptions *http.ProtectedRouteOptions) {
+func RegisterCRMRoutesToApp(f fiber.Router, auth *middleware.AuthClient, hh *HolderHandler, ah *InstrumentHandler, hah *HolderAccountsHandler, routeOptions *http.ProtectedRouteOptions) {
 	// Holders
 	f.Post("/v1/holders", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "post"), routeOptions, http.WithBody(new(mmodel.CreateHolderInput), hh.CreateHolder))...)
 	f.Get("/v1/holders/:id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "get"), routeOptions, http.ParseUUIDPathParameters("holder"), hh.GetHolderByID)...)
@@ -96,11 +96,11 @@ func RegisterCRMRoutesToApp(f fiber.Router, auth *middleware.AuthClient, hh *Hol
 	f.Get("/v1/holders", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "get"), routeOptions, hh.GetAllHolders)...)
 
 	// Aliases
-	f.Get("/v1/aliases", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "get"), routeOptions, ah.GetAllAliases)...)
-	f.Post("/v1/holders/:holder_id/aliases", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "post"), routeOptions, http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.CreateAliasInput), ah.CreateAlias))...)
-	f.Get("/v1/holders/:holder_id/aliases/:alias_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "get"), routeOptions, http.ParseUUIDPathParameters("aliases"), ah.GetAliasByID)...)
-	f.Patch("/v1/holders/:holder_id/aliases/:alias_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "patch"), routeOptions, http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.UpdateAliasInput), ah.UpdateAlias))...)
-	f.Delete("/v1/holders/:holder_id/aliases/:alias_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "delete"), routeOptions, http.ParseUUIDPathParameters("aliases"), ah.DeleteAliasByID)...)
+	f.Get("/v1/aliases", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "get"), routeOptions, ah.GetAllInstruments)...)
+	f.Post("/v1/holders/:holder_id/aliases", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "post"), routeOptions, http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.CreateInstrumentInput), ah.CreateInstrument))...)
+	f.Get("/v1/holders/:holder_id/aliases/:alias_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "get"), routeOptions, http.ParseUUIDPathParameters("aliases"), ah.GetInstrumentByID)...)
+	f.Patch("/v1/holders/:holder_id/aliases/:alias_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "patch"), routeOptions, http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.UpdateInstrumentInput), ah.UpdateInstrument))...)
+	f.Delete("/v1/holders/:holder_id/aliases/:alias_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "delete"), routeOptions, http.ParseUUIDPathParameters("aliases"), ah.DeleteInstrumentByID)...)
 	f.Delete("/v1/holders/:holder_id/aliases/:alias_id/related-parties/:related_party_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "aliases", "delete"), routeOptions, http.ParseUUIDPathParameters("related-parties"), ah.DeleteRelatedParty)...)
 }
 
@@ -108,7 +108,7 @@ func RegisterCRMRoutesToApp(f fiber.Router, auth *middleware.AuthClient, hh *Hol
 // unified ledger server. The routeOptions carries the CRM-scoped tenant
 // middleware (built in the ledger composition root) so it applies ONLY to CRM
 // routes.
-func CreateCRMRouteRegistrar(auth *middleware.AuthClient, hh *HolderHandler, ah *AliasHandler, hah *HolderAccountsHandler, routeOptions *http.ProtectedRouteOptions) func(fiber.Router) {
+func CreateCRMRouteRegistrar(auth *middleware.AuthClient, hh *HolderHandler, ah *InstrumentHandler, hah *HolderAccountsHandler, routeOptions *http.ProtectedRouteOptions) func(fiber.Router) {
 	return func(router fiber.Router) {
 		RegisterCRMRoutesToApp(router, auth, hh, ah, hah, routeOptions)
 	}

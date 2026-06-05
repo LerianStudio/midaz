@@ -25,13 +25,13 @@ func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID st
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID),
 		attribute.String("app.request.holder_id", holderID.String()),
-		attribute.String("app.request.alias_id", aliasID.String()),
+		attribute.String("app.request.instrument_id", aliasID.String()),
 		attribute.String("app.request.related_party_id", relatedPartyID.String()),
 	)
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to delete related party: %v from alias: %v", relatedPartyID.String(), aliasID.String()))
 
-	err := uc.AliasRepo.DeleteRelatedParty(ctx, organizationID, holderID, aliasID, relatedPartyID)
+	err := uc.InstrumentRepo.DeleteRelatedParty(ctx, organizationID, holderID, aliasID, relatedPartyID)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to delete related party", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete related party: %v", err))

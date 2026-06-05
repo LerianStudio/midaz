@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -23,7 +23,7 @@ func TestGetAliasByID(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockHolderRepo := holder.NewMockRepository(ctrl)
-	mockAliasRepo := alias.NewMockRepository(ctrl)
+	mockAliasRepo := instrument.NewMockRepository(ctrl)
 
 	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 	id := uuid.Must(libCommons.GenerateUUIDv7())
@@ -32,8 +32,8 @@ func TestGetAliasByID(t *testing.T) {
 	holderDocument := "90217469051"
 
 	uc := &UseCase{
-		HolderRepo: mockHolderRepo,
-		AliasRepo:  mockAliasRepo,
+		HolderRepo:     mockHolderRepo,
+		InstrumentRepo: mockAliasRepo,
 	}
 
 	testCases := []struct {
@@ -42,7 +42,7 @@ func TestGetAliasByID(t *testing.T) {
 		holderID       uuid.UUID
 		mockSetup      func()
 		expectedErr    error
-		expectedResult *mmodel.Alias
+		expectedResult *mmodel.Instrument
 	}{
 		{
 			name:     "Success retrieving alias by ID",
@@ -51,7 +51,7 @@ func TestGetAliasByID(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
-					Return(&mmodel.Alias{
+					Return(&mmodel.Instrument{
 						ID:        &id,
 						Document:  &holderDocument,
 						LedgerID:  &ledgerID,
@@ -60,7 +60,7 @@ func TestGetAliasByID(t *testing.T) {
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: &mmodel.Alias{
+			expectedResult: &mmodel.Instrument{
 				ID:        &id,
 				Document:  &holderDocument,
 				LedgerID:  &ledgerID,
@@ -74,9 +74,9 @@ func TestGetAliasByID(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
-					Return(nil, cn.ErrAliasNotFound)
+					Return(nil, cn.ErrInstrumentNotFound)
 			},
-			expectedErr:    cn.ErrAliasNotFound,
+			expectedErr:    cn.ErrInstrumentNotFound,
 			expectedResult: nil,
 		},
 	}
@@ -86,7 +86,7 @@ func TestGetAliasByID(t *testing.T) {
 			testCase.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.GetAliasByID(ctx, uuid.New().String(), testCase.holderID, testCase.id, false)
+			result, err := uc.GetInstrumentByID(ctx, uuid.New().String(), testCase.holderID, testCase.id, false)
 
 			if testCase.expectedErr != nil {
 				assert.Error(t, err)

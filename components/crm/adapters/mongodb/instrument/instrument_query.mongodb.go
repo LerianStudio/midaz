@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package alias
+package instrument
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 )
 
 // FindAll accounts by holder id and filter
-func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string, holderID uuid.UUID, query http.QueryHeader, includeDeleted bool) ([]*mmodel.Alias, error) {
+func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string, holderID uuid.UUID, query http.QueryHeader, includeDeleted bool) ([]*mmodel.Instrument, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_all_aliases")
@@ -103,7 +103,7 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 		return nil, err
 	}
 
-	results := make([]*mmodel.Alias, len(aliases))
+	results := make([]*mmodel.Instrument, len(aliases))
 	for i, alias := range aliases {
 		results[i], err = alias.ToEntity(am.DataSecurity)
 		if err != nil {

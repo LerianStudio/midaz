@@ -1139,9 +1139,9 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Holder ID Not Found",
 			Message:    "The provided holder ID does not exist in our records. Please verify the holder ID and try again.",
 		},
-		constant.ErrAliasNotFound: EntityNotFoundError{
+		constant.ErrInstrumentNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       constant.ErrAliasNotFound.Error(),
+			Code:       constant.ErrInstrumentNotFound.Error(),
 			Title:      "Alias ID Not Found",
 			Message:    "The provided alias ID does not exist in our records. Please verify the alias ID and try again.",
 		},
@@ -1157,15 +1157,15 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Already Associated",
 			Message:    "An accountId from ledger can only be associated with a single related account on CRM.",
 		},
-		constant.ErrHolderHasAliases: ValidationError{
+		constant.ErrHolderHasInstruments: ValidationError{
 			EntityType: entityType,
-			Code:       constant.ErrHolderHasAliases.Error(),
+			Code:       constant.ErrHolderHasInstruments.Error(),
 			Title:      "Unable to Delete Holder",
 			Message:    "The holder cannot be deleted because it has one or more associated aliases.",
 		},
-		constant.ErrAliasClosingDateBeforeCreation: ValidationError{
+		constant.ErrInstrumentClosingDateBeforeCreation: ValidationError{
 			EntityType: entityType,
-			Code:       constant.ErrAliasClosingDateBeforeCreation.Error(),
+			Code:       constant.ErrInstrumentClosingDateBeforeCreation.Error(),
 			Title:      "Alias Closing Date Before Creation Date",
 			Message:    "The alias closing date cannot be before the creation date. Please provide a valid closing date.",
 		},

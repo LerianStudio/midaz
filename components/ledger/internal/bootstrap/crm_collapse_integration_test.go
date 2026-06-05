@@ -25,7 +25,7 @@ import (
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	crmhttp "github.com/LerianStudio/midaz/v3/components/crm/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/holder"
 	crmservices "github.com/LerianStudio/midaz/v3/components/crm/services"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -66,7 +66,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 		require.NoError(t, err, "initCRM single-tenant must succeed")
 		require.NotNil(t, crm.connection, "single-tenant must build a static Mongo connection")
 		require.NotNil(t, crm.holderHandler, "holder handler must be wired")
-		require.NotNil(t, crm.aliasHandler, "alias handler must be wired")
+		require.NotNil(t, crm.instrumentHandler, "alias handler must be wired")
 		require.Nil(t, crm.mongoManager, "single-tenant must NOT build a tenant Mongo manager")
 		t.Cleanup(func() { _ = crm.connection.Close(context.Background()) })
 
@@ -105,10 +105,10 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 		// MT-style repos: nil static connection => DB comes from context per request.
 		holderRepo, err := holder.NewMongoDBRepository(nil, cipher)
 		require.NoError(t, err)
-		aliasRepo, err := alias.NewMongoDBRepository(nil, cipher)
+		aliasRepo, err := instrument.NewMongoDBRepository(nil, cipher)
 		require.NoError(t, err)
 
-		uc := &crmservices.UseCase{HolderRepo: holderRepo, AliasRepo: aliasRepo}
+		uc := &crmservices.UseCase{HolderRepo: holderRepo, InstrumentRepo: aliasRepo}
 
 		// Two separate tenant databases inside the same Mongo container.
 		dbA := mongotestutil.CreateConnection(t, container.URI, "tenant_a")
@@ -174,7 +174,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = crm.connection.Close(context.Background()) })
 
-		app := newCRMTestApp(crm.holderHandler, crm.aliasHandler)
+		app := newCRMTestApp(crm.holderHandler, crm.instrumentHandler)
 
 		// POST a holder with an empty body: all three required fields (type, name,
 		// document) are missing. WithBody validates the struct and returns a 400
@@ -238,7 +238,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 				func(c *fiber.Ctx) error { panic(panicMessage) },
 			},
 		}
-		crmhttp.RegisterCRMRoutesToApp(app, auth, crm.holderHandler, crm.aliasHandler, nil, panicOptions)
+		crmhttp.RegisterCRMRoutesToApp(app, auth, crm.holderHandler, crm.instrumentHandler, nil, panicOptions)
 
 		req := httptest.NewRequest(fiber.MethodGet, "/v1/holders/"+uuid.New().String(), nil)
 		req.Header.Set("X-Organization-Id", "org-test")
@@ -330,11 +330,11 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 	cipher := testutils.SetupCrypto(t)
 	holderRepo, err := holder.NewMongoDBRepository(nil, cipher)
 	require.NoError(t, err)
-	aliasRepo, err := alias.NewMongoDBRepository(nil, cipher)
+	aliasRepo, err := instrument.NewMongoDBRepository(nil, cipher)
 	require.NoError(t, err)
-	useCases := &crmservices.UseCase{HolderRepo: holderRepo, AliasRepo: aliasRepo}
+	useCases := &crmservices.UseCase{HolderRepo: holderRepo, InstrumentRepo: aliasRepo}
 	holderHandler := &crmhttp.HolderHandler{Service: useCases}
-	aliasHandler := &crmhttp.AliasHandler{Service: useCases}
+	instrumentHandler := &crmhttp.InstrumentHandler{Service: useCases}
 
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
@@ -355,7 +355,7 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 			crmTenantMiddleware.WithTenantDB,
 		},
 	}
-	crmhttp.RegisterCRMRoutesToApp(app, auth, holderHandler, aliasHandler, nil, crmRouteOptions)
+	crmhttp.RegisterCRMRoutesToApp(app, auth, holderHandler, instrumentHandler, nil, crmRouteOptions)
 
 	// Create one holder per tenant, addressing tenants ONLY via the JWT.
 	idA := createHolderHTTP(t, app, tenantA, orgID, "Tenant A Holder", "11111111111")
@@ -381,7 +381,7 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 
 // newCRMTestApp mounts the CRM registrar on a bare Fiber app with auth disabled
 // and the WithRecover hoist, mirroring how NewUnifiedServer hosts CRM routes.
-func newCRMTestApp(hh *crmhttp.HolderHandler, ah *crmhttp.AliasHandler) *fiber.App {
+func newCRMTestApp(hh *crmhttp.HolderHandler, ah *crmhttp.InstrumentHandler) *fiber.App {
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -25,7 +25,7 @@ func TestCreateAlias(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockHolderRepo := holder.NewMockRepository(ctrl)
-	mockAliasRepo := alias.NewMockRepository(ctrl)
+	mockAliasRepo := instrument.NewMockRepository(ctrl)
 
 	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 	id := uuid.Must(libCommons.GenerateUUIDv7())
@@ -35,22 +35,22 @@ func TestCreateAlias(t *testing.T) {
 	participantDoc := "12345678912345"
 
 	uc := &UseCase{
-		HolderRepo: mockHolderRepo,
-		AliasRepo:  mockAliasRepo,
+		HolderRepo:     mockHolderRepo,
+		InstrumentRepo: mockAliasRepo,
 	}
 
 	testCases := []struct {
 		name           string
 		holderID       uuid.UUID
-		input          *mmodel.CreateAliasInput
+		input          *mmodel.CreateInstrumentInput
 		mockSetup      func()
 		expectedErr    error
-		expectedResult *mmodel.Alias
+		expectedResult *mmodel.Instrument
 	}{
 		{
 			name:     "Success with required fields provided",
 			holderID: holderID,
-			input: &mmodel.CreateAliasInput{
+			input: &mmodel.CreateInstrumentInput{
 				LedgerID:  ledgerID,
 				AccountID: accountID,
 			},
@@ -64,7 +64,7 @@ func TestCreateAlias(t *testing.T) {
 
 				mockAliasRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Alias{
+					Return(&mmodel.Instrument{
 						ID:        &id,
 						Document:  &holderDocument,
 						AccountID: &accountID,
@@ -72,7 +72,7 @@ func TestCreateAlias(t *testing.T) {
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: &mmodel.Alias{
+			expectedResult: &mmodel.Instrument{
 				ID:        &id,
 				Document:  &holderDocument,
 				AccountID: &accountID,
@@ -82,7 +82,7 @@ func TestCreateAlias(t *testing.T) {
 		{
 			name:     "Success with RegulatoryFields",
 			holderID: holderID,
-			input: &mmodel.CreateAliasInput{
+			input: &mmodel.CreateInstrumentInput{
 				LedgerID:  ledgerID,
 				AccountID: accountID,
 				RegulatoryFields: &mmodel.RegulatoryFields{
@@ -99,7 +99,7 @@ func TestCreateAlias(t *testing.T) {
 
 				mockAliasRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Alias{
+					Return(&mmodel.Instrument{
 						ID:        &id,
 						Document:  &holderDocument,
 						AccountID: &accountID,
@@ -110,7 +110,7 @@ func TestCreateAlias(t *testing.T) {
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: &mmodel.Alias{
+			expectedResult: &mmodel.Instrument{
 				ID:        &id,
 				Document:  &holderDocument,
 				AccountID: &accountID,
@@ -123,7 +123,7 @@ func TestCreateAlias(t *testing.T) {
 		{
 			name:     "Error when holder not found for alias creation",
 			holderID: uuid.New(),
-			input: &mmodel.CreateAliasInput{
+			input: &mmodel.CreateInstrumentInput{
 				LedgerID:  ledgerID,
 				AccountID: accountID,
 			},
@@ -138,7 +138,7 @@ func TestCreateAlias(t *testing.T) {
 		{
 			name:     "Success with RelatedParties",
 			holderID: holderID,
-			input: &mmodel.CreateAliasInput{
+			input: &mmodel.CreateInstrumentInput{
 				LedgerID:  ledgerID,
 				AccountID: accountID,
 				RelatedParties: []*mmodel.RelatedParty{
@@ -160,7 +160,7 @@ func TestCreateAlias(t *testing.T) {
 
 				mockAliasRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Alias{
+					Return(&mmodel.Instrument{
 						ID:        &id,
 						Document:  &holderDocument,
 						AccountID: &accountID,
@@ -176,7 +176,7 @@ func TestCreateAlias(t *testing.T) {
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: &mmodel.Alias{
+			expectedResult: &mmodel.Instrument{
 				ID:        &id,
 				Document:  &holderDocument,
 				AccountID: &accountID,
@@ -186,7 +186,7 @@ func TestCreateAlias(t *testing.T) {
 		{
 			name:     "Error when related party document is empty",
 			holderID: holderID,
-			input: &mmodel.CreateAliasInput{
+			input: &mmodel.CreateInstrumentInput{
 				LedgerID:  ledgerID,
 				AccountID: accountID,
 				RelatedParties: []*mmodel.RelatedParty{
@@ -205,7 +205,7 @@ func TestCreateAlias(t *testing.T) {
 		{
 			name:     "Error when related party role is invalid",
 			holderID: holderID,
-			input: &mmodel.CreateAliasInput{
+			input: &mmodel.CreateInstrumentInput{
 				LedgerID:  ledgerID,
 				AccountID: accountID,
 				RelatedParties: []*mmodel.RelatedParty{
@@ -228,7 +228,7 @@ func TestCreateAlias(t *testing.T) {
 			testCase.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.CreateAlias(ctx, uuid.New().String(), testCase.holderID, testCase.input)
+			result, err := uc.CreateInstrument(ctx, uuid.New().String(), testCase.holderID, testCase.input)
 
 			if testCase.expectedErr != nil {
 				assert.Error(t, err)

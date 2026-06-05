@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -23,10 +23,10 @@ func TestDeleteRelatedPartyByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	mockAliasRepo := alias.NewMockRepository(ctrl)
+	mockAliasRepo := instrument.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AliasRepo: mockAliasRepo,
+		InstrumentRepo: mockAliasRepo,
 	}
 
 	organizationID := uuid.Must(libCommons.GenerateUUIDv7()).String()
@@ -68,9 +68,9 @@ func TestDeleteRelatedPartyByID(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					DeleteRelatedParty(gomock.Any(), organizationID, holderID, aliasID, relatedPartyID).
-					Return(cn.ErrAliasNotFound)
+					Return(cn.ErrInstrumentNotFound)
 			},
-			expectedError: cn.ErrAliasNotFound,
+			expectedError: cn.ErrInstrumentNotFound,
 			errContains:   "CRM-0008",
 		},
 		{

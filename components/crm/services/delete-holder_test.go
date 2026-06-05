@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -22,11 +22,11 @@ func TestDeleteHolderByID(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockHolderRepo := holder.NewMockRepository(ctrl)
-	mockAliasRepo := alias.NewMockRepository(ctrl)
+	mockAliasRepo := instrument.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		HolderRepo: mockHolderRepo,
-		AliasRepo:  mockAliasRepo,
+		HolderRepo:     mockHolderRepo,
+		InstrumentRepo: mockAliasRepo,
 	}
 
 	holderID := uuid.Must(libCommons.GenerateUUIDv7())

@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package alias
+package instrument
 
 import (
 	"testing"
@@ -24,12 +24,12 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		alias   *mmodel.Alias
+		alias   *mmodel.Instrument
 		wantErr bool
 	}{
 		{
 			name: "minimal alias",
-			alias: &mmodel.Alias{
+			alias: &mmodel.Instrument{
 				ID:        &aliasID,
 				Document:  testutils.Ptr("12345678901"),
 				Type:      testutils.Ptr("NATURAL_PERSON"),
@@ -42,7 +42,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		},
 		{
 			name: "alias with holder",
-			alias: &mmodel.Alias{
+			alias: &mmodel.Instrument{
 				ID:        &aliasID,
 				Document:  testutils.Ptr("98765432100"),
 				Type:      testutils.Ptr("LEGAL_PERSON"),
@@ -56,7 +56,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		},
 		{
 			name: "alias with banking details",
-			alias: &mmodel.Alias{
+			alias: &mmodel.Instrument{
 				ID:        &aliasID,
 				Document:  testutils.Ptr("11122233344"),
 				Type:      testutils.Ptr("NATURAL_PERSON"),
@@ -78,7 +78,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		},
 		{
 			name: "alias with metadata",
-			alias: &mmodel.Alias{
+			alias: &mmodel.Instrument{
 				ID:        &aliasID,
 				Document:  testutils.Ptr("55566677788"),
 				Type:      testutils.Ptr("NATURAL_PERSON"),
@@ -95,7 +95,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		},
 		{
 			name: "alias with nil metadata initializes empty map",
-			alias: &mmodel.Alias{
+			alias: &mmodel.Instrument{
 				ID:        &aliasID,
 				Document:  testutils.Ptr("77788899900"),
 				Type:      testutils.Ptr("LEGAL_PERSON"),
@@ -109,7 +109,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		},
 		{
 			name: "alias with regulatory fields",
-			alias: &mmodel.Alias{
+			alias: &mmodel.Instrument{
 				ID:        &aliasID,
 				Document:  testutils.Ptr("99900011122"),
 				Type:      testutils.Ptr("NATURAL_PERSON"),
@@ -125,7 +125,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		},
 		{
 			name: "alias with related parties",
-			alias: &mmodel.Alias{
+			alias: &mmodel.Instrument{
 				ID:        &aliasID,
 				Document:  testutils.Ptr("88877766655"),
 				Type:      testutils.Ptr("NATURAL_PERSON"),
@@ -155,7 +155,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		},
 		{
 			name: "alias with closing date",
-			alias: &mmodel.Alias{
+			alias: &mmodel.Instrument{
 				ID:        &aliasID,
 				Document:  testutils.Ptr("44455566677"),
 				Type:      testutils.Ptr("NATURAL_PERSON"),
@@ -171,7 +171,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		},
 		{
 			name: "alias with all fields",
-			alias: &mmodel.Alias{
+			alias: &mmodel.Instrument{
 				ID:        &aliasID,
 				Document:  testutils.Ptr("11111111111"),
 				Type:      testutils.Ptr("LEGAL_PERSON"),
@@ -312,7 +312,7 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 	relatedPartyID := uuid.New()
 
 	// First create a model from an entity, then convert back
-	originalAlias := &mmodel.Alias{
+	originalAlias := &mmodel.Instrument{
 		ID:        &aliasID,
 		Document:  testutils.Ptr("33344455566"),
 		Type:      testutils.Ptr("NATURAL_PERSON"),
@@ -396,7 +396,7 @@ func TestMongoDBModel_ToEntity_NilBankingDetails(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
 
-	originalAlias := &mmodel.Alias{
+	originalAlias := &mmodel.Instrument{
 		ID:             &aliasID,
 		Document:       testutils.Ptr("99988877766"),
 		Type:           testutils.Ptr("LEGAL_PERSON"),
@@ -423,7 +423,7 @@ func TestMongoDBModel_ToEntity_WithDeletedAt(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
 
-	originalAlias := &mmodel.Alias{
+	originalAlias := &mmodel.Instrument{
 		ID:        &aliasID,
 		Document:  testutils.Ptr("66677788899"),
 		Type:      testutils.Ptr("NATURAL_PERSON"),
@@ -452,7 +452,7 @@ func TestMongoDBModel_ToEntity_NilRegulatoryFieldsAndRelatedParties(t *testing.T
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
 
-	originalAlias := &mmodel.Alias{
+	originalAlias := &mmodel.Instrument{
 		ID:               &aliasID,
 		Document:         testutils.Ptr("55544433322"),
 		Type:             testutils.Ptr("NATURAL_PERSON"),
@@ -484,7 +484,7 @@ func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing
 	aliasID := uuid.New()
 	holderID := uuid.New()
 
-	originalAlias := &mmodel.Alias{
+	originalAlias := &mmodel.Instrument{
 		ID:        &aliasID,
 		Document:  testutils.Ptr("12312312399"),
 		Type:      testutils.Ptr("NATURAL_PERSON"),
@@ -550,7 +550,7 @@ func TestMongoDBModel_FromEntity_EncryptOptionalFailureReturnsError(t *testing.T
 	aliasID := uuid.New()
 	now := time.Now().UTC().Truncate(time.Second)
 
-	alias := &mmodel.Alias{
+	alias := &mmodel.Instrument{
 		ID:        &aliasID,
 		Document:  testutils.Ptr("12345678901"),
 		Type:      testutils.Ptr("NATURAL_PERSON"),

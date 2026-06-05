@@ -192,7 +192,7 @@ func TestNewRouter_ServesSwaggerUIAssets(t *testing.T) {
 		nil,
 		nil,
 		&HolderHandler{},
-		&AliasHandler{},
+		&InstrumentHandler{},
 		nil,
 	)
 

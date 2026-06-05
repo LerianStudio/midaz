@@ -16,23 +16,23 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// GetAliasByID retrieves an alias by ID and holder ID.
-func (uc *UseCase) GetAliasByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, includeDeleted bool) (*mmodel.Alias, error) {
+// GetInstrumentByID retrieves an instrument by ID and holder ID.
+func (uc *UseCase) GetInstrumentByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, includeDeleted bool) (*mmodel.Instrument, error) {
 	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.get_alias_by_id")
+	ctx, span := tracer.Start(ctx, "service.get_instrument_by_id")
 	defer span.End()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID),
 		attribute.String("app.request.holder_id", holderID.String()),
-		attribute.String("app.request.alias_id", id.String()),
+		attribute.String("app.request.instrument_id", id.String()),
 	)
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Get alias by id %v from holder %v", id, holderID))
 
-	alias, err := uc.AliasRepo.Find(ctx, organizationID, holderID, id, includeDeleted)
+	alias, err := uc.InstrumentRepo.Find(ctx, organizationID, holderID, id, includeDeleted)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to get alias by id", err)
 

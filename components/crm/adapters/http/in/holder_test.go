@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 	"github.com/LerianStudio/midaz/v3/components/crm/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -634,14 +634,14 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 	tests := []struct {
 		name           string
 		hardDelete     string
-		setupMocks     func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID)
+		setupMocks     func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name:       "success soft delete returns 204",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(0), nil).
@@ -658,7 +658,7 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 		{
 			name:       "success hard delete returns 204",
 			hardDelete: "true",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(0), nil).
@@ -675,7 +675,7 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 		{
 			name:       "holder has aliases returns 400",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(1), nil).
@@ -688,13 +688,13 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Equal(t, cn.ErrHolderHasAliases.Error(), errResp["code"])
+				assert.Equal(t, cn.ErrHolderHasInstruments.Error(), errResp["code"])
 			},
 		},
 		{
 			name:       "not found returns 404",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(0), nil).
@@ -718,7 +718,7 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 		{
 			name:       "repository error on count returns 500",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(0), pkg.InternalServerError{
@@ -741,7 +741,7 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 		{
 			name:       "repository error on delete returns 500",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(aliasRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(0), nil).
@@ -776,13 +776,13 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			orgID := uuid.New().String()
 			holderID := uuid.New()
 
-			mockAliasRepo := alias.NewMockRepository(ctrl)
+			mockAliasRepo := instrument.NewMockRepository(ctrl)
 			mockHolderRepo := holder.NewMockRepository(ctrl)
 			tt.setupMocks(mockAliasRepo, mockHolderRepo, orgID, holderID)
 
 			uc := &services.UseCase{
-				AliasRepo:  mockAliasRepo,
-				HolderRepo: mockHolderRepo,
+				InstrumentRepo: mockAliasRepo,
+				HolderRepo:     mockHolderRepo,
 			}
 			handler := &HolderHandler{Service: uc}
 

@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// RegulatoryFields contains regulatory-specific fields for an alias.
+// RegulatoryFields contains regulatory-specific fields for an instrument.
 //
 // swagger:model RegulatoryFields
 // @Description RegulatoryFields object
@@ -19,7 +19,7 @@ type RegulatoryFields struct {
 	ParticipantDocument *string `json:"participantDocument,omitempty" example:"12345678912345"`
 } // @name RegulatoryFields
 
-// RelatedParty represents a party related to an alias.
+// RelatedParty represents a party related to an instrument.
 //
 // swagger:model RelatedParty
 // @Description RelatedParty object
@@ -38,11 +38,11 @@ type RelatedParty struct {
 	EndDate *Date `json:"endDate,omitempty" example:"2026-01-01"`
 } // @name RelatedParty
 
-// CreateAliasInput is a struct designed to encapsulate request create payload data.
+// CreateInstrumentInput is a struct designed to encapsulate request create payload data.
 //
-// swagger:model CreateAliasInput
-// @Description CreateAliasRequest payload
-type CreateAliasInput struct {
+// swagger:model CreateInstrumentInput
+// @Description CreateInstrumentRequest payload
+type CreateInstrumentInput struct {
 	// Unique identifier of the ledger of the related account.
 	LedgerID string `json:"ledgerId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
 	// Unique identifier of the related account on ledger.
@@ -55,13 +55,13 @@ type CreateAliasInput struct {
 	RegulatoryFields *RegulatoryFields `json:"regulatoryFields,omitempty"`
 	// List of related parties to add at creation.
 	RelatedParties []*RelatedParty `json:"relatedParties,omitempty"`
-} // @name CreateAliasRequest
+} // @name CreateInstrumentRequest
 
-// UpdateAliasInput is a struct designed to encapsulate request update payload data.
+// UpdateInstrumentInput is a struct designed to encapsulate request update payload data.
 //
-// swagger:model UpdateAliasInput
-// @Description UpdateAliasRequest payload
-type UpdateAliasInput struct {
+// swagger:model UpdateInstrumentInput
+// @Description UpdateInstrumentRequest payload
+type UpdateInstrumentInput struct {
 	// An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// Object with banking information of the related account.
@@ -70,13 +70,13 @@ type UpdateAliasInput struct {
 	RegulatoryFields *RegulatoryFields `json:"regulatoryFields,omitempty"`
 	// List of related parties to add (appends to existing).
 	RelatedParties []*RelatedParty `json:"relatedParties,omitempty"`
-} // @name UpdateAliasRequest
+} // @name UpdateInstrumentRequest
 
-// Alias is a struct designed to store account data.
+// Instrument is a struct designed to store account data.
 //
-// swagger:model Alias
-// @Description AliasResponse payload
-type Alias struct {
+// swagger:model Instrument
+// @Description InstrumentResponse payload
+type Instrument struct {
 	ID               *uuid.UUID        `json:"id,omitempty" example:"00000000-0000-0000-0000-000000000000"`
 	Document         *string           `json:"document,omitempty" example:"91315026015"`
 	Type             *string           `json:"type,omitempty" example:"LEGAL_PERSON"`
@@ -90,7 +90,7 @@ type Alias struct {
 	CreatedAt        time.Time         `json:"createdAt" example:"2025-01-01T00:00:00Z"`
 	UpdatedAt        time.Time         `json:"updatedAt" example:"2025-01-01T00:00:00Z"`
 	DeletedAt        *time.Time        `json:"deletedAt" example:"2025-01-01T00:00:00Z"`
-} // @name AliasResponse
+} // @name InstrumentResponse
 
 // BankingDetails is a struct designed to store account banking details data.
 //

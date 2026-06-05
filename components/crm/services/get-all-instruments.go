@@ -18,10 +18,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-func (uc *UseCase) GetAllAliases(ctx context.Context, organizationID string, holderID uuid.UUID, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.Alias, error) {
+func (uc *UseCase) GetAllInstruments(ctx context.Context, organizationID string, holderID uuid.UUID, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.Instrument, error) {
 	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.get_all_aliases")
+	ctx, span := tracer.Start(ctx, "service.get_all_instruments")
 	defer span.End()
 
 	span.SetAttributes(
@@ -33,7 +33,7 @@ func (uc *UseCase) GetAllAliases(ctx context.Context, organizationID string, hol
 		span.SetAttributes(attribute.String("app.request.holder_id", holderID.String()))
 	}
 
-	aliases, err := uc.AliasRepo.FindAll(ctx, organizationID, holderID, filter, includeDeleted)
+	aliases, err := uc.InstrumentRepo.FindAll(ctx, organizationID, holderID, filter, includeDeleted)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to get aliases", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get aliases: %v", err))

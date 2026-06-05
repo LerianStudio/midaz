@@ -5,11 +5,11 @@
 package services
 
 import (
-	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 )
 
 type UseCase struct {
-	HolderRepo holder.Repository
-	AliasRepo  alias.Repository
+	HolderRepo     holder.Repository
+	InstrumentRepo instrument.Repository
 }

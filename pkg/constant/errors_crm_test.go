@@ -27,15 +27,15 @@ func TestCRMErrorSentinelWireCodes(t *testing.T) {
 		code string
 	}{
 		{"ErrHolderNotFound", ErrHolderNotFound, "CRM-0006"},
-		{"ErrAliasNotFound", ErrAliasNotFound, "CRM-0008"},
+		{"ErrInstrumentNotFound", ErrInstrumentNotFound, "CRM-0008"},
 		{"ErrDocumentAssociationError", ErrDocumentAssociationError, "CRM-0010"},
 		{"ErrAccountAlreadyAssociated", ErrAccountAlreadyAssociated, "CRM-0013"},
-		{"ErrHolderHasAliases", ErrHolderHasAliases, "CRM-0017"},
+		{"ErrHolderHasInstruments", ErrHolderHasInstruments, "CRM-0017"},
 		{"ErrMetadataQueryInvalidFormat", ErrMetadataQueryInvalidFormat, "CRM-0019"},
 		{"ErrMetadataQueryInvalidKey", ErrMetadataQueryInvalidKey, "CRM-0020"},
 		{"ErrMetadataQueryContainsOperator", ErrMetadataQueryContainsOperator, "CRM-0021"},
 		{"ErrInvalidHeaderValue", ErrInvalidHeaderValue, "CRM-0022"},
-		{"ErrAliasClosingDateBeforeCreation", ErrAliasClosingDateBeforeCreation, "CRM-0023"},
+		{"ErrInstrumentClosingDateBeforeCreation", ErrInstrumentClosingDateBeforeCreation, "CRM-0023"},
 		{"ErrRelatedPartyNotFound", ErrRelatedPartyNotFound, "CRM-0024"},
 		{"ErrInvalidRelatedPartyRole", ErrInvalidRelatedPartyRole, "CRM-0025"},
 		{"ErrRelatedPartyDocumentRequired", ErrRelatedPartyDocumentRequired, "CRM-0026"},

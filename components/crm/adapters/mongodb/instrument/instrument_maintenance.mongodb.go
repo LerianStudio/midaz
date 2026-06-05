@@ -2,12 +2,11 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package alias
+package instrument
 
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -16,7 +15,6 @@ import (
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -74,11 +72,11 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 	}
 
 	if result.MatchedCount == 0 {
-		return pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+		return pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
 	}
 
 	if result.ModifiedCount == 0 {
-		return pkg.ValidateBusinessError(cn.ErrRelatedPartyNotFound, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+		return pkg.ValidateBusinessError(cn.ErrRelatedPartyNotFound, cn.EntityRelatedParty)
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Deleted related party with id %s from alias %s", relatedPartyID.String(), aliasID.String()))

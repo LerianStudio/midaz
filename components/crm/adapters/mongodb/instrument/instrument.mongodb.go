@@ -2,13 +2,12 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package alias
+package instrument
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -31,14 +30,14 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// Repository provides an interface for operations related to alias entities.
+// Repository provides an interface for operations related to instrument entities.
 //
-//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=alias.mongodb_mock.go --package=alias . Repository
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=instrument.mongodb_mock.go --package=instrument . Repository
 type Repository interface {
-	Create(ctx context.Context, organizationID string, input *mmodel.Alias) (*mmodel.Alias, error)
-	Find(ctx context.Context, organizationID string, holderID, id uuid.UUID, includeDeleted bool) (*mmodel.Alias, error)
-	Update(ctx context.Context, organizationID string, holderID, id uuid.UUID, input *mmodel.Alias, fieldsToRemove []string) (*mmodel.Alias, error)
-	FindAll(ctx context.Context, organizationID string, holderID uuid.UUID, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.Alias, error)
+	Create(ctx context.Context, organizationID string, input *mmodel.Instrument) (*mmodel.Instrument, error)
+	Find(ctx context.Context, organizationID string, holderID, id uuid.UUID, includeDeleted bool) (*mmodel.Instrument, error)
+	Update(ctx context.Context, organizationID string, holderID, id uuid.UUID, input *mmodel.Instrument, fieldsToRemove []string) (*mmodel.Instrument, error)
+	FindAll(ctx context.Context, organizationID string, holderID uuid.UUID, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.Instrument, error)
 	Delete(ctx context.Context, organizationID string, holderID, id uuid.UUID, hardDelete bool) error
 	DeleteRelatedParty(ctx context.Context, organizationID string, holderID, aliasID, relatedPartyID uuid.UUID) error
 	Count(ctx context.Context, organizationID string, holderID uuid.UUID) (int64, error)
@@ -85,7 +84,7 @@ func (am *MongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, 
 }
 
 // Create inserts an alias into mongo
-func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, alias *mmodel.Alias) (*mmodel.Alias, error) {
+func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, alias *mmodel.Instrument) (*mmodel.Instrument, error) {
 	_, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_alias")
@@ -146,7 +145,7 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 		if mongo.IsDuplicateKeyError(err) {
 			if strings.Contains(err.Error(), "account_id") {
-				return nil, pkg.ValidateBusinessError(cn.ErrAccountAlreadyAssociated, reflect.TypeOf(mmodel.Alias{}).Name())
+				return nil, pkg.ValidateBusinessError(cn.ErrAccountAlreadyAssociated, cn.EntityInstrument)
 			}
 		}
 
@@ -164,7 +163,7 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 }
 
 // Find an alias by holder and alias id
-func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, holderID, id uuid.UUID, includeDeleted bool) (*mmodel.Alias, error) {
+func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, holderID, id uuid.UUID, includeDeleted bool) (*mmodel.Instrument, error) {
 	_, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_alias")
@@ -204,7 +203,7 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 		libOpenTelemetry.HandleSpanError(span, "Failed to find account", err)
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+			return nil, pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
 		}
 
 		return nil, err
@@ -220,7 +219,7 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 	return result, nil
 }
 
-func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, holderID, id uuid.UUID, alias *mmodel.Alias, fieldsToRemove []string) (*mmodel.Alias, error) {
+func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, holderID, id uuid.UUID, alias *mmodel.Instrument, fieldsToRemove []string) (*mmodel.Instrument, error) {
 	_, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.update_alias")
@@ -293,7 +292,7 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 	}
 
 	if updateResult.MatchedCount == 0 {
-		return nil, pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+		return nil, pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
 	}
 
 	var record MongoDBModel
@@ -369,7 +368,7 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 		spanDelete.End()
 
 		if deleted.DeletedCount == 0 {
-			return pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+			return pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
 		}
 	} else {
 		update := bson.D{
@@ -386,7 +385,7 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 		}
 
 		if updateResult.MatchedCount == 0 {
-			return pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+			return pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
 		}
 	}
 

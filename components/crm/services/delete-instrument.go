@@ -15,23 +15,23 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// DeleteAliasByID removes an alias by its ID and holder ID.
-func (uc *UseCase) DeleteAliasByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, hardDelete bool) error {
+// DeleteInstrumentByID removes an instrument by its ID and holder ID.
+func (uc *UseCase) DeleteInstrumentByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, hardDelete bool) error {
 	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.delete_alias_by_id")
+	ctx, span := tracer.Start(ctx, "service.delete_instrument_by_id")
 	defer span.End()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID),
 		attribute.String("app.request.holder_id", holderID.String()),
-		attribute.String("app.request.alias_id", id.String()),
+		attribute.String("app.request.instrument_id", id.String()),
 	)
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Delete alias by id %v", id))
 
-	err := uc.AliasRepo.Delete(ctx, organizationID, holderID, id, hardDelete)
+	err := uc.InstrumentRepo.Delete(ctx, organizationID, holderID, id, hardDelete)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to delete alias by id: %v", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete alias by id: %v", err))

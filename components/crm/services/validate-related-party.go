@@ -7,7 +7,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 
 	libObs "github.com/LerianStudio/lib-observability"
@@ -32,34 +31,34 @@ func (uc *UseCase) ValidateRelatedParty(ctx context.Context, party *mmodel.Relat
 
 	if party == nil {
 		libOpenTelemetry.HandleSpanError(span, "Related party payload is nil", cn.ErrInvalidRelatedPartyRole)
-		return pkg.ValidateBusinessError(cn.ErrInvalidRelatedPartyRole, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+		return pkg.ValidateBusinessError(cn.ErrInvalidRelatedPartyRole, cn.EntityRelatedParty)
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Validating related party: role=%s", party.Role))
 
 	if strings.TrimSpace(party.Document) == "" {
 		libOpenTelemetry.HandleSpanError(span, "Related party document is required", cn.ErrRelatedPartyDocumentRequired)
-		return pkg.ValidateBusinessError(cn.ErrRelatedPartyDocumentRequired, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+		return pkg.ValidateBusinessError(cn.ErrRelatedPartyDocumentRequired, cn.EntityRelatedParty)
 	}
 
 	if strings.TrimSpace(party.Name) == "" {
 		libOpenTelemetry.HandleSpanError(span, "Related party name is required", cn.ErrRelatedPartyNameRequired)
-		return pkg.ValidateBusinessError(cn.ErrRelatedPartyNameRequired, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+		return pkg.ValidateBusinessError(cn.ErrRelatedPartyNameRequired, cn.EntityRelatedParty)
 	}
 
 	if strings.TrimSpace(party.Role) == "" || !validRelatedPartyRoles[party.Role] {
 		libOpenTelemetry.HandleSpanError(span, "Invalid related party role", cn.ErrInvalidRelatedPartyRole)
-		return pkg.ValidateBusinessError(cn.ErrInvalidRelatedPartyRole, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+		return pkg.ValidateBusinessError(cn.ErrInvalidRelatedPartyRole, cn.EntityRelatedParty)
 	}
 
 	if party.StartDate.IsZero() {
 		libOpenTelemetry.HandleSpanError(span, "Related party start date is required", cn.ErrRelatedPartyStartDateRequired)
-		return pkg.ValidateBusinessError(cn.ErrRelatedPartyStartDateRequired, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+		return pkg.ValidateBusinessError(cn.ErrRelatedPartyStartDateRequired, cn.EntityRelatedParty)
 	}
 
 	if party.EndDate != nil && !party.EndDate.IsZero() && party.EndDate.Before(party.StartDate) {
 		libOpenTelemetry.HandleSpanError(span, "End date must be after start date", cn.ErrRelatedPartyEndDateInvalid)
-		return pkg.ValidateBusinessError(cn.ErrRelatedPartyEndDateInvalid, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+		return pkg.ValidateBusinessError(cn.ErrRelatedPartyEndDateInvalid, cn.EntityRelatedParty)
 	}
 
 	return nil

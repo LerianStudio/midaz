@@ -11,7 +11,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -23,7 +23,7 @@ func TestValidateAliasClosingDate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockAliasRepo := alias.NewMockRepository(ctrl)
+	mockAliasRepo := instrument.NewMockRepository(ctrl)
 
 	organizationID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	holderID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -31,7 +31,7 @@ func TestValidateAliasClosingDate(t *testing.T) {
 	createdAt := time.Now().Add(-24 * time.Hour)
 
 	uc := &UseCase{
-		AliasRepo: mockAliasRepo,
+		InstrumentRepo: mockAliasRepo,
 	}
 
 	testCases := []struct {
@@ -61,14 +61,14 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Find(gomock.Any(), organizationID, holderID, aliasID, false).
-					Return(&mmodel.Alias{
+					Return(&mmodel.Instrument{
 						ID:        &aliasID,
 						HolderID:  &holderID,
 						CreatedAt: createdAt,
 					}, nil)
 			},
 			expectError:   true,
-			expectedError: cn.ErrAliasClosingDateBeforeCreation,
+			expectedError: cn.ErrInstrumentClosingDateBeforeCreation,
 		},
 		{
 			name:     "Success when closing date is after creation date",
@@ -80,7 +80,7 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Find(gomock.Any(), organizationID, holderID, aliasID, false).
-					Return(&mmodel.Alias{
+					Return(&mmodel.Instrument{
 						ID:        &aliasID,
 						HolderID:  &holderID,
 						CreatedAt: createdAt,
@@ -98,10 +98,10 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Find(gomock.Any(), organizationID, holderID, aliasID, false).
-					Return(nil, cn.ErrAliasNotFound)
+					Return(nil, cn.ErrInstrumentNotFound)
 			},
 			expectError:   true,
-			expectedError: cn.ErrAliasNotFound,
+			expectedError: cn.ErrInstrumentNotFound,
 		},
 		{
 			name:     "Error when repository returns generic error",
@@ -127,7 +127,7 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Find(gomock.Any(), organizationID, holderID, aliasID, false).
-					Return(&mmodel.Alias{
+					Return(&mmodel.Instrument{
 						ID:        &aliasID,
 						HolderID:  &holderID,
 						CreatedAt: createdAt,
@@ -142,7 +142,7 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			testCase.mockSetup()
 
 			ctx := context.Background()
-			err := uc.validateAliasClosingDate(ctx, organizationID, testCase.holderID, testCase.aliasID, testCase.closingDate)
+			err := uc.validateInstrumentClosingDate(ctx, organizationID, testCase.holderID, testCase.aliasID, testCase.closingDate)
 
 			if testCase.expectError {
 				assert.Error(t, err)

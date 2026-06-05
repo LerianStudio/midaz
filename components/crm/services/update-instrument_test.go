@@ -11,8 +11,8 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -26,7 +26,7 @@ func TestUpdateAliasByID(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockHolderRepo := holder.NewMockRepository(ctrl)
-	mockAliasRepo := alias.NewMockRepository(ctrl)
+	mockAliasRepo := instrument.NewMockRepository(ctrl)
 
 	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 	id := uuid.Must(libCommons.GenerateUUIDv7())
@@ -37,24 +37,24 @@ func TestUpdateAliasByID(t *testing.T) {
 	participantDoc := "12345678912345"
 
 	uc := &UseCase{
-		HolderRepo: mockHolderRepo,
-		AliasRepo:  mockAliasRepo,
+		HolderRepo:     mockHolderRepo,
+		InstrumentRepo: mockAliasRepo,
 	}
 
 	testCases := []struct {
 		name           string
 		id             uuid.UUID
 		holderID       uuid.UUID
-		input          *mmodel.UpdateAliasInput
+		input          *mmodel.UpdateInstrumentInput
 		mockSetup      func()
 		expectedErr    error
-		expectedResult *mmodel.Alias
+		expectedResult *mmodel.Instrument
 	}{
 		{
 			name:     "Success with single field provided",
 			id:       id,
 			holderID: holderID,
-			input: &mmodel.UpdateAliasInput{
+			input: &mmodel.UpdateInstrumentInput{
 				BankingDetails: &mmodel.BankingDetails{
 					Branch: &branch,
 				},
@@ -62,7 +62,7 @@ func TestUpdateAliasByID(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Alias{
+					Return(&mmodel.Instrument{
 						ID:        &id,
 						Document:  &holderDocument,
 						LedgerID:  &ledgerID,
@@ -74,7 +74,7 @@ func TestUpdateAliasByID(t *testing.T) {
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: &mmodel.Alias{
+			expectedResult: &mmodel.Instrument{
 				ID:        &id,
 				Document:  &holderDocument,
 				LedgerID:  &ledgerID,
@@ -89,7 +89,7 @@ func TestUpdateAliasByID(t *testing.T) {
 			name:     "Success with RegulatoryFields and RelatedParties",
 			id:       id,
 			holderID: holderID,
-			input: &mmodel.UpdateAliasInput{
+			input: &mmodel.UpdateInstrumentInput{
 				RegulatoryFields: &mmodel.RegulatoryFields{
 					ParticipantDocument: &participantDoc,
 				},
@@ -105,7 +105,7 @@ func TestUpdateAliasByID(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
-					Return(&mmodel.Alias{
+					Return(&mmodel.Instrument{
 						ID:        &id,
 						Document:  &holderDocument,
 						LedgerID:  &ledgerID,
@@ -115,7 +115,7 @@ func TestUpdateAliasByID(t *testing.T) {
 
 				mockAliasRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Alias{
+					Return(&mmodel.Instrument{
 						ID:        &id,
 						Document:  &holderDocument,
 						LedgerID:  &ledgerID,
@@ -127,7 +127,7 @@ func TestUpdateAliasByID(t *testing.T) {
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: &mmodel.Alias{
+			expectedResult: &mmodel.Instrument{
 				ID:        &id,
 				Document:  &holderDocument,
 				LedgerID:  &ledgerID,
@@ -142,7 +142,7 @@ func TestUpdateAliasByID(t *testing.T) {
 			name:     "Error when alias not found by ID",
 			id:       id,
 			holderID: holderID,
-			input: &mmodel.UpdateAliasInput{
+			input: &mmodel.UpdateInstrumentInput{
 				BankingDetails: &mmodel.BankingDetails{
 					Branch: &branch,
 				},
@@ -150,16 +150,16 @@ func TestUpdateAliasByID(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, cn.ErrAliasNotFound)
+					Return(nil, cn.ErrInstrumentNotFound)
 			},
-			expectedErr:    cn.ErrAliasNotFound,
+			expectedErr:    cn.ErrInstrumentNotFound,
 			expectedResult: nil,
 		},
 		{
 			name:     "Error when invalid RelatedParty role",
 			id:       id,
 			holderID: holderID,
-			input: &mmodel.UpdateAliasInput{
+			input: &mmodel.UpdateInstrumentInput{
 				RelatedParties: []*mmodel.RelatedParty{
 					{
 						Document:  "12345678900",
@@ -177,7 +177,7 @@ func TestUpdateAliasByID(t *testing.T) {
 			name:     "Error when fetch existing alias for related parties fails",
 			id:       id,
 			holderID: holderID,
-			input: &mmodel.UpdateAliasInput{
+			input: &mmodel.UpdateInstrumentInput{
 				RelatedParties: []*mmodel.RelatedParty{
 					{
 						Document:  "12345678900",
@@ -199,7 +199,7 @@ func TestUpdateAliasByID(t *testing.T) {
 			name:     "Success with RelatedParties appended to existing",
 			id:       id,
 			holderID: holderID,
-			input: &mmodel.UpdateAliasInput{
+			input: &mmodel.UpdateInstrumentInput{
 				RelatedParties: []*mmodel.RelatedParty{
 					{
 						Document:  "12345678900",
@@ -213,7 +213,7 @@ func TestUpdateAliasByID(t *testing.T) {
 				existingRPID := uuid.Must(libCommons.GenerateUUIDv7())
 				mockAliasRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
-					Return(&mmodel.Alias{
+					Return(&mmodel.Instrument{
 						ID:        &id,
 						Document:  &holderDocument,
 						LedgerID:  &ledgerID,
@@ -232,7 +232,7 @@ func TestUpdateAliasByID(t *testing.T) {
 
 				mockAliasRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Alias{
+					Return(&mmodel.Instrument{
 						ID:        &id,
 						Document:  &holderDocument,
 						LedgerID:  &ledgerID,
@@ -241,7 +241,7 @@ func TestUpdateAliasByID(t *testing.T) {
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: &mmodel.Alias{
+			expectedResult: &mmodel.Instrument{
 				ID:        &id,
 				Document:  &holderDocument,
 				LedgerID:  &ledgerID,
@@ -253,7 +253,7 @@ func TestUpdateAliasByID(t *testing.T) {
 			name:     "Error when closing date is before creation date",
 			id:       id,
 			holderID: holderID,
-			input: &mmodel.UpdateAliasInput{
+			input: &mmodel.UpdateInstrumentInput{
 				BankingDetails: &mmodel.BankingDetails{
 					Branch:      &branch,
 					ClosingDate: &mmodel.Date{Time: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)},
@@ -262,7 +262,7 @@ func TestUpdateAliasByID(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
-					Return(&mmodel.Alias{
+					Return(&mmodel.Instrument{
 						ID:        &id,
 						Document:  &holderDocument,
 						LedgerID:  &ledgerID,
@@ -271,7 +271,7 @@ func TestUpdateAliasByID(t *testing.T) {
 						CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 					}, nil)
 			},
-			expectedErr:    cn.ErrAliasClosingDateBeforeCreation,
+			expectedErr:    cn.ErrInstrumentClosingDateBeforeCreation,
 			expectedResult: nil,
 		},
 	}
@@ -283,7 +283,7 @@ func TestUpdateAliasByID(t *testing.T) {
 			fieldsToRemove := []string{"field1", "field2"}
 
 			ctx := context.Background()
-			result, err := uc.UpdateAliasByID(ctx, uuid.New().String(), holderID, id, testCase.input, fieldsToRemove)
+			result, err := uc.UpdateInstrumentByID(ctx, uuid.New().String(), holderID, id, testCase.input, fieldsToRemove)
 
 			if testCase.expectedErr != nil {
 				assert.Error(t, err)

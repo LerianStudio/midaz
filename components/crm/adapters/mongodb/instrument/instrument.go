@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package alias
+package instrument
 
 import (
 	"time"
@@ -173,7 +173,7 @@ func mapRelatedPartiesFromEntity(parties []*mmodel.RelatedParty, ds *libCrypto.C
 }
 
 // FromEntity maps an account entity to a MongoDB Alias model
-func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error {
+func (amm *MongoDBModel) FromEntity(a *mmodel.Instrument, ds *libCrypto.Crypto) error {
 	document, err := encryptOptional(ds, a.Document)
 	if err != nil {
 		return err
@@ -239,13 +239,13 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error
 }
 
 // ToEntity maps a MongoDB model to an Alias entity
-func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
+func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Instrument, error) {
 	document, err := ds.Decrypt(amm.Document)
 	if err != nil {
 		return nil, err
 	}
 
-	alias := &mmodel.Alias{
+	alias := &mmodel.Instrument{
 		ID:        amm.ID,
 		Document:  document,
 		Type:      amm.Type,

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -20,10 +20,10 @@ func TestDeleteAliasByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockAliasRepo := alias.NewMockRepository(ctrl)
+	mockAliasRepo := instrument.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AliasRepo: mockAliasRepo,
+		InstrumentRepo: mockAliasRepo,
 	}
 
 	id := uuid.Must(libCommons.GenerateUUIDv7())
@@ -65,7 +65,7 @@ func TestDeleteAliasByID(t *testing.T) {
 			testCase.mockSetup()
 
 			ctx := context.Background()
-			err := uc.DeleteAliasByID(ctx, uuid.Must(libCommons.GenerateUUIDv7()).String(), testCase.holderID, testCase.id, false)
+			err := uc.DeleteInstrumentByID(ctx, uuid.Must(libCommons.GenerateUUIDv7()).String(), testCase.holderID, testCase.id, false)
 
 			if testCase.expectedError != nil {
 				assert.Error(t, err)

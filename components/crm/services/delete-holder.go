@@ -7,13 +7,11 @@ package services
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	libObs "github.com/LerianStudio/lib-observability"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -35,7 +33,7 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Delete holder by id %v", id))
 
-	count, err := uc.AliasRepo.Count(ctx, organizationID, id)
+	count, err := uc.InstrumentRepo.Count(ctx, organizationID, id)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to check linked aliases for holder: %v", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to check linked aliases for holder: %v", err))
@@ -44,7 +42,7 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 	}
 
 	if count > 0 {
-		return pkg.ValidateBusinessError(cn.ErrHolderHasAliases, reflect.TypeOf(mmodel.Holder{}).Name())
+		return pkg.ValidateBusinessError(cn.ErrHolderHasInstruments, cn.EntityHolder)
 	}
 
 	err = uc.HolderRepo.Delete(ctx, organizationID, id, hardDelete)
