@@ -474,6 +474,7 @@ func (r *UsageReservationRepository) lockReservedByTransaction(ctx context.Conte
 	if err != nil {
 		return nil, fmt.Errorf("failed to load reserved rows for transaction: %w", err)
 	}
+
 	defer func() { _ = rows.Close() }()
 
 	var reservations []*model.Reservation

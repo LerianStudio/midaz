@@ -88,7 +88,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2),
 			wait.ForListeningPort("5432/tcp"),
-		).WithStartupTimeout(180 * time.Second),
+		).WithDeadline(180 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},

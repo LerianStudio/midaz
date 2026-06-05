@@ -99,6 +99,8 @@ func (r *ReservationReaperRepository) FindExpiredReservations(ctx context.Contex
 		return nil, fmt.Errorf("failed to iterate expired reservations: %w", err)
 	}
 
+	logger.With(libLog.Int("count", len(ids))).Log(ctx, libLog.LevelDebug, "Found expired reservations")
+
 	return ids, nil
 }
 
