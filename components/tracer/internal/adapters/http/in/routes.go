@@ -115,6 +115,9 @@ func skipTelemetryPaths(c *fiber.Ctx) bool {
 //   - MultiTenantEnabled + PgManager + Supervisor are a tri-state per the
 //     guard inside NewRoutes (`MultiTenantEnabled && PgManager != nil`). All
 //     three may be nil in single-tenant mode.
+//   - ReservationService: if nil, the /v1/reservations routes are not mounted.
+//     The two-phase reservation API is additive; a build that has not wired the
+//     reservation service simply does not expose it.
 type RoutesDeps struct {
 	Logger                       libLog.Logger
 	Telemetry                    *libOtel.Telemetry
@@ -123,6 +126,7 @@ type RoutesDeps struct {
 	RuleService                  RuleService
 	LimitService                 LimitService
 	ValidationService            ValidationService
+	ReservationService           ReservationService
 	TransactionValidationService TransactionValidationService
 	AuditEventService            AuditEventService
 	Guard                        *middleware.AuthGuard
@@ -149,6 +153,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	ruleService := deps.RuleService
 	limitService := deps.LimitService
 	validationService := deps.ValidationService
+	reservationService := deps.ReservationService
 	transactionValidationService := deps.TransactionValidationService
 	auditEventService := deps.AuditEventService
 	guard := deps.Guard
@@ -327,6 +332,22 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	}
 
 	api.Post("/validations", guard.With("validations", "post", cfg.APIKeyOnlyValidation), validationHandler.Validate)
+
+	// Reservation endpoints (two-phase capacity hold). Mounted only when the
+	// reservation service is wired — the API is additive, so a build without it
+	// simply does not expose /v1/reservations. The "reservations" resource is the
+	// tracer's OWN authz resource string (API-key / Access-Manager guard), not a
+	// ledger plugin namespace.
+	if reservationService != nil {
+		reservationHandler, err := NewReservationHandler(reservationService, clk)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create reservation handler: %w", err)
+		}
+
+		api.Post("/reservations", guard.With("reservations", "post", false), reservationHandler.Reserve)
+		api.Post("/reservations/:id/confirm", guard.With("reservations", "post", false), reservationHandler.Confirm)
+		api.Post("/reservations/:id/release", guard.With("reservations", "post", false), reservationHandler.Release)
+	}
 
 	// Audit Event endpoints (read-only per SOX/GLBA requirements)
 	auditEventHandler := NewAuditEventHandler(auditEventService)

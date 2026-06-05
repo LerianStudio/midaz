@@ -260,11 +260,13 @@ var (
 	// missing. Callers (bootstrap + tests) match on these via errors.Is so we
 	// keep the failure-mode contract stable without re-grepping error strings.
 	// =============================================================================
-	ErrSupervisorNilRuleCache = errors.New("TRC-0336") // worker supervisor: rule cache is required
-	ErrSupervisorNilSyncRepo  = errors.New("TRC-0337") // worker supervisor: sync repo is required
-	ErrSupervisorNilUsageRepo = errors.New("TRC-0338") // worker supervisor: usage repo is required when cleanup workers are enabled
-	ErrSupervisorNilCompiler  = errors.New("TRC-0339") // worker supervisor: compiler is required
-	ErrSupervisorNilLogger    = errors.New("TRC-0340") // worker supervisor: logger is required
+	ErrSupervisorNilRuleCache     = errors.New("TRC-0336") // worker supervisor: rule cache is required
+	ErrSupervisorNilSyncRepo      = errors.New("TRC-0337") // worker supervisor: sync repo is required
+	ErrSupervisorNilUsageRepo     = errors.New("TRC-0338") // worker supervisor: usage repo is required when cleanup workers are enabled
+	ErrSupervisorNilCompiler      = errors.New("TRC-0339") // worker supervisor: compiler is required
+	ErrSupervisorNilLogger        = errors.New("TRC-0340") // worker supervisor: logger is required
+	ErrSupervisorNilReaperRepo    = errors.New("TRC-0341") // worker supervisor: reservation reaper repo is required when reaper workers are enabled
+	ErrSupervisorNilReaperAuditor = errors.New("TRC-0342") // worker supervisor: reservation reaper auditor is required when reaper workers are enabled
 
 	// =============================================================================
 	// Authentication / Authorization Errors (TRC-0350 to TRC-0369)

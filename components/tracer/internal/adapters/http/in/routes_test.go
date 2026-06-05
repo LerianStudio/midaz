@@ -48,6 +48,7 @@ type testRouterDeps struct {
 	RuleService                  *MockRuleService
 	LimitService                 *MockLimitService
 	ValidationService            *mocks.MockValidationService
+	ReservationService           *mocks.MockReservationService
 	TransactionValidationService *mocks.MockTransactionValidationService
 	AuditEventService            *MockAuditEventService
 	guardCfg                     middleware.AuthGuardConfig
@@ -63,6 +64,7 @@ func newTestRouterDeps(t *testing.T, guardCfg middleware.AuthGuardConfig) *testR
 		RuleService:                  NewMockRuleService(ctrl),
 		LimitService:                 NewMockLimitService(ctrl),
 		ValidationService:            mocks.NewMockValidationService(ctrl),
+		ReservationService:           mocks.NewMockReservationService(ctrl),
 		TransactionValidationService: mocks.NewMockTransactionValidationService(ctrl),
 		AuditEventService:            NewMockAuditEventService(ctrl),
 		guardCfg:                     guardCfg,
@@ -90,6 +92,15 @@ func (d *testRouterDeps) build() *fiber.App {
 	routeCfg := &RouteConfig{}
 
 	clk := clock.New()
+
+	// Avoid the typed-nil interface trap: a nil *MockReservationService stored in
+	// the ReservationService interface field would be non-nil and the route guard
+	// would mount the routes. Convert an explicit nil mock to a true interface nil.
+	var reservationService ReservationService
+	if d.ReservationService != nil {
+		reservationService = d.ReservationService
+	}
+
 	app, err := NewRoutes(RoutesDeps{
 		Logger:                       mockLogger,
 		Telemetry:                    telemetry,
@@ -98,6 +109,7 @@ func (d *testRouterDeps) build() *fiber.App {
 		RuleService:                  d.RuleService,
 		LimitService:                 d.LimitService,
 		ValidationService:            d.ValidationService,
+		ReservationService:           reservationService,
 		TransactionValidationService: d.TransactionValidationService,
 		AuditEventService:            d.AuditEventService,
 		Guard:                        guard,
@@ -331,6 +343,70 @@ func TestRoutes_ProtectedEndpoints_AuthDisabled(t *testing.T) {
 				"With auth disabled, endpoint %s should not return 401", tt.path)
 		})
 	}
+}
+
+// TestRoutes_ReservationEndpoints_Mounted asserts the three two-phase
+// reservation routes are mounted under the "reservations" guard. A guarded route
+// answers 401 without an API key; an unmounted route answers 404. This is the
+// route-table presence proof for F3-T08 — it distinguishes "mounted and
+// protected" from "missing".
+func TestRoutes_ReservationEndpoints_Mounted(t *testing.T) {
+	reservationID := testutil.MustDeterministicUUID(1)
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{"POST /v1/reservations", http.MethodPost, "/v1/reservations"},
+		{"POST /v1/reservations/:id/confirm", http.MethodPost, "/v1/reservations/" + reservationID.String() + "/confirm"},
+		{"POST /v1/reservations/:id/release", http.MethodPost, "/v1/reservations/" + reservationID.String() + "/release"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			guardCfg := middleware.AuthGuardConfig{
+				APIKey:        "test-secret-key-32-characters-long",
+				APIKeyEnabled: true,
+				AppName:       "tracer",
+			}
+			app := createTestRouter(t, guardCfg)
+
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			// No X-API-Key header: a mounted+guarded route must reply 401, not 404.
+
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, http.StatusUnauthorized, resp.StatusCode,
+				"reservation route %s should be mounted and require auth (401), not missing (404)", tt.path)
+		})
+	}
+}
+
+// TestRoutes_ReservationEndpoints_NotMountedWhenServiceNil asserts the reservation
+// routes are absent (404) when the reservation service is not wired — the API is
+// additive per the RoutesDeps zero-value contract.
+func TestRoutes_ReservationEndpoints_NotMountedWhenServiceNil(t *testing.T) {
+	guardCfg := middleware.AuthGuardConfig{
+		APIKey:        "test-secret-key-32-characters-long",
+		APIKeyEnabled: true,
+		AppName:       "tracer",
+	}
+	deps := newTestRouterDeps(t, guardCfg)
+	deps.ReservationService = nil // not wired
+
+	app := deps.build()
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/reservations", nil)
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode,
+		"reservation route should not be mounted when the reservation service is nil")
 }
 
 // TestWriteTenantCapReached verifies that the 503 envelope emitted when the

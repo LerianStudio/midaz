@@ -15,6 +15,10 @@ var (
 	ErrNilRepository = errors.New("repository cannot be nil")
 	// ErrInvalidCleanupInterval is returned when cleanup interval is not positive.
 	ErrInvalidCleanupInterval = errors.New("cleanup interval must be positive")
+	// ErrInvalidReaperInterval is returned when the reservation reaper interval is not positive.
+	ErrInvalidReaperInterval = errors.New("reservation reaper interval must be positive")
+	// ErrNilReservationAuditor is returned when the required reservation expiry auditor dependency is nil.
+	ErrNilReservationAuditor = errors.New("reservation expiry auditor cannot be nil")
 	// ErrNilRuleCache is returned when the required rule cache dependency is nil.
 	ErrNilRuleCache = errors.New("rule cache cannot be nil")
 	// ErrNilExpressionCompiler is returned when the required expression compiler dependency is nil.

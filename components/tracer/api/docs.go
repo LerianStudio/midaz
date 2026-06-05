@@ -331,7 +331,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Audit event retrieved successfully",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.AuditEvent"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AuditEvent"
                         }
                     },
                     "400": {
@@ -394,7 +394,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Hash chain verification completed",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.HashChainVerificationResult"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.HashChainVerificationResult"
                         }
                     },
                     "400": {
@@ -619,7 +619,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Limit created successfully",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.Limit"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit"
                         }
                     },
                     "400": {
@@ -682,7 +682,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Limit retrieved successfully",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.Limit"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit"
                         }
                     },
                     "400": {
@@ -810,7 +810,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Limit updated successfully",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.Limit"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit"
                         }
                     },
                     "400": {
@@ -879,7 +879,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Limit activated successfully",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.Limit"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit"
                         }
                     },
                     "400": {
@@ -942,7 +942,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Limit deactivated successfully",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.Limit"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit"
                         }
                     },
                     "400": {
@@ -1005,7 +1005,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Limit transitioned to draft successfully",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.Limit"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit"
                         }
                     },
                     "400": {
@@ -1068,7 +1068,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Usage snapshot retrieved successfully",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.UsageSnapshot"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.UsageSnapshot"
                         }
                     },
                     "400": {
@@ -1085,6 +1085,178 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Limit not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/reservations": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Holds limit capacity for a ledger transaction without committing it. Returns one reservation id per counter-backed limit, or denied=true when a limit would be exceeded.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reservations"
+                ],
+                "summary": "Reserve transaction capacity (phase one)",
+                "operationId": "createReservation",
+                "parameters": [
+                    {
+                        "description": "Reservation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapters_http_in.ReserveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Capacity reserved",
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapters_http_in.ReserveResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Payload too large (exceeds 100KB)",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/reservations/{id}/confirm": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Commits a held reservation: the amount moves from reserved to current usage. Idempotent — a retry against an already-terminal reservation returns 200.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reservations"
+                ],
+                "summary": "Confirm a reservation (phase two — commit)",
+                "operationId": "confirmReservation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Reservation ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Reservation confirmed",
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapters_http_in.ReservationActionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid path parameter",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/reservations/{id}/release": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns a held reservation's capacity on an aborted ledger transaction. Idempotent — a retry against an already-terminal reservation returns 200.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reservations"
+                ],
+                "summary": "Release a reservation (phase two — abort)",
+                "operationId": "releaseReservation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Reservation ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Reservation released",
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapters_http_in.ReservationActionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid path parameter",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/api.ErrorResponse"
                         }
@@ -1290,7 +1462,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Rule created successfully",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.Rule"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule"
                         }
                     },
                     "400": {
@@ -1353,7 +1525,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Rule retrieved successfully",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.Rule"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule"
                         }
                     },
                     "400": {
@@ -1481,7 +1653,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Rule updated successfully",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.Rule"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule"
                         }
                     },
                     "400": {
@@ -1550,7 +1722,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Rule activated successfully",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.Rule"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule"
                         }
                     },
                     "400": {
@@ -1613,7 +1785,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Rule deactivated successfully",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.Rule"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule"
                         }
                     },
                     "400": {
@@ -1676,7 +1848,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Rule transitioned to draft successfully",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.Rule"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule"
                         }
                     },
                     "400": {
@@ -1885,7 +2057,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.ValidationRequest"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ValidationRequest"
                         }
                     }
                 ],
@@ -1893,13 +2065,13 @@ const docTemplate = `{
                     "200": {
                         "description": "Duplicate request (idempotent)",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.ValidationResponse"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ValidationResponse"
                         }
                     },
                     "201": {
                         "description": "New validation created",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.ValidationResponse"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ValidationResponse"
                         }
                     },
                     "400": {
@@ -1974,7 +2146,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Transaction validation retrieved successfully",
                         "schema": {
-                            "$ref": "#/definitions/tracer_pkg_model.TransactionValidation"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.TransactionValidation"
                         }
                     },
                     "400": {
@@ -2123,301 +2295,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_adapters_http_in.CreateLimitInput": {
-            "type": "object",
-            "required": [
-                "currency",
-                "limitType",
-                "maxAmount",
-                "name",
-                "scopes"
-            ],
-            "properties": {
-                "activeTimeEnd": {
-                    "type": "string",
-                    "example": "17:00"
-                },
-                "activeTimeStart": {
-                    "type": "string",
-                    "example": "09:00"
-                },
-                "currency": {
-                    "type": "string",
-                    "maxLength": 3,
-                    "minLength": 3,
-                    "example": "USD"
-                },
-                "customEndDate": {
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2026-11-29T00:00:00Z"
-                },
-                "customStartDate": {
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2026-11-27T00:00:00Z"
-                },
-                "description": {
-                    "type": "string",
-                    "maxLength": 1000
-                },
-                "limitType": {
-                    "$ref": "#/definitions/tracer_pkg_model.LimitType"
-                },
-                "maxAmount": {
-                    "type": "string",
-                    "example": "1000.00"
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "minLength": 1
-                },
-                "scopes": {
-                    "type": "array",
-                    "maxItems": 100,
-                    "minItems": 1,
-                    "items": {
-                        "$ref": "#/definitions/tracer_pkg_model.Scope"
-                    }
-                }
-            }
-        },
-        "internal_adapters_http_in.CreateRuleInput": {
-            "type": "object",
-            "required": [
-                "action",
-                "expression",
-                "name"
-            ],
-            "properties": {
-                "action": {
-                    "$ref": "#/definitions/tracer_pkg_model.Decision"
-                },
-                "description": {
-                    "type": "string",
-                    "maxLength": 1000
-                },
-                "expression": {
-                    "type": "string",
-                    "maxLength": 5000,
-                    "minLength": 1
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "minLength": 1
-                },
-                "scopes": {
-                    "type": "array",
-                    "maxItems": 100,
-                    "items": {
-                        "$ref": "#/definitions/tracer_pkg_model.Scope"
-                    }
-                }
-            }
-        },
-        "internal_adapters_http_in.ListAuditEventsResponse": {
-            "type": "object",
-            "properties": {
-                "auditEvents": {
-                    "type": "array",
-                    "maxItems": 1000,
-                    "items": {
-                        "$ref": "#/definitions/tracer_pkg_model.AuditEvent"
-                    }
-                },
-                "hasMore": {
-                    "type": "boolean"
-                },
-                "nextCursor": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_adapters_http_in.ListLimitsResponse": {
-            "type": "object",
-            "properties": {
-                "hasMore": {
-                    "type": "boolean"
-                },
-                "limits": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/tracer_pkg_model.Limit"
-                    }
-                },
-                "nextCursor": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_adapters_http_in.ListRulesResponse": {
-            "type": "object",
-            "properties": {
-                "hasMore": {
-                    "type": "boolean"
-                },
-                "nextCursor": {
-                    "type": "string"
-                },
-                "rules": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/tracer_pkg_model.Rule"
-                    }
-                }
-            }
-        },
-        "internal_adapters_http_in.ListTransactionValidationsResponse": {
-            "type": "object",
-            "properties": {
-                "hasMore": {
-                    "type": "boolean"
-                },
-                "nextCursor": {
-                    "type": "string"
-                },
-                "transactionValidations": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_adapters_http_in.ValidationSummary"
-                    }
-                }
-            }
-        },
-        "internal_adapters_http_in.UpdateLimitInput": {
-            "type": "object",
-            "properties": {
-                "activeTimeEnd": {
-                    "type": "string",
-                    "example": "17:00"
-                },
-                "activeTimeStart": {
-                    "type": "string",
-                    "example": "09:00"
-                },
-                "customEndDate": {
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2026-11-29T00:00:00Z"
-                },
-                "customStartDate": {
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2026-11-27T00:00:00Z"
-                },
-                "description": {
-                    "type": "string",
-                    "maxLength": 1000
-                },
-                "maxAmount": {
-                    "type": "string",
-                    "example": "1000.00"
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "minLength": 1
-                },
-                "scopes": {
-                    "type": "array",
-                    "maxItems": 100,
-                    "minItems": 1,
-                    "items": {
-                        "$ref": "#/definitions/tracer_pkg_model.Scope"
-                    }
-                }
-            }
-        },
-        "internal_adapters_http_in.UpdateRuleInput": {
-            "type": "object",
-            "properties": {
-                "action": {
-                    "$ref": "#/definitions/tracer_pkg_model.Decision"
-                },
-                "description": {
-                    "type": "string",
-                    "maxLength": 1000
-                },
-                "expression": {
-                    "type": "string",
-                    "maxLength": 5000,
-                    "minLength": 1
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "minLength": 1
-                },
-                "scopes": {
-                    "type": "array",
-                    "maxItems": 100,
-                    "items": {
-                        "$ref": "#/definitions/tracer_pkg_model.Scope"
-                    }
-                }
-            }
-        },
-        "internal_adapters_http_in.ValidationSummary": {
-            "type": "object",
-            "properties": {
-                "accountId": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "amount": {
-                    "type": "string",
-                    "example": "100.00"
-                },
-                "createdAt": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "currency": {
-                    "type": "string"
-                },
-                "decision": {
-                    "$ref": "#/definitions/tracer_pkg_model.Decision"
-                },
-                "exceededLimitIds": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "format": "uuid"
-                    }
-                },
-                "matchedRuleIds": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "format": "uuid"
-                    }
-                },
-                "portfolioId": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "processingTimeMs": {
-                    "type": "number"
-                },
-                "reason": {
-                    "type": "string"
-                },
-                "segmentId": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "transactionType": {
-                    "$ref": "#/definitions/tracer_pkg_model.TransactionType"
-                },
-                "validationId": {
-                    "type": "string",
-                    "format": "uuid"
-                }
-            }
-        },
-        "tracer_pkg_model.AccountContext": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AccountContext": {
             "type": "object",
             "properties": {
                 "accountId": {
@@ -2436,11 +2314,11 @@ const docTemplate = `{
                 }
             }
         },
-        "tracer_pkg_model.Actor": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Actor": {
             "type": "object",
             "properties": {
                 "actorType": {
-                    "$ref": "#/definitions/tracer_pkg_model.ActorType"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ActorType"
                 },
                 "id": {
                     "type": "string"
@@ -2456,18 +2334,20 @@ const docTemplate = `{
                 }
             }
         },
-        "tracer_pkg_model.ActorType": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ActorType": {
             "type": "string",
             "enum": [
                 "user",
+                "api_key",
                 "system"
             ],
             "x-enum-varnames": [
                 "ActorTypeUser",
+                "ActorTypeAPIKey",
                 "ActorTypeSystem"
             ]
         },
-        "tracer_pkg_model.AuditEvent": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AuditEvent": {
             "type": "object",
             "properties": {
                 "action": {
@@ -2477,7 +2357,7 @@ const docTemplate = `{
                     "description": "Actor fields",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/tracer_pkg_model.Actor"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Actor"
                         }
                     ]
                 },
@@ -2497,7 +2377,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "eventType": {
-                    "$ref": "#/definitions/tracer_pkg_model.AuditEventType"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AuditEventType"
                 },
                 "hash": {
                     "type": "string"
@@ -2515,7 +2395,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "resourceType": {
-                    "$ref": "#/definitions/tracer_pkg_model.ResourceType"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ResourceType"
                 },
                 "result": {
                     "description": "Unified: ALLOW/DENY/REVIEW for validations, SUCCESS/FAILED for CRUD",
@@ -2523,7 +2403,7 @@ const docTemplate = `{
                 }
             }
         },
-        "tracer_pkg_model.AuditEventType": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AuditEventType": {
             "type": "string",
             "enum": [
                 "TRANSACTION_VALIDATED",
@@ -2538,7 +2418,12 @@ const docTemplate = `{
                 "LIMIT_DELETED",
                 "LIMIT_ACTIVATED",
                 "LIMIT_DEACTIVATED",
-                "LIMIT_DRAFTED"
+                "LIMIT_DRAFTED",
+                "RESERVATION_RESERVED",
+                "RESERVATION_CONFIRMED",
+                "RESERVATION_RELEASED",
+                "RESERVATION_EXPIRED",
+                "RESERVATION_SKIPPED"
             ],
             "x-enum-varnames": [
                 "AuditEventTransactionValidated",
@@ -2553,10 +2438,15 @@ const docTemplate = `{
                 "AuditEventLimitDeleted",
                 "AuditEventLimitActivated",
                 "AuditEventLimitDeactivated",
-                "AuditEventLimitDrafted"
+                "AuditEventLimitDrafted",
+                "AuditEventReservationReserved",
+                "AuditEventReservationConfirmed",
+                "AuditEventReservationReleased",
+                "AuditEventReservationExpired",
+                "AuditEventReservationSkipped"
             ]
         },
-        "tracer_pkg_model.Decision": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Decision": {
             "type": "string",
             "enum": [
                 "ALLOW",
@@ -2569,7 +2459,7 @@ const docTemplate = `{
                 "DecisionReview"
             ]
         },
-        "tracer_pkg_model.HashChainVerificationResult": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.HashChainVerificationResult": {
             "type": "object",
             "properties": {
                 "firstInvalidId": {
@@ -2586,7 +2476,7 @@ const docTemplate = `{
                 }
             }
         },
-        "tracer_pkg_model.Limit": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit": {
             "type": "object",
             "properties": {
                 "activeTimeEnd": {
@@ -2624,7 +2514,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "limitType": {
-                    "$ref": "#/definitions/tracer_pkg_model.LimitType"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitType"
                 },
                 "maxAmount": {
                     "type": "string",
@@ -2640,11 +2530,11 @@ const docTemplate = `{
                 "scopes": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/tracer_pkg_model.Scope"
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Scope"
                     }
                 },
                 "status": {
-                    "$ref": "#/definitions/tracer_pkg_model.LimitStatus"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitStatus"
                 },
                 "updatedAt": {
                     "type": "string",
@@ -2652,7 +2542,7 @@ const docTemplate = `{
                 }
             }
         },
-        "tracer_pkg_model.LimitStatus": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitStatus": {
             "type": "string",
             "enum": [
                 "DRAFT",
@@ -2667,7 +2557,7 @@ const docTemplate = `{
                 "LimitStatusDeleted"
             ]
         },
-        "tracer_pkg_model.LimitType": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitType": {
             "type": "string",
             "enum": [
                 "DAILY",
@@ -2684,7 +2574,7 @@ const docTemplate = `{
                 "LimitTypeCustom"
             ]
         },
-        "tracer_pkg_model.LimitUsageDetail": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitUsageDetail": {
             "type": "object",
             "properties": {
                 "attemptedAmount": {
@@ -2727,7 +2617,7 @@ const docTemplate = `{
                 }
             }
         },
-        "tracer_pkg_model.MerchantContext": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.MerchantContext": {
             "type": "object",
             "properties": {
                 "category": {
@@ -2751,7 +2641,7 @@ const docTemplate = `{
                 }
             }
         },
-        "tracer_pkg_model.PortfolioContext": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.PortfolioContext": {
             "type": "object",
             "properties": {
                 "metadata": {
@@ -2767,24 +2657,26 @@ const docTemplate = `{
                 }
             }
         },
-        "tracer_pkg_model.ResourceType": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ResourceType": {
             "type": "string",
             "enum": [
                 "transaction",
                 "rule",
-                "limit"
+                "limit",
+                "reservation"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTransaction",
                 "ResourceTypeRule",
-                "ResourceTypeLimit"
+                "ResourceTypeLimit",
+                "ResourceTypeReservation"
             ]
         },
-        "tracer_pkg_model.Rule": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule": {
             "type": "object",
             "properties": {
                 "action": {
-                    "$ref": "#/definitions/tracer_pkg_model.Decision"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Decision"
                 },
                 "activatedAt": {
                     "type": "string",
@@ -2818,11 +2710,11 @@ const docTemplate = `{
                 "scopes": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/tracer_pkg_model.Scope"
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Scope"
                     }
                 },
                 "status": {
-                    "$ref": "#/definitions/tracer_pkg_model.RuleStatus"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.RuleStatus"
                 },
                 "updatedAt": {
                     "type": "string",
@@ -2830,7 +2722,7 @@ const docTemplate = `{
                 }
             }
         },
-        "tracer_pkg_model.RuleStatus": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.RuleStatus": {
             "type": "string",
             "enum": [
                 "DRAFT",
@@ -2845,7 +2737,7 @@ const docTemplate = `{
                 "RuleStatusDeleted"
             ]
         },
-        "tracer_pkg_model.Scope": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Scope": {
             "type": "object",
             "properties": {
                 "accountId": {
@@ -2871,11 +2763,11 @@ const docTemplate = `{
                     "x-normalization": "lowercase"
                 },
                 "transactionType": {
-                    "$ref": "#/definitions/tracer_pkg_model.TransactionType"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.TransactionType"
                 }
             }
         },
-        "tracer_pkg_model.SegmentContext": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.SegmentContext": {
             "type": "object",
             "properties": {
                 "metadata": {
@@ -2891,7 +2783,7 @@ const docTemplate = `{
                 }
             }
         },
-        "tracer_pkg_model.TransactionType": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.TransactionType": {
             "type": "string",
             "enum": [
                 "CARD",
@@ -2906,11 +2798,11 @@ const docTemplate = `{
                 "TransactionTypeCrypto"
             ]
         },
-        "tracer_pkg_model.TransactionValidation": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.TransactionValidation": {
             "type": "object",
             "properties": {
                 "account": {
-                    "$ref": "#/definitions/tracer_pkg_model.AccountContext"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AccountContext"
                 },
                 "amount": {
                     "type": "string",
@@ -2924,7 +2816,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "decision": {
-                    "$ref": "#/definitions/tracer_pkg_model.Decision"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Decision"
                 },
                 "evaluatedRuleIds": {
                     "type": "array",
@@ -2936,7 +2828,7 @@ const docTemplate = `{
                 "limitUsageDetails": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/tracer_pkg_model.LimitUsageDetail"
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitUsageDetail"
                     }
                 },
                 "matchedRuleIds": {
@@ -2947,14 +2839,14 @@ const docTemplate = `{
                     }
                 },
                 "merchant": {
-                    "$ref": "#/definitions/tracer_pkg_model.MerchantContext"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.MerchantContext"
                 },
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "portfolio": {
-                    "$ref": "#/definitions/tracer_pkg_model.PortfolioContext"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.PortfolioContext"
                 },
                 "processingTimeMs": {
                     "type": "number"
@@ -2967,7 +2859,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "segment": {
-                    "$ref": "#/definitions/tracer_pkg_model.SegmentContext"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.SegmentContext"
                 },
                 "subType": {
                     "description": "SubType is stored in its lowercase canonical form; matching is case-insensitive.",
@@ -2983,7 +2875,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "transactionType": {
-                    "$ref": "#/definitions/tracer_pkg_model.TransactionType"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.TransactionType"
                 },
                 "truncated": {
                     "type": "boolean"
@@ -2994,7 +2886,7 @@ const docTemplate = `{
                 }
             }
         },
-        "tracer_pkg_model.UsageSnapshot": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.UsageSnapshot": {
             "type": "object",
             "properties": {
                 "currentUsage": {
@@ -3029,7 +2921,7 @@ const docTemplate = `{
                 }
             }
         },
-        "tracer_pkg_model.ValidationRequest": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ValidationRequest": {
             "type": "object",
             "required": [
                 "account",
@@ -3041,7 +2933,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "account": {
-                    "$ref": "#/definitions/tracer_pkg_model.AccountContext"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AccountContext"
                 },
                 "amount": {
                     "type": "string",
@@ -3051,21 +2943,21 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "merchant": {
-                    "$ref": "#/definitions/tracer_pkg_model.MerchantContext"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.MerchantContext"
                 },
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "portfolio": {
-                    "$ref": "#/definitions/tracer_pkg_model.PortfolioContext"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.PortfolioContext"
                 },
                 "requestId": {
                     "type": "string",
                     "format": "uuid"
                 },
                 "segment": {
-                    "$ref": "#/definitions/tracer_pkg_model.SegmentContext"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.SegmentContext"
                 },
                 "subType": {
                     "description": "SubType is normalized to lowercase canonical form; matching is case-insensitive.",
@@ -3078,11 +2970,11 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "transactionType": {
-                    "$ref": "#/definitions/tracer_pkg_model.TransactionType"
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.TransactionType"
                 }
             }
         },
-        "tracer_pkg_model.ValidationResponse": {
+        "github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.ValidationResponse": {
             "type": "object",
             "properties": {
                 "evaluatedAt": {
@@ -3092,7 +2984,7 @@ const docTemplate = `{
                 "limitUsageDetails": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/tracer_pkg_model.LimitUsageDetail"
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitUsageDetail"
                     }
                 },
                 "processingTimeMs": {
@@ -3101,6 +2993,343 @@ const docTemplate = `{
                 "requestId": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "validationId": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "internal_adapters_http_in.CreateLimitInput": {
+            "type": "object",
+            "required": [
+                "currency",
+                "limitType",
+                "maxAmount",
+                "name",
+                "scopes"
+            ],
+            "properties": {
+                "activeTimeEnd": {
+                    "type": "string",
+                    "example": "17:00"
+                },
+                "activeTimeStart": {
+                    "type": "string",
+                    "example": "09:00"
+                },
+                "currency": {
+                    "type": "string",
+                    "maxLength": 3,
+                    "minLength": 3,
+                    "example": "USD"
+                },
+                "customEndDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-11-29T00:00:00Z"
+                },
+                "customStartDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-11-27T00:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "limitType": {
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.LimitType"
+                },
+                "maxAmount": {
+                    "type": "string",
+                    "example": "1000.00"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
+                },
+                "scopes": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Scope"
+                    }
+                }
+            }
+        },
+        "internal_adapters_http_in.CreateRuleInput": {
+            "type": "object",
+            "required": [
+                "action",
+                "expression",
+                "name"
+            ],
+            "properties": {
+                "action": {
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Decision"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "expression": {
+                    "type": "string",
+                    "maxLength": 5000,
+                    "minLength": 1
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
+                },
+                "scopes": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Scope"
+                    }
+                }
+            }
+        },
+        "internal_adapters_http_in.ListAuditEventsResponse": {
+            "type": "object",
+            "properties": {
+                "auditEvents": {
+                    "type": "array",
+                    "maxItems": 1000,
+                    "items": {
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.AuditEvent"
+                    }
+                },
+                "hasMore": {
+                    "type": "boolean"
+                },
+                "nextCursor": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_adapters_http_in.ListLimitsResponse": {
+            "type": "object",
+            "properties": {
+                "hasMore": {
+                    "type": "boolean"
+                },
+                "limits": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Limit"
+                    }
+                },
+                "nextCursor": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_adapters_http_in.ListRulesResponse": {
+            "type": "object",
+            "properties": {
+                "hasMore": {
+                    "type": "boolean"
+                },
+                "nextCursor": {
+                    "type": "string"
+                },
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Rule"
+                    }
+                }
+            }
+        },
+        "internal_adapters_http_in.ListTransactionValidationsResponse": {
+            "type": "object",
+            "properties": {
+                "hasMore": {
+                    "type": "boolean"
+                },
+                "nextCursor": {
+                    "type": "string"
+                },
+                "transactionValidations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_adapters_http_in.ValidationSummary"
+                    }
+                }
+            }
+        },
+        "internal_adapters_http_in.ReservationActionResponse": {
+            "type": "object",
+            "properties": {
+                "reservationId": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_adapters_http_in.ReserveRequest": {
+            "type": "object",
+            "required": [
+                "transactionId"
+            ],
+            "properties": {
+                "transactionId": {
+                    "description": "TransactionID is the ledger transaction correlation id. It is the\nidempotency grain for retried reserves and the handle the ledger later\nconfirms or releases. Not a foreign key — the ledger transaction lives in a\ndifferent service.",
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "internal_adapters_http_in.ReserveResponse": {
+            "type": "object",
+            "properties": {
+                "denied": {
+                    "type": "boolean"
+                },
+                "reservationIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "transactionId": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "internal_adapters_http_in.UpdateLimitInput": {
+            "type": "object",
+            "properties": {
+                "activeTimeEnd": {
+                    "type": "string",
+                    "example": "17:00"
+                },
+                "activeTimeStart": {
+                    "type": "string",
+                    "example": "09:00"
+                },
+                "customEndDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-11-29T00:00:00Z"
+                },
+                "customStartDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-11-27T00:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "maxAmount": {
+                    "type": "string",
+                    "example": "1000.00"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
+                },
+                "scopes": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Scope"
+                    }
+                }
+            }
+        },
+        "internal_adapters_http_in.UpdateRuleInput": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Decision"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "expression": {
+                    "type": "string",
+                    "maxLength": 5000,
+                    "minLength": 1
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
+                },
+                "scopes": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Scope"
+                    }
+                }
+            }
+        },
+        "internal_adapters_http_in.ValidationSummary": {
+            "type": "object",
+            "properties": {
+                "accountId": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "amount": {
+                    "type": "string",
+                    "example": "100.00"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "decision": {
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.Decision"
+                },
+                "exceededLimitIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "matchedRuleIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "portfolioId": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "processingTimeMs": {
+                    "type": "number"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "segmentId": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "transactionType": {
+                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_tracer_pkg_model.TransactionType"
                 },
                 "validationId": {
                     "type": "string",

@@ -80,12 +80,23 @@ type WorkerSupervisorDeps struct {
 	// single-tenant CLEANUP_WORKER_ENABLED knob so operators get consistent
 	// behavior in both modes (H8).
 	CleanupWorkerEnabled bool
-	CBTemplate           CircuitBreakerTemplate
-	TenantList           TenantLister
-	Service              string // tenant-manager service name; defaults to "tracer"
-	Clock                clock.Clock
-	MaxTenants           int
-	Logger               libLog.Logger
+	// ReaperRepo + ReaperAuditor + ReaperConfig drive the per-tenant reservation
+	// reaper. Only required when ReaperWorkerEnabled is true (mirrors the
+	// UsageRepo / CleanupWorkerEnabled coupling).
+	ReaperRepo    ReservationReaperRepository
+	ReaperAuditor ReservationExpiryAuditor
+	ReaperConfig  ReservationReaperWorkerConfig
+	// ReaperWorkerEnabled gates whether per-tenant reservation reapers spawn.
+	// False ⇒ the reaper does not run per tenant. Mirrors the single-tenant
+	// RESERVATION_REAPER_ENABLED knob (R22-adjacent: a tenant over the worker
+	// cap never spawns a reaper at all — see EnsureWorkers).
+	ReaperWorkerEnabled bool
+	CBTemplate          CircuitBreakerTemplate
+	TenantList          TenantLister
+	Service             string // tenant-manager service name; defaults to "tracer"
+	Clock               clock.Clock
+	MaxTenants          int
+	Logger              libLog.Logger
 	// Metrics emits the canonical multi-tenant metrics (tenant_connections_*
 	// and tenant_consumers_active). Optional: when nil, the supervisor uses a
 	// no-op, so all existing call sites keep working unchanged.
@@ -131,6 +142,10 @@ type WorkerSupervisor struct {
 	syncConfig           RuleSyncWorkerConfig
 	cleanupConfig        UsageCleanupWorkerConfig
 	cleanupWorkerEnabled bool
+	reaperRepo           ReservationReaperRepository
+	reaperAuditor        ReservationExpiryAuditor
+	reaperConfig         ReservationReaperWorkerConfig
+	reaperWorkerEnabled  bool
 	cbTemplate           CircuitBreakerTemplate
 	tenantList           TenantLister
 	service              string
@@ -202,6 +217,17 @@ func NewWorkerSupervisor(deps WorkerSupervisorDeps) (*WorkerSupervisor, error) {
 		return nil, constant.ErrSupervisorNilUsageRepo
 	}
 
+	// ReaperRepo + ReaperAuditor are only consumed by the per-tenant reservation
+	// reaper; skipping the nil-check when ReaperWorkerEnabled=false lets operators
+	// omit the dependencies entirely (mirrors UsageRepo / CleanupWorkerEnabled).
+	if deps.ReaperWorkerEnabled && deps.ReaperRepo == nil {
+		return nil, constant.ErrSupervisorNilReaperRepo
+	}
+
+	if deps.ReaperWorkerEnabled && deps.ReaperAuditor == nil {
+		return nil, constant.ErrSupervisorNilReaperAuditor
+	}
+
 	if deps.Compiler == nil {
 		return nil, constant.ErrSupervisorNilCompiler
 	}
@@ -239,6 +265,10 @@ func NewWorkerSupervisor(deps WorkerSupervisorDeps) (*WorkerSupervisor, error) {
 		syncConfig:           deps.SyncConfig,
 		cleanupConfig:        deps.CleanupConfig,
 		cleanupWorkerEnabled: deps.CleanupWorkerEnabled,
+		reaperRepo:           deps.ReaperRepo,
+		reaperAuditor:        deps.ReaperAuditor,
+		reaperConfig:         deps.ReaperConfig,
+		reaperWorkerEnabled:  deps.ReaperWorkerEnabled,
 		cbTemplate:           deps.CBTemplate,
 		tenantList:           deps.TenantList,
 		service:              deps.Service,
@@ -371,6 +401,24 @@ func (s *WorkerSupervisor) EnsureWorkers(ctx context.Context, tenantID string) e
 		}
 	}
 
+	// R22: the reservation reaper is spawned ONLY for tenants under the worker
+	// cap. The cap check above gates this whole spawn path, so an over-cap tenant
+	// gets no reaper — its expired reservations are not swept until either the
+	// tenant churns under the cap or an operator raises MaxTenants. This is the
+	// documented over-cap limitation of the EnsureWorkers cap-respecting model.
+	var reaperWorker *ReservationReaperWorker
+
+	if s.reaperWorkerEnabled {
+		reaperWorker, err = NewReservationReaperWorkerWithPoolResolver(
+			s.reaperRepo, s.reaperAuditor, s.reaperConfig, s.logger, s.clock, tenantID, s.poolResolver,
+		)
+		if err != nil {
+			s.metrics.IncConnectionErrors(ctx, tenantID, constant.ModuleName, "reaper_worker_init")
+
+			return fmt.Errorf("supervisor: new reservation reaper worker for tenant %q: %w", tenantID, err)
+		}
+	}
+
 	tenantCtx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 
@@ -427,6 +475,23 @@ func (s *WorkerSupervisor) EnsureWorkers(ctx context.Context, tenantID string) e
 						defer wg.Done()
 
 						_ = cleanupWorker.RunWithContext(innerCtx)
+					},
+				)
+			}
+
+			if reaperWorker != nil {
+				wg.Add(1)
+
+				libRuntime.SafeGoWithContextAndComponent(
+					ctx,
+					s.logger,
+					supervisorComponent,
+					"reservation-reaper:"+tenantID,
+					libRuntime.KeepRunning,
+					func(innerCtx context.Context) {
+						defer wg.Done()
+
+						_ = reaperWorker.RunWithContext(innerCtx)
 					},
 				)
 			}

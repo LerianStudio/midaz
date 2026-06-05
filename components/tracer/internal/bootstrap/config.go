@@ -145,6 +145,13 @@ type Config struct {
 	// CleanupIntervalHours is the interval between cleanup runs in hours (default: 24)
 	CleanupIntervalHours string `env:"CLEANUP_INTERVAL_HOURS"`
 
+	// Reservation Reaper Worker
+	// ReservationReaperEnabled enables/disables the background reservation reaper (default: false).
+	// Set RESERVATION_REAPER_ENABLED=true to release expired two-phase reservations.
+	ReservationReaperEnabled bool `env:"RESERVATION_REAPER_ENABLED"`
+	// ReservationReaperIntervalSeconds is the sub-minute interval between reaper sweeps in seconds (default: 30).
+	ReservationReaperIntervalSeconds string `env:"RESERVATION_REAPER_INTERVAL_SECONDS"`
+
 	// Rule Sync Worker
 	// RuleSyncPollIntervalSeconds is how often the worker polls for rule changes (default: 10)
 	RuleSyncPollIntervalSeconds string `env:"RULE_SYNC_POLL_INTERVAL_SECONDS"`
@@ -287,6 +294,37 @@ func parseCleanupIntervalHours(s string) (time.Duration, error) {
 	return time.Duration(hours) * time.Hour, nil
 }
 
+// parseReservationReaperIntervalSeconds parses the reaper sweep interval from
+// string to time.Duration. Returns the 30s default when empty. The reaper is a
+// sub-minute worker, so the unit is seconds (NOT hours like the cleanup worker).
+// Returns an error if the value is invalid, non-positive, or exceeds 1 hour —
+// a reaper interval longer than an hour defeats the point of a TTL backstop.
+func parseReservationReaperIntervalSeconds(s string) (time.Duration, error) {
+	// maxAllowedSeconds caps the reaper interval at 1 hour. Beyond that the TTL
+	// backstop is effectively disabled; the operator should use
+	// RESERVATION_REAPER_ENABLED=false to turn it off explicitly instead.
+	const maxAllowedSeconds = 3600
+
+	if s == "" {
+		return workers.DefaultReservationReaperInterval, nil
+	}
+
+	seconds, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid RESERVATION_REAPER_INTERVAL_SECONDS value '%s': %w", s, err)
+	}
+
+	if seconds <= 0 {
+		return 0, fmt.Errorf("RESERVATION_REAPER_INTERVAL_SECONDS must be positive, got %d", seconds)
+	}
+
+	if seconds > maxAllowedSeconds {
+		return 0, fmt.Errorf("RESERVATION_REAPER_INTERVAL_SECONDS exceeds maximum allowed (%d seconds = 1 hour), got %d", maxAllowedSeconds, seconds)
+	}
+
+	return time.Duration(seconds) * time.Second, nil
+}
+
 // parseRuleSyncPollInterval parses the poll interval from string to time.Duration.
 // Returns default value (10 seconds) if empty.
 // Returns error if value is invalid, non-positive, or exceeds maximum.
@@ -409,6 +447,42 @@ func LoadCleanupWorkerConfig(ctx context.Context, cfg *Config, logger libLog.Log
 
 	return &workers.UsageCleanupWorkerConfig{
 		CleanupInterval: cleanupInterval,
+	}, nil
+}
+
+// LoadReservationReaperConfig creates a ReservationReaperWorkerConfig from
+// environment configuration. Returns a nil config (no error) when the reaper is
+// disabled (RESERVATION_REAPER_ENABLED=false, the default) so the caller can
+// propagate the "disabled" signal end-to-end exactly like LoadCleanupWorkerConfig.
+// Returns an error if config or logger is nil, or if the interval is invalid.
+func LoadReservationReaperConfig(ctx context.Context, cfg *Config, logger libLog.Logger) (*workers.ReservationReaperWorkerConfig, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
+
+	if logger == nil {
+		return nil, fmt.Errorf("logger cannot be nil")
+	}
+
+	if !cfg.ReservationReaperEnabled {
+		logger.With(
+			libLog.String("config", "RESERVATION_REAPER_ENABLED"),
+		).Log(ctx, libLog.LevelInfo, "Reservation reaper worker is DISABLED")
+
+		return nil, nil
+	}
+
+	reapInterval, err := parseReservationReaperIntervalSeconds(cfg.ReservationReaperIntervalSeconds)
+	if err != nil {
+		return nil, fmt.Errorf("invalid RESERVATION_REAPER_INTERVAL_SECONDS: %w", err)
+	}
+
+	logger.With(
+		libLog.String("reap_interval", reapInterval.String()),
+	).Log(ctx, libLog.LevelInfo, "Reservation reaper worker configuration loaded")
+
+	return &workers.ReservationReaperWorkerConfig{
+		ReapInterval: reapInterval,
 	}, nil
 }
 
@@ -919,6 +993,17 @@ func initHTTPServer(
 		return nil, fmt.Errorf("failed to create transaction validation service: %w", err)
 	}
 
+	// Init Reservation service (two-phase capacity hold). It reuses the limit
+	// checker as the limit resolver and the shared audit writer / txBeginner so
+	// the reserve/confirm/release counter moves commit atomically with their
+	// audit rows — the same atomicity discipline as the validate path.
+	reservationRepo := postgres.NewUsageReservationRepositoryWithConnection(limitDeps.usageCounterRepo)
+
+	reservationService, err := services.NewReservationService(txBeginner, limitChecker, reservationRepo, auditWriter, clk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create reservation service: %w", err)
+	}
+
 	// Init Audit Event service (read-only per SOX/GLBA requirements)
 	auditEventService, err := initAuditEventService(auditEventRepo)
 	if err != nil {
@@ -975,6 +1060,7 @@ func initHTTPServer(
 		RuleService:                  ruleService,
 		LimitService:                 limitDeps.service,
 		ValidationService:            validationService,
+		ReservationService:           reservationService,
 		TransactionValidationService: transactionValidationService,
 		AuditEventService:            auditEventService,
 		Guard:                        authGuard,
