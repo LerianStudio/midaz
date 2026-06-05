@@ -48,9 +48,9 @@ type HolderAccountsHandler struct {
 //	@Param			page				query		int		false	"Page"			default(1)
 //	@Param			sort_order			query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Success		200					{object}	http.Pagination{items=[]mmodel.Account}
-//	@Failure		400					{object}	pkg.HTTPError
-//	@Failure		404					{object}	pkg.HTTPError
-//	@Failure		500					{object}	pkg.HTTPError
+//	@Failure		400					{object}	mmodel.Error
+//	@Failure		404					{object}	mmodel.Error
+//	@Failure		500					{object}	mmodel.Error
 //	@Router			/v1/holders/{id}/accounts [get]
 func (handler *HolderAccountsHandler) GetAccountsByHolder(c *fiber.Ctx) error {
 	ctx := c.UserContext()

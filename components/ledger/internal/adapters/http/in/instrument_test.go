@@ -1213,15 +1213,3 @@ func TestInstrumentHandler_GetAllInstruments(t *testing.T) {
 		})
 	}
 }
-
-func assertInvalidQueryParameterResponse(t *testing.T, body []byte) {
-	t.Helper()
-
-	var errResp map[string]any
-	err := json.Unmarshal(body, &errResp)
-	require.NoError(t, err)
-
-	assert.Equal(t, cn.ErrInvalidQueryParameter.Error(), errResp["code"])
-	assert.Equal(t, "Invalid Query Parameter", errResp["title"])
-	assert.Contains(t, errResp["message"], "query parameters")
-}

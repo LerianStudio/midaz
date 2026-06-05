@@ -15,10 +15,10 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	crmhttp "github.com/LerianStudio/midaz/v3/components/crm/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/holder"
 	crmservices "github.com/LerianStudio/midaz/v3/components/crm/services"
+	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 )
@@ -29,8 +29,8 @@ import (
 type crmComponents struct {
 	connection    *libMongo.Client  // nil in multi-tenant mode
 	cipher        *libCrypto.Crypto // holder/alias PII encryption (R7)
-	holderHandler *crmhttp.HolderHandler
-	instrumentHandler  *crmhttp.InstrumentHandler
+	holderHandler *httpin.HolderHandler
+	instrumentHandler  *httpin.InstrumentHandler
 	mongoManager  *tmmongo.Manager // nil in single-tenant mode; exposed for middleware/eviction wiring
 }
 
@@ -193,11 +193,11 @@ func buildCRMRepositories(connection *libMongo.Client, cipher *libCrypto.Crypto)
 }
 
 // buildCRMHandlers assembles the CRM use cases and HTTP handlers.
-func buildCRMHandlers(holderRepo *holder.MongoDBRepository, aliasRepo *instrument.MongoDBRepository) (*crmhttp.HolderHandler, *crmhttp.InstrumentHandler) {
+func buildCRMHandlers(holderRepo *holder.MongoDBRepository, aliasRepo *instrument.MongoDBRepository) (*httpin.HolderHandler, *httpin.InstrumentHandler) {
 	useCases := &crmservices.UseCase{
 		HolderRepo: holderRepo,
 		InstrumentRepo:  aliasRepo,
 	}
 
-	return &crmhttp.HolderHandler{Service: useCases}, &crmhttp.InstrumentHandler{Service: useCases}
+	return &httpin.HolderHandler{Service: useCases}, &httpin.InstrumentHandler{Service: useCases}
 }

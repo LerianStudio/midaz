@@ -41,10 +41,9 @@ func (a holderReaderAdapter) Exists(ctx context.Context, organizationID string, 
 	return true, nil
 }
 
-// holderAccountsReaderAdapter satisfies crmhttp.HolderAccountsReader over the
-// ledger account query use case, keeping the CRM HTTP layer free of any import
-// of ledger internals. Ownership is org-global (the holder collection is
-// per-organization), so the account-list query is scoped by holder_id; the
+// holderAccountsReaderAdapter satisfies httpin.HolderAccountsReader over the
+// ledger account query use case. Ownership is org-global (the holder collection
+// is per-organization), so the account-list query is scoped by holder_id; the
 // existing account-list read path is ledger-partitioned, so the caller supplies
 // the ledger via the ledger_id query parameter.
 type holderAccountsReaderAdapter struct {

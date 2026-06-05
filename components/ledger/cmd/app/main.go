@@ -17,8 +17,8 @@ import (
 )
 
 // @title			Midaz Ledger API
-// @version		v3.7.0
-// @description	This is a swagger documentation for the Midaz Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments), Transaction endpoints (transactions, balances, operations, asset-rates), and Metadata Index endpoints in a single service.
+// @version		v4.0.0
+// @description	This is a swagger documentation for the Midaz Ledger API. This unified service combines Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments), Transaction endpoints (transactions, balances, operations, asset-rates), Holders and Instruments endpoints (holder and instrument account management), Fees endpoints (packages, estimates, billing), the Holder-Account composition endpoint, and Metadata Index endpoints in a single service.
 // @termsOfService	http://swagger.io/terms/
 // @contact.name	Discord community
 // @contact.url	https://discord.gg/DnhqKwkGv3

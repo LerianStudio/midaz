@@ -34,9 +34,9 @@ type HolderHandler struct {
 //	@Param			X-Organization-Id	header		string						true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			holder				body		mmodel.CreateHolderInput	true	"Holder Input"
 //	@Success		201					{object}	mmodel.Holder
-//	@Failure		400					{object}	pkg.HTTPError
-//	@Failure		404					{object}	pkg.HTTPError
-//	@Failure		500					{object}	pkg.HTTPError
+//	@Failure		400					{object}	mmodel.Error
+//	@Failure		404					{object}	mmodel.Error
+//	@Failure		500					{object}	mmodel.Error
 //	@Router			/v1/holders [post]
 func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -81,9 +81,9 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 //	@Param			id					path		string	true	"The unique identifier of the Holder."
 //	@Param			include_deleted		query		string	false	"Returns the holder even if it was logically deleted"
 //	@Success		200					{object}	mmodel.Holder
-//	@Failure		400					{object}	pkg.HTTPError
-//	@Failure		404					{object}	pkg.HTTPError
-//	@Failure		500					{object}	pkg.HTTPError
+//	@Failure		400					{object}	mmodel.Error
+//	@Failure		404					{object}	mmodel.Error
+//	@Failure		500					{object}	mmodel.Error
 //	@Router			/v1/holders/{id} [get]
 func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -134,9 +134,9 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 //	@Param			id					path		string						true	"The unique identifier of the Holder."
 //	@Param			holder				body		mmodel.UpdateHolderInput	true	"Holder Input"
 //	@Success		200					{object}	mmodel.Holder
-//	@Failure		400					{object}	pkg.HTTPError
-//	@Failure		404					{object}	pkg.HTTPError
-//	@Failure		500					{object}	pkg.HTTPError
+//	@Failure		400					{object}	mmodel.Error
+//	@Failure		404					{object}	mmodel.Error
+//	@Failure		500					{object}	mmodel.Error
 //	@Router			/v1/holders/{id} [patch]
 func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -202,9 +202,9 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 //	@Param			id					path	string	true	"The unique identifier of the Holder."
 //	@Param			hard_delete			query	string	false	"Use only to perform a physical deletion of the data. This action is irreversible."
 //	@Success		204
-//	@Failure		400	{object}	pkg.HTTPError
-//	@Failure		404	{object}	pkg.HTTPError
-//	@Failure		500	{object}	pkg.HTTPError
+//	@Failure		400	{object}	mmodel.Error
+//	@Failure		404	{object}	mmodel.Error
+//	@Failure		500	{object}	mmodel.Error
 //	@Router			/v1/holders/{id} [delete]
 func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -259,9 +259,9 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 //	@Param			external_id			query		string	false	"Filter holders by externalID"
 //	@Param			document			query		string	false	"Filter holders by document"
 //	@Success		200					{object}	http.Pagination{items=[]mmodel.Holder}
-//	@Failure		400					{object}	pkg.HTTPError
-//	@Failure		404					{object}	pkg.HTTPError
-//	@Failure		500					{object}	pkg.HTTPError
+//	@Failure		400					{object}	mmodel.Error
+//	@Failure		404					{object}	mmodel.Error
+//	@Failure		500					{object}	mmodel.Error
 //	@Router			/v1/holders [get]
 func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 	ctx := c.UserContext()

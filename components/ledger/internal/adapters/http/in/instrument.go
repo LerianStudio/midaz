@@ -37,9 +37,9 @@ type InstrumentHandler struct {
 //	@Param			holder_id			path		string					true	"The unique identifier of the Holder."
 //	@Param			instrument				body		mmodel.CreateInstrumentInput	true	"Instrument Input"
 //	@Success		201					{object}	mmodel.Instrument
-//	@Failure		400					{object}	pkg.HTTPError
-//	@Failure		404					{object}	pkg.HTTPError
-//	@Failure		500					{object}	pkg.HTTPError
+//	@Failure		400					{object}	mmodel.Error
+//	@Failure		404					{object}	mmodel.Error
+//	@Failure		500					{object}	mmodel.Error
 //	@Router			/v1/holders/{holder_id}/instruments [post]
 func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -91,9 +91,9 @@ func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
 //	@Param			instrument_id		path		string	true	"The unique identifier of the Instrument account."
 //	@Param			include_deleted		query		string	false	"Returns the instrument even if it was logically deleted."
 //	@Success		200					{object}	mmodel.Instrument
-//	@Failure		400					{object}	pkg.HTTPError
-//	@Failure		404					{object}	pkg.HTTPError
-//	@Failure		500					{object}	pkg.HTTPError
+//	@Failure		400					{object}	mmodel.Error
+//	@Failure		404					{object}	mmodel.Error
+//	@Failure		500					{object}	mmodel.Error
 //	@Router			/v1/holders/{holder_id}/instruments/{instrument_id} [get]
 func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -151,9 +151,9 @@ func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
 //	@Param			instrument_id		path		string					true	"The unique identifier of the Instrument account."
 //	@Param			instrument				body		mmodel.UpdateInstrumentInput	true	"Instrument Input"
 //	@Success		200					{object}	mmodel.Instrument
-//	@Failure		400					{object}	pkg.HTTPError
-//	@Failure		404					{object}	pkg.HTTPError
-//	@Failure		500					{object}	pkg.HTTPError
+//	@Failure		400					{object}	mmodel.Error
+//	@Failure		404					{object}	mmodel.Error
+//	@Failure		500					{object}	mmodel.Error
 //	@Router			/v1/holders/{holder_id}/instruments/{instrument_id} [patch]
 func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -226,9 +226,9 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 //	@Param			instrument_id		path	string	true	"The unique identifier of the Instrument account."
 //	@Param			hard_delete			query	string	false	"Use only to perform a physical deletion of the data. This action is irreversible."
 //	@Success		204
-//	@Failure		400	{object}	pkg.HTTPError
-//	@Failure		404	{object}	pkg.HTTPError
-//	@Failure		500	{object}	pkg.HTTPError
+//	@Failure		400	{object}	mmodel.Error
+//	@Failure		404	{object}	mmodel.Error
+//	@Failure		500	{object}	mmodel.Error
 //	@Router			/v1/holders/{holder_id}/instruments/{instrument_id} [delete]
 func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -297,9 +297,9 @@ func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 //	@Param			related_party_document					query		string	false	"Filter instrument by related party document"
 //	@Param			related_party_role						query		string	false	"Filter instrument by related party role"
 //	@Success		200										{object}	http.Pagination{items=[]mmodel.Instrument}
-//	@Failure		400						{object}	pkg.HTTPError
-//	@Failure		404						{object}	pkg.HTTPError
-//	@Failure		500						{object}	pkg.HTTPError
+//	@Failure		400						{object}	mmodel.Error
+//	@Failure		404						{object}	mmodel.Error
+//	@Failure		500						{object}	mmodel.Error
 //	@Router			/v1/instruments [get]
 func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -378,9 +378,9 @@ func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 //	@Param			instrument_id		path	string	true	"The unique identifier of the Instrument account."
 //	@Param			related_party_id	path	string	true	"The unique identifier of the Related Party."
 //	@Success		204
-//	@Failure		400	{object}	pkg.HTTPError
-//	@Failure		404	{object}	pkg.HTTPError
-//	@Failure		500	{object}	pkg.HTTPError
+//	@Failure		400	{object}	mmodel.Error
+//	@Failure		404	{object}	mmodel.Error
+//	@Failure		500	{object}	mmodel.Error
 //	@Router			/v1/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id} [delete]
 func (handler *InstrumentHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 	ctx := c.UserContext()

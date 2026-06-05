@@ -24,10 +24,10 @@ import (
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	crmhttp "github.com/LerianStudio/midaz/v3/components/crm/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/components/crm/adapters/mongodb/instrument"
 	crmservices "github.com/LerianStudio/midaz/v3/components/crm/services"
+	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -238,7 +238,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 				func(c *fiber.Ctx) error { panic(panicMessage) },
 			},
 		}
-		crmhttp.RegisterCRMRoutesToApp(app, auth, crm.holderHandler, crm.instrumentHandler, nil, panicOptions)
+		httpin.RegisterCRMRoutesToApp(app, auth, crm.holderHandler, crm.instrumentHandler, nil, panicOptions)
 
 		req := httptest.NewRequest(fiber.MethodGet, "/v1/holders/"+uuid.New().String(), nil)
 		req.Header.Set("X-Organization-Id", "org-test")
@@ -333,8 +333,8 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 	instrumentRepo, err := instrument.NewMongoDBRepository(nil, cipher)
 	require.NoError(t, err)
 	useCases := &crmservices.UseCase{HolderRepo: holderRepo, InstrumentRepo: instrumentRepo}
-	holderHandler := &crmhttp.HolderHandler{Service: useCases}
-	instrumentHandler := &crmhttp.InstrumentHandler{Service: useCases}
+	holderHandler := &httpin.HolderHandler{Service: useCases}
+	instrumentHandler := &httpin.InstrumentHandler{Service: useCases}
 
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
@@ -355,7 +355,7 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 			crmTenantMiddleware.WithTenantDB,
 		},
 	}
-	crmhttp.RegisterCRMRoutesToApp(app, auth, holderHandler, instrumentHandler, nil, crmRouteOptions)
+	httpin.RegisterCRMRoutesToApp(app, auth, holderHandler, instrumentHandler, nil, crmRouteOptions)
 
 	// Create one holder per tenant, addressing tenants ONLY via the JWT.
 	idA := createHolderHTTP(t, app, tenantA, orgID, "Tenant A Holder", "11111111111")
@@ -381,7 +381,7 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 
 // newCRMTestApp mounts the CRM registrar on a bare Fiber app with auth disabled
 // and the WithRecover hoist, mirroring how NewUnifiedServer hosts CRM routes.
-func newCRMTestApp(hh *crmhttp.HolderHandler, ah *crmhttp.InstrumentHandler) *fiber.App {
+func newCRMTestApp(hh *httpin.HolderHandler, ah *httpin.InstrumentHandler) *fiber.App {
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -392,7 +392,7 @@ func newCRMTestApp(hh *crmhttp.HolderHandler, ah *crmhttp.InstrumentHandler) *fi
 
 	// Auth disabled: Authorize becomes a pass-through, single-tenant routeOptions=nil.
 	auth := middleware.NewAuthClient("", false, nil)
-	crmhttp.RegisterCRMRoutesToApp(app, auth, hh, ah, nil, nil)
+	httpin.RegisterCRMRoutesToApp(app, auth, hh, ah, nil, nil)
 
 	return app
 }

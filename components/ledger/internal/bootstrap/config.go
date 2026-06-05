@@ -29,7 +29,6 @@ import (
 	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
-	crmhttp "github.com/LerianStudio/midaz/v3/components/crm/adapters/http/in"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	tracerclient "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/tracer"
 	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
@@ -874,10 +873,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// tenant middleware travels via routeSetup.crmRouteOptions. The
 	// holder-accounts handler reads ledger accounts through a thin adapter over
 	// the query UseCase so the CRM HTTP layer never imports ledger internals.
-	holderAccountsHandler := &crmhttp.HolderAccountsHandler{
+	holderAccountsHandler := &httpin.HolderAccountsHandler{
 		Reader: holderAccountsReaderAdapter{query: queryUseCase},
 	}
-	crmRouteRegistrar := crmhttp.CreateCRMRouteRegistrar(auth, crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, routeSetup.crmRouteOptions)
+	crmRouteRegistrar := httpin.CreateCRMRouteRegistrar(auth, crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, routeSetup.crmRouteOptions)
 
 	// Fee/billing handlers wire directly to the in-process fee use cases built by
 	// initFees (no reconstruction). The fee UseCase satisfies both the package CRUD
