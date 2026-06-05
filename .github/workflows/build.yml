@@ -74,12 +74,19 @@ jobs:
   # =========================
   # UPLOAD MIGRATIONS TO S3
   # =========================
-  # Only ledger ships S3-uploaded migrations (onboarding + transaction), consumed
-  # out-of-band by ops for managed-Postgres customers. Tracer is intentionally
-  # EXCLUDED (P5 Decision 2): its migrations are an ordered, hash-chained sequence
-  # applied exclusively via tracer's bootstrap migration runner — keeping ONE
-  # applied-by path is a correctness property. Reporter manager/worker have no SQL
-  # migrations. crm/fees are collapsed into ledger and emit no image/migrations.
+  # Ledger ships S3-uploaded migrations (onboarding + transaction), consumed
+  # out-of-band by ops for managed-Postgres customers. Tracer migrations are ALSO
+  # published to S3 (Q15-RESOLVED, overrides the P5 Decision 2 exclusion), but the
+  # publish is ADDITIVE only: tracer's runtime applied-by path is UNCHANGED — its
+  # migrations remain an ordered, hash-chained sequence applied exclusively via
+  # tracer's bootstrap migration runner (keeping ONE applied-by path is a
+  # correctness property). The S3 copy serves the managed-deploy pipeline, not the
+  # in-cluster bootstrap. KEY-LAYOUT CAVEAT (R45, Ops X2/X3 register item): the
+  # tracer s3_prefix `tracer/postgresql` must be reconciled against the
+  # managed-deploy pipeline's expected key layout before a real tag fans out — the
+  # verify-pipeline and managed-deploy-pipeline key conventions are an Ops sign-off,
+  # not settled in-repo. Reporter manager/worker have no SQL migrations. crm/fees
+  # are collapsed into ledger and emit no image/migrations.
   upload-onboarding-migrations:
     needs: [build]
     if: needs.build.result == 'success'
@@ -102,6 +109,19 @@ jobs:
       file_pattern: "components/ledger/migrations/transaction/*.sql"
       s3_prefix: "ledger/transaction/postgresql"
       strip_prefix: "components/ledger/migrations/transaction"
+      flatten: false
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_MIGRATIONS_ROLE_ARN }}
+
+  upload-tracer-migrations:
+    needs: [build]
+    if: needs.build.result == 'success'
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.27.5
+    with:
+      s3_bucket: "lerian-migration-files"
+      file_pattern: "components/tracer/migrations/*.sql"
+      s3_prefix: "tracer/postgresql"
+      strip_prefix: "components/tracer/migrations"
       flatten: false
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_MIGRATIONS_ROLE_ARN }}
