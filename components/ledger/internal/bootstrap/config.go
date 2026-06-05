@@ -31,6 +31,7 @@ import (
 	libZap "github.com/LerianStudio/lib-observability/zap"
 	crmhttp "github.com/LerianStudio/midaz/v3/components/crm/adapters/http/in"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
+	tracerclient "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/tracer"
 	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
@@ -276,6 +277,18 @@ type Config struct {
 	StreamingSASLUsername       string `env:"STREAMING_SASL_USERNAME"`
 	StreamingSASLPassword       string `env:"STREAMING_SASL_PASSWORD"`
 	StreamingAllowPlaintextSASL bool   `env:"STREAMING_ALLOW_PLAINTEXT_SASL"`
+
+	// --- Tracer reservation client ---
+	// TRACER_BASE_URL is the escape hatch for the tracer integration as a
+	// whole: empty (the default) injects a nil TracerReserver so the
+	// transaction create path stays unchanged. When set, the reservation HTTP
+	// client is constructed and injected. The per-ledger advisory/enforce gate
+	// is a tracer.mode setting read at the call site, not a global flag.
+	// TracerTimeoutMs bounds each reservation call so a slow tracer cannot hold
+	// the transaction create path open; it mirrors the tracer.timeoutMs setting
+	// default (250ms) and is overridden per-ledger by the call site.
+	TracerBaseURL   string `env:"TRACER_BASE_URL"`
+	TracerTimeoutMs int    `env:"TRACER_TIMEOUT_MS"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -804,8 +817,20 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	segmentHandler := &httpin.SegmentHandler{Command: commandUseCase, Query: queryUseCase}
 	accountTypeHandler := &httpin.AccountTypeHandler{Command: commandUseCase, Query: queryUseCase}
 
+	// === Tracer reservation client ===
+	// Built before the handler so the reserver is available for injection.
+	// When TRACER_BASE_URL is empty (the documented default) the helper returns
+	// a nil TracerReserver and the create path stays unchanged, mirroring the
+	// streaming NoopEmitter escape hatch.
+	tracerReserver, err := buildTracerReserver(cfg, logger)
+	if err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to initialize tracer reservation client: %w", err)
+	}
+
 	// Transaction handlers
-	transactionHandler := &httpin.TransactionHandler{Command: commandUseCase, Query: queryUseCase, FeeApplier: fees.useCase}
+	transactionHandler := &httpin.TransactionHandler{Command: commandUseCase, Query: queryUseCase, FeeApplier: fees.useCase, TracerReserver: tracerReserver}
 	operationHandler := &httpin.OperationHandler{Command: commandUseCase, Query: queryUseCase}
 	assetRateHandler := &httpin.AssetRateHandler{Command: commandUseCase, Query: queryUseCase}
 	balanceHandler := &httpin.BalanceHandler{Command: commandUseCase, Query: queryUseCase}
@@ -1388,4 +1413,33 @@ func applyConfigDefaults(cfg *Config) {
 	if strings.TrimSpace(cfg.FeesDefaultCurrency) == "" {
 		cfg.FeesDefaultCurrency = "USD"
 	}
+}
+
+// buildTracerReserver constructs the tracer reservation HTTP client when the
+// integration is configured (TRACER_BASE_URL set), or returns a nil
+// TracerReserver when it is not. Returning the interface type (rather than the
+// concrete *tracerclient.TracerClient) keeps the disabled case a genuine nil
+// interface so the call-site nil guard short-circuits correctly.
+//
+// This is pure DI: it wires the transport, not behavior. The per-ledger
+// advisory/enforce gate and the fail-posture branch live at the reserve anchor.
+func buildTracerReserver(cfg *Config, logger libLog.Logger) (httpin.TracerReserver, error) {
+	baseURL := strings.TrimSpace(cfg.TracerBaseURL)
+	if baseURL == "" {
+		logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation integration disabled (TRACER_BASE_URL unset)")
+
+		return nil, nil
+	}
+
+	opts := []tracerclient.TracerClientOption{}
+	if cfg.TracerTimeoutMs > 0 {
+		opts = append(opts, tracerclient.WithOperationTimeout(time.Duration(cfg.TracerTimeoutMs)*time.Millisecond))
+	}
+
+	client, err := tracerclient.NewTracerClient(baseURL, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
 }

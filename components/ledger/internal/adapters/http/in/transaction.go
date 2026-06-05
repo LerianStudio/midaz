@@ -27,6 +27,11 @@ type TransactionHandler struct {
 	// injected at bootstrap from the fee use case; a nil applier disables fee
 	// application (the create path stays unchanged).
 	FeeApplier FeeApplier
+	// TracerReserver drives the tracer two-phase reservation lifecycle from the
+	// create seam. It is injected at bootstrap from the tracer HTTP client; a
+	// nil reserver means the tracer integration is disabled (the create path
+	// stays unchanged). The per-ledger tracer.mode gate lives at the call site.
+	TracerReserver TracerReserver
 }
 
 // CreateTransactionJSON method that create transaction using JSON
