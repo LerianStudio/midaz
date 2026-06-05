@@ -161,14 +161,14 @@ func countExpiryAuditRows(t *testing.T, db *sql.DB, sweptAt time.Time) int {
 	return n
 }
 
-// TestReservationReaperCadence_ReleasesExpiredWithinInterval_Integration is the
+// TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval is the
 // core of Gate 7. It seeds one EXPIRED RESERVED row and one FRESH (non-expired)
 // RESERVED row, runs the REAL reaper at a sub-minute (200ms) cadence, and asserts:
 //   - the expired row flips to EXPIRED within the interval window,
 //   - its held amount is returned to the counter (reserved_usage decremented),
 //   - the fresh row is left strictly untouched (still RESERVED, still holding),
 //   - exactly ONE batch-summary audit row is written for the sweep.
-func TestReservationReaperCadence_ReleasesExpiredWithinInterval_Integration(t *testing.T) {
+func TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
 	db := testutil.SetupIntegrationDB(t)
@@ -261,7 +261,7 @@ func TestReservationReaperCadence_ReleasesExpiredWithinInterval_Integration(t *t
 		"a non-empty sweep writes exactly one batch-summary audit row (Q11)")
 }
 
-// TestReservationReaperCadence_SkipsCycleOnPoolFailure_Integration proves the
+// TestIntegration_ReservationReaperCadence_SkipsCycleOnPoolFailure proves the
 // MT isolation invariant (R22 / Gate 7): when the tenant pool cannot be resolved,
 // the reaper SKIPS the cycle and NEVER touches the root pool. We seed an expired
 // row on the (root) testcontainer DB, run the reaper in MT mode with a failing
@@ -269,7 +269,7 @@ func TestReservationReaperCadence_ReleasesExpiredWithinInterval_Integration(t *t
 //   - the spy connection / tx-beginner are NEVER queried (root pool untouched),
 //   - the expired row stays RESERVED (the reaper did not reap it on the wrong DB),
 //   - no batch-summary audit row is written.
-func TestReservationReaperCadence_SkipsCycleOnPoolFailure_Integration(t *testing.T) {
+func TestIntegration_ReservationReaperCadence_SkipsCycleOnPoolFailure(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
 	db := testutil.SetupIntegrationDB(t)

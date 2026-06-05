@@ -89,12 +89,12 @@ func readReservationStatus(t *testing.T, db *sql.DB, reservationID uuid.UUID) st
 	return status
 }
 
-// TestUsageReservationRepository_DoubleConfirm_Idempotent_Integration proves the
+// TestIntegration_UsageReservationRepository_DoubleConfirm_Idempotent proves the
 // core idempotency invariant: a second confirm against an already-CONFIRMED
 // reservation performs NO second counter move. After reserve (reserved=400) and
 // confirm (current=400, reserved=0), a retried confirm must leave the counter at
 // current=400, reserved=0 and return ErrReservationAlreadyTerminal.
-func TestUsageReservationRepository_DoubleConfirm_Idempotent_Integration(t *testing.T) {
+func TestIntegration_UsageReservationRepository_DoubleConfirm_Idempotent(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
 	db := testutil.SetupIntegrationDB(t)
@@ -150,10 +150,10 @@ func TestUsageReservationRepository_DoubleConfirm_Idempotent_Integration(t *test
 	assert.Equal(t, int64(0), reserved, "double-confirm must NOT drive reserved_usage negative")
 }
 
-// TestUsageReservationRepository_ReleaseThenConfirm_Idempotent_Integration proves
+// TestIntegration_UsageReservationRepository_ReleaseThenConfirm_Idempotent proves
 // release drains reserved_usage without crediting current_usage, and a confirm
 // after release is a terminal no-op.
-func TestUsageReservationRepository_ReleaseThenConfirm_Idempotent_Integration(t *testing.T) {
+func TestIntegration_UsageReservationRepository_ReleaseThenConfirm_Idempotent(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
 	db := testutil.SetupIntegrationDB(t)
@@ -201,13 +201,13 @@ func TestUsageReservationRepository_ReleaseThenConfirm_Idempotent_Integration(t 
 	assert.Equal(t, int64(0), reserved)
 }
 
-// TestUsageReservationRepository_ConfirmByTransaction_FlipsAll_Integration proves
+// TestIntegration_UsageReservationRepository_ConfirmByTransaction_FlipsAll proves
 // the by-transaction confirm flips EVERY RESERVED reservation a transaction holds
 // across two distinct limits, moving each counter ONCE (reserved -> current), and
 // that a re-run is an idempotent no-op (flipped=0, counters unchanged). This is the
 // PENDING /commit lifecycle path: the ledger addresses the tracer by transaction id
 // because the per-reservation handle does not survive the separate commit request.
-func TestUsageReservationRepository_ConfirmByTransaction_FlipsAll_Integration(t *testing.T) {
+func TestIntegration_UsageReservationRepository_ConfirmByTransaction_FlipsAll(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
 	db := testutil.SetupIntegrationDB(t)
@@ -294,10 +294,10 @@ func TestUsageReservationRepository_ConfirmByTransaction_FlipsAll_Integration(t 
 	assert.Equal(t, int64(0), rsvB)
 }
 
-// TestUsageReservationRepository_Reserve_RowIdempotent_Integration proves a retried
+// TestIntegration_UsageReservationRepository_Reserve_RowIdempotent proves a retried
 // reserve for the same 4-tuple collapses onto the existing row (ON CONFLICT DO
 // NOTHING) and does not duplicate the reservation row.
-func TestUsageReservationRepository_Reserve_RowIdempotent_Integration(t *testing.T) {
+func TestIntegration_UsageReservationRepository_Reserve_RowIdempotent(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
 	db := testutil.SetupIntegrationDB(t)

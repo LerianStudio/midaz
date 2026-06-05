@@ -244,7 +244,7 @@ func resCheckInput(t *testing.T) *model.CheckLimitsInput {
 // converge, and (c) proves a delivered confirm survives a pre-reaper crash.
 // ---------------------------------------------------------------------------
 
-func TestReservationCrashConvergence(t *testing.T) {
+func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 	// (a) Reserve succeeded; the ledger died BEFORE the balance commit, so no
 	// confirm and no release is ever sent. The short-TTL reservation must be
 	// swept by the reaper and reserved_usage returned to baseline (0). This is
@@ -496,7 +496,7 @@ func TestReservationCrashConvergence(t *testing.T) {
 // observation, including mid-flight.
 // ---------------------------------------------------------------------------
 
-func TestReservationOverCommit(t *testing.T) {
+func TestIntegration_ReservationOverCommit(t *testing.T) {
 	// Fixed N-1 case: N goroutines each reserve 1 unit against a limit of N-1.
 	t.Run("n_parallel_reserves_capacity_n_minus_one", func(t *testing.T) {
 		testutil.SetupTestTracing(t)
