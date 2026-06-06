@@ -59,10 +59,10 @@ func startFakeTenantManager(t *testing.T) *httptest.Server {
 	return srv
 }
 
-// newWiringTestDeps returns a multiTenantWiringDeps + supervisor extras that
-// can be handed to buildMultiTenantComponents. The repos are gomock-backed so
+// newWiringTestDeps returns a wiringDepsMT + supervisor extras that
+// can be handed to buildComponentsMT. The repos are gomock-backed so
 // any accidental usage during construction fails loudly.
-func newWiringTestDeps(t *testing.T) (multiTenantWiringDeps, workers.WorkerSupervisorDeps) {
+func newWiringTestDeps(t *testing.T) (wiringDepsMT, workers.WorkerSupervisorDeps) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
@@ -71,7 +71,7 @@ func newWiringTestDeps(t *testing.T) (multiTenantWiringDeps, workers.WorkerSuper
 	usageRepo := workermocks.NewMockUsageCounterCleanupRepository(ctrl)
 	compiler := workermocks.NewMockExpressionCompiler(ctrl)
 
-	deps := multiTenantWiringDeps{
+	deps := wiringDepsMT{
 		SyncRepo:  syncRepo,
 		UsageRepo: usageRepo,
 		Compiler:  compiler,
@@ -130,7 +130,7 @@ func TestBuildMultiTenantComponents_Success(t *testing.T) {
 
 	deps, extras := newWiringTestDeps(t)
 
-	components, err := buildMultiTenantComponents(cfg, logger, deps, extras)
+	components, err := buildComponentsMT(cfg, logger, deps, extras)
 	require.NoError(t, err)
 	require.NotNil(t, components)
 	t.Cleanup(func() {
@@ -164,7 +164,7 @@ func TestBuildMultiTenantComponents_InvalidTenantManagerURL(t *testing.T) {
 
 	deps, extras := newWiringTestDeps(t)
 
-	components, err := buildMultiTenantComponents(cfg, logger, deps, extras)
+	components, err := buildComponentsMT(cfg, logger, deps, extras)
 	require.Error(t, err)
 	assert.Nil(t, components)
 	assert.Contains(t, err.Error(), "tenant-manager client")
@@ -196,7 +196,7 @@ func TestBuildMultiTenantComponents_UnreachableRedis(t *testing.T) {
 
 	deps, extras := newWiringTestDeps(t)
 
-	components, err := buildMultiTenantComponents(cfg, logger, deps, extras)
+	components, err := buildComponentsMT(cfg, logger, deps, extras)
 	require.Error(t, err)
 	assert.Nil(t, components)
 	assert.Contains(t, err.Error(), "tenant pubsub redis")
@@ -213,7 +213,7 @@ func TestBuildMultiTenantComponents_RequiresMultiTenantEnabled(t *testing.T) {
 
 	deps, extras := newWiringTestDeps(t)
 
-	components, err := buildMultiTenantComponents(cfg, logger, deps, extras)
+	components, err := buildComponentsMT(cfg, logger, deps, extras)
 	require.Error(t, err)
 	assert.Nil(t, components)
 	assert.Contains(t, err.Error(), "MULTI_TENANT_ENABLED=true")
@@ -250,7 +250,7 @@ func TestBuildMultiTenantComponents_SupervisorShutdownClean(t *testing.T) {
 	}
 
 	deps, extras := newWiringTestDeps(t)
-	components, err := buildMultiTenantComponents(cfg, logger, deps, extras)
+	components, err := buildComponentsMT(cfg, logger, deps, extras)
 	require.NoError(t, err)
 
 	done := make(chan struct{})
@@ -325,7 +325,7 @@ func TestBuildMultiTenantComponents_AppliesCustomCacheTTL(t *testing.T) {
 
 	deps, extras := newWiringTestDeps(t)
 
-	components, err := buildMultiTenantComponents(cfg, logger, deps, extras)
+	components, err := buildComponentsMT(cfg, logger, deps, extras)
 	require.NoError(t, err)
 	require.NotNil(t, components)
 	t.Cleanup(components.supervisor.Shutdown)
@@ -366,7 +366,7 @@ func TestBuildMultiTenantComponents_RejectsHTTPWithoutOptIn(t *testing.T) {
 
 	deps, extras := newWiringTestDeps(t)
 
-	components, err := buildMultiTenantComponents(cfg, logger, deps, extras)
+	components, err := buildComponentsMT(cfg, logger, deps, extras)
 	require.Error(t, err)
 	assert.Nil(t, components)
 	assert.Contains(t, err.Error(), "MULTI_TENANT_ALLOW_INSECURE_HTTP",
@@ -403,7 +403,7 @@ func TestBuildMultiTenantComponents_AllowsHTTPWithOptIn(t *testing.T) {
 
 	deps, extras := newWiringTestDeps(t)
 
-	components, err := buildMultiTenantComponents(cfg, logger, deps, extras)
+	components, err := buildComponentsMT(cfg, logger, deps, extras)
 	require.NoError(t, err)
 	require.NotNil(t, components)
 	t.Cleanup(components.supervisor.Shutdown)
@@ -452,7 +452,7 @@ func TestBuildMultiTenantComponents_InitialTenantSyncEmpty(t *testing.T) {
 	}
 
 	deps, extras := newWiringTestDeps(t)
-	components, err := buildMultiTenantComponents(cfg, logger, deps, extras)
+	components, err := buildComponentsMT(cfg, logger, deps, extras)
 	require.NoError(t, err)
 	t.Cleanup(components.supervisor.Shutdown)
 
@@ -496,7 +496,7 @@ func TestService_Shutdown_ClosesTenantManagerClient(t *testing.T) {
 	}
 
 	deps, extras := newWiringTestDeps(t)
-	components, err := buildMultiTenantComponents(cfg, logger, deps, extras)
+	components, err := buildComponentsMT(cfg, logger, deps, extras)
 	require.NoError(t, err)
 	require.NotNil(t, components)
 

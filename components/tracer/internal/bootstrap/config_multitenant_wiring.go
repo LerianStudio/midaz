@@ -20,7 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
 )
 
-// multiTenantComponents bundles every object that the bootstrap builds for
+// componentsMT bundles every object that the bootstrap builds for
 // multi-tenant mode. Keeping them on a single struct makes it trivial to wire
 // them into Service and to write unit tests for the wiring helper without
 // standing up a real PostgreSQL pool.
@@ -28,21 +28,21 @@ import (
 // The /readyz cycle is single-tenant only — the redisClient and tmBaseURL
 // fields used to surface the Tenant Manager + Pub/Sub readyz adapters were
 // removed when the cycle scope was reduced to postgres + rule_cache.
-type multiTenantComponents struct {
+type componentsMT struct {
 	tmClient      *tmclient.Client
 	pgManager     *tmpostgres.Manager
 	supervisor    *workers.WorkerSupervisor
 	eventListener *tenantListenerApp
 }
 
-// multiTenantWiringDeps groups the pre-built dependencies the wiring helper
+// wiringDepsMT groups the pre-built dependencies the wiring helper
 // needs. They come from the rest of the bootstrap (rule cache, repos, workers'
 // config, etc.) and are treated as opaque inputs here.
 //
 // Compiler configuration (M4): callers provide EITHER a CELAdapter (preferred
 // — the wiring helper wraps it in celCompilerAdapter internally) OR a direct
 // Compiler (tests mock workers.ExpressionCompiler). Exactly one must be set.
-type multiTenantWiringDeps struct {
+type wiringDepsMT struct {
 	SyncRepo   workers.RuleSyncRepository
 	UsageRepo  workers.UsageCounterCleanupRepository
 	CELAdapter *cel.Adapter
@@ -59,10 +59,10 @@ type multiTenantWiringDeps struct {
 	CBTemplate           workers.CircuitBreakerTemplate
 	// RuleCache + Clock are supplied via a small interface indirection so the
 	// helper does not pull the bootstrap-level imports for them — see the
-	// parameter struct in buildMultiTenantComponents.
+	// parameter struct in buildComponentsMT.
 }
 
-// buildMultiTenantComponents assembles the tenant-manager client, PG manager,
+// buildComponentsMT assembles the tenant-manager client, PG manager,
 // worker supervisor, and event listener/dispatcher for multi-tenant mode.
 //
 // The order mirrors lib-commons v4 semantics:
@@ -80,12 +80,12 @@ type multiTenantWiringDeps struct {
 //
 // Returns a non-nil error if any step fails. Caller must call Close on the
 // returned tmClient + pgManager (via Service.Shutdown) on service teardown.
-func buildMultiTenantComponents(
+func buildComponentsMT(
 	cfg *Config,
 	logger libLog.Logger,
-	deps multiTenantWiringDeps,
+	deps wiringDepsMT,
 	supervisorExtras workers.WorkerSupervisorDeps,
-) (*multiTenantComponents, error) {
+) (*componentsMT, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("multi-tenant wiring: cfg is required")
 	}
@@ -224,7 +224,7 @@ func buildMultiTenantComponents(
 
 	// M4: resolveCompiler builds the supervisor's workers.ExpressionCompiler
 	// from either a CELAdapter (production) or a pre-built Compiler (tests).
-	// Extracted to a helper to keep buildMultiTenantComponents under the
+	// Extracted to a helper to keep buildComponentsMT under the
 	// gocyclo budget.
 	mtCompiler, err := resolveCompiler(deps)
 	if err != nil {
@@ -300,7 +300,7 @@ func buildMultiTenantComponents(
 	// All steps succeeded — flip the sentinel so the deferred cleanup no-ops.
 	success = true
 
-	return &multiTenantComponents{
+	return &componentsMT{
 		tmClient:      tmClient,
 		pgManager:     pgManager,
 		supervisor:    supervisor,
@@ -315,7 +315,7 @@ func buildMultiTenantComponents(
 // would override its sensible fallback (25/5). Production leaves both env
 // vars unset; integration tests pin them to small values so cumulative
 // connections across repeated reboots stay below testcontainer
-// max_connections=100. Extracted so buildMultiTenantComponents stays under
+// max_connections=100. Extracted so buildComponentsMT stays under
 // the gocyclo budget.
 func buildPgManagerOptions(cfg *Config, logger libLog.Logger) []tmpostgres.Option {
 	opts := []tmpostgres.Option{
@@ -339,7 +339,7 @@ func buildPgManagerOptions(cfg *Config, logger libLog.Logger) []tmpostgres.Optio
 // resolveCompiler returns the workers.ExpressionCompiler the supervisor will
 // use. Production callers pass a CELAdapter; tests pass a pre-built mock
 // Compiler. Exactly one must be set (M4).
-func resolveCompiler(deps multiTenantWiringDeps) (workers.ExpressionCompiler, error) {
+func resolveCompiler(deps wiringDepsMT) (workers.ExpressionCompiler, error) {
 	switch {
 	case deps.Compiler != nil && deps.CELAdapter != nil:
 		return nil, fmt.Errorf("multi-tenant wiring: set exactly one of Compiler or CELAdapter, not both")

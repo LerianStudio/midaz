@@ -925,13 +925,13 @@ func initEvaluateRulesQuery(activeRulesRepo query.ActiveRulesRepository, celAdap
 // (single-tenant mode). No conditional wiring is needed — both modes share the
 // same adapter, and the request context drives the per-call pool selection.
 //
-// In strict MT mode (multiTenantEnabled == true) the adapter refuses to fall
+// In strict MT mode (enabledMT == true) the adapter refuses to fall
 // back to the root pool when the context carries no tenant — mirroring
 // PostgresConnectionAdapter so a missing ContextWithPG fails closed instead
 // of silently opening a tx on the default pool (C5).
 //
 // See pgdb.TxBeginnerAdapter.BeginTx for the resolution order.
-func initTxBeginner(ctx context.Context, postgresConn *libPostgres.Client, multiTenantEnabled bool) (pgdb.TxBeginner, error) {
+func initTxBeginner(ctx context.Context, postgresConn *libPostgres.Client, enabledMT bool) (pgdb.TxBeginner, error) {
 	dbConn, err := postgresConn.Resolver(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection for transactions: %w", err)
@@ -942,7 +942,7 @@ func initTxBeginner(ctx context.Context, postgresConn *libPostgres.Client, multi
 		return nil, fmt.Errorf("failed to create transaction beginner adapter: connection is nil")
 	}
 
-	txBeginner.SetMultiTenantEnabled(multiTenantEnabled)
+	txBeginner.SetMultiTenantEnabled(enabledMT)
 
 	return txBeginner, nil
 }
@@ -1032,7 +1032,7 @@ func initHTTPServer(
 	logger libLog.Logger,
 	telemetry *libOtel.Telemetry,
 	clk clock.Clock,
-	mtComponents *multiTenantComponents,
+	mtComponents *componentsMT,
 	mtMetrics metrics.MultiTenantMetrics,
 	txBeginner pgdb.TxBeginner,
 ) (*HTTPServer, error) {
@@ -1130,7 +1130,7 @@ func initHTTPServer(
 	// Extract multi-tenant bits for the middleware registration. In
 	// single-tenant mode both stay nil and NewRoutes skips the tenant
 	// middleware block entirely. In multi-tenant mode pgManager drives the
-	// guard `multiTenantEnabled && pgManager != nil` inside NewRoutes — the
+	// guard `enabledMT && pgManager != nil` inside NewRoutes — the
 	// middleware only registers when both conditions hold, which keeps the
 	// path testable with a nil pgManager while preserving the production
 	// invariant that MT=true ⇒ pgManager must be wired.
@@ -1212,7 +1212,7 @@ func buildMultiTenantStack(
 	limitDeps *limitServiceDeps,
 	celAdapter *cel.Adapter,
 	clk clock.Clock,
-) (*multiTenantComponents, metrics.MultiTenantMetrics, error) {
+) (*componentsMT, metrics.MultiTenantMetrics, error) {
 	var mtFactory *libMetrics.MetricsFactory
 	if telemetry != nil {
 		mtFactory = telemetry.MetricsFactory
@@ -1253,7 +1253,7 @@ func initMultiTenant(
 	celAdapter *cel.Adapter,
 	clk clock.Clock,
 	mtMetrics metrics.MultiTenantMetrics,
-) (*multiTenantComponents, error) {
+) (*componentsMT, error) {
 	if !cfg.MultiTenantEnabled {
 		return nil, nil
 	}
@@ -1283,15 +1283,15 @@ func initMultiTenant(
 
 	syncCBConfig := workers.DefaultSyncCircuitBreakerConfig()
 
-	// M4: compiler creation lives inside buildMultiTenantComponents now. Pass
+	// M4: compiler creation lives inside buildComponentsMT now. Pass
 	// the CELAdapter directly; the wiring helper owns the adapter literal.
 	//
-	// Note: buildMultiTenantComponents builds worker closures
+	// Note: buildComponentsMT builds worker closures
 	// (per-tenant sync + cleanup) that run on their own goroutine schedules
 	// and own their own ctx lifetime; threading boot ctx in is conceptually
 	// wrong (the workers must outlive boot).
-	components, err := buildMultiTenantComponents(cfg, logger, //nolint:contextcheck
-		multiTenantWiringDeps{
+	components, err := buildComponentsMT(cfg, logger, //nolint:contextcheck
+		wiringDepsMT{
 			SyncRepo:             ruleSyncRepo,
 			UsageRepo:            limitDeps.usageCounterRepo,
 			CELAdapter:           celAdapter,
@@ -1370,7 +1370,7 @@ func initWorkers(
 	healthChecker *in.HealthChecker,
 	logger libLog.Logger,
 	clk clock.Clock,
-	mtComponents *multiTenantComponents,
+	mtComponents *componentsMT,
 ) (*Service, error) {
 	svc := &Service{
 		HTTPServer:    serverAPI,
@@ -1809,7 +1809,7 @@ func finalizeStartup(
 	healthChecker *in.HealthChecker,
 	logger libLog.Logger,
 	clk clock.Clock,
-	mtComponents *multiTenantComponents,
+	mtComponents *componentsMT,
 ) (*Service, error) {
 	svc, err := initWorkers(ctx, cfg, limitDeps, syncWorker, serverAPI, postgresConn, healthChecker, logger, clk, mtComponents)
 	if err != nil {
@@ -1934,13 +1934,13 @@ func executeStartupSelfProbe(ctx context.Context, cfg *Config, healthChecker *in
 //
 // An empty map (no deps) is a degenerate but valid case — RunSelfProbe
 // trivially passes when nothing is required.
-func buildSelfProbeChecks(hc *in.HealthChecker, multiTenantEnabled bool) SelfProbeChecks {
+func buildSelfProbeChecks(hc *in.HealthChecker, enabledMT bool) SelfProbeChecks {
 	checks := SelfProbeChecks{}
 
 	if hc != nil {
 		checks["postgres"] = newPostgresSelfProbe(hc)
 
-		if !multiTenantEnabled {
+		if !enabledMT {
 			checks["rule_cache"] = newRuleCacheSelfProbe(hc)
 		}
 	}
