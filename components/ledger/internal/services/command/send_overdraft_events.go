@@ -203,6 +203,7 @@ func buildOverdraftEvents(tran *transaction.Transaction) []overdraftEventItem {
 		return nil
 	}
 
+	//nolint:prealloc // must stay nil when no overdraft ops match (callers and tests rely on nil); overdraft companions are rare, so preallocating len(Operations) wastes more than it saves
 	var items []overdraftEventItem
 
 	for _, op := range tran.Operations {
