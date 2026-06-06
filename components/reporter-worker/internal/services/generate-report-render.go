@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/pongo"
 
@@ -75,8 +76,11 @@ func (uc *UseCase) renderTemplate(ctx context.Context, templateBytes []byte, res
 		libOtel.HandleSpanError(spanRender, "Error rendering template.", err)
 		uc.Logger.Log(ctx, log.LevelError, "Error rendering template", log.Err(err))
 
-		// Template rendering errors are permanent: same template + same data = same failure on retry.
-		return "", pkg.FailedPreconditionError{Code: "REP-0081", Title: "Template Rendering Failed", Message: fmt.Sprintf("error rendering template: %s", err.Error()), Err: err}
+		// Pongo2 parse/execution failures are a pure function of (template, data):
+		// the same inputs reproduce the same failure on every redelivery. Classify
+		// as permanent (TPL-0062) so the RabbitMQ retry guards drop the message
+		// instead of looping it through the full pipeline.
+		return "", pkg.ValidateBusinessError(constant.ErrTemplateRenderFailed, "", err.Error())
 	}
 
 	return out, nil

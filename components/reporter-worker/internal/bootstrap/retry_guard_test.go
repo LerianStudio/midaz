@@ -13,6 +13,7 @@ import (
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -163,6 +164,30 @@ func TestIsNonRetryableHandlerError(t *testing.T) {
 			name: "wrapped ValidationError is non-retryable",
 			err:  fmt.Errorf("handler: %w", pkg.ValidationError{Code: "V001", Message: "bad input"}),
 			want: true,
+		},
+
+		// Template render failure (TPL-0062) → non-retryable.
+		// Built exactly as renderTemplate builds it so this pins the real wire path.
+		{
+			name: "TPL-0062 template render failure is non-retryable",
+			err:  pkg.ValidateBusinessError(constant.ErrTemplateRenderFailed, "", "field 'amount' not found"),
+			want: true,
+		},
+		{
+			name: "wrapped TPL-0062 template render failure is non-retryable",
+			err:  fmt.Errorf("generate report: %w", pkg.ValidateBusinessError(constant.ErrTemplateRenderFailed, "", "bad filter chain")),
+			want: true,
+		},
+		// Transient I/O feeding the renderer must STAY retryable (do not over-classify).
+		{
+			name: "data-fetch deadline exceeded feeding renderer is retryable",
+			err:  fmt.Errorf("fetch datasource rows: %w", errors.New("i/o timeout")),
+			want: false,
+		},
+		{
+			name: "mongo dial error during input assembly is retryable",
+			err:  errors.New("mongo: no reachable servers"),
+			want: false,
 		},
 
 		// Wrapped source errors (REP-006x codes from error wrapping at source)

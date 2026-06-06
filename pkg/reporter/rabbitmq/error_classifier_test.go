@@ -12,6 +12,7 @@ import (
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,6 +41,9 @@ func TestDefaultErrorClassifier_IsRetryable(t *testing.T) {
 		{"forbidden error", pkg.ForbiddenError{}, false},
 		{"unauthorized error", pkg.UnauthorizedError{}, false},
 		{"precondition error", pkg.FailedPreconditionError{}, false},
+		{"TPL-0062 template render failure", pkg.ValidateBusinessError(constant.ErrTemplateRenderFailed, "", "missing field"), false},
+		{"wrapped TPL-0062 template render failure", fmt.Errorf("generate: %w", pkg.ValidateBusinessError(constant.ErrTemplateRenderFailed, "", "bad filter")), false},
+		{"data-fetch i/o timeout feeding renderer stays retryable", fmt.Errorf("fetch rows: %w", errors.New("i/o timeout")), true},
 		{"tenant not found", tmcore.ErrTenantNotFound, false},
 		{"service not configured", tmcore.ErrServiceNotConfigured, false},
 		{"manager closed", tmcore.ErrManagerClosed, false},

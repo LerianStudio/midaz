@@ -623,6 +623,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid UTF-8 Encoding",
 			Message:    fmt.Sprintf("The '%v' field contains invalid UTF-8 byte sequences. Please provide valid UTF-8 text and try again.", args...),
 		},
+		constant.ErrTemplateRenderFailed: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTemplateRenderFailed.Error(),
+			Title:      "Template Rendering Failed",
+			Message:    fmt.Sprintf("The template could not be rendered with the provided data. This is a permanent error and will not succeed on retry. Detail: %v.", args...),
+		},
 	}
 
 	for sentinel, mappedError := range errorMap {

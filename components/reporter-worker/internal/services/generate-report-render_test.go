@@ -9,6 +9,8 @@ import (
 	"errors"
 	"testing"
 
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	reportData "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs/template"
 
@@ -158,6 +160,12 @@ func TestUseCase_RenderTemplate(t *testing.T) {
 
 		_, err := useCase.renderTemplate(context.Background(), templateBytes, data, message, &span)
 		require.Error(t, err)
+
+		// The engine error must be wrapped as a permanent, TPL-coded domain error.
+		var renderErr pkg.UnprocessableOperationError
+		require.ErrorAs(t, err, &renderErr, "render failure must surface as UnprocessableOperationError")
+		assert.Equal(t, constant.ErrTemplateRenderFailed.Error(), renderErr.Code, "render failure must carry the TPL-0062 code")
+		assert.Contains(t, renderErr.Code, "TPL-", "code must be in the TPL- namespace for retry classification")
 	})
 
 	t.Run("Error - template rendering fails and report update also fails", func(t *testing.T) {
@@ -194,6 +202,11 @@ func TestUseCase_RenderTemplate(t *testing.T) {
 		_, err := useCase.renderTemplate(context.Background(), templateBytes, data, message, &span)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "database unavailable")
+
+		// The transient I/O failure from updateReportWithErrors must propagate raw,
+		// NOT be reclassified as the permanent render error — it must stay retryable.
+		var renderErr pkg.UnprocessableOperationError
+		assert.False(t, errors.As(err, &renderErr), "transient persistence error must not be classified as a permanent render error")
 	})
 }
 
