@@ -1478,6 +1478,12 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 		return nil, nil, fmt.Errorf("invalid access manager configuration: %w", err)
 	}
 
+	// Cross-check: at least one auth mechanism must be enabled outside local
+	// deployments (fail-fast; the per-mechanism validators above only Warn)
+	if err := ValidateAuthPresence(ctx, cfg, logger); err != nil {
+		return nil, nil, fmt.Errorf("auth presence: %w", err)
+	}
+
 	// Validate multi-tenant configuration (fail-fast if misconfigured)
 	if err := ValidateMultiTenantConfig(ctx, cfg, logger); err != nil {
 		return nil, nil, fmt.Errorf("invalid multi-tenant configuration: %w", err)
