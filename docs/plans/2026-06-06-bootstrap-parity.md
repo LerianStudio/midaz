@@ -17,7 +17,7 @@
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
 | 1 | All four services flush zap on exit, reporter-manager honors `ENV_NAME`/`LOG_LEVEL`, and ledger telemetry-shutdown ownership is explicit and documented | 1.1, 1.2, 1.3 | ✅ Complete (commits `f2ddc8c5e`, `de8e77636`, + docs commit; 1.1 resolved as ownership documentation — see Execution Notes) |
-| 2 | Every REST service reports VCS build info on `/version`; the worker reports it in `/readyz` body — stamped via `debug.ReadBuildInfo` + ldflags, ledger first | 2.1, 2.2 | Epic-level |
+| 2 | Every REST service reports VCS build info on `/version`; the worker reports it in `/readyz` body — stamped via `debug.ReadBuildInfo` + ldflags, ledger first | 2.1, 2.2 | ✅ Complete (commits `8e9c6efa5`, `523e23fa2`, `28cbcb19c`, `4f3fbc6d7`) |
 | 3 | Config/MT conventions harmonized (tracer MT-suffix naming, worker struct-tag unification) and shared cancellable shutdown context decided via a lib-commons upstream issue + interim in-repo pattern | 3.1, 3.2, 3.3 | Epic-level |
 
 ---
@@ -124,17 +124,66 @@ Closes the high- and medium-severity bootstrap gaps. At the end of Phase 1: a pr
 
 ### Epic 2.1: Build-info plumbing + ledger /version (canonical)
 
-**Goal:** A shared-shape build-info accessor reads `debug.ReadBuildInfo` (vcs.revision, vcs.time, vcs.modified) with ldflags `-X` overrides for environments where VCS stamping is unavailable, and ledger's `/version` surfaces it; the Makefile stamps the values at build time.
-**Scope:** `components/ledger/internal/bootstrap/readyz.go` (or the `/version` handler near `readyz.go:73`), a build-info helper package, ledger `Makefile` / repo-root build invocation, ledger Dockerfile build args.
-**Dependencies:** Phase 1 (clean bootstrap baseline; not strictly required but sequenced after).
-**Done when:** ledger `/version` returns commit + build time + dirty flag; values come from `debug.ReadBuildInfo` by default and ldflags when stamped; a binary built via the Makefile reports the real git SHA; existing `VERSION` env string is retained alongside (not replaced) until the response shape is agreed.
+**Goal:** A shared-shape build-info accessor reads `debug.ReadBuildInfo` (vcs.revision, vcs.time, vcs.modified) with ldflags `-X` overrides for environments where VCS stamping is unavailable, and ledger's `/version` surfaces it; the build pipeline stamps the values at build time.
+**Ground truth (verified 2026-06-06):** all three REST services delegate `/version` to lib-commons `libHTTP.Version` (`commons/net/http/handler.go:33`), which returns `{"version": GetenvOrDefault("VERSION","0.0.0"), "requestDate": time.Now().UTC()}`. Ledger registers it at `unified-server.go:73` (NOT readyz.go as originally estimated). Ledger's `/version` is NOT in swagger.json and is explicitly excluded from `TestContractSpecMatchesRoutes` (`contract_spec_routes_test.go:35-41`) — no docs regen needed for ledger. Docker build context is the repo root (`context: ../../` in every compose file), there is NO root `.dockerignore`, and every Dockerfile does `COPY . .` — so `.git` IS in the builder stage; the only missing piece for in-Docker VCS stamping is the `git` binary (golang:alpine lacks it). Per-component `.dockerignore` files (tracer's excludes `.git/`) are INERT because dockerignore only applies at the context root. Host Makefile builds run inside the work tree → VCS stamping is automatic. Therefore: ldflags `-X` is the fallback override, NOT the primary mechanism — no ARG plumbing in Dockerfiles.
+
+#### Task 2.1.1: `pkg/buildinfo` package (TDD)
+
+- [x] Done (`8e9c6efa5`)
+
+**Files:** Create `pkg/buildinfo/buildinfo.go`, `pkg/buildinfo/handler.go`, `pkg/buildinfo/buildinfo_test.go`, `pkg/buildinfo/handler_test.go`.
+
+**Implementation vision:** Package-level unexported string vars `commit`, `buildTime` (override path: `-ldflags "-X github.com/LerianStudio/midaz/v4/pkg/buildinfo.commit=<sha> -X ...buildTime=<rfc3339>"`). `Info struct { Commit string; BuildTime string; Dirty bool }`. Core is a pure, testable `compute(bi *debug.BuildInfo, ldCommit, ldBuildTime string) Info`: precedence ldflags > `bi.Settings` (`vcs.revision`, `vcs.time`, `vcs.modified`) > `"unknown"`/`"unknown"`/false. `Get() Info` wraps `compute(debug.ReadBuildInfo())` under `sync.Once`. `VersionHandler(version string) fiber.Handler` in handler.go returns `{"version": version-or-"0.0.0", "requestDate": time.Now().UTC(), "commit": i.Commit, "buildTime": i.BuildTime, "dirty": i.Dirty}` — the first two fields preserve the lib-commons wire shape exactly (retain-VERSION decision). Tests: table test on `compute` (ldflags win over vcs settings; vcs-only; nil BuildInfo → unknowns; `vcs.modified=true` → Dirty), handler test via fiber+httptest asserting the five JSON keys and the `"0.0.0"` fallback on empty version.
+
+#### Task 2.1.2: Ledger /version serves build info
+
+- [x] Done (`8e9c6efa5`)
+
+**Files:** Modify `components/ledger/internal/bootstrap/unified-server.go:73`.
+
+**Implementation vision:** Replace `app.Get("/version", libHTTP.Version)` with `app.Get("/version", buildinfo.VersionHandler(<version>))`, where `<version>` is the ledger `Config.Version` (env `VERSION`) if reachable at registration, else `os.Getenv("VERSION")` — handler defaults empty→`"0.0.0"`, preserving lib-commons behavior byte-for-byte on the existing fields. `/version` is contract-test-excluded and spec-absent → no `make generate-docs`. Verify `TestContractSpecMatchesRoutes` stays green.
+
+#### Task 2.1.3: Ledger Docker builder gets git (VCS stamping in images)
+
+- [x] Done (`8e9c6efa5`)
+
+**Files:** Modify `components/ledger/Dockerfile` (builder stage).
+
+**Implementation vision:** Add `RUN apk add --no-cache git` in the builder stage before the build. With `.git` already in the context (root context + `COPY . .`), `go build` stamps `vcs.*` automatically. Host builds need nothing (work tree + host git). Verification: `go build -o /tmp/ledger-vcs components/ledger/cmd/app/main.go && go version -m /tmp/ledger-vcs | grep vcs` shows revision/time/modified; optionally `docker build` the ledger image and confirm the same via `go version -m` on the extracted binary or hitting `/version`.
+
+**Epic done when:** ledger `/version` returns commit + build time + dirty flag; values come from `debug.ReadBuildInfo` by default and ldflags when stamped; `VERSION` env string retained as the `version` field; contract test green.
 
 ### Epic 2.2: Propagate build-info to tracer, reporter-manager (/version) and reporter-worker (/readyz body)
 
-**Goal:** The three remaining services adopt the ledger build-info accessor — tracer and reporter-manager on `/version`, reporter-worker in its existing `/readyz` body (`reporter-worker/internal/bootstrap/health-server.go:179-181`) since it has no REST API by design.
-**Scope:** `components/tracer/internal/adapters/http/in/` (`/version` handler near `handlers.go:86-88`), `components/reporter-manager` `/version` handler, `components/reporter-worker/internal/bootstrap/health-server.go:179-181`, each service's Makefile/Dockerfile stamping.
-**Dependencies:** Epic 2.1 (defines the accessor and response shape all three copy).
-**Done when:** tracer and reporter-manager `/version` and reporter-worker `/readyz` all report the same build-info shape; each service's build stamps the SHA; **reporter-worker gets no new `/version` endpoint** (out of scope — no-REST-API design is acceptable as-is per the locked decision).
+**Goal:** The three remaining services adopt `pkg/buildinfo` — tracer and reporter-manager on `/version`, reporter-worker in its existing `/readyz` body since it has no REST API by design.
+**Ground truth (verified 2026-06-06):** tracer wraps `libHTTP.Version` in a local annotated handler (`tracer/internal/adapters/http/in/handlers.go:86-88`, route `routes.go:240`) and tracer's swagger.json DOES document `/version` with `api.VersionResponse` — response-shape change requires updating that model and running `make generate-docs` in the same commit. reporter-manager registers `commonsHttp.Version` directly (`routes.go:137`); its spec does NOT document `/version`. reporter-worker's health server is net/http (`health-server.go:176-217`); its `/readyz` body comes from `pkg/reporter/readyz.NewNetHTTPHandler(checkers, drainState, cfg.Version, deploymentMode, metrics)` — shared with reporter-manager's readyz deps, so added fields appear on both (additive, acceptable).
+**Dependencies:** Epic 2.1 (defines accessor + response shape).
+
+#### Task 2.2.1: tracer + reporter-manager /version adopt VersionHandler
+
+- [x] Done (`523e23fa2`)
+
+**Files:** Modify `components/tracer/internal/adapters/http/in/handlers.go:86-88` (+ the `api.VersionResponse` model wherever it is defined), `components/reporter-manager/internal/adapters/http/in/routes.go:137`; regenerate `components/tracer/api/*` (+ specs/postman if the pipeline publishes tracer) via `make generate-docs`.
+
+**Implementation vision:** tracer: keep the exported annotated `Version` handler, body becomes `return buildinfo.VersionHandler(os.Getenv("VERSION"))(c)` or equivalent pre-built handler var; extend `api.VersionResponse` with `commit`, `buildTime`, `dirty` fields so the annotation stays truthful; run `make generate-docs` in the same commit (tracer spec contains `/version`). reporter-manager: swap `commonsHttp.Version` → `buildinfo.VersionHandler(os.Getenv("VERSION"))` at `routes.go:137` (spec-absent, no regen strictly needed but the pipeline run covers it). Both preserve `version`/`requestDate` semantics.
+
+#### Task 2.2.2: reporter-worker build info in /readyz body
+
+- [x] Done (`28cbcb19c`)
+
+**Files:** Modify `pkg/reporter/readyz` (the `NewNetHTTPHandler` response struct + population) and its tests.
+
+**Implementation vision:** Add `commit`, `buildTime`, `dirty` to the readyz response body, populated from `buildinfo.Get()` at handler construction (not per-request). Keep the existing `version` field untouched. Note: reporter-manager's readyz shares this handler — fields appear there too; additive and harmless. Extend the package's existing tests to assert the new fields.
+
+#### Task 2.2.3: builder-stage git for tracer, reporter-manager, reporter-worker Dockerfiles
+
+- [x] Done (`4f3fbc6d7`) — tracer Dockerfiles already carried `git`; only the two reporter builders changed
+
+**Files:** Modify `components/tracer/Dockerfile` (+ `Dockerfile.dev` — compose uses it), `components/reporter-manager/Dockerfile`, `components/reporter-worker/Dockerfile` builder stages.
+
+**Implementation vision:** Same one-liner as 2.1.3 (`apk add --no-cache git` in builder). tracer's production Dockerfile already has an `apk add` block (line 5) — check whether `git` is in it and append if not; same check on `Dockerfile.dev`.
+
+**Epic done when:** tracer and reporter-manager `/version` and reporter-worker `/readyz` all report the same build-info shape; tracer spec regenerated atomically; **reporter-worker gets no new `/version` endpoint** (locked decision); builds green.
 
 ---
 
@@ -164,6 +213,14 @@ Closes the high- and medium-severity bootstrap gaps. At the end of Phase 1: a pr
 **Done when:** (1) a filed lib-commons issue requests a shared cancellable shutdown context / coordinated drain ordering on the `Launcher`, with the ledger use case and the `balance_sync.worker.go:147-150` reference; (2) a written decision selects an interim in-repo coordination pattern (e.g., a single shared `signal.NotifyContext` derived once and threaded into runnables, vs. accepting independent contexts until upstream lands) with its tradeoffs; (3) the decision explicitly honors the third rail — lib-commons is mandatory, so no fork/replacement of the Launcher is proposed, only an upstream request plus an in-repo pattern that composes with the existing `Launcher`. No production worker behavior changes in this epic unless the interim pattern is explicitly approved for implementation in a follow-up.
 
 ---
+
+## Execution Notes — Phase 2 (2026-06-06)
+
+- **ldflags demoted to fallback:** Docker build context is the repo root with no root `.dockerignore` and `COPY . .` — `.git` was always inside the builder; the only missing piece was the `git` binary in golang:alpine. With it installed, `go build` stamps `vcs.*` natively, so no ARG/`-X` plumbing was added to Dockerfiles or Makefiles. The `pkg/buildinfo` ldflags vars remain as the override path for environments without VCS (e.g. the shared CI workflow, which this repo cannot edit — adopting `-X` there is a possible follow-up, not a need).
+- **Per-component `.dockerignore` files are inert** (dockerignore applies only at the context root) — tracer's `.git/` exclusion never did anything. Left untouched (out of scope), but worth a cleanup someday since it is actively misleading.
+- **`api.VersionResponse` is midaz-owned** (`components/tracer/api/types.go:16`) — extended in place; tracer spec + postman regenerated atomically with the handler change (routes+spec contract lesson from the CRM plan).
+- **Version-source nuance:** tracer and reporter-manager configs have no `VERSION` field (only `OTEL_RESOURCE_SERVICE_VERSION`); lib-commons read the `VERSION` env directly, so both adopt `buildinfo.VersionHandler(os.Getenv("VERSION"))` to preserve semantics. Ledger threads `cfg.Version` through `NewUnifiedServer`.
+- **reporter-manager `/readyz` gained the fields too** — shared `pkg/reporter/readyz` handler; additive, accepted in elaboration.
 
 ## Execution Notes — Phase 1 (2026-06-06)
 
