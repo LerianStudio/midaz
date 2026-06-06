@@ -143,6 +143,12 @@ func (s *UnifiedServer) Run(l *libCommons.Launcher) error {
 	// Create server manager with graceful shutdown.
 	// The OnListen hook (registered in NewUnifiedServer) will call SetServerReady()
 	// after the socket is bound, ensuring readyz only returns 200 when truly ready.
+	//
+	// ServerManager is the single owner of telemetry teardown and logger sync:
+	// it shuts telemetry down only AFTER the HTTP drain completes, so spans from
+	// in-flight requests are exported. A signal-fired Launcher runnable cannot
+	// provide that ordering (runnables wake concurrently on SIGTERM) — do not
+	// move ShutdownTelemetry out of this call.
 	libCommonsServer.NewServerManager(nil, s.telemetry, s.logger).
 		WithHTTPServer(s.app, s.serverAddress).
 		StartWithGracefulShutdown()

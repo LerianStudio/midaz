@@ -16,7 +16,7 @@
 
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
-| 1 | All four services flush zap on exit, reporter-manager honors `ENV_NAME`/`LOG_LEVEL`, and ledger shuts telemetry down via an explicit Launcher runnable | 1.1, 1.2, 1.3 | Detailed |
+| 1 | All four services flush zap on exit, reporter-manager honors `ENV_NAME`/`LOG_LEVEL`, and ledger telemetry-shutdown ownership is explicit and documented | 1.1, 1.2, 1.3 | ✅ Complete (commits `f2ddc8c5e`, `de8e77636`, + docs commit; 1.1 resolved as ownership documentation — see Execution Notes) |
 | 2 | Every REST service reports VCS build info on `/version`; the worker reports it in `/readyz` body — stamped via `debug.ReadBuildInfo` + ldflags, ledger first | 2.1, 2.2 | Epic-level |
 | 3 | Config/MT conventions harmonized (tracer MT-suffix naming, worker struct-tag unification) and shared cancellable shutdown context decided via a lib-commons upstream issue + interim in-repo pattern | 3.1, 3.2, 3.3 | Epic-level |
 
@@ -35,7 +35,7 @@ Closes the high- and medium-severity bootstrap gaps. At the end of Phase 1: a pr
 
 #### Task 1.1.1: Add a telemetry-shutdown runnable to the ledger Launcher
 
-- [ ] Done
+- [x] Done — **resolved as ownership documentation, runnable rejected** (owner decision 2026-06-06; see Execution Notes)
 
 **Context:** Ledger's drain today is implicit. `Service.Run()` (`components/ledger/internal/bootstrap/service.go:49-103`) assembles `launcherOpts` from `libCommons.RunApp(...)` entries and calls `libCommons.NewLauncher(launcherOpts...).Run()`. The only telemetry teardown is inside `UnifiedServer.Run()` → `libCommonsServer.NewServerManager(nil, s.telemetry, s.logger)` (`unified-server.go:146`), which owns the HTTP drain and is the implicit path the evaluation flags as "ABSENT explicit ShutdownTelemetry". The telemetry handle lives on `UnifiedServer.telemetry` (`unified-server.go:35,133`), type `*libOpentelemetry.Telemetry` (`unified-server.go:17`). reporter-manager calls `telemetry.ShutdownTelemetry()` in its cleanup (`reporter-manager/internal/bootstrap/init_helpers.go:102-105`); reporter-worker calls it last in `Service.Run()` (`reporter-worker/internal/bootstrap/service.go:151-156`). This file already contains the adapter pattern to copy: `streamingProducerRunnable` (`unified-server.go`/`service.go:105-136`) and `eventListenerRunnable` (`service.go:138-149`) both wrap a teardown hook into a `libCommons.App` that blocks on `signal.NotifyContext(..., os.Interrupt, syscall.SIGTERM)` then runs the hook.
 
@@ -61,7 +61,7 @@ Closes the high- and medium-severity bootstrap gaps. At the end of Phase 1: a pr
 
 #### Task 1.2.1: Wire EnvName and LogLevel into the reporter-manager logger
 
-- [ ] Done
+- [x] Done (`f2ddc8c5e`)
 
 **Context:** `initConfigAndLogger` (`components/reporter-manager/internal/bootstrap/init_helpers.go:60-79`) hardcodes the logger: `zap.New(zap.Config{Environment: zap.EnvironmentLocal, OTelLibraryName: "reporter"})` (`init_helpers.go:70-73`). It never reads `cfg.EnvName` (`reporter-manager/internal/bootstrap/config.go:34`) or `cfg.LogLevel` (`config.go:36`), so a production reporter-manager emits the dev/local console encoder and silently ignores `LOG_LEVEL`. reporter-worker already solves this exactly: `loadConfigAndLogger` (`reporter-worker/internal/bootstrap/config_logger.go:33-43`) passes `Environment: resolveZapEnvironment(cfg.EnvName)`, `Level: cfg.LogLevel`, `OTelLibraryName: cfg.OtelLibraryName`, with the `resolveZapEnvironment` switch at `config_logger.go:45-58` mapping `production/prod`, `staging`, `uat`, `development/dev`, default→`EnvironmentLocal`. The two packages are siblings under `pkg/reporter` but the helper lives in the worker's `bootstrap` package, not a shared location.
 
@@ -87,7 +87,7 @@ Closes the high- and medium-severity bootstrap gaps. At the end of Phase 1: a pr
 
 #### Task 1.3.1: Flush zap on exit in reporter-manager and reporter-worker Service.Run
 
-- [ ] Done
+- [x] Done (`de8e77636`)
 
 **Context:** Ledger flushes via `defer`-style explicit calls in main: `_ = logger.Sync(context.Background())` at `cmd/app/main.go:68` (error path) and `:75` (normal exit). The reporter services own their logger inside bootstrap, not main — reporter-manager's `main` calls `bootstrap.InitServers()` then `svc.Run()` with no logger handle in scope; reporter-worker's `main` (`cmd/app/main.go:16-29`) calls `bootstrap.InitWorker()` then `svc.Run()`, also no logger handle. Both `Service` structs embed `log.Logger`: reporter-manager `Service` embeds it (`reporter-manager/internal/bootstrap/service.go:20-22`) and reporter-worker `Service` embeds it (`reporter-worker/internal/bootstrap/service.go:23-25`). reporter-manager `Service.Run()` ends at `service.go:74` (`app.Info("Graceful shutdown complete")`); reporter-worker `Service.Run()` ends at `service.go:158`, AFTER it flushes telemetry at `service.go:151-156`. The correct flush slot is the very last line of each `Service.Run()`, after telemetry shutdown — Sync must be last so it captures the shutdown log lines themselves.
 
@@ -103,7 +103,7 @@ Closes the high- and medium-severity bootstrap gaps. At the end of Phase 1: a pr
 
 #### Task 1.3.2: Flush zap on exit in tracer
 
-- [ ] Done
+- [x] Done (`de8e77636`)
 
 **Context:** The tracer has zero `Sync` calls anywhere in `components/tracer` (confirmed: only `libZap.New` at `config.go:1460`, no `.Sync(`). The logger is created inside `initCoreInfra` (`tracer/internal/bootstrap/config.go:1453-1469`, `var logger libLog.Logger = zapLogger` at `config.go:1469`) and threaded into the Service via `InitServers(ctx)`. tracer's `main.run()` (`cmd/app/main.go:48-65`) calls `bootstrap.InitServers(ctx)` then `service.Run()` and has NO logger handle in scope — unlike ledger, tracer's main cannot flush. The Service returned by `InitServers` must expose the logger or perform the Sync inside its own `Run()`. Tracer's `Service`/`Run()` lives in `tracer/internal/bootstrap/service.go` (per the component CLAUDE.md, `service.go` holds the `Service` struct with `Run()`/`Shutdown()`).
 
@@ -162,6 +162,17 @@ Closes the high- and medium-severity bootstrap gaps. At the end of Phase 1: a pr
 **Scope:** Analysis across `components/ledger/internal/bootstrap/` worker runnables; an upstream lib-commons issue; a written decision on an interim in-repo coordination pattern.
 **Dependencies:** Phase 1 (ledger bootstrap stabilized, including the new telemetry-shutdown runnable from Epic 1.1, which shares the same signal-handling shape).
 **Done when:** (1) a filed lib-commons issue requests a shared cancellable shutdown context / coordinated drain ordering on the `Launcher`, with the ledger use case and the `balance_sync.worker.go:147-150` reference; (2) a written decision selects an interim in-repo coordination pattern (e.g., a single shared `signal.NotifyContext` derived once and threaded into runnables, vs. accepting independent contexts until upstream lands) with its tradeoffs; (3) the decision explicitly honors the third rail — lib-commons is mandatory, so no fork/replacement of the Launcher is proposed, only an upstream request plus an in-repo pattern that composes with the existing `Launcher`. No production worker behavior changes in this epic unless the interim pattern is explicitly approved for implementation in a follow-up.
+
+---
+
+## Execution Notes — Phase 1 (2026-06-06)
+
+- **Epic 1.1 reshaped (owner decision):** ground truth refuted the plan's premise. lib-commons `ServerManager` v5.4.1 (`commons/server/shutdown.go:619`) already calls `ShutdownTelemetry()` — and `logger.Sync()` — **after** the HTTP drain, precisely so final-request spans export. The plan's yes-branch (pass `nil` to `NewServerManager`, signal-fired runnable owns shutdown) would have flushed telemetry concurrently with the drain: Launcher runnables wake on SIGTERM with no drain-ordering guarantee (the exact Epic 3.3 limitation), so the runnable was a span-fidelity regression, not an auditability win. Resolution: `ServerManager` stays the single owner; ownership documented at `components/ledger/internal/bootstrap/unified-server.go:146` with a do-not-move warning. The real fix for drain ordering is Epic 3.3's upstream lib-commons issue.
+- **Plan refs that drifted before execution:** reporter-manager has NO `RunApp("Shutdown Telemetry", ...)` registration (the plan cited `init_helpers.go:104`) — its telemetry shutdown is a `cleanup` closure invoked at the end of `Service.Run()`. Tracer `initCoreInfra` is at `config.go:1509-1524`, not `1453-1469`.
+- **Found, flagged, NOT fixed (out of plan scope):** reporter-manager double-shuts telemetry — `ServerManager` (post-drain) and the `cleanup()` closure both call `ShutdownTelemetry()`. Idempotent, so harmless today, but it violates "ownership, not idempotency"; candidate for Phase 3 cleanup.
+- **OTelLibraryName decision (Task 1.2.1):** used `cfg.OtelLibraryName`, not the `"reporter"` literal — `.env`/`.env.example` ship a non-empty `OTEL_LIBRARY_NAME`, and every other telemetry surface in the process (initTelemetry, tracer, meters) already reads the cfg field; keeping the literal would diverge the logger from them.
+- **Sync call form:** `app.Sync(...)` not `app.Logger.Sync(...)` — staticcheck QF1008 flags the explicit embedded-field selector; behavior-identical.
+- **Pre-existing-failure note:** the 3 reporter-worker `config_mt_test.go` failures recorded in earlier session memory no longer reproduce on this branch — already resolved upstream. Tracer carries 2 pre-existing `gocyclo` findings in untouched functions (`config.go:1617`, `config_multitenant_wiring.go:83`).
 
 ---
 
