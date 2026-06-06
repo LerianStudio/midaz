@@ -16,6 +16,9 @@ type ErrorResponse struct {
 type VersionResponse struct {
 	Version     string `json:"version" example:"1.0.0"`
 	RequestDate string `json:"requestDate" example:"2025-01-01T00:00:00Z"`
+	Commit      string `json:"commit" example:"a1b2c3d"`
+	BuildTime   string `json:"buildTime" example:"2025-01-01T00:00:00Z"`
+	Dirty       bool   `json:"dirty" example:"false"`
 }
 
 // ReadyzResponse is the canonical readiness probe response per the Lerian

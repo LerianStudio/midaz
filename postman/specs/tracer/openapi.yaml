@@ -1805,7 +1805,7 @@ paths:
       - validations
   /version:
     get:
-      description: Returns the current version of the service
+      description: Returns the current version of the service plus build provenance
       operationId: getVersion
       responses:
         "200":
@@ -1899,9 +1899,21 @@ components:
       type: object
     api.VersionResponse:
       example:
+        dirty: false
+        buildTime: 2025-01-01T00:00:00Z
+        commit: a1b2c3d
         requestDate: 2025-01-01T00:00:00Z
         version: 1.0.0
       properties:
+        buildTime:
+          example: 2025-01-01T00:00:00Z
+          type: string
+        commit:
+          example: a1b2c3d
+          type: string
+        dirty:
+          example: false
+          type: boolean
         requestDate:
           example: 2025-01-01T00:00:00Z
           type: string

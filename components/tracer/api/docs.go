@@ -2286,7 +2286,7 @@ const docTemplate = `{
         },
         "/version": {
             "get": {
-                "description": "Returns the current version of the service",
+                "description": "Returns the current version of the service plus build provenance",
                 "consumes": [
                     "application/json"
                 ],
@@ -2393,6 +2393,18 @@ const docTemplate = `{
         "api.VersionResponse": {
             "type": "object",
             "properties": {
+                "buildTime": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "commit": {
+                    "type": "string",
+                    "example": "a1b2c3d"
+                },
+                "dirty": {
+                    "type": "boolean",
+                    "example": false
+                },
                 "requestDate": {
                     "type": "string",
                     "example": "2025-01-01T00:00:00Z"

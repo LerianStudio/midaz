@@ -60,6 +60,15 @@ definitions:
     type: object
   api.VersionResponse:
     properties:
+      buildTime:
+        example: "2025-01-01T00:00:00Z"
+        type: string
+      commit:
+        example: a1b2c3d
+        type: string
+      dirty:
+        example: false
+        type: boolean
       requestDate:
         example: "2025-01-01T00:00:00Z"
         type: string
@@ -2424,7 +2433,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: Returns the current version of the service
+      description: Returns the current version of the service plus build provenance
       operationId: getVersion
       produces:
       - application/json

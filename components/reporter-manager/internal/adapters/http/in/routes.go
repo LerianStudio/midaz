@@ -8,7 +8,9 @@ import (
 	"context"
 	"errors"
 	nethttp "net/http"
+	"os"
 
+	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/deadline"
@@ -18,7 +20,6 @@ import (
 	midazHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	middlewareAuth "github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability"
 	"github.com/LerianStudio/lib-observability/log"
 	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
@@ -133,8 +134,10 @@ func NewRoutes(lg log.Logger, tl *opentelemetry.Telemetry, templateHandler *Temp
 	// path is exactly /readyz.
 	f.Get("/readyz", NewManagerReadyzHandler(deps))
 
-	// Version
-	f.Get("/version", commonsHttp.Version)
+	// Version. buildinfo.VersionHandler preserves the lib-commons Version
+	// source semantics (VERSION env read directly) and adds the build
+	// provenance fields (commit/buildTime/dirty) to the wire shape.
+	f.Get("/version", buildinfo.VersionHandler(os.Getenv("VERSION")))
 
 	f.Use(tlMid.EndTracingSpans)
 

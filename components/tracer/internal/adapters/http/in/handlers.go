@@ -5,7 +5,10 @@
 package in
 
 import (
+	"os"
+
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -73,10 +76,15 @@ func (h *HealthChecker) LivenessHandler() fiber.Handler {
 	}
 }
 
+// versionHandler is built once from the VERSION env var, preserving the
+// lib-commons Version source semantics (it read VERSION directly), and adds
+// the buildinfo provenance fields (commit/buildTime/dirty) to the wire shape.
+var versionHandler = buildinfo.VersionHandler(os.Getenv("VERSION"))
+
 // Version godoc
 //
 //	@Summary		Get service version
-//	@Description	Returns the current version of the service
+//	@Description	Returns the current version of the service plus build provenance
 //	@ID				getVersion
 //	@Tags			info
 //	@Accept			json
@@ -84,5 +92,5 @@ func (h *HealthChecker) LivenessHandler() fiber.Handler {
 //	@Success		200	{object}	api.VersionResponse	"Version information"
 //	@Router			/version [get]
 func Version(c *fiber.Ctx) error {
-	return libHTTP.Version(c)
+	return versionHandler(c)
 }
