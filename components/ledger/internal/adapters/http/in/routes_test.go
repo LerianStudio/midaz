@@ -5,92 +5,14 @@
 package in
 
 import (
-	"net/http/httptest"
 	"testing"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestNewRouter_ReturnsAppWithExpectedRoutes(t *testing.T) {
-	t.Parallel()
-
-	logger := &libLog.GoLogger{}
-	telemetry := &libOpentelemetry.Telemetry{}
-	auth := &middleware.AuthClient{Enabled: false}
-	handler := &MetadataIndexHandler{}
-
-	app := NewRouter(logger, telemetry, auth, handler)
-	require.NotNil(t, app)
-
-	routes := app.GetRoutes()
-
-	routeSet := make(map[string]bool)
-	for _, r := range routes {
-		routeSet[r.Method+":"+r.Path] = true
-	}
-
-	assert.True(t, routeSet["POST:/v1/settings/metadata-indexes/entities/:entity_name"], "should register POST metadata-indexes create")
-	assert.True(t, routeSet["GET:/v1/settings/metadata-indexes"], "should register GET metadata-indexes list")
-	assert.True(t, routeSet["DELETE:/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key"], "should register DELETE metadata-indexes")
-	assert.True(t, routeSet["GET:/health"], "should register health endpoint")
-	assert.True(t, routeSet["GET:/version"], "should register version endpoint")
-}
-
-func TestNewRouter_HealthEndpointReturns200(t *testing.T) {
-	t.Parallel()
-
-	logger := &libLog.GoLogger{}
-	telemetry := &libOpentelemetry.Telemetry{}
-	auth := &middleware.AuthClient{Enabled: false}
-	handler := &MetadataIndexHandler{}
-
-	app := NewRouter(logger, telemetry, auth, handler)
-
-	req := httptest.NewRequest(fiber.MethodGet, "/health", nil)
-	resp, err := app.Test(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
-}
-
-func TestNewRouter_ServesSwaggerUIAssets(t *testing.T) {
-	t.Parallel()
-
-	logger := &libLog.GoLogger{}
-	telemetry := &libOpentelemetry.Telemetry{}
-	auth := &middleware.AuthClient{Enabled: false}
-	handler := &MetadataIndexHandler{}
-
-	app := NewRouter(logger, telemetry, auth, handler)
-
-	for _, path := range []string{
-		"/swagger/index.html",
-		"/swagger/doc.json",
-		"/swagger/swagger-ui.css",
-		"/swagger/swagger-ui-bundle.js",
-		"/swagger/swagger-ui-standalone-preset.js",
-	} {
-		path := path
-
-		t.Run(path, func(t *testing.T) {
-			t.Parallel()
-
-			req := httptest.NewRequest(fiber.MethodGet, path, nil)
-			resp, err := app.Test(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			assert.Equal(t, fiber.StatusOK, resp.StatusCode)
-		})
-	}
-}
 
 func TestRegisterRoutesToApp_RegistersRoutes(t *testing.T) {
 	t.Parallel()

@@ -23,7 +23,7 @@ import (
 const specPath = "../../../../api/swagger.json"
 
 // excludedPaths is the LOCKED set of public infra routes registered outside the
-// authz'd API surface. They are mounted by the unified server (or NewRouter) but
+// authz'd API surface. They are mounted by the unified server but
 // are intentionally absent from the OpenAPI contract, so the diff gate drops them
 // from the mounted side before comparison. The list is a const so it cannot grow
 // silently: adding a route here is a reviewed, deliberate carve-out, never a

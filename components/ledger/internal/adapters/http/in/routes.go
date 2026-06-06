@@ -6,11 +6,6 @@ package in
 
 import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	_ "github.com/LerianStudio/midaz/v4/components/ledger/api"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
@@ -18,8 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
 const (
@@ -29,42 +22,6 @@ const (
 
 // SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB).
 const SettingsMaxPayloadSize = 64 * 1024
-
-// NewRouter registers routes for the ledger component HTTP server.
-func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, mdi *MetadataIndexHandler) *fiber.App {
-	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.FiberErrorHandler(ctx, err)
-		},
-	})
-
-	tlMid := libObsMiddleware.NewTelemetryMiddleware(tl)
-
-	f.Use(tlMid.WithTelemetry(tl))
-	f.Use(cors.New())
-	f.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(lg)))
-	// Register metadata index routes
-	RegisterMetadataRoutesToApp(f, auth, mdi, nil)
-
-	// Health
-	f.Get("/health", libHTTP.Ping)
-
-	// Version
-	f.Get("/version", libHTTP.Version)
-
-	// Doc
-	f.Get("/swagger", func(c *fiber.Ctx) error {
-		return c.Redirect("/swagger/index.html", fiber.StatusMovedPermanently)
-	})
-	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
-		fiberSwagger.InstanceName("swagger"),
-	))
-
-	f.Use(tlMid.EndTracingSpans)
-
-	return f
-}
 
 // RegisterMetadataRoutesToApp registers ledger routes (metadata indexes) to an existing Fiber app.
 // This is used by the unified ledger server to consolidate all routes in a single port.
