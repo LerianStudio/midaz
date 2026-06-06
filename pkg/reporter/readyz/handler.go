@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -34,6 +35,10 @@ const drainReason = "service is draining; refusing new traffic"
 //     nil receiver, which is convenient for tests and partial-bootstrap
 //     code paths. Production callers MUST pass a non-nil Metrics.
 func NewHandler(checkers []Checker, drainState *DrainState, version, deploymentMode string, metrics *Metrics) fiber.Handler {
+	// Capture build provenance once at construction; it never changes for the
+	// lifetime of the process.
+	info := buildinfo.Get()
+
 	return func(c *fiber.Ctx) error {
 		if drainState != nil && drainState.IsDraining() {
 			return c.Status(fiber.StatusServiceUnavailable).JSON(Response{
@@ -47,6 +52,9 @@ func NewHandler(checkers []Checker, drainState *DrainState, version, deploymentM
 				Checks:         map[string]DependencyCheck{},
 				Version:        version,
 				DeploymentMode: deploymentMode,
+				Commit:         info.Commit,
+				BuildTime:      info.BuildTime,
+				Dirty:          info.Dirty,
 			})
 		}
 
@@ -60,6 +68,9 @@ func NewHandler(checkers []Checker, drainState *DrainState, version, deploymentM
 			Checks:         results,
 			Version:        version,
 			DeploymentMode: deploymentMode,
+			Commit:         info.Commit,
+			BuildTime:      info.BuildTime,
+			Dirty:          info.Dirty,
 		})
 	}
 }

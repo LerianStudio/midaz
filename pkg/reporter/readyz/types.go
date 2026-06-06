@@ -134,6 +134,14 @@ type Response struct {
 
 	// DeploymentMode echoes the DEPLOYMENT_MODE env var: saas | byoc | local.
 	DeploymentMode string `json:"deployment_mode"`
+
+	// Commit, BuildTime and Dirty carry the build provenance of the running
+	// binary, sourced from buildinfo.Get() at handler construction time. They
+	// mirror the VersionHandler wire keys so /readyz and /version expose the
+	// same provenance shape.
+	Commit    string `json:"commit"`
+	BuildTime string `json:"buildTime"`
+	Dirty     bool   `json:"dirty"`
 }
 
 // Checker is the per-dependency probe interface. Implementations live in

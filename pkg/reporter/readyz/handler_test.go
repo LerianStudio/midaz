@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,6 +46,56 @@ func (s *stubChecker) Check(ctx context.Context) DependencyCheck {
 	}
 
 	return s.result
+}
+
+// ----------------------------------------------------------------------------
+// Build provenance fields (Epic 2.2)
+// ----------------------------------------------------------------------------
+
+// TestFiberHandler_IncludesBuildInfo asserts the /readyz body carries the
+// build provenance fields (commit/buildTime/dirty) sourced from buildinfo.Get()
+// at handler construction time. JSON keys must match the VersionHandler wire
+// contract exactly.
+func TestFiberHandler_IncludesBuildInfo(t *testing.T) {
+	t.Parallel()
+
+	info := buildinfo.Get()
+
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	app.Get("/readyz", NewHandler(nil, &DrainState{}, "1.2.3", "saas", nil))
+
+	resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
+	var got map[string]any
+
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
+
+	assert.Equal(t, info.Commit, got["commit"])
+	assert.Equal(t, info.BuildTime, got["buildTime"])
+	assert.Equal(t, info.Dirty, got["dirty"])
+}
+
+// TestNetHTTPHandler_IncludesBuildInfo is the net/http counterpart, asserting
+// the same provenance fields appear in the Worker's /readyz body.
+func TestNetHTTPHandler_IncludesBuildInfo(t *testing.T) {
+	t.Parallel()
+
+	info := buildinfo.Get()
+
+	h := NewNetHTTPHandler(nil, &DrainState{}, "1.2.3", "saas", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+
+	var got map[string]any
+
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+
+	assert.Equal(t, info.Commit, got["commit"])
+	assert.Equal(t, info.BuildTime, got["buildTime"])
+	assert.Equal(t, info.Dirty, got["dirty"])
 }
 
 // ----------------------------------------------------------------------------

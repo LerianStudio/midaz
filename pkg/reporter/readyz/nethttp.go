@@ -7,6 +7,8 @@ package readyz
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
 )
 
 // NewNetHTTPHandler returns a net/http handler that implements the canonical
@@ -21,6 +23,10 @@ import (
 // See NewHandler for documentation on the draining short-circuit, the
 // no-caching guarantee, and the nil-metrics tolerance.
 func NewNetHTTPHandler(checkers []Checker, drainState *DrainState, version, deploymentMode string, metrics *Metrics) http.HandlerFunc {
+	// Capture build provenance once at construction; it never changes for the
+	// lifetime of the process.
+	info := buildinfo.Get()
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
@@ -35,6 +41,9 @@ func NewNetHTTPHandler(checkers []Checker, drainState *DrainState, version, depl
 				Checks:         map[string]DependencyCheck{},
 				Version:        version,
 				DeploymentMode: deploymentMode,
+				Commit:         info.Commit,
+				BuildTime:      info.BuildTime,
+				Dirty:          info.Dirty,
 			})
 
 			return
@@ -50,6 +59,9 @@ func NewNetHTTPHandler(checkers []Checker, drainState *DrainState, version, depl
 			Checks:         results,
 			Version:        version,
 			DeploymentMode: deploymentMode,
+			Commit:         info.Commit,
+			BuildTime:      info.BuildTime,
+			Dirty:          info.Dirty,
 		})
 	}
 }
