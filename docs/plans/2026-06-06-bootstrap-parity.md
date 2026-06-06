@@ -18,7 +18,7 @@
 |-------|-----------|-------|--------|
 | 1 | All four services flush zap on exit, reporter-manager honors `ENV_NAME`/`LOG_LEVEL`, and ledger telemetry-shutdown ownership is explicit and documented | 1.1, 1.2, 1.3 | ✅ Complete (commits `f2ddc8c5e`, `de8e77636`, + docs commit; 1.1 resolved as ownership documentation — see Execution Notes) |
 | 2 | Every REST service reports VCS build info on `/version`; the worker reports it in `/readyz` body — stamped via `debug.ReadBuildInfo` + ldflags, ledger first | 2.1, 2.2 | ✅ Complete (commits `8e9c6efa5`, `523e23fa2`, `28cbcb19c`, `4f3fbc6d7`) |
-| 3 | Config/MT conventions harmonized (tracer MT-suffix naming, worker struct-tag unification) and shared cancellable shutdown context decided via a lib-commons upstream issue + interim in-repo pattern | 3.1, 3.2, 3.3 | Epic-level |
+| 3 | Config/MT conventions harmonized (tracer MT-suffix naming, worker struct-tag unification) and shared cancellable shutdown context decided via a lib-commons upstream issue + interim in-repo pattern | 3.1, 3.2, 3.3 | ✅ 3.1 (`0766394ee`) + 3.2 (`eb382e1bf`) complete; 3.3 decision written, issue filing pending owner approval |
 
 ---
 
@@ -193,17 +193,29 @@ Closes the high- and medium-severity bootstrap gaps. At the end of Phase 1: a pr
 
 ### Epic 3.1: Tracer multi-tenant naming → MT-suffix convention
 
-**Goal:** Tracer's multi-tenant wiring uses the `MT`-suffix naming mandated by the root CLAUDE.md (`NewFooMT`, `runFooMT`, `mtEnabled`, `isMTReady`) instead of the current `multiTenant`/`mt` prefixes.
-**Scope:** `components/tracer/internal/bootstrap/config_multitenant_wiring.go:31-36` and call sites within tracer bootstrap.
-**Dependencies:** none.
-**Done when:** tracer MT identifiers follow the `MT`-suffix convention; no prefix-style `multiTenant`/`mt` names remain in tracer bootstrap; build and existing tracer tests are green. Pure rename — no behavior change.
+**Goal:** Tracer's multi-tenant wiring uses the `MT`-suffix naming mandated by the root CLAUDE.md (`NewFooMT`, `runFooMT`, `mtEnabled`, `isMTReady`) instead of the current spelled-out `multiTenant` prefixes.
+**Ground truth (verified 2026-06-06):** prefix-style identifiers live in `config_multitenant_wiring.go` (types `multiTenantComponents`, `multiTenantWiringDeps`, func `buildMultiTenantComponents`) and `config.go` (~lines 928-945, 1373-1387, 1771-1814, 1937-1943: locals/params typed on those names, plus `mtC`/`mtM` short locals). **Scoping decisions:** (1) exported Config fields (`MultiTenantEnabled` etc.) are NOT renamed — they mirror env var names and are the cross-component config convention; the CLAUDE.md mandate targets wiring/helper identifiers. (2) Short `mt`-prefixed locals (`mtC`, `mtM`) are sanctioned by the CLAUDE.md examples themselves (`mtEnabled`, `isMTReady`) — keep them. (3) The filename `config_multitenant_wiring.go` stays (snake_case file naming, not an identifier).
+
+#### Task 3.1.1: Rename spelled-out multiTenant wiring identifiers to MT-suffix
+
+- [x] Done (`0766394ee`) — residue noted: `multiTenantEnabled`/`multiTenantTestRouter` identifiers in tracer adapters (`internal/adapters/postgres/db/adapter.go`, `http/in/*`) are OUTSIDE the epic's bootstrap scope; tree-wide tracer sweep is a possible follow-up
+
+**Files:** Modify `components/tracer/internal/bootstrap/config_multitenant_wiring.go`, `components/tracer/internal/bootstrap/config.go`, and any test files referencing the renamed identifiers.
+
+**Implementation vision:** Pure mechanical rename (gopls/gofmt-safe): `multiTenantComponents` → `componentsMT`, `multiTenantWiringDeps` → `wiringDepsMT`, `buildMultiTenantComponents` → `buildComponentsMT`; inventory any further `multiTenant*`-prefixed unexported identifiers in tracer bootstrap and apply the same suffix transform. No signature, behavior, or comment-meaning changes beyond the names. The pre-existing `gocyclo` finding on `buildMultiTenantComponents` follows the rename (still nolint-free, still pre-existing).
 
 ### Epic 3.2: reporter-worker env struct-tag unification
 
-**Goal:** reporter-worker Config uses a single env-default struct tag style. The reconciler fields use `envDefault` (`reporter-worker/internal/bootstrap/config.go:97-99`) while the rest use `default` (`config.go:101-117`); both are honored but the mix is drift.
-**Scope:** `components/reporter-worker/internal/bootstrap/config.go:97-117`.
-**Dependencies:** none.
-**Done when:** all Config fields use one tag style (the one matching `libCommons.SetConfigFromEnvVars`' documented/canonical tag — confirm which of `default`/`envDefault` lib-commons actually reads before changing); a test or a boot-with-defaults check confirms every defaulted field still resolves to the same value it did before. No behavior change.
+**Goal:** reporter-worker Config uses a single env-default struct tag style.
+**Ground truth (verified 2026-06-06) — premise correction:** lib-commons `SetConfigFromEnvVars` (v5.4.1 `commons/os.go:175`) reads ONLY the `env` tag — NEITHER `default:` nor `envDefault:` is honored at runtime (strings come from raw `os.Getenv`). The plan's "both are honored" was wrong. However, `default:` is the repo-wide documentation convention (~34 in reporter-manager, ~33 in worker, also ledger) and the `config_mt_test.go` files in both reporter services LOCK the `default:` tag values via reflection assertions — the tags are test-locked documentation. The 3 `envDefault:` fields (`config.go:97-99`, caarlos0/env syntax copied from elsewhere) are the only drift.
+
+#### Task 3.2.1: Convert the 3 envDefault tags to default
+
+- [x] Done (`eb382e1bf`) — scope extended by one line: ledger `config.go:59` carried the same dead `envDefault:` tag (`ServerAddress`), converted in the same commit; repo now has zero `envDefault:` struct tags
+
+**Files:** Modify `components/reporter-worker/internal/bootstrap/config.go:97-99` (`ReconciliationIntervalMin`, `M2MCredentialCacheTTLSec`, `M2MTokenCacheMarginSec`: `envDefault:"…"` → `default:"…"`, same values).
+
+**Implementation vision:** Three-token change, zero behavior (neither tag style is runtime-read). Aligns with the repo-wide test-locked `default:` convention. **Flagged, NOT fixed (out of scope — would be a behavior change):** the repo-wide `default:` tags never apply at runtime; consumers either receive zero values or are covered by `.env` files / downstream clamps. Candidate upstream enhancement: `SetConfigFromEnvVars` honoring `default:`; candidate in-repo follow-up: an audit of which zero-valued configs are actually harmful.
 
 ### Epic 3.3: INVESTIGATION — shared cancellable shutdown context across ledger workers
 
@@ -211,6 +223,20 @@ Closes the high- and medium-severity bootstrap gaps. At the end of Phase 1: a pr
 **Scope:** Analysis across `components/ledger/internal/bootstrap/` worker runnables; an upstream lib-commons issue; a written decision on an interim in-repo coordination pattern.
 **Dependencies:** Phase 1 (ledger bootstrap stabilized, including the new telemetry-shutdown runnable from Epic 1.1, which shares the same signal-handling shape).
 **Done when:** (1) a filed lib-commons issue requests a shared cancellable shutdown context / coordinated drain ordering on the `Launcher`, with the ledger use case and the `balance_sync.worker.go:147-150` reference; (2) a written decision selects an interim in-repo coordination pattern (e.g., a single shared `signal.NotifyContext` derived once and threaded into runnables, vs. accepting independent contexts until upstream lands) with its tradeoffs; (3) the decision explicitly honors the third rail — lib-commons is mandatory, so no fork/replacement of the Launcher is proposed, only an upstream request plus an in-repo pattern that composes with the existing `Launcher`. No production worker behavior changes in this epic unless the interim pattern is explicitly approved for implementation in a follow-up.
+
+#### Decision (2026-06-06): interim pattern = accept independent per-runnable signal contexts (status quo)
+
+- [x] Decision written; issue filing pending owner approval of the draft text
+
+**Inventory:** 10 independent `signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)` sites in ledger bootstrap alone (`balance_sync.worker.go:162,206,657`, `circuitbreaker.go:214`, `rabbitmq.multitenant.go:36`, `service.go:123,151`, `redis.consumer.go:100,140`), plus the same shape in the other services' runnables.
+
+**Decision: do NOT build an in-repo coordination layer now.** Rationale:
+
+1. Every runnable wakes on the same OS signal; the gap only matters where teardown ORDER between runnables is load-bearing. The one ordering-critical chain (HTTP drain → telemetry flush → logger sync) is already owned and correctly sequenced inside lib-commons `ServerManager` (Phase 1 / Epic 1.1 finding). No current midaz worker pair has a correctness-relevant teardown order between them — each drains its own in-flight work independently.
+2. A shared `NotifyContext` threaded into runnables would touch 10+ sites, deliver no functional change today, and would be unwound when the upstream capability lands — plumbing churn for zero behavior. YAGNI.
+3. Third rail honored: lib-commons stays the lifecycle owner; the capability is requested upstream on the `Launcher` itself (shared cancellable context + optional drain phases), not reimplemented beside it.
+
+**Trigger to revisit:** the moment any worker pair acquires an ordering-sensitive teardown (e.g. a producer that must stop before a flusher), implement the interim shared-context pattern for THAT pair only, as a stopgap until the upstream Launcher API exists.
 
 ---
 
