@@ -949,6 +949,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	unifiedServer := NewUnifiedServer(
 		cfg.ServerAddress,
+		cfg.Version,
 		logger,
 		telemetry,
 		readyzHandler,

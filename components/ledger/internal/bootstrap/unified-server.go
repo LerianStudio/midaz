@@ -16,6 +16,7 @@ import (
 	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	_ "github.com/LerianStudio/midaz/v4/components/ledger/api"
+	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -40,6 +41,7 @@ type UnifiedServer struct {
 // Route registrars are responsible for attaching any module-specific middleware.
 func NewUnifiedServer(
 	serverAddress string,
+	version string,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
 	readyzHandler *ReadyzHandler,
@@ -70,7 +72,7 @@ func NewUnifiedServer(
 	app.Get("/health", libHTTP.Ping)
 
 	// Version endpoint
-	app.Get("/version", libHTTP.Version)
+	app.Get("/version", buildinfo.VersionHandler(version))
 
 	// Readyz endpoint - mounted BEFORE auth middleware (before route registrars)
 	// This endpoint is public and does not require authentication.
