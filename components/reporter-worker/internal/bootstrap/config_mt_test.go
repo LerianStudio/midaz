@@ -54,6 +54,7 @@ func TestWorkerConfig_MultiTenant_ValidWhenEnabledWithURL(t *testing.T) {
 	cfg.MultiTenantCircuitBreakerThreshold = 5
 	cfg.MultiTenantCircuitBreakerTimeoutSec = 30
 	cfg.RedisHost = "redis:6379" // Required for multi-tenant mode
+	cfg.MultiTenantServiceAPIKey = "test-service-api-key"
 
 	assert.NoError(t, cfg.Validate(),
 		"Validate() must pass when MultiTenantEnabled=true and MultiTenantURL is set")
@@ -68,6 +69,7 @@ func TestWorkerConfig_MultiTenant_DoesNotRequireStaticMongoConfig(t *testing.T) 
 	cfg.MultiTenantCircuitBreakerThreshold = 5
 	cfg.MultiTenantCircuitBreakerTimeoutSec = 30
 	cfg.RedisHost = "redis:6379"
+	cfg.MultiTenantServiceAPIKey = "test-service-api-key"
 	cfg.MongoDBHost = ""
 	cfg.MongoDBName = ""
 
@@ -261,6 +263,7 @@ func TestWorkerConfig_MultiTenant_ValidWhenRedisConfigured(t *testing.T) {
 	cfg.MultiTenantCircuitBreakerThreshold = 5
 	cfg.MultiTenantCircuitBreakerTimeoutSec = 30
 	cfg.RedisHost = "redis:6379"
+	cfg.MultiTenantServiceAPIKey = "test-service-api-key"
 	cfg.RedisDB = 0
 	cfg.RedisProtocol = 3
 
