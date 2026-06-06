@@ -46,6 +46,7 @@ func FuzzBlocksConfig_MalformedRequest(f *testing.F) {
 	f.Add("?"+strings.Repeat("x", 8192), "application/json", "GET")
 
 	env := h.LoadEnvironment()
+	client := h.NewRawHTTPClient(env.HTTPTimeout)
 	h.RequireReachable(f, env.ManagerURL)
 	ctx := context.Background()
 
@@ -83,7 +84,6 @@ func FuzzBlocksConfig_MalformedRequest(f *testing.F) {
 			req.Header.Set("Content-Type", contentType)
 		}
 
-		client := &http.Client{Timeout: env.HTTPTimeout}
 		resp, err := client.Do(req)
 		if err != nil {
 			// Connection errors are acceptable during fuzzing
@@ -129,6 +129,7 @@ func FuzzFiltersConfig_MalformedRequest(f *testing.F) {
 	f.Add("?page=999999999&size=999999999", "application/json", "GET")
 
 	env := h.LoadEnvironment()
+	client := h.NewRawHTTPClient(env.HTTPTimeout)
 	h.RequireReachable(f, env.ManagerURL)
 	ctx := context.Background()
 
@@ -164,7 +165,6 @@ func FuzzFiltersConfig_MalformedRequest(f *testing.F) {
 			req.Header.Set("Content-Type", contentType)
 		}
 
-		client := &http.Client{Timeout: env.HTTPTimeout}
 		resp, err := client.Do(req)
 		if err != nil {
 			return
@@ -210,6 +210,7 @@ func FuzzBlocksConfig_MalformedBody(f *testing.F) {
 	f.Add(`""`)
 
 	env := h.LoadEnvironment()
+	client := h.NewRawHTTPClient(env.HTTPTimeout)
 	h.RequireReachable(f, env.ManagerURL)
 	ctx := context.Background()
 
@@ -228,7 +229,6 @@ func FuzzBlocksConfig_MalformedBody(f *testing.F) {
 		req.Header.Set("Authorization", "Bearer test")
 		req.Header.Set("Content-Type", "application/json")
 
-		client := &http.Client{Timeout: env.HTTPTimeout}
 		resp, err := client.Do(req)
 		if err != nil {
 			return
@@ -280,6 +280,7 @@ func FuzzFiltersConfig_MalformedBody(f *testing.F) {
 	f.Add(`[1,2,3]`)
 
 	env := h.LoadEnvironment()
+	client := h.NewRawHTTPClient(env.HTTPTimeout)
 	h.RequireReachable(f, env.ManagerURL)
 	ctx := context.Background()
 
@@ -297,7 +298,6 @@ func FuzzFiltersConfig_MalformedBody(f *testing.F) {
 		req.Header.Set("Authorization", "Bearer test")
 		req.Header.Set("Content-Type", "application/json")
 
-		client := &http.Client{Timeout: env.HTTPTimeout}
 		resp, err := client.Do(req)
 		if err != nil {
 			return
@@ -346,6 +346,7 @@ func FuzzBlocksConfig_HeaderInjection(f *testing.F) {
 	f.Add(strings.Repeat("A", 65536), strings.Repeat("B", 1024))
 
 	env := h.LoadEnvironment()
+	client := h.NewRawHTTPClient(env.HTTPTimeout)
 	h.RequireReachable(f, env.ManagerURL)
 	ctx := context.Background()
 
@@ -378,7 +379,6 @@ func FuzzBlocksConfig_HeaderInjection(f *testing.F) {
 			}
 		}()
 
-		client := &http.Client{Timeout: env.HTTPTimeout}
 		resp, err := client.Do(req)
 		if err != nil {
 			// Connection/header errors are acceptable during fuzzing

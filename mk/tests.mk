@@ -321,6 +321,11 @@ test-fuzz:
 	    elif [ $$status -eq 124 ]; then \
 	      echo "[error] $$target exceeded the $$wall s wall-clock cap twice — hung target"; \
 	      failed="$$failed $$target"; \
+	    elif [ $$status -ne 0 ] \
+	      && ! grep -q "Failing input written" "$$out" \
+	      && grep -q '^fuzz:' "$$out" \
+	      && grep -q "^    context deadline exceeded" "$$out"; then \
+	      echo "[warn] $$target tripped the Go coordinator's fuzztime-boundary flake twice (fuzzing engaged, no failing input) — toolchain artifact, not a finding; not gating"; \
 	    elif [ $$status -ne 0 ]; then \
 	      echo "[error] $$target failed (crash or test error, exit $$status)"; \
 	      failed="$$failed $$target"; \

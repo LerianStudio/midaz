@@ -26,16 +26,22 @@ type HTTPClient struct {
 }
 
 func NewHTTPClient(base string, timeout time.Duration) *HTTPClient {
-	// Deep idle pool: fuzz targets fire bursts of concurrent requests at high
-	// exec rates, and DefaultTransport's cap of 2 idle conns per host closes
-	// the rest after every burst — accumulating TIME_WAIT sockets until the
-	// client exhausts ephemeral ports (EADDRNOTAVAIL). Reusing connections
-	// keeps port churn near zero.
+	return &HTTPClient{base: base, client: NewRawHTTPClient(timeout)}
+}
+
+// NewRawHTTPClient returns an *http.Client with a deep idle pool for tests
+// that build raw requests (custom methods/headers) instead of using HTTPClient.
+// Deep pool rationale: fuzz targets fire bursts of requests at high exec
+// rates, and DefaultTransport's cap of 2 idle conns per host closes the rest
+// after every burst — accumulating TIME_WAIT sockets until the client
+// exhausts ephemeral ports (EADDRNOTAVAIL). Reusing connections keeps port
+// churn near zero. Hoist ONE client per fuzz target; never build per-exec.
+func NewRawHTTPClient(timeout time.Duration) *http.Client {
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.MaxIdleConns = 100
 	tr.MaxIdleConnsPerHost = 100
 
-	return &HTTPClient{base: base, client: &http.Client{Timeout: timeout, Transport: tr}}
+	return &http.Client{Timeout: timeout, Transport: tr}
 }
 
 func (c *HTTPClient) RequestFull(ctx context.Context, method, path string, headers map[string]string, body any) (int, []byte, http.Header, error) {
