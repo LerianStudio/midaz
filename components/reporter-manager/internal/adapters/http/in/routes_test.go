@@ -11,7 +11,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	midazHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
+
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -240,6 +243,132 @@ func TestRecoverMiddleware_NonPanicRouteUnaffected(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode,
 		"Non-panicking routes must work normally with recover middleware")
+}
+
+// TestProtectedRouteChain_Composition proves the central chain-composition
+// helper that every protected reporter-manager route registers through:
+// auth runs first and short-circuits unauthenticated requests before any
+// handler executes, and on the authenticated path the post-auth tenant
+// middleware and the UUID path parser run in order before the business
+// handler. This is the no-behavior-change proof for the ProtectedRouteChain
+// adoption (Epic 3.1).
+func TestProtectedRouteChain_Composition(t *testing.T) {
+	t.Parallel()
+
+	t.Run("auth short-circuits before tenant, parse, and handler", func(t *testing.T) {
+		t.Parallel()
+
+		var order []string
+
+		denyingAuth := func(c *fiber.Ctx) error {
+			order = append(order, "auth")
+			return fiber.NewError(http.StatusUnauthorized, "Unauthorized")
+		}
+		tenant := func(c *fiber.Ctx) error {
+			order = append(order, "tenant")
+			return c.Next()
+		}
+		handler := func(c *fiber.Ctx) error {
+			order = append(order, "handler")
+			return c.SendStatus(http.StatusOK)
+		}
+
+		opts := &midazHTTP.ProtectedRouteOptions{
+			PostAuthMiddlewares: []fiber.Handler{WhenEnabled(tenant)},
+		}
+		chain := midazHTTP.ProtectedRouteChain(denyingAuth, opts, ParsePathParametersUUID, handler)
+
+		app := fiber.New(fiber.Config{
+			DisableStartupMessage: true,
+			ErrorHandler:          legacyFiberErrorHandler,
+		})
+		app.Get("/v1/templates/:id", chain...)
+
+		req := httptest.NewRequest(http.MethodGet, "/v1/templates/"+uuid.NewString(), nil)
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		assert.Equal(t, []string{"auth"}, order,
+			"only auth must run; tenant, UUID parse, and handler must not execute on rejection")
+	})
+
+	t.Run("authenticated path runs auth, tenant, parse, handler in order", func(t *testing.T) {
+		t.Parallel()
+
+		var order []string
+
+		allowingAuth := func(c *fiber.Ctx) error {
+			order = append(order, "auth")
+			return c.Next()
+		}
+		tenant := func(c *fiber.Ctx) error {
+			order = append(order, "tenant")
+			return c.Next()
+		}
+		handler := func(c *fiber.Ctx) error {
+			order = append(order, "handler")
+
+			parsed, ok := c.Locals("id").(uuid.UUID)
+			require.True(t, ok, "UUID path param must be parsed into Locals before the handler")
+			assert.NotEqual(t, uuid.Nil, parsed)
+
+			return c.SendStatus(http.StatusOK)
+		}
+
+		opts := &midazHTTP.ProtectedRouteOptions{
+			PostAuthMiddlewares: []fiber.Handler{WhenEnabled(tenant)},
+		}
+		chain := midazHTTP.ProtectedRouteChain(allowingAuth, opts, ParsePathParametersUUID, handler)
+
+		app := fiber.New(fiber.Config{
+			DisableStartupMessage: true,
+			ErrorHandler:          legacyFiberErrorHandler,
+		})
+		app.Get("/v1/templates/:id", chain...)
+
+		req := httptest.NewRequest(http.MethodGet, "/v1/templates/"+uuid.NewString(), nil)
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, []string{"auth", "tenant", "handler"}, order,
+			"auth then tenant then handler; UUID parse runs between tenant and handler")
+	})
+
+	t.Run("nil tenant middleware is skipped via WhenEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		var order []string
+
+		allowingAuth := func(c *fiber.Ctx) error {
+			order = append(order, "auth")
+			return c.Next()
+		}
+		handler := func(c *fiber.Ctx) error {
+			order = append(order, "handler")
+			return c.SendStatus(http.StatusOK)
+		}
+
+		opts := &midazHTTP.ProtectedRouteOptions{
+			PostAuthMiddlewares: []fiber.Handler{WhenEnabled(nil)},
+		}
+		chain := midazHTTP.ProtectedRouteChain(allowingAuth, opts, handler)
+
+		app := fiber.New(fiber.Config{DisableStartupMessage: true})
+		app.Get("/v1/metrics", chain...)
+
+		req := httptest.NewRequest(http.MethodGet, "/v1/metrics", nil)
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, []string{"auth", "handler"}, order,
+			"single-tenant mode: nil tenant middleware is skipped, auth then handler only")
+	})
 }
 
 func TestManagerHealthHandler_ReturnsAlive(t *testing.T) {

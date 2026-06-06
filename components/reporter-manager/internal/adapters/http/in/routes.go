@@ -15,6 +15,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/readyz"
 
+	midazHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
+
 	middlewareAuth "github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability"
@@ -67,39 +69,50 @@ func NewRoutes(lg log.Logger, tl *opentelemetry.Telemetry, templateHandler *Temp
 	f.Use(CORSMiddleware(corsConfig))
 	f.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(lg)))
 
+	// protected composes every business route through the shared
+	// ProtectedRouteChain helper: auth runs first, then the post-auth
+	// middlewares (the optional tenant middleware), then the per-route
+	// handlers (UUID parse, body decode, business handler).
+	routeOptions := &midazHTTP.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{WhenEnabled(ttMiddleware)},
+	}
+	protected := func(resource, action string, handlers ...fiber.Handler) []fiber.Handler {
+		return midazHTTP.ProtectedRouteChain(auth.Authorize(constant.ApplicationName, resource, action), routeOptions, handlers...)
+	}
+
 	// Template builder routes (static paths before parameterized :id)
-	f.Get("/v1/templates/blocks-config", auth.Authorize(constant.ApplicationName, templateResource, "get"), WhenEnabled(ttMiddleware), templateBuilderHandler.GetBlocksConfig)
-	f.Get("/v1/templates/filters", auth.Authorize(constant.ApplicationName, templateResource, "get"), WhenEnabled(ttMiddleware), templateBuilderHandler.GetFiltersConfig)
-	f.Post("/v1/templates/generate-code", auth.Authorize(constant.ApplicationName, templateResource, "post"), WhenEnabled(ttMiddleware), templateBuilderHandler.GenerateCode)
-	f.Post("/v1/templates/validate", auth.Authorize(constant.ApplicationName, templateResource, "post"), WhenEnabled(ttMiddleware), templateBuilderHandler.ValidateBlocks)
+	f.Get("/v1/templates/blocks-config", protected(templateResource, "get", templateBuilderHandler.GetBlocksConfig)...)
+	f.Get("/v1/templates/filters", protected(templateResource, "get", templateBuilderHandler.GetFiltersConfig)...)
+	f.Post("/v1/templates/generate-code", protected(templateResource, "post", templateBuilderHandler.GenerateCode)...)
+	f.Post("/v1/templates/validate", protected(templateResource, "post", templateBuilderHandler.ValidateBlocks)...)
 
 	// Template routes
-	f.Post("/v1/templates", auth.Authorize(constant.ApplicationName, templateResource, "post"), WhenEnabled(ttMiddleware), templateHandler.CreateTemplate)
-	f.Patch("/v1/templates/:id", auth.Authorize(constant.ApplicationName, templateResource, "patch"), WhenEnabled(ttMiddleware), ParsePathParametersUUID, templateHandler.UpdateTemplateByID)
-	f.Get("/v1/templates/:id", auth.Authorize(constant.ApplicationName, templateResource, "get"), WhenEnabled(ttMiddleware), ParsePathParametersUUID, templateHandler.GetTemplateByID)
-	f.Get("/v1/templates", auth.Authorize(constant.ApplicationName, templateResource, "get"), WhenEnabled(ttMiddleware), templateHandler.GetAllTemplates)
-	f.Delete("/v1/templates/:id", auth.Authorize(constant.ApplicationName, templateResource, "delete"), WhenEnabled(ttMiddleware), ParsePathParametersUUID, templateHandler.DeleteTemplateByID)
+	f.Post("/v1/templates", protected(templateResource, "post", templateHandler.CreateTemplate)...)
+	f.Patch("/v1/templates/:id", protected(templateResource, "patch", ParsePathParametersUUID, templateHandler.UpdateTemplateByID)...)
+	f.Get("/v1/templates/:id", protected(templateResource, "get", ParsePathParametersUUID, templateHandler.GetTemplateByID)...)
+	f.Get("/v1/templates", protected(templateResource, "get", templateHandler.GetAllTemplates)...)
+	f.Delete("/v1/templates/:id", protected(templateResource, "delete", ParsePathParametersUUID, templateHandler.DeleteTemplateByID)...)
 
 	// Report routes
-	f.Post("/v1/reports", auth.Authorize(constant.ApplicationName, reportResource, "post"), WhenEnabled(ttMiddleware), http.WithBody(new(model.CreateReportInput), reportHandler.CreateReport))
-	f.Get("/v1/reports/:id/download", auth.Authorize(constant.ApplicationName, reportResource, "get"), WhenEnabled(ttMiddleware), ParsePathParametersUUID, reportHandler.GetDownloadReport)
-	f.Get("/v1/reports/:id", auth.Authorize(constant.ApplicationName, reportResource, "get"), WhenEnabled(ttMiddleware), ParsePathParametersUUID, reportHandler.GetReport)
-	f.Get("/v1/reports", auth.Authorize(constant.ApplicationName, reportResource, "get"), WhenEnabled(ttMiddleware), reportHandler.GetAllReports)
+	f.Post("/v1/reports", protected(reportResource, "post", http.WithBody(new(model.CreateReportInput), reportHandler.CreateReport))...)
+	f.Get("/v1/reports/:id/download", protected(reportResource, "get", ParsePathParametersUUID, reportHandler.GetDownloadReport)...)
+	f.Get("/v1/reports/:id", protected(reportResource, "get", ParsePathParametersUUID, reportHandler.GetReport)...)
+	f.Get("/v1/reports", protected(reportResource, "get", reportHandler.GetAllReports)...)
 
 	// Deadline routes
-	f.Post("/v1/deadlines", auth.Authorize(constant.ApplicationName, deadlineResource, "post"), WhenEnabled(ttMiddleware), http.WithBody(new(deadline.CreateDeadlineInput), deadlineHandler.CreateDeadline))
-	f.Get("/v1/deadlines", auth.Authorize(constant.ApplicationName, deadlineResource, "get"), WhenEnabled(ttMiddleware), deadlineHandler.GetAllDeadlines)
-	f.Get("/v1/deadlines/notifications", auth.Authorize(constant.ApplicationName, deadlineResource, "get"), WhenEnabled(ttMiddleware), notificationHandler.GetNotifications)
-	f.Patch("/v1/deadlines/:id", auth.Authorize(constant.ApplicationName, deadlineResource, "patch"), WhenEnabled(ttMiddleware), ParsePathParametersUUID, http.WithBody(new(deadline.UpdateDeadlineInput), deadlineHandler.UpdateDeadlineByID))
-	f.Delete("/v1/deadlines/:id", auth.Authorize(constant.ApplicationName, deadlineResource, "delete"), WhenEnabled(ttMiddleware), ParsePathParametersUUID, deadlineHandler.DeleteDeadlineByID)
-	f.Patch("/v1/deadlines/:id/deliver", auth.Authorize(constant.ApplicationName, deadlineResource, "patch"), WhenEnabled(ttMiddleware), ParsePathParametersUUID, http.WithBody(new(deadline.DeliverDeadlineInput), deadlineHandler.DeliverDeadline))
+	f.Post("/v1/deadlines", protected(deadlineResource, "post", http.WithBody(new(deadline.CreateDeadlineInput), deadlineHandler.CreateDeadline))...)
+	f.Get("/v1/deadlines", protected(deadlineResource, "get", deadlineHandler.GetAllDeadlines)...)
+	f.Get("/v1/deadlines/notifications", protected(deadlineResource, "get", notificationHandler.GetNotifications)...)
+	f.Patch("/v1/deadlines/:id", protected(deadlineResource, "patch", ParsePathParametersUUID, http.WithBody(new(deadline.UpdateDeadlineInput), deadlineHandler.UpdateDeadlineByID))...)
+	f.Delete("/v1/deadlines/:id", protected(deadlineResource, "delete", ParsePathParametersUUID, deadlineHandler.DeleteDeadlineByID)...)
+	f.Patch("/v1/deadlines/:id/deliver", protected(deadlineResource, "patch", ParsePathParametersUUID, http.WithBody(new(deadline.DeliverDeadlineInput), deadlineHandler.DeliverDeadline))...)
 
 	// Data source routes
-	f.Get("/v1/data-sources", auth.Authorize(constant.ApplicationName, dataSourceResource, "get"), WhenEnabled(ttMiddleware), dataSourceHandler.GetDataSourceInformation)
-	f.Get("/v1/data-sources/:dataSourceId", auth.Authorize(constant.ApplicationName, dataSourceResource, "get"), WhenEnabled(ttMiddleware), ParseStringPathParam("dataSourceId"), dataSourceHandler.GetDataSourceInformationByID)
+	f.Get("/v1/data-sources", protected(dataSourceResource, "get", dataSourceHandler.GetDataSourceInformation)...)
+	f.Get("/v1/data-sources/:dataSourceId", protected(dataSourceResource, "get", ParseStringPathParam("dataSourceId"), dataSourceHandler.GetDataSourceInformationByID)...)
 
 	// Metrics routes
-	f.Get("/v1/metrics", auth.Authorize(constant.ApplicationName, metricsResource, "get"), WhenEnabled(ttMiddleware), metricsHandler.GetMetrics)
+	f.Get("/v1/metrics", protected(metricsResource, "get", metricsHandler.GetMetrics)...)
 
 	// Doc Swagger
 	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)
