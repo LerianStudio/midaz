@@ -31,11 +31,18 @@ import (
 // FuzzKeyNamespacing_SimpleKey fuzzes the single-key namespacing path used by
 // Set, SetNX, Get, Del, Incr, SetBytes, and GetBytes.
 //
+// lib-commons contract (tmvalkey.GetKeyContext → GetKey): the ONLY rejected
+// input is a non-empty tenantID containing the ":" delimiter — a deliberate
+// namespace-injection guard, since "tenant:{id}:{key}" would otherwise be
+// ambiguous. An empty tenantID (or absent/nil ctx) is the no-prefix passthrough,
+// never an error.
+//
 // Invariants verified for every (key, tenantID) pair:
 //   - No panic
-//   - Non-empty tenantID → result has prefix "tenant:{tenantID}:"
-//   - Empty tenantID      → result is identical to the input key
-//   - Determinism         → two calls with the same inputs return the same value
+//   - Non-empty tenantID containing ":" → error IS returned (injection guard)
+//   - Non-empty tenantID without ":"    → result has prefix "tenant:{tenantID}:"
+//   - Empty tenantID                    → result is identical to the input key
+//   - Determinism                       → two calls with the same inputs agree
 func FuzzKeyNamespacing_SimpleKey(f *testing.F) {
 	// Seed corpus: 7 entries covering the required categories.
 	// Each entry is (key string, tenantID string).
@@ -75,8 +82,22 @@ func FuzzKeyNamespacing_SimpleKey(f *testing.F) {
 
 		// Call the function under test — must not panic.
 		result, err := tmvalkey.GetKeyContext(ctx, key)
+
+		// A non-empty tenantID containing the ":" delimiter is the one
+		// contractually rejected input. Assert the guard fires, then stop —
+		// prefix/determinism invariants do not apply to the error path.
+		if tenantID != "" && strings.Contains(tenantID, ":") {
+			if err == nil {
+				t.Errorf("FuzzKeyNamespacing_SimpleKey: expected delimiter-injection error for tenantID %q, got result %q",
+					tenantID, result)
+			}
+
+			return
+		}
+
+		// Every other input is contractually valid.
 		if err != nil {
-			t.Fatalf("unexpected namespacing error: %v", err)
+			t.Fatalf("unexpected namespacing error: %v (key=%q, tenantID=%q)", err, key, tenantID)
 		}
 
 		// Invariant 1: non-empty tenantID → prefix is applied.
@@ -113,8 +134,13 @@ func FuzzKeyNamespacing_SimpleKey(f *testing.F) {
 // keyCount (0–10) and a keyPrefix string. This produces predictable but varied
 // slices while still exercising the boundary conditions.
 //
+// lib-commons contract: a non-empty tenantID containing ":" is rejected by the
+// per-key namespacing (tmvalkey.GetKey), so MGet surfaces that as an error
+// before issuing any Redis call. All other inputs namespace cleanly.
+//
 // Invariants verified for every (keyPrefix, keyCount, tenantID) combination:
 //   - No panic
+//   - Non-empty tenantID containing ":" → MGet returns an error (injection guard)
 //   - Result map is keyed by ORIGINAL (non-prefixed) keys
 //   - No namespaced keys appear as result map keys
 //   - len(result) <= keyCount
@@ -187,6 +213,23 @@ func FuzzKeyNamespacing_MGet(f *testing.F) {
 		}
 
 		result, err := repo.MGet(ctx, keys)
+
+		// A non-empty tenantID containing ":" is rejected during per-key
+		// namespacing, so MGet must surface an error and touch no Redis call.
+		if tenantID != "" && strings.Contains(tenantID, ":") {
+			if err == nil {
+				t.Errorf("FuzzKeyNamespacing_MGet: expected delimiter-injection error for tenantID %q, got %d entries",
+					tenantID, len(result))
+			}
+
+			if len(recorder.mgetCalls) != 0 {
+				t.Errorf("FuzzKeyNamespacing_MGet: expected no Redis MGet call on namespacing error, got %d",
+					len(recorder.mgetCalls))
+			}
+
+			return
+		}
+
 		if err != nil {
 			t.Errorf("FuzzKeyNamespacing_MGet: unexpected error: %v", err)
 			return
@@ -256,12 +299,17 @@ func FuzzKeyNamespacing_MGet(f *testing.F) {
 // FuzzKeyNamespacing_QueueKey fuzzes the queue operation namespacing path used
 // by AddMessageToQueue, ReadMessageFromQueue, and RemoveMessageFromQueue.
 //
+// lib-commons contract: a non-empty tenantID containing ":" is rejected when
+// namespacing the queue key, so AddMessageToQueue returns an error before
+// issuing any HSet. All other inputs namespace cleanly.
+//
 // Invariants verified for every (msgKey, tenantID) pair:
 //   - No panic
-//   - Non-empty tenantID → queue hash key starts with "tenant:{tenantID}:"
-//   - Non-empty tenantID → message field key starts with "tenant:{tenantID}:"
-//   - Empty tenantID      → queue hash key equals TransactionBackupQueue
-//   - Empty tenantID      → message field key equals the input msgKey
+//   - Non-empty tenantID containing ":" → AddMessageToQueue errors, no HSet (guard)
+//   - Non-empty tenantID without ":"    → queue hash key starts with "tenant:{tenantID}:"
+//   - Non-empty tenantID without ":"    → message field key starts with "tenant:{tenantID}:"
+//   - Empty tenantID                    → queue hash key equals TransactionBackupQueue
+//   - Empty tenantID                    → message field key equals the input msgKey
 func FuzzKeyNamespacing_QueueKey(f *testing.F) {
 	// Seed corpus: 7 entries covering the required categories.
 	// Each entry is (msgKey string, tenantID string).
@@ -304,6 +352,23 @@ func FuzzKeyNamespacing_QueueKey(f *testing.F) {
 
 		// Exercise AddMessageToQueue — must not panic.
 		err := repo.AddMessageToQueue(ctx, msgKey, []byte("fuzz-payload"))
+
+		// A non-empty tenantID containing ":" is rejected while namespacing the
+		// queue key, so the call must error before any HSet is issued.
+		if tenantID != "" && strings.Contains(tenantID, ":") {
+			if err == nil {
+				t.Errorf("FuzzKeyNamespacing_QueueKey: expected delimiter-injection error for tenantID %q, got nil",
+					tenantID)
+			}
+
+			if len(recorder.hsetCalls) != 0 {
+				t.Errorf("FuzzKeyNamespacing_QueueKey: expected no HSet call on namespacing error, got %d",
+					len(recorder.hsetCalls))
+			}
+
+			return
+		}
+
 		if err != nil {
 			t.Errorf("FuzzKeyNamespacing_QueueKey: AddMessageToQueue returned unexpected error: %v", err)
 			return

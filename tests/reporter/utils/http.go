@@ -26,7 +26,16 @@ type HTTPClient struct {
 }
 
 func NewHTTPClient(base string, timeout time.Duration) *HTTPClient {
-	return &HTTPClient{base: base, client: &http.Client{Timeout: timeout}}
+	// Deep idle pool: fuzz targets fire bursts of concurrent requests at high
+	// exec rates, and DefaultTransport's cap of 2 idle conns per host closes
+	// the rest after every burst — accumulating TIME_WAIT sockets until the
+	// client exhausts ephemeral ports (EADDRNOTAVAIL). Reusing connections
+	// keeps port churn near zero.
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.MaxIdleConns = 100
+	tr.MaxIdleConnsPerHost = 100
+
+	return &HTTPClient{base: base, client: &http.Client{Timeout: timeout, Transport: tr}}
 }
 
 func (c *HTTPClient) RequestFull(ctx context.Context, method, path string, headers map[string]string, body any) (int, []byte, http.Header, error) {

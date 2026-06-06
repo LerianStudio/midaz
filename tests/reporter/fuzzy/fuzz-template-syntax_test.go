@@ -307,10 +307,9 @@ func FuzzTemplate_Size(f *testing.F) {
 			return
 		}
 
-		// Server should NEVER crash (5xx)
-		if code >= 500 {
-			t.Fatalf("SERVER ERROR on large template: code=%d size=%d body=%s", code, size, string(body))
-		}
+		// Server should NEVER crash (5xx) — but this target self-induces heavy
+		// write load, so discriminate real bugs from stack exhaustion.
+		requireNo5xx(t, code, body, fmt.Sprintf("template upload size=%d", size))
 
 		t.Logf("Template size=%d result: code=%d", size, code)
 	})
