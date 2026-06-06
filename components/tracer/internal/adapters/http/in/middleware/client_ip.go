@@ -14,28 +14,28 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 )
 
-// ClientIPMiddleware extracts the client's IP address and injects it into the request context.
-//
-// The middleware attempts to extract the real client IP by checking headers in the following order:
-//  1. X-Forwarded-For (leftmost IP, as it represents the original client)
-//  2. X-Real-IP (set by some proxies)
-//  3. c.IP() (Fiber's built-in IP extraction, falls back to RemoteAddr)
-//
-// The extracted IP is validated to ensure it's a valid IP address format.
-// If no valid IP is found, defaults to "0.0.0.0".
-//
-// The IP is stored in context with a type-safe key (contextutil.ContextKeyClientIP{})
-// to prevent key collisions. Use pkg/contextutil.GetClientIP() to retrieve it.
-//
-// Security considerations:
-//   - Only uses the leftmost IP from X-Forwarded-For to avoid spoofing by intermediate proxies
-//   - Validates IP format before storing to prevent injection
-//   - Never logs the full IP address for privacy compliance
+// ClientIPMiddleware extracts the client's IP address and injects it into the
+// request context using ClientIPMiddlewareWithTrustedProxies with an empty
+// trusted-proxy set. With no trusted proxies, the client-controlled
+// X-Forwarded-For header is ignored entirely and the socket peer IP is used.
 func ClientIPMiddleware() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		clientIP := extractClientIP(c)
+	return ClientIPMiddlewareWithTrustedProxies(nil)
+}
 
-		// Inject into context using type-safe key from pkg/contextutil
+// ClientIPMiddlewareWithTrustedProxies builds the client-IP middleware with a
+// trusted-proxy CIDR set. The extracted IP is stored in context with a
+// type-safe key (contextutil.ContextKeyClientIP{}); retrieve it with
+// contextutil.GetClientIP().
+//
+// Because the audit trail records this IP into durable, hash-chained records,
+// it must never be forgeable by the client. X-Forwarded-For is only consulted
+// when at least one trusted proxy is configured, and even then only hops that
+// sit behind the trusted set are believed — see extractClientIP for the
+// right-to-left walk.
+func ClientIPMiddlewareWithTrustedProxies(trustedProxies []*net.IPNet) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		clientIP := extractClientIP(c, trustedProxies)
+
 		ctx := context.WithValue(c.UserContext(), contextutil.ContextKeyClientIP{}, clientIP)
 		c.SetUserContext(ctx)
 
@@ -43,55 +43,78 @@ func ClientIPMiddleware() fiber.Handler {
 	}
 }
 
-// extractClientIP extracts the real client IP address from the request.
+// extractClientIP derives the trustworthy client IP for the request.
 //
-// Priority order:
-//  1. X-Forwarded-For (leftmost IP) - Used by proxies and load balancers
-//  2. X-Real-IP - Used by some reverse proxies (e.g., nginx)
-//  3. Fiber c.IP() - Falls back to direct connection IP
+// The socket peer IP (Fiber c.IP(), which reads the TCP RemoteAddr) is the only
+// value the client cannot forge, so it is the authoritative default and the
+// fallback for every ambiguous case.
 //
-// Returns "0.0.0.0" if no valid IP is found.
-func extractClientIP(c *fiber.Ctx) string {
-	// 1. Try X-Forwarded-For (leftmost IP is the original client)
-	if xff := c.Get("X-Forwarded-For"); xff != "" {
-		// Split by comma and take the first IP (original client)
-		ips := strings.Split(xff, ",")
-		if len(ips) > 0 {
-			ip := strings.TrimSpace(ips[0])
-			if isValidIP(ip) {
-				return ip
-			}
+// When trustedProxies is non-empty the X-Forwarded-For chain is walked from
+// RIGHT (closest proxy) to LEFT (claimed origin), skipping every hop that falls
+// inside the trusted set. The first hop NOT in the trusted set is the real
+// client: a trusted proxy appended it, so it is the furthest point we can still
+// believe. If every hop is trusted (or the header is empty/garbage), the socket
+// IP is used. When trustedProxies is empty the header is ignored outright.
+//
+// Returns "0.0.0.0" only when even the socket IP is unparseable.
+func extractClientIP(c *fiber.Ctx, trustedProxies []*net.IPNet) string {
+	socketIP := normalizeSocketIP(c.IP())
+
+	if len(trustedProxies) == 0 {
+		return socketIP
+	}
+
+	xff := c.Get("X-Forwarded-For")
+	if xff == "" {
+		return socketIP
+	}
+
+	hops := strings.Split(xff, ",")
+	for i := len(hops) - 1; i >= 0; i-- {
+		hop := strings.TrimSpace(hops[i])
+
+		parsed := net.ParseIP(hop)
+		if parsed == nil {
+			// A garbage hop breaks the trust chain: we cannot prove the hop to
+			// its left was appended by a trusted proxy, so we stop believing
+			// the header and fall back to the socket IP.
+			return socketIP
+		}
+
+		if !ipInAnyCIDR(parsed, trustedProxies) {
+			return hop
 		}
 	}
 
-	// 2. Try X-Real-IP (set by some proxies)
-	if xri := c.Get("X-Real-IP"); xri != "" {
-		if isValidIP(xri) {
-			return xri
-		}
-	}
-
-	// 3. Fallback to Fiber's built-in IP extraction
-	// c.IP() handles RemoteAddr and other headers automatically
-	ip := c.IP()
-	if isValidIP(ip) {
-		return ip
-	}
-
-	// Final fallback if nothing worked
-	return "0.0.0.0"
+	// Every hop was trusted — the header carries no client beyond the proxies.
+	return socketIP
 }
 
-// isValidIP checks if the given string is a valid IP address (IPv4 or IPv6).
-func isValidIP(ip string) bool {
-	if ip == "" {
-		return false
+// ipInAnyCIDR reports whether ip is contained in any of the given networks.
+func ipInAnyCIDR(ip net.IP, networks []*net.IPNet) bool {
+	for _, n := range networks {
+		if n.Contains(ip) {
+			return true
+		}
 	}
 
-	// Remove port if present (e.g., "192.168.1.1:8080" -> "192.168.1.1")
+	return false
+}
+
+// normalizeSocketIP strips any port from Fiber's c.IP() value and validates it,
+// returning "0.0.0.0" when no valid IP can be recovered.
+func normalizeSocketIP(ip string) string {
+	if ip == "" {
+		return "0.0.0.0"
+	}
+
 	if host, _, err := net.SplitHostPort(ip); err == nil {
 		ip = host
 	}
 
-	return net.ParseIP(ip) != nil
+	if net.ParseIP(ip) == nil {
+		return "0.0.0.0"
+	}
+
+	return ip
 }

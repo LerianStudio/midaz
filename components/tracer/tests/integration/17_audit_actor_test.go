@@ -245,3 +245,68 @@ func TestAuditActor_EnumAcceptsAPIKeyValue(t *testing.T) {
 
 	// Cleanup is not necessary — testcontainers tears down between suite runs.
 }
+
+// callValidationEndpointWithForgedXFF sends a /v1/validations request carrying a
+// forged X-Forwarded-For header. It mirrors callValidationEndpoint but injects
+// the spoofed hop so the test can assert the audit IP does NOT honor it.
+func callValidationEndpointWithForgedXFF(t *testing.T, forgedIP string) map[string]any {
+	t.Helper()
+
+	req, err := http.NewRequest(
+		http.MethodPost,
+		testutil.GetBaseURL()+"/v1/validations",
+		bytes.NewReader(validationPayloadForActor(t)),
+	)
+	require.NoError(t, err)
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", testutil.GetAPIKey())
+	req.Header.Set("X-Forwarded-For", forgedIP)
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusCreated, resp.StatusCode,
+		"expected 201 Created from /v1/validations, body: %s", string(body))
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(body, &result), "failed to parse response body")
+
+	return result
+}
+
+// TestAuditActor_ForgedXFFIgnoredWithoutTrustedProxies is the Epic 2.1 security
+// assertion: with TRUSTED_PROXY_CIDRS unset (the standard integration harness),
+// a client-supplied X-Forwarded-For header MUST NOT influence the audit actor
+// IP. The recorded IP must be the socket peer, never the forged value — a client
+// cannot forge the durable, hash-chained audit IP.
+func TestAuditActor_ForgedXFFIgnoredWithoutTrustedProxies(t *testing.T) {
+	db := testutil.SetupIntegrationDB(t)
+
+	const forgedIP = "203.0.113.1"
+
+	resp := callValidationEndpointWithForgedXFF(t, forgedIP)
+
+	validationIDStr, ok := resp["validationId"].(string)
+	require.True(t, ok, "response must include validationId")
+
+	var actorIP string
+
+	require.Eventually(t, func() bool {
+		row := db.QueryRowContext(context.Background(),
+			`SELECT COALESCE(actor_ip_address, '')
+			 FROM audit_events
+			 WHERE resource_id = $1
+			   AND event_type = 'TRANSACTION_VALIDATED'
+			 ORDER BY id DESC LIMIT 1`, validationIDStr)
+
+		return row.Scan(&actorIP) == nil
+	}, 5*time.Second, 50*time.Millisecond, "audit row for validation must appear within 5s")
+
+	assert.NotEqual(t, forgedIP, actorIP,
+		"forged X-Forwarded-For MUST NOT set the audit IP when TRUSTED_PROXY_CIDRS is unset (Epic 2.1)")
+}

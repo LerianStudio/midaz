@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -130,6 +131,15 @@ type Config struct {
 
 	// CORS
 	CORSAllowedOrigins string `env:"CORS_ALLOWED_ORIGINS"`
+
+	// TrustedProxyCIDRs is a comma-separated list of CIDR ranges identifying
+	// the reverse proxies / load balancers in front of tracer. It governs how
+	// the audit client IP is derived from X-Forwarded-For (see
+	// middleware.ClientIPMiddlewareWithTrustedProxies). When empty (the default)
+	// XFF is ignored entirely and the socket peer IP is recorded, so a client
+	// cannot forge the audit IP. The list is parsed ONCE at boot by
+	// parseTrustedProxyCIDRs; a malformed entry fails boot.
+	TrustedProxyCIDRs string `env:"TRUSTED_PROXY_CIDRS"`
 
 	// CEL Expression Engine
 	CELCostLimit string `env:"CEL_COST_LIMIT"`
@@ -447,6 +457,42 @@ func parseRuleSyncOverlapBuffer(s string) (time.Duration, error) {
 	}
 
 	return time.Duration(seconds) * time.Second, nil
+}
+
+// parseTrustedProxyCIDRs parses the comma-separated TRUSTED_PROXY_CIDRS value
+// into a slice of *net.IPNet. Empty/blank entries (and an all-whitespace input)
+// are skipped, so an empty string and a trailing comma both yield a nil slice
+// with no error. A malformed CIDR fails the parse with an actionable error that
+// names the env var and the offending value so the operator can fix it before
+// the service ever records an audit row. Parsed ONCE at boot; the result is
+// handed to the client-IP middleware.
+func parseTrustedProxyCIDRs(s string) ([]*net.IPNet, error) {
+	if strings.TrimSpace(s) == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(s, ",")
+	nets := make([]*net.IPNet, 0, len(parts))
+
+	for _, raw := range parts {
+		entry := strings.TrimSpace(raw)
+		if entry == "" {
+			continue
+		}
+
+		_, network, err := net.ParseCIDR(entry)
+		if err != nil {
+			return nil, fmt.Errorf("invalid TRUSTED_PROXY_CIDRS entry %q (expected CIDR notation like 10.0.0.0/8): %w", entry, err)
+		}
+
+		nets = append(nets, network)
+	}
+
+	if len(nets) == 0 {
+		return nil, nil
+	}
+
+	return nets, nil
 }
 
 // LoadCleanupWorkerConfig creates a UsageCleanupWorkerConfig from environment configuration.
@@ -1051,11 +1097,20 @@ func initHTTPServer(
 		return nil, err
 	}
 
+	// Parse the trusted-proxy CIDR set ONCE at boot. A malformed entry fails
+	// boot here (actionable error names TRUSTED_PROXY_CIDRS) rather than
+	// silently recording forgeable audit IPs at runtime.
+	trustedProxyCIDRs, err := parseTrustedProxyCIDRs(cfg.TrustedProxyCIDRs)
+	if err != nil {
+		return nil, fmt.Errorf("invalid trusted proxy configuration: %w", err)
+	}
+
 	// Route configuration with CORS settings. Authentication is handled
 	// per-route by AuthGuard, which has its own configuration.
 	routeConfig := &in.RouteConfig{
 		CORSAllowedOrigins:   cfg.CORSAllowedOrigins,
 		APIKeyOnlyValidation: cfg.APIKeyOnlyValidation,
+		TrustedProxyCIDRs:    trustedProxyCIDRs,
 	}
 
 	// Create auth guard with all authentication configuration.

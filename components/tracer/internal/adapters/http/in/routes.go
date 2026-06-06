@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -89,6 +90,12 @@ type RouteConfig struct {
 	// - Routes registered with guard.With(..., false) use plugin auth exclusively (no fallback).
 	// When PluginAuthEnabled=false, all routes use API key auth regardless of this flag.
 	APIKeyOnlyValidation bool
+
+	// TrustedProxyCIDRs is the boot-parsed set of reverse-proxy networks used by
+	// the client-IP middleware to derive the audit client IP from
+	// X-Forwarded-For. Empty (nil) means XFF is ignored and the socket peer IP
+	// is recorded. Parsed once at boot in bootstrap; never re-parsed per request.
+	TrustedProxyCIDRs []*net.IPNet
 }
 
 // skipTelemetryPaths returns true for paths that should skip detailed telemetry.
@@ -202,8 +209,11 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		otelfiber.WithNext(skipTelemetryPaths),
 	))
 
-	// 5. Client IP - Fifth: extract and inject client IP into context for audit trail
-	f.Use(middleware.ClientIPMiddleware())
+	// 5. Client IP - Fifth: extract and inject client IP into context for audit trail.
+	// XFF is honored only for hops behind the configured trusted proxies; with
+	// none configured the client-controlled header is ignored and the socket
+	// peer IP is recorded.
+	f.Use(middleware.ClientIPMiddlewareWithTrustedProxies(cfg.TrustedProxyCIDRs))
 
 	// 6. HTTP Logging - Sixth: structured request/response logging
 	// Skipped when SKIP_LIB_COMMONS_TELEMETRY=true to avoid data race in lib-commons ContextWithLogger.
