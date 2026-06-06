@@ -33,7 +33,7 @@ Key capabilities:
 - **Real-time validation / fraud prevention (Tracer)**: CEL rule engine, multi-scope spending limits, two-phase reservations, and a hash-chained audit log, configurable per-ledger
 - **Async reporting (Reporter)**: RabbitMQ-driven report generation (HTML, PDF, CSV, XML, TXT) rendered to S3-compatible storage
 - **Fees (embedded)**: fee engine + billing packages embedded in the ledger binary; fees applied on transaction create
-- **CRM (folded)**: holder/instrument management folded into the ledger binary (host ledger's `midaz` namespace, `X-Organization-Id` scoping)
+- **CRM (folded)**: holder/instrument management folded into the ledger binary (host ledger's `midaz` namespace, path-scoped on `/v1/organizations/{organization_id}/...`)
 
 ## 2. Architecture
 
@@ -130,7 +130,7 @@ midaz/
 ├── mk/                      # Makefile includes (coverage, tests, quality)
 ├── docs/PROJECT_RULES.md    # Coding standards
 ├── docs/auth/RBAC-NAMESPACES.md  # The three authz namespaces (R9)
-├── docs/api/SCOPING.md      # Path vs X-Organization-Id header scoping (R22)
+├── docs/api/SCOPING.md      # Path-based org scoping; fees the sole header-scoped exception (R22 reversed)
 ├── Makefile                 # Root orchestrator
 ├── go.mod                   # Module: github.com/LerianStudio/midaz/v4 (single root go.mod)
 └── go.sum
@@ -317,31 +317,33 @@ served on `:3002` under the host ledger's `midaz` authz namespace (the resources
 `docs/auth/RBAC-NAMESPACES.md`, X1). Uses MongoDB for persistence; PII fields are stored with
 field-level encryption and searchable hashing (lib-commons crypto).
 
-Scoping is **header-based**: CRM endpoints read the organization from the `X-Organization-Id`
-HTTP header, not the URL path (legacy from the standalone CRM service). See
-`docs/api/SCOPING.md` (R22). CRM endpoints carry no `:organization_id` path segment.
+Scoping is **path-based**: CRM endpoints read the organization from the `:organization_id` path
+segment, UUID-validated by the protected-route chain (`ParseUUIDPathParameters`). The former
+`X-Organization-Id` header and the `X-Ledger-Id` header were removed; `ledger_id` survives only as
+an instrument create-body field and an optional `GET .../instruments` list filter. See
+`docs/api/SCOPING.md` (R22 reversed).
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | /v1/holders | Create holder |
-| GET | /v1/holders | List holders |
-| GET | /v1/holders/:id | Get holder |
-| PATCH | /v1/holders/:id | Update holder |
-| DELETE | /v1/holders/:id | Delete holder |
-| GET | /v1/holders/:id/accounts | List a holder's ledger accounts (mounted only when the holder-accounts handler is wired) |
-| POST | /v1/holders/:id/accounts | Create a holder ↔ account association (composition; authz `midaz`/`accounts`; always mounted) |
-| GET | /v1/instruments | List instruments |
-| POST | /v1/holders/:holder_id/instruments | Create instrument |
-| GET | /v1/holders/:holder_id/instruments/:instrument_id | Get instrument |
-| PATCH | /v1/holders/:holder_id/instruments/:instrument_id | Update instrument |
-| DELETE | /v1/holders/:holder_id/instruments/:instrument_id | Delete instrument |
-| DELETE | /v1/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id | Delete related party |
+| POST | /v1/organizations/{organization_id}/holders | Create holder |
+| GET | /v1/organizations/{organization_id}/holders | List holders |
+| GET | /v1/organizations/{organization_id}/holders/:id | Get holder |
+| PATCH | /v1/organizations/{organization_id}/holders/:id | Update holder |
+| DELETE | /v1/organizations/{organization_id}/holders/:id | Delete holder |
+| GET | /v1/organizations/{organization_id}/holders/:id/accounts | List a holder's ledger accounts (mounted only when the holder-accounts handler is wired) |
+| POST | /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/:id/accounts | Create a holder ↔ account association (composition; authz `midaz`/`accounts`; always mounted) |
+| GET | /v1/organizations/{organization_id}/instruments | List instruments |
+| POST | /v1/organizations/{organization_id}/holders/:holder_id/instruments | Create instrument |
+| GET | /v1/organizations/{organization_id}/holders/:holder_id/instruments/:instrument_id | Get instrument |
+| PATCH | /v1/organizations/{organization_id}/holders/:holder_id/instruments/:instrument_id | Update instrument |
+| DELETE | /v1/organizations/{organization_id}/holders/:holder_id/instruments/:instrument_id | Delete instrument |
+| DELETE | /v1/organizations/{organization_id}/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id | Delete related party |
 
-The `holders/:id/accounts` path carries TWO distinct handlers: the `GET` lists a holder's ledger
-accounts (`HolderAccountsHandler.GetAccountsByHolder`, mounted only when the ledger account-query
-backing is wired, i.e. the handler is non-nil), and the `POST` creates a holder ↔ account
-association (`CompositionHandler.CreateHolderAccount`, in `composition_routes.go`, always mounted).
-Holder ownership is org-scoped (matching Mongo storage), not ledger-scoped.
+The holder-account composition (`POST`) carries an extra `:ledger_id` segment because it creates a
+real ledger account; the holder-accounts `GET` (`HolderAccountsHandler.GetAccountsByHolder`, mounted
+only when the ledger account-query backing is non-nil) lists a holder's accounts org-wide and needs
+no ledger. The `POST` (`CompositionHandler.CreateHolderAccount`, in `composition_routes.go`) is
+always mounted. Holder ownership is org-scoped (matching Mongo storage), not ledger-scoped.
 
 CRM error responses carry **canonical midaz codes** (e.g. `0009`, `0046`, `0047`, `0094`) — the
 legacy `CRM-00xx` transform shim was removed. The 16 surviving CRM domain sentinels (section 5.1)

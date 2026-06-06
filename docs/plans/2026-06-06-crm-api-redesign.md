@@ -16,10 +16,21 @@
 
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
-| 1 | All CRM + composition routes are path-scoped on org; handlers read org as a validated path UUID; `X-Ledger-Id` removed; first-party tests pass against the new shapes; binary builds and serves the new routes | 1.1, 1.2, 1.3 | Detailed |
-| 2 | Generated artifacts (Swagger/OpenAPI + Postman) reflect the new path-scoped contract; Postman base URL fixed to unified `:3002` | 2.1, 2.2 | Epic-level |
-| 3 | Prose docs reversed and aligned: `SCOPING.md` (R22 reversal, fees named as remaining exception), `llms-full.txt` route inventory, `RBAC-NAMESPACES.md` cross-refs | 3.1 | Epic-level |
-| 4 | Hardening follow-ons, each gated on a named decision: org-bound authz (X1), idempotency keys on creates, instrument-create referential validation | 4.1, 4.2, 4.3 | Epic-level |
+| 1 | All CRM + composition routes are path-scoped on org; handlers read org as a validated path UUID; `X-Ledger-Id` removed; first-party tests pass against the new shapes; binary builds and serves the new routes | 1.1, 1.2, 1.3 | ✅ Done (`ca58e2e6f` allowlist, `370d6371b` migration) |
+| 2 | Generated artifacts (Swagger/OpenAPI + Postman) reflect the new path-scoped contract; Postman base URL fixed to unified `:3002` | 2.1, 2.2 | ✅ Done (pulled forward into the Phase 1 commit — see Execution Notes; `00959cd9c` unblocked the generator, `061e8a824` fixed holder id mapping) |
+| 3 | Prose docs reversed and aligned: `SCOPING.md` (R22 reversal, fees named as remaining exception), `llms-full.txt` route inventory, `RBAC-NAMESPACES.md` cross-refs | 3.1 | ✅ Done (docs commit follows Phase 1/2 commits) |
+| 4 | Hardening follow-ons, each gated on a named decision: org-bound authz (X1), idempotency keys on creates, instrument-create referential validation | 4.1, 4.2, 4.3 | Parked on decision points |
+
+### Execution Notes (2026-06-06)
+
+- **Phase 2 collapsed into Phase 1's commit.** `TestContractSpecMatchesRoutes` makes routes and `swagger.json` one atomic contract, so a green Phase 1 commit required the regenerated artifacts. Epics 2.1+2.2 executed via `make generate-docs` inside the migration commit (`370d6371b`).
+- **Plan gap fixed: `@Router` doc-comments.** Phase 1 tasks only flipped `@Param` lines, but swag also reads `@Router` paths; all 13 were prefixed (swagger brace syntax) or Epic 2.1 would have regenerated a spec contradicting the live router.
+- **`composition.go` `@Failure` annotations aligned to `mmodel.Error`** (the convention every sibling handler uses). The old `pkg.HTTPError` reference only resolved through the `pkg` import that died with `uuidFromHeader`.
+- **Pre-existing breakage fixed en route (`00959cd9c`):** `make generate-docs` had been broken for reporter-manager since the P6 move — three handler files reference `pkg.HTTPError` in annotations without importing `pkg/reporter` (package name `pkg`). Blank imports restore swag resolution; first artifact regeneration since the move rode along.
+- **Postman generator bug fixed (`061e8a824`):** the contextual `{id}` heuristic predated holders in paths and rendered `/holders/{{organizationId}}` (and `/holders/{{ledgerId}}/accounts` for composition). Added `/holders/` → `{{holderId}}` to both mapping sites.
+- **Base-URL check resolved as already-correct:** `{{onboardingUrl}}` = `{{baseUrl}}:{{onboardingPort}}` with `onboardingPort=3002`, so CRM requests resolve against the unified `:3002`. The legacy variable *name* is cosmetic, out of scope.
+- **Seventh test file:** `composition_mt_isolation_integration_test.go` also set scoping headers (not in the plan's Epic 1.3 list); converted with the rest. Tenant remains addressed only via the JWT `tenantId` claim.
+- **Semantics note recorded in tests:** "missing X-Ledger-Id → 400" became "non-UUID ledger_id path segment → 400" (`ErrInvalidPathParameter`); a genuinely missing segment is now a 404 route-miss.
 
 ---
 
@@ -67,7 +78,7 @@ The locked-decision text and the spec summary both contain stale assumptions. Th
 
 #### Task 1.1.1: Add `instrument_id` to the UUID path-parameter allowlist
 
-- [ ] Done
+- [x] Done
 
 **Context:** `ParseUUIDPathParameters` (`pkg/net/http/withBody.go:229-250`) only UUID-parses params whose name is in `cn.UUIDPathParameters` (`pkg/constant/http.go:7-26`); non-listed params are stored as raw strings (`withBody.go:233`). `instrument_id` is absent (only the legacy `alias_id` is listed at `http.go:24`). The instrument by-id handlers call `http.GetUUIDFromLocals(c, "instrument_id")` (`instrument.go:106,166,241,398`), which type-asserts `uuid.UUID` (`pkg/net/http/httputils.go:569-572`) and would fail on a raw string. Unit tests mask this by seeding locals directly (`instrument_test.go:501`). Once Phase 1 routes go through the real chain, this latent gap becomes a live 400 on every instrument-by-id request unless fixed first.
 
@@ -82,7 +93,7 @@ The locked-decision text and the spec summary both contain stale assumptions. Th
 
 #### Task 1.1.2: Rewrite `crm_routes.go` to path-scope organization
 
-- [ ] Done
+- [x] Done
 
 **Context:** `RegisterCRMRoutesToApp` (`crm_routes.go:34-54`) registers 12 routes flat under `/v1/...`. Each uses `http.ProtectedRouteChain(auth.Authorize(ApplicationName, <resource>, <verb>), routeOptions, [ParseUUIDPathParameters(...)], [WithBody(...)], handler)`. `ApplicationName = "midaz"` (line 20) is the authz namespace and MUST NOT change (X1 owns the policy keys). The list routes (POST/GET `/v1/holders`, GET `/v1/instruments`) currently have NO `ParseUUIDPathParameters` call because they had no path UUIDs.
 
@@ -97,7 +108,7 @@ The locked-decision text and the spec summary both contain stale assumptions. Th
 
 #### Task 1.1.3: Rewrite `composition_routes.go` to path-scope organization and ledger
 
-- [ ] Done
+- [x] Done
 
 **Context:** `RegisterCompositionRoutesToApp` (`composition_routes.go:24-31`) registers POST `/v1/holders/:id/accounts` with `auth.Authorize(midazName, "accounts", "post")`, `routeOptions`, `ParseUUIDPathParameters("holder")`, `WithBody(new(mmodel.CreateHolderAccountInput), ch.CreateHolderAccount)`. The handler currently reads org and ledger from headers via `uuidFromHeader` (`composition.go:77-85`). This is the one route that legitimately needs a ledger because it creates a real ledger account.
 
@@ -119,7 +130,7 @@ The locked-decision text and the spec summary both contain stale assumptions. Th
 
 #### Task 1.2.1: Migrate `holder.go` handlers to path-scoped org
 
-- [ ] Done
+- [x] Done
 
 **Context:** `holder.go` reads `organizationID := c.Get("X-Organization-Id")` (string) at lines 54, 101, 154, 222, 289, then passes it straight to the service (e.g. `handler.Service.CreateHolder(ctx, organizationID, payload)` at line 61). The service signature is `organizationID string` (`components/crm/services/create-holder.go:22`, `get-id-holder.go:20`, `get-all-holders.go:19`, `update-holder.go:20`, `delete-holder.go:22`). Each handler already sets `app.request.organization_id` as a span attribute from that string. The PATCH/GET/DELETE-by-id handlers already call `http.GetUUIDFromLocals(c, "id")` for the holder id — mirror that exact pattern for org.
 
@@ -141,7 +152,7 @@ Then pass `organizationID.String()` to the service call (service stays `string`)
 
 #### Task 1.2.2: Migrate `instrument.go` handlers to path-scoped org
 
-- [ ] Done
+- [x] Done
 
 **Context:** `instrument.go` reads `c.Get("X-Organization-Id")` at lines 62, 116, 176, 251, 339, 408 (6 sites across `CreateInstrument`, `GetInstrumentByID`, `UpdateInstrument`, `DeleteInstrumentByID`, `GetAllInstruments`, `DeleteRelatedParty`). The by-id handlers already read `holder_id` and `instrument_id` from locals via `GetUUIDFromLocals`. Service signatures take `organizationID string` (`create-instrument.go:21`, `get-id-instrument.go:20`, etc.). `GetAllInstruments` (line 304) keeps `ledger_id` as an optional query filter (`@Param ledger_id query` line 291) and `holder_id` as an optional query filter (line 284) — those are list filters and DO NOT move to the path; leave them exactly as-is.
 
@@ -156,7 +167,7 @@ Then pass `organizationID.String()` to the service call (service stays `string`)
 
 #### Task 1.2.3: Migrate `holder_accounts.go` to path-scoped org
 
-- [ ] Done
+- [x] Done
 
 **Context:** `GetAccountsByHolder` (`holder_accounts.go:55-107`) reads `organizationID := c.Get("X-Organization-Id")` at line 77 and passes it as a string to `handler.Reader.ListAccountsByHolder(ctx, organizationID, holderID, *headerParams)`. The `HolderAccountsReader` interface (line 27-29) takes `organizationID string`. The handler already reads `holderID` from locals via `GetUUIDFromLocals(c, "id")` (line 63). The doc-comment block (lines 38-54) carries `@Param X-Organization-Id header` at line 45.
 
@@ -171,7 +182,7 @@ Then pass `organizationID.String()` to the service call (service stays `string`)
 
 #### Task 1.2.4: Migrate `composition.go` to path-scoped org + ledger; delete header helper and constants
 
-- [ ] Done
+- [x] Done
 
 **Context:** `composition.go` reads org and ledger via `uuidFromHeader(c, organizationIDHeader)` (line 77) and `uuidFromHeader(c, ledgerIDHeader)` (line 82). The constants `ledgerIDHeader = "X-Ledger-Id"` and `organizationIDHeader = "X-Organization-Id"` are defined at lines 26-27. `uuidFromHeader` (lines 115-127) is a private helper used ONLY in this file (confirmed: it is the composition-route header reader). The handler already reads holder via `GetUUIDFromLocals(c, "id")` (line 72). It returns typed business errors `ErrMissingFieldsInRequest` / `ErrInvalidPathParameter`. `ParseUUIDPathParameters` already returns `ErrInvalidPathParameter` for malformed path UUIDs, so the validation semantics are preserved by the route chain.
 
@@ -204,7 +215,7 @@ if err != nil {
 
 #### Task 1.3.1: Rewrite `holder_test.go` and `holder_accounts_test.go`
 
-- [ ] Done
+- [x] Done
 
 **Context:** `holder_test.go` sets `X-Organization-Id` on 5 request blocks and registers routes with inline middleware seeding `c.Locals(...)` (pattern visible in `instrument_test.go:334-336`). `holder_accounts_test.go` sets it once. These tests bypass `ParseUUIDPathParameters` by seeding locals directly. The handlers now read `organization_id` from locals (Task 1.2.1/1.2.3).
 
@@ -220,7 +231,7 @@ if err != nil {
 
 #### Task 1.3.2: Rewrite `instrument_test.go`
 
-- [ ] Done
+- [x] Done
 
 **Context:** `instrument_test.go` sets `X-Organization-Id` on 12 sites and already seeds `holder_id`/`instrument_id`/`related_party_id` locals inline (lines 334-336, 498-505, 756-759, 877-880, 986-990, 1193). The instrument handlers now read `organization_id` from locals (Task 1.2.2). The `GetAllInstruments` test (line 1014, route at 1193) keeps `ledger_id`/`holder_id` as query filters.
 
@@ -235,7 +246,7 @@ if err != nil {
 
 #### Task 1.3.3: Rewrite `crm_error_contract_test.go`
 
-- [ ] Done
+- [x] Done
 
 **Context:** This is the dedicated CRM error-contract suite asserting canonical error codes (e.g. "missing required fields emits canonical 0009 not CRM-0003", names at lines 65, 74, 83, 99). It sets `X-Organization-Id` at lines 125 and 180 to satisfy the old header scope while exercising body/validation error paths.
 
@@ -250,7 +261,7 @@ if err != nil {
 
 #### Task 1.3.4: Rewrite `composition_test.go` and `composition_integration_test.go` — header cases become path cases
 
-- [ ] Done
+- [x] Done
 
 **Context:** `composition_test.go` bakes header behavior into named cases: `"missing X-Ledger-Id header returns 400"` (line 122, expectedStatus 400 line 128) and `"invalid X-Organization-Id header returns 400"` (line 136, expectedStatus 400 line 142). The test app registers `/v1/holders/:id/accounts` (line 158, 196) and issues requests to that path (line 168, 207). `composition_integration_test.go` sets both headers (around line 242). The composition handler now reads org+ledger+holder from path locals via the real `ParseUUIDPathParameters` chain (Task 1.1.3, 1.2.4).
 

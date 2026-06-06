@@ -14,6 +14,12 @@ namespace string.
 > team at v4 finalization (a release/deploy gate, NOT a merge gate)**. See "X1 — policy migration"
 > below. The fee namespace (`plugin-fees`) is unchanged and unaffected.
 
+> **Route shape ≠ authz key.** Separately from the namespace flip, the CRM and composition routes
+> moved from header-scoped organization (`X-Organization-Id`) to path-scoped
+> (`/v1/organizations/{organization_id}/...`; composition adds `/ledgers/{ledger_id}`). That change
+> is purely URL shape — the `namespace:resource:action` keys below are byte-identical to before, so
+> the X1 grant migration is unaffected by it. See `docs/api/SCOPING.md` (R22 reversed).
+
 ## The three namespaces
 
 The merged binary calls `auth.Authorize(<namespace>, <resource>, <action>)` under three distinct
