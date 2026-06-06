@@ -72,6 +72,10 @@ func (app *Service) Run() {
 	}
 
 	app.Info("Graceful shutdown complete")
+
+	// Flush buffered records after the Launcher and cleanup have logged their
+	// final lines. Must be last so it captures the shutdown lines themselves.
+	_ = app.Sync(context.Background())
 }
 
 // runDrainListener watches for SIGTERM/SIGINT and flips the shared drain

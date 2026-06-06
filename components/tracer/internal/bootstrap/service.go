@@ -120,6 +120,9 @@ func (app *Service) Run() {
 
 	// Run all services (blocks until shutdown).
 	libCommons.NewLauncher(opts...).Run()
+
+	// Flush buffered log records emitted after the ServerManager's own sync.
+	_ = app.Sync(context.Background())
 }
 
 // installDrainHandler arms a SIGTERM/SIGINT pre-handler that runs the
