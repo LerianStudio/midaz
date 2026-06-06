@@ -18,7 +18,7 @@
 |-------|-----------|-------|--------|
 | 1 | All four services flush zap on exit, reporter-manager honors `ENV_NAME`/`LOG_LEVEL`, and ledger telemetry-shutdown ownership is explicit and documented | 1.1, 1.2, 1.3 | ✅ Complete (commits `f2ddc8c5e`, `de8e77636`, + docs commit; 1.1 resolved as ownership documentation — see Execution Notes) |
 | 2 | Every REST service reports VCS build info on `/version`; the worker reports it in `/readyz` body — stamped via `debug.ReadBuildInfo` + ldflags, ledger first | 2.1, 2.2 | ✅ Complete (commits `8e9c6efa5`, `523e23fa2`, `28cbcb19c`, `4f3fbc6d7`) |
-| 3 | Config/MT conventions harmonized (tracer MT-suffix naming, worker struct-tag unification) and shared cancellable shutdown context decided via a lib-commons upstream issue + interim in-repo pattern | 3.1, 3.2, 3.3 | ✅ 3.1 (`0766394ee`) + 3.2 (`eb382e1bf`) complete; 3.3 decision written, issue filing pending owner approval |
+| 3 | Config/MT conventions harmonized (tracer MT-suffix naming, worker struct-tag unification) and shared cancellable shutdown context decided via a lib-commons upstream issue + interim in-repo pattern | 3.1, 3.2, 3.3 | ✅ Complete — 3.1 (`0766394ee`), 3.2 (`eb382e1bf`), 3.3 decision + [lib-commons#504](https://github.com/LerianStudio/lib-commons/issues/504) |
 
 ---
 
@@ -226,7 +226,7 @@ Closes the high- and medium-severity bootstrap gaps. At the end of Phase 1: a pr
 
 #### Decision (2026-06-06): interim pattern = accept independent per-runnable signal contexts (status quo)
 
-- [x] Decision written; issue filing pending owner approval of the draft text
+- [x] Done — decision written; upstream issue filed: [lib-commons#504](https://github.com/LerianStudio/lib-commons/issues/504)
 
 **Inventory:** 10 independent `signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)` sites in ledger bootstrap alone (`balance_sync.worker.go:162,206,657`, `circuitbreaker.go:214`, `rabbitmq.multitenant.go:36`, `service.go:123,151`, `redis.consumer.go:100,140`), plus the same shape in the other services' runnables.
 
