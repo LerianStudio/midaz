@@ -16,8 +16,8 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
+	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	crmholder "github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/holder"
 	crminstrument "github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/instrument"
 	crmservices "github.com/LerianStudio/midaz/v4/components/crm/services"
@@ -237,10 +237,11 @@ func (infra *compositionTestInfra) postComposition(t *testing.T, orgID, ledgerID
 	payload, err := json.Marshal(body)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(fiber.MethodPost, "/v1/holders/"+holderID.String()+"/accounts", bytes.NewBuffer(payload))
+	// Org and ledger are path-scoped now; the full target path carries both as
+	// validated UUID segments, so no scoping headers are set.
+	target := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/holders/" + holderID.String() + "/accounts"
+	req := httptest.NewRequest(fiber.MethodPost, target, bytes.NewBuffer(payload))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Organization-Id", orgID.String())
-	req.Header.Set("X-Ledger-Id", ledgerID.String())
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer test-token")
 
 	resp, err := infra.app.Test(req, -1)
@@ -412,20 +413,22 @@ func TestIntegration_CompositionPartialFailureNoCompensation(t *testing.T) {
 }
 
 // TestIntegration_CompositionRouteMounted proves Gate 1: the unified app mounts
-// POST /v1/holders/:id/accounts through the real registrar, and a request returns
-// the composite body.
+// the path-scoped composition route through the real registrar, and a request
+// returns the composite body.
 func TestIntegration_CompositionRouteMounted(t *testing.T) {
 	infra := setupCompositionTestInfra(t, nil)
 
 	// Route-table assertion: the composition route is registered on the app.
+	const compositionRoutePath = "/v1/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts"
+
 	found := false
 	for _, route := range infra.app.GetRoutes() {
-		if route.Method == fiber.MethodPost && route.Path == "/v1/holders/:id/accounts" {
+		if route.Method == fiber.MethodPost && route.Path == compositionRoutePath {
 			found = true
 			break
 		}
 	}
-	assert.True(t, found, "POST /v1/holders/:id/accounts must be registered on the app")
+	assert.True(t, found, "POST "+compositionRoutePath+" must be registered on the app")
 
 	// And it actually serves a composite body.
 	orgID, ledgerID := infra.seedOrgLedgerAsset(t)

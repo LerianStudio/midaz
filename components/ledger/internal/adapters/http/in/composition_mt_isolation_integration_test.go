@@ -335,10 +335,11 @@ func postComposition(app *fiber.App, tn *compositionTenant) error {
 		return err
 	}
 
-	req := httptest.NewRequest(fiber.MethodPost, "/v1/holders/"+tn.holderID.String()+"/accounts", strings.NewReader(string(body)))
+	// Org and ledger are path-scoped now; the full target path carries both as
+	// validated UUID segments. Tenant is still addressed only via the JWT claim.
+	target := "/v1/organizations/" + tn.orgID.String() + "/ledgers/" + tn.ledgerID.String() + "/holders/" + tn.holderID.String() + "/accounts"
+	req := httptest.NewRequest(fiber.MethodPost, target, strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(organizationIDHeader, tn.orgID.String())
-	req.Header.Set(ledgerIDHeader, tn.ledgerID.String())
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer "+compositionTenantJWT(tn.tenantID))
 
 	resp, err := app.Test(req, -1)

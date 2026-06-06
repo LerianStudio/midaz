@@ -262,7 +262,8 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := uuid.New().String()
+			orgUUID := uuid.New()
+			orgID := orgUUID.String()
 
 			mockHolderRepo := holder.NewMockRepository(ctrl)
 			tt.setupMocks(mockHolderRepo, orgID)
@@ -273,15 +274,15 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 			handler := &HolderHandler{Service: uc}
 
 			app := fiber.New()
-			app.Post("/v1/holders",
+			app.Post("/v1/organizations/:organization_id/holders",
 				func(c *fiber.Ctx) error {
-					c.Request().Header.Set("X-Organization-Id", orgID)
+					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},
 				http.WithBody(new(mmodel.CreateHolderInput), handler.CreateHolder),
 			)
 
-			req := httptest.NewRequest("POST", "/v1/holders", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest("POST", "/v1/organizations/"+orgID+"/holders", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -418,7 +419,8 @@ func TestHolderHandler_GetHolderByID(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := uuid.New().String()
+			orgUUID := uuid.New()
+			orgID := orgUUID.String()
 			holderID := uuid.New()
 
 			mockHolderRepo := holder.NewMockRepository(ctrl)
@@ -430,16 +432,16 @@ func TestHolderHandler_GetHolderByID(t *testing.T) {
 			handler := &HolderHandler{Service: uc}
 
 			app := fiber.New()
-			app.Get("/v1/holders/:id",
+			app.Get("/v1/organizations/:organization_id/holders/:id",
 				func(c *fiber.Ctx) error {
 					c.Locals("id", holderID)
-					c.Request().Header.Set("X-Organization-Id", orgID)
+					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},
 				handler.GetHolderByID,
 			)
 
-			url := "/v1/holders/" + holderID.String()
+			url := "/v1/organizations/" + orgID + "/holders/" + holderID.String()
 			if tt.includeDeleted != "" {
 				url += "?include_deleted=" + tt.includeDeleted
 			}
@@ -592,7 +594,8 @@ func TestHolderHandler_UpdateHolder(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := uuid.New().String()
+			orgUUID := uuid.New()
+			orgID := orgUUID.String()
 			holderID := uuid.New()
 
 			mockHolderRepo := holder.NewMockRepository(ctrl)
@@ -604,17 +607,17 @@ func TestHolderHandler_UpdateHolder(t *testing.T) {
 			handler := &HolderHandler{Service: uc}
 
 			app := fiber.New()
-			app.Patch("/v1/holders/:id",
+			app.Patch("/v1/organizations/:organization_id/holders/:id",
 				func(c *fiber.Ctx) error {
 					c.Locals("id", holderID)
 					c.Locals("patchRemove", []string{})
-					c.Request().Header.Set("X-Organization-Id", orgID)
+					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},
 				http.WithBody(new(mmodel.UpdateHolderInput), handler.UpdateHolder),
 			)
 
-			req := httptest.NewRequest("PATCH", "/v1/holders/"+holderID.String(), bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest("PATCH", "/v1/organizations/"+orgID+"/holders/"+holderID.String(), bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -773,7 +776,8 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := uuid.New().String()
+			orgUUID := uuid.New()
+			orgID := orgUUID.String()
 			holderID := uuid.New()
 
 			mockInstrumentRepo := instrument.NewMockRepository(ctrl)
@@ -787,16 +791,16 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			handler := &HolderHandler{Service: uc}
 
 			app := fiber.New()
-			app.Delete("/v1/holders/:id",
+			app.Delete("/v1/organizations/:organization_id/holders/:id",
 				func(c *fiber.Ctx) error {
 					c.Locals("id", holderID)
-					c.Request().Header.Set("X-Organization-Id", orgID)
+					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},
 				handler.DeleteHolderByID,
 			)
 
-			url := "/v1/holders/" + holderID.String()
+			url := "/v1/organizations/" + orgID + "/holders/" + holderID.String()
 			if tt.hardDelete != "" {
 				url += "?hard_delete=" + tt.hardDelete
 			}
@@ -1074,7 +1078,8 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := uuid.New().String()
+			orgUUID := uuid.New()
+			orgID := orgUUID.String()
 
 			mockHolderRepo := holder.NewMockRepository(ctrl)
 			tt.setupMocks(mockHolderRepo, orgID)
@@ -1085,15 +1090,15 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			handler := &HolderHandler{Service: uc}
 
 			app := fiber.New()
-			app.Get("/v1/holders",
+			app.Get("/v1/organizations/:organization_id/holders",
 				func(c *fiber.Ctx) error {
-					c.Request().Header.Set("X-Organization-Id", orgID)
+					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},
 				handler.GetAllHolders,
 			)
 
-			req := httptest.NewRequest("GET", "/v1/holders"+tt.queryParams, nil)
+			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID+"/holders"+tt.queryParams, nil)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)

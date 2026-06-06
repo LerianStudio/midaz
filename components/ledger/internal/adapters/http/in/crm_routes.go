@@ -33,24 +33,24 @@ const ApplicationName = "midaz"
 // holder-accounts route is not mounted.
 func RegisterCRMRoutesToApp(f fiber.Router, auth *middleware.AuthClient, hh *HolderHandler, ah *InstrumentHandler, hah *HolderAccountsHandler, routeOptions *http.ProtectedRouteOptions) {
 	// Holders
-	f.Post("/v1/holders", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "post"), routeOptions, http.WithBody(new(mmodel.CreateHolderInput), hh.CreateHolder))...)
-	f.Get("/v1/holders/:id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "get"), routeOptions, http.ParseUUIDPathParameters("holder"), hh.GetHolderByID)...)
+	f.Post("/v1/organizations/:organization_id/holders", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "post"), routeOptions, http.ParseUUIDPathParameters("holder"), http.WithBody(new(mmodel.CreateHolderInput), hh.CreateHolder))...)
+	f.Get("/v1/organizations/:organization_id/holders/:id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "get"), routeOptions, http.ParseUUIDPathParameters("holder"), hh.GetHolderByID)...)
 
 	if hah != nil {
-		f.Get("/v1/holders/:id/accounts", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "get"), routeOptions, http.ParseUUIDPathParameters("holder"), hah.GetAccountsByHolder)...)
+		f.Get("/v1/organizations/:organization_id/holders/:id/accounts", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "get"), routeOptions, http.ParseUUIDPathParameters("holder"), hah.GetAccountsByHolder)...)
 	}
 
-	f.Patch("/v1/holders/:id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "patch"), routeOptions, http.ParseUUIDPathParameters("holder"), http.WithBody(new(mmodel.UpdateHolderInput), hh.UpdateHolder))...)
-	f.Delete("/v1/holders/:id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "delete"), routeOptions, http.ParseUUIDPathParameters("holder"), hh.DeleteHolderByID)...)
-	f.Get("/v1/holders", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "get"), routeOptions, hh.GetAllHolders)...)
+	f.Patch("/v1/organizations/:organization_id/holders/:id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "patch"), routeOptions, http.ParseUUIDPathParameters("holder"), http.WithBody(new(mmodel.UpdateHolderInput), hh.UpdateHolder))...)
+	f.Delete("/v1/organizations/:organization_id/holders/:id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "delete"), routeOptions, http.ParseUUIDPathParameters("holder"), hh.DeleteHolderByID)...)
+	f.Get("/v1/organizations/:organization_id/holders", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "get"), routeOptions, http.ParseUUIDPathParameters("holder"), hh.GetAllHolders)...)
 
 	// Instruments
-	f.Get("/v1/instruments", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "get"), routeOptions, ah.GetAllInstruments)...)
-	f.Post("/v1/holders/:holder_id/instruments", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "post"), routeOptions, http.ParseUUIDPathParameters("instruments"), http.WithBody(new(mmodel.CreateInstrumentInput), ah.CreateInstrument))...)
-	f.Get("/v1/holders/:holder_id/instruments/:instrument_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "get"), routeOptions, http.ParseUUIDPathParameters("instruments"), ah.GetInstrumentByID)...)
-	f.Patch("/v1/holders/:holder_id/instruments/:instrument_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "patch"), routeOptions, http.ParseUUIDPathParameters("instruments"), http.WithBody(new(mmodel.UpdateInstrumentInput), ah.UpdateInstrument))...)
-	f.Delete("/v1/holders/:holder_id/instruments/:instrument_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "delete"), routeOptions, http.ParseUUIDPathParameters("instruments"), ah.DeleteInstrumentByID)...)
-	f.Delete("/v1/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "delete"), routeOptions, http.ParseUUIDPathParameters("related-parties"), ah.DeleteRelatedParty)...)
+	f.Get("/v1/organizations/:organization_id/instruments", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "get"), routeOptions, http.ParseUUIDPathParameters("instruments"), ah.GetAllInstruments)...)
+	f.Post("/v1/organizations/:organization_id/holders/:holder_id/instruments", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "post"), routeOptions, http.ParseUUIDPathParameters("instruments"), http.WithBody(new(mmodel.CreateInstrumentInput), ah.CreateInstrument))...)
+	f.Get("/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "get"), routeOptions, http.ParseUUIDPathParameters("instruments"), ah.GetInstrumentByID)...)
+	f.Patch("/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "patch"), routeOptions, http.ParseUUIDPathParameters("instruments"), http.WithBody(new(mmodel.UpdateInstrumentInput), ah.UpdateInstrument))...)
+	f.Delete("/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "delete"), routeOptions, http.ParseUUIDPathParameters("instruments"), ah.DeleteInstrumentByID)...)
+	f.Delete("/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "delete"), routeOptions, http.ParseUUIDPathParameters("related-parties"), ah.DeleteRelatedParty)...)
 }
 
 // CreateCRMRouteRegistrar returns a registrar that mounts the CRM routes on the

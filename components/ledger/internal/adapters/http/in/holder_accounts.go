@@ -42,7 +42,7 @@ type HolderAccountsHandler struct {
 //	@Tags			Holders
 //	@Produce		json
 //	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string	true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Param			id					path		string	true	"The unique identifier of the Holder."
 //	@Param			limit				query		int		false	"Limit"			default(10)
 //	@Param			page				query		int		false	"Page"			default(1)
@@ -51,7 +51,7 @@ type HolderAccountsHandler struct {
 //	@Failure		400					{object}	mmodel.Error
 //	@Failure		404					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/holders/{id}/accounts [get]
+//	@Router			/v1/organizations/{organization_id}/holders/{id}/accounts [get]
 func (handler *HolderAccountsHandler) GetAccountsByHolder(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -74,20 +74,23 @@ func (handler *HolderAccountsHandler) GetAccountsByHolder(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	organizationID := c.Get("X-Organization-Id")
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	holderIDStr := holderID.String()
 	headerParams.HolderID = &holderIDStr
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.holder_id", holderIDStr),
 	)
 
 	recordSafeQueryAttributes(span, headerParams)
 
-	accounts, err := handler.Reader.ListAccountsByHolder(ctx, organizationID, holderID, *headerParams)
+	accounts, err := handler.Reader.ListAccountsByHolder(ctx, organizationID.String(), holderID, *headerParams)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to list accounts by holder", err)
 

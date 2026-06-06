@@ -489,904 +489,6 @@ paths:
       tags:
       - Fees
       x-codegen-request-body-name: fee
-  /v1/holders:
-    get:
-      description: "List all Holders. CRM listing endpoints support pagination using\
-        \ the page, limit, and sort parameters. The sort parameter orders results\
-        \ by the entity ID using the UUID v7 standard, which is time-sortable, ensuring\
-        \ chronological ordering of the results."
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.\
-          \ Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        schema:
-          type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
-        required: true
-        schema:
-          type: string
-      - description: Metadata
-        in: query
-        name: metadata
-        schema:
-          type: string
-      - description: Limit
-        in: query
-        name: limit
-        schema:
-          default: 10
-          type: integer
-      - description: Page
-        in: query
-        name: page
-        schema:
-          default: 1
-          type: integer
-      - description: Sort Order
-        in: query
-        name: sort_order
-        schema:
-          enum:
-          - asc
-          - desc
-          type: string
-      - description: Return includes logically deleted holders.
-        in: query
-        name: include_deleted
-        schema:
-          type: string
-      - description: Filter holders by externalID
-        in: query
-        name: external_id
-        schema:
-          type: string
-      - description: Filter holders by document
-        in: query
-        name: document
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/_v1_holders_get_200_response'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad Request
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not Found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-      summary: List Holders
-      tags:
-      - Holders
-    post:
-      description: Creates a new holder with the provided details.
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.\
-          \ Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        schema:
-          type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateHolderRequest'
-        description: Holder Input
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HolderResponse'
-          description: Created
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad Request
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not Found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-      summary: Create a Holder
-      tags:
-      - Holders
-      x-codegen-request-body-name: holder
-  /v1/holders/{holder_id}/instruments:
-    post:
-      description: "Enables a creation of an instrument account, which represents\
-        \ an account in the ledger. The instrument account is linked to specific business\
-        \ information, making it easier to manage and abstract account data within\
-        \ the system."
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.\
-          \ Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        schema:
-          type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Holder.
-        in: path
-        name: holder_id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateInstrumentRequest'
-        description: Instrument Input
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/InstrumentResponse'
-          description: Created
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad Request
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not Found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-      summary: Create an Instrument Account
-      tags:
-      - Instruments
-      x-codegen-request-body-name: instrument
-  /v1/holders/{holder_id}/instruments/{instrument_id}:
-    delete:
-      description: "Delete an Instrument. **Note:** By default, the delete endpoint\
-        \ performs a logical deletion (soft delete) of the entity in the system. If\
-        \ a physical deletion (hard delete) is required, you can use the query parameter\
-        \ outlined in the documentation."
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.\
-          \ Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        schema:
-          type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Holder.
-        in: path
-        name: holder_id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Instrument account.
-        in: path
-        name: instrument_id
-        required: true
-        schema:
-          type: string
-      - description: Use only to perform a physical deletion of the data. This action
-          is irreversible.
-        in: query
-        name: hard_delete
-        schema:
-          type: string
-      responses:
-        "204":
-          content: {}
-          description: No Content
-        "400":
-          content:
-            '*/*':
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad Request
-        "404":
-          content:
-            '*/*':
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not Found
-        "500":
-          content:
-            '*/*':
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-      summary: Delete an Instrument
-      tags:
-      - Instruments
-    get:
-      description: Retrieves detailed information about a specific instrument using
-        its unique identifier.
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.\
-          \ Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        schema:
-          type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Holder.
-        in: path
-        name: holder_id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Instrument account.
-        in: path
-        name: instrument_id
-        required: true
-        schema:
-          type: string
-      - description: Returns the instrument even if it was logically deleted.
-        in: query
-        name: include_deleted
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/InstrumentResponse'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad Request
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not Found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-      summary: Retrieve Instrument details
-      tags:
-      - Instruments
-    patch:
-      description: Update details of an instrument.
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.\
-          \ Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        schema:
-          type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Holder.
-        in: path
-        name: holder_id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Instrument account.
-        in: path
-        name: instrument_id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateInstrumentRequest'
-        description: Instrument Input
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/InstrumentResponse'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad Request
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not Found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-      summary: Update an Instrument
-      tags:
-      - Instruments
-      x-codegen-request-body-name: instrument
-  /v1/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}:
-    delete:
-      description: Delete a Related Party from an Instrument. This operation performs
-        a physical deletion (hard delete) of the related party.
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.\
-          \ Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        schema:
-          type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Holder.
-        in: path
-        name: holder_id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Instrument account.
-        in: path
-        name: instrument_id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Related Party.
-        in: path
-        name: related_party_id
-        required: true
-        schema:
-          type: string
-      responses:
-        "204":
-          content: {}
-          description: No Content
-        "400":
-          content:
-            '*/*':
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad Request
-        "404":
-          content:
-            '*/*':
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not Found
-        "500":
-          content:
-            '*/*':
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-      summary: Delete a Related Party
-      tags:
-      - Instruments
-  /v1/holders/{id}:
-    delete:
-      description: "Delete a Holder. **Note:** By default, the delete endpoint performs\
-        \ a logical deletion (soft delete) of the entity in the system. If a physical\
-        \ deletion (hard delete) is required, you can use the query parameter outlined\
-        \ in the documentation."
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.\
-          \ Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        schema:
-          type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Holder.
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      - description: Use only to perform a physical deletion of the data. This action
-          is irreversible.
-        in: query
-        name: hard_delete
-        schema:
-          type: string
-      responses:
-        "204":
-          content: {}
-          description: No Content
-        "400":
-          content:
-            '*/*':
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad Request
-        "404":
-          content:
-            '*/*':
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not Found
-        "500":
-          content:
-            '*/*':
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-      summary: Delete a Holder
-      tags:
-      - Holders
-    get:
-      description: Retrieves detailed information about a specific holder using its
-        unique identifier.
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.\
-          \ Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        schema:
-          type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Holder.
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      - description: Returns the holder even if it was logically deleted
-        in: query
-        name: include_deleted
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HolderResponse'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad Request
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not Found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-      summary: Retrieve Holder details
-      tags:
-      - Holders
-    patch:
-      description: Update details of a holder.
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.\
-          \ Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        schema:
-          type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Holder.
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateHolderRequest'
-        description: Holder Input
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HolderResponse'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad Request
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not Found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-      summary: Update a Holder
-      tags:
-      - Holders
-      x-codegen-request-body-name: holder
-  /v1/holders/{id}/accounts:
-    get:
-      description: "Lists the accounts owned by a holder, identified by the holder's\
-        \ ownership link."
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.\
-          \ Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        schema:
-          type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Holder.
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      - description: Limit
-        in: query
-        name: limit
-        schema:
-          default: 10
-          type: integer
-      - description: Page
-        in: query
-        name: page
-        schema:
-          default: 1
-          type: integer
-      - description: Sort Order
-        in: query
-        name: sort_order
-        schema:
-          enum:
-          - asc
-          - desc
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/_v1_holders__id__accounts_get_200_response'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad Request
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not Found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-      summary: List Accounts by Holder
-      tags:
-      - Holders
-    post:
-      description: "Opens an account owned by the holder identified in the path and,\
-        \ when banking/regulatory/related-party fields are present, an instrument\
-        \ linked to the new account. The account is created first; if it commits but\
-        \ the instrument write fails the account remains persisted and a typed instrumentError\
-        \ block is returned (no rollback). The holder is always taken from the path,\
-        \ never the body."
-      parameters:
-      - description: The authorization token in the 'Bearer access_token' format.
-          Only required when auth plugin is enabled.
-        in: header
-        name: Authorization
-        schema:
-          type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Ledger the account is opened in.
-        in: header
-        name: X-Ledger-Id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Holder that will own the account.
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateHolderAccountInput'
-        description: Composite account (and optional instrument) details
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HolderAccountResponse'
-          description: Created
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg.HTTPError'
-          description: Bad Request
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg.HTTPError'
-          description: Not Found
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg.HTTPError'
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg.HTTPError'
-          description: Internal Server Error
-      summary: Open a holder-owned account (with optional instrument)
-      tags:
-      - Composition
-      x-codegen-request-body-name: composition
-  /v1/instruments:
-    get:
-      description: "List all Instruments with or without filters. CRM listing endpoints\
-        \ support pagination using the page, limit, and sort parameters. The sort\
-        \ parameter orders results by the entity ID using the UUID v7 standard, which\
-        \ is time-sortable, ensuring chronological ordering of the results."
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.\
-          \ Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        schema:
-          type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
-        required: true
-        schema:
-          type: string
-      - description: The unique identifier of the Holder.
-        in: query
-        name: holder_id
-        schema:
-          type: string
-      - description: Metadata
-        in: query
-        name: metadata
-        schema:
-          type: string
-      - description: Limit
-        in: query
-        name: limit
-        schema:
-          default: 10
-          type: integer
-      - description: Page
-        in: query
-        name: page
-        schema:
-          default: 1
-          type: integer
-      - description: Sort Order
-        in: query
-        name: sort_order
-        schema:
-          enum:
-          - asc
-          - desc
-          type: string
-      - description: Return includes logically deleted instruments.
-        in: query
-        name: include_deleted
-        schema:
-          type: string
-      - description: Filter instrument by accountID
-        in: query
-        name: account_id
-        schema:
-          type: string
-      - description: Filter instrument by ledgerID
-        in: query
-        name: ledger_id
-        schema:
-          type: string
-      - description: Filter instrument by document
-        in: query
-        name: document
-        schema:
-          type: string
-      - description: Filter instrument by banking details branch
-        in: query
-        name: banking_details_branch
-        schema:
-          type: string
-      - description: Filter instrument by banking details account
-        in: query
-        name: banking_details_account
-        schema:
-          type: string
-      - description: Filter instrument by banking details iban
-        in: query
-        name: banking_details_iban
-        schema:
-          type: string
-      - description: Filter instrument by regulatory fields participant document
-        in: query
-        name: regulatory_fields_participant_document
-        schema:
-          type: string
-      - description: Filter instrument by related party document
-        in: query
-        name: related_party_document
-        schema:
-          type: string
-      - description: Filter instrument by related party role
-        in: query
-        name: related_party_role
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/_v1_instruments_get_200_response'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad Request
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not Found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-      summary: List Instruments
-      tags:
-      - Instruments
   /v1/organizations:
     get:
       description: "Returns a paginated list of organizations, optionally filtered\
@@ -1789,6 +891,817 @@ paths:
       tags:
       - Organizations
       x-codegen-request-body-name: organization
+  /v1/organizations/{organization_id}/holders:
+    get:
+      description: "List all Holders. CRM listing endpoints support pagination using\
+        \ the page, limit, and sort parameters. The sort parameter orders results\
+        \ by the entity ID using the UUID v7 standard, which is time-sortable, ensuring\
+        \ chronological ordering of the results."
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Metadata
+        in: query
+        name: metadata
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Page
+        in: query
+        name: page
+        schema:
+          default: 1
+          type: integer
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+      - description: Return includes logically deleted holders.
+        in: query
+        name: include_deleted
+        schema:
+          type: string
+      - description: Filter holders by externalID
+        in: query
+        name: external_id
+        schema:
+          type: string
+      - description: Filter holders by document
+        in: query
+        name: document
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_v1_organizations__organization_id__holders_get_200_response'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: List Holders
+      tags:
+      - Holders
+    post:
+      description: Creates a new holder with the provided details.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHolderRequest'
+        description: Holder Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HolderResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Create a Holder
+      tags:
+      - Holders
+      x-codegen-request-body-name: holder
+  /v1/organizations/{organization_id}/holders/{holder_id}/instruments:
+    post:
+      description: "Enables a creation of an instrument account, which represents\
+        \ an account in the ledger. The instrument account is linked to specific business\
+        \ information, making it easier to manage and abstract account data within\
+        \ the system."
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInstrumentRequest'
+        description: Instrument Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstrumentResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Create an Instrument Account
+      tags:
+      - Instruments
+      x-codegen-request-body-name: instrument
+  /v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}:
+    delete:
+      description: "Delete an Instrument. **Note:** By default, the delete endpoint\
+        \ performs a logical deletion (soft delete) of the entity in the system. If\
+        \ a physical deletion (hard delete) is required, you can use the query parameter\
+        \ outlined in the documentation."
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Instrument account.
+        in: path
+        name: instrument_id
+        required: true
+        schema:
+          type: string
+      - description: Use only to perform a physical deletion of the data. This action
+          is irreversible.
+        in: query
+        name: hard_delete
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: No Content
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Delete an Instrument
+      tags:
+      - Instruments
+    get:
+      description: Retrieves detailed information about a specific instrument using
+        its unique identifier.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Instrument account.
+        in: path
+        name: instrument_id
+        required: true
+        schema:
+          type: string
+      - description: Returns the instrument even if it was logically deleted.
+        in: query
+        name: include_deleted
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstrumentResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Retrieve Instrument details
+      tags:
+      - Instruments
+    patch:
+      description: Update details of an instrument.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Instrument account.
+        in: path
+        name: instrument_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInstrumentRequest'
+        description: Instrument Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstrumentResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Update an Instrument
+      tags:
+      - Instruments
+      x-codegen-request-body-name: instrument
+  /v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}:
+    delete:
+      description: Delete a Related Party from an Instrument. This operation performs
+        a physical deletion (hard delete) of the related party.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Instrument account.
+        in: path
+        name: instrument_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Related Party.
+        in: path
+        name: related_party_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: No Content
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Delete a Related Party
+      tags:
+      - Instruments
+  /v1/organizations/{organization_id}/holders/{id}:
+    delete:
+      description: "Delete a Holder. **Note:** By default, the delete endpoint performs\
+        \ a logical deletion (soft delete) of the entity in the system. If a physical\
+        \ deletion (hard delete) is required, you can use the query parameter outlined\
+        \ in the documentation."
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: Use only to perform a physical deletion of the data. This action
+          is irreversible.
+        in: query
+        name: hard_delete
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: No Content
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Delete a Holder
+      tags:
+      - Holders
+    get:
+      description: Retrieves detailed information about a specific holder using its
+        unique identifier.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: Returns the holder even if it was logically deleted
+        in: query
+        name: include_deleted
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HolderResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Retrieve Holder details
+      tags:
+      - Holders
+    patch:
+      description: Update details of a holder.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateHolderRequest'
+        description: Holder Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HolderResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Update a Holder
+      tags:
+      - Holders
+      x-codegen-request-body-name: holder
+  /v1/organizations/{organization_id}/holders/{id}/accounts:
+    get:
+      description: "Lists the accounts owned by a holder, identified by the holder's\
+        \ ownership link."
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Page
+        in: query
+        name: page
+        schema:
+          default: 1
+          type: integer
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_v1_organizations__organization_id__holders__id__accounts_get_200_response'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: List Accounts by Holder
+      tags:
+      - Holders
+  /v1/organizations/{organization_id}/instruments:
+    get:
+      description: "List all Instruments with or without filters. CRM listing endpoints\
+        \ support pagination using the page, limit, and sort parameters. The sort\
+        \ parameter orders results by the entity ID using the UUID v7 standard, which\
+        \ is time-sortable, ensuring chronological ordering of the results."
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: query
+        name: holder_id
+        schema:
+          type: string
+      - description: Metadata
+        in: query
+        name: metadata
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Page
+        in: query
+        name: page
+        schema:
+          default: 1
+          type: integer
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+      - description: Return includes logically deleted instruments.
+        in: query
+        name: include_deleted
+        schema:
+          type: string
+      - description: Filter instrument by accountID
+        in: query
+        name: account_id
+        schema:
+          type: string
+      - description: Filter instrument by ledgerID
+        in: query
+        name: ledger_id
+        schema:
+          type: string
+      - description: Filter instrument by document
+        in: query
+        name: document
+        schema:
+          type: string
+      - description: Filter instrument by banking details branch
+        in: query
+        name: banking_details_branch
+        schema:
+          type: string
+      - description: Filter instrument by banking details account
+        in: query
+        name: banking_details_account
+        schema:
+          type: string
+      - description: Filter instrument by banking details iban
+        in: query
+        name: banking_details_iban
+        schema:
+          type: string
+      - description: Filter instrument by regulatory fields participant document
+        in: query
+        name: regulatory_fields_participant_document
+        schema:
+          type: string
+      - description: Filter instrument by related party document
+        in: query
+        name: related_party_document
+        schema:
+          type: string
+      - description: Filter instrument by related party role
+        in: query
+        name: related_party_role
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_v1_organizations__organization_id__instruments_get_200_response'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: List Instruments
+      tags:
+      - Instruments
   /v1/organizations/{organization_id}/ledgers:
     get:
       description: "Returns a paginated list of ledgers within the specified organization,\
@@ -2740,7 +2653,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/_v1_holders__id__accounts_get_200_response'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__holders__id__accounts_get_200_response'
           description: Successfully retrieved accounts list
         "400":
           content:
@@ -4994,6 +4907,81 @@ paths:
       summary: Get Balance history at date
       tags:
       - Balances
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts:
+    post:
+      description: "Opens an account owned by the holder identified in the path and,\
+        \ when banking/regulatory/related-party fields are present, an instrument\
+        \ linked to the new account. The account is created first; if it commits but\
+        \ the instrument write fails the account remains persisted and a typed instrumentError\
+        \ block is returned (no rollback). The holder is always taken from the path,\
+        \ never the body."
+      parameters:
+      - description: The authorization token in the 'Bearer access_token' format.
+          Only required when auth plugin is enabled.
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Ledger the account is opened in.
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder that will own the account.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHolderAccountInput'
+        description: Composite account (and optional instrument) details
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HolderAccountResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Open a holder-owned account (with optional instrument)
+      tags:
+      - Composition
+      x-codegen-request-body-name: composition
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
     get:
       description: Returns a list of all operation routes within the specified ledger
@@ -13797,25 +13785,6 @@ components:
           example: "1.50"
           type: string
       type: object
-    github_com_LerianStudio_midaz_v4_pkg.HTTPError:
-      example:
-        code: code
-        err: "{}"
-        entityType: entityType
-        message: message
-        title: title
-      properties:
-        code:
-          type: string
-        entityType:
-          type: string
-        err:
-          type: object
-        message:
-          type: string
-        title:
-          type: string
-      type: object
     github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination:
       properties:
         items:
@@ -14207,7 +14176,46 @@ components:
           id: id
           countMode: countMode
           updatedAt: updatedAt
-    _v1_holders_get_200_response:
+    _v1_organizations_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - properties:
+          items:
+            items:
+              $ref: '#/components/schemas/Organization'
+            type: array
+        type: object
+      example:
+        prev_cursor: prev_cursor
+        next_cursor: next_cursor
+        limit: 0
+        page: 6
+        items:
+        - legalName: Lerian Financial Services Ltd.
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          metadata:
+            key: "{}"
+          address: "{}"
+          doingBusinessAs: Lerian FS
+          id: 00000000-0000-0000-0000-000000000000
+          legalDocument: "123456789012345"
+          parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          status: "{}"
+          updatedAt: 2021-01-01T00:00:00Z
+        - legalName: Lerian Financial Services Ltd.
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          metadata:
+            key: "{}"
+          address: "{}"
+          doingBusinessAs: Lerian FS
+          id: 00000000-0000-0000-0000-000000000000
+          legalDocument: "123456789012345"
+          parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          status: "{}"
+          updatedAt: 2021-01-01T00:00:00Z
+    _v1_organizations__organization_id__holders_get_200_response:
       allOf:
       - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
       - properties:
@@ -14338,7 +14346,7 @@ components:
             civilStatus: Single
             status: Active
           updatedAt: 2025-01-01T00:00:00Z
-    _v1_holders__id__accounts_get_200_response:
+    _v1_organizations__organization_id__holders__id__accounts_get_200_response:
       allOf:
       - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
       - properties:
@@ -14391,7 +14399,7 @@ components:
           id: 00000000-0000-0000-0000-000000000000
           status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
-    _v1_instruments_get_200_response:
+    _v1_organizations__organization_id__instruments_get_200_response:
       allOf:
       - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
       - properties:
@@ -14460,45 +14468,6 @@ components:
             startDate: 2025-01-01
           id: 00000000-0000-0000-0000-000000000000
           updatedAt: 2025-01-01T00:00:00Z
-    _v1_organizations_get_200_response:
-      allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
-      - properties:
-          items:
-            items:
-              $ref: '#/components/schemas/Organization'
-            type: array
-        type: object
-      example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
-        items:
-        - legalName: Lerian Financial Services Ltd.
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          metadata:
-            key: "{}"
-          address: "{}"
-          doingBusinessAs: Lerian FS
-          id: 00000000-0000-0000-0000-000000000000
-          legalDocument: "123456789012345"
-          parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          status: "{}"
-          updatedAt: 2021-01-01T00:00:00Z
-        - legalName: Lerian Financial Services Ltd.
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          metadata:
-            key: "{}"
-          address: "{}"
-          doingBusinessAs: Lerian FS
-          id: 00000000-0000-0000-0000-000000000000
-          legalDocument: "123456789012345"
-          parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          status: "{}"
-          updatedAt: 2021-01-01T00:00:00Z
     _v1_organizations__organization_id__ledgers_get_200_response:
       allOf:
       - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'

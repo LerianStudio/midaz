@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	nethttp "net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -43,23 +43,30 @@ func (s stubInstrumentCreator) CreateInstrument(_ context.Context, _ string, _ u
 }
 
 func TestCompositionHandler_CreateHolderAccount(t *testing.T) {
-	holderID := uuid.New()
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	// Fixed UUIDs keep the suite deterministic (no time.Now()/random seeds).
+	holderID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	orgID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	ledgerID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
 
-	createdAccount := &mmodel.Account{ID: uuid.New().String(), Name: "Composite Account"}
+	createdAccount := &mmodel.Account{ID: "44444444-4444-4444-4444-444444444444", Name: "Composite Account"}
 
-	instrumentID := uuid.New()
+	instrumentID := uuid.MustParse("55555555-5555-5555-5555-555555555555")
 	createdInstrument := &mmodel.Instrument{ID: &instrumentID}
 
 	bankingDetails := &mmodel.BankingDetails{}
+
+	// validPath is the happy-path target: org, ledger, and holder are all valid
+	// UUID path segments. Org and ledger are path-scoped now (no scoping headers).
+	validPath := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/holders/" + holderID.String() + "/accounts"
 
 	tests := []struct {
 		name           string
 		payload        *mmodel.CreateHolderAccountInput
 		accountCreator stubAccountCreator
 		instrCreator   stubInstrumentCreator
-		setHeaders     func(req *nethttp.Request)
+		// targetPath overrides validPath for the malformed-segment cases that must
+		// drive the real ParseUUIDPathParameters validator. Empty means validPath.
+		targetPath     string
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
@@ -119,26 +126,30 @@ func TestCompositionHandler_CreateHolderAccount(t *testing.T) {
 			},
 		},
 		{
-			name:           "missing X-Ledger-Id header returns 400",
+			// Replaces the former "missing ledger header returns 400" case. Ledger is
+			// now a path segment validated by ParseUUIDPathParameters. A genuinely
+			// MISSING segment can no longer be expressed — the route would not match
+			// and Fiber returns 404 — so the "missing" semantics become "malformed":
+			// a non-UUID ledger_id segment is rejected with 400 (ErrInvalidPathParameter).
+			name:           "non-UUID ledger_id path segment returns 400",
 			payload:        &mmodel.CreateHolderAccountInput{Name: "Composite Account", AssetCode: "USD", Type: "deposit"},
 			accountCreator: stubAccountCreator{account: createdAccount},
-			setHeaders: func(req *nethttp.Request) {
-				req.Header.Del(ledgerIDHeader)
-			},
+			targetPath:     "/v1/organizations/" + orgID.String() + "/ledgers/not-a-uuid/holders/" + holderID.String() + "/accounts",
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				require.NoError(t, json.Unmarshal(body, &errResp))
-				assert.Equal(t, cn.ErrMissingFieldsInRequest.Error(), errResp["code"])
+				assert.Equal(t, cn.ErrInvalidPathParameter.Error(), errResp["code"])
 			},
 		},
 		{
-			name:           "invalid X-Organization-Id header returns 400",
+			// Replaces the former "invalid org header returns 400" case. Org is now a
+			// path segment; a non-UUID organization_id segment is rejected by the real
+			// ParseUUIDPathParameters chain with 400 (ErrInvalidPathParameter).
+			name:           "non-UUID organization_id path segment returns 400",
 			payload:        &mmodel.CreateHolderAccountInput{Name: "Composite Account", AssetCode: "USD", Type: "deposit"},
 			accountCreator: stubAccountCreator{account: createdAccount},
-			setHeaders: func(req *nethttp.Request) {
-				req.Header.Set(organizationIDHeader, "not-a-uuid")
-			},
+			targetPath:     "/v1/organizations/not-a-uuid/ledgers/" + ledgerID.String() + "/holders/" + holderID.String() + "/accounts",
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
@@ -154,25 +165,26 @@ func TestCompositionHandler_CreateHolderAccount(t *testing.T) {
 				Service: composition.NewService(tt.accountCreator, tt.instrCreator),
 			}
 
+			// Drive the REAL path-scoped route through ParseUUIDPathParameters, which
+			// validates organization_id, ledger_id, and id (holder) as UUIDs and
+			// stores them in locals — the same chain the production router runs. The
+			// handler reads org/ledger/holder from those locals; no scoping headers.
 			app := fiber.New()
-			app.Post("/v1/holders/:id/accounts",
-				func(c *fiber.Ctx) error {
-					c.Locals("id", holderID)
-					return c.Next()
-				},
+			app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts",
+				http.ParseUUIDPathParameters("holder"),
 				func(c *fiber.Ctx) error {
 					return handler.CreateHolderAccount(tt.payload, c)
 				},
 			)
 
-			req := httptest.NewRequest("POST", "/v1/holders/"+holderID.String()+"/accounts", nil)
+			target := tt.targetPath
+			if target == "" {
+				target = validPath
+			}
+
+			req := httptest.NewRequest("POST", target, nil)
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", "Bearer test-token")
-			req.Header.Set(organizationIDHeader, orgID.String())
-			req.Header.Set(ledgerIDHeader, ledgerID.String())
-			if tt.setHeaders != nil {
-				tt.setHeaders(req)
-			}
 
 			resp, err := app.Test(req)
 			require.NoError(t, err)

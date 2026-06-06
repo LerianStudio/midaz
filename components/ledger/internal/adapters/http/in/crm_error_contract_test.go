@@ -111,7 +111,8 @@ func TestErrorContract_CanonicalCodes(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := uuid.New().String()
+			orgUUID := uuid.New()
+			orgID := orgUUID.String()
 
 			mockHolderRepo := holder.NewMockRepository(ctrl)
 			tt.setupMocks(mockHolderRepo, orgID)
@@ -119,16 +120,21 @@ func TestErrorContract_CanonicalCodes(t *testing.T) {
 			uc := &services.UseCase{HolderRepo: mockHolderRepo}
 			handler := &HolderHandler{Service: uc}
 
+			// Org is now path-scoped: the handler reads it from the
+			// "organization_id" local (seeded here as the validated UUID the real
+			// ParseUUIDPathParameters chain would store), not from a header. The
+			// canonical-error-code assertions below are unaffected by this source
+			// change — they exercise body/validation paths that fail before org is used.
 			app := fiber.New()
-			app.Post("/v1/holders",
+			app.Post("/v1/organizations/:organization_id/holders",
 				func(c *fiber.Ctx) error {
-					c.Request().Header.Set("X-Organization-Id", orgID)
+					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},
 				http.WithBody(new(mmodel.CreateHolderInput), handler.CreateHolder),
 			)
 
-			req := httptest.NewRequest("POST", "/v1/holders", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest("POST", "/v1/organizations/"+orgID+"/holders", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := app.Test(req)
@@ -161,7 +167,8 @@ func TestErrorContract_SurvivingDomainCodeUnchanged(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New().String()
+	orgUUID := uuid.New()
+	orgID := orgUUID.String()
 	holderID := uuid.New()
 
 	mockHolderRepo := holder.NewMockRepository(ctrl)
@@ -173,17 +180,19 @@ func TestErrorContract_SurvivingDomainCodeUnchanged(t *testing.T) {
 	uc := &services.UseCase{HolderRepo: mockHolderRepo}
 	handler := &HolderHandler{Service: uc}
 
+	// Org and holder both arrive as path-validated UUID locals (seeded here as the
+	// real ParseUUIDPathParameters chain would store them); the header scope is gone.
 	app := fiber.New()
-	app.Get("/v1/holders/:id",
+	app.Get("/v1/organizations/:organization_id/holders/:id",
 		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgUUID)
 			c.Locals("id", holderID)
-			c.Request().Header.Set("X-Organization-Id", orgID)
 			return c.Next()
 		},
 		handler.GetHolderByID,
 	)
 
-	req := httptest.NewRequest("GET", "/v1/holders/"+holderID.String(), nil)
+	req := httptest.NewRequest("GET", "/v1/organizations/"+orgID+"/holders/"+holderID.String(), nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 404, resp.StatusCode)

@@ -33,14 +33,14 @@ type InstrumentHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization		header		string					false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string					true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path		string					true	"The unique identifier of the Organization."
 //	@Param			holder_id			path		string					true	"The unique identifier of the Holder."
 //	@Param			instrument				body		mmodel.CreateInstrumentInput	true	"Instrument Input"
 //	@Success		201					{object}	mmodel.Instrument
 //	@Failure		400					{object}	mmodel.Error
 //	@Failure		404					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/holders/{holder_id}/instruments [post]
+//	@Router			/v1/organizations/{organization_id}/holders/{holder_id}/instruments [post]
 func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -59,15 +59,18 @@ func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	organizationID := c.Get("X-Organization-Id")
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.holder_id", holderID.String()),
 	)
 
-	out, err := handler.Service.CreateInstrument(ctx, organizationID, holderID, payload)
+	out, err := handler.Service.CreateInstrument(ctx, organizationID.String(), holderID, payload)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to create alias", err)
 
@@ -86,7 +89,7 @@ func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
 //	@Tags			Instruments
 //	@Produce		json
 //	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string	true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Param			holder_id			path		string	true	"The unique identifier of the Holder."
 //	@Param			instrument_id		path		string	true	"The unique identifier of the Instrument account."
 //	@Param			include_deleted		query		string	false	"Returns the instrument even if it was logically deleted."
@@ -94,7 +97,7 @@ func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
 //	@Failure		400					{object}	mmodel.Error
 //	@Failure		404					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/holders/{holder_id}/instruments/{instrument_id} [get]
+//	@Router			/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id} [get]
 func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -113,12 +116,16 @@ func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	organizationID := c.Get("X-Organization-Id")
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	includeDeleted := http.GetBooleanParam(c, "include_deleted")
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.holder_id", holderID.String()),
 		attribute.String("app.request.alias_id", id.String()),
 		attribute.Bool("app.request.include_deleted", includeDeleted),
@@ -126,7 +133,7 @@ func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Alias with ID: %s", id.String()))
 
-	alias, err := handler.Service.GetInstrumentByID(ctx, organizationID, holderID, id, includeDeleted)
+	alias, err := handler.Service.GetInstrumentByID(ctx, organizationID.String(), holderID, id, includeDeleted)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to retrieve alias", err)
 
@@ -146,7 +153,7 @@ func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization		header		string					false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string					true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path		string					true	"The unique identifier of the Organization."
 //	@Param			holder_id			path		string					true	"The unique identifier of the Holder."
 //	@Param			instrument_id		path		string					true	"The unique identifier of the Instrument account."
 //	@Param			instrument				body		mmodel.UpdateInstrumentInput	true	"Instrument Input"
@@ -154,7 +161,7 @@ func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
 //	@Failure		400					{object}	mmodel.Error
 //	@Failure		404					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/holders/{holder_id}/instruments/{instrument_id} [patch]
+//	@Router			/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id} [patch]
 func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -173,7 +180,10 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	organizationID := c.Get("X-Organization-Id")
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	payload, ok := p.(*mmodel.UpdateInstrumentInput)
 	if !ok || payload == nil {
@@ -191,7 +201,7 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.holder_id", holderID.String()),
 		attribute.String("app.request.alias_id", id.String()),
 	)
@@ -203,7 +213,7 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update alias %s from holder %s", id.String(), holderID.String()))
 
-	alias, err := handler.Service.UpdateInstrumentByID(ctx, organizationID, holderID, id, payload, fieldsToRemove)
+	alias, err := handler.Service.UpdateInstrumentByID(ctx, organizationID.String(), holderID, id, payload, fieldsToRemove)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to update alias", err)
 
@@ -221,7 +231,7 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 //	@Description	Delete an Instrument. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.
 //	@Tags			Instruments
 //	@Param			Authorization		header	string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header	string	true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path	string	true	"The unique identifier of the Organization."
 //	@Param			holder_id			path	string	true	"The unique identifier of the Holder."
 //	@Param			instrument_id		path	string	true	"The unique identifier of the Instrument account."
 //	@Param			hard_delete			query	string	false	"Use only to perform a physical deletion of the data. This action is irreversible."
@@ -229,7 +239,7 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 //	@Failure		400	{object}	mmodel.Error
 //	@Failure		404	{object}	mmodel.Error
 //	@Failure		500	{object}	mmodel.Error
-//	@Router			/v1/holders/{holder_id}/instruments/{instrument_id} [delete]
+//	@Router			/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id} [delete]
 func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -248,12 +258,16 @@ func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	organizationID := c.Get("X-Organization-Id")
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	hardDelete := http.GetBooleanParam(c, "hard_delete")
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.holder_id", holderID.String()),
 		attribute.String("app.request.alias_id", id.String()),
 		attribute.Bool("app.request.hard_delete", hardDelete),
@@ -261,7 +275,7 @@ func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of alias with ID: %s", id.String()))
 
-	err = handler.Service.DeleteInstrumentByID(ctx, organizationID, holderID, id, hardDelete)
+	err = handler.Service.DeleteInstrumentByID(ctx, organizationID.String(), holderID, id, hardDelete)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to delete alias", err)
 
@@ -280,7 +294,7 @@ func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 //	@Tags			Instruments
 //	@Produce		json
 //	@Param			Authorization			header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id		header		string	true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id			path		string	true	"The unique identifier of the Organization."
 //	@Param			holder_id				query		string	false	"The unique identifier of the Holder."
 //	@Param			metadata				query		string	false	"Metadata"
 //	@Param			limit					query		int		false	"Limit"			default(10)
@@ -300,7 +314,7 @@ func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 //	@Failure		400						{object}	mmodel.Error
 //	@Failure		404						{object}	mmodel.Error
 //	@Failure		500						{object}	mmodel.Error
-//	@Router			/v1/instruments [get]
+//	@Router			/v1/organizations/{organization_id}/instruments [get]
 func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -336,12 +350,16 @@ func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 		SortOrder: headerParams.SortOrder,
 	}
 
-	organizationID := c.Get("X-Organization-Id")
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	includeDeleted := http.GetBooleanParam(c, "include_deleted")
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.Bool("app.request.include_deleted", includeDeleted),
 	)
 
@@ -353,7 +371,7 @@ func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 
 	recordSafeQueryAttributes(span, headerParams)
 
-	aliases, err := handler.Service.GetAllInstruments(ctx, organizationID, holderID, *headerParams, includeDeleted)
+	aliases, err := handler.Service.GetAllInstruments(ctx, organizationID.String(), holderID, *headerParams, includeDeleted)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to get all aliases", err)
 
@@ -373,7 +391,7 @@ func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 //	@Description	Delete a Related Party from an Instrument. This operation performs a physical deletion (hard delete) of the related party.
 //	@Tags			Instruments
 //	@Param			Authorization		header	string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header	string	true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path	string	true	"The unique identifier of the Organization."
 //	@Param			holder_id			path	string	true	"The unique identifier of the Holder."
 //	@Param			instrument_id		path	string	true	"The unique identifier of the Instrument account."
 //	@Param			related_party_id	path	string	true	"The unique identifier of the Related Party."
@@ -381,7 +399,7 @@ func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 //	@Failure		400	{object}	mmodel.Error
 //	@Failure		404	{object}	mmodel.Error
 //	@Failure		500	{object}	mmodel.Error
-//	@Router			/v1/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id} [delete]
+//	@Router			/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id} [delete]
 func (handler *InstrumentHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -405,11 +423,14 @@ func (handler *InstrumentHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	organizationID := c.Get("X-Organization-Id")
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.holder_id", holderID.String()),
 		attribute.String("app.request.alias_id", aliasID.String()),
 		attribute.String("app.request.related_party_id", relatedPartyID.String()),
@@ -417,7 +438,7 @@ func (handler *InstrumentHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of related party with ID: %s from alias: %s", relatedPartyID.String(), aliasID.String()))
 
-	err = handler.Service.DeleteRelatedPartyByID(ctx, organizationID, holderID, aliasID, relatedPartyID)
+	err = handler.Service.DeleteRelatedPartyByID(ctx, organizationID.String(), holderID, aliasID, relatedPartyID)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to delete related party", err)
 

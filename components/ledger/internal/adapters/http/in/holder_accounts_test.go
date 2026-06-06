@@ -115,23 +115,24 @@ func TestHolderAccountsHandler_GetAccountsByHolder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			orgID := uuid.New().String()
+			orgUUID := uuid.New()
+			orgID := orgUUID.String()
 			holderID := uuid.New()
 
 			handler := &HolderAccountsHandler{Reader: tt.reader}
 
 			app := fiber.New()
-			app.Get("/v1/holders/:id/accounts",
+			app.Get("/v1/organizations/:organization_id/holders/:id/accounts",
 				func(c *fiber.Ctx) error {
 					c.Locals("id", holderID)
-					c.Request().Header.Set("X-Organization-Id", orgID)
+					c.Locals("organization_id", orgUUID)
 
 					return c.Next()
 				},
 				handler.GetAccountsByHolder,
 			)
 
-			req := httptest.NewRequest("GET", "/v1/holders/"+holderID.String()+"/accounts", nil)
+			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID+"/holders/"+holderID.String()+"/accounts", nil)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)

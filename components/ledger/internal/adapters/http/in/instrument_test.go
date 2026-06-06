@@ -317,7 +317,8 @@ func TestInstrumentHandler_CreateInstrument(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := uuid.New().String()
+			orgUUID := uuid.New()
+			orgID := orgUUID.String()
 			holderID := uuid.New()
 
 			mockInstrumentRepo := instrument.NewMockRepository(ctrl)
@@ -331,18 +332,17 @@ func TestInstrumentHandler_CreateInstrument(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Post("/v1/holders/:holder_id/instruments",
+			app.Post("/v1/organizations/:organization_id/holders/:holder_id/instruments",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
-					c.Request().Header.Set("X-Organization-Id", orgID)
+					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},
 				http.WithBody(new(mmodel.CreateInstrumentInput), handler.CreateInstrument),
 			)
 
-			req := httptest.NewRequest("POST", "/v1/holders/"+holderID.String()+"/instruments", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest("POST", "/v1/organizations/"+orgID+"/holders/"+holderID.String()+"/instruments", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -482,7 +482,8 @@ func TestInstrumentHandler_GetInstrumentByID(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := uuid.New().String()
+			orgUUID := uuid.New()
+			orgID := orgUUID.String()
 			holderID := uuid.New()
 			instrumentID := uuid.New()
 
@@ -495,22 +496,21 @@ func TestInstrumentHandler_GetInstrumentByID(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Get("/v1/holders/:holder_id/instruments/:instrument_id",
+			app.Get("/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Locals("instrument_id", instrumentID)
-					c.Request().Header.Set("X-Organization-Id", orgID)
+					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},
 				handler.GetInstrumentByID,
 			)
 
-			url := "/v1/holders/" + holderID.String() + "/instruments/" + instrumentID.String()
+			url := "/v1/organizations/" + orgID + "/holders/" + holderID.String() + "/instruments/" + instrumentID.String()
 			if tt.includeDeleted != "" {
 				url += "?include_deleted=" + tt.includeDeleted
 			}
 			req := httptest.NewRequest("GET", url, nil)
-			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -740,7 +740,8 @@ func TestInstrumentHandler_UpdateInstrument(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := uuid.New().String()
+			orgUUID := uuid.New()
+			orgID := orgUUID.String()
 			holderID := uuid.New()
 			instrumentID := uuid.New()
 
@@ -753,19 +754,18 @@ func TestInstrumentHandler_UpdateInstrument(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Patch("/v1/holders/:holder_id/instruments/:instrument_id",
+			app.Patch("/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Locals("instrument_id", instrumentID)
-					c.Request().Header.Set("X-Organization-Id", orgID)
+					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},
 				http.WithBody(new(mmodel.UpdateInstrumentInput), handler.UpdateInstrument),
 			)
 
-			req := httptest.NewRequest("PATCH", "/v1/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest("PATCH", "/v1/organizations/"+orgID+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -861,7 +861,8 @@ func TestInstrumentHandler_DeleteInstrumentByID(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := uuid.New().String()
+			orgUUID := uuid.New()
+			orgID := orgUUID.String()
 			holderID := uuid.New()
 			instrumentID := uuid.New()
 
@@ -874,22 +875,21 @@ func TestInstrumentHandler_DeleteInstrumentByID(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Delete("/v1/holders/:holder_id/instruments/:instrument_id",
+			app.Delete("/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Locals("instrument_id", instrumentID)
-					c.Request().Header.Set("X-Organization-Id", orgID)
+					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},
 				handler.DeleteInstrumentByID,
 			)
 
-			url := "/v1/holders/" + holderID.String() + "/instruments/" + instrumentID.String()
+			url := "/v1/organizations/" + orgID + "/holders/" + holderID.String() + "/instruments/" + instrumentID.String()
 			if tt.hardDelete != "" {
 				url += "?hard_delete=" + tt.hardDelete
 			}
 			req := httptest.NewRequest("DELETE", url, nil)
-			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -969,7 +969,8 @@ func TestInstrumentHandler_DeleteRelatedParty(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := uuid.New().String()
+			orgUUID := uuid.New()
+			orgID := orgUUID.String()
 			holderID := uuid.New()
 			instrumentID := uuid.New()
 			relatedPartyID := uuid.New()
@@ -983,20 +984,19 @@ func TestInstrumentHandler_DeleteRelatedParty(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Delete("/v1/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id",
+			app.Delete("/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Locals("instrument_id", instrumentID)
 					c.Locals("related_party_id", relatedPartyID)
-					c.Request().Header.Set("X-Organization-Id", orgID)
+					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},
 				handler.DeleteRelatedParty,
 			)
 
-			url := "/v1/holders/" + holderID.String() + "/instruments/" + instrumentID.String() + "/related-parties/" + relatedPartyID.String()
+			url := "/v1/organizations/" + orgID + "/holders/" + holderID.String() + "/instruments/" + instrumentID.String() + "/related-parties/" + relatedPartyID.String()
 			req := httptest.NewRequest("DELETE", url, nil)
-			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -1102,6 +1102,37 @@ func TestInstrumentHandler_GetAllInstruments(t *testing.T) {
 			},
 		},
 		{
+			// ledger_id and holder_id remain query-string list filters (they did
+			// not move to the path). Assert the parsed holder UUID and the ledger
+			// filter flow through to the service.
+			name:        "holder_id and ledger_id query filters flow to the service",
+			queryParams: "?holder_id=11111111-1111-1111-1111-111111111111&ledger_id=22222222-2222-2222-2222-222222222222",
+			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string) {
+				filterHolderID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+
+				instrumentRepo.EXPECT().
+					FindAll(gomock.Any(), orgID, filterHolderID, gomock.Cond(func(x any) bool {
+						filter, ok := x.(http.QueryHeader)
+						if !ok {
+							return false
+						}
+
+						return filter.LedgerID != nil && *filter.LedgerID == "22222222-2222-2222-2222-222222222222" &&
+							filter.HolderID != nil && *filter.HolderID == "11111111-1111-1111-1111-111111111111"
+					}), false).
+					Return([]*mmodel.Instrument{}, nil).
+					Times(1)
+			},
+			expectedStatus: 200,
+			validateBody: func(t *testing.T, body []byte) {
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
+				require.NoError(t, err)
+
+				assert.Contains(t, result, "items", "response should contain items")
+			},
+		},
+		{
 			name:        "repository error returns 500",
 			queryParams: "",
 			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string) {
@@ -1179,7 +1210,8 @@ func TestInstrumentHandler_GetAllInstruments(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := uuid.New().String()
+			orgUUID := uuid.New()
+			orgID := orgUUID.String()
 
 			mockInstrumentRepo := instrument.NewMockRepository(ctrl)
 			tt.setupMocks(mockInstrumentRepo, orgID)
@@ -1190,16 +1222,15 @@ func TestInstrumentHandler_GetAllInstruments(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Get("/v1/instruments",
+			app.Get("/v1/organizations/:organization_id/instruments",
 				func(c *fiber.Ctx) error {
-					c.Request().Header.Set("X-Organization-Id", orgID)
+					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},
 				handler.GetAllInstruments,
 			)
 
-			req := httptest.NewRequest("GET", "/v1/instruments"+tt.queryParams, nil)
-			req.Header.Set("X-Organization-Id", orgID)
+			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID+"/instruments"+tt.queryParams, nil)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)

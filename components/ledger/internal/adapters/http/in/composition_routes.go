@@ -22,7 +22,7 @@ import (
 // with no new RBAC grant, and no plugin-* namespace is introduced. The :id path
 // param is the holder; ParseUUIDPathParameters("holder") validates it.
 func RegisterCompositionRoutesToApp(f fiber.Router, auth *middleware.AuthClient, ch *CompositionHandler, routeOptions *http.ProtectedRouteOptions) {
-	f.Post("/v1/holders/:id/accounts", http.ProtectedRouteChain(
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts", http.ProtectedRouteChain(
 		auth.Authorize(midazName, "accounts", "post"),
 		routeOptions,
 		http.ParseUUIDPathParameters("holder"),

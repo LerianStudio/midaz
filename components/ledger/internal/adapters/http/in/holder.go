@@ -31,13 +31,13 @@ type HolderHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization		header		string						false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string						true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path		string						true	"The unique identifier of the Organization."
 //	@Param			holder				body		mmodel.CreateHolderInput	true	"Holder Input"
 //	@Success		201					{object}	mmodel.Holder
 //	@Failure		400					{object}	mmodel.Error
 //	@Failure		404					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/holders [post]
+//	@Router			/v1/organizations/{organization_id}/holders [post]
 func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -51,14 +51,17 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 		return http.WithError(c, cn.ErrInternalServer)
 	}
 
-	organizationID := c.Get("X-Organization-Id")
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.organization_id", organizationID.String()),
 	)
 
-	out, err := handler.Service.CreateHolder(ctx, organizationID, payload)
+	out, err := handler.Service.CreateHolder(ctx, organizationID.String(), payload)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to create holder", err)
 
@@ -77,14 +80,14 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 //	@Tags			Holders
 //	@Produce		json
 //	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string	true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Param			id					path		string	true	"The unique identifier of the Holder."
 //	@Param			include_deleted		query		string	false	"Returns the holder even if it was logically deleted"
 //	@Success		200					{object}	mmodel.Holder
 //	@Failure		400					{object}	mmodel.Error
 //	@Failure		404					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/holders/{id} [get]
+//	@Router			/v1/organizations/{organization_id}/holders/{id} [get]
 func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -98,19 +101,23 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	organizationID := c.Get("X-Organization-Id")
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	includeDeleted := http.GetBooleanParam(c, "include_deleted")
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.holder_id", id.String()),
 		attribute.Bool("app.request.include_deleted", includeDeleted),
 	)
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Holder with ID: %s", id.String()))
 
-	holder, err := handler.Service.GetHolderByID(ctx, organizationID, id, includeDeleted)
+	holder, err := handler.Service.GetHolderByID(ctx, organizationID.String(), id, includeDeleted)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to retrieve holder", err)
 
@@ -130,14 +137,14 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization		header		string						false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string						true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path		string						true	"The unique identifier of the Organization."
 //	@Param			id					path		string						true	"The unique identifier of the Holder."
 //	@Param			holder				body		mmodel.UpdateHolderInput	true	"Holder Input"
 //	@Success		200					{object}	mmodel.Holder
 //	@Failure		400					{object}	mmodel.Error
 //	@Failure		404					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/holders/{id} [patch]
+//	@Router			/v1/organizations/{organization_id}/holders/{id} [patch]
 func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -151,7 +158,10 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	organizationID := c.Get("X-Organization-Id")
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	payload, ok := p.(*mmodel.UpdateHolderInput)
 	if !ok || payload == nil {
@@ -169,7 +179,7 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.holder_id", id.String()),
 	)
 
@@ -180,7 +190,7 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update holder with id: %v", id.String()))
 
-	holder, err := handler.Service.UpdateHolderByID(ctx, organizationID, id, payload, fieldsToRemove)
+	holder, err := handler.Service.UpdateHolderByID(ctx, organizationID.String(), id, payload, fieldsToRemove)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to update holder", err)
 
@@ -198,14 +208,14 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 //	@Description	Delete a Holder. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.
 //	@Tags			Holders
 //	@Param			Authorization		header	string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header	string	true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path	string	true	"The unique identifier of the Organization."
 //	@Param			id					path	string	true	"The unique identifier of the Holder."
 //	@Param			hard_delete			query	string	false	"Use only to perform a physical deletion of the data. This action is irreversible."
 //	@Success		204
 //	@Failure		400	{object}	mmodel.Error
 //	@Failure		404	{object}	mmodel.Error
 //	@Failure		500	{object}	mmodel.Error
-//	@Router			/v1/holders/{id} [delete]
+//	@Router			/v1/organizations/{organization_id}/holders/{id} [delete]
 func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -219,19 +229,23 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	organizationID := c.Get("X-Organization-Id")
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	hardDelete := http.GetBooleanParam(c, "hard_delete")
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.holder_id", id.String()),
 		attribute.Bool("app.request.hard_delete", hardDelete),
 	)
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of holder with ID: %s", id.String()))
 
-	err = handler.Service.DeleteHolderByID(ctx, organizationID, id, hardDelete)
+	err = handler.Service.DeleteHolderByID(ctx, organizationID.String(), id, hardDelete)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to delete holder", err)
 
@@ -250,7 +264,7 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 //	@Tags			Holders
 //	@Produce		json
 //	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string	true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Param			metadata			query		string	false	"Metadata"
 //	@Param			limit				query		int		false	"Limit"			default(10)
 //	@Param			page				query		int		false	"Page"			default(1)
@@ -262,7 +276,7 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 //	@Failure		400					{object}	mmodel.Error
 //	@Failure		404					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/holders [get]
+//	@Router			/v1/organizations/{organization_id}/holders [get]
 func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -286,18 +300,22 @@ func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 		SortOrder: headerParams.SortOrder,
 	}
 
-	organizationID := c.Get("X-Organization-Id")
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	includeDeleted := http.GetBooleanParam(c, "include_deleted")
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.Bool("app.request.include_deleted", includeDeleted),
 	)
 
 	recordSafeQueryAttributes(span, headerParams)
 
-	holders, err := handler.Service.GetAllHolders(ctx, organizationID, *headerParams, includeDeleted)
+	holders, err := handler.Service.GetAllHolders(ctx, organizationID.String(), *headerParams, includeDeleted)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to get all holders", err)
 

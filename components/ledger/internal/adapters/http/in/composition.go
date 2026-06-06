@@ -9,22 +9,11 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/composition"
-	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
-)
-
-// ledgerIDHeader is the header that carries the ledger scope for the composition
-// route. The composition path (/v1/holders/:id/accounts) is holder-scoped and
-// carries no ledger path segment, so the ledger is sourced from a required
-// header, mirroring how the organization arrives via X-Organization-Id.
-const (
-	ledgerIDHeader       = "X-Ledger-Id"
-	organizationIDHeader = "X-Organization-Id"
 )
 
 // CompositionHandler exposes the holder-account composition route. It owns no
@@ -44,16 +33,16 @@ type CompositionHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization		header		string							false	"The authorization token in the 'Bearer access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string							true	"The unique identifier of the Organization associated with the Ledger."
-//	@Param			X-Ledger-Id			header		string							true	"The unique identifier of the Ledger the account is opened in."
+//	@Param			organization_id		path		string							true	"The unique identifier of the Organization."
+//	@Param			ledger_id			path		string							true	"The unique identifier of the Ledger the account is opened in."
 //	@Param			id					path		string							true	"The unique identifier of the Holder that will own the account."
 //	@Param			composition			body		mmodel.CreateHolderAccountInput	true	"Composite account (and optional instrument) details"
 //	@Success		201					{object}	mmodel.HolderAccountResponse
-//	@Failure		400					{object}	pkg.HTTPError
-//	@Failure		404					{object}	pkg.HTTPError
-//	@Failure		422					{object}	pkg.HTTPError
-//	@Failure		500					{object}	pkg.HTTPError
-//	@Router			/v1/holders/{id}/accounts [post]
+//	@Failure		400					{object}	mmodel.Error
+//	@Failure		404					{object}	mmodel.Error
+//	@Failure		422					{object}	mmodel.Error
+//	@Failure		500					{object}	mmodel.Error
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts [post]
 func (handler *CompositionHandler) CreateHolderAccount(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -74,12 +63,12 @@ func (handler *CompositionHandler) CreateHolderAccount(p any, c *fiber.Ctx) erro
 		return http.WithError(c, err)
 	}
 
-	organizationID, err := uuidFromHeader(c, organizationIDHeader)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	ledgerID, err := uuidFromHeader(c, ledgerIDHeader)
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -106,22 +95,4 @@ func (handler *CompositionHandler) CreateHolderAccount(p any, c *fiber.Ctx) erro
 	}
 
 	return http.Created(c, out)
-}
-
-// uuidFromHeader reads a required UUID-valued header and returns a typed business
-// error (HTTP 400) when it is missing or malformed. The header name is surfaced
-// in the error so the caller knows which header to fix; the raw value is never
-// echoed back.
-func uuidFromHeader(c *fiber.Ctx, header string) (uuid.UUID, error) {
-	value := c.Get(header)
-	if value == "" {
-		return uuid.Nil, pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "", header)
-	}
-
-	parsed, err := uuid.Parse(value)
-	if err != nil {
-		return uuid.Nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", header)
-	}
-
-	return parsed, nil
 }
