@@ -14,6 +14,37 @@ TEST_AUTH_PASSWORD ?=
 # FUZZTIME: duration per fuzz target (default: 10s)
 FUZZ ?=
 FUZZTIME ?= 10s
+# FUZZTIME_FUZZY: duration for the reporter fuzzy suite (tests/reporter/fuzzy).
+# These targets fuzz over LIVE HTTP endpoints, so every baseline-corpus input is
+# a real round-trip (template/report/deadline create against Mongo+RabbitMQ).
+# Gathering baseline coverage alone takes ~25s+ for the larger seed sets, and
+# -fuzztime bounds the baseline phase as well as fuzzing — so the 10s default
+# kills these targets before they fuzz. Pure in-process fuzzers elsewhere keep
+# the fast 10s default; only this suite needs the larger budget. 90s leaves
+# headroom for baseline gathering on a cold or fatigued Docker daemon, where
+# per-seed HTTP latency can double.
+FUZZTIME_FUZZY ?= 90s
+# FUZZMINIMIZETIME: bound on crash-input minimization. Live-HTTP targets have
+# been observed minimizing for 15+ minutes unbounded (each candidate is a real
+# round-trip); the crasher is written to testdata either way, so a short bound
+# loses nothing.
+FUZZMINIMIZETIME ?= 20s
+# FUZZPARALLEL_FUZZY: fuzz worker count for the live-HTTP fuzzy suite. The
+# default (GOMAXPROCS, ~18 here) is wrong for HTTP targets: throughput is
+# bound by the single in-process server, and that many worker processes create
+# the memory/daemon pressure that kills workers mid-run ("fuzzing process
+# terminated without fuzzing: EOF"). A small pool loses no real throughput.
+FUZZPARALLEL_FUZZY ?= 4
+# FUZZWALL / FUZZWALL_FUZZY: hard wall-clock cap (seconds) per fuzz target,
+# enforced with GNU timeout. Go IGNORES go test's -timeout while fuzzing
+# (observed: a wedged live-HTTP target sat 4.5h under -test.timeout=10m), so
+# without an external bound one hung target hangs the whole sweep forever.
+# timeout kills the whole process group (go test, the test binary, and the
+# manager/worker child processes); ryuk then reaps the orphaned containers.
+# Exit 124 is treated as environmental — retried once, never a fuzz finding.
+# If `timeout` is absent (bare macOS without coreutils), the cap is skipped.
+FUZZWALL ?= 180
+FUZZWALL_FUZZY ?= 600
 
 # Integration test filter
 # RUN: specific test name pattern (e.g., TestIntegration_AliasRepo_Create)
@@ -150,6 +181,58 @@ test-chaos-system:
 	fi
 
 # Native Go fuzz tests (coverage-guided mutation testing).
+#
+# All fuzz suites compile under -tags=fuzz: the fuzz test files carry a
+# `//go:build fuzz` tag, so a bare `go test` excludes them from the binary,
+# the -fuzz pattern then matches nothing, and go reports `ok` with ZERO
+# fuzzing engaged (silent no-op). Untagged fuzz files still compile under
+# -tags=fuzz, so building with the tag is strictly safe — nothing is lost.
+#
+# Discovery walks ./components ./pkg ./tests. The ./tests leg reaches the
+# reporter fuzzy suite (tests/reporter/fuzzy), whose TestMain starts the
+# manager + worker + infra via testcontainers. NOTE: each per-target
+# `go test -fuzz` invocation re-runs that TestMain, so every fuzzy target in
+# the full sweep stands up a cold container stack (minutes per target). This
+# is slow but correct; scope with FUZZ=<target> to fuzz a single one.
+# ALLOW_INSECURE_TLS=true is exported so the fuzzy suite's services start.
+#
+# The full sweep (no FUZZ=) is a pass/fail gate, time-boxed at FUZZTIME per
+# target. It visits every discovered target — no fail-fast mid-sweep — then
+# exits non-zero if any failed, naming them. Two failure modes gate:
+#   1. crash / test error: go test exits non-zero (a found crash, build error,
+#      or container-startup failure). pipefail propagates it past the tee.
+#   2. silent no-op: go test exits 0 but engaged no fuzzing. We assert on the
+#      "fuzz:" progress lines that `go test -fuzz` prints only when a target
+#      actually fuzzes, so a false `ok` no longer passes.
+#
+# Environmental vs real failures (sweep only): the reporter fuzzy suite boots a
+# 6-container stack per target via testcontainers. Under sustained churn Docker
+# Desktop degrades and the slowest container (RabbitMQ) can miss its readiness
+# window, surfacing as "Failed to start infrastructure" / "failed to start
+# containers". That is environmental, not a fuzz finding. The sweep handles it
+# distinctly:
+#   - HEALTH GATE: before each fuzzy-suite target, poll `docker info` for up to
+#     ~60s. A dead/unresponsive daemon fails the target immediately — no point
+#     fuzzing into it — without conflating it with a crash.
+#   - INFRA RETRY: a target that fails AND whose output carries the infra
+#     signature is retried ONCE after a 15s settle. A real crash / test failure
+#     (no infra signature) is NEVER retried — crash-gating stays strict so
+#     genuine findings are never masked. If the retry also fails, it gates.
+#     The signature also covers the Go coordinator's "context deadline
+#     exceeded" flake at the -fuzztime boundary (a worker mid-exec when the
+#     engine's internal context expires reports FAIL with no failing input);
+#     the "Failing input written" guard keeps real findings exempt from retry.
+#   - WALL-CLOCK CAP: each target runs under GNU timeout (FUZZWALL /
+#     FUZZWALL_FUZZY) because Go ignores -timeout while fuzzing — a wedged
+#     target would otherwise hang the sweep indefinitely. Exit 124 follows the
+#     same retry-once path; a second timeout gates as a hung target.
+#
+# The FUZZ=<target> branch gates the same two modes but fails fast on the one
+# target (no health gate, no infra retry). The `ci` target deliberately
+# EXCLUDES fuzz (time-boxed mutation runs are not part of the deterministic CI
+# matrix); this gate applies only when test-fuzz is invoked directly — and when
+# invoked, it gates.
+#
 # Usage:
 #   make test-fuzz                                    # Run all Fuzz* targets for 10s each
 #   make test-fuzz FUZZTIME=30s                       # Run all Fuzz* targets for 30s each
@@ -159,29 +242,95 @@ test-chaos-system:
 test-fuzz:
 	$(call print_title,Running Go native fuzz tests)
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	@set -e; mkdir -p $(TEST_REPORTS_DIR)/fuzz; \
+	@set -e; export ALLOW_INSECURE_TLS=true; mkdir -p $(TEST_REPORTS_DIR)/fuzz; \
 	if [ -n "$(FUZZ)" ]; then \
-	  echo "Running fuzz target: $(FUZZ) for $(FUZZTIME)"; \
-	  pkg=$$(grep -r "func $(FUZZ)" --include='*_test.go' -l ./components ./pkg 2>/dev/null | head -1 | xargs dirname); \
+	  pkg=$$(grep -r "func $(FUZZ)" --include='*_test.go' -l ./components ./pkg ./tests 2>/dev/null | head -1 | xargs dirname); \
 	  if [ -z "$$pkg" ]; then \
 	    echo "Error: Fuzz target '$(FUZZ)' not found"; exit 1; \
 	  fi; \
-	  go test -v -fuzz=$(FUZZ) -run='^$$' -fuzztime=$(FUZZTIME) $(GO_TEST_LDFLAGS) $$pkg; \
+	  fuzztime=$(FUZZTIME); pflag=""; wall=$(FUZZWALL); \
+	  case "$$pkg" in *tests/reporter/fuzzy*) fuzztime=$(FUZZTIME_FUZZY); pflag="-parallel=$(FUZZPARALLEL_FUZZY)"; wall=$(FUZZWALL_FUZZY);; esac; \
+	  echo "Running fuzz target: $(FUZZ) for $$fuzztime (wall-clock cap $$wall s)"; \
+	  tcmd=""; \
+	  if command -v timeout >/dev/null 2>&1; then tcmd="timeout -k 10 $$wall"; fi; \
+	  out=$$(mktemp); \
+	  set -o pipefail; \
+	  if ! $$tcmd go test -tags=fuzz -v -fuzz="^$(FUZZ)\$$" -run='^$$' -fuzztime=$$fuzztime -fuzzminimizetime=$(FUZZMINIMIZETIME) $$pflag $(GO_TEST_LDFLAGS) $$pkg 2>&1 | tee "$$out"; then \
+	    rm -f "$$out"; exit 1; \
+	  fi; \
+	  if ! grep -q '^fuzz:' "$$out"; then \
+	    echo "[error] Fuzz target '$(FUZZ)' engaged no fuzzing (no 'fuzz:' output) — silent no-op"; \
+	    rm -f "$$out"; exit 1; \
+	  fi; \
+	  rm -f "$$out"; \
 	else \
 	  echo "Discovering all Fuzz* targets..."; \
-	  targets=$$(grep -r "^func Fuzz" --include='*_test.go' -h ./components ./pkg 2>/dev/null | sed 's/func \(Fuzz[^(]*\).*/\1/' | sort -u); \
+	  targets=$$(grep -r "^func Fuzz" --include='*_test.go' -h ./components ./pkg ./tests 2>/dev/null | sed 's/func \(Fuzz[^(]*\).*/\1/' | sort -u); \
 	  if [ -z "$$targets" ]; then \
 	    echo "No Fuzz* targets found"; exit 0; \
 	  fi; \
 	  echo "Found targets: $$targets"; \
 	  echo "Running each for $(FUZZTIME)..."; \
 	  echo ""; \
+	  set -o pipefail; \
+	  run_fuzz_once() { \
+	    tcmd=""; \
+	    if command -v timeout >/dev/null 2>&1; then tcmd="timeout -k 10 $$6"; fi; \
+	    $$tcmd go test -tags=fuzz -v -fuzz="^$$1\$$" -run='^$$' -fuzztime=$$2 -fuzzminimizetime=$(FUZZMINIMIZETIME) $$5 $(GO_TEST_LDFLAGS) $$3 2>&1 | tee "$$4"; \
+	    s=$$?; \
+	    if [ $$s -ne 0 ]; then return $$s; fi; \
+	    if ! grep -q '^fuzz:' "$$4"; then return 100; fi; \
+	    return 0; \
+	  }; \
+	  failed=""; \
 	  for target in $$targets; do \
-	    pkg=$$(grep -r "func $$target" --include='*_test.go' -l ./components ./pkg 2>/dev/null | head -1 | xargs dirname); \
-	    echo "━━━ $$target ($$pkg) ━━━"; \
-	    go test -v -fuzz=$$target -run='^$$' -fuzztime=$(FUZZTIME) $(GO_TEST_LDFLAGS) $$pkg || true; \
+	    pkg=$$(grep -r "func $$target" --include='*_test.go' -l ./components ./pkg ./tests 2>/dev/null | head -1 | xargs dirname); \
+	    fuzztime=$(FUZZTIME); \
+	    is_fuzzy=0; pflag=""; wall=$(FUZZWALL); \
+	    case "$$pkg" in *tests/reporter/fuzzy*) fuzztime=$(FUZZTIME_FUZZY); is_fuzzy=1; pflag="-parallel=$(FUZZPARALLEL_FUZZY)"; wall=$(FUZZWALL_FUZZY);; esac; \
+	    echo "━━━ $$target ($$pkg) [fuzztime=$$fuzztime] ━━━"; \
+	    if [ $$is_fuzzy -eq 1 ]; then \
+	      waited=0; \
+	      until docker info >/dev/null 2>&1; do \
+	        if [ $$waited -ge 60 ]; then break; fi; \
+	        echo "  waiting for docker daemon... ($$waited s)"; sleep 5; waited=$$((waited+5)); \
+	      done; \
+	      if ! docker info >/dev/null 2>&1; then \
+	        echo "[error] $$target skipped: docker daemon unresponsive after $$waited s"; \
+	        failed="$$failed $$target"; \
+	        echo ""; \
+	        continue; \
+	      fi; \
+	    fi; \
+	    out=$$(mktemp); \
+	    status=0; \
+	    run_fuzz_once "$$target" "$$fuzztime" "$$pkg" "$$out" "$$pflag" "$$wall" || status=$$?; \
+	    if [ $$status -ne 0 ] && [ $$status -ne 100 ] \
+	      && ! grep -q "Failing input written" "$$out" \
+	      && { [ $$status -eq 124 ] \
+	           || grep -q "Failed to start infrastructure\|failed to start containers\|fuzzing process terminated without fuzzing\|^    context deadline exceeded" "$$out"; }; then \
+	      echo "[warn] $$target hit an environmental failure (infra startup, worker death, or wall-clock hang; no failing input); settling 15s then retrying once..."; \
+	      sleep 15; \
+	      : > "$$out"; \
+	      status=0; \
+	      run_fuzz_once "$$target" "$$fuzztime" "$$pkg" "$$out" "$$pflag" "$$wall" || status=$$?; \
+	    fi; \
+	    if [ $$status -eq 100 ]; then \
+	      echo "[error] $$target engaged no fuzzing (no 'fuzz:' output) — silent no-op"; \
+	      failed="$$failed $$target"; \
+	    elif [ $$status -eq 124 ]; then \
+	      echo "[error] $$target exceeded the $$wall s wall-clock cap twice — hung target"; \
+	      failed="$$failed $$target"; \
+	    elif [ $$status -ne 0 ]; then \
+	      echo "[error] $$target failed (crash or test error, exit $$status)"; \
+	      failed="$$failed $$target"; \
+	    fi; \
+	    rm -f "$$out"; \
 	    echo ""; \
 	  done; \
+	  if [ -n "$$failed" ]; then \
+	    echo "[error] Fuzz targets that failed or engaged no fuzzing:$$failed"; exit 1; \
+	  fi; \
 	  echo "Fuzz testing complete. Check testdata/fuzz/ for corpus."; \
 	fi
 
@@ -320,10 +469,10 @@ test-reporter-chaos:
 	  echo "Packages: $$pkgs"; \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    gotestsum --format testname -- \
-	      -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 900s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) $$pkgs; \
 	  else \
-	    go test -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	    go test -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 900s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) $$pkgs; \
 	  fi; \
 	fi
