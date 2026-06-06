@@ -25,14 +25,35 @@ import (
 // warmUpTemplate is a minimal valid report template that renders to static text
 // with NO filters, NO variables, and NO external data sources. This is
 // deliberate: the warm-up must render SUCCESSFULLY end-to-end so the worker Acks
-// the message. A template with a |date filter (or any variable) fails to render
-// with nil input, and a render failure is classified retryable — the worker then
-// republishes the poisoned message up to MaxMessageRetries times before DLQ,
-// thrashing Mongo/RabbitMQ while the first fuzz target gathers its baseline.
+// the message and the full success path (RabbitMQ consume, render, S3 write) is
+// warm before baseline — a failed warm-up report proves nothing about the paths
+// the fuzz targets are about to hammer.
 const warmUpTemplate = `Fuzzy Warm-up Report
 ====================
 This template renders to static text. No data sources required. Status: OK
 `
+
+// renderProofTemplate references the midaz_onboarding datasource (seeded by the
+// Postgres test container). Unlike warmUpTemplate it forces the worker down the
+// FULL render path: datasource fetch -> template render -> S3 write. Before the
+// datasource was registered, every report referencing midaz_onboarding died at
+// "data source not found" in queryDatabase BEFORE reaching the renderer, so the
+// render path was an untested blind spot. proveRenderPathReachable asserts a
+// report from this template reaches Finished, locking the path open.
+const renderProofTemplate = `Render Proof Report
+===================
+{% for org in midaz_onboarding.organization %}
+ID: {{ org.id }}
+Name: {{ org.name }}
+Status: {{ org.status }}
+---
+{% endfor %}
+`
+
+// renderProofOrgID matches an organization seeded by the Postgres container
+// (containers.OnboardingSeedOrgID) so the filtered query returns at least one
+// row and the rendered output is non-empty.
+const renderProofOrgID = "00000000-0000-0000-0000-000000000001"
 
 var (
 	testInfra   *containers.TestInfrastructure
@@ -133,6 +154,23 @@ func TestMain(m *testing.M) {
 	}
 
 	warmUpCancel()
+
+	// Prove the datasource-backed render path is reachable before fuzzing. This
+	// is intentionally separate from warmUpServices (which must stay static so a
+	// failed render never thrashes the broker during baseline). It boots a report
+	// that fetches from midaz_onboarding and renders to terminal status — the very
+	// path the fuzz targets assume is reachable when they upload hostile templates.
+	proofCtx, proofCancel := context.WithTimeout(context.Background(), 90*time.Second)
+	if err := proveRenderPathReachable(proofCtx, managerAddr); err != nil {
+		proofCancel()
+		workerSvc.Stop(ctx)
+		managerSvc.Stop(ctx)
+		testInfra.Stop(ctx)
+		fmt.Fprintf(os.Stderr, "Render path reachability proof failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	proofCancel()
 
 	// Run tests
 	fmt.Fprintf(os.Stderr, "Running fuzzy tests...\n")
@@ -326,6 +364,94 @@ func warmUpPollReport(ctx context.Context, cli *h.HTTPClient, headers map[string
 		select {
 		case <-pollCtx.Done():
 			return
+		case <-ticker.C:
+		}
+	}
+}
+
+// proveRenderPathReachable uploads a midaz_onboarding-backed template, creates a
+// report filtered by a seeded organization, and polls until terminal status. It
+// returns an error unless the report reaches Finished — i.e. the worker fetched
+// from the datasource, rendered the template, and wrote the artifact to S3.
+//
+// A non-Finished (Error) terminal status here is a real signal that the render
+// path regressed, not a flake: the datasource is seeded deterministically and
+// the filter targets a known-present org. This is the executable proof that the
+// "data source not found" blind spot is closed.
+func proveRenderPathReachable(ctx context.Context, managerAddr string) error {
+	cli := h.NewHTTPClient(managerAddr, 60*time.Second)
+	headers := h.AuthHeaders()
+
+	// Upload the datasource-backed template.
+	formData := map[string]string{
+		"outputFormat": "TXT",
+		"description":  "Fuzzy render-path proof template",
+	}
+	files := map[string][]byte{"template": []byte(renderProofTemplate)}
+
+	code, body, err := cli.UploadMultipartForm(ctx, "POST", "/v1/templates", headers, formData, files)
+	if err != nil {
+		return fmt.Errorf("upload render-proof template: %w", err)
+	}
+
+	if code != http.StatusOK && code != http.StatusCreated {
+		return fmt.Errorf("upload render-proof template: unexpected status %d: %s", code, string(body))
+	}
+
+	templateID := unmarshalID(body)
+	if templateID == "" {
+		return fmt.Errorf("upload render-proof template: no id in response: %s", string(body))
+	}
+
+	// Create a report filtered by the seeded organization so the query returns rows.
+	payload := map[string]any{
+		"templateId": templateID,
+		"filters": map[string]any{
+			"midaz_onboarding": map[string]any{
+				"organization": map[string]any{
+					"id": map[string]any{
+						"eq": []string{renderProofOrgID},
+					},
+				},
+			},
+		},
+	}
+
+	code, body, err = cli.Request(ctx, "POST", "/v1/reports", headers, payload)
+	if err != nil {
+		return fmt.Errorf("create render-proof report: %w", err)
+	}
+
+	if code != http.StatusOK && code != http.StatusCreated {
+		return fmt.Errorf("create render-proof report: expected 2xx, got %d: %s", code, string(body))
+	}
+
+	reportID := unmarshalID(body)
+	if reportID == "" {
+		return fmt.Errorf("create render-proof report: no id in response: %s", string(body))
+	}
+
+	fmt.Fprintf(os.Stderr, "Render-path proof: created report id=%s from datasource-backed template\n", reportID)
+
+	// Poll until terminal status. Finished proves the full render path ran.
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		report, statusErr := cli.GetReportStatus(ctx, reportID, headers)
+		if statusErr == nil {
+			switch report.Status {
+			case constant.FinishedStatus:
+				fmt.Fprintf(os.Stderr, "Render-path proof: report %s reached Finished (full datasource->render->S3 path exercised)\n", reportID)
+				return nil
+			case constant.ErrorStatus:
+				return fmt.Errorf("render-proof report %s reached terminal Error status — render path regressed", reportID)
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("render-proof report %s did not reach Finished before timeout: %w", reportID, ctx.Err())
 		case <-ticker.C:
 		}
 	}

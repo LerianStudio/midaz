@@ -168,5 +168,11 @@ func buildWorkerEnv(cfg *ServiceConfig) []string {
 	env = append(env, "ENABLE_TELEMETRY=false")
 	env = append(env, "OTEL_LIBRARY_NAME=reporter")
 
+	// Onboarding datasource (DIRECT mode, FETCHER_ENABLED defaults false). Without
+	// this the worker registers no datasource and every report referencing
+	// midaz_onboarding fails at "data source not found" before reaching the
+	// template renderer.
+	env = append(env, cfg.onboardingDatasourceEnv()...)
+
 	return env
 }

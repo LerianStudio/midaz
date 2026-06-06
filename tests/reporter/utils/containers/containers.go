@@ -68,6 +68,7 @@ type TestInfrastructure struct {
 	RabbitMQ  *RabbitMQContainer
 	SeaweedFS *SeaweedFSContainer
 	Valkey    *ValkeyContainer
+	Postgres  *PostgresContainer
 	Toxiproxy *chaos.ToxiproxyInfrastructure
 
 	network     *testcontainers.DockerNetwork
@@ -79,23 +80,25 @@ const defaultStartTimeoutSeconds = 120
 
 // InfrastructureConfig holds configuration for container startup.
 type InfrastructureConfig struct {
-	MongoImage   string
-	RabbitImage  string
-	SeaweedImage string
-	ValkeyImage  string
-	NetworkName  string
-	StartTimeout time.Duration
+	MongoImage    string
+	RabbitImage   string
+	SeaweedImage  string
+	ValkeyImage   string
+	PostgresImage string
+	NetworkName   string
+	StartTimeout  time.Duration
 }
 
 // DefaultConfig returns default configuration for test infrastructure.
 func DefaultConfig() *InfrastructureConfig {
 	return &InfrastructureConfig{
-		MongoImage:   "mongo:latest",
-		RabbitImage:  "rabbitmq:4.0-management-alpine",
-		SeaweedImage: "chrislusf/seaweedfs:3.97",
-		ValkeyImage:  "valkey/valkey:latest",
-		NetworkName:  "reporter-test-network",
-		StartTimeout: defaultStartTimeoutSeconds * time.Second,
+		MongoImage:    "mongo:latest",
+		RabbitImage:   "rabbitmq:4.0-management-alpine",
+		SeaweedImage:  "chrislusf/seaweedfs:3.97",
+		ValkeyImage:   "valkey/valkey:latest",
+		PostgresImage: "postgres:16-alpine",
+		NetworkName:   "reporter-test-network",
+		StartTimeout:  defaultStartTimeoutSeconds * time.Second,
 	}
 }
 
@@ -125,7 +128,7 @@ func StartInfrastructureWithConfig(ctx context.Context, cfg *InfrastructureConfi
 	// Start containers in parallel
 	var wg sync.WaitGroup
 
-	errCh := make(chan error, 4)
+	errCh := make(chan error, 5)
 
 	// MongoDB
 	wg.Add(1)
@@ -195,12 +198,29 @@ func StartInfrastructureWithConfig(ctx context.Context, cfg *InfrastructureConfi
 		infra.mu.Unlock()
 	}()
 
+	// PostgreSQL (onboarding datasource backing report rendering)
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		pg, err := StartPostgres(ctx, networkName, cfg.PostgresImage)
+		if err != nil {
+			errCh <- fmt.Errorf("postgres: %w", err)
+			return
+		}
+
+		infra.mu.Lock()
+		infra.Postgres = pg
+		infra.mu.Unlock()
+	}()
+
 	// Wait for all containers to start
 	wg.Wait()
 	close(errCh)
 
 	// Check for errors
-	errs := make([]error, 0, 4)
+	errs := make([]error, 0, 5)
 	for err := range errCh {
 		errs = append(errs, err)
 	}
@@ -246,6 +266,12 @@ func (i *TestInfrastructure) Stop(ctx context.Context) error {
 	if i.Valkey != nil {
 		if err := i.Valkey.Terminate(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("valkey terminate: %w", err))
+		}
+	}
+
+	if i.Postgres != nil {
+		if err := i.Postgres.Terminate(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("postgres terminate: %w", err))
 		}
 	}
 

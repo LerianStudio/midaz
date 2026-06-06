@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
 	"github.com/LerianStudio/midaz/v4/tests/reporter/utils/chaos"
 	"github.com/LerianStudio/midaz/v4/tests/reporter/utils/containers"
@@ -43,6 +44,18 @@ type ServiceConfig struct {
 	RedisHost     string
 	RedisPort     string
 	RedisPassword string
+
+	// Onboarding datasource (PostgreSQL). Registered with the worker/manager via
+	// DATASOURCE_ONBOARDING_* env so report rendering can fetch template
+	// variables. Empty when no Postgres container is present (e.g. chaos suite
+	// before this was wired), in which case the env block is skipped and the
+	// report path keeps its prior "data source not found" behavior.
+	OnboardingConfigName string
+	OnboardingHost       string
+	OnboardingPort       string
+	OnboardingUser       string
+	OnboardingPassword   string
+	OnboardingDatabase   string
 
 	// Manager
 	ServerAddress string
@@ -86,6 +99,15 @@ func NewConfigFromInfrastructure(infra *containers.TestInfrastructure) *ServiceC
 	if infra.Valkey != nil {
 		cfg.RedisHost = infra.Valkey.Host
 		cfg.RedisPort = infra.Valkey.Port
+	}
+
+	if infra.Postgres != nil {
+		cfg.OnboardingConfigName = containers.OnboardingConfigName
+		cfg.OnboardingHost = infra.Postgres.Host
+		cfg.OnboardingPort = infra.Postgres.Port
+		cfg.OnboardingUser = infra.Postgres.User
+		cfg.OnboardingPassword = infra.Postgres.Password
+		cfg.OnboardingDatabase = infra.Postgres.Database
 	}
 
 	// When Toxiproxy is running (chaos suite only), route datastore traffic
@@ -144,6 +166,42 @@ func applyToxiproxyEndpoints(cfg *ServiceConfig, infra *containers.TestInfrastru
 	}
 }
 
+// onboardingDatasourceEnv returns the DATASOURCE_ONBOARDING_* entries that
+// register the onboarding PostgreSQL datasource with a service (DIRECT mode,
+// FETCHER_ENABLED=false). The worker scans os.Environ() for the
+// DATASOURCE_{NAME}_CONFIG_NAME marker (see pkg/reporter/datasource-config.go),
+// so CONFIG_NAME must be present and equal to "midaz_onboarding" for templates
+// and filters keyed on midaz_onboarding to resolve.
+//
+// Returns nil when no Postgres datasource is configured, so suites without a
+// Postgres container are unaffected.
+func (c *ServiceConfig) onboardingDatasourceEnv() []string {
+	if c.OnboardingConfigName == "" {
+		return nil
+	}
+
+	return []string{
+		"DATASOURCE_ONBOARDING_CONFIG_NAME=" + c.OnboardingConfigName,
+		"DATASOURCE_ONBOARDING_HOST=" + c.OnboardingHost,
+		"DATASOURCE_ONBOARDING_PORT=" + c.OnboardingPort,
+		"DATASOURCE_ONBOARDING_USER=" + c.OnboardingUser,
+		"DATASOURCE_ONBOARDING_PASSWORD=" + c.OnboardingPassword,
+		"DATASOURCE_ONBOARDING_DATABASE=" + c.OnboardingDatabase,
+		"DATASOURCE_ONBOARDING_TYPE=postgresql",
+		"DATASOURCE_ONBOARDING_SSLMODE=disable",
+	}
+}
+
+// applyOnboardingDatasourceEnv sets the DATASOURCE_ONBOARDING_* variables via
+// os.Setenv for in-process service startup paths.
+func (c *ServiceConfig) applyOnboardingDatasourceEnv() {
+	for _, kv := range c.onboardingDatasourceEnv() {
+		if k, v, ok := strings.Cut(kv, "="); ok {
+			os.Setenv(k, v)
+		}
+	}
+}
+
 // ApplyManagerEnv sets environment variables for Manager service.
 //
 
@@ -194,6 +252,9 @@ func (c *ServiceConfig) ApplyManagerEnv() {
 	// Telemetry (disabled for tests)
 	os.Setenv("ENABLE_TELEMETRY", "false")
 	os.Setenv("OTEL_LIBRARY_NAME", "reporter")
+
+	// Onboarding datasource (DIRECT mode) so report rendering can fetch data.
+	c.applyOnboardingDatasourceEnv()
 }
 
 // ApplyWorkerEnv sets environment variables for Worker service.
@@ -239,6 +300,9 @@ func (c *ServiceConfig) ApplyWorkerEnv() {
 	// Telemetry (disabled for tests)
 	os.Setenv("ENABLE_TELEMETRY", "false")
 	os.Setenv("OTEL_LIBRARY_NAME", "reporter")
+
+	// Onboarding datasource (DIRECT mode) so report rendering can fetch data.
+	c.applyOnboardingDatasourceEnv()
 }
 
 // ClearEnv removes all environment variables set by ApplyManagerEnv/ApplyWorkerEnv.
@@ -257,6 +321,10 @@ func ClearEnv() {
 		"PLUGIN_AUTH_ENABLED", "PLUGIN_AUTH_ADDRESS",
 		"PDF_POOL_WORKERS", "PDF_TIMEOUT_SECONDS",
 		"ENABLE_TELEMETRY", "OTEL_LIBRARY_NAME",
+		"DATASOURCE_ONBOARDING_CONFIG_NAME", "DATASOURCE_ONBOARDING_HOST",
+		"DATASOURCE_ONBOARDING_PORT", "DATASOURCE_ONBOARDING_USER",
+		"DATASOURCE_ONBOARDING_PASSWORD", "DATASOURCE_ONBOARDING_DATABASE",
+		"DATASOURCE_ONBOARDING_TYPE", "DATASOURCE_ONBOARDING_SSLMODE",
 	}
 
 	for _, v := range envVars {

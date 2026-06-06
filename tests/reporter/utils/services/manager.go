@@ -177,6 +177,10 @@ func buildManagerEnv(cfg *ServiceConfig) []string {
 	// Telemetry (disabled for tests)
 	env = append(env, "ENABLE_TELEMETRY=false")
 
+	// Onboarding datasource so report-create filter validation and the
+	// generate-report message see midaz_onboarding as a registered datasource.
+	env = append(env, cfg.onboardingDatasourceEnv()...)
+
 	return env
 }
 
