@@ -792,6 +792,7 @@ function createUrl(path, baseUrlVariable) {
       if (paramName === 'external_id') return '{{assetRateId}}';
       if (paramName === 'id') {
         // Try to determine the entity type from the path
+        if (path.includes('/holders/')) return '{{holderId}}';
         if (path.includes('/organizations/') && !path.includes('/ledgers/')) return '{{organizationId}}';
         if (path.includes('/ledgers/') && !path.includes('/accounts/') && !path.includes('/assets/') && !path.includes('/portfolios/') && !path.includes('/segments/')) return '{{ledgerId}}';
         if (path.includes('/accounts/') && !path.includes('/balances/') && !path.includes('/portfolios/') && !path.includes('/segments/')) return '{{accountId}}';
@@ -860,6 +861,7 @@ function addParameters(requestItem, operation, path) {
           if (path.includes('/operations/')) value = '{{operationId}}';
           if (path.includes('/transactions/')) value = '{{transactionId}}';
           if (path.includes('/balances/')) value = '{{balanceId}}';
+          if (path.includes('/holders/')) value = '{{holderId}}';
         }
         // Convert any other snake_case params to camelCase
         else if (p.name.includes('_')) {
