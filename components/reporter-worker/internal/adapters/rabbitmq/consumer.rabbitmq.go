@@ -16,7 +16,6 @@ import (
 
 	"github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
 	"github.com/LerianStudio/lib-observability/log"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/rabbitmq/amqp091-go"
@@ -27,32 +26,9 @@ import (
 )
 
 // TenantResolver resolves per-tenant context (e.g. MongoDB) from message headers.
-// Implementations: MultiTenantResolver (resolves MongoDB per tenant), NoOpTenantResolver (single-tenant passthrough).
+// Implementations: NoOpTenantResolver (single-tenant passthrough).
 type TenantResolver interface {
 	Resolve(ctx context.Context, headers amqp091.Table) (context.Context, error)
-}
-
-// MultiTenantResolver resolves per-tenant MongoDB connections from message headers.
-type MultiTenantResolver struct {
-	MongoManager *tmmongo.Manager
-	Logger       log.Logger
-}
-
-// Resolve extracts tenant ID from headers and injects the per-tenant MongoDB connection into context.
-func (r *MultiTenantResolver) Resolve(ctx context.Context, headers amqp091.Table) (context.Context, error) {
-	tenantID := pkgRabbitmq.TenantIDFromHeaders(headers)
-	if tenantID == "" {
-		return ctx, nil
-	}
-
-	ctx = tmcore.ContextWithTenantID(ctx, tenantID)
-
-	tenantDB, err := r.MongoManager.GetDatabaseForTenant(ctx, tenantID)
-	if err != nil {
-		return ctx, err
-	}
-
-	return tmcore.ContextWithMB(ctx, tenantDB), nil
 }
 
 // NoOpTenantResolver is a passthrough for single-tenant mode — returns context unchanged.
@@ -80,13 +56,11 @@ type ConsumerRoutes struct {
 var _ pkgRabbitmq.ConsumerRepository = (*ConsumerRoutes)(nil)
 
 // NewConsumerRoutes creates a ConsumerRoutes for single-tenant mode.
-// When mongoManager is non-nil, per-tenant MongoDB resolution is enabled via MultiTenantResolver.
 func NewConsumerRoutes(
 	conn *rabbitmq.RabbitMQConnection,
 	numWorkers int,
 	logger log.Logger,
 	telemetry *libOtel.Telemetry,
-	mongoManager *tmmongo.Manager,
 	reportMongoDBRepository *mongoRepository.ReportMongoDBRepository,
 ) (*ConsumerRoutes, error) {
 	if telemetry == nil {
@@ -95,11 +69,6 @@ func NewConsumerRoutes(
 
 	if numWorkers == 0 {
 		numWorkers = pkgConstant.DefaultWorkerCount
-	}
-
-	var resolver TenantResolver = &NoOpTenantResolver{}
-	if mongoManager != nil {
-		resolver = &MultiTenantResolver{MongoManager: mongoManager, Logger: logger}
 	}
 
 	retryMgr := NewConsumerRetryManager(
@@ -116,59 +85,7 @@ func NewConsumerRoutes(
 		routes:          make(map[string]pkgRabbitmq.QueueHandlerFunc),
 		numWorkers:      numWorkers,
 		retryManager:    retryMgr,
-		tenantResolver:  resolver,
-		Logger:          logger,
-		Telemetry:       *telemetry,
-		mongoRepository: reportMongoDBRepository,
-	}
-
-	_, err := conn.GetNewConnect()
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to rabbitmq: %w", err)
-	}
-
-	return cr, nil
-}
-
-// NewConsumerRoutesMultiTenant creates a ConsumerRoutes for multi-tenant mode.
-// Uses rabbitMQManager for per-tenant vhost isolation during retry republishing.
-func NewConsumerRoutesMultiTenant(
-	conn *rabbitmq.RabbitMQConnection,
-	numWorkers int,
-	logger log.Logger,
-	telemetry *libOtel.Telemetry,
-	mongoManager *tmmongo.Manager,
-	rabbitMQManager RabbitMQManagerConsumerInterface,
-	reportMongoDBRepository *mongoRepository.ReportMongoDBRepository,
-) (*ConsumerRoutes, error) {
-	if telemetry == nil {
-		return nil, fmt.Errorf("telemetry must not be nil")
-	}
-
-	if numWorkers == 0 {
-		numWorkers = pkgConstant.DefaultWorkerCount
-	}
-
-	var resolver TenantResolver = &NoOpTenantResolver{}
-	if mongoManager != nil {
-		resolver = &MultiTenantResolver{MongoManager: mongoManager, Logger: logger}
-	}
-
-	retryMgr := NewConsumerRetryManager(
-		pkgRabbitmq.NewDefaultErrorClassifier(),
-		pkg.ConsumerBackoff,
-		conn,
-		rabbitMQManager,
-		logger,
-		*telemetry,
-	)
-
-	cr := &ConsumerRoutes{
-		conn:            conn,
-		routes:          make(map[string]pkgRabbitmq.QueueHandlerFunc),
-		numWorkers:      numWorkers,
-		retryManager:    retryMgr,
-		tenantResolver:  resolver,
+		tenantResolver:  &NoOpTenantResolver{},
 		Logger:          logger,
 		Telemetry:       *telemetry,
 		mongoRepository: reportMongoDBRepository,

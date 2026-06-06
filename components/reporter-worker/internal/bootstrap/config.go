@@ -160,7 +160,7 @@ func InitWorker() (_ *Service, err error) {
 		return initMultiTenantWorkerService(cfg, logger, tmClient, tenantMongoManager, deps, cleanups)
 	}
 
-	return initSingleTenantWorkerService(cfg, logger, tenantMongoManager, deps, cleanups)
+	return initSingleTenantWorkerService(cfg, logger, deps, cleanups)
 }
 
 func logWorkerMode(cfg *Config, logger clog.Logger) {

@@ -415,7 +415,7 @@ func initMultiTenantWorkerService(cfg *Config, logger clog.Logger, tmClient *tmc
 // initSingleTenantWorkerService assembles the worker Service for single-tenant mode.
 // It connects directly to RabbitMQ, optionally wires fetcher mode with a local Redis
 // lock for the reconciler, and configures the health server with a RabbitMQ readiness probe.
-func initSingleTenantWorkerService(cfg *Config, logger clog.Logger, tenantMongoManager *tmmongo.Manager, deps *workerDependencies, cleanups *CleanupManager) (*Service, error) {
+func initSingleTenantWorkerService(cfg *Config, logger clog.Logger, deps *workerDependencies, cleanups *CleanupManager) (*Service, error) {
 	// Single-tenant mode: register noop metrics (no OTel overhead).
 	mtMetrics := multitenant.NoopMetrics()
 	_ = mtMetrics // metrics registered but using no-op in single-tenant mode
@@ -436,7 +436,7 @@ func initSingleTenantWorkerService(cfg *Config, logger clog.Logger, tenantMongoM
 		Logger: logger,
 	}
 
-	routes, err := initConsumerRoutes(rabbitMQConnection, cfg.RabbitMQNumWorkers, logger, deps.telemetry, tenantMongoManager, deps.reportRepo)
+	routes, err := initConsumerRoutes(rabbitMQConnection, cfg.RabbitMQNumWorkers, logger, deps.telemetry, deps.reportRepo)
 	if err != nil {
 		return nil, err
 	}

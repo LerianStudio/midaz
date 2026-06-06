@@ -12,7 +12,6 @@ import (
 	reportData "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
 
 	libRabbitMQ "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
-	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
 	clog "github.com/LerianStudio/lib-observability/log"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 )
@@ -24,10 +23,9 @@ func initConsumerRoutes(
 	numWorkers int,
 	logger clog.Logger,
 	telemetry *libOtel.Telemetry,
-	tenantMongoManager *tmmongo.Manager,
 	reportMongoDBRepository *reportData.ReportMongoDBRepository,
 ) (*rabbitmqadapter.ConsumerRoutes, error) {
-	routes, err := rabbitmqadapter.NewConsumerRoutes(rabbitMQConnection, numWorkers, logger, telemetry, tenantMongoManager, reportMongoDBRepository)
+	routes, err := rabbitmqadapter.NewConsumerRoutes(rabbitMQConnection, numWorkers, logger, telemetry, reportMongoDBRepository)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize rabbitmq consumer: %w", err)
 	}

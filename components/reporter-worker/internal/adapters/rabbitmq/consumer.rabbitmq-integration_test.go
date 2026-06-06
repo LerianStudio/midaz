@@ -107,7 +107,7 @@ func setupConsumer(t *testing.T, handler pkgRabbitmq.QueueHandlerFunc) {
 		Logger:                 logger,
 	}
 
-	cr, err := NewConsumerRoutes(conn, 1, logger, telemetry, nil, nil)
+	cr, err := NewConsumerRoutes(conn, 1, logger, telemetry, nil)
 	require.NoError(t, err, "NewConsumerRoutes should connect successfully")
 
 	// Override sleepFunc to no-op for fast tests (eliminates real backoff delays)

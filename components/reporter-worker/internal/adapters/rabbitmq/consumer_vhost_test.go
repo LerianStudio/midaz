@@ -16,8 +16,8 @@ import (
 	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/reporter/rabbitmq"
 )
 
-// TestConsumerRoutes_TenantResolver verifies that the tenant resolver is correctly
-// injected: NoOp for single-tenant, MultiTenant for multi-tenant.
+// TestConsumerRoutes_TenantResolver verifies that the single-tenant consumer
+// injects the NoOpTenantResolver passthrough.
 func TestConsumerRoutes_TenantResolver(t *testing.T) {
 	t.Parallel()
 
@@ -29,16 +29,6 @@ func TestConsumerRoutes_TenantResolver(t *testing.T) {
 			tenantResolver: &NoOpTenantResolver{},
 		}
 		assert.IsType(t, &NoOpTenantResolver{}, cr.tenantResolver)
-	})
-
-	t.Run("multi-tenant consumer uses MultiTenantResolver", func(t *testing.T) {
-		t.Parallel()
-
-		cr := &ConsumerRoutes{
-			routes:         make(map[string]pkgRabbitmq.QueueHandlerFunc),
-			tenantResolver: &MultiTenantResolver{},
-		}
-		assert.IsType(t, &MultiTenantResolver{}, cr.tenantResolver)
 	})
 }
 
