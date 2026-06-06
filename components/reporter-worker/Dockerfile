@@ -2,6 +2,9 @@ FROM --platform=$BUILDPLATFORM golang:1.26.3-alpine AS builder
 
 WORKDIR /reporter-worker-app
 
+# VCS build-info stamping needs the git binary; .git is in the root build context.
+RUN apk add --no-cache git
+
 COPY go.mod go.sum ./
 RUN go mod download
 
