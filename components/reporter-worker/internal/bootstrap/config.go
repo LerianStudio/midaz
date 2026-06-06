@@ -94,9 +94,9 @@ type Config struct {
 	ClientID     string `env:"FETCHER_M2M_CLIENT_ID"`
 	ClientSecret string `env:"FETCHER_M2M_CLIENT_SECRET"`
 	// Reconciler configuration
-	ReconciliationIntervalMin int `env:"RECONCILIATION_INTERVAL_MIN" envDefault:"5"`
-	M2MCredentialCacheTTLSec  int `env:"M2M_CREDENTIAL_CACHE_TTL_SEC" envDefault:"300"`
-	M2MTokenCacheMarginSec    int `env:"M2M_TOKEN_CACHE_MARGIN_SEC" envDefault:"60"`
+	ReconciliationIntervalMin int `env:"RECONCILIATION_INTERVAL_MIN" default:"5"`
+	M2MCredentialCacheTTLSec  int `env:"M2M_CREDENTIAL_CACHE_TTL_SEC" default:"300"`
+	M2MTokenCacheMarginSec    int `env:"M2M_TOKEN_CACHE_MARGIN_SEC" default:"60"`
 	// Multi-tenant configuration envs
 	MultiTenantEnabled                  bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
 	MultiTenantURL                      string `env:"MULTI_TENANT_URL"`

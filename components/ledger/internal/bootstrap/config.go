@@ -56,7 +56,7 @@ type Config struct {
 	DeploymentMode  string `env:"DEPLOYMENT_MODE"`
 
 	// Server configuration - unified port for all APIs
-	ServerAddress string `env:"SERVER_ADDRESS" envDefault:":3002"`
+	ServerAddress string `env:"SERVER_ADDRESS" default:":3002"`
 
 	// OpenTelemetry configuration
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
