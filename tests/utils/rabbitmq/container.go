@@ -9,12 +9,15 @@ package rabbitmq
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/netip"
 	"testing"
 	"time"
 
 	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 
 	"github.com/moby/moby/api/types/container"
+	mobynetwork "github.com/moby/moby/api/types/network"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/require"
@@ -135,6 +138,95 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		Host:      host,
 		AMQPPort:  amqpPort.Port(),
 		MgmtPort:  mgmtPort.Port(),
+		URI:       uri,
+	}
+}
+
+// SetupContainerWithFixedPorts starts a RabbitMQ container bound to explicit host
+// ports for AMQP and management. Chaos tests that stop and start the container rely
+// on this: Docker assigns a new ephemeral host port on every start, so a container
+// created with random ports strands any client whose connection URI was captured
+// once at setup. Fixed bindings keep the host address stable across stop/start so
+// reconnection works against the same URI.
+//
+// Host ports are reserved from the ephemeral range rather than hardcoded so parallel
+// or repeated runs do not collide on a fixed number.
+func SetupContainerWithFixedPorts(t *testing.T) *ContainerResult {
+	t.Helper()
+	return SetupContainerWithFixedPortsConfig(t, DefaultContainerConfig())
+}
+
+// SetupContainerWithFixedPortsConfig is SetupContainerWithFixedPorts with custom config.
+func SetupContainerWithFixedPortsConfig(t *testing.T, cfg ContainerConfig) *ContainerResult {
+	t.Helper()
+
+	ctx := context.Background()
+
+	amqpHostPort, err := freeHostPort()
+	require.NoError(t, err, "failed to reserve AMQP host port")
+
+	mgmtHostPort, err := freeHostPort()
+	require.NoError(t, err, "failed to reserve management host port")
+
+	applyPorts := applyFixedHostPorts(map[string]string{
+		"5672/tcp":  amqpHostPort,
+		"15672/tcp": mgmtHostPort,
+	})
+
+	req := testcontainers.ContainerRequest{
+		Image:        cfg.Image,
+		ExposedPorts: []string{"5672/tcp", "15672/tcp"},
+		Env: map[string]string{
+			"RABBITMQ_DEFAULT_USER": cfg.User,
+			"RABBITMQ_DEFAULT_PASS": cfg.Password,
+		},
+		WaitingFor: wait.ForAll(
+			wait.ForLog("Server startup complete").WithStartupTimeout(rabbitMQLogStartupTimeout),
+			wait.ForHTTP("/api/health/checks/alarms").
+				WithPort("15672/tcp").
+				WithBasicAuth(cfg.User, cfg.Password).
+				WithStartupTimeout(rabbitMQManagementStartupTimeout),
+		),
+		HostConfigModifier: func(hc *container.HostConfig) {
+			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
+			applyPorts(hc)
+		},
+	}
+
+	ctr := startContainerWithRetry(t, ctx, req, "failed to start RabbitMQ container with fixed ports")
+
+	host, err := ctr.Host(ctx)
+	require.NoError(t, err, "failed to get RabbitMQ container host")
+
+	uri := fmt.Sprintf("amqp://%s:%s@%s:%s/", cfg.User, cfg.Password, host, amqpHostPort)
+
+	conn, err := amqp.Dial(uri)
+	require.NoError(t, err, "failed to connect to RabbitMQ container")
+
+	ch, err := conn.Channel()
+	require.NoError(t, err, "failed to open RabbitMQ channel")
+
+	t.Cleanup(func() {
+		if ch != nil {
+			ch.Close()
+		}
+
+		if conn != nil {
+			conn.Close()
+		}
+
+		if err := ctr.Terminate(context.Background()); err != nil {
+			t.Logf("failed to terminate RabbitMQ container: %v", err)
+		}
+	})
+
+	return &ContainerResult{
+		Container: ctr,
+		Conn:      conn,
+		Channel:   ch,
+		Host:      host,
+		AMQPPort:  amqpHostPort,
+		MgmtPort:  mgmtHostPort,
 		URI:       uri,
 	}
 }
@@ -413,4 +505,39 @@ func CreateChannelWithRetry(t *testing.T, uri string, timeout time.Duration) *am
 	require.NoError(t, lastErr, "failed to connect to RabbitMQ at %s after %v", uri, timeout)
 
 	return nil // unreachable, require.NoError fails the test
+}
+
+// freeHostPort reserves an ephemeral TCP port on loopback and returns it as a
+// string, closing the listener before returning so Docker can claim it as an
+// explicit host-side binding. There is a small race between releasing the port
+// here and Docker binding it; for this harness the window is negligible because
+// chaos suites run serially, and the payoff is a host port that survives
+// container stop/start (see applyFixedHostPorts).
+func freeHostPort() (string, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", fmt.Errorf("reserve free host port: %w", err)
+	}
+	defer l.Close()
+
+	return fmt.Sprintf("%d", l.Addr().(*net.TCPAddr).Port), nil
+}
+
+// applyFixedHostPorts returns a HostConfigModifier that pins each container port
+// to an explicit host port via PortBindings. The pinned host address is what lets
+// a captured connection URI keep working after a chaos stop/start, where Docker
+// would otherwise assign a fresh ephemeral host port. bindings maps a container
+// port (e.g. "5672/tcp") to a host port string.
+func applyFixedHostPorts(bindings map[string]string) func(*container.HostConfig) {
+	return func(hc *container.HostConfig) {
+		if hc.PortBindings == nil {
+			hc.PortBindings = mobynetwork.PortMap{}
+		}
+
+		for containerPort, hostPort := range bindings {
+			hc.PortBindings[mobynetwork.MustParsePort(containerPort)] = []mobynetwork.PortBinding{
+				{HostIP: netip.MustParseAddr("0.0.0.0"), HostPort: hostPort},
+			}
+		}
+	}
 }

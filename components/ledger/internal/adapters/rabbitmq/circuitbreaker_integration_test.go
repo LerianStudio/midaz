@@ -101,9 +101,24 @@ type circuitBreakerTestMessage struct {
 // setupCircuitBreakerTestInfra creates test infrastructure with CircuitBreakerProducer.
 func setupCircuitBreakerTestInfra(t *testing.T, cbConfig CircuitBreakerConfig) *circuitBreakerTestInfra {
 	t.Helper()
+	return setupCircuitBreakerTestInfraWithPorts(t, cbConfig, false)
+}
 
-	// Setup RabbitMQ container
-	rmqContainer := rmqtestutil.SetupContainer(t)
+// setupCircuitBreakerTestInfraWithPorts builds the circuit breaker test infrastructure,
+// optionally pinning the container to fixed host ports. Tests that stop and restart the
+// container (full lifecycle recovery) must use fixed ports so the captured connection URI
+// still points at RabbitMQ after restart — Docker reassigns ephemeral host ports on start.
+func setupCircuitBreakerTestInfraWithPorts(t *testing.T, cbConfig CircuitBreakerConfig, fixedPorts bool) *circuitBreakerTestInfra {
+	t.Helper()
+
+	// Setup RabbitMQ container. Fixed host ports keep the connection URI valid across a
+	// container stop/start; ephemeral ports are fine for tests that never restart it.
+	setupContainer := rmqtestutil.SetupContainer
+	if fixedPorts {
+		setupContainer = rmqtestutil.SetupContainerWithFixedPorts
+	}
+
+	rmqContainer := setupContainer(t)
 
 	// Setup exchange and queue
 	exchange := "cb-test-exchange"
@@ -487,7 +502,9 @@ func TestIntegration_Chaos_CircuitBreaker_FullLifecycle(t *testing.T) {
 		HealthCheckTimeout:  500 * time.Millisecond,
 	}
 
-	infra := setupCircuitBreakerTestInfra(t, config)
+	// Fixed ports so the connection URI survives the stop/start in Phase 4 — Docker
+	// reassigns ephemeral host ports on start, which would strand the captured URI.
+	infra := setupCircuitBreakerTestInfraWithPorts(t, config, true)
 	ctx := context.Background()
 	chaosOrch := chaos.NewOrchestrator(t)
 	defer func() {

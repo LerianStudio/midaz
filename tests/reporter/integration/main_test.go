@@ -50,9 +50,16 @@ func TestMain(m *testing.M) {
 	// Create service configuration from containers
 	cfg := services.NewConfigFromInfrastructure(testInfra)
 
+	// Manager/Worker are exec.CommandContext child processes that get SIGKILLed
+	// when their context is done; they must outlive the suite, so they use a
+	// background context rather than the 5-minute startup ctx (which would kill
+	// them mid-run once cumulative test time crosses the deadline). They are
+	// stopped explicitly in the cleanup block below.
+	svcCtx := context.Background()
+
 	// Start Manager service
 	fmt.Fprintf(os.Stderr, "Starting Manager service...\n")
-	managerSvc, err = services.StartManager(ctx, cfg)
+	managerSvc, err = services.StartManager(svcCtx, cfg)
 	if err != nil {
 		testInfra.Stop(ctx)
 		fmt.Fprintf(os.Stderr, "Failed to start manager: %v\n", err)
@@ -67,7 +74,7 @@ func TestMain(m *testing.M) {
 
 	// Start Worker service
 	fmt.Fprintf(os.Stderr, "Starting Worker service...\n")
-	workerSvc, err = services.StartWorker(ctx, cfg)
+	workerSvc, err = services.StartWorker(svcCtx, cfg)
 	if err != nil {
 		managerSvc.Stop(ctx)
 		testInfra.Stop(ctx)

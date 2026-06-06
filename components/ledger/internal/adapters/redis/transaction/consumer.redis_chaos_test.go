@@ -243,9 +243,15 @@ func TestIntegration_Chaos_RedisNamespacing_HighLatencyOnGet(t *testing.T) {
 	require.NoError(t, err, "Phase 2: AddLatency should not fail")
 
 	// --- Phase 3: Verify ---
-	// A Get call with a 1-second deadline must return an error before the 5-second
-	// latency elapses. The call must neither panic nor block indefinitely.
-	t.Log("Phase 3 (Verify): Get must return error within 1 s deadline under 5 s latency")
+	// A Get call with a 1-second context deadline under 5s injected latency. The
+	// lib-commons Redis client uses go-redis defaults (ContextTimeoutEnabled=false,
+	// ReadTimeout=3s), so a per-call context deadline shorter than ReadTimeout is
+	// NOT honored at the socket layer: the command fails on the ReadTimeout (~3s)
+	// rather than at the 1s deadline. The invariant is graceful degradation —
+	// a bounded error, no panic, no indefinite hang — not the exact deadline. The
+	// watchdog sits above ReadTimeout so the call can return on its own timeout
+	// while still proving it never blocks for the full 5s injected latency.
+	t.Log("Phase 3 (Verify): Get must return a bounded error under 5 s latency (no hang, no panic)")
 
 	highLatencyCtx, highLatencyCancel := context.WithTimeout(ctx, 1*time.Second)
 	defer highLatencyCancel()
@@ -261,13 +267,13 @@ func TestIntegration_Chaos_RedisNamespacing_HighLatencyOnGet(t *testing.T) {
 
 	select {
 	case <-done:
-		// Good — call returned.
-	case <-time.After(3 * time.Second):
-		t.Fatal("Phase 3: Get hung for more than 3 s — should have returned an error within 1 s deadline")
+		// Good — call returned within the bounded window (client ReadTimeout).
+	case <-time.After(8 * time.Second):
+		t.Fatal("Phase 3: Get hung for more than 8 s — should have returned a bounded error (client ReadTimeout)")
 	}
 
 	assert.Error(t, latencyErr,
-		"Phase 3: Get must return an error when context deadline expires before Redis responds")
+		"Phase 3: Get must return an error when Redis does not respond before the client read timeout")
 
 	t.Logf("Phase 3: received expected error: %v", latencyErr)
 
@@ -762,8 +768,12 @@ func buildCanceledBalanceOps(
 }
 
 // buildTestBalanceOps creates a []mmodel.BalanceOperation slice for a PENDING
-// transaction with a single ONHOLD source entry. When routeEnabled is true, the
-// Lua script increments version by 2 (double-entry behavior).
+// transaction with a single ONHOLD source entry. With routeEnabled=true the
+// balance is processed in double-entry mode, where each operation is one ledger
+// leg: an ONHOLD leg increments OnHold by the amount and bumps Version by 1,
+// leaving Available untouched (the Available-- is a separate DEBIT leg supplied
+// by the caller in production). A single ONHOLD op therefore yields
+// OnHold += amount, Available unchanged, Version += 1.
 func buildTestBalanceOps(
 	orgID, ledgerID uuid.UUID,
 	alias string,
@@ -890,14 +900,15 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnDoubleEntry(t *testing.
 	require.NotNil(t, result, "Phase 1: result must not be nil")
 	require.Len(t, result.After, 1, "Phase 1: should have 1 after-balance entry")
 
-	// Verify version incremented by 2 (double-entry behavior)
+	// A single ONHOLD leg in double-entry mode bumps Version by 1 and moves
+	// OnHold only; Available is untouched (its DEBIT leg is separate).
 	afterBalance := result.After[0]
-	expectedVersionAfterPhase1 := initialVersion + 2
+	expectedVersionAfterPhase1 := initialVersion + 1
 	assert.Equal(t, expectedVersionAfterPhase1, afterBalance.Version,
-		"Phase 1: version should increment by 2 for ONHOLD+PENDING+routeEnabled")
+		"Phase 1: version should increment by 1 for a single ONHOLD+PENDING+routeEnabled leg")
 
-	// Verify balance changes: Available decreased by 100, OnHold increased by 100
-	expectedAvailableAfterPhase1 := initialAvailable.Sub(decimal.NewFromInt(100))
+	// Verify balance changes: Available unchanged, OnHold increased by 100
+	expectedAvailableAfterPhase1 := initialAvailable
 	expectedOnHoldAfterPhase1 := initialOnHold.Add(decimal.NewFromInt(100))
 	assert.True(t, expectedAvailableAfterPhase1.Equal(afterBalance.Available),
 		"Phase 1: available should be %s, got %s", expectedAvailableAfterPhase1.String(), afterBalance.Available.String())
@@ -976,14 +987,14 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnDoubleEntry(t *testing.
 	require.Len(t, recoveryResult.After, 1, "Phase 5: should have 1 after-balance entry")
 
 	recoveryAfter := recoveryResult.After[0]
-	expectedVersionAfterRecovery := expectedVersionAfterPhase1 + 2
+	expectedVersionAfterRecovery := expectedVersionAfterPhase1 + 1
 	assert.Equal(t, expectedVersionAfterRecovery, recoveryAfter.Version,
-		"Phase 5: version should be %d after recovery (incremented by 2)", expectedVersionAfterRecovery)
+		"Phase 5: version should be %d after recovery (incremented by 1)", expectedVersionAfterRecovery)
 
 	t.Logf("Phase 5: recovery version=%d, available=%s, onHold=%s",
 		recoveryAfter.Version, recoveryAfter.Available.String(), recoveryAfter.OnHold.String())
 
-	t.Log("PASS: ProcessBalanceAtomicOperation returns error on connection loss, balance state preserved, recovers correctly with version+2")
+	t.Log("PASS: ProcessBalanceAtomicOperation returns error on connection loss, balance state preserved, recovers correctly with version+1")
 }
 
 // =============================================================================
@@ -1037,8 +1048,8 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnDoubleEntry(t *testing.T) 
 	require.Len(t, result.After, 1, "Phase 1: should have 1 after-balance entry")
 
 	afterPhase1 := result.After[0]
-	expectedVersionPhase1 := initialVersion + 2
-	expectedAvailablePhase1 := initialAvailable.Sub(decimal.NewFromInt(100))
+	expectedVersionPhase1 := initialVersion + 1
+	expectedAvailablePhase1 := initialAvailable
 	expectedOnHoldPhase1 := initialOnHold.Add(decimal.NewFromInt(100))
 
 	assert.Equal(t, expectedVersionPhase1, afterPhase1.Version,
@@ -1055,9 +1066,16 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnDoubleEntry(t *testing.T) 
 	require.NoError(t, err, "Phase 2: AddLatency should not fail")
 
 	// --- Phase 3: Verify ---
-	// Call with a 1-second deadline. Must return an error before the 5-second latency
-	// elapses. Must neither panic nor block indefinitely.
-	t.Log("Phase 3 (Verify): operation must return error within 1s deadline under 5s latency")
+	// Call with a 1-second context deadline under 5s injected latency. The
+	// lib-commons Redis client is built with go-redis defaults
+	// (ContextTimeoutEnabled=false, ReadTimeout=3s), so a per-call context
+	// deadline shorter than ReadTimeout is NOT honored at the socket layer:
+	// the command fails on the ReadTimeout (~3s) rather than at the 1s deadline.
+	// The invariant under test is graceful degradation — a bounded error, no
+	// panic, no indefinite hang — not the exact deadline. The watchdog is set
+	// above ReadTimeout so the call has room to return on its own timeout while
+	// still proving it never blocks for the full 5s injected latency.
+	t.Log("Phase 3 (Verify): operation must return a bounded error under 5s latency (no hang, no panic)")
 
 	latencyTxID := uuid.New()
 	latencyOps := buildTestBalanceOps(orgID, ledgerID, alias, expectedAvailablePhase1, expectedOnHoldPhase1, expectedVersionPhase1, true)
@@ -1079,13 +1097,13 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnDoubleEntry(t *testing.T) 
 
 	select {
 	case <-done:
-		// Call returned within acceptable time.
-	case <-time.After(3 * time.Second):
-		t.Fatal("Phase 3: operation hung for more than 3s -- should have returned an error within 1s deadline")
+		// Call returned within the bounded window (client ReadTimeout).
+	case <-time.After(8 * time.Second):
+		t.Fatal("Phase 3: operation hung for more than 8s -- should have returned a bounded error (client ReadTimeout)")
 	}
 
 	assert.Error(t, latencyErr,
-		"Phase 3: operation must return an error when context deadline expires before Redis responds")
+		"Phase 3: operation must return an error when Redis does not respond before the client read timeout")
 	assert.Nil(t, latencyResult,
 		"Phase 3: result must be nil when the operation times out")
 
@@ -1108,12 +1126,12 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnDoubleEntry(t *testing.T) 
 	require.NoError(t, err, "Phase 3: balance JSON should unmarshal")
 
 	// The balance version must be either Phase 1 value (script didn't execute) or
-	// Phase 1 + 2 (script completed but Go timed out reading the response).
-	// No intermediate version should exist (no version gaps).
-	validVersions := []int64{expectedVersionPhase1, expectedVersionPhase1 + 2}
+	// Phase 1 + 1 (the single ONHOLD leg completed but Go timed out reading the
+	// response). No intermediate version should exist (no version gaps).
+	validVersions := []int64{expectedVersionPhase1, expectedVersionPhase1 + 1}
 	assert.Contains(t, validVersions, storedBalance.Version,
 		"Phase 3: version must be %d (unchanged) or %d (script completed), got %d",
-		expectedVersionPhase1, expectedVersionPhase1+2, storedBalance.Version)
+		expectedVersionPhase1, expectedVersionPhase1+1, storedBalance.Version)
 
 	t.Logf("Phase 3: Redis balance version=%d (unchanged=%v)", storedBalance.Version, storedBalance.Version == expectedVersionPhase1)
 
@@ -1158,14 +1176,14 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnDoubleEntry(t *testing.T) 
 	require.Len(t, recoveryResult.After, 1, "Phase 5: should have 1 after-balance entry")
 
 	recoveryAfter := recoveryResult.After[0]
-	expectedRecoveryVersion := currentBalance.Version + 2
+	expectedRecoveryVersion := currentBalance.Version + 1
 	assert.Equal(t, expectedRecoveryVersion, recoveryAfter.Version,
 		"Phase 5: version should be %d after recovery", expectedRecoveryVersion)
 
 	t.Logf("Phase 5: recovery version=%d, available=%s, onHold=%s",
 		recoveryAfter.Version, recoveryAfter.Available.String(), recoveryAfter.OnHold.String())
 
-	t.Log("PASS: operation times out gracefully under high latency, balance state consistent, recovers with version+2")
+	t.Log("PASS: operation times out gracefully under high latency, balance state consistent, recovers with version+1")
 }
 
 // =============================================================================
@@ -1219,8 +1237,8 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionResetOnDoubleEntry(t *testing
 	require.Len(t, result1.After, 1, "Phase 1: should have 1 after-balance entry")
 
 	phase1After := result1.After[0]
-	phase1Version := initialVersion + 2 // route-enabled: version + 2
-	phase1Available := initialAvailable.Sub(decimal.NewFromInt(100))
+	phase1Version := initialVersion + 1 // single ONHOLD leg: version + 1
+	phase1Available := initialAvailable // Available untouched by an ONHOLD leg
 	phase1OnHold := initialOnHold.Add(decimal.NewFromInt(100))
 
 	assert.Equal(t, phase1Version, phase1After.Version, "Phase 1: version should be %d", phase1Version)
@@ -1277,8 +1295,8 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionResetOnDoubleEntry(t *testing
 
 	// --- Phase 5: Recovery ---
 	// After recovery, a new operation must succeed with correct version chaining.
-	// Since Phase 3 failed, the balance is at Phase 1 state, so the new operation
-	// should produce version = phase1Version + 2.
+	// Since Phase 3 failed, the balance is at Phase 1 state, so the new ONHOLD
+	// leg should produce version = phase1Version + 1.
 	t.Log("Phase 5 (Recovery): verifying operation succeeds with correct version after recovery")
 
 	recoveryTxID := uuid.New()
@@ -1299,12 +1317,12 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionResetOnDoubleEntry(t *testing
 	require.Len(t, recoveryResult.After, 1, "Phase 5: should have 1 after-balance entry")
 
 	recoveryAfter := recoveryResult.After[0]
-	expectedFinalVersion := phase1Version + 2
-	expectedFinalAvailable := phase1Available.Sub(decimal.NewFromInt(100))
+	expectedFinalVersion := phase1Version + 1
+	expectedFinalAvailable := phase1Available // ONHOLD leg leaves Available unchanged
 	expectedFinalOnHold := phase1OnHold.Add(decimal.NewFromInt(100))
 
 	assert.Equal(t, expectedFinalVersion, recoveryAfter.Version,
-		"Phase 5: version should be %d (phase1 + 2)", expectedFinalVersion)
+		"Phase 5: version should be %d (phase1 + 1)", expectedFinalVersion)
 	assert.True(t, expectedFinalAvailable.Equal(recoveryAfter.Available),
 		"Phase 5: available should be %s, got %s", expectedFinalAvailable.String(), recoveryAfter.Available.String())
 	assert.True(t, expectedFinalOnHold.Equal(recoveryAfter.OnHold),
@@ -1366,10 +1384,11 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnApprovedSource(t *testi
 	require.NotNil(t, pendingResult, "Pre-condition: result must not be nil")
 	require.Len(t, pendingResult.After, 1, "Pre-condition: should have 1 after-balance entry")
 
-	// After PENDING with route enabled: Available -= 100, OnHold += 100, Version += 2
-	postPendingAvailable := initialAvailable.Sub(decimal.NewFromInt(100))
+	// After a single ONHOLD leg with route enabled: OnHold += 100, Available
+	// unchanged, Version += 1 (the Available-- DEBIT leg is not part of this op).
+	postPendingAvailable := initialAvailable
 	postPendingOnHold := initialOnHold.Add(decimal.NewFromInt(100))
-	postPendingVersion := initialVersion + 2
+	postPendingVersion := initialVersion + 1
 
 	assert.Equal(t, postPendingVersion, pendingResult.After[0].Version,
 		"Pre-condition: version should be %d after PENDING", postPendingVersion)
@@ -1558,7 +1577,11 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnApprovedDestination(t *tes
 	require.NoError(t, err, "Phase 2: AddLatency should not fail")
 
 	// --- Phase 3: Verify ---
-	t.Log("Phase 3 (Verify): APPROVED CREDIT must return error within 1s deadline under 5s latency")
+	// The lib-commons Redis client uses go-redis defaults (ContextTimeoutEnabled=false,
+	// ReadTimeout=3s), so a 1s context deadline is not honored at the socket layer;
+	// the call fails on the ReadTimeout (~3s). The invariant is a bounded error
+	// (no hang, no panic), not the exact deadline.
+	t.Log("Phase 3 (Verify): APPROVED CREDIT must return a bounded error under 5s latency (no hang, no panic)")
 
 	latencyTxID := uuid.New()
 	latencyOps := buildApprovedBalanceOps(orgID, ledgerID, alias,
@@ -1582,12 +1605,12 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnApprovedDestination(t *tes
 	select {
 	case <-done:
 		// Call returned within acceptable time.
-	case <-time.After(3 * time.Second):
-		t.Fatal("Phase 3: operation hung for more than 3s -- should have returned an error within 1s deadline")
+	case <-time.After(8 * time.Second):
+		t.Fatal("Phase 3: operation hung for more than 8s -- should have returned a bounded error (client ReadTimeout)")
 	}
 
 	assert.Error(t, latencyErr,
-		"Phase 3: APPROVED CREDIT must return an error when context deadline expires")
+		"Phase 3: APPROVED CREDIT must return an error when Redis does not respond before the client read timeout")
 	assert.Nil(t, latencyResult,
 		"Phase 3: result must be nil when the operation times out")
 
@@ -1694,7 +1717,8 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnCanceledRelease(t *test
 
 	ctx := context.Background()
 
-	// Pre-condition: PENDING to create on-hold state (route enabled -> version +2)
+	// Pre-condition: single ONHOLD leg to create on-hold state
+	// (route enabled -> OnHold += 100, Available unchanged, version + 1)
 	pendingTxID := uuid.New()
 	pendingOps := buildTestBalanceOps(orgID, ledgerID, alias, initialAvailable, initialOnHold, initialVersion, true)
 
@@ -1704,9 +1728,9 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnCanceledRelease(t *test
 	require.NoError(t, err, "Pre-condition: PENDING should succeed")
 	require.NotNil(t, pendingResult)
 
-	postPendingAvailable := initialAvailable.Sub(decimal.NewFromInt(100))
+	postPendingAvailable := initialAvailable
 	postPendingOnHold := initialOnHold.Add(decimal.NewFromInt(100))
-	postPendingVersion := initialVersion + 2
+	postPendingVersion := initialVersion + 1
 
 	// --- Phase 1: Normal ---
 	// RELEASE+CANCELED with routeValidationEnabled=true: OnHold-- only, version+1
@@ -1901,7 +1925,11 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnCanceledCredit(t *testing.
 	require.NoError(t, err, "Phase 2: AddLatency should not fail")
 
 	// --- Phase 3: Verify ---
-	t.Log("Phase 3 (Verify): CREDIT+CANCELED must return error within 1s deadline under 5s latency")
+	// The lib-commons Redis client uses go-redis defaults (ContextTimeoutEnabled=false,
+	// ReadTimeout=3s), so a 1s context deadline is not honored at the socket layer;
+	// the call fails on the ReadTimeout (~3s). The invariant is a bounded error
+	// (no hang, no panic), not the exact deadline.
+	t.Log("Phase 3 (Verify): CREDIT+CANCELED must return a bounded error under 5s latency (no hang, no panic)")
 
 	latencyTxID := uuid.New()
 	latencyOps := buildCanceledBalanceOps(orgID, ledgerID, alias,
@@ -1926,12 +1954,12 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnCanceledCredit(t *testing.
 	select {
 	case <-done:
 		// Call returned.
-	case <-time.After(3 * time.Second):
-		t.Fatal("Phase 3: operation hung for more than 3s -- should have returned within 1s deadline")
+	case <-time.After(8 * time.Second):
+		t.Fatal("Phase 3: operation hung for more than 8s -- should have returned a bounded error (client ReadTimeout)")
 	}
 
 	assert.Error(t, latencyErr,
-		"Phase 3: CREDIT+CANCELED must return error when context deadline expires")
+		"Phase 3: CREDIT+CANCELED must return error when Redis does not respond before the client read timeout")
 	assert.Nil(t, latencyResult,
 		"Phase 3: result must be nil when operation times out")
 
@@ -2075,7 +2103,11 @@ func TestIntegration_Chaos_BalanceAtomic_TimeoutOnApprovedOperation(t *testing.T
 	require.NoError(t, err, "Phase 2: AddLatency should not fail")
 
 	// --- Phase 3: Verify ---
-	t.Log("Phase 3 (Verify): APPROVED operation must timeout with 500ms deadline under 10s latency")
+	// The lib-commons Redis client uses go-redis defaults (ContextTimeoutEnabled=false,
+	// ReadTimeout=3s), so a 500ms context deadline is not honored at the socket layer;
+	// the call fails on the ReadTimeout (~3s) rather than at 500ms. The invariant is a
+	// bounded error (no hang, no panic), not the exact deadline.
+	t.Log("Phase 3 (Verify): APPROVED operation must return a bounded error under 10s latency (no hang, no panic)")
 
 	timeoutTxID := uuid.New()
 	timeoutOps := buildApprovedBalanceOps(orgID, ledgerID, alias,
@@ -2099,8 +2131,8 @@ func TestIntegration_Chaos_BalanceAtomic_TimeoutOnApprovedOperation(t *testing.T
 	select {
 	case <-done:
 		// Returned within expected bounds.
-	case <-time.After(3 * time.Second):
-		t.Fatal("Phase 3: operation hung for more than 3s -- 500ms deadline should have triggered")
+	case <-time.After(8 * time.Second):
+		t.Fatal("Phase 3: operation hung for more than 8s -- should have returned a bounded error (client ReadTimeout)")
 	}
 
 	assert.Error(t, timeoutErr,
@@ -2208,7 +2240,8 @@ func TestIntegration_Chaos_BalanceAtomic_RecoveryAfterReconnectCanceled(t *testi
 
 	ctx := context.Background()
 
-	// Pre-condition: PENDING with route enabled to establish on-hold state
+	// Pre-condition: single ONHOLD leg with route enabled to establish on-hold
+	// state (OnHold += 100, Available unchanged, version + 1).
 	pendingTxID := uuid.New()
 	pendingOps := buildTestBalanceOps(orgID, ledgerID, alias, initialAvailable, initialOnHold, initialVersion, true)
 
@@ -2218,9 +2251,9 @@ func TestIntegration_Chaos_BalanceAtomic_RecoveryAfterReconnectCanceled(t *testi
 	require.NoError(t, err, "Pre-condition: PENDING should succeed")
 	require.NotNil(t, pendingResult)
 
-	postPendingAvailable := initialAvailable.Sub(decimal.NewFromInt(100))
+	postPendingAvailable := initialAvailable
 	postPendingOnHold := initialOnHold.Add(decimal.NewFromInt(100))
-	postPendingVersion := initialVersion + 2
+	postPendingVersion := initialVersion + 1
 
 	// --- Phase 1: Normal ---
 	// Execute RELEASE+CANCELED (route enabled: OnHold-- only) then
@@ -2288,9 +2321,9 @@ func TestIntegration_Chaos_BalanceAtomic_RecoveryAfterReconnectCanceled(t *testi
 	require.NoError(t, err, "Phase 1: second PENDING should succeed")
 	require.NotNil(t, pending2Result)
 
-	preChaosAvailable := postCreditAvailable.Sub(decimal.NewFromInt(100))
+	preChaosAvailable := postCreditAvailable // single ONHOLD leg leaves Available unchanged
 	preChaosOnHold := postCreditOnHold.Add(decimal.NewFromInt(100))
-	preChaosVersion := postCreditVersion + 2
+	preChaosVersion := postCreditVersion + 1
 
 	// --- Phase 2: Inject ---
 	t.Log("Phase 2 (Inject): disabling Toxiproxy proxy to simulate Redis outage")

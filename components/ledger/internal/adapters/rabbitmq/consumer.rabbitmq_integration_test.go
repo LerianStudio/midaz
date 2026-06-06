@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
 	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
 	rmqtestutil "github.com/LerianStudio/midaz/v4/tests/utils/rabbitmq"
@@ -25,87 +25,9 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 // Note: skipIfNotChaos is defined in producer.rabbitmq_integration_test.go
-
-// Fixed ports for container restart chaos test (non-standard to avoid conflicts)
-const (
-	fixedAMQPPort = "35672"
-	fixedMgmtPort = "35673"
-)
-
-// =============================================================================
-// CONTAINER HELPERS
-// =============================================================================
-
-// setupContainerWithFixedPorts creates a RabbitMQ container with fixed port bindings.
-// This is necessary for chaos tests that restart containers, as testcontainers normally
-// assigns new random ports after restart. With fixed ports, the consumer can reconnect.
-func setupContainerWithFixedPorts(t *testing.T, amqpPort, mgmtPort string) *rmqtestutil.ContainerResult {
-	t.Helper()
-
-	ctx := context.Background()
-
-	// Use PortBindings to bind specific host ports
-	req := testcontainers.ContainerRequest{
-		Image:        "rabbitmq:4.1-management-alpine",
-		ExposedPorts: []string{amqpPort + ":5672/tcp", mgmtPort + ":15672/tcp"},
-		Env: map[string]string{
-			"RABBITMQ_DEFAULT_USER": rmqtestutil.DefaultUser,
-			"RABBITMQ_DEFAULT_PASS": rmqtestutil.DefaultPassword,
-		},
-		WaitingFor: wait.ForAll(
-			wait.ForLog("Server startup complete").WithStartupTimeout(120*time.Second),
-			wait.ForHTTP("/api/health/checks/alarms").
-				WithPort("15672/tcp").
-				WithBasicAuth(rmqtestutil.DefaultUser, rmqtestutil.DefaultPassword).
-				WithStartupTimeout(60*time.Second),
-		),
-	}
-
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	require.NoError(t, err, "failed to start RabbitMQ container with fixed ports")
-
-	host, err := container.Host(ctx)
-	require.NoError(t, err, "failed to get RabbitMQ container host")
-
-	uri := fmt.Sprintf("amqp://%s:%s@%s:%s/",
-		rmqtestutil.DefaultUser, rmqtestutil.DefaultPassword, host, amqpPort)
-
-	conn, err := amqp.Dial(uri)
-	require.NoError(t, err, "failed to connect to RabbitMQ container")
-
-	ch, err := conn.Channel()
-	require.NoError(t, err, "failed to open RabbitMQ channel")
-
-	t.Cleanup(func() {
-		if ch != nil {
-			ch.Close()
-		}
-		if conn != nil {
-			conn.Close()
-		}
-		if err := container.Terminate(context.Background()); err != nil {
-			t.Logf("failed to terminate RabbitMQ container: %v", err)
-		}
-	})
-
-	return &rmqtestutil.ContainerResult{
-		Container: container,
-		Conn:      conn,
-		Channel:   ch,
-		Host:      host,
-		AMQPPort:  amqpPort,
-		MgmtPort:  mgmtPort,
-		URI:       uri,
-	}
-}
 
 // =============================================================================
 // TEST INFRASTRUCTURE
@@ -204,7 +126,7 @@ func setupConsumerChaosInfra(t *testing.T, numWorkers, prefetch int) *consumerCh
 	t.Helper()
 
 	// Setup RabbitMQ container with FIXED PORTS (critical for restart tests)
-	rmqContainer := setupContainerWithFixedPorts(t, fixedAMQPPort, fixedMgmtPort)
+	rmqContainer := rmqtestutil.SetupContainerWithFixedPorts(t)
 
 	// Setup exchange and queue
 	exchange := "test-consumer-exchange"

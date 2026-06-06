@@ -32,6 +32,12 @@ func StartValkey(ctx context.Context, networkName, image string) (*ValkeyContain
 		image = "valkey/valkey:latest"
 	}
 
+	// Pin the host port so it survives container stop/start during chaos restart.
+	hostPort, err := freeHostPort()
+	if err != nil {
+		return nil, fmt.Errorf("allocate valkey host port: %w", err)
+	}
+
 	container, err := redis.Run(ctx,
 		image,
 		testcontainers.CustomizeRequest(testcontainers.GenericContainerRequest{
@@ -43,6 +49,9 @@ func StartValkey(ctx context.Context, networkName, image string) (*ValkeyContain
 				Cmd: []string{"redis-server", "--requirepass", ValkeyPassword},
 			},
 		}),
+		testcontainers.WithHostConfigModifier(applyFixedHostPorts(map[string]string{
+			"6379/tcp": hostPort,
+		})),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("start valkey container: %w", err)

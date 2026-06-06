@@ -7,14 +7,60 @@ package containers
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/netip"
 	"sync"
 	"time"
 
 	"github.com/LerianStudio/midaz/v4/tests/reporter/utils/chaos"
 
+	mobycontainer "github.com/moby/moby/api/types/container"
+	mobynetwork "github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
 )
+
+// freeHostPort reserves an ephemeral TCP port on the loopback interface and
+// returns it as a string. The listener is closed before returning so the port
+// can be handed to Docker as an explicit host-side binding.
+//
+// There is an inherent race between closing the listener here and Docker
+// binding the port: another process could claim it in between. For this test
+// harness the window is negligible — the reporter suites run with `-p 1`
+// (serial), so no two containers contend for the same allocation — and the
+// payoff is a host port that survives container stop/start, which is what the
+// chaos restart tests rely on (see applyFixedHostPorts).
+func freeHostPort() (string, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", fmt.Errorf("reserve free host port: %w", err)
+	}
+	defer l.Close()
+
+	return fmt.Sprintf("%d", l.Addr().(*net.TCPAddr).Port), nil
+}
+
+// applyFixedHostPorts returns a HostConfigModifier that pins each given
+// container port to an explicit host port. Without an explicit binding Docker
+// assigns a new ephemeral host port on every container start, which strands the
+// in-process Manager/Worker services after a chaos restart: their connection
+// config is captured once at suite startup and never re-read. Fixed bindings
+// make the host address stable across stop/start so recovery actually works.
+//
+// bindings maps a container port (e.g. "6379/tcp") to a host port string.
+func applyFixedHostPorts(bindings map[string]string) func(*mobycontainer.HostConfig) {
+	return func(hc *mobycontainer.HostConfig) {
+		if hc.PortBindings == nil {
+			hc.PortBindings = mobynetwork.PortMap{}
+		}
+
+		for containerPort, hostPort := range bindings {
+			hc.PortBindings[mobynetwork.MustParsePort(containerPort)] = []mobynetwork.PortBinding{
+				{HostIP: netip.MustParseAddr("0.0.0.0"), HostPort: hostPort},
+			}
+		}
+	}
+}
 
 // TestInfrastructure holds all test containers and provides connection information.
 type TestInfrastructure struct {
@@ -62,17 +108,17 @@ func StartInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
 // StartInfrastructureWithConfig starts all containers with custom configuration.
 func StartInfrastructureWithConfig(ctx context.Context, cfg *InfrastructureConfig) (*TestInfrastructure, error) {
 	// Create network for container communication
-	net, err := network.New(ctx,
+	dockerNet, err := network.New(ctx,
 		network.WithDriver("bridge"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create network: %w", err)
 	}
 
-	networkName := net.Name
+	networkName := dockerNet.Name
 
 	infra := &TestInfrastructure{
-		network:     net,
+		network:     dockerNet,
 		networkName: networkName,
 	}
 
@@ -216,6 +262,28 @@ func (i *TestInfrastructure) Stop(ctx context.Context) error {
 	return nil
 }
 
+// proxyPlan describes a Toxiproxy proxy: which dependency it fronts, the
+// data-plane port it listens on inside the container, and the container-alias
+// upstream it forwards to. Listen ports are restart-stable network aliases on
+// the upstream side, so proxies survive datastore container restarts.
+type proxyPlan struct {
+	name       string
+	listenPort string
+	upstream   string
+	present    bool
+}
+
+// proxyPlans returns the proxy definitions for every running dependency.
+// A single source of truth shared by StartToxiproxy and GetToxiproxyEndpoints.
+func (i *TestInfrastructure) proxyPlans() []proxyPlan {
+	return []proxyPlan{
+		{chaos.ProxyNameRabbitMQ, chaos.ProxyListenPortRabbitMQ, "rabbitmq:5672", i.RabbitMQ != nil},
+		{chaos.ProxyNameMongoDB, chaos.ProxyListenPortMongoDB, "mongodb:27017", i.MongoDB != nil},
+		{chaos.ProxyNameValkey, chaos.ProxyListenPortValkey, "valkey:6379", i.Valkey != nil},
+		{chaos.ProxyNameSeaweedFS, chaos.ProxyListenPortSeaweedFS, "seaweedfs:8333", i.SeaweedFS != nil},
+	}
+}
+
 // StartToxiproxy starts a Toxiproxy container on the test network and creates
 // proxies for all running external dependencies. Services should connect through
 // the proxy endpoints instead of directly to containers when chaos testing.
@@ -223,58 +291,36 @@ func (i *TestInfrastructure) StartToxiproxy(ctx context.Context) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
-	toxi, err := chaos.StartToxiproxy(ctx, i.networkName)
+	plans := i.proxyPlans()
+
+	// Expose every listen port at container creation; Docker cannot publish a
+	// port after the container has started, and the host-side services need
+	// these ports mapped to route traffic through Toxiproxy.
+	listenPorts := make([]string, 0, len(plans))
+	for _, p := range plans {
+		if p.present {
+			listenPorts = append(listenPorts, p.listenPort)
+		}
+	}
+
+	toxi, err := chaos.StartToxiproxy(ctx, i.networkName, listenPorts...)
 	if err != nil {
 		return fmt.Errorf("start toxiproxy: %w", err)
 	}
 
 	i.Toxiproxy = toxi
 
-	// Create proxy for RabbitMQ AMQP
-	if i.RabbitMQ != nil {
-		_, err := toxi.CreateProxy(chaos.ProxyConfig{
-			Name:     chaos.ProxyNameRabbitMQ,
-			Listen:   "0.0.0.0:25672",
-			Upstream: "rabbitmq:5672",
-		})
-		if err != nil {
-			return fmt.Errorf("create rabbitmq proxy: %w", err)
+	for _, p := range plans {
+		if !p.present {
+			continue
 		}
-	}
 
-	// Create proxy for MongoDB
-	if i.MongoDB != nil {
-		_, err := toxi.CreateProxy(chaos.ProxyConfig{
-			Name:     chaos.ProxyNameMongoDB,
-			Listen:   "0.0.0.0:37017",
-			Upstream: "mongodb:27017",
-		})
-		if err != nil {
-			return fmt.Errorf("create mongodb proxy: %w", err)
-		}
-	}
-
-	// Create proxy for Valkey/Redis
-	if i.Valkey != nil {
-		_, err := toxi.CreateProxy(chaos.ProxyConfig{
-			Name:     chaos.ProxyNameValkey,
-			Listen:   "0.0.0.0:26379",
-			Upstream: "valkey:6379",
-		})
-		if err != nil {
-			return fmt.Errorf("create valkey proxy: %w", err)
-		}
-	}
-
-	// Create proxy for SeaweedFS S3
-	if i.SeaweedFS != nil {
-		_, err := toxi.CreateProxy(chaos.ProxyConfig{
-			Name:     chaos.ProxyNameSeaweedFS,
-			Listen:   "0.0.0.0:28333",
-			Upstream: "seaweedfs:8333",
-		})
-		if err != nil {
-			return fmt.Errorf("create seaweedfs proxy: %w", err)
+		if _, err := toxi.CreateProxy(chaos.ProxyConfig{
+			Name:     p.name,
+			Listen:   "0.0.0.0:" + p.listenPort,
+			Upstream: p.upstream,
+		}); err != nil {
+			return fmt.Errorf("create %s proxy: %w", p.name, err)
 		}
 	}
 
@@ -291,25 +337,17 @@ func (i *TestInfrastructure) GetToxiproxyEndpoints(ctx context.Context) (map[str
 
 	endpoints := make(map[string]string)
 
-	// For each proxy, get the mapped port from the Toxiproxy container
-	portMappings := map[string]string{
-		chaos.ProxyNameRabbitMQ:  "25672",
-		chaos.ProxyNameMongoDB:   "37017",
-		chaos.ProxyNameValkey:    "26379",
-		chaos.ProxyNameSeaweedFS: "28333",
-	}
-
-	for name, containerPort := range portMappings {
-		if _, ok := i.Toxiproxy.Proxies[name]; !ok {
+	for _, p := range i.proxyPlans() {
+		if _, ok := i.Toxiproxy.Proxies[p.name]; !ok {
 			continue
 		}
 
-		mapped, err := i.Toxiproxy.Container.MappedPort(ctx, containerPort+"/tcp")
+		mapped, err := i.Toxiproxy.Container.MappedPort(ctx, p.listenPort+"/tcp")
 		if err != nil {
-			return nil, fmt.Errorf("get mapped port for %s: %w", name, err)
+			return nil, fmt.Errorf("get mapped port for %s: %w", p.name, err)
 		}
 
-		endpoints[name] = fmt.Sprintf("%s:%s", i.Toxiproxy.Host, mapped.Port())
+		endpoints[p.name] = fmt.Sprintf("%s:%s", i.Toxiproxy.Host, mapped.Port())
 	}
 
 	return endpoints, nil

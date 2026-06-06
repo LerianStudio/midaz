@@ -1076,13 +1076,29 @@ func TestIntegration_Chaos_Metadata_PacketLoss(t *testing.T) {
 	require.NoError(t, err, "failed to add packet loss")
 	defer infra.proxy.RemoveAllToxics()
 
+	// Each operation MUST carry its own deadline. The toxiproxy "timeout" toxic
+	// used by AddPacketLoss stalls a fraction of connections indefinitely (it
+	// holds the stream open without delivering data until the toxic is removed),
+	// and the lib-commons mongo client sets no client-level operation timeout
+	// (only ServerSelectionTimeout). With an unbounded context a stalled stream
+	// would block forever and time out the whole package. A per-call deadline
+	// bounds each attempt: a stalled stream becomes a counted error, a healthy
+	// stream succeeds well within the budget. This keeps the resilience invariant
+	// (majority succeed) honest while making the test self-bounding regardless of
+	// the client's missing operation timeout. See the production finding in the
+	// task report: the unbounded mongo client timeout is a real exposure.
+	const perOpTimeout = 8 * time.Second
+
 	// Execute multiple operations - some may fail, but overall should be resilient
 	successCount := 0
 	errorCount := 0
 	totalAttempts := 20
 
 	for i := 0; i < totalAttempts; i++ {
-		_, err := infra.repo.FindByEntity(ctx, infra.collection, metadata.EntityID)
+		opCtx, opCancel := context.WithTimeout(ctx, perOpTimeout)
+		_, err := infra.repo.FindByEntity(opCtx, infra.collection, metadata.EntityID)
+		opCancel()
+
 		if err != nil {
 			errorCount++
 		} else {

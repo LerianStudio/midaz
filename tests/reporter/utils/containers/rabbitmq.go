@@ -50,6 +50,17 @@ func StartRabbitMQ(ctx context.Context, networkName, image string) (*RabbitMQCon
 		image = "rabbitmq:4.0-management-alpine"
 	}
 
+	// Pin both host ports so they survive container stop/start during chaos restart.
+	amqpHostPort, err := freeHostPort()
+	if err != nil {
+		return nil, fmt.Errorf("allocate rabbitmq amqp host port: %w", err)
+	}
+
+	mgmtHostPort, err := freeHostPort()
+	if err != nil {
+		return nil, fmt.Errorf("allocate rabbitmq mgmt host port: %w", err)
+	}
+
 	container, err := rabbitmq.Run(ctx,
 		image,
 		rabbitmq.WithAdminUsername(RabbitUser),
@@ -62,6 +73,10 @@ func StartRabbitMQ(ctx context.Context, networkName, image string) (*RabbitMQCon
 				},
 			},
 		}),
+		testcontainers.WithHostConfigModifier(applyFixedHostPorts(map[string]string{
+			"5672/tcp":  amqpHostPort,
+			"15672/tcp": mgmtHostPort,
+		})),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("start rabbitmq container: %w", err)

@@ -33,6 +33,12 @@ func StartMongoDB(ctx context.Context, networkName, image string) (*MongoDBConta
 		image = "mongo:latest"
 	}
 
+	// Pin the host port so it survives container stop/start during chaos restart.
+	hostPort, err := freeHostPort()
+	if err != nil {
+		return nil, fmt.Errorf("allocate mongodb host port: %w", err)
+	}
+
 	container, err := mongodb.Run(ctx,
 		image,
 		mongodb.WithUsername(MongoUser),
@@ -48,6 +54,9 @@ func StartMongoDB(ctx context.Context, networkName, image string) (*MongoDBConta
 				},
 			},
 		}),
+		testcontainers.WithHostConfigModifier(applyFixedHostPorts(map[string]string{
+			"27017/tcp": hostPort,
+		})),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("start mongodb container: %w", err)

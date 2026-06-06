@@ -26,6 +26,17 @@ const (
 	ProxyNameValkey    = "valkey"
 	ProxyNameSeaweedFS = "seaweedfs"
 
+	// Proxy listen ports inside the Toxiproxy container. Each is the data-plane
+	// port a client dials to reach a dependency through the proxy. They are
+	// exposed and host-mapped at container creation so the in-process
+	// Manager/Worker (running on the host) can route their datastore traffic
+	// through Toxiproxy — without that, injected toxics throttle a listener
+	// nobody connects to.
+	ProxyListenPortMongoDB   = "37017"
+	ProxyListenPortRabbitMQ  = "25672"
+	ProxyListenPortValkey    = "26379"
+	ProxyListenPortSeaweedFS = "28333"
+
 	// percentageDivisor converts an integer percentage (0-100) to a float fraction (0.0-1.0).
 	percentageDivisor = 100.0
 )
@@ -48,10 +59,22 @@ type ToxiproxyInfrastructure struct {
 
 // StartToxiproxy creates and starts a Toxiproxy container on the given network.
 // It returns a ToxiproxyInfrastructure that can be used to create and manage proxies.
-func StartToxiproxy(ctx context.Context, networkName string) (*ToxiproxyInfrastructure, error) {
+//
+// proxyListenPorts are the data-plane listen ports (e.g. "37017") that will be
+// used by proxies created later via CreateProxy. They must be exposed at
+// container creation so they are host-mapped and reachable from the host;
+// Docker cannot publish a port after the container has started.
+func StartToxiproxy(ctx context.Context, networkName string, proxyListenPorts ...string) (*ToxiproxyInfrastructure, error) {
+	exposedPorts := make([]string, 0, len(proxyListenPorts)+1)
+	exposedPorts = append(exposedPorts, ToxiproxyAPIPort)
+
+	for _, p := range proxyListenPorts {
+		exposedPorts = append(exposedPorts, p+"/tcp")
+	}
+
 	req := testcontainers.ContainerRequest{
 		Image:        ToxiproxyImage,
-		ExposedPorts: []string{ToxiproxyAPIPort},
+		ExposedPorts: exposedPorts,
 		Networks:     []string{networkName},
 		NetworkAliases: map[string][]string{
 			networkName: {"toxiproxy"},

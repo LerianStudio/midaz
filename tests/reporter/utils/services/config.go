@@ -5,8 +5,12 @@
 package services
 
 import (
+	"context"
+	"fmt"
+	"net"
 	"os"
 
+	"github.com/LerianStudio/midaz/v4/tests/reporter/utils/chaos"
 	"github.com/LerianStudio/midaz/v4/tests/reporter/utils/containers"
 )
 
@@ -84,7 +88,60 @@ func NewConfigFromInfrastructure(infra *containers.TestInfrastructure) *ServiceC
 		cfg.RedisPort = infra.Valkey.Port
 	}
 
+	// When Toxiproxy is running (chaos suite only), route datastore traffic
+	// through the proxy listeners so injected toxics actually reach the
+	// in-process Manager/Worker. Without this, services dial the datastores
+	// directly and fault injection is a silent no-op. Integration and fuzzy
+	// suites never start Toxiproxy, so they keep the direct addresses above.
+	applyToxiproxyEndpoints(cfg, infra)
+
 	return cfg
+}
+
+// applyToxiproxyEndpoints overrides datastore addresses with their Toxiproxy
+// listener endpoints when the proxy is available, so injected toxics actually
+// reach the in-process services.
+//
+// RabbitMQ is deliberately left on its direct address. The RabbitMQ chaos tests
+// split into two groups: toxic-injection tests assert only that HTTP endpoints
+// stay RabbitMQ-independent and recover (they pass whether or not AMQP routes
+// through the proxy), while container-restart tests (ConnectionClosed,
+// QueueFull, MessageLoss, ...) need the broker connection to recover cleanly
+// after a stop/start — routing AMQP through the proxy breaks that recovery.
+// Keeping AMQP direct satisfies both: the rabbit proxy still exists for toxic
+// injection, but the service's own connection is never funneled through it.
+func applyToxiproxyEndpoints(cfg *ServiceConfig, infra *containers.TestInfrastructure) {
+	if infra.Toxiproxy == nil {
+		return
+	}
+
+	// Background context is fine: this is one-shot setup at suite startup and
+	// the mapped ports are read from an already-running container.
+	endpoints, err := infra.GetToxiproxyEndpoints(context.Background())
+	if err != nil {
+		// Non-fatal: fall back to direct addresses. The chaos tests guard on
+		// proxy availability and skip if a proxy is missing.
+		fmt.Fprintf(os.Stderr, "Warning: failed to resolve Toxiproxy endpoints, using direct addresses: %v\n", err)
+		return
+	}
+
+	if addr, ok := endpoints[chaos.ProxyNameMongoDB]; ok {
+		if host, port, splitErr := net.SplitHostPort(addr); splitErr == nil {
+			cfg.MongoHost = host
+			cfg.MongoPort = port
+		}
+	}
+
+	if addr, ok := endpoints[chaos.ProxyNameValkey]; ok {
+		if host, port, splitErr := net.SplitHostPort(addr); splitErr == nil {
+			cfg.RedisHost = host
+			cfg.RedisPort = port
+		}
+	}
+
+	if addr, ok := endpoints[chaos.ProxyNameSeaweedFS]; ok {
+		cfg.S3Endpoint = "http://" + addr
+	}
 }
 
 // ApplyManagerEnv sets environment variables for Manager service.

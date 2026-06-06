@@ -42,6 +42,17 @@ func StartSeaweedFS(ctx context.Context, networkName, image string) (*SeaweedFSC
 		image = "chrislusf/seaweedfs:3.97"
 	}
 
+	// Pin both host ports so they survive container stop/start during chaos restart.
+	s3HostPort, err := freeHostPort()
+	if err != nil {
+		return nil, fmt.Errorf("allocate seaweedfs s3 host port: %w", err)
+	}
+
+	admHostPort, err := freeHostPort()
+	if err != nil {
+		return nil, fmt.Errorf("allocate seaweedfs admin host port: %w", err)
+	}
+
 	req := testcontainers.ContainerRequest{
 		Image:        image,
 		ExposedPorts: []string{"8333/tcp", "9333/tcp"},
@@ -54,6 +65,10 @@ func StartSeaweedFS(ctx context.Context, networkName, image string) (*SeaweedFSC
 			wait.ForHTTP("/cluster/status").WithPort("9333/tcp"),
 			wait.ForListeningPort("8333/tcp"),
 		).WithDeadline(seaweedStartDeadlineSeconds * time.Second),
+		HostConfigModifier: applyFixedHostPorts(map[string]string{
+			"8333/tcp": s3HostPort,
+			"9333/tcp": admHostPort,
+		}),
 	}
 
 	ctr, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
