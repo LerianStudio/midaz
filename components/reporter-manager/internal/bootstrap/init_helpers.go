@@ -68,14 +68,30 @@ func initConfigAndLogger() (*Config, log.Logger, error) {
 	}
 
 	logger, err := zap.New(zap.Config{
-		Environment:     zap.EnvironmentLocal,
-		OTelLibraryName: "reporter",
+		Environment:     resolveZapEnvironment(cfg.EnvName),
+		Level:           cfg.LogLevel,
+		OTelLibraryName: cfg.OtelLibraryName,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
 	return cfg, logger, nil
+}
+
+func resolveZapEnvironment(envName string) zap.Environment {
+	switch strings.ToLower(strings.TrimSpace(envName)) {
+	case "production", "prod":
+		return zap.EnvironmentProduction
+	case "staging":
+		return zap.EnvironmentStaging
+	case "uat":
+		return zap.EnvironmentUAT
+	case "development", "dev":
+		return zap.EnvironmentDevelopment
+	default:
+		return zap.EnvironmentLocal
+	}
 }
 
 // initTelemetry initializes OpenTelemetry tracing and returns the telemetry instance
