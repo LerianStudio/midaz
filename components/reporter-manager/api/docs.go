@@ -44,19 +44,19 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -96,31 +96,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -202,25 +202,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -263,25 +263,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -321,25 +321,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -373,31 +373,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -447,31 +447,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -523,31 +523,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -589,25 +589,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -766,25 +766,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -839,31 +839,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -906,31 +906,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -984,31 +984,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -1079,25 +1079,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -1157,25 +1157,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -1206,19 +1206,19 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -1249,19 +1249,19 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -1306,25 +1306,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -1369,25 +1369,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -1430,31 +1430,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -1486,31 +1486,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -1569,31 +1569,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/pkg.HTTPError"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError"
                         }
                     }
                 }
@@ -1961,6 +1961,24 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "entityType": {
+                    "type": "string"
+                },
+                "err": {},
+                "message": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template": {
             "type": "object",
             "properties": {
@@ -2115,24 +2133,6 @@ const docTemplate = `{
                     "description": "NotIn specifies a list of values where the field must NOT match any of them.\nMultiple values treated as AND NOT conditions.\nExample: {\"nin\": [\"deleted\", \"archived\"]} excludes these statuses",
                     "type": "array",
                     "items": {}
-                }
-            }
-        },
-        "pkg.HTTPError": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "entityType": {
-                    "type": "string"
-                },
-                "err": {},
-                "message": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
                 }
             }
         },

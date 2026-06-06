@@ -264,6 +264,18 @@ definitions:
         example: "2026-01-01T00:00:00Z"
         type: string
     type: object
+  github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError:
+    properties:
+      code:
+        type: string
+      entityType:
+        type: string
+      err: {}
+      message:
+        type: string
+      title:
+        type: string
+    type: object
   github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template:
     properties:
       createdAt:
@@ -396,18 +408,6 @@ definitions:
           Example: {"nin": ["deleted", "archived"]} excludes these statuses
         items: {}
         type: array
-    type: object
-  pkg.HTTPError:
-    properties:
-      code:
-        type: string
-      entityType:
-        type: string
-      err: {}
-      message:
-        type: string
-      title:
-        type: string
     type: object
   pongo.BlockDefinition:
     properties:
@@ -642,15 +642,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Get all data sources connected on reporter
@@ -675,23 +675,23 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Get a data sources information
@@ -742,19 +742,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Get all Deadlines
@@ -781,19 +781,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Create a Deadline
@@ -814,23 +814,23 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Delete a Deadline
@@ -862,23 +862,23 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Update a Deadline
@@ -911,23 +911,23 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Deliver a Deadline
@@ -953,19 +953,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Get deadline notifications
@@ -993,19 +993,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Get system metrics
@@ -1111,19 +1111,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Get all reports
@@ -1159,23 +1159,23 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Create a Report
@@ -1202,23 +1202,23 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Get a Report
@@ -1253,23 +1253,23 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Download a Report
@@ -1312,19 +1312,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Get all Templates
@@ -1364,19 +1364,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Create a Template
@@ -1397,23 +1397,23 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Delete a Template
@@ -1439,23 +1439,23 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Get a Template
@@ -1493,23 +1493,23 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Update a Template
@@ -1529,15 +1529,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Get block definitions for template builder
@@ -1557,15 +1557,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Get filter definitions for template builder
@@ -1594,19 +1594,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Generate Pongo2 code from template blocks
@@ -1636,19 +1636,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/pkg.HTTPError'
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
       security:
       - BearerAuth: []
       summary: Validate template blocks

@@ -8,6 +8,7 @@ import (
 	"errors"
 
 	"github.com/LerianStudio/midaz/v4/components/reporter-manager/internal/services"
+	_ "github.com/LerianStudio/midaz/v4/pkg/reporter" // swag: resolves pkg.HTTPError in annotations
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 	_ "github.com/LerianStudio/midaz/v4/pkg/reporter/pongo"
