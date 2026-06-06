@@ -22,6 +22,7 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
+	goRedis "github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -303,6 +304,17 @@ func (uc *UseCase) handleDuplicateRequest(ctx context.Context, idempotencyKey st
 
 	cachedResponse, getErr := uc.RedisRepo.Get(ctx, idempotencyKey)
 	if getErr != nil {
+		// The lock existed at SetNX but the key is gone by the time we Get it:
+		// the first request released it after a failure, or its TTL lapsed in
+		// the window between SetNX-false and Get. There is no cached result to
+		// replay; surface the same in-flight conflict so the client retries
+		// rather than leaking the raw driver sentinel as a 500.
+		if errors.Is(getErr, goRedis.Nil) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(childSpan, "Idempotency key vanished between SetNX and Get", constant.ErrDuplicateRequestInFlight)
+
+			return nil, pkg.ValidateBusinessError(constant.ErrDuplicateRequestInFlight, "report")
+		}
+
 		libOpentelemetry.HandleSpanError(childSpan, "Failed to retrieve cached idempotency response", getErr)
 
 		return nil, getErr

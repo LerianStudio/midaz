@@ -617,6 +617,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Extraction Job Failed",
 			Message:    "The extraction job failed. Please try again later or contact support.",
 		},
+		constant.ErrInvalidUTF8: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidUTF8.Error(),
+			Title:      "Invalid UTF-8 Encoding",
+			Message:    fmt.Sprintf("The '%v' field contains invalid UTF-8 byte sequences. Please provide valid UTF-8 text and try again.", args...),
+		},
 	}
 
 	for sentinel, mappedError := range errorMap {

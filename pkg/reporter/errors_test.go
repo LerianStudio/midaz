@@ -544,6 +544,7 @@ func TestValidateBusinessError_AllMappedErrors(t *testing.T) {
 		constant.ErrDataSourceUnavailable,
 		constant.ErrSchemaValidationFailed,
 		constant.ErrExtractionJobFailed,
+		constant.ErrInvalidUTF8,
 	}
 
 	for _, err := range mappedErrors {

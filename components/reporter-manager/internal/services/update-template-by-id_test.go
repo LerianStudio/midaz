@@ -145,6 +145,7 @@ func TestUseCase_UpdateTemplateByID(t *testing.T) {
 		{% endfor %}
 	`
 	templateTestXMLFileHeader, _ := createFileHeaderFromString(templateTest, "teste_template_XML.tpl")
+	invalidUTF8FileHeader, _ := createFileHeaderFromString("0\xc9\xc9", "invalid_utf8.tpl")
 
 	tests := []struct {
 		name         string
@@ -398,6 +399,25 @@ func TestUseCase_UpdateTemplateByID(t *testing.T) {
 					}, nil)
 			},
 			expectErr: false,
+		},
+		{
+			name:         "Error - Invalid UTF-8 in description",
+			templateFile: nil,
+			description:  "\xb9",
+			tempId:       uuid.New(),
+			errContains:  "TPL-0061",
+			mockSetup:    func() {},
+			expectErr:    true,
+		},
+		{
+			name:         "Error - Invalid UTF-8 in template file content",
+			templateFile: invalidUTF8FileHeader,
+			outFormat:    "txt",
+			description:  "Valid description",
+			tempId:       uuid.New(),
+			errContains:  "TPL-0061",
+			mockSetup:    func() {},
+			expectErr:    true,
 		},
 	}
 

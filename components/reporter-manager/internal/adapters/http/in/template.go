@@ -96,6 +96,13 @@ func (th *TemplateHandler) CreateTemplate(c *fiber.Ctx) error {
 		return http.WithError(c, errFile)
 	}
 
+	if errUTF8 := pkg.ValidateUTF8Field("template", templateFile); errUTF8 != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid UTF-8 in template file content", errUTF8)
+		th.service.Logger.Log(ctx, log.LevelWarn, "Template file content is not valid UTF-8", log.Err(errUTF8))
+
+		return http.WithError(c, errUTF8)
+	}
+
 	if errValidate := pkg.ValidateFormDataFields(&outputFormat, &description); errValidate != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate form data fields", errValidate)
 		th.service.Logger.Log(ctx, log.LevelError, "Error validating form data fields", log.Err(errValidate))

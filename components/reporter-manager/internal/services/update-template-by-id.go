@@ -44,6 +44,11 @@ func (uc *UseCase) UpdateTemplateByID(ctx context.Context, outputFormat, descrip
 	)
 	uc.Logger.Log(ctx, log.LevelInfo, "Updating template")
 
+	if errUTF8 := pkg.ValidateUTF8Field("description", description); errUTF8 != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid UTF-8 in description", errUTF8)
+		return nil, nil, errUTF8
+	}
+
 	_, mappedFields, rawMappedFields, currentTemplate, previousMappedFields, err := uc.prepareTemplateUpdate(ctx, span, id, outputFormat, fileHeader)
 	if err != nil {
 		return nil, nil, err
@@ -249,6 +254,11 @@ func (uc *UseCase) processTemplateFile(ctx context.Context, fileHeader *multipar
 	if errFile != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get file from header", errFile)
 		return "", nil, errFile
+	}
+
+	if errUTF8 := pkg.ValidateUTF8Field("template", templateFile); errUTF8 != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid UTF-8 in template file content", errUTF8)
+		return "", nil, errUTF8
 	}
 
 	if err := templateUtils.ValidateNoScriptTag(templateFile); err != nil {

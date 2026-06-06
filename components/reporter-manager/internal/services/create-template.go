@@ -7,6 +7,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	goRedis "github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -305,6 +307,17 @@ func (uc *UseCase) handleDuplicateTemplateRequest(ctx context.Context, idempoten
 
 	cachedResponse, getErr := uc.RedisRepo.Get(ctx, idempotencyKey)
 	if getErr != nil {
+		// The lock existed at SetNX but the key is gone by the time we Get it:
+		// the first request released it after a failure, or its TTL lapsed in
+		// the window between SetNX-false and Get. There is no cached result to
+		// replay; surface the same in-flight conflict so the client retries
+		// rather than leaking the raw driver sentinel as a 500.
+		if errors.Is(getErr, goRedis.Nil) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(childSpan, "Idempotency key vanished between SetNX and Get", constant.ErrDuplicateRequestInFlight)
+
+			return nil, pkg.ValidateBusinessError(constant.ErrDuplicateRequestInFlight, "template")
+		}
+
 		libOpentelemetry.HandleSpanError(childSpan, "Failed to retrieve cached template idempotency response", getErr)
 
 		return nil, getErr

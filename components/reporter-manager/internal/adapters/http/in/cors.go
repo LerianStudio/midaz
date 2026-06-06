@@ -92,9 +92,19 @@ func sanitizeOrigins(input string) string {
 }
 
 // isValidOrigin checks whether a string is a well-formed origin suitable for
-// Fiber's CORS middleware. A valid origin must have a scheme and host, and must
-// not contain path, query, fragment, or userinfo components. This matches the
-// origin format defined in RFC 6454: scheme "://" host [ ":" port ].
+// Fiber's CORS middleware. A valid origin must have a scheme and host, must not
+// contain a wildcard (*) in the host, and must not contain path, query,
+// fragment, or userinfo components. This matches the origin format defined in
+// RFC 6454: scheme "://" host [ ":" port ].
+//
+// The scheme+host, wildcard-host, path, query, and fragment checks mirror
+// Fiber v2's cors.normalizeOrigin (middleware/cors/utils.go), which panics in
+// cors.New() on any origin it rejects. Keeping this predicate in lockstep with
+// Fiber's is what upholds the package's no-panic guarantee: an origin Fiber
+// would reject must be filtered out here before cors.New() ever sees it. A bare
+// "*" (the legitimate wildcard) is handled by the caller and never reaches this
+// function. The userinfo check is stricter than Fiber's but safe: scheme://host
+// origins never carry userinfo.
 func isValidOrigin(origin string) bool {
 	parsed, err := url.Parse(origin)
 	if err != nil {
@@ -102,6 +112,12 @@ func isValidOrigin(origin string) bool {
 	}
 
 	if parsed.Scheme == "" || parsed.Host == "" {
+		return false
+	}
+
+	// Fiber rejects a wildcard within a scheme-prefixed origin (e.g. "https://*"
+	// or "A://*"); url.Parse keeps the "*" in Host, so guard it explicitly.
+	if strings.Contains(parsed.Host, "*") {
 		return false
 	}
 

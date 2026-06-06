@@ -48,12 +48,11 @@ func safeMiddlewareTest(cfg CORSConfig, req *http.Request) (panicMsg string, sta
 }
 
 // FuzzCORSMiddleware_Origins fuzz tests the CORSMiddleware with random origin
-// configuration values. The middleware wraps Fiber's cors.New() and must never
-// panic regardless of the AllowedOrigins string content.
-//
-// KNOWN CRASH: Fiber v2.52.11 cors.New() panics on empty origin strings
-// produced by splitting comma-separated values with leading/trailing/consecutive
-// commas (e.g., "," -> ["", ""]). This is tracked as a production safety issue.
+// configuration values. The middleware wraps Fiber's cors.New(), which panics
+// on origins its normalizeOrigin rejects (empty segments, wildcard hosts,
+// malformed formats). CORSMiddleware must never panic regardless of the
+// AllowedOrigins string content: sanitizeOrigins filters every Fiber-rejected
+// origin before cors.New() sees it.
 func FuzzCORSMiddleware_Origins(f *testing.F) {
 	// Seed corpus: 5 categories per Ring fuzz standards
 	// Category 1: Valid inputs
@@ -75,6 +74,12 @@ func FuzzCORSMiddleware_Origins(f *testing.F) {
 	f.Add("*", "https://any.com")
 	f.Add("not-a-url", "not-a-url")
 	f.Add("://missing-scheme", "://missing-scheme")
+	// Regression: wildcard inside a scheme-prefixed origin made Fiber's
+	// cors.New() panic ("[CORS] Invalid origin format"). sanitizeOrigins must
+	// filter these before the middleware builder sees them.
+	f.Add("A://*", "0")
+	f.Add("https://*", "https://any.com")
+	f.Add("https://*.example.com", "https://x.example.com")
 
 	// Category 5: Security payloads
 	f.Add("<script>alert('xss')</script>", "<script>alert('xss')</script>")

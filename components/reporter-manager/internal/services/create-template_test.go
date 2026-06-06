@@ -26,6 +26,7 @@ import (
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/google/uuid"
+	goRedis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -989,6 +990,40 @@ func TestUseCase_HandleDuplicateTemplateRequest_RedisGetError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "redis connection refused")
 	assert.Nil(t, result)
+}
+
+// TestUseCase_HandleDuplicateTemplateRequest_RedisGetKeyVanished covers the
+// concurrency race: SetNX returned false, but the key is gone by the time Get
+// runs (first request released it after a failure, or TTL lapsed). The redis
+// adapter propagates goRedis.Nil; this must map to a 409 in-flight conflict,
+// never leak as a raw error that the handler renders as a 500.
+func TestUseCase_HandleDuplicateTemplateRequest_RedisGetKeyVanished(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	mockRedisRepo.EXPECT().
+		Get(gomock.Any(), "idempotency:template:test-key").
+		Return("", goRedis.Nil)
+
+	uc := &UseCase{
+		Logger:    log.NewNop(),
+		Tracer:    noop.NewTracerProvider().Tracer("test"),
+		RedisRepo: mockRedisRepo,
+	}
+
+	ctx := context.Background()
+	result, err := uc.handleDuplicateTemplateRequest(ctx, "idempotency:template:test-key")
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+
+	var conflictErr pkg.EntityConflictError
+	require.ErrorAs(t, err, &conflictErr)
+	assert.Equal(t, constant.ErrDuplicateRequestInFlight.Error(), conflictErr.Code)
 }
 
 func TestUseCase_HandleDuplicateTemplateRequest_InvalidCachedJSON(t *testing.T) {

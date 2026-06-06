@@ -11,15 +11,27 @@ import (
 	"testing"
 )
 
+// hasPlaintextHTTPOrigin reports whether any comma-separated origin uses the
+// plaintext http:// scheme. It mirrors validateProductionCORS so the fuzz
+// oracle tracks the production contract (HTTPS-only origins in production).
+func hasPlaintextHTTPOrigin(origins string) bool {
+	for _, origin := range strings.Split(origins, ",") {
+		if strings.HasPrefix(strings.TrimSpace(origin), "http://") {
+			return true
+		}
+	}
+
+	return false
+}
+
 // FuzzValidateProductionCORS_Origins fuzz tests the validateProductionCORS method
 // with random origin strings to ensure it never panics regardless of input.
 // The method validates comma-separated origin strings and rejects wildcards in production.
 func FuzzValidateProductionCORS_Origins(f *testing.F) {
 	// Seed corpus: 5 categories per Ring fuzz standards
-	// Category 1: Valid inputs
+	// Category 1: Valid inputs (HTTPS-only; production rejects plaintext http://)
 	f.Add("https://app.example.com")
 	f.Add("https://app.example.com,https://admin.example.com")
-	f.Add("http://localhost:3000")
 
 	// Category 2: Empty/boundary values
 	f.Add("")
@@ -31,11 +43,13 @@ func FuzzValidateProductionCORS_Origins(f *testing.F) {
 	f.Add("\u65e5\u672c\u8a9e.example.com")
 	f.Add("https://\u00e9xample.com")
 
-	// Category 4: Invalid formats
+	// Category 4: Invalid formats (wildcards, plaintext http:// in production)
 	f.Add("*")
 	f.Add("*,https://app.example.com")
 	f.Add("https://app.example.com,*")
 	f.Add("not-a-url")
+	f.Add("http://localhost:3000")
+	f.Add("https://ok.example.com,http://insecure.example.com")
 
 	// Category 5: Security payloads
 	f.Add("<script>alert('xss')</script>")
@@ -74,8 +88,15 @@ func FuzzValidateProductionCORS_Origins(f *testing.F) {
 			t.Errorf("expected error for wildcard in origins %q, got none", origins)
 		}
 
-		// 3. If origins is non-empty and has no wildcard, no error from CORS validation
-		if origins != "" && !strings.Contains(origins, "*") && len(errs) > 0 {
+		// 3. Production rejects any plaintext http:// origin (HTTPS-only), so a
+		// CORS error is expected when one is present.
+		if hasPlaintextHTTPOrigin(origins) && len(errs) == 0 {
+			t.Errorf("expected error for plaintext http:// origin %q, got none", origins)
+		}
+
+		// 4. If origins is non-empty, has no wildcard, and no plaintext http://
+		// origin, there must be no CORS validation error.
+		if origins != "" && !strings.Contains(origins, "*") && !hasPlaintextHTTPOrigin(origins) && len(errs) > 0 {
 			t.Errorf("unexpected CORS error for valid origins %q: %v", origins, errs)
 		}
 	})

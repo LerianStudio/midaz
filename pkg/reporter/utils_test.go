@@ -287,6 +287,18 @@ func TestValidateFormDataFields(t *testing.T) {
 			description: strPtr("CSV export"),
 			expectError: false,
 		},
+		{
+			name:        "Invalid UTF-8 in description",
+			outFormat:   strPtr("PDF"),
+			description: strPtr("\xb9"),
+			expectError: true,
+		},
+		{
+			name:        "Valid multi-byte UTF-8 description",
+			outFormat:   strPtr("PDF"),
+			description: strPtr("Relatório 你好 🚀"),
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -295,6 +307,39 @@ func TestValidateFormDataFields(t *testing.T) {
 			t.Parallel()
 
 			err := ValidateFormDataFields(tt.outFormat, tt.description)
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateUTF8Field(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		fieldName   string
+		value       string
+		expectError bool
+	}{
+		{name: "Empty string", fieldName: "description", value: "", expectError: false},
+		{name: "ASCII", fieldName: "description", value: "Test description", expectError: false},
+		{name: "Valid multi-byte UTF-8", fieldName: "description", value: "Relatório 你好 🚀", expectError: false},
+		{name: "Lone continuation byte", fieldName: "description", value: "\xb9", expectError: true},
+		{name: "Invalid byte mid-string", fieldName: "description", value: "valid\xffmore", expectError: true},
+		{name: "Truncated multi-byte sequence", fieldName: "description", value: "\xe4\xb8", expectError: true},
+		{name: "Null bytes are valid UTF-8", fieldName: "description", value: "\x00\x01\x02", expectError: false},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateUTF8Field(tt.fieldName, tt.value)
 			if tt.expectError {
 				require.Error(t, err)
 			} else {

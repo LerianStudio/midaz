@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 )
@@ -64,8 +65,24 @@ func ValidateFormDataFields(outFormat, description *string) error {
 		return ValidateBusinessError(constant.ErrMissingRequiredFields, "")
 	}
 
+	if err := ValidateUTF8Field("description", *description); err != nil {
+		return err
+	}
+
 	if !IsOutputFormatValuesValid(outFormat) {
 		return ValidateBusinessError(constant.ErrInvalidOutputFormat, "")
+	}
+
+	return nil
+}
+
+// ValidateUTF8Field returns a business validation error when value contains invalid
+// UTF-8 byte sequences. Multipart form values are delivered as raw bytes, so user input
+// can carry sequences that the MongoDB BSON encoder rejects at write time; validating here
+// turns that into a 400-class error instead of a 500.
+func ValidateUTF8Field(fieldName, value string) error {
+	if !utf8.ValidString(value) {
+		return ValidateBusinessError(constant.ErrInvalidUTF8, "", fieldName)
 	}
 
 	return nil

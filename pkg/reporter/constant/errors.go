@@ -69,4 +69,5 @@ var (
 	ErrDataSourceUnavailable           = errors.New("TPL-0058")
 	ErrSchemaValidationFailed          = errors.New("TPL-0059")
 	ErrExtractionJobFailed             = errors.New("TPL-0060")
+	ErrInvalidUTF8                     = errors.New("TPL-0061")
 )

@@ -12,6 +12,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace/noop"
 
+	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
@@ -23,6 +24,7 @@ import (
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/google/uuid"
+	goRedis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -882,6 +884,41 @@ func TestUseCase_HandleDuplicateRequest_RedisGetError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "redis connection refused")
 	assert.Nil(t, result)
+}
+
+// TestUseCase_HandleDuplicateRequest_RedisGetKeyVanished covers the concurrency
+// race: a worker observes SetNX=false, but by the time it calls Get the key is
+// gone (the first request released it after a business-validation failure, or
+// the TTL lapsed). The redis adapter propagates goRedis.Nil for the missing
+// key; this must map to a 409 in-flight conflict, never leak as a raw error
+// that the handler renders as a 500.
+func TestUseCase_HandleDuplicateRequest_RedisGetKeyVanished(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	mockRedisRepo.EXPECT().
+		Get(gomock.Any(), "idempotency:test-key").
+		Return("", goRedis.Nil)
+
+	uc := &UseCase{
+		Logger:    log.NewNop(),
+		Tracer:    noop.NewTracerProvider().Tracer("test"),
+		RedisRepo: mockRedisRepo,
+	}
+
+	ctx := context.Background()
+	result, err := uc.handleDuplicateRequest(ctx, "idempotency:test-key")
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+
+	var conflictErr pkg.EntityConflictError
+	require.ErrorAs(t, err, &conflictErr)
+	assert.Equal(t, constant.ErrDuplicateRequestInFlight.Error(), conflictErr.Code)
 }
 
 func TestUseCase_HandleDuplicateRequest_InvalidCachedJSON(t *testing.T) {
