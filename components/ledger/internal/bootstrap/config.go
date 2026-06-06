@@ -317,6 +317,31 @@ func InitServers() (*Service, error) {
 	return InitServersWithOptions(nil)
 }
 
+// validateBootAuthGates enforces the auth-presence invariants that must hold
+// before any infrastructure opens. It runs before the logger exists, so it
+// returns errors rather than logging. Two independent gates:
+//
+//  1. Multi-tenant mode requires auth in every environment — tenant identity
+//     comes from the JWT, so disabling auth allows cross-tenant data access.
+//  2. Production requires auth even single-tenant — lib-auth fail-opens when
+//     disabled, so a production deploy that forgets PLUGIN_AUTH_ENABLED=true
+//     would serve every business endpoint unauthenticated. Mirrors
+//     reporter-manager's validateProductionConfig posture. Non-production
+//     (local/dev/staging) keeps Warn-free boot for developer onboarding.
+func validateBootAuthGates(cfg *Config) error {
+	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {
+		return fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true; " +
+			"running multi-tenant mode without authentication allows cross-tenant data access")
+	}
+
+	if strings.EqualFold(strings.TrimSpace(cfg.EnvName), "production") && !cfg.AuthEnabled {
+		return fmt.Errorf("ENV_NAME=production requires PLUGIN_AUTH_ENABLED=true; " +
+			"a single-tenant production deployment without authentication serves every endpoint unauthenticated")
+	}
+
+	return nil
+}
+
 // InitServersWithOptions initializes the unified ledger service with optional dependency injection.
 // It directly initializes all infrastructure (PG, Mongo, Redis, RabbitMQ) instead of delegating
 // to onboarding/transaction sub-modules.
@@ -331,9 +356,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	applyConfigDefaults(cfg)
 
-	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {
-		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true; " +
-			"running multi-tenant mode without authentication allows cross-tenant data access")
+	if err := validateBootAuthGates(cfg); err != nil {
+		return nil, err
 	}
 
 	// Logger: use injected or create fresh
