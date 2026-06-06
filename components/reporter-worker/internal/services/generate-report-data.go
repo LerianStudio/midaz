@@ -61,7 +61,7 @@ func (uc *UseCase) queryDatabase(
 
 	dataSource, exists := uc.ExternalDataSources.Get(databaseName)
 	if !exists {
-		err := pkg.ValidationError{Code: "REP-0060", Title: "Data Source Not Found", Message: fmt.Sprintf("data source not found: %s", databaseName)}
+		err := pkg.ValidationError{Code: constant.ErrCodeDataSourceNotFound, Title: "Data Source Not Found", Message: fmt.Sprintf("data source not found: %s", databaseName)}
 		libOtel.HandleSpanError(dbSpan, "Referenced datasource is missing", err)
 		uc.Logger.Log(ctx, log.LevelError, "Referenced datasource is missing, failing report",
 			log.String("database", databaseName))
@@ -84,7 +84,7 @@ func (uc *UseCase) queryDatabase(
 	if !dataSource.Initialized {
 		// Check if datasource is marked as unavailable from initialization
 		if dataSource.Status == libConstants.DataSourceStatusUnavailable {
-			err := pkg.FailedPreconditionError{Code: "REP-0061", Title: "Data Source Unavailable", Message: fmt.Sprintf("datasource %s is unavailable (initialization failed)", databaseName)}
+			err := pkg.FailedPreconditionError{Code: constant.ErrCodeDataSourceUnavailable, Title: "Data Source Unavailable", Message: fmt.Sprintf("datasource %s is unavailable (initialization failed)", databaseName)}
 			libOtel.HandleSpanError(dbSpan, "Datasource unavailable", err)
 			uc.Logger.Log(ctx, log.LevelError, "Datasource is unavailable",
 				log.String("database", databaseName), log.String("last_error", pkg.SanitizeExternalError(dataSource.LastError)))
@@ -113,7 +113,7 @@ func (uc *UseCase) queryDatabase(
 	case pkg.MongoDBType:
 		return uc.queryMongoDatabase(ctx, &dataSource, databaseName, tables, databaseFilters, result)
 	default:
-		return pkg.ValidationError{Code: "REP-0062", Title: "Unsupported Database Type", Message: fmt.Sprintf("unsupported database type: %s for database: %s", dataSource.DatabaseType, databaseName)}
+		return pkg.ValidationError{Code: constant.ErrCodeUnsupportedDatabaseType, Title: "Unsupported Database Type", Message: fmt.Sprintf("unsupported database type: %s for database: %s", dataSource.DatabaseType, databaseName)}
 	}
 }
 
@@ -161,7 +161,7 @@ func (uc *UseCase) queryPostgresDatabase(
 		uc.Logger.Log(ctx, log.LevelError, "Unexpected schema result type",
 			log.String("database", databaseName), log.Any("actual_type", schemaResult))
 
-		return pkg.FailedPreconditionError{Code: "REP-0063", Title: "Unexpected Schema Result", Message: fmt.Sprintf("unexpected schema result type for database %s", databaseName)}
+		return pkg.FailedPreconditionError{Code: constant.ErrCodeUnexpectedSchemaResult, Title: "Unexpected Schema Result", Message: fmt.Sprintf("unexpected schema result type for database %s", databaseName)}
 	}
 
 	// Initialize SchemaResolver with discovered tables
@@ -230,7 +230,7 @@ func (uc *UseCase) queryPostgresDatabase(
 
 		tableResult, ok := queryResult.([]map[string]any)
 		if !ok {
-			return pkg.FailedPreconditionError{Code: "REP-0064", Title: "Unexpected Query Result", Message: fmt.Sprintf("unexpected query result type for table %s.%s in %s", schemaName, tableName, databaseName)}
+			return pkg.FailedPreconditionError{Code: constant.ErrCodeUnexpectedTableResult, Title: "Unexpected Query Result", Message: fmt.Sprintf("unexpected query result type for table %s.%s in %s", schemaName, tableName, databaseName)}
 		}
 
 		if len(tableFilters) > 0 {
@@ -502,7 +502,7 @@ func (uc *UseCase) queryMongoCollectionWithFilters(
 
 	collectionResult, ok := queryResult.([]map[string]any)
 	if !ok {
-		return nil, pkg.FailedPreconditionError{Code: "REP-0065", Title: "Unexpected Query Result", Message: fmt.Sprintf("unexpected query result type for collection %s in %s", collection, databaseName)}
+		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeUnexpectedCollectionResult, Title: "Unexpected Query Result", Message: fmt.Sprintf("unexpected query result type for collection %s in %s", collection, databaseName)}
 	}
 
 	if len(collectionFilters) > 0 {
@@ -565,7 +565,7 @@ func (uc *UseCase) transformPluginCRMAdvancedFilters(filter map[string]model.Fil
 	}
 
 	if uc.CryptoHashSecretKeyPluginCRM == "" {
-		return nil, pkg.FailedPreconditionError{Code: "REP-0066", Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM not configured"}
+		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeCRMHashKeyNotConfigured, Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM not configured"}
 	}
 
 	crypto := &libCrypto.Crypto{
@@ -686,11 +686,11 @@ func (uc *UseCase) decryptPluginCRMData(collectionResult []map[string]any, field
 
 	// Initialize crypto instance using centralized configuration
 	if uc.CryptoEncryptSecretKeyPluginCRM == "" {
-		return nil, pkg.FailedPreconditionError{Code: "REP-0067", Title: "CRM Crypto Not Configured", Message: "CRYPTO_ENCRYPT_SECRET_KEY_PLUGIN_CRM not configured"}
+		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeCRMEncryptKeyNotConfigured, Title: "CRM Crypto Not Configured", Message: "CRYPTO_ENCRYPT_SECRET_KEY_PLUGIN_CRM not configured"}
 	}
 
 	if uc.CryptoHashSecretKeyPluginCRM == "" {
-		return nil, pkg.FailedPreconditionError{Code: "REP-0066", Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM not configured"}
+		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeCRMHashKeyNotConfigured, Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM not configured"}
 	}
 
 	crypto := &libCrypto.Crypto{
@@ -701,14 +701,14 @@ func (uc *UseCase) decryptPluginCRMData(collectionResult []map[string]any, field
 
 	err := crypto.InitializeCipher()
 	if err != nil {
-		return nil, pkg.FailedPreconditionError{Code: "REP-0068", Title: "Cipher Initialization Failed", Message: fmt.Sprintf("failed to initialize cipher: %s", err.Error()), Err: err}
+		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeCipherInitFailed, Title: "Cipher Initialization Failed", Message: fmt.Sprintf("failed to initialize cipher: %s", err.Error()), Err: err}
 	}
 
 	// Process each record in the collection
 	for i, record := range collectionResult {
 		decryptedRecord, err := uc.decryptRecord(record, crypto)
 		if err != nil {
-			return nil, pkg.FailedPreconditionError{Code: "REP-0069", Title: "Decryption Failed", Message: fmt.Sprintf("failed to decrypt record %d: %s", i, err.Error()), Err: err}
+			return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeRecordDecryptionFailed, Title: "Decryption Failed", Message: fmt.Sprintf("failed to decrypt record %d: %s", i, err.Error()), Err: err}
 		}
 
 		collectionResult[i] = decryptedRecord

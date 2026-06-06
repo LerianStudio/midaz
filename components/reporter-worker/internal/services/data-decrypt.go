@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 )
 
 // decryptFetcherData decrypts AES-GCM encrypted data received from the Fetcher service.
@@ -22,32 +23,32 @@ import (
 // Returns the decrypted JSON payload or an error if decryption fails.
 func decryptFetcherData(encryptedData []byte, storageKey []byte) ([]byte, error) {
 	if len(encryptedData) == 0 {
-		return nil, pkg.FailedPreconditionError{Code: "REP-0073", Title: "Empty Encrypted Data", Message: "encrypted data is empty"}
+		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeEmptyEncryptedData, Title: "Empty Encrypted Data", Message: "encrypted data is empty"}
 	}
 
 	if len(storageKey) == 0 {
-		return nil, pkg.FailedPreconditionError{Code: "REP-0074", Title: "Decryption Key Not Configured", Message: "storage decryption key not configured"}
+		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeDecryptionKeyNotConfigured, Title: "Decryption Key Not Configured", Message: "storage decryption key not configured"}
 	}
 
 	// Decode the base64-encoded ciphertext
 	ciphertext, err := base64.StdEncoding.DecodeString(string(encryptedData))
 	if err != nil {
-		return nil, pkg.FailedPreconditionError{Code: "REP-0075", Title: "Invalid Encrypted Data", Message: fmt.Sprintf("base64 decode encrypted data: %s", err.Error()), Err: err}
+		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeInvalidEncryptedData, Title: "Invalid Encrypted Data", Message: fmt.Sprintf("base64 decode encrypted data: %s", err.Error()), Err: err}
 	}
 
 	block, err := aes.NewCipher(storageKey)
 	if err != nil {
-		return nil, pkg.FailedPreconditionError{Code: "REP-0076", Title: "Cipher Creation Failed", Message: fmt.Sprintf("create AES cipher: %s", err.Error()), Err: err}
+		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeAESCipherCreationFailed, Title: "Cipher Creation Failed", Message: fmt.Sprintf("create AES cipher: %s", err.Error()), Err: err}
 	}
 
 	aesGCM, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, pkg.FailedPreconditionError{Code: "REP-0077", Title: "Cipher Creation Failed", Message: fmt.Sprintf("create GCM: %s", err.Error()), Err: err}
+		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeGCMCreationFailed, Title: "Cipher Creation Failed", Message: fmt.Sprintf("create GCM: %s", err.Error()), Err: err}
 	}
 
 	nonceSize := aesGCM.NonceSize()
 	if len(ciphertext) < nonceSize {
-		return nil, pkg.FailedPreconditionError{Code: "REP-0078", Title: "Corrupt Encrypted Data", Message: fmt.Sprintf("ciphertext too short: expected at least %d bytes for nonce, got %d", nonceSize, len(ciphertext))}
+		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeCorruptEncryptedData, Title: "Corrupt Encrypted Data", Message: fmt.Sprintf("ciphertext too short: expected at least %d bytes for nonce, got %d", nonceSize, len(ciphertext))}
 	}
 
 	// Split nonce and ciphertext
@@ -56,7 +57,7 @@ func decryptFetcherData(encryptedData []byte, storageKey []byte) ([]byte, error)
 
 	plaintext, err := aesGCM.Open(nil, nonce, encryptedPayload, nil)
 	if err != nil {
-		return nil, pkg.FailedPreconditionError{Code: "REP-0079", Title: "Decryption Failed", Message: fmt.Sprintf("AES-GCM decrypt: %s", err.Error()), Err: err}
+		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeAESGCMDecryptionFailed, Title: "Decryption Failed", Message: fmt.Sprintf("AES-GCM decrypt: %s", err.Error()), Err: err}
 	}
 
 	return plaintext, nil

@@ -72,3 +72,31 @@ var (
 	ErrInvalidUTF8                     = errors.New("TPL-0061")
 	ErrTemplateRenderFailed            = errors.New("TPL-0062")
 )
+
+// REP- codes identify worker-internal pipeline errors. They are carried by
+// typed errors (ValidationError, FailedPreconditionError) constructed at the
+// failure site with dynamic context, not routed through ValidateBusinessError.
+// Every REP- code must be declared here so new codes cannot collide.
+// Gaps: REP-0071 and REP-0081 are retired; do not reuse.
+const (
+	ErrCodeDataSourceNotFound         = "REP-0060"
+	ErrCodeDataSourceUnavailable      = "REP-0061"
+	ErrCodeUnsupportedDatabaseType    = "REP-0062"
+	ErrCodeUnexpectedSchemaResult     = "REP-0063"
+	ErrCodeUnexpectedTableResult      = "REP-0064"
+	ErrCodeUnexpectedCollectionResult = "REP-0065"
+	ErrCodeCRMHashKeyNotConfigured    = "REP-0066"
+	ErrCodeCRMEncryptKeyNotConfigured = "REP-0067"
+	ErrCodeCipherInitFailed           = "REP-0068"
+	ErrCodeRecordDecryptionFailed     = "REP-0069"
+	ErrCodeStorageNotConfigured       = "REP-0070"
+	ErrCodeInvalidExtractedData       = "REP-0072"
+	ErrCodeEmptyEncryptedData         = "REP-0073"
+	ErrCodeDecryptionKeyNotConfigured = "REP-0074"
+	ErrCodeInvalidEncryptedData       = "REP-0075"
+	ErrCodeAESCipherCreationFailed    = "REP-0076"
+	ErrCodeGCMCreationFailed          = "REP-0077"
+	ErrCodeCorruptEncryptedData       = "REP-0078"
+	ErrCodeAESGCMDecryptionFailed     = "REP-0079"
+	ErrCodeInvalidFetcherResponse     = "REP-0080"
+)

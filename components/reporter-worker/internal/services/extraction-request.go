@@ -125,7 +125,7 @@ func (uc *UseCase) dispatchExtraction(
 	}
 
 	if resp == nil {
-		return pkg.FailedPreconditionError{Code: "REP-0080", Title: "Invalid Fetcher Response", Message: "fetcher returned nil response for extraction job"}
+		return pkg.FailedPreconditionError{Code: constant.ErrCodeInvalidFetcherResponse, Title: "Invalid Fetcher Response", Message: "fetcher returned nil response for extraction job"}
 	}
 
 	span.SetAttributes(attribute.String("app.request.fetcher_job_id", resp.JobID))
