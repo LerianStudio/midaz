@@ -251,13 +251,14 @@ logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 ctx, span := tracer.Start(ctx, "layer.operation_name")
 defer span.End()
 
-// On error: instrument span AND log with structured fields.
-// Use LevelWarn for business validation failures (caller's problem),
-// LevelError for infrastructure failures (system's problem).
-// See CLAUDE.md "Log Level Guidelines" for the full matrix.
+// On error: record onto the span via the class-appropriate helper (T5):
+// business/4xx -> HandleSpanBusinessErrorEvent (span stays green),
+// technical/5xx -> HandleSpanError (span flips red).
+// Log the error ONCE, at the boundary that owns the handling decision (T8) —
+// inner layers record-and-return without logging. Log levels follow T7.
+// See docs/standards/telemetry.md (T5/T7/T8) for the binding rules.
 if err != nil {
     libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation description", err)
-    logger.Log(ctx, libLog.LevelWarn, "Operation failed", libLog.Err(err))
     return nil, err
 }
 ```
@@ -335,20 +336,25 @@ if err != nil {
    }
    ```
 
-2. **Log at EVERY error point using structured fields:**
+2. **Log each error ONCE, at the owning boundary (T8 — single-point logging):**
    ```go
    logger.Log(ctx, libLog.LevelError, "Failed to create organization", libLog.Err(err))
    ```
-   > Do NOT use `fmt.Sprintf` inside log calls — it buries structured data in the message string
+   The boundary that owns the handling decision (HTTP handler or consumer loop) logs; inner layers (use cases, repositories, adapters) record onto the span and return without logging. Do NOT log-and-return the same error at every layer.
+   > Do NOT use `fmt.Sprintf` inside log calls (T6) — it buries structured data in the message string
    > and prevents OTLP attribute extraction in Grafana/Loki.
 
-3. **Instrument spans BEFORE returning:**
+3. **Record onto the span by error CLASS (T5) BEFORE returning:**
    ```go
+   // business/4xx -> HandleSpanBusinessErrorEvent (span stays green)
    libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization", err)
+   // technical/5xx -> HandleSpanError (span flips red)
    return nil, err
    ```
 
 4. **Never swallow errors silently**
+
+See `docs/standards/error-handling.md` (E1–E14) and `docs/standards/telemetry.md` (T5/T6/T7/T8) for the binding rules.
 
 ---
 

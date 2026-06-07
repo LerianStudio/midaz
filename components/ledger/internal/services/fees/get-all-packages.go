@@ -26,6 +26,7 @@ func (uc *UseCase) GetAllPackages(ctx context.Context, filters http.QueryHeader,
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "fees", "list_packages", start, err)
 	}()

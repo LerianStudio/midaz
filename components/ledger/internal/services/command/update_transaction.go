@@ -29,6 +29,7 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_transaction", start, err)
 	}()
@@ -76,6 +77,7 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transactio
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_transaction_status", start, err)
 	}()

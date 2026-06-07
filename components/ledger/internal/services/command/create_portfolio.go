@@ -30,6 +30,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_portfolio", start, err)
 	}()

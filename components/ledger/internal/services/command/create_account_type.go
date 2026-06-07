@@ -31,6 +31,7 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_account_type", start, err)
 	}()

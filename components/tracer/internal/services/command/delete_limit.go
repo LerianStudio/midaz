@@ -68,6 +68,7 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) (retErr 
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "limit_delete", start, retErr)
 	}()

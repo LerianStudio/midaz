@@ -101,6 +101,7 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "rules_evaluate", start, retErr)
 	}()

@@ -32,6 +32,7 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_segment", start, err)
 	}()

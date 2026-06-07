@@ -219,7 +219,7 @@ type ListTransactionValidationsInput struct {
 
 // validateUUID checks if a string is a valid UUID format.
 // Returns nil if value is empty (optional field) or valid UUID.
-func validateUUID(value, fieldName string) error {
+func validateUUID(value string) error {
 	if value == "" {
 		return nil
 	}
@@ -318,23 +318,23 @@ func (i *ListTransactionValidationsInput) validateDates() error {
 }
 
 func (i *ListTransactionValidationsInput) validateUUIDFilters() error {
-	if err := validateUUID(i.AccountID, "account_id"); err != nil {
+	if err := validateUUID(i.AccountID); err != nil {
 		return err
 	}
 
-	if err := validateUUID(i.MatchedRuleID, "matched_rule_id"); err != nil {
+	if err := validateUUID(i.MatchedRuleID); err != nil {
 		return err
 	}
 
-	if err := validateUUID(i.ExceededLimitID, "exceeded_limit_id"); err != nil {
+	if err := validateUUID(i.ExceededLimitID); err != nil {
 		return err
 	}
 
-	if err := validateUUID(i.SegmentID, "segment_id"); err != nil {
+	if err := validateUUID(i.SegmentID); err != nil {
 		return err
 	}
 
-	return validateUUID(i.PortfolioID, "portfolio_id")
+	return validateUUID(i.PortfolioID)
 }
 
 func (i *ListTransactionValidationsInput) validateTransactionType() error {

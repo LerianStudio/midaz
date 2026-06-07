@@ -138,7 +138,6 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	}
 
 	if headerParams.Metadata != nil {
-
 		portfolios, err := handler.Query.GetAllMetadataPortfolios(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
 			handleSpanByErrorClass(span, "Failed to retrieve all Portfolios on query", err)

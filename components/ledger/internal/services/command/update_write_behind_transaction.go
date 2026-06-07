@@ -44,5 +44,4 @@ func (uc *UseCase) UpdateWriteBehindTransaction(ctx context.Context, organizatio
 
 		return
 	}
-
 }

@@ -26,6 +26,7 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "get_transaction", start, err)
 	}()

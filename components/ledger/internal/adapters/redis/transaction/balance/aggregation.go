@@ -147,7 +147,6 @@ func NewInMemorySyncAggregator() *InMemorySyncAggregator {
 // Time complexity: O(n + m log m) where n is input size and m is unique keys
 // Space complexity: O(m) where m is number of unique composite keys
 func (a *InMemorySyncAggregator) Aggregate(ctx context.Context, balances []*AggregatedBalance) []*AggregatedBalance {
-	//nolint:dogsled // standard pattern used throughout codebase
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "balance_sync.aggregate")

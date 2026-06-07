@@ -14,11 +14,11 @@
 // status ∈ {up, down, degraded, skipped, n/a}. No per-tenant labels.
 //
 // The metrics are exposed on /metrics via an OpenTelemetry Prometheus exporter
-// bridge wired in bootstrap (see prometheus_factory.go) so the operator
-// scrape contract is preserved while the SDK migrates to OTel-native
-// instrumentation. Metric names + label set are pinned by NoTranslation +
-// "without suffixes" exporter options — drift here breaks dashboards and
-// SLO alerts that hard-code the canonical names.
+// bridge wired in bootstrap (see prometheus_factory.go): metrics are recorded
+// through the OTel SDK and the exporter renders them in Prometheus exposition
+// format, preserving the operator scrape contract. Metric names + label set are
+// pinned by NoTranslation + "without suffixes" exporter options — drift here
+// breaks dashboards and SLO alerts that hard-code the canonical names.
 package observability
 
 import (

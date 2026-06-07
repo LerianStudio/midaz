@@ -88,6 +88,8 @@ Documentation rules:
 
 ## Logging
 
+Binding standard: `docs/standards/telemetry.md` (T6 structured logging, T7 log levels, T8 single-point logging). The rules below are the quick reference; the standard governs on any conflict.
+
 Use structured logs:
 
 ```go
@@ -114,6 +116,8 @@ Avoid repeating broad scope IDs (`organization_id`, `ledger_id`, tenant IDs) on 
 
 ## Observability
 
+Binding standard: `docs/standards/telemetry.md` (T1–T13). The span-error helper is chosen by error CLASS (T5): business/4xx errors use `HandleSpanBusinessErrorEvent` (span stays green), technical/5xx errors use `HandleSpanError` (span flips red). The rules below are the quick reference; the standard governs on any conflict.
+
 Span lifecycle:
 
 - Always `defer span.End()` immediately after `tracer.Start`.
@@ -138,6 +142,8 @@ spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 ```
 
 ## Errors
+
+Binding standard: `docs/standards/error-handling.md` (E1–E14). One error platform in `pkg/errors.go` + `pkg/constant/errors.go`; the canonical sentinel registry is numeric only (the `FEE-`/`TRC-`/`TPL-`/`REP-` prefixed families are retired). The rules below are the quick reference; the standard governs on any conflict.
 
 - API errors use typed errors from `pkg/errors.go` and constants from `pkg/constant/errors.go`.
 - Use `pkg.ValidateBusinessError(constant.Err..., constant.Entity...)`.
@@ -206,7 +212,7 @@ func (uc *UseCase) emitAccountCreatedEvent(ctx context.Context, span trace.Span,
 }
 ```
 
-`EmitImportant` owns the common IMPORTANT-posture mechanics: nil-emitter guard, tenant resolution, bounded emit context, `libOpentelemetry.HandleSpanError` (not `HandleSpanBusinessErrorEvent`), Warn logging with `libLog.Err(err)`, and non-propagation of build/emit failures. Use-case helpers remain explicit only about the typed payload constructor, event definition key, source, subject, and timestamp.
+`EmitImportant` owns the common IMPORTANT-posture mechanics: nil-emitter guard, tenant resolution, bounded emit context, `libOpentelemetry.HandleSpanError` (build/emit failures are technical, so per T5 they flip the span red — not `HandleSpanBusinessErrorEvent`), Warn logging with `libLog.Err(err)`, and non-propagation of build/emit failures. Use-case helpers remain explicit only about the typed payload constructor, event definition key, source, subject, and timestamp.
 
 Naming: `emit<Event>Event` (unexported) — the trailing `Event` disambiguates from emitting the domain object itself. Signature: `(ctx, span, logger, <domain>)` — pass span and logger so `EmitImportant` records into the SAME span the use case opened. Return type: none (IMPORTANT posture never propagates).
 

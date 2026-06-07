@@ -38,6 +38,7 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uui
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "fees", "update_package", start, err)
 	}()

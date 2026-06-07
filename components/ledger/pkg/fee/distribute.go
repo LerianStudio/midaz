@@ -26,7 +26,7 @@ import (
 // before any deduction is applied to destination (To) accounts. If all source accounts are exempt,
 // the deductible fee is skipped entirely — the transaction initiator's exemption status determines
 // whether the fee is triggered.
-func applyDeductibleAndReferenceAmountRules(logger libLog.Logger, feeIndex int, waivedAccounts *[]string, segmentIDs []uuid.UUID, segCtx *SegmentContext, feeModel model.Fee,
+func applyDeductibleAndReferenceAmountRules(_ libLog.Logger, feeIndex int, waivedAccounts *[]string, segmentIDs []uuid.UUID, segCtx *SegmentContext, feeModel model.Fee,
 	resp *transaction.Responses, result transaction.Amount, f *model.FeeCalculate,
 ) error {
 	originalRespToSize := len(resp.To)

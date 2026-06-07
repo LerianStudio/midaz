@@ -40,6 +40,7 @@ func (q *GetLimitQuery) Execute(ctx context.Context, id uuid.UUID) (_ *model.Lim
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "limit_get", start, retErr)
 	}()

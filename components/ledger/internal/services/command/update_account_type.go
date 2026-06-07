@@ -32,6 +32,7 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_account_type", start, err)
 	}()

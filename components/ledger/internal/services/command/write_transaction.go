@@ -28,6 +28,7 @@ func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerI
 	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_transaction", start, err)
 	}()

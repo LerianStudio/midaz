@@ -49,7 +49,6 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 	if err == nil && len(cachedValue) > 0 {
 		if bytes.Equal(cachedValue, cacheNotFoundSentinel) {
-
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction route not found (sentinel cache hit)", services.ErrDatabaseItemNotFound)
 
 			return mmodel.TransactionRouteCache{}, services.ErrDatabaseItemNotFound

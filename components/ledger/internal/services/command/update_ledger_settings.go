@@ -30,6 +30,7 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_ledger_settings", start, err)
 	}()

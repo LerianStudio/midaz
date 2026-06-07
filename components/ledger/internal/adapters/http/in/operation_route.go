@@ -504,7 +504,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 // Note: This function validates STRUCTURE only. Field REQUIREMENTS (which fields are mandatory
 // based on direction+scenario) are validated by validateAccountingRulesMatrix.
 func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Context, entries *mmodel.AccountingEntries) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_accounting_entries")
 	defer span.End()
@@ -552,14 +552,14 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 
 		// Validate debit rubric if present
 		if action.entry.Debit != nil {
-			if err := handler.validateRubricStructure(ctx, span, logger, entityName, action.name, "debit", action.entry.Debit, action.errCode); err != nil {
+			if err := handler.validateRubricStructure(span, entityName, action.name, "debit", action.entry.Debit, action.errCode); err != nil {
 				return err
 			}
 		}
 
 		// Validate credit rubric if present
 		if action.entry.Credit != nil {
-			if err := handler.validateRubricStructure(ctx, span, logger, entityName, action.name, "credit", action.entry.Credit, action.errCode); err != nil {
+			if err := handler.validateRubricStructure(span, entityName, action.name, "credit", action.entry.Credit, action.errCode); err != nil {
 				return err
 			}
 		}
@@ -573,9 +573,7 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 // can differentiate validation classes (e.g., legacy scenarios use 0009, new overdraft
 // and refund scenarios use 0166).
 func (handler *OperationRouteHandler) validateRubricStructure(
-	ctx context.Context,
 	span trace.Span,
-	logger libLog.Logger,
 	entityName, actionName, side string,
 	rubric *mmodel.AccountingRubric,
 	errCode error,

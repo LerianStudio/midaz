@@ -29,6 +29,7 @@ func (uc *UseCase) GetPackageByID(ctx context.Context, id, organizationID uuid.U
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "fees", "get_package", start, err)
 	}()

@@ -177,10 +177,12 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, constant.EntityOrganization)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute insert query", err)
+
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute insert query", err)
+
 		return nil, err
 	}
 
@@ -291,10 +293,12 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, constant.EntityOrganization)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
+
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
+
 		return nil, err
 	}
 

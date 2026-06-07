@@ -163,7 +163,6 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 		if err != nil {
 			if rollbackErr := tx.Rollback(); rollbackErr != nil {
 				libOpentelemetry.HandleSpanError(span, "Failed to rollback transaction", rollbackErr)
-
 			}
 		}
 	}()
@@ -195,10 +194,12 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 			err := services.ValidatePGError(pgErr, constant.EntityTransactionRoute)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute insert transaction route query", err)
+
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute insert transaction route query", err)
+
 		return nil, err
 	}
 
@@ -430,7 +431,6 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 		if err != nil {
 			if rollbackErr := tx.Rollback(); rollbackErr != nil {
 				libOpentelemetry.HandleSpanError(span, "Failed to rollback transaction", rollbackErr)
-
 			}
 		}
 	}()
@@ -480,10 +480,12 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 			err := services.ValidatePGError(pgErr, constant.EntityTransactionRoute)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
+
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
+
 		return nil, err
 	}
 
@@ -535,7 +537,6 @@ func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organ
 		if err != nil {
 			if rollbackErr := tx.Rollback(); rollbackErr != nil {
 				libOpentelemetry.HandleSpanError(span, "Failed to rollback transaction", rollbackErr)
-
 			}
 		}
 	}()

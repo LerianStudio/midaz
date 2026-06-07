@@ -610,15 +610,19 @@ test-all:
 #   3. test-property        (-tags=property -p 1; ./tests/reporter/property)
 #   4. test-reporter-chaos  (-tags=chaos   -p 1; ./tests/reporter/chaos)
 # Each leg is a separate $(MAKE) invocation under `set -e`, so the first failing
-# leg aborts the run and `make ci` returns its non-zero exit code.
+# leg aborts the run and `make ci-tests` returns its non-zero exit code.
 #
-# OPT-IN legs NOT in the default ci path (each needs a live service/stack, so they
+# This is the full TEST matrix only. The top-level `ci` gate (root Makefile) adds
+# the static gates (lint + check-telemetry) ahead of the fast unit leg; invoke
+# `make ci-tests` directly to run the heavier integration/property/chaos legs.
+#
+# OPT-IN legs NOT in the default path (each needs a live service/stack, so they
 # are non-deterministic in a bare CI runner and must be invoked explicitly):
 #   - make test-bdd SERVER_ADDRESS=...  tracer godog e2e suite (needs a running tracer + Postgres)
 #   - make test-chaos-system            system chaos suite (brings the full docker-compose stack up/down)
 #   - make test-fuzz                    native fuzz engine (time-boxed mutation runs, not a pass/fail gate)
-.PHONY: ci
-ci:
+.PHONY: ci-tests
+ci-tests:
 	$(call print_title,Running CI test matrix)
 	@set -e; \
 	$(MAKE) test-unit; \

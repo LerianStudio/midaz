@@ -301,6 +301,7 @@ func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(ctx context.Context, 
 	if err != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Backup queue: failed to read transaction before conditional cleanup",
 			libLog.String("transaction_key", transactionKey), libLog.Err(err))
+
 		return
 	}
 
@@ -308,6 +309,7 @@ func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(ctx context.Context, 
 	if err := json.Unmarshal(raw, &queue); err != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Backup queue: failed to decode transaction before conditional cleanup",
 			libLog.String("transaction_key", transactionKey), libLog.Err(err))
+
 		return
 	}
 

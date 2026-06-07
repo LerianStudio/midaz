@@ -64,7 +64,7 @@ func main() {
 		Logger: logger,
 	})
 	if err != nil {
-		logger.Log(context.Background(), libLog.LevelError, fmt.Sprintf("Failed to initialize ledger service: %v", err))
+		logger.Log(context.Background(), libLog.LevelError, "Failed to initialize ledger service", libLog.Err(err))
 		_ = logger.Sync(context.Background())
 
 		os.Exit(1)

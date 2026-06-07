@@ -87,6 +87,7 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (_ 
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "rule_activate", start, retErr)
 	}()

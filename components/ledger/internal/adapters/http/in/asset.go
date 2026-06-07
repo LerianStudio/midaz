@@ -138,7 +138,6 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	}
 
 	if headerParams.Metadata != nil {
-
 		assets, err := handler.Query.GetAllMetadataAssets(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
 			handleSpanByErrorClass(span, "Failed to retrieve all Assets on query", err)

@@ -288,7 +288,7 @@ func (c *TracerClient) ReleaseByTransaction(ctx context.Context, transactionID u
 // 200. Availability failures return ErrTracerUnavailable so the caller's
 // best-effort post-commit transport can swallow them (the TTL reaper backstops).
 func (c *TracerClient) transitionByTransaction(ctx context.Context, action string, transactionID uuid.UUID) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // lib-observability API returns 4 values, only tracer needed here
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "tracer.client."+action+"_by_transaction")
 	defer span.End()
@@ -318,7 +318,7 @@ func (c *TracerClient) transitionByTransaction(ctx context.Context, action strin
 // transition is the shared confirm/release body: POST the per-id action and
 // require a 200. Availability failures return ErrTracerUnavailable.
 func (c *TracerClient) transition(ctx context.Context, action string, reservationID uuid.UUID) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // lib-observability API returns 4 values, only tracer needed here
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "tracer.client."+action)
 	defer span.End()

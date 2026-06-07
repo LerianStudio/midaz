@@ -172,10 +172,12 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, constant.EntitySegment)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute create query", err)
+
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute create query", err)
+
 		return nil, err
 	}
 
@@ -225,6 +227,7 @@ func (p *SegmentPostgreSQLRepository) ExistsByName(ctx context.Context, organiza
 	if rows.Next() {
 		err := pkg.ValidateBusinessError(constant.ErrDuplicateSegmentName, constant.EntitySegment, name, ledgerID)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check segment name existence", err)
+
 		return true, err
 	}
 
@@ -404,6 +407,7 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntitySegment)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
+
 			return nil, err
 		}
 
@@ -481,6 +485,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntitySegment)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update segment. Rows affected is 0", err)
+
 			return nil, err
 		}
 
@@ -488,10 +493,12 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, constant.EntitySegment)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
+
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
+
 		return nil, err
 	}
 
@@ -545,6 +552,7 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntitySegment)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete segment. Rows affected is 0", err)
+
 		return err
 	}
 

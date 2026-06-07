@@ -36,6 +36,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_transaction_route", start, err)
 	}()

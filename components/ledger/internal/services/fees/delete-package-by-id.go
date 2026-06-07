@@ -23,6 +23,7 @@ func (uc *UseCase) DeletePackageByID(ctx context.Context, id, organizationID uui
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "fees", "delete_package", start, err)
 	}()

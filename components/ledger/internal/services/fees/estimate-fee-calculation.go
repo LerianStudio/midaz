@@ -41,6 +41,7 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "fees", "estimate_fee", start, err)
 	}()

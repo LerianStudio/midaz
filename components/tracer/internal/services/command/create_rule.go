@@ -138,6 +138,7 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "rule_create", start, retErr)
 	}()

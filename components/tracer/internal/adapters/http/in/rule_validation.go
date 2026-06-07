@@ -442,7 +442,7 @@ func formatValidationError(err error) error {
 		case "required":
 			return mapRequiredFieldToError(jsonFieldName)
 		case "max":
-			return mapMaxFieldToError(jsonFieldName, fieldError.Param())
+			return mapMaxFieldToError(jsonFieldName)
 		case "decision":
 			return pkg.ValidateBusinessError(constant.ErrRuleInvalidAction, constant.EntityRule)
 		default:
@@ -469,7 +469,7 @@ func mapRequiredFieldToError(fieldName string) error {
 }
 
 // mapMaxFieldToError maps a max validation error to its specific TRC code.
-func mapMaxFieldToError(fieldName, maxValue string) error {
+func mapMaxFieldToError(fieldName string) error {
 	switch fieldName {
 	case "name":
 		return pkg.ValidateBusinessError(constant.ErrRuleNameTooLong, constant.EntityRule)
@@ -497,6 +497,8 @@ func isScopeFieldError(namespace string) bool {
 
 // extractScopeIndex extracts the scope index from the namespace.
 // Returns the index and nil error on success, or -1 and an error with details on failure.
+//
+//nolint:unused // exercised by rule_validation_test.go; unused linter misses that path.
 func extractScopeIndex(namespace string) (int, error) {
 	// Find "Scopes[" and extract the number
 	start := strings.Index(namespace, "Scopes[")
@@ -538,26 +540,6 @@ func toJSONFieldName(fieldName string) string {
 		return "action"
 	case "Scopes":
 		return "scopes"
-	default:
-		return fieldName
-	}
-}
-
-// toScopeJSONFieldName converts Scope field name to JSON field name.
-func toScopeJSONFieldName(fieldName string) string {
-	switch fieldName {
-	case "SegmentID":
-		return "segmentId"
-	case "PortfolioID":
-		return "portfolioId"
-	case "AccountID":
-		return "accountId"
-	case "MerchantID":
-		return "merchantId"
-	case "TransactionType":
-		return "transactionType"
-	case "SubType":
-		return "subType"
 	default:
 		return fieldName
 	}

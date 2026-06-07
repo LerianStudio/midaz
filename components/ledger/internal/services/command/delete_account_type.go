@@ -31,6 +31,7 @@ func (uc *UseCase) DeleteAccountTypeByID(ctx context.Context, organizationID, le
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "delete_account_type", start, err)
 	}()

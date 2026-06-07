@@ -73,6 +73,7 @@ func (s *DraftRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (_ *mo
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "rule_draft", start, retErr)
 	}()

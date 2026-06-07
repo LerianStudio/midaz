@@ -95,7 +95,7 @@ internal/services/cache/           — In-memory rule cache (RuleCache, CacheAda
 internal/services/workers/         — Background workers (RuleSyncWorker, UsageCleanupWorker)
 internal/services/mocks/           — Generated mocks for service interfaces
 pkg/model/                         — Domain entities: Rule, Limit, Validation, Scope, AuditEvent, etc.
-pkg/constant/                      — Error codes (TRC-XXXX), pagination defaults, app constants
+pkg/constant/                      — Tracer-local pagination defaults + app constants (error codes live in the repo-root canonical registry, not here)
 pkg/clock/                         — Clock interface (RealClock, FixedClock for tests via MOCK_TIME)
 pkg/resilience/                    — Circuit breaker (sony/gobreaker wrapper)
 pkg/validation/                    — Date/time validation helpers
@@ -161,7 +161,7 @@ Fields: ID (uuid), EventID (uuid, dedup key), EventType, Action, Result, Resourc
 Fields: ID (uuid), RequestID (uuid, unique), TransactionType, Amount, Currency, Decision, Reason, MatchedRuleIDs, EvaluatedRuleIDs, LimitUsageDetails, ProcessingTimeMs, CreatedAt.
 
 ### Error Code System
-All errors use TRC-XXXX codes defined in pkg/constant/errors.go. Categories: General (0001-0019), DateTime (0020-0039), Pagination (0040-0059), Metadata (0060-0079), Decision/CEL (0080-0099), Rules (0100-0119), Limits (0120-0139), Audit (0140-0159), UsageCounter (0160-0179), CheckLimits (0180-0199), Constructor/DI (0200-0219), ValidationRequest (0220-0249), TransactionValidation (0250-0269), Cache (0280-0299), Extended Limits (0300-0319).
+Tracer uses the ONE shared error platform: typed errors and sentinels live in the repo-root `pkg/errors.go` + `pkg/constant/errors.go`, referenced by constant. The tracer-local `TRC-` prefixed code fork is retired — tracer's error codes are folded into the canonical numeric registry (codes are allocated in the 0179–0500 blocks). See `docs/standards/error-handling.md` (E1, E4) for the platform and registry rules.
 
 ## Database
 

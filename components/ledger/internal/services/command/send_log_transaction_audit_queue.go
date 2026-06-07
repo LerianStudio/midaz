@@ -31,6 +31,7 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 	if !isAuditLogEnabled() {
 		logger.Log(ctx, libLog.LevelDebug, "Audit logging not enabled",
 			libLog.String("audit_log_enabled", os.Getenv("AUDIT_LOG_ENABLED")))
+
 		return
 	}
 

@@ -727,6 +727,7 @@ func (r *LedgerPostgreSQLRepository) GetSettings(ctx context.Context, organizati
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
+
 		return nil, err
 	}
 
@@ -805,6 +806,7 @@ func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organiz
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to update settings", err)
+
 		return nil, err
 	}
 
@@ -872,6 +874,7 @@ func (r *LedgerPostgreSQLRepository) ReplaceSettings(ctx context.Context, organi
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to replace settings", err)
+
 		return nil, err
 	}
 
@@ -959,6 +962,7 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to scan settings", err)
+
 		return nil, err
 	}
 
@@ -969,6 +973,7 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 		if unmarshalErr := json.Unmarshal(settingsJSON, &existingSettings); unmarshalErr != nil {
 			err = unmarshalErr
 			libOpentelemetry.HandleSpanError(span, "Failed to unmarshal existing settings", err)
+
 			return nil, err
 		}
 	}
@@ -982,6 +987,7 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 	if mergeErr != nil {
 		err = mergeErr
 		libOpentelemetry.HandleSpanError(span, "Failed to merge settings", err)
+
 		return nil, err
 	}
 
@@ -995,6 +1001,7 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 	if marshalErr != nil {
 		err = marshalErr
 		libOpentelemetry.HandleSpanError(span, "Failed to marshal merged settings", err)
+
 		return nil, err
 	}
 
@@ -1010,6 +1017,7 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 	if execErr != nil {
 		err = execErr
 		libOpentelemetry.HandleSpanError(span, "Failed to update settings", err)
+
 		return nil, err
 	}
 
@@ -1017,6 +1025,7 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 	if commitErr := tx.Commit(); commitErr != nil {
 		err = commitErr
 		libOpentelemetry.HandleSpanError(span, "Failed to commit transaction", err)
+
 		return nil, err
 	}
 

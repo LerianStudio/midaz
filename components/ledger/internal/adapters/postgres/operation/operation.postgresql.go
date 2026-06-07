@@ -1282,6 +1282,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx con
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
+
 		return nil, err
 	}
 

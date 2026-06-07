@@ -71,6 +71,7 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 	if !isTransactionEventEnabled() {
 		logger.Log(ctx, libLog.LevelDebug, "Transaction event not enabled",
 			libLog.String("rabbitmq_transaction_events_enabled", os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")))
+
 		return
 	}
 

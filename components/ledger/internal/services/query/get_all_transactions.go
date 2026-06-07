@@ -32,6 +32,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "list_transactions", start, err)
 	}()

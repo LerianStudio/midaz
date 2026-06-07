@@ -130,7 +130,7 @@ func (uc *UseCase) createMetadataForCollection(
 	collection string,
 	entries []MetadataEntry,
 ) (int, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_metadata_for_collection")
 	defer span.End()
@@ -240,7 +240,7 @@ func (uc *UseCase) fallbackToIndividualMetadataCreate(
 	collection string,
 	entries []MetadataEntry,
 ) (int, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.fallback_individual_metadata_create")
 	defer span.End()

@@ -290,7 +290,6 @@ func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
 	}
 
 	if headerParams.Metadata != nil {
-
 		accountTypes, cur, err := handler.Query.GetAllMetadataAccountType(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
 			handleSpanByErrorClass(span, "Failed to retrieve all Account Types on query", err)

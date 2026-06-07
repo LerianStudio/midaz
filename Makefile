@@ -310,6 +310,64 @@ check-tests:
 	@sh ./scripts/check-tests.sh
 	@echo "[ok] Test coverage verification completed"
 
+# Telemetry/observability enforcement gates (rg-based). Each gate prints any
+# violations and the whole target exits non-zero if ANY gate fires. Scope is
+# production source only (non-test, non-mock) under components/ and pkg/.
+# Gates encode the logging/observability rules in CLAUDE.md + docs/standards/telemetry.md:
+#   a. no fmt.Sprintf as the log MESSAGE arg (structured fields may still format
+#      values, e.g. libLog.String("type", fmt.Sprintf("%T", x)))
+#   b. no nil-Redactor span dumps via SetSpanAttributesFromValue (must use explicit attrs)
+#   c. no prefixed wire codes (FEE/TRC/TPL/REP-NNNN) — the canonical numeric registry is the only code family
+#   d. no per-request Info narration (boot-time context.Background() milestones are allowed)
+#   e. no reflect.TypeOf(mmodel.*) for entity names — use constant.Entity* (comments excepted)
+.PHONY: check-telemetry
+check-telemetry:
+	$(call print_title,Verifying telemetry/observability gates)
+	$(call check_command,rg,"Install ripgrep from https://github.com/BurntSushi/ripgrep")
+	@FAILED=0; \
+	run_gate() { \
+		desc="$$1"; shift; \
+		hits=$$("$$@" 2>/dev/null); \
+		if [ -n "$$hits" ]; then \
+			echo "[FAIL] $$desc"; \
+			echo "$$hits" | sed 's/^/    /'; \
+			echo ""; \
+			FAILED=1; \
+		else \
+			echo "[ok] $$desc"; \
+		fi; \
+	}; \
+	run_gate "no fmt.Sprintf as a log message argument" \
+		rg -n 'logger\.(Log|Info|Warn|Error|Debug|Fatal)\([^"]*(Level[A-Za-z]+|"[a-z]+"),\s*fmt\.Sprint' --glob '*.go' --glob '!*_test.go' --glob '!*mock*' components/ pkg/; \
+	run_gate "no nil-Redactor span dumps (SetSpanAttributesFromValue)" \
+		rg -Un 'SetSpanAttributesFromValue\(' --glob '*.go' --glob '!*_test.go' --glob '!*mock*' components/ pkg/; \
+	run_gate "no prefixed wire codes (FEE/TRC/TPL/REP-NNNN)" \
+		rg -n '"(FEE|TRC|TPL|REP)-[0-9]' --glob '*.go' --glob '!*_test.go' components/ pkg/; \
+	run_gate "no per-request Info narration" \
+		rg -nP '^(?!.*context\.Background\(\)).*(LevelInfo|\.Info\().*"(Initiating|Retrieving|Trying to|Successfully)' --glob '*.go' --glob '!*_test.go' components/ pkg/; \
+	run_gate "no reflect.TypeOf(mmodel.*) for entity names" \
+		rg -nP '^(?:[^/]|/(?!/))*reflect\.TypeOf\(mmodel\.' --glob '!*_test.go' --glob '!*mock*' components/ pkg/; \
+	if [ "$$FAILED" -ne 0 ]; then \
+		echo "[error] One or more telemetry gates failed"; \
+		exit 1; \
+	fi
+	@echo "[ok] Telemetry gate verification completed"
+
+# Top-level CI gate — static checks + fast unit tests, one command, one exit code.
+# Sequences the deterministic gates that need no live stack: lint (all components
+# + tests/ + pkg/), the telemetry/observability gates, then the race-enabled unit
+# suite (test-unit already exports ALLOW_INSECURE_TLS=true). Each leg is a separate
+# $(MAKE) under `set -e`, so the first failure aborts and `make ci` exits non-zero.
+# For the heavier integration/property/chaos matrix run `make ci-tests`.
+.PHONY: ci
+ci:
+	$(call print_title,Running CI gate (lint + telemetry + unit tests))
+	@set -e; \
+	$(MAKE) lint; \
+	$(MAKE) check-telemetry; \
+	$(MAKE) test-unit
+	@echo "[ok] CI gate completed successfully"
+
 #-------------------------------------------------------
 # Git Hook Commands
 #-------------------------------------------------------

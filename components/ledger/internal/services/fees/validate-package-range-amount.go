@@ -25,7 +25,7 @@ func (uc *UseCase) ValidatePackageMaxAndMinAmountRange(ctx context.Context, logg
 	organizationID, ledgerID uuid.UUID,
 	segmentID, packageID *uuid.UUID,
 ) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // lib-commons API returns 4 values, only tracer needed here
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.package.validate_amount_range")
 	defer span.End()

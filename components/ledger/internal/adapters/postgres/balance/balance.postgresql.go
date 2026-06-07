@@ -754,6 +754,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 			err := fmt.Errorf("invalid alias#key format: %s", aliasWithKey)
 
 			libOpentelemetry.HandleSpanError(span, "Invalid alias#key format", err)
+
 			return nil, err
 		}
 
@@ -868,13 +869,11 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 			rollbackErr := tx.Rollback()
 			if rollbackErr != nil {
 				libOpentelemetry.HandleSpanError(span, "Failed to init balances", rollbackErr)
-
 			}
 		} else {
 			commitErr := tx.Commit()
 			if commitErr != nil {
 				libOpentelemetry.HandleSpanError(span, "Failed to init balances", commitErr)
-
 			}
 		}
 	}()
@@ -1202,7 +1201,6 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
 			libOpentelemetry.HandleSpanError(span, "failed to rollback transaction for bulk delete", rollbackErr)
-
 		}
 	}()
 
@@ -1341,10 +1339,12 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 			err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance not found", err)
+
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to update balance", err)
+
 		return nil, err
 	}
 

@@ -136,7 +136,6 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 	}
 
 	if headerParams.Metadata != nil {
-
 		segments, err := handler.Query.GetAllMetadataSegments(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
 			handleSpanByErrorClass(span, "Failed to retrieve all Segments on query", err)

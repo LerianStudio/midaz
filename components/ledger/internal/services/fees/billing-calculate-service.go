@@ -98,6 +98,7 @@ func (s *BillingCalculateService) Calculate(
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, s.MetricsFactory, logger, "fees", "calculate_billing", start, err)
 	}()
@@ -359,7 +360,7 @@ func (s *BillingCalculateService) calculateVolume(
 	billableEvents := fee.ApplyFreeQuota(totalEvents, freeQuota)
 
 	// Step 3: Calculate pricing based on model.
-	var unitPrice, grossAmount decimal.Decimal
+	var grossAmount decimal.Decimal
 
 	pricingModel := ""
 	if bp.PricingModel != nil {
@@ -370,7 +371,7 @@ func (s *BillingCalculateService) calculateVolume(
 	case model.PricingModelTiered:
 		var errTier error
 
-		unitPrice, grossAmount, errTier = fee.CalculateTiered(billableEvents, bp.Tiers)
+		_, grossAmount, errTier = fee.CalculateTiered(billableEvents, bp.Tiers)
 		if errTier != nil {
 			errMsg := fmt.Sprintf("billing package (id=%s, label=%s): tiered calculation failed: %v", bp.ID, bp.Label, errTier)
 			bizErr := pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingCalculation", errMsg)
@@ -390,7 +391,7 @@ func (s *BillingCalculateService) calculateVolume(
 			return nil, bizErr
 		}
 
-		unitPrice = bp.Tiers[0].UnitPrice
+		unitPrice := bp.Tiers[0].UnitPrice
 		grossAmount = fee.CalculateFixed(billableEvents, unitPrice)
 
 	default:

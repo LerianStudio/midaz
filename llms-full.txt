@@ -359,7 +359,8 @@ Scoping is **path-based**: fee endpoints read the organization from the `:organi
 segment, UUID-validated by the protected-route chain (`ParseUUIDPathParameters`) — the same
 convention as every other surface in the binary. The former `X-Organization-Id` header was
 removed; path-validation errors return the canonical midaz `ErrInvalidPathParameter` envelope
-(fee business errors keep their `FEE-xxxx` codes). `ledger_id` remains a create-body field and an optional
+(fee business errors use the canonical numeric error-code registry in `pkg/constant/errors.go` —
+the `FEE-` prefixed code family is retired). `ledger_id` remains a create-body field and an optional
 `?ledgerId=` list filter — never a path scope. See `docs/api/SCOPING.md`.
 
 | Method | Path | Description |

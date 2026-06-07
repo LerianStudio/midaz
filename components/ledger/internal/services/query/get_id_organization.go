@@ -29,6 +29,7 @@ func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (_ *mm
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "get_organization", start, err)
 	}()

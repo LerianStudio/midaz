@@ -86,7 +86,6 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	}
 
 	if headerParams.Metadata != nil {
-
 		recordSafeQueryAttributes(span, headerParams)
 
 		trans, cur, err := handler.Query.GetAllMetadataOperations(ctx, organizationID, ledgerID, accountID, *headerParams)

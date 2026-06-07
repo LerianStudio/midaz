@@ -34,7 +34,7 @@ Tracer provides instant ALLOW/DENY/REVIEW decisions for financial transactions. 
 - [PostgreSQL Adapters](internal/adapters/postgres/): Repository implementations with squirrel SQL builder
 - [CEL Adapter](internal/adapters/cel/): Expression engine — compile, evaluate, cost limiting
 - [Domain Models](pkg/model/): Rules, limits, validations, scopes, audit events (44 files)
-- [Error Constants](pkg/constant/errors.go): Categorized error codes (TRC-XXXX)
+- [Error Constants](../../pkg/constant/errors.go): Canonical numeric error-code registry (repo-root shared platform; the tracer-local `TRC-` fork is retired)
 - [Clock](pkg/clock/): Clock interface — real + fixed for deterministic testing
 - [Resilience](pkg/resilience/): Circuit breaker wrapper (sony/gobreaker)
 

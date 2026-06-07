@@ -56,7 +56,6 @@ func (handler *TransactionHandler) BuildOperations(
 	defer span.End()
 
 	if routeValidationEnabled {
-
 		span.SetAttributes(attribute.Bool("app.route_validation_enabled", true))
 	}
 
@@ -87,7 +86,6 @@ func (handler *TransactionHandler) BuildOperations(
 	for _, blc := range balances {
 		for i := range fromTo {
 			if blc.Alias == fromTo[i].AccountAlias {
-
 				preBalances = append(preBalances, blc)
 
 				txBal, tErr := blc.ToTransactionBalance()

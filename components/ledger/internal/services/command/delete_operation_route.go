@@ -32,6 +32,7 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "delete_operation_route", start, err)
 	}()

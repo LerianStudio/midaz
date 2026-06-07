@@ -14,7 +14,7 @@ Midaz is a **source-available core banking platform** written in Go, built aroun
 | Architecture | Hexagonal + CQRS |
 | HTTP Framework | Fiber v2 |
 | Databases | PostgreSQL 17, MongoDB, RabbitMQ 4.1, Valkey |
-| lib-commons | `github.com/LerianStudio/lib-commons/v5` v5.4.1 (+ `lib-observability` v1.0.1) |
+| lib-commons | `github.com/LerianStudio/lib-commons/v5` (+ `lib-observability`) |
 | Deploy units | Ledger+CRM+Fees (:3002), Tracer (:4020), Reporter Manager (:4005), Reporter Worker (:4006), Infra (Docker Compose) |
 
 > **CRM and fees are not deploy units.** CRM is a package tree at `components/crm`, imported by
@@ -103,5 +103,7 @@ pkg/
 - **[llms-full.txt](llms-full.txt)** — Complete reference with all env vars, API endpoints, error codes, models
 - **[llms.txt](llms.txt)** — Concise overview following llmstxt.org spec
 - **[docs/PROJECT_RULES.md](docs/PROJECT_RULES.md)** — Coding standards and conventions
+- **[docs/standards/telemetry.md](docs/standards/telemetry.md)** — Binding telemetry standard (T1–T13: traces, logs, metrics)
+- **[docs/standards/error-handling.md](docs/standards/error-handling.md)** — Binding error-handling standard (E1–E14: one error platform, canonical numeric registry)
 - **[docs/auth/RBAC-NAMESPACES.md](docs/auth/RBAC-NAMESPACES.md)** — The three authz namespaces in the unified binary (R9)
 - **[docs/api/SCOPING.md](docs/api/SCOPING.md)** — Path vs `X-Organization-Id` header scoping (R22)

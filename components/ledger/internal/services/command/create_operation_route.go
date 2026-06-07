@@ -31,6 +31,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_operation_route", start, err)
 	}()

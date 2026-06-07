@@ -142,6 +142,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_balance", start, err)
 	}()

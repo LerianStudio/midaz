@@ -35,6 +35,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_asset", start, err)
 	}()
@@ -194,7 +195,6 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 			return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, constant.EntityAccount)
 		}
-
 	}
 
 	return inst, nil
@@ -204,7 +204,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.validate_asset_code")
+	_, span := tracer.Start(ctx, "command.validate_asset_code")
 	defer span.End()
 
 	if err := utils.ValidateCode(code); err != nil {

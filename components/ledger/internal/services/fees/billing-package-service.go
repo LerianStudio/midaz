@@ -86,6 +86,7 @@ func (s *BillingPackageService) CreateBillingPackage(ctx context.Context, bp *mo
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, s.MetricsFactory, logger, "fees", "create_billing_package", start, err)
 	}()
@@ -290,6 +291,7 @@ func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, or
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, s.MetricsFactory, logger, "fees", "update_billing_package", start, err)
 	}()
@@ -337,6 +339,7 @@ func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, or
 	defer span.End()
 
 	start := time.Now()
+
 	defer func() {
 		utils.RecordDomainOperation(ctx, s.MetricsFactory, logger, "fees", "delete_billing_package", start, err)
 	}()

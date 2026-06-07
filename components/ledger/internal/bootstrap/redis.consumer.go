@@ -278,7 +278,7 @@ func podIdentifier() string {
 }
 
 func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.consumer.read_messages_from_queue")
 	defer span.End()
@@ -371,7 +371,7 @@ Outer:
 //
 //nolint:gocognit,gocyclo // Will be refactored into smaller helpers; tracked separately.
 func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload string, m mmodel.TransactionRedisQueue) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	msgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()

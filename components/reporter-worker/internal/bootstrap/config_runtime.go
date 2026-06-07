@@ -549,10 +549,10 @@ func initSingleTenantWorkerService(cfg *Config, logger clog.Logger, deps *worker
 // deliberately DO NOT call os.Exit on probe failure (anti-pattern #7 in
 // dev-readyz/SKILL.md): the process must stay alive long enough for
 // telemetry to flush and CloudWatch / Loki to capture the failure logs.
-func runWorkerSelfProbe(ctx context.Context, healthCfg HealthServerConfig, metrics *readyz.Metrics, state *readyz.SelfProbeState, logger clog.Logger) {
+func runWorkerSelfProbe(ctx context.Context, healthCfg HealthServerConfig, readyzMetrics *readyz.Metrics, state *readyz.SelfProbeState, logger clog.Logger) {
 	checkers := BuildWorkerCheckers(healthCfg)
 
-	if probeErr := readyz.RunSelfProbe(ctx, checkers, metrics, logger); probeErr != nil {
+	if probeErr := readyz.RunSelfProbe(ctx, checkers, readyzMetrics, logger); probeErr != nil {
 		logger.Log(ctx, clog.LevelError,
 			"startup_self_probe_failed_letting_pod_stay_unhealthy",
 			clog.Err(probeErr))

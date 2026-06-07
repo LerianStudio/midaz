@@ -41,7 +41,6 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 	}
 
 	if len(metadata) == 0 {
-
 		return nil, libHTTP.CursorPagination{}, nil
 	}
 
