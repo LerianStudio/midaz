@@ -19,7 +19,7 @@
 | 1 | Audit gaps closed; unified standard authored; decision memo resolved with owner | 1.1, 1.2 | **Complete** |
 | 2 | Zero financial values / PII / raw payloads on any telemetry signal or client-surfaced error | 2.1, 2.2, 2.3 | **Complete** |
 | 3 | One error platform: forks deleted, canonical boundary hardened, one envelope, status table enforced (D2) | 3.1–3.6 | **Complete** |
-| 4 | Async error resilience: transaction consumer can't hot-loop; panic inventory dispositioned; reporter posture hardened (D7) | 4.1–4.5 | Epic-level |
+| 4 | Async error resilience: transaction consumer can't hot-loop; authorized transactions can't strand (quarantine); panics dispositioned; reporter hardened (D7) | 4.1–4.5 | Detailed |
 | 5 | Hygiene sweep + metrics normalization: structured logging, span topology, level discipline, helper-by-class, one metrics stack (D4), domain metrics (D6) | 5.1–5.7 | Epic-level |
 | 6 | Enforcement: lint gates + contract tests in CI; docs synced | 6.1–6.3 | Epic-level |
 
@@ -683,46 +683,162 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 ---
 
-## Phase 4: Async resilience
+## Phase 4: Async resilience — **Detailed**
 
-**Milestone:** A poison message cannot pin a ledger worker; every production panic is dispositioned; Redis-path posture matches the standard. Shaped by D5 and Task 1.1.2/1.1.3 findings.
+**Milestone:** A poison message cannot pin a ledger worker; an authorized transaction can never strand silently (D5-v2 quarantine); every production panic is dispositioned; reporter posture hardened (D7). Elaborated 2026-06-07 against post-Phase-3 ground truth.
 
-### Epic 4.1: Shared consumer error classifier
+**Dispatch note:** 4.3's rabbitmq constructor panic folds into the 4.2 agent (same file). Parallel groups: {4.1→4.2}, {4.4}, {4.5}, {4.3-withBody}.
 
-**Goal:** reporter's classify/backoff/DLQ machinery (`retry_manager.go`, `error_classifier.go`) generalized into a shared `pkg/` package consumable by any consumer, re-pointed at canonical error types (depends on Epic 3.3 having landed).
-**Scope:** new `pkg/` package; `pkg/reporter/rabbitmq/` callers migrate.
-**Dependencies:** Phase 3 complete.
-**Done when:** reporter-worker runs on the shared package with behavior-identical tests.
+### Epic 4.1: Shared consumer retry machinery in `pkg/rabbitmq`
 
-### Epic 4.2: Transaction consumer DLQ + classification (F5)
+**Goal:** reporter's classify/backoff/DLQ machinery generalized into `pkg/rabbitmq` (new), consumable by any consumer; reporter-worker re-pointed with behavior-identical tests.
+**Scope:** new `pkg/rabbitmq/`; `components/reporter-worker/internal/adapters/rabbitmq/` + `pkg/reporter/rabbitmq/` callers.
+**Dependencies:** Phase 3 complete (canonical types).
+**Done when:** reporter-worker runs on the shared package; its retry behavior tests green unchanged.
 
-**Goal:** ledger transaction consumer classifies permanent-vs-transient, dead-letters permanents, bounded-retries transients; blanket `Nack(requeue=true)` gone from all three sites; DLX/DLQ provisioned in infra topology per D5.
-**Scope:** `components/ledger/internal/adapters/rabbitmq/consumer.rabbitmq.go`, `components/infra/rabbitmq/etc/definitions.json`.
-**Dependencies:** Epic 4.1; **D5 RESOLVED (v2)** — see Decision Points: DLQ is flow-control/diagnostic only (reporter topology, TTL 7d acceptable because the Redis backup hash holds the durable copy), maxRetries 3.
-**Done when:** integration test feeds a poison message (nil-Transaction payload) and observes DLQ delivery within the retry budget — no hot loop.
+#### Task 4.1.1: Extract the generic retry core
 
-### Epic 4.3: Panic disposition (F13)
+- [ ] Done
 
-**Goal:** every class-(a) panic from the Task 1.1.3 inventory converted to error returns (known: `consumer.rabbitmq.go:116` constructor); class-(b)/(c) documented in the standard's exception list.
-**Scope:** per inventory.
-**Dependencies:** Task 1.1.3 inventory; independent of 4.1/4.2.
-**Done when:** class-(a) list empty; constructor failure path returns error and bootstrap handles it.
+**Context:** `components/reporter-worker/internal/adapters/rabbitmq/retry_manager.go` `HandleFailure:61-122` (classify → maxRetries → backoff → BuildRetryHeaders → republish ST/MT → Ack) and `pkg/reporter/rabbitmq/` (`error_classifier.go`, retry-header helpers, `TenantIDFromHeaders`). Generic vs reporter-specific split mapped in the Phase-4 exploration: headers/backoff/republish/DLQ-nack are generic; the classifier's domain code set is reporter-specific.
 
-### Epic 4.4: Redis backup-consumer quarantine + balance-sync posture (G4, F21 reframed, D5-v2 layer 2)
+**Implementation vision:** Create `pkg/rabbitmq/` with: `ErrorClassifier` interface (`IsRetryable(err) bool`, `ClassifyFailureReason(err) string`), `RetryManager` (the HandleFailure engine, config: maxRetries, backoff, sleepFunc, republish hooks ST/MT), retry-header builders, `DefaultClassifier` baseline (pkg.IsBusinessError → permanent; context.DeadlineExceeded/connection errors → transient). Reporter keeps a thin domain classifier (its permanent-code set {0287,0289} + SchemaAmbiguity) implementing the interface. Move generic tests with the code; reporter behavior tests stay in place and must pass unchanged.
 
-**Goal:** the financial safety layer of D5-v2 — the Redis backup consumer never silently strands an authorized transaction: poison records in `backup_queue:{transactions}` get a per-record retry counter; after N failed cycles the raw record is persisted to a Postgres quarantine table (+ Error log + alert metric), and only then HDel'd. Backup-queue depth and oldest-entry age become metrics. Balance-sync per-tenant skip (F23) gains a skip counter metric. Both loops conform to trace-propagation rules (T10).
-**Scope:** `components/ledger/internal/bootstrap/redis.consumer.go`, `balance_sync.worker.go`, new quarantine table migration + repository, metrics wiring.
-**Dependencies:** D5-v2 outcome (Decision Points); Phase 1 rules T10–T11. CONSTRAINT: a poison backup record is the ONLY durable copy of an authorized transaction — quarantine-then-delete, never delete-only, never skip-silently-forever.
-**Done when:** induced poison record lands in the quarantine table within N cycles with an alertable metric; queue-depth/age metrics exposed; F23 skip counter live; trace posture per standard.
+**Files:** Create `pkg/rabbitmq/{retry_manager,classifier,headers}.go` (+tests). Modify reporter-worker rabbitmq adapter + `pkg/reporter/rabbitmq` to re-point.
 
-### Epic 4.5: Reporter posture hardening (D7 outcome) `[added at Phase 1 checkpoint]`
+**Verification:** `go test ./pkg/rabbitmq/... ./components/reporter-worker/... ./pkg/reporter/...` green; reporter retry behavior tests unchanged.
 
-**Goal:** HMAC validation hard-fails — invalid signature → reject + dead-letter, never process; partial-result reports carry an explicit `PARTIAL` status plus per-section classified `error_code` (E9-compliant), never silent partiality.
-**Scope:** reporter-worker HMAC verification path, report generation/status model, report metadata writers; reporter integration tests.
-**Dependencies:** Epic 3.3 (canonical error types for section error codes); independent of 4.1–4.4.
-**Done when:** invalid-signature message lands in DLQ without processing (test); a report with one induced section failure renders status `PARTIAL` with that section's classified code (test).
+**Done when:** one retry engine; reporter is a consumer of it.
 
----
+### Epic 4.2: Transaction consumer DLQ + classification (F5, D5-v2 layer 1)
+
+**Goal:** ledger transaction consumer classifies permanent-vs-transient via `pkg/rabbitmq`; permanents dead-letter to `transaction.dlq`; transients bounded-retry (maxRetries 3, exponential backoff); the three blanket `Nack(requeue=true)` sites gone; constructor panic → error return (4.3 class-a item).
+**Scope:** `components/ledger/internal/adapters/rabbitmq/consumer.rabbitmq.go`, `components/ledger/internal/bootstrap/rabbitmq.server.go` (constructor error handling), `components/infra/rabbitmq/etc/definitions.json`.
+**Dependencies:** Epic 4.1.
+**Done when:** poison message lands in DLQ within retry budget (test); no hot loop; bootstrap surfaces connection failure as error.
+
+#### Task 4.2.1: Provision `transaction.dlx`/`transaction.dlq` topology
+
+- [ ] Done
+
+**Context:** `definitions.json:77-81` — transaction queue has no DLX args; reporter pattern at `:82-108` (DLX direct exchange, DLQ with `x-message-ttl: 604800000`, `x-max-length: 10000`, binding via `.dlq.key`). D5-v2: TTL acceptable — the queue is never the last copy (Redis backup hash is).
+
+**Implementation vision:** Mirror reporter exactly: `transaction.dlx` direct exchange; `transaction.dlq` queue (TTL 7d, max-len 10k); binding `transaction.dlq.key`; `transaction.transaction_balance_operation.queue` gains `x-dead-letter-exchange`/`x-dead-letter-routing-key` args. NOTE: changing queue args on an existing queue requires queue re-declaration — definitions.json is provisioning config (local/dev); add a comment in the JSON? No — JSON forbids comments; record the redeploy caveat in the migration notes doc instead.
+
+**Files:** Modify `components/infra/rabbitmq/etc/definitions.json`; append a deployment caveat to `docs/plans/2026-06-07-v4-error-status-migration-notes.md`.
+
+**Verification:** JSON valid (`python3 -m json.tool`); local stack boot (if feasible) or schema-shape diff against reporter entries.
+
+**Done when:** topology present and consistent with reporter convention.
+
+#### Task 4.2.2: Rework consumer error paths onto the retry engine + constructor error
+
+- [ ] Done
+
+**Context:** `consumer.rabbitmq.go:339,533,637` blanket `Nack(false,true)`; `:116` constructor panic (`NewConsumerRoutes` on `conn.GetNewConnect()` failure); bulk path invariants (`acknowledgeByResults` multiple=false comment). Handlers route to `CreateBalanceTransactionOperationsAsync` which is idempotent via PG unique constraints — safe for redelivery.
+
+**Implementation vision:** Wire `pkg/rabbitmq.RetryManager` (maxRetries 3, exponential backoff) into the consumer loop: handler error → classify (DefaultClassifier; json/msgpack unmarshal failures and nil-payload = permanent → DLQ nack; infra errors = transient → bounded republish). Preserve the bulk-ack invariant. Constructor: return `(*ConsumerRoutes, error)`; bootstrap (`rabbitmq.server.go`) propagates — find how sibling constructors report fatal init errors there and match. Tests: unit test classification branches with fake delivery; RED first for "permanent error → Nack(false,false)" (current code requeues).
+
+**Files:** Modify `consumer.rabbitmq.go`, `rabbitmq.server.go` (+tests).
+
+**Verification:** RED→GREEN on the permanent-path test; `rg -n 'Nack\(false, true\)' components/ledger` → zero; `ALLOW_INSECURE_TLS=true go test ./components/ledger/...` green.
+
+**Done when:** classified posture live; panic gone.
+
+### Epic 4.3: Panic disposition (F13) — withBody remainder
+
+**Goal:** `newValidator` panic (`pkg/net/http/withBody.go:262`) converted to error return (runs per-request via ValidateStruct — not an init guard; reclassified (a)).
+**Scope:** `pkg/net/http/withBody.go` only (the rabbitmq item ships in 4.2.2).
+**Dependencies:** none.
+**Done when:** zero class-(a) panics remain repo-wide.
+
+#### Task 4.3.1: newValidator returns error
+
+- [ ] Done
+
+**Context:** `withBody.go:253-262` — `newValidator()` panics if `RegisterDefaultTranslations` fails; called from `ValidateStruct` (`:185`) per request; single internal call site; ValidateStruct already returns error.
+
+**Implementation vision:** Signature → `(*validator.Validate, ut.Translator, error)`; ValidateStruct wraps with `%w`. Test: not feasibly inducible (translator registration failing needs a broken locale) — cover via signature-level unit test that ValidateStruct still validates correctly; the conversion is mechanical.
+
+**Files:** `pkg/net/http/withBody.go` (+ test touch if any).
+
+**Verification:** `rg -n 'panic\(' pkg/net/http/withBody.go` → zero; `go test ./pkg/net/http/...` green.
+
+**Done when:** appendix panic inventory class-(a)+borderline list empty.
+
+### Epic 4.4: Redis backup-consumer quarantine + balance-sync posture (G4, F21 reframed, D5-v2 layer 2) — *(epic header above; tasks below)*
+
+#### Task 4.4.1: Quarantine table + repository
+
+- [ ] Done
+
+**Context:** Migration pattern: `components/ledger/migrations/transaction/0000NN_*.up/.down.sql`. The poison record payload is the `mmodel.TransactionRedisQueue` JSON held in the backup hash; key shape `transaction:{orgId}:{ledgerId}:{txId}`.
+
+**Implementation vision:** Migration `create_transaction_backup_quarantine`: columns id (uuid pk), organization_id, ledger_id, transaction_id, redis_key text, payload jsonb (raw record — the financial copy), failure_reason text, attempts int, first_failed_at, quarantined_at timestamptz. Repository in `components/ledger/internal/adapters/postgres/transactionquarantine/` (squirrel, integration-test-friendly): `Insert(ctx, rec)` + `ExistsByKey` (idempotent re-quarantine guard). Follow the postgres adapter idioms (T-standard spans, no value logging — payload column is data-plane, never logged).
+
+**Files:** Create migration pair + adapter package (+ unit test on SQL construction or integration test per repo pattern).
+
+**Verification:** `go build`; migration applies on local stack if feasible (else SQL lint by inspection); adapter tests green.
+
+**Done when:** durable quarantine surface exists.
+
+#### Task 4.4.2: Poison-record retry counter + quarantine flow in the consumer
+
+- [ ] Done
+
+**Context:** Five skip paths (`redis.consumer.go:286,291,354,452,520` post-drift). Counter must survive pod restarts → Redis parallel hash `backup_queue:{transactions}:attempts` keyed by the same field key (HIncrBy); cycle = 30min.
+
+**Implementation vision:** On each poison classification (unmarshal failure, nil Validate, settings fetch failure after N, build failure): HIncrBy attempts; if attempts >= 3 → Insert into quarantine repo; on success → HDel record + HDel attempts (order: quarantine insert MUST succeed before any HDel — never delete-only). TTL-fresh skips (`:291`) are NOT poison (by design) — untouched. Route-cache miss (`:520`) is non-terminal — untouched. Error log + `HandleSpanError` on quarantine events. Successful processing also clears the attempts field. Trace posture: derive cycle ctx via `context.WithoutCancel` from the boot ctx per T10 if currently bare Background (verify; minimal change).
+
+**Files:** Modify `redis.consumer.go` (+ tests with fake repo: poison → 3 cycles → quarantined+deleted; success → attempts cleared).
+
+**Verification:** RED→GREEN unit tests; `ALLOW_INSECURE_TLS=true go test ./components/ledger/internal/bootstrap/...` green.
+
+**Done when:** induced poison record quarantined within 3 cycles; nothing silently stranded.
+
+#### Task 4.4.3: Backup-queue + balance-sync observability
+
+- [ ] Done
+
+**Context:** No metrics today; MetricsFactory reachable via bootstrap wiring (`rabbitmq.server.go:189` precedent); F23 silent tenant skip at `balance_sync.worker.go:313-324`.
+
+**Implementation vision:** Metrics per T11 (MetricsFactory, snake_case, bounded labels): `redis_backup_queue_depth` (gauge, set each cycle), `redis_backup_queue_oldest_age_seconds` (gauge), `redis_backup_quarantine_total` (counter), `balance_sync_tenant_skip_total` (counter, label tenant_id — bounded by tenant count). Emit-errors logged Debug.
+
+**Files:** `redis.consumer.go`, `balance_sync.worker.go`, bootstrap wiring for factory injection.
+
+**Verification:** unit-test metric emission via factory fake/registry inspection where the repo has a pattern; else assert wiring compiles + cycle code paths call the recorders (test with fake).
+
+**Done when:** divergence is alertable.
+
+### Epic 4.5: Reporter posture hardening (D7 outcome) `[added at Phase 1 checkpoint]` — *(tasks)*
+
+#### Task 4.5.1: HMAC hard-fail
+
+- [ ] Done
+
+**Context:** `components/reporter-worker/internal/services/data-pipeline.go:73-104` `auditHMAC` — mismatch logs Warn and processing continues; empty-signature and no-key paths exist. Consumer chain has retry-manager access (notification consumer). D7: invalid signature → reject + dead-letter; security born enforcing.
+
+**Implementation vision:** RED: test asserting a mismatched HMAC returns a permanent error (and the pipeline does not process). Then: `auditHMAC` → `verifyHMACOrReject` returning error on mismatch; mismatch → typed permanent error (canonical sentinel — check the migration table for the HMAC/auth-adjacent reporter code; else `pkg.UnauthorizedError` shape) that the classifier marks non-retryable → DLQ. Decide empty-signature/no-key postures explicitly: no-key-configured = skip (deployment without HMAC stays functional — D7 targets INVALID signatures, not absent config); empty signature WITH key configured = reject (a producer that should sign didn't). Document both in the code.
+
+**Files:** `data-pipeline.go`, `data-hmac.go` (+tests), classifier permanent-set addition if code-based.
+
+**Verification:** RED→GREEN; reporter-worker tests green.
+
+**Done when:** invalid signature can never produce a report.
+
+#### Task 4.5.2: Explicit PARTIAL report status + per-section error codes
+
+- [ ] Done
+
+**Context:** Reports with failed sections deliver partial today with no loud marker. Status enum + section metadata shape: locate in `pkg/reporter/mongodb/report/report.go` (Status field) and the worker's section-failure path (generate-report.go section loop). E9: classified `error_code` per section, never raw text.
+
+**Implementation vision:** RED: test asserting a one-failed-section report persists status `PARTIAL` and section metadata carries a classified code. Add `PARTIAL` to the status values (find the enum/consts; update any status-validation); worker sets PARTIAL when ≥1 section failed and ≥1 succeeded (all-failed stays FAILED; all-ok stays DONE/finished value); per-section `error_code` from the canonical registry (the section-failure classification mirrors the worker's existing error_code mapping). GET surface already returns metadata — assert shape in test.
+
+**Files:** report model/status consts, `generate-report.go` (+tests), any status-transition validation.
+
+**Verification:** RED→GREEN; reporter trees green.
+
+**Done when:** partiality is impossible to miss.
 
 ## Phase 5: Hygiene sweep (mechanical, high-volume)
 
