@@ -840,7 +840,9 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 **Done when:** partiality is impossible to miss.
 
-## Phase 5: Hygiene sweep (mechanical, high-volume)
+## Phase 5: Hygiene sweep (mechanical, high-volume) — **Detailed**
+
+**Execution model (elaborated 2026-06-07):** Epics 5.1–5.5 execute as ONE pass per file-territory (six parallel territories: ledger-services+streaming, ledger-adapters, ledger-http+bootstrap+pkg, crm+fees, tracer, reporter), each applying all of T3/T5/T6/T7/T13/E10 to its territory — concern-sliced passes would re-edit the same files repeatedly. Epic 5.6 (tracer→MetricsFactory) follows, then 5.7 (domain metrics catalog + emission). Task checkboxes below map to the original epics; the territory pass ticks them collectively when its tallies reach zero.
 
 **Milestone:** The four bulk violation classes are at zero per the Task 1.1.4 master tally. Ordered AFTER Phase 3 so the sweep never touches code the consolidation deletes. Batches are per-slice, each independently verifiable (build + tests + tally re-run), making this phase highly parallelizable across subagents.
 
