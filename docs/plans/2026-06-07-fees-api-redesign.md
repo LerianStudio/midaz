@@ -18,7 +18,7 @@
 |-------|-----------|-------|--------|
 | 1 | All 12 fee/billing routes are path-scoped on org; both bespoke fee middlewares deleted; handlers read org via `GetUUIDFromLocals`; dead FEE-0020 sentinel removed; route tests pass against the new shapes; binary builds and serves the new routes | 1.1, 1.2, 1.3 | ✅ Done |
 | 2 | Generated artifacts (Swagger/OpenAPI + Postman) reflect the path-scoped contract — **executes inside the Phase 1 commit** (see Known Constraints) | 2.1, 2.2 | ✅ Done (rode in the Phase 1 commit as planned) |
-| 3 | Prose docs aligned: `SCOPING.md` rewritten to zero header-scoped exceptions, `llms-full.txt` fee route inventory, `RBAC-NAMESPACES.md` cross-refs (keys unchanged) | 3.1 | Pending |
+| 3 | Prose docs aligned: `SCOPING.md` rewritten to zero header-scoped exceptions, `llms-full.txt` fee route inventory, `RBAC-NAMESPACES.md` cross-refs (keys unchanged) | 3.1 | ✅ Done |
 | 4 | Hardening follow-ons gated on named decisions: org-bound authz (shared decision with CRM Epic 4.1) | 4.1 | Parked on decision point |
 
 ### Execution Notes (2026-06-07)
@@ -28,6 +28,7 @@
 - **Postman `{id}` heuristic struck exactly as predicted** (risk register item 1): `/packages/{id}` and `/billing-packages/{id}` rendered `{{organizationId}}`. Fixed at both mapping sites in `postman/generator/convert-openapi.js` (`createUrl` first-match-returns → new checks BEFORE the `/organizations/` fallback; `addParameters` last-sequential-if-wins → new checks AFTER `/holders/`). `{{packageId}}`/`{{billingPackageId}}` follow the `{{holderId}}` precedent: collection-level variables, not added to the environment template.
 - **Auth-protection test simplified:** the per-route `if path == ...` ID substitutions became a generic `concreteFeePath` helper replacing `:organization_id`/`:id` with fixed UUID literals.
 - **Swagger diff noise note:** the regenerated spec re-sorts paths, so the raw diff pairs unrelated lines (it can look like tag/description changes). Verified: `BillingPackages` tag intact, Authorization descriptions byte-identical in HEAD vs regenerated, all 6 fee path keys org-prefixed.
+- **Phase 3 (2026-06-07):** `SCOPING.md` rewritten as the zero-exception record (fees closure section mirrors the CRM one; missing-org-is-404 semantics documented at the convention level); `llms-full.txt` §4.3 flipped to the org-prefixed table with path-based scoping prose (deleted parser names deliberately NOT mentioned — dead-symbol references are noise); `RBAC-NAMESPACES.md` blockquote extended to cover the fee reshape and the Epic 2.2 historical record got a bracketed currency note (verbatim owner quote untouched). One self-correction: the Task 3.1.2 verification grep flagged my own prose naming the deleted parsers; trimmed.
 
 ### Known Constraints (lessons inherited from the CRM execution)
 
@@ -225,16 +226,58 @@ Mind `err` scoping per handler (`:=` where fresh, `=` where an earlier read decl
 
 ---
 
-## Phase 3 — Documentation alignment (Epic-level)
+## Phase 3 — Documentation alignment (Detailed)
 
 **Phase exit criteria:** No prose doc describes any header-scoped surface in the unified binary; `SCOPING.md` records the fees reversal and closes with zero exceptions; `llms-full.txt` fee route inventory matches the live router; `RBAC-NAMESPACES.md` cross-refs accurate (policy keys unchanged).
 
 ### Epic 3.1: Rewrite SCOPING.md; update llms-full.txt and RBAC cross-refs
 
-**Goal:** `docs/api/SCOPING.md` is rewritten so the "single remaining header-scoped exception: fees / billing" section (lines 58-81) becomes a closure record: every surface is path-scoped, `X-Organization-Id` no longer exists in the API contract. `llms-full.txt` "Embedded Fee Service" section (lines 355-374) lists the 12 path-scoped routes and drops the "fee-specific header parameter" scoping note. `docs/auth/RBAC-NAMESPACES.md` fee cross-refs stay accurate — `plugin-fees:*` keys explicitly unchanged (R9), only route shape moved; no policy migration is created by this plan. Historical plan docs (`2026-06-06-crm-api-redesign.md`, `2026-06-06-auth-stabilization.md`) are execution records — do NOT rewrite them.
+**Goal:** `docs/api/SCOPING.md` is rewritten so the "single remaining header-scoped exception: fees / billing" section becomes a closure record: every surface is path-scoped, `X-Organization-Id` no longer exists in the API contract. `llms-full.txt` fee section lists the 12 path-scoped routes and drops the "fee-specific header parameter" scoping note. `docs/auth/RBAC-NAMESPACES.md` fee cross-refs stay accurate — `plugin-fees:*` keys explicitly unchanged (R9), only route shape moved; no policy migration is created by this plan. Historical plan docs (`2026-06-06-crm-api-redesign.md`, `2026-06-06-auth-stabilization.md`) are execution records — do NOT rewrite them.
 **Scope:** `docs/api/SCOPING.md`, `llms-full.txt`, `docs/auth/RBAC-NAMESPACES.md`.
 **Dependencies:** Phases 1-2.
-**Done when:** `grep -rn "X-Organization-Id" docs/ llms-full.txt` returns only historical-plan and changelog references; `SCOPING.md` states zero header-scoped surfaces; `llms-full.txt` fee table shows the org-prefixed paths.
+**Done when:** `grep -rn "X-Organization-Id" docs/ llms-full.txt` returns only historical-plan and decision-record references; `SCOPING.md` states zero header-scoped surfaces; `llms-full.txt` fee table shows the org-prefixed paths.
+
+#### Task 3.1.1: Rewrite `docs/api/SCOPING.md` to a zero-exception record
+
+- [x] Done
+
+**Context (elaborated 2026-06-07 against the post-Phase-1 tree):** The doc's intro (lines 3-6) names fees as "the one remaining exception"; the dedicated section "The single remaining header-scoped exception: fees / billing" (lines 58-73) cites the now-deleted `fees_middlewares.go:19` constant and `parseFeeHeaderParameters`, shows a header-based `POST /v1/packages` example, and defers harmonization to "the auth/X1 plan" (superseded by THIS plan). The Summary (75-80) lists fees as header-based.
+
+**Implementation vision:** Keep the R22-reversal framing and the CRM section intact (still accurate history + live convention). Rewrite the intro to state the whole binary is path-scoped with no exceptions. Add fee example paths to the convention section's code block. Replace the exception section with a "What changed for fees / billing (2026-06-07)" closure record mirroring "What changed for CRM": org now a path-validated UUID read via `GetUUIDFromLocals`; both bespoke fee middlewares deleted; path-validation errors normalized from FEE-shim codes (FEE-0020 deleted) to the canonical `ErrInvalidPathParameter` envelope; ledger remains a create-body field / list filter. Rewrite the Summary to one rule: path-based scoping everywhere, `X-Organization-Id` no longer part of any API contract.
+
+**Files:** Modify: `docs/api/SCOPING.md`.
+
+**Verification:** `grep -c "remaining" docs/api/SCOPING.md` returns 0 occurrences describing a live exception; `grep -c "fees_middlewares" docs/api/SCOPING.md` returns 0.
+
+**Done when:** the doc records the fees reversal and asserts zero header-scoped surfaces.
+
+#### Task 3.1.2: Update `llms-full.txt` fee section and scoping cross-refs
+
+- [x] Done
+
+**Context:** Section 4.3 (lines 352-375) says scoping "uses fee-specific header and path parsers (`parseFeeHeaderParameters` / `parseFeePathParameters`)" — both deleted — and lists the 12 flat paths. The repo-tree comment at line 133 says "fees the sole header-scoped exception (R22 reversed)".
+
+**Implementation vision:** Flip the 12 route-table paths to the org-prefixed shapes. Replace the scoping sentence: path-based via the standard protected-route chain (`ParseUUIDPathParameters`), org read from validated locals; note the path-validation error normalization to canonical codes. Update the line-133 tree comment to state path-based scoping across all surfaces. Leave the CRM section 4.2 untouched (already accurate).
+
+**Files:** Modify: `llms-full.txt` (section 4.3 ~352-375; tree comment line 133).
+
+**Verification:** `grep -n "parseFeeHeaderParameters\|sole header-scoped" llms-full.txt` returns nothing; `grep -c "organizations/{organization_id}/packages" llms-full.txt` ≥ 2.
+
+**Done when:** the fee route inventory matches the live router and no header-scoping prose remains.
+
+#### Task 3.1.3: Update `docs/auth/RBAC-NAMESPACES.md` route-shape cross-refs
+
+- [x] Done
+
+**Context:** The "Route shape ≠ authz key" blockquote (lines 17-21) covers only CRM/composition. The trust-model section (lines 133-147) records the 2026-06-06 owner decision resolving Epic 2.2 (fees `X-Organization-Id` org-claim cross-check) — a dated historical record that now references a removed header.
+
+**Implementation vision:** Extend the blockquote: fee/billing routes also moved to path-scoped org (2026-06-07), keys byte-identical, X1 unaffected, no `plugin-fees` migration created. In the trust-model section, add one bracketed currency note after the Epic 2.2 reference — the header it cross-checked has since been removed in favor of the path segment; the tenant-is-trust-boundary decision carries over unchanged to the path parameter. Do NOT alter the verbatim owner quote or the decision content.
+
+**Files:** Modify: `docs/auth/RBAC-NAMESPACES.md` (blockquote ~17-21; trust-model note ~135).
+
+**Verification:** `grep -c "plugin-fees" docs/auth/RBAC-NAMESPACES.md` unchanged from before (no key edits); the blockquote mentions fees.
+
+**Done when:** route-shape narrative covers fees; all policy-key statements untouched.
 
 ---
 

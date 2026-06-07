@@ -16,9 +16,11 @@ namespace string.
 
 > **Route shape ≠ authz key.** Separately from the namespace flip, the CRM and composition routes
 > moved from header-scoped organization (`X-Organization-Id`) to path-scoped
-> (`/v1/organizations/{organization_id}/...`; composition adds `/ledgers/{ledger_id}`). That change
-> is purely URL shape — the `namespace:resource:action` keys below are byte-identical to before, so
-> the X1 grant migration is unaffected by it. See `docs/api/SCOPING.md` (R22 reversed).
+> (`/v1/organizations/{organization_id}/...`; composition adds `/ledgers/{ledger_id}`), and the
+> fee/billing routes followed on 2026-06-07. Both changes are purely URL shape — the
+> `namespace:resource:action` keys below are byte-identical to before, so the X1 grant migration
+> is unaffected and no `plugin-fees` policy migration exists. See `docs/api/SCOPING.md`
+> (R22 reversed, now exception-free).
 
 ## The three namespaces
 
@@ -133,7 +135,8 @@ live in a single binary, which makes the split especially non-obvious.
 ## 3. Trust-model context (owner decision, 2026-06-06)
 
 Recorded verbatim from the owner, resolving Epic 2.2 (fees `X-Organization-Id` org-claim
-cross-check) as **no-action**:
+cross-check) as **no-action** [the header itself was since removed — fees moved to path-scoped
+`organization_id` on 2026-06-07; the decision carries over unchanged to the path parameter]:
 
 > "não existe risco. o tenant owner é responsável efetivamente por todas as orgs embaixo dele."
 

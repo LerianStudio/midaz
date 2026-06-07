@@ -130,7 +130,7 @@ midaz/
 ├── mk/                      # Makefile includes (coverage, tests, quality)
 ├── docs/PROJECT_RULES.md    # Coding standards
 ├── docs/auth/RBAC-NAMESPACES.md  # The three authz namespaces (R9)
-├── docs/api/SCOPING.md      # Path-based org scoping; fees the sole header-scoped exception (R22 reversed)
+├── docs/api/SCOPING.md      # Path-based org scoping on every surface, no exceptions (R22 reversed)
 ├── Makefile                 # Root orchestrator
 ├── go.mod                   # Module: github.com/LerianStudio/midaz/v4 (single root go.mod)
 └── go.sum
@@ -353,23 +353,29 @@ are still emitted on their own paths.
 
 The fee engine + billing-package surface is embedded in the ledger binary — it is **not** a
 standalone service. Routes are registered in `components/ledger/internal/adapters/http/in/fees_routes.go`
-under the `plugin-fees` authz namespace and served on `:3002`. Scoping uses fee-specific header
-and path parsers (`parseFeeHeaderParameters` / `parseFeePathParameters`).
+under the `plugin-fees` authz namespace and served on `:3002`.
+
+Scoping is **path-based**: fee endpoints read the organization from the `:organization_id` path
+segment, UUID-validated by the protected-route chain (`ParseUUIDPathParameters`) — the same
+convention as every other surface in the binary. The former `X-Organization-Id` header was
+removed; path-validation errors return the canonical midaz `ErrInvalidPathParameter` envelope
+(fee business errors keep their `FEE-xxxx` codes). `ledger_id` remains a create-body field and an optional
+`?ledgerId=` list filter — never a path scope. See `docs/api/SCOPING.md`.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | /v1/packages | Create fee package |
-| GET | /v1/packages | List fee packages |
-| GET | /v1/packages/:id | Get fee package |
-| PATCH | /v1/packages/:id | Update fee package |
-| DELETE | /v1/packages/:id | Delete fee package |
-| POST | /v1/estimates | Estimate fee calculation (dry run) |
-| POST | /v1/billing-packages | Create billing package |
-| GET | /v1/billing-packages | List billing packages |
-| GET | /v1/billing-packages/:id | Get billing package |
-| PATCH | /v1/billing-packages/:id | Update billing package |
-| DELETE | /v1/billing-packages/:id | Delete billing package |
-| POST | /v1/billing/calculate | Calculate billing |
+| POST | /v1/organizations/{organization_id}/packages | Create fee package |
+| GET | /v1/organizations/{organization_id}/packages | List fee packages |
+| GET | /v1/organizations/{organization_id}/packages/:id | Get fee package |
+| PATCH | /v1/organizations/{organization_id}/packages/:id | Update fee package |
+| DELETE | /v1/organizations/{organization_id}/packages/:id | Delete fee package |
+| POST | /v1/organizations/{organization_id}/estimates | Estimate fee calculation (dry run) |
+| POST | /v1/organizations/{organization_id}/billing-packages | Create billing package |
+| GET | /v1/organizations/{organization_id}/billing-packages | List billing packages |
+| GET | /v1/organizations/{organization_id}/billing-packages/:id | Get billing package |
+| PATCH | /v1/organizations/{organization_id}/billing-packages/:id | Update billing package |
+| DELETE | /v1/organizations/{organization_id}/billing-packages/:id | Delete billing package |
+| POST | /v1/organizations/{organization_id}/billing/calculate | Calculate billing |
 
 `POST /v1/fees` (live fee calculation) is intentionally **not** exposed — fees run in-process via
 the transaction-create seam, not over HTTP.
