@@ -4,7 +4,7 @@
 
 The 14 rules below are binding. Rules E7 and E8 cross-reference telemetry rules by number and do not restate them. Each rule names its enforcement mechanism: `forbidigo` / `depguard` (golangci-lint, config in `.golangci.yml`), `custom-lint` (a Midaz-specific analyzer to be built), `contract-test` (a Go test that locks wire behavior), or `review-only` (no automated gate; PR review owns it).
 
-Several rules reference open decision points from the normalization plan's decision memo. Their placeholders are reproduced verbatim until resolved: `per D1 outcome` (wire-code families), `per D2 outcome` (status-mapping deviation), `per D7 outcome` (consumer carve-outs).
+The decision memo (D1–D7) was resolved with the owner on 2026-06-07; outcomes are baked into the rules below and recorded in the normalization plan's Decision Points table.
 
 ---
 
@@ -46,25 +46,25 @@ Several rules reference open decision points from the normalization plan's decis
 | Authorization failure | 403 |
 | Infrastructure failure | 500 / 503 |
 
-**Documented deviation (pending D2).** Mainline ledger currently types many business-rule violations as `400`-`ValidationError` rather than `422`-`UnprocessableOperationError`. Example: `ErrTransactionValueMismatch` is registered as a `ValidationError` (HTTP 400) at `pkg/errors.go:824-826`, despite being a semantic rule violation that the table would map to 422. This is a **documented deviation pending decision D2**. New code follows the table. Existing mainline codes are NOT re-typed in this effort — re-typing changes wire status for shipped clients and is out of scope until D2 lands.
+**Transitional state (D2 outcome: re-type everything).** Mainline ledger currently types many business-rule violations as `400`-`ValidationError` rather than `422`-`UnprocessableOperationError` — e.g. `ErrTransactionValueMismatch` at `pkg/errors.go:824-826`. Per the D2 outcome these are re-typed to the table in Phase 3 (Epic 3.6) inside the v4 breaking window, with each re-typed code listed in the migration notes. Until that epic lands, the mismatch is a known transitional state, not a sanctioned pattern. New code follows the table from day one.
 
-**Rationale.** A consistent class→status mapping is what lets clients branch on HTTP status without parsing error codes. The deviation is preserved deliberately: silently flipping 400→422 on a shipped endpoint is a breaking change disguised as a cleanup.
+**Rationale.** A consistent class→status mapping is what lets clients branch on HTTP status without parsing error codes. v4 is the one breaking window — re-typing inside it costs one announcement; re-typing after it ships costs a major version.
 
 **Canonical example.** Mapping authority: `pkg/net/http/errors.go:19-63` (each typed arm selects the status). Deviation: `pkg/errors.go:824-826` (`ErrTransactionValueMismatch` → `ValidationError` → 400).
 
-**Enforcement.** `review-only` (the class→status table is the reviewer's checklist for new error registrations; D2 decides whether the deviation becomes a tracked exception list or a migration).
+**Enforcement.** `review-only` for new registrations; `contract-test` locks the post-Epic-3.6 statuses.
 
 ---
 
 ## E4 — Sentinels
 
-**Rule.** One numeric sentinel registry in `pkg/constant/errors.go`. Sentinels are `error` values (`errors.New("0073")`-style numeric codes) referenced everywhere by their constant identifier — NEVER by string literal at mapping or classification sites. Prefixed wire-code families (`FEE-`, `TRC-`, `TPL-`, `REP-`) are handled `per D1 outcome`.
+**Rule.** One numeric sentinel registry in `pkg/constant/errors.go`. Sentinels are `error` values (`errors.New("0073")`-style numeric codes) referenced everywhere by their constant identifier — NEVER by string literal at mapping or classification sites. Prefixed wire-code families (`FEE-`, `TRC-`, `TPL-`, `REP-`) are RETIRED (D1 outcome): every family migrates to the canonical numeric registry in Phase 3, and prefixed code literals are banned thereafter.
 
 **Rationale.** A string literal at a mapping site (`"TRC-0003"`) cannot be found by reference search, cannot be renamed safely, and decouples the wire code from any compile-time check that it exists in the registry. Referencing the constant makes the registry the single source of truth and makes every emission site greppable.
 
 **Canonical example.** Registry: `pkg/constant/errors.go` (e.g. `ErrTransactionValueMismatch = errors.New("0073")` at `:87`). Counter-example: `components/tracer/internal/adapters/http/in/rule_handler.go:80` and `:159` emit the bare literal `"TRC-0003"` (and the file repeats `"TRC-0001"`, `"TRC-0007"`, etc. across its handlers) instead of referencing a registered constant.
 
-**Enforcement.** `forbidigo` (forbid string literals matching `/"(FEE|TRC|TPL|REP)-\d+"/` outside the registry file) once D1 fixes the family layout.
+**Enforcement.** `forbidigo` (forbid string literals matching `/"(FEE|TRC|TPL|REP)-\d+"/` anywhere in non-test code once the Phase 3 migration lands).
 
 ---
 
@@ -134,13 +134,13 @@ Several rules reference open decision points from the normalization plan's decis
 
 ## E11 — Consumer error posture
 
-**Rule.** Message consumers classify each failure as transient or permanent. Permanent failures → `Nack(requeue=false)` to the dead-letter exchange (DLX). Transient failures → bounded retry with backoff, then DLX on exhaustion. NEVER blanket `Nack(requeue=true)` — it creates an unbounded hot-loop redelivery of poison messages. Carve-outs are handled `per D7 outcome`. The Redis-path analog: poison records must be deleted or dead-lettered with a retry counter, never skipped-in-place (audit appendix F21).
+**Rule.** Message consumers classify each failure as transient or permanent. Permanent failures → `Nack(requeue=false)` to the dead-letter exchange (DLX). Transient failures → bounded retry with backoff, then DLX on exhaustion. NEVER blanket `Nack(requeue=true)` — it creates an unbounded hot-loop redelivery of poison messages. There are NO soft-fail carve-outs (D7 outcome): invalid HMAC signatures → reject + dead-letter, never process; partial-result reports carry an explicit `PARTIAL` status with per-section classified `error_code` (E9), never silent partiality. The Redis-path analog: poison records must be deleted or dead-lettered with a retry counter, never skipped-in-place (audit appendix F21).
 
 **Rationale.** `Nack(requeue=true)` on a deterministically-failing message redelivers it immediately and forever — CPU burn, log flood, and head-of-line blocking. Classification plus bounded retry plus DLX is the only posture that bounds the work and preserves the poison message for inspection. The Redis skip-in-place variant (F21) is the same failure mode without a queue: poison records re-attempted every cycle, unbounded growth, no counter, no DLQ, no alert.
 
 **Canonical example.** Correct posture: `components/reporter-worker/internal/adapters/rabbitmq/retry_manager.go:61-122` (`HandleFailure`) — non-retryable → DLQ (`:62-72`), retry exhaustion → DLQ (`:74-85`), transient → backoff + republish (`:87-121`); driven by the classifier at `pkg/reporter/rabbitmq/error_classifier.go:42-163` (`IsRetryable`, `IsPermanentTenantError`, `ClassifyFailureReason`, `isNonRetryableDomainError`). Counter-example: `components/ledger/internal/adapters/rabbitmq/consumer.rabbitmq.go:338` — blanket `_ = msg.Nack(false, true)` with no classification, requeueing every failure unconditionally.
 
-**Enforcement.** `custom-lint` (flag `Nack(*, true)` outside an explicit, classified retry path); `review-only` for the Redis-path F21 remediation until D7 fixes the carve-out set.
+**Enforcement.** `custom-lint` (flag `Nack(*, true)` outside an explicit, classified retry path); `contract-test` for the HMAC hard-fail and PARTIAL-status postures (Epic 4.5); `review-only` for the Redis-path F21 remediation.
 
 ---
 
@@ -174,12 +174,12 @@ The one class-(a) real violation in scope — `components/ledger/internal/adapte
 
 ---
 
-## E14 — Wire-code families
+## E14 — Wire-code contract locks
 
-**Rule.** Prefixed wire-code families (`FEE-`, `TRC-`, `TPL-`, `REP-`) have a defined registry layout and a per-family contract-test that locks the code→status→title→message mapping against drift. Both the registry layout and the per-family lock are decided `per D1 outcome`.
+**Rule.** Every API surface's error codes are locked by a per-surface contract test asserting the code→status→title→message mapping against drift. With the prefixed families retired (D1 outcome, see E4), the locks cover the canonical numeric registry per surface: fees, tracer, reporter, CRM, and mainline ledger each get (or already have) a lock; the Phase 3 migrations land WITH their locks in the same PR.
 
-**Rationale.** Wire codes are an external API surface; a silent change to a code's status or message breaks client error handling. A per-family contract test makes any such change a failing test rather than a production surprise, the same way the streaming `JSONShape` tests lock event wire contracts.
+**Rationale.** Wire codes are an external API surface; a silent change to a code's status or message breaks client error handling. A contract test makes any such change a failing test rather than a production surprise, the same way the streaming `JSONShape` tests lock event wire contracts.
 
-**Canonical example / template.** `components/ledger/internal/adapters/http/in/crm_error_contract_test.go` — `TestErrorContract_CanonicalCodes` (`:56`) locks the post-shim CRM error codes via table-driven cases, and `TestErrorContract_SurvivingDomainCodeUnchanged` (`:166`) asserts a surviving domain code is unchanged after the namespace flip. This is the template each wire-code family's lock follows.
+**Canonical example / template.** `components/ledger/internal/adapters/http/in/crm_error_contract_test.go` — `TestErrorContract_CanonicalCodes` (`:56`) locks the post-shim CRM error codes via table-driven cases, and `TestErrorContract_SurvivingDomainCodeUnchanged` (`:166`) asserts a surviving domain code is unchanged after the namespace flip. This is the template each surface's lock follows.
 
-**Enforcement.** `contract-test` (one per family, modeled on `crm_error_contract_test.go`), layout finalized `per D1 outcome`.
+**Enforcement.** `contract-test` (one per surface, modeled on `crm_error_contract_test.go`).

@@ -16,11 +16,11 @@
 
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
-| 1 | Audit gaps closed; unified standard authored; decision memo resolved with owner | 1.1, 1.2 | Detailed |
+| 1 | Audit gaps closed; unified standard authored; decision memo resolved with owner | 1.1, 1.2 | **Complete** |
 | 2 | Zero financial values / PII / raw payloads on any telemetry signal or client-surfaced error | 2.1, 2.2, 2.3 | Epic-level |
-| 3 | One error platform: forks deleted, canonical boundary hardened, one envelope | 3.1–3.5 | Epic-level |
-| 4 | Async error resilience: transaction consumer can't hot-loop; panic inventory dispositioned | 4.1–4.4 | Epic-level |
-| 5 | Hygiene sweep: structured logging, correct span topology, level discipline, helper-by-class | 5.1–5.5 | Epic-level |
+| 3 | One error platform: forks deleted, canonical boundary hardened, one envelope, status table enforced (D2) | 3.1–3.6 | Epic-level |
+| 4 | Async error resilience: transaction consumer can't hot-loop; panic inventory dispositioned; reporter posture hardened (D7) | 4.1–4.5 | Epic-level |
+| 5 | Hygiene sweep + metrics normalization: structured logging, span topology, level discipline, helper-by-class, one metrics stack (D4), domain metrics (D6) | 5.1–5.7 | Epic-level |
 | 6 | Enforcement: lint gates + contract tests in CI; docs synced | 6.1–6.3 | Epic-level |
 
 ---
@@ -83,17 +83,17 @@ Produced by a 32-agent workflow: 6 slices × 2 dimensions surveyed, baseline of 
 
 ## Decision Points (owner gate at Phase 1 checkpoint)
 
-These are wire-visible or ops-owned calls. Each has a recommendation; none is executed before the owner rules.
+Resolved with the owner at the Phase 1 checkpoint (2026-06-07). Governing context for several outcomes: **tracer and reporter are greenfield with no effective users** — the v4 window is ONE breaking window, so uniformity beats preservation.
 
-| # | Decision | Recommendation |
-|---|----------|----------------|
-| D1 | Fate of wire-visible code families. **FEE-xxxx**: migrate to canonical registry now (CRM precedent `crm_error_contract_test.go`; fees clients just absorbed a breaking route change — one migration window, not two). **TRC-/TPL-/REP-**: relocate into `pkg/constant/errors.go` as documented prefixed namespaces (kill the fork packages) but keep the code strings (operator dashboards grep them; tracer/reporter are separate deploy units with their own clients) | Split: break FEE-, keep-and-relocate TRC-/TPL-/REP- |
-| D2 | 400→422/409 re-typing. Forks: fold into the D1 migration (one announcement). Mainline ledger (82 ValidationError sites incl. `ErrTransactionValueMismatch`): **defer** — document as a known deviation; a mainline status-code break needs its own client-comms window | Forks now, mainline documented-deferred |
-| D3 | Envelope convergence may alter JSON field casing/presence on some fee/tracer endpoints (fee ValidationError already drifted — no json tags) | Converge; the drift is already a bug-shaped contract |
-| D4 | Tracer's bespoke Prometheus metric families (names pinned for Grafana dashboards) vs lib-observability MetricsFactory | Bless tracer's `recorder.go` discipline as the sanctioned model, keep pinned names; mandate MetricsFactory for all NEW metrics |
-| D5 | Transaction-consumer DLQ topology + retry budget (infra change to `definitions.json`) | Adopt reporter pattern: maxRetries 3, exponential backoff, `transaction.dlx`/`transaction.dlq` mirroring reporter's TTL/max-len |
-| D6 | Domain-metrics scope: mandatory on all endpoints vs middleware coverage sufficient | Middleware sufficient for now; domain metrics opt-in by product priority; no mass label rename (F17 verified labels are bounded) |
-| D7 | reporter HMAC soft-fail (D6 legacy) and partial-result posture (D7 legacy) | Keep as documented carve-outs in the standard |
+| # | Decision | Recommendation | **Outcome** |
+|---|----------|----------------|-------------|
+| D1 | Fate of wire-visible code families (FEE-/TRC-/TPL-/REP-) | Split: break FEE-, relocate TRC-/TPL-/REP- | **Break ALL families** — every prefixed family migrates to the canonical numeric registry in Phase 3; prefixed literals banned post-migration |
+| D2 | 400→422/409 re-typing of business-rule violations | Forks now, mainline deferred | **Everything now** — forks in the D1 migration AND mainline ledger's ~82 ValidationError sites re-typed in Phase 3 (new Epic 3.6); v4 is the comms window |
+| D3 | Envelope convergence | Converge | **Converge** — one `{code,title,message}` envelope everywhere |
+| D4 | Tracer bespoke Prometheus families vs MetricsFactory | Bless tracer, Factory for new only | **Migrate tracer to MetricsFactory** — no sanctioned exception; allowlist discipline (`recorder.go:32-49`) survives as the cardinality model; greenfield = no dashboards to preserve (new Epic 5.6) |
+| D5 | Transaction-consumer DLQ topology + retry budget | Reporter pattern, maxRetries 3 | **Deferred to Phase 4 elaboration** — Epic 4.2 blocked on this; topology decided against the codebase as it exists post-Phase 3 |
+| D6 | Domain-metrics scope | Middleware sufficient, opt-in | **Mandate domain metrics on all business operations** (new Epic 5.7) |
+| D7 | reporter HMAC soft-fail + partial-result posture | Keep as carve-outs | **HMAC hard-fail** (invalid signature → reject + dead-letter; security born enforcing) **+ partial-result explicit** (PARTIAL report status + per-section classified `error_code` per E9) — new Epic 4.5 |
 
 ---
 
@@ -238,7 +238,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 1.2.3: Resolve the decision memo with the owner
 
-- [ ] Done
+- [x] Done — all seven outcomes recorded 2026-06-07 (see Decision Points table)
 
 **Context:** D1–D7 are wire-visible or ops-owned. Phases 3, 4, and 6 elaborate differently depending on the answers (e.g., D1 decides whether Phase 3 renumbers FEE- codes or relocates them; D5 decides Phase 4's infra task).
 
@@ -320,6 +320,13 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 **Dependencies:** Epics 3.1–3.2 (envelope decisions settled).
 **Done when:** no route can emit `{"error":text}` (test via panic/raw-fiber-error injection); CRM idempotent-create integration tests green with the typed mechanism.
 
+### Epic 3.6: Mainline status re-typing (D2 outcome) `[added at Phase 1 checkpoint]`
+
+**Goal:** mainline ledger business-rule violations re-typed per the E3 status table — the ~82 `ValidationError`-400 registrations that are semantic rule violations (e.g. `ErrTransactionValueMismatch`) become 422/409; syntactic-input errors stay 400.
+**Scope:** `pkg/errors.go` registrations, error-contract tests, swagger/postman regeneration, v4 migration notes (changelog entry per re-typed code).
+**Dependencies:** Epic 3.1 (boundary hardened); elaboration classifies each of the 82 sites semantic-vs-syntactic — blind mass re-typing is forbidden.
+**Done when:** every business-rule code maps per the table; contract tests lock the new statuses; migration notes list every code whose status changed.
+
 ---
 
 ## Phase 4: Async resilience
@@ -337,7 +344,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 **Goal:** ledger transaction consumer classifies permanent-vs-transient, dead-letters permanents, bounded-retries transients; blanket `Nack(requeue=true)` gone from all three sites; DLX/DLQ provisioned in infra topology per D5.
 **Scope:** `components/ledger/internal/adapters/rabbitmq/consumer.rabbitmq.go`, `components/infra/rabbitmq/etc/definitions.json`.
-**Dependencies:** Epic 4.1; D5 outcome (retry budget, topology names).
+**Dependencies:** Epic 4.1; **D5 deliberately deferred to this phase's elaboration** — topology + retry budget decided against the post-Phase-3 codebase (reporter pattern maxRetries-3 remains the working hypothesis).
 **Done when:** integration test feeds a poison message (nil-Transaction payload) and observes DLQ delivery within the retry budget — no hot loop.
 
 ### Epic 4.3: Panic disposition (F13)
@@ -353,6 +360,13 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 **Scope:** `components/ledger/internal/bootstrap/redis.consumer.go`, `balance_sync.worker.go`.
 **Dependencies:** Task 1.1.2 findings; Phase 1 rules 10–11.
 **Done when:** both loops carry trace context per the standard; error posture documented or remediated per findings.
+
+### Epic 4.5: Reporter posture hardening (D7 outcome) `[added at Phase 1 checkpoint]`
+
+**Goal:** HMAC validation hard-fails — invalid signature → reject + dead-letter, never process; partial-result reports carry an explicit `PARTIAL` status plus per-section classified `error_code` (E9-compliant), never silent partiality.
+**Scope:** reporter-worker HMAC verification path, report generation/status model, report metadata writers; reporter integration tests.
+**Dependencies:** Epic 3.3 (canonical error types for section error codes); independent of 4.1–4.4.
+**Done when:** invalid-signature message lands in DLQ without processing (test); a report with one induced section failure renders status `PARTIAL` with that section's classified code (test).
 
 ---
 
@@ -395,6 +409,20 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 **Dependencies:** none within the phase.
 **Done when:** rg for forbidden aliases and `reflect.TypeOf(mmodel` returns zero.
 
+### Epic 5.6: Tracer metrics migration to MetricsFactory (D4 outcome) `[added at Phase 1 checkpoint]`
+
+**Goal:** tracer's bespoke Prometheus families rebuilt on lib-observability MetricsFactory; the `recorder.go:32-49` bounded-label allowlist discipline preserved as the model; old families removed (greenfield — no dashboard compatibility required).
+**Scope:** `components/tracer/internal/observability/`, tracer bootstrap wiring, any local Grafana provisioning under `components/infra`.
+**Dependencies:** Phase 1 rule T11; independent of 5.1–5.5.
+**Done when:** zero direct prometheus client usage in tracer outside the factory path; label cardinality still bounded (test); T11's sanctioned-exception clause already removed from the standard.
+
+### Epic 5.7: Domain metrics on all business operations (D6 outcome) `[added at Phase 1 checkpoint]`
+
+**Goal:** every business operation (commands + key queries) across ledger/CRM/fees/tracer/reporter emits domain metrics via MetricsFactory per T11 — fees and crm go from zero to covered.
+**Scope:** all six slices' service layers; metric naming per T11 (snake_case + unit suffix, bounded labels).
+**Dependencies:** Epic 5.6 (one stack first); elaboration defines the per-operation metric catalog before any code.
+**Done when:** a documented metric catalog exists and every cataloged operation emits; spot-verified via local Prometheus scrape.
+
 ---
 
 ## Phase 6: Enforcement + docs sync
@@ -426,13 +454,11 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 ## Execution Notes
 
-*(filled during execution — deviations, learnings, count corrections)*
+- **2026-06-07 Phase 1 executed and checkpointed.** Epic 1.1: four parallel sweep agents closed G1/G3/G4/G7/G8 into the appendix; spot-check corrections applied (nil-redactor 76/100 with anchored pattern — agent's unanchored 87 rejected; probe-traffic finding downgraded P1→P2 after confirming `WithTelemetry` exclusion is opt-in, one-arg fix). Epic 1.2: both standards authored with all canonical refs verified; agents corrected 10+ suggested line refs against reality. Decision memo: D1/D2/D4/D6 resolved AGAINST the original recommendations — owner's governing frame is "tracer/reporter greenfield, v4 = one breaking window"; plan scope updated (Epics 3.6, 4.5, 5.6, 5.7 added; D5 deferred to Phase 4 elaboration). D7 re-framed at the checkpoint (greenfield flips the HMAC asymmetry: enforce now is free, enforce later is breaking).
+- Commits: `65b793010` (plan + audit JSON + appendix), `9e48d3ef4` (standards), Phase-1-close commit (this update).
 
 ## Out of Scope
 
-- Mainline ledger 400→422 re-typing (D2 defers; documented deviation).
-- Renaming tracer's pinned Prometheus metric families (D4 recommendation keeps them).
-- Mass metric-label renames (F17 verified labels are bounded; cross-signal naming documented, not migrated).
+- Mass metric-label renames outside the D4 tracer migration (F17 verified labels are bounded).
 - lib-observability / lib-commons upstream changes (e.g., making `SetSpanAttributesFromValue` require a redactor) — file upstream tickets if Phase 2 wants them, but do not block on them.
 - Streaming event payload schemas (governed wire contract — G2 carve-out).
-- reporter HMAC soft-fail / partial-result postures (D7 carve-outs).
