@@ -1,0 +1,1116 @@
+{
+ "baseline": {
+  "telemetry_rules": [
+   {
+    "rule": "Every function takes context.Context as the first parameter; check ctx.Err() before expensive work.",
+    "source": "CLAUDE.md Coding Rules; PROJECT_RULES.md \u00a73 Context Propagation (lines 228-240)"
+   },
+   {
+    "rule": "Extract tracking from context at the top of every operation via libCommons.NewTrackingFromContext(ctx) -> (logger, tracer, _, _). (Note: lib lives at lib-observability; withRecover.go uses libObs.NewTrackingFromContext.)",
+    "source": "PROJECT_RULES.md \u00a73 (lines 233, 248); pkg/net/http/withRecover.go:50"
+   },
+   {
+    "rule": "Create a span per operation: ctx, span := tracer.Start(ctx, \"<layer>.<operation>\"); defer span.End() immediately after Start.",
+    "source": "CLAUDE.md Observability 'Span lifecycle'; PROJECT_RULES.md \u00a73 (lines 251-252)"
+   },
+   {
+    "rule": "Span naming convention is `<layer>.<operation>` e.g. command.create_transaction, postgres.find_organization, handler.create_transaction.",
+    "source": "PROJECT_RULES.md \u00a73 (line 265); CLAUDE.md examples"
+   },
+   {
+    "rule": "For child I/O spans preserve parent context: use `_, spanExec := tracer.Start(ctx, ...)`, never overwrite the parent ctx with the child span.",
+    "source": "CLAUDE.md Observability 'Span lifecycle'; CLAUDE.md Do Not"
+   },
+   {
+    "rule": "Do not create child spans for in-memory mapping/validation.",
+    "source": "CLAUDE.md Observability 'Span lifecycle'"
+   },
+   {
+    "rule": "Do not add redundant 'Initiating...' logs; spans already mark operation starts.",
+    "source": "CLAUDE.md Observability 'Span lifecycle'"
+   },
+   {
+    "rule": "Span input attributes use the `app.request.*` namespace (IDs, query params, payload-derived values).",
+    "source": "CLAUDE.md Observability 'Span attributes'"
+   },
+   {
+    "rule": "Span outputs/system observations use non-request namespaces: db.rows_affected, db.rows_returned, app.operation_route_has_transaction_route_links.",
+    "source": "CLAUDE.md Observability 'Span attributes'; CLAUDE.md Do Not"
+   },
+   {
+    "rule": "Never attach sensitive data to spans: no raw payloads, SQL args, balances, financial values, or PII.",
+    "source": "CLAUDE.md Observability 'Span attributes'; CLAUDE.md Do Not"
+   },
+   {
+    "rule": "On error: instrument the span BEFORE returning. PROJECT_RULES/CLAUDE examples use libOpentelemetry.HandleSpanBusinessErrorEvent(span, msg, err) for business/validation failures; the streaming path mandates HandleSpanError (NOT HandleSpanBusinessErrorEvent) for emit failures. Both helpers exist in lib-observability/tracing/otel.go (HandleSpanBusinessErrorEvent:518, HandleSpanError:536, HandleSpanEvent:527).",
+    "source": "PROJECT_RULES.md \u00a73 (line 259) & \u00a74 (lines 345-349); CLAUDE.md Streaming 'EmitImportant owns ... libOpentelemetry.HandleSpanError'; lib-observability v1.0.1 tracing/otel.go"
+   },
+   {
+    "rule": "Use structured log fields, never fmt.Sprintf inside logger calls: logger.Log(ctx, libLog.LevelError, \"msg\", libLog.Err(err)) / libLog.String(k,v). Rationale stated: fmt.Sprintf buries structured data and prevents OTLP attribute extraction in Grafana/Loki.",
+    "source": "CLAUDE.md Logging; PROJECT_RULES.md \u00a74 rule 2 (lines 338-343); CLAUDE.md Do Not"
+   },
+   {
+    "rule": "Log levels: Debug = troubleshooting/assembled SQL/cache/batch stats; Info = sparse production milestones only; Warn = caller/business validation failures or degraded-but-recoverable fallback; Error = infrastructure/system failures needing operator attention.",
+    "source": "CLAUDE.md Logging 'Log levels'"
+   },
+   {
+    "rule": "Error-vs-Warn split: business/caller validation failure -> LevelWarn; infrastructure/system failure -> LevelError. Pair span instrumentation with the matching log level.",
+    "source": "PROJECT_RULES.md \u00a73 Observability Integration (lines 254-262)"
+   },
+   {
+    "rule": "Never log secrets, credentials, tokens, balances, financial values, PII, raw payloads, or SQL args.",
+    "source": "CLAUDE.md Logging; CLAUDE.md Do Not"
+   },
+   {
+    "rule": "Avoid repeating broad scope IDs (organization_id, ledger_id, tenant IDs) on every log when spans already carry them; include the immediate failing resource ID (e.g. operation_route_id) when useful for search.",
+    "source": "CLAUDE.md Logging"
+   },
+   {
+    "rule": "After squirrel ToSql() succeeds, optionally log the assembled SQL at Debug \u2014 query string only, never args.",
+    "source": "CLAUDE.md 'SQL And Repositories'"
+   },
+   {
+    "rule": "Telemetry is wired once at bootstrap via libOpentelemetry.NewTelemetry(TelemetryConfig{...}) then telemetry.ApplyGlobals() to register process-global providers so the otelzap bridge forwards log records to OTLP. Logger built via libZap.New (lib-observability/zap).",
+    "source": "components/ledger/internal/bootstrap/config.go:370-411"
+   },
+   {
+    "rule": "Telemetry/logging config is env-driven: LOG_LEVEL, OTEL_RESOURCE_SERVICE_NAME, OTEL_LIBRARY_NAME, OTEL_RESOURCE_SERVICE_VERSION, OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT, OTEL_EXPORTER_OTLP_ENDPOINT, ENABLE_TELEMETRY.",
+    "source": "components/ledger/internal/bootstrap/config.go:54,62-67"
+   },
+   {
+    "rule": "Trace context must propagate across async boundaries: RabbitMQ consumer extracts trace context from message headers for distributed tracing (lib-observability provides Inject/Extract{Trace,HTTP,GRPC,Queue}Context helpers).",
+    "source": "PROJECT_RULES.md \u00a712 RabbitMQ Consumer (line ~1012); lib-observability tracing/otel.go:732-873"
+   },
+   {
+    "rule": "Streaming emit failures for IMPORTANT-posture events must be recorded on the same span the use case opened, logged at Warn with libLog.Err(err), and must NOT fail the request; mechanics centralized in pkgStreaming.EmitImportant.",
+    "source": "CLAUDE.md Streaming 'IMPORTANT emission helper pattern'"
+   },
+   {
+    "rule": "Panic recovery middleware logs at LevelError with a panic_type field (no panic value/stack to avoid leaking data), records the error on the active span, sets span status codes.Error, and returns a generic 500 JSON body.",
+    "source": "pkg/net/http/withRecover.go:42-79"
+   }
+  ],
+  "error_rules": [
+   {
+    "rule": "API errors use typed errors from pkg/errors.go mapped from sentinels in pkg/constant/errors.go via pkg.ValidateBusinessError(constant.Err..., constant.Entity..., args...).",
+    "source": "CLAUDE.md Errors; PROJECT_RULES.md \u00a74 Error Mapping (lines 318-326); pkg/errors.go:342"
+   },
+   {
+    "rule": "Error sentinels are unique, centralized, and MUST be defined only in pkg/constant/errors.go. Core codes are 4-digit numeric strings (0001..0178, gap at 0130); CRM codes use a CRM- prefix (CRM-0006..CRM-0029, intentionally non-contiguous). Do not create duplicate errors.New(\"code\") sentinels elsewhere.",
+    "source": "CLAUDE.md Coding Rules + Errors + Do Not; pkg/constant/errors.go:14-260"
+   },
+   {
+    "rule": "Typed error -> HTTP status mapping (canonical): EntityNotFoundError->404, ValidationError->400, EntityConflictError->409, UnauthorizedError->401, ForbiddenError->403, UnprocessableOperationError->422, InternalServerError->500, ServiceUnavailableError->503. FailedPreconditionError and HTTPError types exist but are NOT mapped by WithError (fall through to 500).",
+    "source": "PROJECT_RULES.md \u00a74 (lines 308-316); pkg/errors.go:139-189; pkg/net/http/errors.go:17-67"
+   },
+   {
+    "rule": "Not found maps to EntityNotFoundError / HTTP 404; business-rule violations map to UnprocessableOperationError / HTTP 422.",
+    "source": "CLAUDE.md Errors"
+   },
+   {
+    "rule": "Handlers convert any returned error to the wire envelope via http.WithError(c, err); success via http.Created/OK/NoContent. WithError type-switches on the concrete pkg error type to pick status.",
+    "source": "CLAUDE.md HTTP / PROJECT_RULES.md \u00a76 Handler Structure (lines 456-468); pkg/net/http/errors.go:17"
+   },
+   {
+    "rule": "Error envelope shape: JSON object {code, title, message} plus optional {entityType, fields}. ValidationError is emitted as ValidationKnownFieldsError{code,title,message,fields:nil}. Field-level validation uses ValidationKnownFieldsError / ValidationUnknownFieldsError with a fields map.",
+    "source": "pkg/net/http/errors.go:23-37; pkg/net/http/response.go:16-127; pkg/errors.go:208-248; PROJECT_RULES.md \u00a75 (lines 400-411)"
+   },
+   {
+    "rule": "All midaz domain error types embed the same 5 fields {EntityType,Title,Message,Code,Err}; implement Error() and (where wrapping) Unwrap().",
+    "source": "pkg/errors.go:18-206"
+   },
+   {
+    "rule": "Business errors return directly; technical errors wrap with %w where adding context is useful. Never swallow errors silently.",
+    "source": "CLAUDE.md Coding Rules; PROJECT_RULES.md \u00a74 rule 4 (line 351)"
+   },
+   {
+    "rule": "Do not expose internal technical error details to API clients; unmapped/unknown errors fall through WithError default to pkg.ValidateInternalError (generic 500 'unexpected error' message, code 0046).",
+    "source": "CLAUDE.md Errors + Do Not; pkg/net/http/errors.go:64-66; pkg/errors.go:260-268"
+   },
+   {
+    "rule": "Use errors.As() (not == / type assertion) to check error type, e.g. var notFound pkg.EntityNotFoundError; errors.As(err, &notFound).",
+    "source": "PROJECT_RULES.md \u00a74 rule 1 (lines 330-336)"
+   },
+   {
+    "rule": "Use constant.Entity* constants for entityType arguments, never reflect.TypeOf(mmodel.Foo{}).Name().",
+    "source": "CLAUDE.md Coding Rules + Do Not; PROJECT_RULES.md \u00a77 note (lines 583-586)"
+   },
+   {
+    "rule": "PostgreSQL driver errors are normalized via services.ValidatePGError(pgErr, constant.Entity...) after errors.As(&pgconn.PgError); repository update/delete that should report not-found must check RowsAffected()==0 and return the repository sentinel the service layer expects.",
+    "source": "PROJECT_RULES.md \u00a77 (lines 574-581); CLAUDE.md 'SQL And Repositories'"
+   },
+   {
+    "rule": "Do not panic; return errors. (Panics that escape are caught by WithRecover middleware -> 500.)",
+    "source": "CLAUDE.md Do Not; pkg/net/http/withRecover.go"
+   },
+   {
+    "rule": "Request-body validation pipeline (http.WithBody) handles JSON unmarshal, struct validation, unknown-field rejection, and null-byte protection; produces ValidateBadRequestFieldsError -> ValidationUnknownFieldsError (code 0053) / ValidationKnownFieldsError (missing=0009, bad request=0047).",
+    "source": "PROJECT_RULES.md \u00a75 (lines 388-395); pkg/errors.go:299-331; pkg/constant/errors.go (0009,0047,0053)"
+   },
+   {
+    "rule": "lib-commons internal errors crossing into the ledger are remapped in WithError via the libCommons.Response case (e.g. lib ErrInsufficientFunds/ErrAccountIneligibility->422, ErrAssetCodeNotFound->404, ErrOverFlowInt64->500, default->400).",
+    "source": "pkg/net/http/errors.go:44-58"
+   },
+   {
+    "rule": "HandleKnownBusinessValidationErrors re-wraps select string-compared lib/DSL errors (ErrTransactionAmbiguous, ErrTransactionValueMismatch) back through ValidateBusinessError.",
+    "source": "pkg/errors.go:1434-1443"
+   }
+  ],
+  "infrastructure": [
+   {
+    "name": "pkg/constant/errors.go (error sentinel catalog)",
+    "location": "/Users/fredamaral/repos/lerianstudio/midaz/pkg/constant/errors.go:14-260",
+    "purpose": "Single source of unique error sentinels: 4-digit core codes 0001-0178 (gap 0130) + CRM- prefixed CRM-0006..CRM-0029. Defines errors.New(code) vars only."
+   },
+   {
+    "name": "pkg.ValidateBusinessError + typed error structs",
+    "location": "/Users/fredamaral/repos/lerianstudio/midaz/pkg/errors.go:342-1432 (map); types at :18-248",
+    "purpose": "Maps each sentinel to a concrete typed error (EntityNotFoundError/ValidationError/EntityConflictError/Unauthorized/Forbidden/UnprocessableOperationError/InternalServerError/FailedPrecondition/ServiceUnavailable/HTTPError) carrying Code/Title/Message/EntityType. Also ValidateInternalError(:260), ValidateUnmarshallingError(:271), ValidateBadRequestFieldsError(:299), HandleKnownBusinessValidationErrors(:1434)."
+   },
+   {
+    "name": "http.WithError (error->wire envelope)",
+    "location": "/Users/fredamaral/repos/lerianstudio/midaz/pkg/net/http/errors.go:17-67",
+    "purpose": "Central handler-layer translator: type-switches concrete pkg error -> status-specific responder; remaps libCommons.Response; default -> ValidateInternalError (500). The one true API error boundary."
+   },
+   {
+    "name": "http response helpers",
+    "location": "/Users/fredamaral/repos/lerianstudio/midaz/pkg/net/http/response.go:16-132",
+    "purpose": "Status-specific JSON responders (Created/OK/NoContent/BadRequest/NotFound/Conflict/UnprocessableEntity/InternalServerError/ServiceUnavailable/JSONResponseError). Defines the {code,title,message} envelope."
+   },
+   {
+    "name": "http.ProtectedRouteChain / ProtectedRouteOptions",
+    "location": "/Users/fredamaral/repos/lerianstudio/midaz/pkg/net/http/protected_routes.go:24-35",
+    "purpose": "Mandated route composition: auth handler -> optional post-auth middlewares -> business handlers. MarkTrustedAuthAssertion(:40) bridges trusted upstream auth to tenant middleware."
+   },
+   {
+    "name": "http.WithRecover middleware",
+    "location": "/Users/fredamaral/repos/lerianstudio/midaz/pkg/net/http/withRecover.go:42-79",
+    "purpose": "Panic boundary: recovers, logs LevelError with panic_type (no value/stack), records span error + codes.Error status, returns generic 500. Pulls logger from libObs.NewTrackingFromContext."
+   },
+   {
+    "name": "http.WithBody validation decorator",
+    "location": "/Users/fredamaral/repos/lerianstudio/midaz/pkg/net/http/withBody.go",
+    "purpose": "Body-parsing/validation pipeline: JSON unmarshal, go-playground/validator struct tags, unknown-field rejection, null-byte/size/nesting guards -> standardized field-validation errors."
+   },
+   {
+    "name": "lib-observability tracing helpers (libOpentelemetry)",
+    "location": "github.com/LerianStudio/lib-observability@v1.0.1/tracing/otel.go (NewTelemetry:89, HandleSpanBusinessErrorEvent:518, HandleSpanEvent:527, HandleSpanError:536, SetSpanAttributesFromValue:552, SetSpanAttributeForParam:712, Inject/Extract{Trace,HTTP,GRPC,Queue}Context:732-873)",
+    "purpose": "Mandated platform tracing surface: telemetry init, span error/event instrumentation helpers, attribute setters with redaction, and cross-boundary trace-context propagation (HTTP/gRPC/RabbitMQ)."
+   },
+   {
+    "name": "lib-observability log + zap (libLog / libZap)",
+    "location": "github.com/LerianStudio/lib-observability@v1.0.1/log + /zap; imported in bootstrap/config.go:28,31",
+    "purpose": "Structured logger interface (libLog.Logger, libLog.Err/String, level constants) and libZap.New constructor with otelzap bridge to OTLP. The mandated logging surface."
+   },
+   {
+    "name": "lib-observability metrics (MetricsFactory)",
+    "location": "github.com/LerianStudio/lib-observability@v1.0.1/metrics; bootstrap/config.go:29,936 (var metricsFactory *metrics.MetricsFactory)",
+    "purpose": "Mandated metrics platform surface. Present/wired but NOT governed by any prose rule in CLAUDE.md or PROJECT_RULES.md (no naming/label/cardinality convention declared)."
+   },
+   {
+    "name": "Telemetry bootstrap wiring",
+    "location": "/Users/fredamaral/repos/lerianstudio/midaz/components/ledger/internal/bootstrap/config.go:370-411",
+    "purpose": "Composition root: builds logger (libZap.New), enriches with component/startup_id fields, constructs libOpentelemetry.NewTelemetry from OTEL_* env, applies process-global providers (ApplyGlobals) so otelzap bridge forwards logs to OTLP."
+   },
+   {
+    "name": "libCommons.NewTrackingFromContext / libObs.NewTrackingFromContext",
+    "location": "lib-commons v5 commons / lib-observability; used at PROJECT_RULES.md examples and withRecover.go:50",
+    "purpose": "Per-request extraction of (logger, tracer, ...) from context \u2014 the declared entry point for all instrumentation. NOTE: PROJECT_RULES.md shows libCommons.NewTrackingFromContext while live code uses libObs.NewTrackingFromContext (alias/location drift)."
+   },
+   {
+    "name": "pkg/constant/entity.go (Entity* constants)",
+    "location": "/Users/fredamaral/repos/lerianstudio/midaz/pkg/constant/entity.go",
+    "purpose": "Canonical entityType strings passed to ValidateBusinessError / ValidatePGError, replacing reflect-based type-name derivation."
+   }
+  ],
+  "gaps_in_declared_standard": [
+   "Metrics: NO declared standard at all. lib-observability/metrics.MetricsFactory is wired in bootstrap and used heavily in tracer, but CLAUDE.md and PROJECT_RULES.md say nothing about metric naming scheme, unit suffixes, label/attribute sets, cardinality limits, counter/histogram/gauge conventions, or what must be instrumented. This is the single largest silent topic.",
+   "RabbitMQ consumer nack/requeue policy is documented only descriptively in PROJECT_RULES.md \u00a712 ('ack on success, nack+requeue on error') \u2014 there is no rule for poison-message handling, max-retry/redelivery limits, dead-letter routing, or when to nack WITHOUT requeue. No declared standard, just observed behavior.",
+   "No declared rule on which lib-observability span-error helper to use in normal (non-streaming) code: PROJECT_RULES.md uses HandleSpanBusinessErrorEvent for ALL errors including infra, while the streaming guidance mandates HandleSpanError for emit failures. The business-vs-infra -> span-helper mapping is contradictory/undeclared.",
+   "No span attribute naming taxonomy beyond two examples (app.request.* for inputs, db.* / app.* for outputs). No declared list of standard attribute keys, no rule for which IDs are mandatory on which spans, no semantic-convention alignment (OTel semconv) statement.",
+   "The 'Log Level Guidelines'/'full matrix' that PROJECT_RULES.md \u00a73 (line 257) references in CLAUDE.md does not exist as a titled section \u2014 CLAUDE.md only has a 4-bullet level list. Dangling cross-reference; no exhaustive per-scenario level matrix is actually declared.",
+   "No declared standard for log sampling / rate-limiting of high-frequency Warn/Error (e.g. per-transaction validation failures, balance-sync poll loops) \u2014 a real concern for a ledger under load, unaddressed.",
+   "No declared rule for distributed trace-context propagation requirements per boundary: lib-observability ships Inject/Extract for HTTP/gRPC/Queue, but only the RabbitMQ consumer is mentioned (descriptively). No standard for Redis-backed async (balance-sync worker), outbox/streaming, or HTTP-out clients.",
+   "FailedPreconditionError and HTTPError typed errors exist in pkg/errors.go but are NOT handled by http.WithError, so they silently fall through to 500. No declared rule on their intended status (FailedPrecondition is conventionally 412/428) or whether they are allowed at the HTTP boundary.",
+   "No declared correlation-ID / request-ID standard (field name, propagation, log inclusion). startup_id and trace IDs exist but a per-request correlation key is not specified.",
+   "No declared standard for error/log behavior of the four absorbed slices as a UNIFIED set: tracer carries its own observability layer (internal/observability/, prometheus_factory, recorder, metrics middleware) entirely outside the ledger's lib-observability path. The docs never reconcile tracer's bespoke Prometheus metrics stack with the mandated lib-observability metrics surface \u2014 i.e. two metrics systems coexist with no declared canonical one.",
+   "No declared policy on whether/when to emit Info logs in workers vs request path ('sparse production milestones only' is the only guidance) \u2014 no enumerated milestone list, so 'sparse' is unenforceable.",
+   "No declared standard for health/readiness telemetry (readyz.go exists with checkers) \u2014 no rule on what readiness failures log at, or whether probe traffic is excluded from spans/metrics.",
+   "No declared retention/PII-redaction mechanism standard: lib-observability tracing exposes a Redactor (NewDefaultRedactor/NewRedactor) but CLAUDE.md only states 'do not log/attach PII' as a prohibition \u2014 no rule mandating use of the Redactor or defining the redaction ruleset."
+  ]
+ },
+ "dimensions": [
+  {
+   "dimension": "telemetry",
+   "synthesis": {
+    "dimension": "telemetry",
+    "state_summary": "The repo has ONE platform stack and it is genuinely unified: every slice acquires telemetry via lib-observability v1 `NewTrackingFromContext(ctx)` (logger+tracer+requestID+metricsFactory), names spans `<layer>.<operation>` dotted snake_case, `defer span.End()` immediately after Start, and records span errors through `libOpentelemetry.HandleSpan{Error,BusinessErrorEvent}` rather than raw `span.RecordError`. No raw otel, no surviving legacy lib-commons tracer, no DI-of-tracer-into-structs (reporter is the lone partial exception, mixing DI in services with ctxutil-from-context in adapters). That structural consistency is the good news and it should be codified verbatim. The bad news is that telemetry STRUCTURE is healthy while telemetry HYGIENE is broadly broken, and the breakage originates in ledger-core \u2014 the supposed house style \u2014 not just the absorbed slices. Three of CLAUDE.md's own most-stated rules are violated at scale by the reference slice: (1) `fmt.Sprintf` inside `logger.Log` is the MAJORITY logging form (816 vs 311 structured in ledger-core; 254 in ledger-http; 105 vs 6 in fees; ~34 in crm), (2) child I/O spans overwrite the parent ctx (`ctx, spanExec := tracer.Start(ctx, ...)`) across all postgres/mongo adapters in ledger-core, crm, and fees \u2014 directly the banned pattern, confirmed at account.postgresql.go:192, and (3) span input attributes are essentially absent in the CRUD layers (only operationroute among 13 pg adapters). On top of that sit P0 data-leak findings \u2014 the transaction RabbitMQ consumer writes the raw financial message body to a span attribute (consumer.rabbitmq.go:316), fees logs gross/net/unitPrice/feeAmount at Info, tracer logs transaction.amount on every validation, and crm serializes full Holder/Instrument (CPF, IBAN, contact) onto update-path spans. Meanwhile the absorbed slices each dragged in a parallel subsystem the docs never reconciled: fees ships a full duplicate error taxonomy (FEE-0001..0072 + a copy of pkg/errors.go + feehttp.WithError) and a second `package http`; tracer runs its own readyz/domain Prometheus metric families; reporter has its own ctxutil context plumbing. The single genuinely-superior idiom in the repo is ledger-http's observability.go privacy-preserving payload summarizer (boolean has_* presence flags, never values) \u2014 that, not the SetSpanAttributesFromValue full-object dump used by fees/crm/tracer, is what the unified standard should mandate. Metrics remain almost entirely ungoverned: no naming/label/cardinality rule exists anywhere, two metric systems (lib-observability MetricsFactory vs tracer's bespoke Prometheus families) coexist, org_id/ledger_id are used as unbounded labels, and metric emit errors are silently swallowed.",
+    "divergence_matrix": [
+     {
+      "theme": "Raw financial values / payloads / PII written to spans or logs",
+      "components": [
+       "ledger-core",
+       "fees",
+       "tracer",
+       "crm",
+       "reporter"
+      ],
+      "description": "The most severe cross-cutting class. (a) Spans: ledger-core writes the raw RabbitMQ transaction body (operations, balances, amounts) to span attr app.request.rabbitmq.consumer.message; crm serializes full Holder/Instrument (Name, Document/CPF, IBAN, Branch, contact) onto update-path spans via SetSpanAttributesFromValue; fees dumps whole payloads/filters/projections onto spans as the default idiom; tracer dumps full rule_input/rule_update DTOs. (b) Logs: fees logs gross/net/unitPrice/feeAmount/totalNetAmount at Info; tracer logs transaction.amount on every validation; fees logs full decoded payloads via %#v. All violate CLAUDE.md 'never log/attach balances, financial values, PII, raw payloads'. ledger-http's observability.go (boolean presence flags only) proves the safe pattern exists and is being ignored elsewhere.",
+      "evidence_refs": [
+       "components/ledger/internal/adapters/rabbitmq/consumer.rabbitmq.go:316",
+       "components/crm/adapters/mongodb/holder/holder.mongodb.go:256",
+       "components/crm/adapters/mongodb/instrument/instrument.mongodb.go:252",
+       "components/ledger/internal/services/fees/billing-calculate-service.go:423",
+       "components/ledger/internal/services/fees/billing-calculate-service.go:182",
+       "components/tracer/internal/services/validation_service.go:228",
+       "components/ledger/internal/adapters/http/in/observability.go:154"
+      ],
+      "severity": "P0"
+     },
+     {
+      "theme": "Child I/O spans overwrite the parent ctx (`ctx, spanExec := tracer.Start(ctx, ...)`)",
+      "components": [
+       "ledger-core",
+       "crm",
+       "fees"
+      ],
+      "description": "CLAUDE.md mandates `_, spanExec := tracer.Start(ctx, ...)` for child I/O spans and explicitly bans overwriting the parent ctx. Every postgres adapter in ledger-core (confirmed account.postgresql.go:192), every mongo adapter in crm (sibling child spans chain-nest instead of fanning off the root), and ~28 sub-span sites in fees mongo do exactly the banned `ctx, spanX :=`. In crm/fees the reassigned ctx is reused by the NEXT sibling sub-span, so the trace tree is distorted (siblings nest under each other). reporter does ctx-rebind too but it is sequential nesting (correct), and tracer's only rebind is a deliberate WithoutCancel compliance-detach (correct) \u2014 those two are NOT violations.",
+      "evidence_refs": [
+       "components/ledger/internal/adapters/postgres/account/account.postgresql.go:192",
+       "components/crm/adapters/mongodb/holder/holder.mongodb.go:127",
+       "components/crm/adapters/mongodb/instrument/instrument.mongodb.go:130",
+       "components/ledger/internal/adapters/mongodb/fees/pack/find.go:91"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "fmt.Sprintf inside logger.Log instead of structured fields",
+      "components": [
+       "ledger-core",
+       "ledger-http",
+       "crm",
+       "fees"
+      ],
+      "description": "CLAUDE.md's single most-repeated logging rule, violated as the MAJORITY form in four slices: ledger-core 816 (vs 311 structured), ledger-http ~254, fees 105 (vs 6), crm ~34. tracer and reporter are clean (0 occurrences) \u2014 they are the compliant proof points. This is the mechanism behind several P0 leaks (interpolating amounts/payloads into the message string) and it destroys OTLP attribute extraction in Loki/Grafana.",
+      "evidence_refs": [
+       "components/ledger/internal/adapters/postgres/account/account.postgresql.go:202",
+       "components/ledger/internal/adapters/http/in/account.go:285",
+       "components/ledger/internal/services/fees/billing-calculate-service.go:101",
+       "components/crm/services/create-holder.go:36",
+       "components/reporter-worker/internal/services/generate-report.go:167"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "Per-request/per-message Info-level noise duplicating spans",
+      "components": [
+       "ledger-core",
+       "ledger-http",
+       "crm",
+       "fees",
+       "tracer",
+       "reporter"
+      ],
+      "description": "Universal. Every slice logs 'Initiating.../Retrieving.../Trying to.../Successfully...' at Info on entry+exit of operations the span already brackets, violating 'Info = sparse production milestones only' and 'do not add redundant Initiating... logs'. tracer triple-logs one create (handler+command+repo all at Info) and logs every SQL op at Info; ledger-http has ~188 Initiating/Successfully lines and only 10 Debug calls (inverted level discipline); reporter has 140 Info (mgr)/91 (worker) including per-message start/success in the consumer loop. Level discipline is systematically inverted: milestones at Info, little to nothing at Debug.",
+      "evidence_refs": [
+       "components/ledger/internal/adapters/http/in/account.go:279",
+       "components/tracer/internal/adapters/postgres/rule_repository.go:120",
+       "components/ledger/internal/services/fees/create-package.go:30",
+       "components/reporter-worker/internal/adapters/rabbitmq/consumer.rabbitmq.go:218",
+       "components/crm/services/get-all-holders.go:30"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "Span input-attribute taxonomy barely applied; SetSpanAttributesFromValue bulk-dump vs app.request.* presence-flags",
+      "components": [
+       "ledger-core",
+       "crm",
+       "fees",
+       "tracer",
+       "ledger-http",
+       "reporter"
+      ],
+      "description": "CLAUDE.md prescribes app.request.* for inputs and db.*/app.response.* for outputs. Reality splits three ways: (1) ledger-core CRUD adapters set ZERO attributes (only operationroute among 13 pg adapters; 0 of 64 query files) \u2014 convention is aspirational, <5% applied; (2) fees/crm/tracer use SetSpanAttributesFromValue to JSON-dump whole structs onto ONE attribute (the leak vector above) instead of selective keys, and tracer uses a non-standard rule_input/rule_update namespace; (3) ledger-http, fees, reporter DO apply app.request.* well, but namespace drift exists (reporter's app.request.plugin_crm.total_records is an OUTPUT mislabeled as request; ledger-core tags correlation request_id as app.request.request_id). The good model (selective app.request.* + boolean presence flags) is ledger-http observability.go and crm's create-path has_* flags.",
+      "evidence_refs": [
+       "components/ledger/internal/adapters/postgres/operationroute/operationroute.postgresql.go:442",
+       "components/tracer/internal/adapters/http/in/rule_handler.go:99",
+       "components/ledger/internal/services/fees/create-package.go:41",
+       "components/ledger/internal/adapters/http/in/observability.go:186",
+       "components/reporter-worker/internal/services/generate-report-data.go:402"
+      ],
+      "severity": "P2"
+     },
+     {
+      "theme": "Span-error helper choice tracks code-origin, not error class",
+      "components": [
+       "ledger-http",
+       "crm",
+       "fees"
+      ],
+      "description": "The intended split (business/4xx -> HandleSpanBusinessErrorEvent; technical/5xx -> HandleSpanError) is followed cleanly by ledger-core, tracer, and reporter (reporter branches on IsBusinessError \u2014 the cleanest impl). But ledger-http onboarding handlers use HandleSpanBusinessErrorEvent for ~everything while crm handlers/services use HandleSpanError EXCLUSIVELY (0 business events, so spans never distinguish business from technical failure); fees crosses over mid-file (records already-business-mapped errors via HandleSpanError). The choice follows absorbed-slice origin, not semantics. The declared standard itself is ambiguous here (PROJECT_RULES uses BusinessErrorEvent for all; streaming mandates HandleSpanError) \u2014 needs an explicit decision rule.",
+      "evidence_refs": [
+       "components/ledger/internal/adapters/http/in/account.go:84",
+       "components/crm/services/validate-related-party.go:33",
+       "components/ledger/internal/services/fees/billing-calculate-service.go:351",
+       "components/reporter-manager/internal/adapters/http/in/report.go:98"
+      ],
+      "severity": "P2"
+     },
+     {
+      "theme": "Two parallel error/HTTP subsystems vs the canonical pkg/errors.go + http.WithError boundary",
+      "components": [
+       "fees",
+       "tracer"
+      ],
+      "description": "fees ships an entire shadow stack under components/ledger/pkg/feeshared: a copy of pkg/errors.go (ValidateBusinessError + all typed errors), a 72-entry FEE-0001..0072 sentinel family, a second `package http` (feehttp) with its own WithError + body-tracing middleware. Handlers import BOTH and switch between http.WithError (UUID-path) and feehttp.WithError (business) inside one function, so the trace/wire error taxonomy is split FEE-* vs midaz-codes. tracer has its own pkg/net/http envelope with TRC-XXXX codes (though it delegates the Fiber framework-level handler to lib-commons). Both violate 'error sentinels only in pkg/constant/errors.go' and fragment the API error contract.",
+      "evidence_refs": [
+       "components/ledger/pkg/feeshared/constant/errors.go:13",
+       "components/ledger/pkg/feeshared/errors.go:295",
+       "components/ledger/pkg/feeshared/nethttp/errors.go:20",
+       "components/ledger/internal/adapters/http/in/fees_package_handler.go:80"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "Metrics are ungoverned: two systems, unbounded labels, swallowed emit errors, no naming standard",
+      "components": [
+       "ledger-core",
+       "ledger-http",
+       "tracer",
+       "reporter"
+      ],
+      "description": "No declared metrics standard exists (CLAUDE.md/PROJECT_RULES are silent on naming/units/labels/cardinality). Result: (1) two coexisting systems \u2014 lib-observability MetricsFactory (ledger, reporter health, tracer) and tracer's bespoke Prometheus-backed families with NoTranslation name pinning; (2) bare label keys organization_id/ledger_id used UNBOUNDED-cardinality in ledger metrics, unaligned with the app.request.* span namespace, fragmenting cross-signal correlation; (3) metric emit errors silently swallowed everywhere (recordBulkCounter, MetricStateListener.OnStateChange, fees/crm emit none at all). tracer is the only slice with deliberate bounded-cardinality allowlists (recorder.go) and shared histogram buckets \u2014 that discipline should be the model.",
+      "evidence_refs": [
+       "components/ledger/internal/bootstrap/rabbitmq.server.go:248",
+       "components/ledger/internal/adapters/http/in/account.go:90",
+       "components/tracer/internal/observability/recorder.go:66",
+       "components/ledger/internal/adapters/rabbitmq/metric_state_listener.go:43"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "Background/async work loses trace context",
+      "components": [
+       "ledger-http"
+      ],
+      "description": "executeCreateTransaction spawns SetTransactionIdempotencyValue and SendLogTransactionAuditQueue on a fresh context.Background() with only tenant ID manually re-attached \u2014 the span/trace is dropped, so idempotency-write and audit-queue work is untraceable from the originating request. Distinct from the (correct) deliberate detaches in tracer (WithoutCancel keeps the trace) and the long-lived consumer loop ctx in ledger-core. This is accidental trace-context loss, not a deliberate lifecycle decision.",
+      "evidence_refs": [
+       "components/ledger/internal/adapters/http/in/transaction_create.go:1376"
+      ],
+      "severity": "P2"
+     },
+     {
+      "theme": "Import-alias drift for lib-observability within and across slices",
+      "components": [
+       "ledger-core",
+       "ledger-http",
+       "crm",
+       "tracer"
+      ],
+      "description": "The same root package is aliased libObservability / libObs interchangeably (sometimes both in one file: count_transactions_by_filters.go), and the tracing package is libOpentelemetry (lowercase t, repo norm) vs libOpenTelemetry (capital T, crm + holder.go) vs libOtel (tracer repos). Cosmetic but it undercuts a single mandated alias and shows up inside the house-style reference. tracer's component CLAUDE.md is additionally stale (documents libCommons.NewTrackingFromContext while code uses libObservability).",
+      "evidence_refs": [
+       "components/ledger/internal/adapters/http/in/count_transactions_by_filters.go:54",
+       "components/crm/services/create-holder.go:13",
+       "components/crm/services/get-all-holders.go:10",
+       "components/tracer/internal/adapters/http/in/rule_handler.go:13"
+      ],
+      "severity": "P2"
+     },
+     {
+      "theme": "Persisted/client-facing raw error text and reflect-derived entity names",
+      "components": [
+       "reporter",
+       "crm"
+      ],
+      "description": "Twin to the span-leak findings on the non-span error surface. reporter persists raw reportErr.Error() into Mongo report metadata, surfaced to API clients via GetReport \u2014 violates 'do not expose internal technical error details to clients'. crm's holder.mongodb.go derives entityType via reflect.TypeOf(mmodel.Holder{}).Name() (lone holdout; instrument adapter correctly uses cn.EntityInstrument) \u2014 violates 'use constant.Entity*'.",
+      "evidence_refs": [
+       "components/reporter-worker/internal/services/generate-report.go:203",
+       "components/crm/adapters/mongodb/holder/holder.mongodb.go:146"
+      ],
+      "severity": "P2"
+     }
+    ],
+    "proposed_standard": [
+     {
+      "rule": "Acquire telemetry once at the top of every operation via `logger, tracer, reqID, metricsFactory := libObservability.NewTrackingFromContext(ctx)`. Never DI a tracer/logger into a service or repository struct; never use raw otel.Tracer()/GetTracerProvider; never use legacy libCommons.NewTracerFromContext. Discard unused slots with `_`. ctx is always the first parameter.",
+      "rationale": "Canonizes the universal idiom present in 157+ files across every slice. reporter's struct-DI variant and tracer's stale doc are the outliers and lose context-scoped request correlation; the from-context form is objectively better because it carries the request-scoped logger/reqID.",
+      "canonical_example": "components/ledger/internal/services/command/create_account.go:34"
+     },
+     {
+      "rule": "Name spans `<layer>.<operation>` in dotted snake_case: handler.* / service.* (use cases) / repository.* or postgres.*/mongodb.* (adapters). For a child I/O span use a sub-op suffix (.exec, .query, .insert, .find). No bespoke prefixes (fees `billing.`, tracer `rule_input` namespace).",
+      "rationale": "Already ~100% consistent across all six slices; the only deviations are fees' midaz/ `billing.` prefix and tracer attribute namespaces. Pick the dominant form.",
+      "canonical_example": "components/ledger/internal/services/command/create_account.go:36"
+     },
+     {
+      "rule": "`defer span.End()` immediately after `tracer.Start` for the operation's root span. For child I/O spans, do NOT rebind the request ctx: use `_, spanExec := tracer.Start(ctx, \"...\")` and `spanExec.End()` right after the I/O call. Only rebind ctx (`ctx, span :=`) when the child is a genuinely sequential nested operation that must parent subsequent work, or a deliberate detach (context.WithoutCancel) for must-complete writes \u2014 and comment the intent.",
+      "rationale": "Codifies the CLAUDE.md rule and resolves the dominant violation. The leaf-I/O case (postgres/mongo Exec/Query) is concurrent-sibling-shaped and must NOT overwrite ctx; account.postgresql.go does this wrong (ctx,spanExec) and must flip to _,spanExec. tracer's WithoutCancel detach and reporter's sequential nesting are the legitimate exceptions and stay.",
+      "canonical_example": "components/tracer/internal/services/validation_service.go:640"
+     },
+     {
+      "rule": "Span input attributes use `app.request.*`; outputs/system observations use `db.rows_affected`/`db.rows_returned`/`app.response.*`/`app.<subsystem>.*`. NEVER serialize a whole struct/payload/filter onto a span via SetSpanAttributesFromValue. For sensitive or large inputs, emit boolean presence flags (`app.request.payload.has_metadata`) and counts, never values. Set the small set of identifying IDs (the immediate resource ID) explicitly; do not repeat broad scope IDs on every nested span.",
+      "rationale": "ledger-http's observability.go presence-flag summarizer is the single objectively-superior idiom in the repo and directly prevents the P0 PII/financial leaks that the SetSpanAttributesFromValue bulk-dump (fees/crm/tracer) causes. This is the outlier-beats-dominant case: ban the dump, mandate the flags.",
+      "canonical_example": "components/ledger/internal/adapters/http/in/observability.go:154"
+     },
+     {
+      "rule": "Record span errors only via lib-observability helpers, never raw span.RecordError/SetStatus (except the panic-recovery middleware). Choose by error CLASS, not code origin: business/validation/not-found/conflict (the 4xx family, anything from pkg.ValidateBusinessError) -> HandleSpanBusinessErrorEvent; infrastructure/technical (DB/connection/marshal/IO, the 5xx family) -> HandleSpanError. When a class is known via a predicate, branch on it.",
+      "rationale": "Resolves the contradiction in the declared standard. The branch-on-IsBusinessError form in reporter is the cleanest mechanical expression of 'choose by class'; crm (HandleSpanError-only) and ledger-http onboarding (BusinessErrorEvent-mostly) are the origin-tracking outliers to fix.",
+      "canonical_example": "components/reporter-manager/internal/adapters/http/in/report.go:98"
+     },
+     {
+      "rule": "Log with structured fields only: `logger.Log(ctx, libLog.LevelX, \"static message\", libLog.Err(err), libLog.String(k,v), libLog.Int(k,n))`. NEVER pass fmt.Sprintf/fmt.Sprintln as the message or interpolate values into it. The message string is a constant; all variables are typed fields.",
+      "rationale": "CLAUDE.md's most-stated logging rule. reporter and tracer already do this at 100% (0 fmt.Sprintf-in-logger), proving it is achievable; they are the canonical examples, not ledger-core which is 72% non-compliant.",
+      "canonical_example": "components/ledger/internal/adapters/rabbitmq/consumer.rabbitmq.go:325"
+     },
+     {
+      "rule": "Log levels: Debug = SQL/troubleshooting/cache/batch detail and per-request/per-message entry+exit; Info = sparse, one-time, non-per-request milestones (boot sequence, worker config loaded, leader elected); Warn = business/caller validation failure or recoverable degradation; Error = infra failure needing operator attention. Do NOT emit 'Initiating.../Retrieving.../Successfully...' Info lines that duplicate a span \u2014 the span marks the start, the error helper marks the failure.",
+      "rationale": "Every slice violates this with per-request Info noise; tracer's boot-milestone logs are the borderline-acceptable Info model. The fix is to demote operation entry/exit to Debug or delete it. No slice is fully clean here, so the rule cites the closest-correct Debug usage in reporter.",
+      "canonical_example": "components/reporter-worker/internal/services/reconciler.go:170"
+     },
+     {
+      "rule": "Never log or attach to a span: balances, monetary amounts, financial values, secrets, tokens, PII (document/CPF/IBAN/account/contact/email), raw request/response payloads, or SQL/Mongo query args. This applies to logs, span attributes, AND persisted error metadata surfaced to clients. After squirrel ToSql() you may Debug-log the query STRING only, never args.",
+      "rationale": "Consolidates the P0 leaks into one enforceable prohibition spanning all signals. The presence-flag idiom (observability.go) is the sanctioned alternative for shape observability.",
+      "canonical_example": "components/ledger/internal/adapters/http/in/observability.go:186"
+     },
+     {
+      "rule": "API errors come exclusively from pkg/errors.go typed errors mapped from pkg/constant/errors.go sentinels via pkg.ValidateBusinessError(constant.Err..., constant.Entity..., ...); handlers funnel every error through the single pkg/net/http.WithError boundary. Do NOT create parallel error sentinel families, copies of pkg/errors.go, or alternate WithError/HTTP-envelope packages. Use constant.Entity* for entityType, never reflect.TypeOf.",
+      "rationale": "fees (FEE-* + feeshared/errors.go + feehttp) and tracer (TRC-* envelope) are wire-visible forks of the canonical boundary; crm's reflect.TypeOf is a lone holdout. The root pkg boundary is the dominant, declared standard.",
+      "canonical_example": "pkg/net/http/errors.go:17"
+     },
+     {
+      "rule": "Propagate W3C trace context across every async boundary: producers call InjectTraceHeadersIntoQueue before publish; consumers call ExtractTraceContextFromQueueHeaders before starting their span. Background goroutines spawned from a request MUST derive from a context that preserves the trace (context.WithoutCancel or an explicitly re-seeded trace context), never a bare context.Background() that drops the span.",
+      "rationale": "ledger-core and reporter already do the RabbitMQ inject/extract correctly and are the model; ledger-http's context.Background() goroutines (idempotency/audit) are the trace-context-loss bug to fix.",
+      "canonical_example": "components/reporter-manager/internal/adapters/rabbitmq/producer.rabbitmq.go:128"
+     },
+     {
+      "rule": "Metrics: emit only via libObservability MetricsFactory (retire bespoke Prometheus factories outside the lib path). Metric names are snake_case with a unit suffix where applicable (_ms, _total, _bytes); label/attribute keys mirror the span app.request.* taxonomy for the same value; NEVER use unbounded-cardinality values (organization_id, ledger_id, tenant_id, account_id) as labels \u2014 bound them with an allowlist or omit them. Metric emit errors must be logged at Debug/Warn, never silently swallowed.",
+      "rationale": "Closes the single largest gap in the declared standard. tracer's recorder.go (bounded-cardinality allowlists, shared histogram buckets, nil-safe) is the only disciplined metrics code in the repo and is the canonical model; ledger-core's bare org/ledger labels + swallowed errors are the anti-pattern.",
+      "canonical_example": "components/tracer/internal/observability/recorder.go:66"
+     },
+     {
+      "rule": "Telemetry is wired once at the composition root via libOpentelemetry.NewTelemetry(TelemetryConfig{...}) from OTEL_* env, then ApplyGlobals(); gated by ENABLE_TELEMETRY; logger via libZap.New; flushed LAST on shutdown (after HTTP/DB/broker drain) so shutdown spans/logs are captured. When telemetry is disabled, inject nil-safe noop receivers, never branch every call site.",
+      "rationale": "ledger-core and reporter already share this exact bootstrap; reporter's flush-last-on-shutdown ordering is the explicit model worth codifying.",
+      "canonical_example": "components/ledger/internal/bootstrap/config.go:394"
+     },
+     {
+      "rule": "Use a single import alias per library repo-wide: `libObservability` for the lib-observability root, `libOpentelemetry` (lowercase t) for lib-observability/tracing, `libLog` for /log, `libZap` for /zap. No per-file or per-slice alias drift; no two aliases for one package in one file.",
+      "rationale": "Pure consistency cleanup; lowercase-t libOpentelemetry is the repo-wide majority and the form used in CLAUDE.md examples.",
+      "canonical_example": "components/ledger/internal/services/command/create_account.go:14"
+     }
+    ],
+    "migration_burden": [
+     {
+      "component": "ledger-core",
+      "effort": "L",
+      "main_changes": "Largest burden despite being the 'house style'. (1) Flip 816 fmt.Sprintf-in-logger sites to structured fields across all postgres/mongo adapters and command/query. (2) Flip ~10+ `ctx, spanExec :=` to `_, spanExec :=` in every postgres adapter and the mongodb onboarding adapters. (3) P0: stop writing the raw transaction message body to the consumer span attribute (consumer.rabbitmq.go:316) \u2014 replace with presence flags/IDs. (4) Demote ~67 query-layer 'Retrieving' Info logs + async 'Trying to/Init sent' logs to Debug or delete. (5) Add app.request.*/db.rows_* attributes to the CRUD adapters that currently set none. (6) Bound or drop org/ledger metric labels and stop swallowing metric emit errors. Mechanically repetitive but high volume; the fmt.Sprintf and ctx-rebind passes are scriptable with review."
+     },
+     {
+      "component": "ledger-http",
+      "effort": "M",
+      "main_changes": "(1) ~254 fmt.Sprintf-in-logger -> structured fields. (2) Strip ~188 Initiating/Successfully Info lines (incl. logSafePayload Info on every create) \u2014 demote to Debug or remove. (3) Fix transaction state/orchestration handlers that drop the child span ctx (`_, span :=` then pass pre-span ctx) so handler spans get children; and re-seed trace context for the context.Background() idempotency/audit goroutines. (4) Normalize span-error-helper choice to error class (onboarding over-uses BusinessErrorEvent). (5) Align metric label keys to app.request.* and add domain metrics to the read/update/delete/CRM paths or accept middleware-only coverage. The observability.go presence-flag summarizer is already the gold standard \u2014 keep and extend it."
+     },
+     {
+      "component": "crm",
+      "effort": "M",
+      "main_changes": "(1) P0: remove SetSpanAttributesFromValue(holder/instrument) full-entity dumps on update paths (holder.mongodb.go:256, instrument.mongodb.go:252) \u2014 switch to the create-path has_* presence-flag idiom the slice already uses. (2) P0: flip all `ctx, spanX :=` child-span rebinds to `_, spanX :=` across both mongo adapters (chain-nesting bug). (3) ~34 fmt.Sprintf-in-logger -> structured. (4) Adopt error-class-based helper choice (currently HandleSpanError-only, so business vs technical is invisible on spans). (5) Demote per-request Info logs to Debug. (6) Replace reflect.TypeOf(mmodel.Holder{}) with cn.EntityHolder in holder.mongodb.go. (7) Standardize libObservability/libObs alias and libOpenTelemetry->libOpentelemetry."
+     },
+     {
+      "component": "fees",
+      "effort": "L",
+      "main_changes": "Heaviest non-ledger burden because of the shadow stack. (1) P0: stop logging financial values (gross/net/unitPrice/feeAmount) and full payloads at Info in billing-calculate-service and handlers. (2) Replace SetSpanAttributesFromValue full-payload/filter/projection dumps with selective app.request.* + presence flags. (3) 105 fmt.Sprintf-in-logger -> structured. (4) Flip ~28 mongo child-span ctx rebinds to `_, spanX :=`. (5) The big one (owner-gated): collapse feeshared/errors.go + FEE-0001..0072 + feehttp.WithError into the canonical pkg/errors.go + pkg/constant/errors.go + http.WithError, OR formally exempt the FEE family \u2014 this is a wire-contract change, not pure refactor. (6) Strip per-request Info milestones; normalize the HandleSpanError-on-business-errors crossovers."
+     },
+     {
+      "component": "tracer",
+      "effort": "M",
+      "main_changes": "Platform-library posture is already compliant (fully lib-observability); the work is hygiene + reconciliation. (1) P0: stop logging transaction.amount on every validation (validation_service.go:228). (2) Replace rule_input/rule_update SetSpanAttributesFromValue dumps with app.request.* selective attrs/presence flags. (3) Demote every-SQL-op Info logs and triple-layer create Info logs to Debug. (4) Normalize error-message field key (error.message vs error). (5) Reconcile its bespoke Prometheus metric families with the lib-observability MetricsFactory standard (or formally bless tracer's recorder.go as the canonical bounded-cardinality model \u2014 recommended). (6) Fix stale component CLAUDE.md (libCommons->libObservability NewTrackingFromContext). (7) Decide TRC-* envelope vs canonical (owner-gated, smaller than fees since framework handler already delegates to lib-commons)."
+     },
+     {
+      "component": "reporter",
+      "effort": "S",
+      "main_changes": "Cleanest slice: 0 fmt.Sprintf-in-logger, 0 raw RecordError, correct inject/extract, correct error-class branching, bounded-cardinality health metrics. (1) Demote per-request/per-message Info (140 mgr/91 worker) to Debug, especially the consumer-loop start/success pair and 'Init sent message'. (2) P1: stop persisting raw reportErr.Error() into client-surfaced report metadata. (3) P1: tighten the CRM decrypt-path logging (field-name mapping + repeated org_id) near plaintext PII. (4) Fix the app.request.plugin_crm.total_records output-mislabeled-as-input namespace. (5) Optionally fold ctxutil into the standard NewTrackingFromContext acquisition and normalize *trace.Span-by-pointer helper signatures to by-value. No structural rewrites."
+     }
+    ],
+    "open_decisions": [
+     "Retire the FEE-0001..FEE-0072 error-code family? These codes are emitted verbatim in the wire ResponseError.Code via feehttp.WithError \u2014 collapsing fees into the canonical pkg/constant/errors.go (renumbering to core 4-digit or CRM-style prefixed codes) is a BREAKING change for any client matching on FEE-* codes. Keep-and-exempt vs migrate-and-break is an owner call.",
+     "Retire the tracer TRC-XXXX handler-response error envelope in favor of the canonical {code,title,message} from pkg/net/http? Tracer's API clients may depend on TRC-* codes; this is a wire-contract decision even though the Fiber framework-level handler already delegates to lib-commons.",
+     "Bless tracer's bespoke Prometheus metric stack (recorder.go families: readyz_*, selfprobe_*, datasource_*, tracer_*) as a sanctioned exception, or force-migrate it onto lib-observability MetricsFactory? The names are pinned via NoTranslation for existing Grafana dashboards \u2014 migration risks breaking dashboards/alerts. Recommend blessing tracer's bounded-cardinality discipline as the model and keeping the names, but that is an ops/dashboard-ownership call.",
+     "Is logging organization_id/ledger_id as unbounded metric LABELS (ledger-core bulk + circuit-breaker, plus dense per-record org_id logs in reporter CRM path) acceptable given current cardinality, or must it be bounded/removed? This affects existing dashboards and metric backend cost \u2014 an operational call on the cardinality budget.",
+     "Should domain/business metrics be MANDATORY on read/update/delete/commit/cancel/revert and all CRM/fees endpoints (currently only ~5 create counters exist in ledger-http and none in fees/crm), or is app-level Fiber middleware request-rate/latency coverage sufficient? This sets the scope of net-new instrumentation work and is a product-observability priority call."
+    ]
+   },
+   "verdicts": [
+    {
+     "theme": "Raw financial values / payloads / PII written to spans or logs",
+     "claimed_severity": "P0",
+     "verdict": {
+      "confirmed": true,
+      "evidence": "All 7 refs verified accurate. (a) Spans dump raw values via libObservability.SetSpanAttributesFromValue(span, prefix, value, nil) \u2014 impl at lib-observability@v1.0.1/tracing/otel.go:557-589 json.Marshals the value and flattens EVERY field onto the span; the 4th param is a *Redactor and passing nil = zero redaction. consumer.rabbitmq.go:316 dumps raw amqp msg.Body (full transaction body). crm/.../holder.mongodb.go:256 passes the raw *mmodel.Holder with nil redactor at line 256, BEFORE FromEntity(...DataSecurity) encrypts at line 263 \u2014 so plaintext PII hits the span; pkg/mmodel/holder.go:26-163 confirms Name/Document(CPF, example 91315026015)/Email/MobilePhone/MotherName/FatherName. instrument.mongodb.go:252 identical pattern. fees: 15+ sites (calculate-fee.go:45, find.go:45/95/216/308/313, create/update/delete *.go) dump payloads/filters/projections/records with nil redactor \u2014 the default idiom. (b) NOT cherry-picked: 81 SetSpanAttributesFromValue call sites total, 48 pass nil, spread across tracer(28), ledger-fees+mongo(9+), crm(2), reporter(2), rabbitmq(1). (c) Logs: billing-calculate-service.go:182-183 and 423-424 log totalNetAmount/unitPrice/gross/net financial values at LevelInfo via fmt.Sprintf (also breaks the no-fmt.Sprintf-in-logger rule); validation_service.go:233 logs transaction.amount at Info on every validation. Safe pattern proven to exist and be ignored: observability.go:154 safePayloadAttributes emits presence booleans only, AND 33 of the 81 call sites DO pass a non-nil redactor \u2014 so redaction is available and selectively applied.",
+      "corrected_severity": "P0",
+      "correction": "Claim holds at P0. One honest nuance, not a downgrade: the span-attribute half (rabbitmq msg.Body, CRM PII) is gated on telemetry being enabled and the span being sampled/exported, so in tracing-off deploys those leaks are dormant. But the log half (fees Info logs of net/gross/unitPrice at lines 182/423; tracer transaction.amount at 233) fires unconditionally and Info logs are near-universally shipped to Loki \u2014 so plaintext financial values leak regardless of tracing config. That unconditional log path is what anchors P0; PII (CPF/names/emails/phones via CRM spans) compounds it where tracing is on. Real GLBA/LGPD/PCI-adjacent exposure on the wire, not cosmetic."
+     }
+    },
+    {
+     "theme": "Child I/O spans overwrite the parent ctx (`ctx, spanExec := tracer.Start(ctx, ...)`)",
+     "claimed_severity": "P1",
+     "verdict": {
+      "confirmed": true,
+      "corrected_severity": "P1",
+      "evidence": "CLAUDE.md:120 (\"use _, spanExec := tracer.Start, NOT ctx, spanExec :=\") and CLAUDE.md:250 (\"Do not overwrite parent ctx with child spans\") state the rule verbatim. All four cited refs show the banned pattern: components/ledger/internal/adapters/postgres/account/account.postgresql.go:192 (ctx, spanExec := tracer.Start(ctx, \"postgres.create.exec\")); components/crm/adapters/mongodb/holder/holder.mongodb.go:127 (ctx, spanInsert :=); components/crm/adapters/mongodb/instrument/instrument.mongodb.go:130 (ctx, spanInsert :=); components/ledger/internal/adapters/mongodb/fees/pack/find.go:91 (ctx, spanFind :=). Population (non-test): 135 child-span ctx-rebind violations vs 39 correct _, spanX fan-offs. By component: ledger 121, crm 13, reporter-manager 1 (single sequential producer span), tracer 0 \u2014 confirms the claim's scoping (ledger-core/crm/fees guilty, tracer/reporter clean). fees mongo adapter = 16 rebinds. Real distortion proven at components/ledger/internal/adapters/mongodb/fees/pack/update.go:52,73 \u2014 spanUpdate is defer-ended (line 53) so spanUpdateEnable (73) starts while spanUpdate is still the active ctx value, nesting sibling under sibling. Even the .End()-before-next cases (billing_package/find.go:138 spanCount.End() then :156 spanFind) are distorted: ending a span does not restore the parent into Go context, so spanFind still parents under the ended spanCount.",
+      "correction": "Claim is confirmed and slightly conservative, not overstated. Two minor inaccuracies: (1) \"~28 sub-span sites in fees mongo\" \u2014 the fees mongo adapter actually has 16 child-span rebinds (the 28 likely counts roots or fee-engine code outside the mongo adapter). (2) The claim attributes distortion specifically to \"the reassigned ctx reused by the NEXT sibling sub-span,\" which holds for the update.go double-sub-span case; but the single-child find cases that call .End() before any next span are ALSO distorted, because ending a span does not remove it from the Go context value \u2014 the next sub-span (or, in single-child cases, this is moot, but in multi-sub-span find_all flows like billing_package/find.go count->find) still parents under the prior ended span. Net: the claim understates slightly rather than overstating. Severity P1 is honest: corrupts trace parent-child topology and latency attribution for operators, but is not a correctness/wire-data defect and does not reach end users, so not P0."
+     }
+    },
+    {
+     "theme": "fmt.Sprintf inside logger.Log instead of structured fields",
+     "claimed_severity": "P1",
+     "verdict": {
+      "confirmed": true,
+      "corrected_severity": "P1",
+      "evidence": "All five refs verified. account.postgresql.go:202 `logger.Log(ctx, libLog.LevelError, fmt.Sprintf(\"Failed to execute query: %v\", err))`; http/in/account.go:285 `fmt.Sprintf(\"Failed to retrieve Account with Account ID: %s, Error: %s\", ...)`; fees/billing-calculate-service.go:101 `fmt.Sprintf(\"Starting billing calculation: org=%s, ledger=%s, ...\")`; crm/services/create-holder.go:36 `fmt.Sprintf(\"Failed to generate holder id: %v\", err)`. reporter-worker/generate-report.go:167 region uses the CORRECT structured form (lines 123/130/150/162/173 all `log.Err(err)`), confirming reporter is the clean proof point. Counts (mine vs claimed): ledger-core 859 vs 816; ledger-http 251 vs ~254; fees 82 vs 105; crm 31 vs ~34; tracer 0; reporter 0. Majority form confirmed: ledger-core 859 Sprintf-in-Log vs 740 structured. Rule is explicit in CLAUDE.md (\"Do not use fmt.Sprintf inside logger calls\").",
+      "correction": "Confirmed as a real, dominant convention violation with genuine OTLP cost \u2014 error text becomes a message substring instead of a structured `error` attribute, killing faceting/alerting in Loki/Grafana. But the \"mechanism behind several P0 leaks\" framing is overstated and conflates two different problems. Of the 859 ledger-core violations, 808 are the benign `\"...: %v\"` / `\"Error: %s\"` error-wrap form (interpolating an err or an ID), which is a convention/observability defect, NOT a data leak. The genuine leak posture is a small, concentrated subset: 3 calls use `%#v` full-struct payload dumps (fees handlers, e.g. `Request to create a pack with details: %#v`), and a handful in fees interpolate financial values (`netAmount=%s`, `totalNetAmount=%s`, `send.value=%s` in billing-calculate, volume/maintenance payload builders). Those few are real and worth a targeted P0/P1 fix, but they are not produced \"by\" the broad Sprintf-in-Log pattern \u2014 they are a separate leak problem that merely shares the syntax. Severity stays P1 for the convention+observability scope; the leak-mechanism rhetoric should be scoped down to the ~dozen fees calls that actually interpolate amounts/payloads."
+     }
+    },
+    {
+     "theme": "Per-request/per-message Info-level noise duplicating spans",
+     "claimed_severity": "P1",
+     "verdict": {
+      "confirmed": true,
+      "evidence": "All 5 cited lines exist and show exactly what is claimed. account.go:279 \"Initiating retrieval of Account...\" (Info) + :290 \"Successfully retrieved Account...\" (Info) bracket a span-wrapped query \u2014 entry+exit at Info. tracer/rule_repository.go:120 logs \"Creating rule\" at Info on a SQL op. fees/create-package.go:30 \"Trying to create a pack\" at Info on entry. reporter-worker/consumer.rabbitmq.go:218 \"Starting message processing\" (Info) + :242 \"Successfully processed message\" (Info) per message in the consumer loop. crm/get-all-holders.go:30 \"Retrieving holders\" at Info. Counts confirm and slightly exceed the claim: ledger-http non-test = 192 LevelInfo vs 9 LevelDebug (claim said ~188/10) \u2014 inverted level discipline; 161 of those Info lines match Initiating/Successfully/Retrieving/Trying. reporter-manager=140 Info, reporter-worker=91 Info. Triple-log confirmed: rule create logs \"Creating rule\" at handler (rule_handler.go:97), command (create_rule.go:158), AND repo (rule_repository.go:120) \u2014 3 Info lines, 3 layers, 1 create. Representativeness confirmed not cherry-picked: 21 of 34 ledger-http handler files carry Initiating/Successfully Info pairs; organization.go:148-346 shows the identical entry+exit-at-Info pattern as account.go. Violates CLAUDE.md \"Info = sparse production milestones only\" and \"Do not add redundant Initiating... logs\" / \"spans already mark operation starts\".",
+      "corrected_severity": "P1",
+      "correction": "Claim survives intact on all facts; P1 is honest, not overstated. Caveat for calibration: this is a convention/discipline violation with operational cost (log-volume inflation, ingestion/storage cost, degraded signal-to-noise during incidents \u2014 3x milestone noise per write from the triple-log), NOT a correctness, security, or wire-contract defect. The cited logs use entity IDs (id.String()), not PII/balances/secrets, so no logging-secrets rule is breached. Nothing breaks functionally and nothing pages. It is the textbook \"systematic convention violation, operationally costly, functionally inert\" case \u2014 correctly P1, not P0."
+     }
+    },
+    {
+     "theme": "Two parallel error/HTTP subsystems vs the canonical pkg/errors.go + http.WithError boundary",
+     "claimed_severity": "P1",
+     "verdict": {
+      "confirmed": true,
+      "evidence": "components/ledger/pkg/feeshared/constant/errors.go:13 (FEE-0001 sentinel; 70 FEE-* sentinels total via grep, non-contiguous through FEE-0072); components/ledger/pkg/feeshared/errors.go:295 (own ValidateBusinessError) + structs at :18,:50,:74,:123,:175 duplicating pkg/errors.go; components/ledger/pkg/feeshared/nethttp/errors.go:20 (second package http 'feehttp' WithError delegating to commonsHttp.Respond) + nethttp/middleware-tracing.go (body-tracing); components/ledger/internal/adapters/http/in/fees_package_handler.go imports BOTH pkg/net/http as http (line 19) and feeshared/nethttp as feehttp (line 18), switching in-function: http.WithError at :80,:173,:241,:297,:389 (UUID-path) vs feehttp.WithError at :99,:105,:111,:134,etc (business); midaz canonical sentinels in pkg/constant/errors.go use bare numerics ('0001','0002'); tracer maintains own pkg/net/http/errors.go:17 WithError with TRC-XXXX codes routing to its OWN local helpers, not lib-commons. Wire envelope keys identical across all three: pkg/errors.go:20-22 {title,message,code} \u2014 fragmentation is in code namespace, not JSON shape.",
+      "corrected_severity": "P1",
+      "correction": "Two factual imprecisions, neither fatal. (1) Count is 70 FEE-* sentinels, not 72, and IDs are non-contiguous (gaps; Motor-2 block scattered 0052-0072) \u2014 claim overstated as '72-entry FEE-0001..0072'. (2) The tracer delegation hedge is inverted: it is feehttp.WithError that delegates rendering to commonsHttp.Respond; tracer's own WithError routes to its LOCAL NotFound/Conflict/BadRequest helpers, not lib-commons. Severity stays P1, no upgrade: the JSON error envelope keys ({code,title,message}) are IDENTICAL across all three stacks, so there is no wire-shape break for clients and no runtime/financial/security bug. The divergence is real architecture/contract-hygiene debt (parallel FEE-* error namespace, forked ValidateBusinessError drifting from canonical pkg/errors.go, dual-import WithError footgun, and a documented 'sentinels only in pkg/constant/errors.go' rule violation) \u2014 but it bites maintainability and the client error contract, not production correctness. P1 is the honest ceiling."
+     }
+    },
+    {
+     "theme": "Metrics are ungoverned: two systems, unbounded labels, swallowed emit errors, no naming standard",
+     "claimed_severity": "P1",
+     "verdict": {
+      "confirmed": true,
+      "corrected_severity": "P2",
+      "evidence": "All 4 refs verified and accurate. (1) No metrics standard: docs/PROJECT_RULES.md:242-265 covers only span/tracing instrumentation; grep for \"cardinality|metric naming|metric label\" across PROJECT_RULES.md/AGENTS.md/CLAUDE.md returns nothing. (2) Two coexisting systems: ledger/reporter use lib-observability MetricsFactory (account.go:55 NewTrackingFromContext, rabbitmq.server.go:248), tracer pins names via libMetrics.Metric with bucket contracts (recorder.go:66-90). (3) Silent swallow confirmed at every emit site: rabbitmq.server.go:376/378/400 (_ = counter.Add), metric_state_listener.go:43-51 (two bare `return` on err), readyz.go:139/144/160 (err==nil-guard then discard). fees/crm emit zero metrics (grep returns 0). (4) Namespace fragmentation real: metric labels use bare keys organization_id/ledger_id/tenant/db/service (rabbitmq.server.go:265, account.go:91, config.rabbitmq.go:206/283, metric_state_listener.go:48) while 92 span sites use app.request.* namespace. (5) tracer is the only slice gating metric emission on a bounded-cardinality allowlist (recorder.go:131 isValidDep/isValidStatus) \u2014 the ledger isValidStatus helpers (status_validation.go:13) are INPUT validation, not metric-label bounding.",
+      "correction": "Core finding is true but severity is overstated as P1. The load-bearing harm \u2014 \"UNBOUNDED-cardinality\" labels biting in production \u2014 is false. Every metric label dimension in ledger/reporter is inherently bounded: organization_id, ledger_id (bounded by tenant count), tenant, db, service, checker, status, endpoint, healthy. No metric uses per-transaction, per-account, per-operation, or user-controlled free-text IDs as a label \u2014 I checked all 29 emit sites. So there is no time-series explosion / Prometheus-OOM risk, which is what would make this P1. RecordAccountCreated is itself a lib-observability helper, not midaz-owned code, so the label choice there isn't even fully under this repo's control. What remains is genuine but lower-severity: (a) cross-signal correlation friction (metrics labelled organization_id, spans labelled app.request.organization_id \u2014 Grafana joins need manual aliasing); (b) consistent silent-swallow of emit errors meaning metric-pipeline failures are invisible (operational blind spot, not data loss \u2014 these are observability counters, not financial state); (c) fees/crm having no metrics at all (a coverage gap, not a divergence). None of this touches double-entry correctness or the wire. tracer's allowlist+pinned-bucket discipline IS the right model and the recommendation to standardize is sound \u2014 but this is a consistency/observability-hygiene debt (P2), not a production-incident risk (P1)."
+     }
+    },
+    {
+     "theme": "Span input-attribute taxonomy barely applied; SetSpanAttributesFromValue bulk-dump vs app.request.* presence-flags",
+     "claimed_severity": "P2",
+     "verdict": {
+      "confirmed": true,
+      "corrected_severity": "P2",
+      "evidence": "Sub-claim (1) CONFIRMED and stronger than stated: of 13 ledger-core pg adapters (components/ledger/internal/adapters/postgres/*/*.postgresql.go), only operationroute sets span attributes (operationroute.postgresql.go:442 `db.rows_returned`). Of 64 query files in components/ledger/internal/services/query, 62 call tracer.Start but 0 call span.SetAttributes \u2014 the app.request.* convention is essentially unapplied in ledger-core read/CRUD paths. Sub-claim (3) CONFIRMED: tracer rule_handler.go:99 and :183 use non-standard `rule_input`/`rule_update` namespaces (no app. prefix); reporter-worker generate-report-data.go:402 tags an OUTPUT count as `app.request.plugin_crm.total_records`; fees create-package.go:36 (and crm create-holder-with-id.go:34) tag correlation `app.request.request_id`. The good model is real: ledger-http observability.go:186-209 (selective keys + boolean has_* presence flags) and crm mongodb adapters (instrument.mongodb.go:136-138, holder.mongodb.go:132-137).",
+      "correction": "ONE material mischaracterization in sub-claim (2). The claim says SetSpanAttributesFromValue \"JSON-dumps whole structs onto ONE attribute (the leak vector).\" That is false. In the pinned lib-observability v1.0.1 (tracing/otel.go), SetSpanAttributesFromValue calls BuildAttributesFromValue, which json-marshals then FLATTENS the value into many per-field OTEL attributes (e.g. app.request.payload.name, app.request.payload.amount), with depth cap, attribute-count cap, UTF-8 sanitization, per-string truncation, and an optional Redactor. It is selective-ish by construction, not a single opaque blob. The underlying CONCERN still holds in modified form: every midaz call site passes nil as the Redactor and feeds the entire input struct (cpi/input/payload, the full validation request, even rabbitmq msg.Body at consumer.rabbitmq.go:316), so unredacted field values DO land on spans \u2014 but spread across many attributes, not one. So the leak vector is real but the mechanism described is wrong. Net: claim is accurate on (1) and (3), accurate-in-spirit-but-wrong-on-mechanism for (2). Severity P2 is honest: this is telemetry hygiene/PII-on-spans risk and convention drift, not a correctness or wire-contract bug. It bites in production only as observability noise plus a genuine-but-bounded PII-on-traces exposure (mitigated by the lib's truncation/sanitization, NOT mitigated by redaction since nil is always passed). Keep P2; do not upgrade \u2014 no double-entry, no API surface, no data corruption."
+     }
+    },
+    {
+     "theme": "Span-error helper choice tracks code-origin, not error class",
+     "claimed_severity": "P2",
+     "verdict": {
+      "confirmed": true,
+      "evidence": "All four refs exist and show exactly what is claimed. account.go:84 uses HandleSpanBusinessErrorEvent for the CreateAccount command failure (onboarding leans on business events: account.go=12, ledger.go=13, organization.go=11, operation_route.go=26 BusinessErrorEvent hits). validate-related-party.go:33 (and :40,:45,:50,:55,:59) uses HandleSpanError for errors that are explicitly business errors via pkg.ValidateBusinessError \u2014 and `grep -rl HandleSpanBusinessErrorEvent components/crm/` returns ZERO files: CRM uses HandleSpanError exclusively, 0 business events. billing-calculate-service.go:349-351 builds a var literally named `bizErr` via ValidateBusinessError(ErrBillingCalculationFailed) then records it through HandleSpanError \u2014 the \"crossing over mid-file\" is real. report.go:98 branches on http.IsBusinessError correctly; IsBusinessError is used only in reporter-manager/reporter-worker, never in crm or ledger-http or fees. The semantic difference is load-bearing (lib-observability@v1.0.1/tracing/otel.go:518 vs :536): HandleSpanBusinessErrorEvent only AddEvent (span status stays UNSET/green); HandleSpanError calls SetStatus(codes.Error)+RecordError (span marked failed/red). So CRM marks every 4xx validation rejection as a failed span, inflating error-rate SLOs and alert noise on a whole component. Declared-standard ambiguity confirmed: PROJECT_RULES.md:259,347 uses HandleSpanBusinessErrorEvent for business errors while CLAUDE.md:209 mandates HandleSpanError for streaming.",
+      "corrected_severity": "P2",
+      "correction": "Claim survives intact and is representative, not cherry-picked (CRM-wide: zero business events; onboarding-wide: business events dominate; fees: confirmed mid-file crossover with a var named bizErr). Severity P2 is honest and should not be escalated: HTTP responses and error-code mapping are unaffected (WithError maps independently of span events), so there is zero wire/correctness impact. The damage is purely operational \u2014 false-positive span error status inflates error-rate dashboards/alerting/trace-sampling on CRM endpoints, making a burst of client validation rejections look like a service outage. Because the declared standard is genuinely contradictory (PROJECT_RULES says BusinessErrorEvent for business errors; CLAUDE.md mandates HandleSpanError for streaming), this is a convention-decision gap rather than a code bug, which is exactly P2 territory."
+     }
+    }
+   ],
+   "unverified_count": 3
+  },
+  {
+   "dimension": "errors",
+   "synthesis": {
+    "dimension": "errors",
+    "state_summary": "The repo has ONE genuinely shared error contract \u2014 five identical typed structs ({EntityType,Title,Message,Code,Err} with Error()/Unwrap()), the ValidateBusinessError factory shape, and the {code,title,message} envelope \u2014 but FOUR independent copies of it. Ledger-core/ledger-http/crm consume the canonical pkg/errors.go + pkg/constant/errors.go (the real house standard: ~193 centralized 4-digit sentinels plus the CRM- family, co-located canonically). Fees (FEE-xxxx), reporter (TPL-/REP-xxxx), and tracer (TRC-xxxx) each carry a near-verbatim FORK of the entire error platform \u2014 own sentinel registry, own typed structs, own ValidateBusinessError, own WithError writer \u2014 that drifts independently. The forks are not thin aliases; they re-declare the contract. Worse, the canonical writer is the WEAKEST implementation on the dimension that matters: pkg/net/http.WithError uses a bare Go type switch (no unwrapping), while all three forks use errors.As \u2014 so a business error wrapped with %w anywhere in the chain mis-maps to 500 under canonical code but maps correctly under the forks. Status-code discipline is inconsistent everywhere: fees and reporter collapse business-rule violations into ValidationError->400 instead of 422. Hygiene rot is repo-wide and largely orthogonal to the slice boundaries: fmt.Sprintf-in-logger (700+ sites across ledger-core/ledger-http/crm/fees), reflect.TypeOf().Name() for entity names, per-request Info logging, and N-layer double/triple error logging are pervasive in EVERY slice including the reference one. Async error posture diverges hard: ledger-core's RabbitMQ consumer has a blanket Nack-with-requeue and NO poison/DLQ handling (hot-loops on permanent failures), while reporter-worker has the mature pattern (classify -> backoff-republish -> DLQ, requeue=false). The good news: structure is convergent and the canonical machinery is sound; the work is consolidation, status-mapping correctness, async-posture unification, and a mechanical hygiene sweep.",
+    "divergence_matrix": [
+     {
+      "theme": "Three forked error platforms shadow the canonical pkg/errors.go",
+      "components": [
+       "fees",
+       "reporter",
+       "tracer"
+      ],
+      "description": "Fees (components/ledger/pkg/feeshared, package literally named `pkg`), reporter (pkg/reporter, package `pkg`), and tracer (components/tracer/pkg) each re-declare the full typed-error system (EntityNotFoundError/ValidationError/etc.), their own ValidateBusinessError with a private errorMap, and their own sentinel namespace (FEE-/TPL-+REP-/TRC-). These are wholesale forks, not aliases \u2014 identical struct shapes and JSON tags but zero shared code, so envelope-field or status-mapping changes in canonical pkg/ silently diverge from the copies. lib-commons is mandated and the platform already ships these types; the forks exist only because the slices arrived as standalone services.",
+      "evidence_refs": [
+       "components/ledger/pkg/feeshared/errors.go:18-227",
+       "components/ledger/pkg/feeshared/constant/errors.go:12-89",
+       "pkg/reporter/errors.go:299-641",
+       "pkg/reporter/constant/errors.go:14-102",
+       "components/tracer/pkg/errors.go:17-375",
+       "components/tracer/pkg/constant/errors.go:14-311"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "Canonical WithError is the ONLY non-unwrapping HTTP mapper; %w-wrapped business errors mis-map to 500",
+      "components": [
+       "ledger-core",
+       "ledger-http",
+       "crm"
+      ],
+      "description": "pkg/net/http.WithError uses a bare `switch err.(type)` (no unwrap). With 100+ fmt.Errorf-%w sites across the canonical slices, any business error wrapped before reaching the handler misses every case and falls through default -> ValidateInternalError -> HTTP 500, breaking its 404/409/422 contract. The three FORKED writers (feehttp.WithError, reporter WithError, tracer's dead mapper) all already use errors.As and are immune. Here the outlier pattern is objectively correct and canonical is the defect \u2014 the fix is to make canonical WithError unwrap via errors.As, which also lets the forks be deleted onto it without behavior change.",
+      "evidence_refs": [
+       "pkg/net/http/errors.go:17-67",
+       "components/ledger/pkg/feeshared/nethttp/errors.go:62-118",
+       "pkg/reporter/net/http/errors.go:60-118"
+      ],
+      "severity": "P0"
+     },
+     {
+      "theme": "Business-rule violations mis-mapped to 400 instead of 422",
+      "components": [
+       "fees",
+       "reporter"
+      ],
+      "description": "Both forks collapse domain ValidationError -> HTTP 400. CLAUDE.md mandates business-rule violations -> UnprocessableOperationError/422 and reserves 400 for malformed input. Fees types nearly all package-rule failures (ErrPriorityInvalid, ErrPackageRange, ErrMinAmountGreaterThanMaxAmount, even ErrDuplicatePackage which is conceptually a 409 conflict) as ValidationError->400; only the newer Motor-2 billing errors correctly use 422. Reporter does the same (ErrReportStatusNotFinished, ErrDataSourceUnavailable -> 400). Wire-visible status regression vs the declared standard, inconsistent even within each slice.",
+      "evidence_refs": [
+       "components/ledger/pkg/feeshared/errors.go:363-572",
+       "components/ledger/pkg/feeshared/nethttp/errors.go:39-47",
+       "pkg/reporter/net/http/errors.go:83-91",
+       "pkg/reporter/errors.go:446-451"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "RabbitMQ consumer error posture: blanket requeue with no DLQ vs mature classify/backoff/DLQ",
+      "components": [
+       "ledger-core",
+       "reporter"
+      ],
+      "description": "ledger-core's transaction consumer Nacks every handler error with requeue=true and has no transient-vs-permanent classification, no retry cap, no dead-letter. A permanent error (msgpack unmarshal failure, 'nil Transaction field' bare fmt.Errorf) hot-loops forever on the same message. reporter-worker is the model: ConsumerRetryManager classifies via DefaultErrorClassifier, non-retryable -> Nack(false,false) to DLQ, retryable -> backoff+republish with maxRetries, requeue=false always. The mature pattern already exists in-repo and should become the standard for ledger-core. (Tracer has no consumer; crm/fees are synchronous.)",
+      "evidence_refs": [
+       "components/ledger/internal/adapters/rabbitmq/consumer.rabbitmq.go:321-356",
+       "components/ledger/internal/services/command/create_balance_transaction_operations_async.go:51-63",
+       "components/reporter-worker/internal/adapters/rabbitmq/consumer.rabbitmq.go:160-246",
+       "components/reporter-worker/internal/adapters/rabbitmq/retry_manager.go:61-122",
+       "pkg/reporter/rabbitmq/error_classifier.go:42-163"
+      ],
+      "severity": "P0"
+     },
+     {
+      "theme": "fmt.Sprintf inside logger.Log calls \u2014 banned, yet pervasive across every slice",
+      "components": [
+       "ledger-core",
+       "ledger-http",
+       "crm",
+       "fees"
+      ],
+      "description": "CLAUDE.md explicitly bans fmt.Sprintf in logger calls (kills OTLP attribute extraction). Violated everywhere: ~402 in ledger postgres adapters + 71 command/query files, 234 in ledger-http handlers (core AND crm), ~91 in fees. The correct libLog.Err/libLog.String form exists in newer files (create_account.go, transaction_reservation_anchor.go, create-holder-with-id.go) proving the slices know the pattern; old files were never migrated. Reporter and tracer are clean here.",
+      "evidence_refs": [
+       "components/ledger/internal/adapters/postgres/account/account.postgresql.go:202",
+       "components/ledger/internal/adapters/http/in/holder.go:68",
+       "components/ledger/internal/adapters/http/in/balance.go",
+       "components/ledger/internal/services/fees/get-package-by-id.go:44",
+       "components/ledger/internal/adapters/http/in/transaction_reservation_anchor.go:283"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "Span-error helper misused for business failures (HandleSpanError vs HandleSpanBusinessErrorEvent)",
+      "components": [
+       "crm",
+       "ledger-http",
+       "fees"
+      ],
+      "description": "The business-vs-technical signal is the span helper choice: HandleSpanBusinessErrorEvent for expected 4xx (does not flip span to Error status), HandleSpanError for infra. CRM handlers and crm services use HandleSpanError on EVERY error including not-found/validation (0 BusinessErrorEvent uses), inflating error-rate SLOs on ordinary client faults. ledger-http core mostly correct; fees mixed (~108 HandleSpanError vs ~50 BusinessErrorEvent). Reporter/tracer get this right via an IsBusinessError predicate \u2014 the model to canonize.",
+      "evidence_refs": [
+       "components/ledger/internal/adapters/http/in/holder.go:66",
+       "components/ledger/internal/adapters/http/in/instrument.go:75",
+       "components/crm/services/validate-related-party.go:33-50",
+       "pkg/reporter/net/http/errors.go:18-57",
+       "components/ledger/internal/adapters/http/in/account.go:84"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "Two not-found conventions: adapter maps to typed 404 vs returns bare technical sentinel for deferred mapping",
+      "components": [
+       "ledger-core",
+       "reporter"
+      ],
+      "description": "Same slice, two contracts for 'row not found'. ledger-core: 10/13 postgres repos map sql.ErrNoRows directly to ValidateBusinessError(ErrEntityNotFound) (404), but 3 (accounttype/operationroute/transactionroute) return bare services.ErrDatabaseItemNotFound and defer mapping to 65 use-case sites via errors.Is. reporter has THREE conventions within single repos (raw mongo.ErrNoDocuments, constant.ErrEntityNotFound, pre-mapped ValidateBusinessError). Any caller that forgets the errors.Is check leaks the raw sentinel to WithError's 500 fallthrough instead of 404.",
+      "evidence_refs": [
+       "components/ledger/internal/adapters/postgres/account/account.postgresql.go:459-467",
+       "components/ledger/internal/adapters/postgres/accounttype/accounttype.postgresql.go:234-235",
+       "components/ledger/internal/services/errors.go:17",
+       "pkg/reporter/mongodb/report/report.mongodb.go:158-160",
+       "components/reporter-manager/internal/services/get-report-by-id.go:40-41"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "Brittle string-matching for error classification instead of typed inspection",
+      "components": [
+       "crm",
+       "reporter"
+      ],
+      "description": "crm disambiguates which duplicate-key conflict occurred via strings.Contains(err.Error(),'document'/'account_id') \u2014 couples business mapping to mongo driver message text and index names; a rename silently drops 409 to 500. reporter's retry classifier keys partly on strings.Contains(err.Error(),'TPL-') to detect non-retryable, fragile and blind to REP- coded errors. Should inspect typed mongo.WriteException / errors.As, not rendered strings.",
+      "evidence_refs": [
+       "components/crm/adapters/mongodb/holder/holder.mongodb.go:145",
+       "components/crm/adapters/mongodb/instrument/instrument.mongodb.go:147",
+       "pkg/reporter/rabbitmq/error_classifier.go:51-57"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "Internal error detail leaked to clients / persisted to documents",
+      "components": [
+       "reporter",
+       "tracer"
+      ],
+      "description": "reporter-worker stamps raw reportErr.Error() (decrypt internals, mongo errors, SeaweedFS paths) verbatim into report.metadata.error_detail, persisted on the doc and surfaced on GET \u2014 violates 'do not expose internal technical error details'. tracer handlers (rule_handler:91,170,310) return err.Error() directly into the client-facing message field for unmapped validation errors. CLAUDE.md mandates sanitized generic messages at the boundary.",
+      "evidence_refs": [
+       "components/reporter-worker/internal/services/generate-report.go:203-223",
+       "components/reporter-worker/internal/services/data-pipeline.go:40",
+       "components/tracer/internal/adapters/http/in/rule_handler.go:91"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "Dead central WithError mapper bypassed by per-handler hand-rolled mapping",
+      "components": [
+       "tracer"
+      ],
+      "description": "tracer has a pkg/net/http.WithError mapper but ZERO non-test callers; every handler hand-rolls its own errors.Is/errors.As switch and calls low-level writers directly, with TRC codes as bare STRING LITERALS ('TRC-0003') instead of the constant.Err* identifiers \u2014 so any renumber desyncs handler from sentinel. error->status policy is duplicated per-handler with no single source of truth. Compounded by two competing ValidateBusinessError functions (tracer-local entityType-2nd-arg vs lib-commons message-2nd-arg) in active simultaneous use, neither of which recognizes TRC rule/limit codes, so enrichment silently no-ops.",
+      "evidence_refs": [
+       "components/tracer/pkg/net/http/errors.go:16-65",
+       "components/tracer/internal/adapters/http/in/rule_handler.go:548-621",
+       "components/tracer/internal/adapters/http/in/validation_handler.go:181-202",
+       "components/tracer/internal/services/command/activate_rule.go:134"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "reflect.TypeOf(mmodel.Foo{}).Name() for entity-type args instead of constant.Entity*",
+      "components": [
+       "ledger-core",
+       "crm",
+       "fees"
+      ],
+      "description": "Explicit CLAUDE.md ban. ledger-core: 76 occurrences vs 151 correct constant.Entity uses, mixing both for the SAME ValidateBusinessError argument position. crm: holder adapter uses reflect, instrument adapter uses cn.EntityInstrument \u2014 inconsistent within the slice. fees has no Entity* constants at all and uses reflect or bespoke literals ('BillingPackage').",
+      "evidence_refs": [
+       "components/ledger/internal/services/query/get_id_account.go:35",
+       "components/crm/adapters/mongodb/holder/holder.mongodb.go:146",
+       "components/ledger/internal/services/fees/create-package.go:68",
+       "pkg/constant/entity.go:16-23"
+      ],
+      "severity": "P2"
+     },
+     {
+      "theme": "Bare sentinel constants passed to WithError fall through to 500 instead of intended status",
+      "components": [
+       "ledger-http",
+       "crm"
+      ],
+      "description": "GetUUIDFromLocals returns the bare sentinel constant.ErrInvalidPathParameter (raw errors.New('0065')) not a typed pkg error, so WithError's type switch misses it -> 500, while the identical condition at parse time (ParseUUIDPathParameters wraps via ValidateBusinessError) is 400. CRM handlers pass bare cn.ErrInternalServer into WithError relying solely on the default case. Both bypass the typed-error contract and would misroute if the default ever changed.",
+      "evidence_refs": [
+       "pkg/net/http/httputils.go:563-575",
+       "pkg/net/http/withBody.go:239-243",
+       "components/ledger/internal/adapters/http/in/holder.go:51"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "Second, code-less error envelope shape coexists with canonical {code,title,message}",
+      "components": [
+       "ledger-http",
+       "tracer"
+      ],
+      "description": "ledger-http's LegacyErrorBoundary emits {\"error\":\"<text>\"} for any raw fiber.Error escaping a handler (e.g. MarkTrustedAuthAssertion's fiber.NewError(401)), so clients see two schemas depending on failure origin. tracer emits at least three carriers (fiber.Map{code,title,message}, libCommons.Response, ad-hoc fiber.Map with extra CEL keys). No single canonical response struct per slice.",
+      "evidence_refs": [
+       "components/ledger/internal/adapters/http/in/errors.go:46-51",
+       "pkg/net/http/protected_routes.go:48-58",
+       "components/tracer/internal/adapters/http/in/validation_handler.go:100-104"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "Production panics outside the no-panic rule",
+      "components": [
+       "ledger-core",
+       "reporter"
+      ],
+      "description": "ledger-core: consumer.rabbitmq.go panics with a string literal if the initial RabbitMQ connection fails in the constructor (real violation \u2014 should return error). reporter: pongo template init panics on sandbox-setup failure (fail-closed security guard, defensible but literal violation). tracer/fees are clean; tracer even converts fn panics to wrapped errors in executeInTx.",
+      "evidence_refs": [
+       "components/ledger/internal/adapters/rabbitmq/consumer.rabbitmq.go:116",
+       "pkg/reporter/pongo/pongo.go:140",
+       "components/tracer/internal/services/command/tx_helper.go:65-103"
+      ],
+      "severity": "P1"
+     },
+     {
+      "theme": "Per-request Info logging and redundant Initiating logs",
+      "components": [
+       "ledger-core",
+       "ledger-http",
+       "crm",
+       "fees"
+      ],
+      "description": "CLAUDE.md reserves Info for 'sparse production milestones' and bans 'Initiating...' logs since spans mark starts. ledger-core query layer logs Info on every GET (67 sites); ledger-http and crm log 'Initiating retrieval'/'Request to...' at handler+service entry; fees logs full request payloads at Info via %#v (also a PII/raw-payload violation).",
+      "evidence_refs": [
+       "components/ledger/internal/services/query/get_id_account.go:28",
+       "components/ledger/internal/adapters/http/in/holder.go:118",
+       "components/ledger/internal/adapters/http/in/fees_package_handler.go:89"
+      ],
+      "severity": "P2"
+     },
+     {
+      "theme": "N-layer double/triple error logging on a single failure",
+      "components": [
+       "ledger-core",
+       "crm",
+       "fees",
+       "reporter"
+      ],
+      "description": "Same error recorded to span AND logged at adapter, then again at use-case, then again at handler. Produces N log lines + N span events per failure, contradicting sparse-single-point guidance and inflating log volume under load. Universal across slices; the declared standard gives no explicit single-point-logging rule, which is the root gap.",
+      "evidence_refs": [
+       "components/ledger/internal/adapters/postgres/account/account.postgresql.go:464",
+       "components/ledger/internal/services/query/get_id_account.go:32",
+       "components/crm/services/create-instrument.go:106-107",
+       "components/ledger/internal/services/fees/get-package-by-id.go:42-50"
+      ],
+      "severity": "P2"
+     }
+    ],
+    "proposed_standard": [
+     {
+      "rule": "There is exactly ONE error platform: typed structs + ValidateBusinessError factory + sentinel registry live in pkg/errors.go and pkg/constant/errors.go. No slice may declare its own typed-error structs, its own ValidateBusinessError, or its own sentinel package. Fees/reporter/tracer forks are deleted and re-pointed at canonical pkg/.",
+      "rationale": "Three of six slices fork the platform with identical struct shapes and JSON tags but zero shared code, guaranteeing silent drift. The canonical pkg/ is already the contract the forks copied; consolidating eliminates the drift class entirely. Ledger-core house style wins because it is what the forks imitate.",
+      "canonical_example": "pkg/errors.go:18-248 (typed structs), pkg/errors.go:342 (ValidateBusinessError), pkg/constant/errors.go:14-260 (sentinel registry)"
+     },
+     {
+      "rule": "The HTTP error boundary is pkg/net/http.WithError, and it MUST resolve types via errors.As (unwrap-safe), not a bare type switch. All handlers call it; no slice keeps its own WithError writer.",
+      "rationale": "This is the one place the outlier beats the incumbent: canonical WithError's bare type switch silently mis-maps any %w-wrapped business error to 500 (P0), while the fees/reporter/tracer forks already use errors.As correctly. Adopt the forks' errors.As behavior INTO canonical WithError, then delete the forks onto it. Fixes the P0 and enables consolidation in one move.",
+      "canonical_example": "pkg/reporter/net/http/errors.go:60-118 (errors.As chain \u2014 the behavior to lift into pkg/net/http/errors.go:17)"
+     },
+     {
+      "rule": "Status mapping is fixed: not-found -> EntityNotFoundError/404; duplicate/conflict -> EntityConflictError/409; malformed input/field validation -> ValidationError or ValidationKnownFieldsError/400; business-rule violation -> UnprocessableOperationError/422; auth -> 401/403; infra -> 500/503. A domain-rule failure is NEVER ValidationError/400.",
+      "rationale": "Fees and reporter collapse business-rule violations into 400; the declared standard and ledger-core map them to 422. Canonize ledger-core's split so fees' package-rule errors and reporter's report-state errors are re-typed to UnprocessableOperationError, and duplicate-package becomes EntityConflictError/409.",
+      "canonical_example": "pkg/errors.go:139-189 (typed->status); components/ledger/internal/services/command/create_account.go uses ValidateBusinessError with the entity-correct typing"
+     },
+     {
+      "rule": "Business sentinels are 4-digit numeric strings in pkg/constant/errors.go; resolved to typed errors via pkg.ValidateBusinessError(constant.ErrX, constant.EntityY, args...). Wire-visible non-numeric families (CRM-, FEE-, TPL-, REP-, TRC-) are either migrated to numeric codes or kept ONLY as a documented namespace inside the canonical registry \u2014 never in a slice-private package. Code identifiers are referenced by constant, never as string literals at mapping sites.",
+      "rationale": "CRM proves the model: its CRM-xxxx family was relocated INTO canonical pkg/constant/errors.go with no slice-private sentinels and locked by a contract test. Tracer's string-literal codes at handler sites desync from sentinels on renumber. The numeric registry is the dominant house pattern.",
+      "canonical_example": "pkg/constant/errors.go:238-260 (CRM- family co-located canonically); pkg/constant/entity.go:16-23 (Entity constants)"
+     },
+     {
+      "rule": "Repository not-found is mapped at the adapter boundary: sql.ErrNoRows / mongo.ErrNoDocuments / RowsAffected()==0 -> pkg.ValidateBusinessError(constant.ErrEntityNotFound, entity) returned directly. Adapters do NOT return raw driver sentinels or bare technical not-found sentinels for the caller to remap.",
+      "rationale": "The defer-mapping convention (ledger-core's 3 repos returning services.ErrDatabaseItemNotFound; reporter's three competing conventions) is a latent 500-leak whenever a caller forgets the errors.Is check. Mapping at the boundary is the majority pattern (10/13 ledger postgres repos) and removes the failure mode.",
+      "canonical_example": "components/ledger/internal/adapters/postgres/account/account.postgresql.go:459-467"
+     },
+     {
+      "rule": "Error classification uses typed inspection (errors.As / errors.Is / typed mongo.WriteException), never strings.Contains over err.Error(). Duplicate-key disambiguation reads the typed write-exception index name; retry classification reads typed error categories, not substring matches on rendered messages.",
+      "rationale": "crm's strings.Contains('document'/'account_id') and reporter's strings.Contains('TPL-') couple control flow to driver message text and index names that change silently. errors.As is already the slice-wide tool for type detection.",
+      "canonical_example": "pkg/reporter/rabbitmq/error_classifier.go:119-163 (isNonRetryableDomainError via errors.As \u2014 the typed path to keep, dropping the parallel string-match path at :51-57)"
+     },
+     {
+      "rule": "The span-error helper encodes the business/technical signal: libOpentelemetry.HandleSpanBusinessErrorEvent for caller/business failures (4xx, does not flip span to Error), libOpentelemetry.HandleSpanError for infra/technical failures (5xx). Pair with the matching log level: Warn for business, Error for infra. Gate the choice on an IsBusinessError(errors.As over the typed business structs) predicate.",
+      "rationale": "CRM and fees mark every 4xx as a technical span error, inflating error-rate SLOs. Reporter's IsBusinessError predicate is the clean reusable mechanism; lift it to pkg/ and use it everywhere the choice is made.",
+      "canonical_example": "pkg/reporter/net/http/errors.go:18-57 (IsBusinessError predicate); components/ledger/internal/adapters/http/in/account.go:84 (correct business-helper use)"
+     },
+     {
+      "rule": "Log an error at exactly ONE layer (the boundary that owns the decision, normally the handler/consumer) plus the span recording at the failure site. Inner layers return the error; they do not also log it. Spans mark operation starts \u2014 no 'Initiating...' logs. Info is for sparse process milestones only; per-request read/write paths log at Debug at most.",
+      "rationale": "N-layer double/triple logging is universal and the declared standard never states a single-point rule \u2014 that omission is the root cause. Reporter's structured discipline is closest; codify single-point logging explicitly.",
+      "canonical_example": "components/ledger/internal/adapters/http/in/transaction_reservation_anchor.go:149-189 (single structured log at the owning boundary)"
+     },
+     {
+      "rule": "Logger calls use structured fields only: logger.Log(ctx, libLog.LevelX, \"message\", libLog.Err(err), libLog.String(k,v)). Never fmt.Sprintf, never %#v payload dumps, never libLog.String(\"error\", err.Error()) (use libLog.Err). Never log secrets, balances, financial values, PII, raw payloads, or SQL args.",
+      "rationale": "fmt.Sprintf-in-logger is banned yet appears 700+ times across four slices; it defeats OTLP attribute extraction. The correct form already exists in newer files, so this is a mechanical sweep, not a design change.",
+      "canonical_example": "components/ledger/internal/services/command/create_account.go:46-51; components/crm/services/create-holder-with-id.go (libLog.Err usage)"
+     },
+     {
+      "rule": "Internal technical detail never reaches clients or persisted documents. At the HTTP boundary unmapped errors render the generic ValidateInternalError 500 body. Worker failure metadata stores a classified error_code, NOT raw err.Error(). Handler-facing message fields are never set from err.Error() of unmapped errors.",
+      "rationale": "reporter persists raw err.Error() (incl. SeaweedFS paths) into report metadata surfaced on GET; tracer returns err.Error() into client message fields. Both violate the no-leak rule. ledger-http's WithRecover is the leak-safe model.",
+      "canonical_example": "pkg/net/http/withRecover.go:42-79 (generic 500, no value/stack leak)"
+     },
+     {
+      "rule": "Entity-type arguments use constant.Entity* constants, never reflect.TypeOf(mmodel.Foo{}).Name() or string literals. Slices lacking Entity constants (fees) add them to pkg/constant/entity.go.",
+      "rationale": "Explicit CLAUDE.md ban, violated in ledger-core (76 sites), crm (holder adapter), and all of fees. constant.Entity* is the dominant correct pattern (151 ledger-core sites).",
+      "canonical_example": "pkg/constant/entity.go:16-23; components/crm/services/delete-holder.go:45"
+     },
+     {
+      "rule": "RabbitMQ consumers implement explicit transient-vs-permanent classification: permanent/non-retryable errors (typed business errors, unmarshal failures, ctx cancel) -> Nack(false,false) to a dead-letter exchange; retryable -> bounded backoff+republish with a max-retry cap; requeue=false always. No blanket Nack-with-requeue. Ack failures are logged, not silently swallowed.",
+      "rationale": "ledger-core's transaction consumer hot-loops forever on permanent failures (P0). reporter-worker already ships the mature classify/backoff/DLQ pattern; adopt it for ledger-core. The classifier abstraction is reusable.",
+      "canonical_example": "components/reporter-worker/internal/adapters/rabbitmq/retry_manager.go:61-122; pkg/reporter/rabbitmq/error_classifier.go:42-163"
+     },
+     {
+      "rule": "No panic in production code paths; constructors and init return errors. Transactional helpers that must catch fn panics convert the recovered value to a wrapped error and roll back, never re-raise.",
+      "rationale": "ledger-core's rabbitmq constructor panics on connection failure (real violation). tracer's executeInTx is the correct pattern for the legitimate recover case.",
+      "canonical_example": "components/tracer/internal/services/command/tx_helper.go:65-103"
+     },
+     {
+      "rule": "One canonical error envelope: {code,title,message} (+ optional fields map for field validation). No secondary {\"error\":text} legacy shape, no ad-hoc fiber.Map carriers, no per-slice response struct. Routes that emit raw fiber.Error are converted to typed pkg errors so they render through the canonical envelope.",
+      "rationale": "ledger-http's LegacyErrorBoundary and tracer's three carriers mean clients see multiple schemas depending on failure origin. The {code,title,message} envelope is the documented contract.",
+      "canonical_example": "pkg/net/http/response.go:16-132"
+     }
+    ],
+    "migration_burden": [
+     {
+      "component": "ledger-core",
+      "effort": "L",
+      "main_changes": "Make WithError unwrap (lift errors.As) \u2014 small but P0. Sweep ~402+ fmt.Sprintf-in-logger in postgres adapters and 71 command/query files to libLog.Err/String. Replace 76 reflect.TypeOf entity-name uses with constant.Entity*. Collapse the 3 defer-mapping repos (accounttype/operationroute/transactionroute) onto adapter-boundary ErrEntityNotFound mapping (touches ~65 use-case call sites). Rework the RabbitMQ consumer: add classify/backoff/DLQ, kill blanket Nack-requeue, replace the constructor panic with an error return. Demote 67 query Info logs to Debug, dedupe N-layer logging."
+     },
+     {
+      "component": "ledger-http",
+      "effort": "M",
+      "main_changes": "Sweep 234 fmt.Sprintf-in-logger across core and CRM handlers. Fix CRM handlers to use HandleSpanBusinessErrorEvent for 4xx (currently 0 uses). Make GetUUIDFromLocals return a typed pkg error (not bare ErrInvalidPathParameter) so it maps 400 not 500. Retire LegacyErrorBoundary's {\"error\":text} shape; convert MarkTrustedAuthAssertion's raw fiber.NewError to a typed pkg error. Remove 'Initiating...' Info logs. Benefits automatically once canonical WithError unwraps."
+     },
+     {
+      "component": "crm",
+      "effort": "M",
+      "main_changes": "Structure already canonical (codes in pkg/constant, mapping via canonical pkg). Pure hygiene: fmt.Sprintf->structured (services + holder/instrument handlers); reflect.TypeOf->constant.EntityHolder in the holder adapter (instrument already correct); replace strings.Contains duplicate-key sniffing with typed mongo.WriteException index inspection; switch business-validation span calls from HandleSpanError to HandleSpanBusinessErrorEvent; drop per-request Info/Validating logs; dedupe double-logging. Unify the libObs/libObservability import alias."
+     },
+     {
+      "component": "fees",
+      "effort": "L",
+      "main_changes": "Delete the feeshared fork: remove the package-`pkg` typed-error clone and feehttp.WithError, re-point onto canonical pkg/errors.go and pkg/net/http.WithError (safe once canonical unwraps). Decide FEE-xxxx fate (migrate to numeric or document as canonical namespace) \u2014 see open_decisions. Re-type business-rule errors from ValidationError/400 to UnprocessableOperationError/422 and ErrDuplicatePackage to EntityConflictError/409 (wire-visible). Add Entity* constants, drop reflect.TypeOf. Sweep ~91 fmt.Sprintf and the %#v payload-at-Info logging. Remove the mixed-writer seam in handlers."
+     },
+     {
+      "component": "tracer",
+      "effort": "L",
+      "main_changes": "Delete the forked pkg/errors.go, pkg/constant/errors.go, and pkg/net/http/{errors,response}.go; re-point onto canonical platform. Migrate ~140 TRC-xxxx sentinels (decide fate \u2014 open_decisions) and stop hardcoding codes as string literals at handler sites. Route all handlers through canonical WithError (its own mapper is dead anyway). Resolve the dual ValidateBusinessError (tracer-local vs lib-commons) into one. Stop returning err.Error() into client message fields. Move constructor nil-guards to coded sentinels. Repo/worker/span layers already idiomatic \u2014 minimal change there."
+     },
+     {
+      "component": "reporter",
+      "effort": "L",
+      "main_changes": "Delete the pkg/reporter error-stack fork (typed structs, ValidateBusinessError, net/http writers); re-point onto canonical pkg/. Migrate TPL-/REP-xxxx families (decide fate \u2014 open_decisions). Re-type business ValidationError->422 where it's a rule violation (currently all ->400). Unify the three mongo not-found conventions onto adapter-boundary mapping. Replace raw err.Error() persisted to report metadata.error_detail with a classified error_code. Drop strings.Contains('TPL-') retry path for typed-only classification. Log the swallowed success-path ack error. Consumer classify/retry/DLQ logic is the reference pattern \u2014 keep and lift to shared. The init-time pongo panic stays (fail-closed) but document it."
+     }
+    ],
+    "open_decisions": [
+     "Retire the wire-visible non-numeric error-code families (FEE-xxxx, TPL-xxxx, REP-xxxx, TRC-xxxx). These appear in API response `code` fields and operators grep dashboards by them (esp. TRC- in /readyz JSON). Migrating to the 4-digit numeric scheme is a breaking change for any client or dashboard keyed on the old codes; keeping them as documented namespaces inside the canonical registry avoids the break but perpetuates four code dialects. Owner must choose break-now vs document-and-keep per family. (CRM already chose break-and-unify, locked by crm_error_contract_test.go \u2014 precedent exists.)",
+     "Re-typing fees and reporter business-rule errors from HTTP 400 to 422 (and fees' duplicate-package from 400 to 409) is a wire-visible status-code change. Clients with status-based branching will see different codes. Correct per the standard, but it breaks the current contract \u2014 owner approves the status migration or accepts the slices stay non-conformant.",
+     "Deleting the feeshared/reporter/tracer forked error platforms means their HTTP error responses now flow through canonical pkg/net/http.WithError. Even after WithError is made unwrap-safe, the envelope carrier differs in spots (e.g. reporter's JSONResponseError uses pkg.ResponseError with int Code documented as an 'accepted deviation', tracer emits libCommons.Response in hot paths). Converging them may alter the exact JSON shape (field types/casing) on some endpoints \u2014 owner confirms the envelope unification is allowed to change those responses.",
+     "reporter-worker's HMAC verification is log-only soft-fail (documented D6 decision) and its ValidationWarning/DATA_SOURCE_UNAVAILABLE partial-result posture (D7) deliberately return success on degraded data. These are intentional security/availability postures that conflict with a strict fail-closed reading. Owner confirms they remain carve-outs from the unified error standard rather than being 'fixed'.",
+     "Adopting the reporter-worker classify/backoff/DLQ consumer pattern for the ledger-core transaction consumer requires provisioning dead-letter exchanges/queues in the transaction RabbitMQ topology (infra change) and defining the max-retry cap and DLQ routing policy. Owner owns the topology/ops decision and the retry-budget numbers."
+    ]
+   },
+   "verdicts": [
+    {
+     "theme": "Canonical WithError is the ONLY non-unwrapping HTTP mapper; %w-wrapped business errors mis-map to 500",
+     "claimed_severity": "P0",
+     "verdict": {
+      "confirmed": false,
+      "corrected_severity": "P2",
+      "evidence": "pkg/net/http/errors.go:18 confirms bare `switch e := err.(type)` with default->ValidateInternalError (500) at :64-65; forks use errors.As (components/ledger/pkg/feeshared/nethttp/errors.go:62-118, pkg/reporter/net/http/errors.go:60-118) \u2014 all cited refs accurate. BUT the claim's premise fails: business errors are returned UNWRAPPED. pkg/errors.go:342 ValidateBusinessError returns value types (EntityNotFoundError{} at :380, not pointer/wrapped); services return them directly (e.g. create_account.go:198,300,309). All 26 fmt.Errorf-%w sites in services/command+query wrap TECHNICAL errors only (create_bulk_transaction_operations_async.go:149/306/336 invalid ID, db begin/commit; process_balance_operations.go:138 serialization) \u2014 grep filtering out technical phrasing leaves zero business-error wraps. Handlers pass err straight to WithError (asset.go:58 etc., 26 sites) with no wrapping. errors_test.go only tests direct business errors, matching real usage. The type switch correctly matches every business error that actually reaches it.",
+      "correction": "Refs are real but the severity is overstated from P0 to ~P2 (latent fragility, not a live defect). The claimed failure mode \u2014 business errors wrapped with %w degrading 404/409/422 to 500 \u2014 does not occur in this codebase. The convention (also stated in CLAUDE.md: \"Business errors return directly; technical errors wrap with %w\") guarantees business errors arrive at WithError unwrapped, so the bare type switch matches them correctly. The %w sites cited carry technical errors that are meant to become 500 anyway. The real, smaller issue: the bare switch is a latent trap \u2014 a future dev who wraps a business error would silently get a 500, and the errors.As forks are genuinely more robust. Consolidating canonical onto errors.As is a sound defensive cleanup, but framing it as an active sev-0 wire-contract breakage is wrong; no endpoint is mis-mapping status codes today."
+     }
+    },
+    {
+     "theme": "RabbitMQ consumer error posture: blanket requeue with no DLQ vs mature classify/backoff/DLQ",
+     "claimed_severity": "P0",
+     "verdict": {
+      "confirmed": true,
+      "corrected_severity": "P1",
+      "evidence": "All five citations verified exactly. consumer.rabbitmq.go:338 `_ = msg.Nack(false, true)` (individual worker), plus two more identical sibling callsites at :532 (bulk) and :636 (fallback) \u2014 every ledger Nack is requeue=true, unconditional, with no classifier/retry-count/cap anywhere in components/ledger/internal/adapters/rabbitmq (only `maxRetries` ref is a test loop counter at circuitbreaker_integration_test.go:584; only `dead-letter` ref is a test queue name). create_balance_transaction_operations_async.go:51-63 returns raw msgpack unmarshal err and bare `fmt.Errorf(\"transaction payload has nil Transaction field\")` \u2014 both permanent. Decisive: components/infra/rabbitmq/etc/definitions.json:78-81 defines `transaction.transaction_balance_operation.queue` as durable with NO arguments \u2014 no x-dead-letter-exchange, no x-delivery-limit, no TTL. So requeued poison messages round-trip forever. By contrast the reporter queues (definitions.json:82-108) all carry x-dead-letter-exchange -> reporter.dlx -> reporter.dlq (TTL 7d, max-len 10000). reporter-worker is the model: consumer.rabbitmq.go:160-246 -> retry_manager.go:61-122 HandleFailure (non-retryable -> nackToDLQ; retryCount>=maxRetries -> nackToDLQ; else backoff+republish+Ack, requeue never used) driven by error_classifier.go:42-163 DefaultErrorClassifier. Claim is representative, not cherry-picked.",
+      "correction": "Severity downgraded P0 -> P1 on two grounds. (1) The hot-loop is gated behind RABBITMQ_TRANSACTION_ASYNC \u2014 a supported, documented production mode but not unconditionally on (producer.rabbitmq.go:62 treats it on unless explicitly =false; sync is the integration-test default). (2) The handler errors BEFORE any DB persistence (nil-Transaction and unmarshal checks precede CreateOrUpdateTransaction at line 88), so there is no ledger data corruption or double-entry violation \u2014 the failure mode is a pinned worker, head-of-line blocking for the poison message, and unbounded log/span spam, i.e. a contained reliability/availability bug rather than a correctness emergency. Real and production-biting in async mode, but not P0. The architectural recommendation (adopt the reporter-worker classifier+DLQ pattern for ledger-core) stands."
+     }
+    },
+    {
+     "theme": "Three forked error platforms shadow the canonical pkg/errors.go",
+     "claimed_severity": "P1",
+     "verdict": {
+      "confirmed": true,
+      "evidence": "All cited refs exist and show exactly what is claimed. Forks each declare their own `package pkg` typed-error system + private ValidateBusinessError + own sentinel namespace, with NO import of canonical github.com/LerianStudio/midaz/v4/pkg (verified via grep: \"NO import of canonical pkg in any fork\"). Struct comparison: canonical pkg/errors.go has 9 error structs (EntityNotFoundError pkg/errors.go:18, ValidationError :50, EntityConflictError :74, UnauthorizedError :97, ForbiddenError :110, UnprocessableOperationError :123, FailedPreconditionError :153, InternalServerError :179, ResponseError :192); fee (components/ledger/pkg/feeshared/errors.go:18-227) and tracer (components/tracer/pkg/errors.go:17-375) each re-declare the same 9 plus HTTPError/ValidationKnownFieldsError/ValidationUnknownFieldsError (12 total); reporter (pkg/reporter/errors.go:17-214) re-declares 12 in different order. Sentinel namespaces: FEE-0001..FEE-0072 (components/ledger/pkg/feeshared/constant/errors.go:13-88), TPL-/REP- (pkg/reporter/constant/errors.go:15-101), TRC- (components/tracer/pkg/constant/errors.go:18+). Each fork's nethttp/errors.go WithError maps these onto live HTTP responses via commonsHttp.Respond (components/ledger/pkg/feeshared/nethttp/errors.go:20-113), so they are on the production wire. CONCRETE DRIFT ALREADY PRESENT: fee ValidationError (components/ledger/pkg/feeshared/errors.go:50-56) has bare Title/Message/Code fields with NO json tags, whereas canonical pkg/errors.go:50-56 and tracer tag them `json:\"title,omitempty\"` etc \u2014 so the fee error envelope already serializes with capitalized always-present keys versus canonical lowercase+omitempty. The predicted silent divergence is no longer hypothetical; it has happened.",
+      "corrected_severity": "P1"
+     }
+    },
+    {
+     "theme": "Business-rule violations mis-mapped to 400 instead of 422",
+     "claimed_severity": "P1",
+     "verdict": {
+      "confirmed": true,
+      "corrected_severity": "P2",
+      "evidence": "components/ledger/pkg/feeshared/errors.go:363 (ErrPriorityInvalid), :375 (ErrMinAmountGreaterThanMaxAmount), :399 (ErrDuplicatePackage), :495 (ErrPackageRange) all typed as ValidationError; components/ledger/pkg/feeshared/nethttp/errors.go:39-47 maps ValidationError -> http.StatusBadRequest. Reporter: pkg/reporter/errors.go:446 (ErrReportStatusNotFinished) typed ValidationError; pkg/reporter/net/http/errors.go:83-91 maps ValidationError -> BadRequest. All cited refs verified accurate. Motor-2 billing errors correctly use UnprocessableOperationError/EntityNotFoundError (errors.go:588) and 422 mapping (nethttp/errors.go:49-56), confirming the within-slice inconsistency the claim notes.",
+      "correction": "The code-vs-CLAUDE.md divergence is real and wire-visible (domain validation/business-rule failures return 400 where the doc mandates 422; ErrDuplicatePackage arguably 409). But \"wire-visible status regression... inconsistent even within each slice\" is overstated. It is NOT a fork-specific regression: the mainline ledger does the identical thing. pkg/errors.go uses ValidationError 82x vs UnprocessableOperationError 31x, and pkg/net/http/errors.go:23-29 maps ValidationError->BadRequest exactly as the forks do. Mainline even types genuine business-rule violations as ValidationError->400: ErrAccountStatusTransactionRestriction (errors.go:548) and ErrTransactionValueMismatch (errors.go:824). So fees/reporter are consistent WITH the codebase and inconsistent only with a CLAUDE.md aspiration the whole codebase already violates. This is pervasive 400-vs-422 convention debt, not a fork regression \u2014 hence P2, not P1."
+     }
+    },
+    {
+     "theme": "fmt.Sprintf inside logger.Log calls \u2014 banned, yet pervasive across every slice",
+     "claimed_severity": "P1",
+     "verdict": {
+      "confirmed": true,
+      "corrected_severity": "P2",
+      "evidence": "CONFIRMED refs: account.postgresql.go:202 and :209 `logger.Log(ctx, libLog.LevelError, fmt.Sprintf(\"Failed to execute query: %v\", err))`; holder.go:68 `fmt.Sprintf(\"Failed to create holder: %v\", err)`; get-package-by-id.go:44 `fmt.Sprintf(\"Error getting package on repo by id: %v\", err)`; balance.go:74,96,159 multiple fmt.Sprintf logger calls. Scope corroborated: 402 hits across all 9 postgres adapter files, 254 in http/in (core+crm), 284 in command/query, 74 in fees; tracer+reporter-manager+reporter-worker = 0 (clean, as claimed). Migrated form proven: create-account.go has 5 libLog.Err and 0 fmt.Sprintf logger calls. CLAUDE.md \"Logging\" section explicitly bans fmt.Sprintf inside logger calls. NOT cherry-picked \u2014 uniform across siblings.",
+      "correction": "Claim is real and representative, but overstated on mechanism and severity. (1) Wrong citation: transaction_reservation_anchor.go:283 is `libOpentelemetry.HandleSpanError(...)`, NOT a violation \u2014 the logger call at line 285 uses the CORRECT libLog.String/libLog.Err form. The auditor cited its own positive example as evidence of the violation. (2) \"Kills OTLP attribute extraction\" is the wrong harm: span/trace telemetry is recorded by the separate `libOpentelemetry.HandleSpanError`/`HandleSpanBusinessErrorEvent` call that sits one line above EVERY cited violation, so OTLP spans still carry structured error events. The actual harm is narrower \u2014 collapsing fields into an unstructured log message defeats log-based search/aggregation (Loki/structured queries). (3) Severity: this is a logging-hygiene/observability-quality convention violation with zero correctness, financial, or wire impact. P2, not P1."
+     }
+    },
+    {
+     "theme": "Span-error helper misused for business failures (HandleSpanError vs HandleSpanBusinessErrorEvent)",
+     "claimed_severity": "P1",
+     "verdict": {
+      "confirmed": true,
+      "evidence": "All cited refs exist and show exactly what is claimed, and sibling sampling proves the pattern is systemic, not cherry-picked. CRM handlers: holder.go:66 and instrument.go:75 use HandleSpanError on the create paths; counts confirm holder.go has 8 HandleSpanError / 0 BusinessErrorEvent, instrument.go 10 / 0. CRM services: 31 HandleSpanError / 0 BusinessErrorEvent across the whole components/crm/services tree. These sit directly on business-error paths: validate-related-party.go:33-60 calls HandleSpanError on six pure validation branches that each return pkg.ValidateBusinessError(...) (guaranteed 4xx); get-id-holder.go:36 wraps the repo Find error (the not-found/404 path) in HandleSpanError. ledger-http is genuinely better by contrast: 207 BusinessErrorEvent vs 72 HandleSpanError, and account.go's single HandleSpanError (line 94) is on 'Failed to record account created metric' \u2014 a real infra failure, while the business path (account.go:84) correctly uses HandleSpanBusinessErrorEvent. Fees is mixed as claimed: services/fees has 31 HandleSpanError / 28 BusinessErrorEvent, with billing-calculate-service.go lines 351/384/395/451/510/558 passing a variable literally named bizErr to HandleSpanError \u2014 self-evidence of business errors flagged as infra. The IsBusinessError predicate at pkg/reporter/net/http/errors.go:18-57 is real and is the clean reusable model, exactly as claimed.",
+      "corrected_severity": "P1",
+      "correction": "Claim survives intact; only a scoping nuance worth stating. This is observability/alerting hygiene, not a wire-correctness bug: HTTP responses remain correct 4xx via WithError. The harm is that span Error-status (and any error-rate SLO/alert derived from spans) gets inflated by ordinary client faults \u2014 a validation storm or a client hammering a not-found path would degrade alerting fidelity and could page on-call. The original audit scopes it precisely this way ('inflating error-rate SLOs on ordinary client faults'), so it is not overstated. P1 is defensible because it spans two entire component surfaces (all of CRM handlers+services, partial fees), but it sits at the softer end of P1 \u2014 no data corruption, no client breakage."
+     }
+    },
+    {
+     "theme": "Two not-found conventions: adapter maps to typed 404 vs returns bare technical sentinel for deferred mapping",
+     "claimed_severity": "P1",
+     "verdict": {
+      "confirmed": true,
+      "evidence": "All 5 cited refs verified exactly. account.postgresql.go:459-467 maps sql.ErrNoRows -> ValidateBusinessError(ErrEntityNotFound) (typed EntityNotFoundError -> 404). accounttype.postgresql.go:234-235 returns bare services.ErrDatabaseItemNotFound; sentinel defined at services/errors.go:17. Sibling sweep confirms the 10/13 vs 3/13 split precisely: DIRECT-404 = account, asset, assetrate, balance, ledger, operation, organization, portfolio, segment, transaction; BARE-SENTINEL = accounttype, operationroute, transactionroute (the exact named trio). 73 use-case sites do errors.Is(err, services.ErrDatabaseItemNotFound) (claim said ~65, conservative). The 500-leak mechanism is real: pkg/net/http/errors.go:64-65 has default -> ValidateInternalError (500); only typed pkg.* error structs map to 404. reporter has 3 sentinels in ONE repo file: report.mongodb.go:160 returns raw constant.ErrEntityNotFound, :255 and :260 return raw mongo.ErrNoDocuments; get-report-by-id.go:40-41 remaps mongo.ErrNoDocuments. LIVE LEAK FOUND: update-template-by-id.go:214 calls FindByID and :217 returns err raw with zero ErrNoDocuments handling; reporter pkg/reporter/net/http/errors.go:62-117 matches only typed structs via errors.As and falls through to InternalServerError (500) at :117 -- so a not-found template on update returns 500 instead of 404. generate-report-idempotency.go also has zero not-found handling on its FindByID call.",
+      "correction": "Claim stands at P1, but one nuance: the ledger bare-sentinel split is partly INTENTIONAL design, not pure sloppiness. The sentinel exists so each use case maps to an entity-specific 404 (e.g. get_id_account_type.go:36-37 -> ErrAccountTypeNotFound) instead of the generic ErrEntityNotFound the direct-404 repos hardcode. That is a defensible reason for divergence in ledger, and no unguarded ledger caller was found in the sample. The genuinely dangerous surface is reporter, where the three uncoordinated sentinels buy nothing AND at least one caller (update-template-by-id.go) already leaks a 500 on not-found. Severity stays P1: wire-visible wrong HTTP status (404 masked as 500), error-rate/alert pollution from expected business conditions, with a confirmed live instance -- but not data-corrupting, so not P0."
+     }
+    },
+    {
+     "theme": "Brittle string-matching for error classification instead of typed inspection",
+     "claimed_severity": "P1",
+     "verdict": {
+      "confirmed": true,
+      "corrected_severity": "P2",
+      "evidence": "crm coupling confirmed verbatim: holder.mongodb.go:144-148 (`if mongo.IsDuplicateKeyError(err) { if strings.Contains(err.Error(), \"document\")` -> ErrDocumentAssociationError); instrument.mongodb.go:146-150 (`strings.Contains(err.Error(), \"account_id\")` -> ErrAccountAlreadyAssociated). The matched tokens are NOT index/field names directly but substrings of MongoDB's auto-generated E11000 index names: holder unique indexes are on `search.document` and `search.document+external_id` (holder_maintenance.mongodb.go:20,36-43); instrument unique indexes on `account_id` and `ledger_id+account_id` (instrument_maintenance.mongodb.go:112-116,132-140). A field/index rename, custom SetName, or driver message change silently drops the typed 409 to a raw 500. reporter classifier confirmed at error_classifier.go:51 (`strings.Contains(err.Error(), \"TPL-\")`).",
+      "correction": "Severity P1 is too high and the reporter leg is overstated. (1) Reporter: the classifier's PRIMARY mechanism is typed errors.As (error_classifier.go:119-162, against pkg.ValidationError/EntityConflictError/etc.) plus errors.Is for context/tenant errors; the `TPL-` string match is a supplementary heuristic for template-code errors not wrapped in those types, not the sole classifier. The \"blind to REP- coded errors\" claim is speculative \u2014 no evidence of non-retryable REP- coded errors being missed. So reporter is belt-and-suspenders, not fragile-sole-mechanism. (2) crm blast radius is narrow: this string-match-on-duplicate-key pattern appears ONLY in crm's two write paths; ledger's mongo adapters have ZERO such sites (the claim's framing as a convention divergence is fair, but it's localized, not pervasive). It only bites on a specific maintenance event (field/index rename), not in normal operation. (3) The claim UNDERSTATED one real harm: create-holder-with-id.go:62-78 explicitly depends on the holder string-match contract (comment lines 64-67: document collisions are wrapped so only raw _id collisions still satisfy IsDuplicateKeyError). If the `document` match breaks, a document collision would still satisfy IsDuplicateKeyError, route into the idempotent re-fetch-by-id path, and return the wrong/missing holder as 'idempotent success' \u2014 corrupting idempotency semantics, not merely flipping 409->500. The mechanism and risk are real (confirmed), but given the narrow trigger and overstated reporter portion, P2 is the honest severity."
+     }
+    }
+   ],
+   "unverified_count": 8
+  }
+ ],
+ "critique": {
+  "gaps": [
+   {
+    "description": "STREAMING EMIT PATHS ARE ENTIRELY UNSWEPT BY BOTH DIMENSIONS. The audit's 6 slices (ledger-core/http/crm/fees/tracer/reporter) never covered the lib-streaming producer surface, which is large and live: pkg/streaming/emit.go (EmitImportant), pkg/streaming/events/*.go, and 28+ command files that emit (send_transaction_events.go, send_overdraft_events.go, create_account.go, create/delete_* across account/asset/ledger/portfolio/segment/operation_route/transaction_route/organization/balance). Spot-check confirms these carry the SAME violations the audit catalogued elsewhere \u2014 e.g. send_transaction_events.go:72,83,105,122 all use fmt.Sprintf-in-logger AND per-operation Info logs ('Sending transaction events to key...') \u2014 but none are counted in the ledger-core 816/859 fmt.Sprintf tally or the Info-noise matrix. The proposed-standard rule about EmitImportant span/log posture (Warn + HandleSpanError, non-propagation) was carried verbatim from CLAUDE.md but never VERIFIED against the actual emit.go implementation (which I confirmed does match: emit.go:50-61). The streaming dimension is a coverage hole, not a clean slice.",
+    "suggested_followup": "Run the same telemetry+error sweep over pkg/streaming/** and the ~28 command-layer emit call sites; fold their fmt.Sprintf/Info-noise counts into the ledger-core migration-burden totals (currently understated) and confirm every emit goes through pkgStreaming.EmitImportant rather than inlining the build-emit-log block."
+   },
+   {
+    "description": "THE P0 LEAK PROHIBITION RULE COLLIDES WITH THE STREAMING WIRE CONTRACT AND THE AUDIT NEVER RECONCILES THEM. The telemetry proposed-standard says 'Never log or attach to a span: balances, monetary amounts, financial values...'. But pkg/streaming/events/balance_created.go:65-66 and 90-91 DELIBERATELY put Available/OnHold (decimal balances) on the CloudEvents wire as the documented schema; transaction_lifecycle.go and others likewise carry amounts. These are intentional event payloads, governed by JSONShape lock tests, NOT a leak. The audit's blanket 'never financial values on any signal' rule, if applied literally, would forbid the streaming subsystem's core contract. The two are different surfaces (telemetry spans/logs vs. business event bus) but the proposed standard does not scope the prohibition to telemetry-only, leaving a normalization plan that contradicts a third-rail subsystem.",
+    "suggested_followup": "Scope the financial/PII prohibition explicitly to TELEMETRY signals (logs, span attributes, persisted error metadata) and carve out the lib-streaming event bus as a governed wire contract with its own redaction posture (PII redaction in the New<Event> constructor per CLAUDE.md), so the normalization rule cannot be read to forbid balance.created/transaction events."
+   },
+   {
+    "description": "PRODUCTION PANIC SITES ARE UNDER-ENUMERATED. The errors-dimension 'Production panics' finding cites only consumer.rabbitmq.go:116 (ledger) and pongo.go:140 (reporter). A grep surfaces at least two more non-test prod panics never named: ledger.postgresql.go:1011 panic(r) (re-panic after tx rollback \u2014 defensible, mirrors tracer executeInTx, but unlisted) and pkg/net/http/withBody.go:262 panic(err) (init-time validator RegisterDefaultTranslations failure \u2014 a shared HTTP-boundary package used by every slice). Neither was classified. A normalization plan that says 'no panic in production paths' needs the complete inventory plus a defensible-exception list, not a 2-site sample.",
+    "suggested_followup": "grep -rn 'panic(' across non-test prod code, classify each as (a) real violation to convert to error-return, (b) defensible re-panic-after-cleanup, or (c) fail-closed init guard; add the classified inventory to the plan so withBody.go:262 and ledger.postgresql.go:1011 are explicitly dispositioned."
+   },
+   {
+    "description": "REDIS-BACKED AND BALANCE-SYNC ASYNC SURFACES ARE UNSWEPT, despite the baseline gap list explicitly naming 'Redis-backed async (balance-sync worker)' as having no declared trace-propagation standard. bootstrap/redis.consumer.go and bootstrap/balance_sync.worker.go are live async loops never analyzed for trace-context propagation, error posture, or Info-noise. The RabbitMQ-consumer DLQ/poison finding (P0->P1) covers only the transaction consumer and reporter-worker; the Redis consumer path and the balance-sync poll loop got zero coverage in either dimension, so their nack/retry/trace-loss posture is unknown.",
+    "suggested_followup": "Sweep components/ledger/internal/bootstrap/redis.consumer.go and balance_sync.worker.go for trace-context propagation (WithoutCancel vs bare Background), error-classification/retry posture, and log-level discipline; decide whether the DLQ/backoff standard proposed for RabbitMQ extends to the Redis path."
+   },
+   {
+    "description": "THE 'WithError mis-maps %w-wrapped business errors to 500' CLAIM WAS DOWNGRADED P0->P2 ON ONE SURVEY'S WORD WITHOUT THE OTHER DIMENSION CROSS-CHECKING IT, AND THE TWO DIMENSIONS NOW CONTRADICT. The errors-synthesis still lists this as P0 in its divergence_matrix and proposed-standard rule #2 ('Fixes the P0'), but its OWN verdict block reversed it to P2 ('the claimed failure mode does not occur in this codebase'). The synthesis text and the verdict disagree inside the same dimension. Any plan built from the synthesis matrix will treat a non-bug as a P0 emergency. The verdict's evidence (business errors returned unwrapped, %w only on technical errors) is plausible but rests on a grep the verifier ran once; it was not independently confirmed against the fees/reporter handler paths that DO wrap.",
+    "suggested_followup": "Reconcile the contradiction: confirm by direct read of 5-10 handler call sites (incl. fees/reporter which wrap more aggressively) whether any business error reaches WithError wrapped; then restate this as a single severity (likely P2 defensive-hardening) in BOTH the matrix and the rule, and demote rule #2's 'fixes the P0' framing."
+   },
+   {
+    "description": "PROPOSED-STANDARD RULES THAT CONTRADICT ACROSS THE TWO DIMENSIONS ON LOGGING/SPAN-HELPER POLICY ARE NOT MERGED. Both dimensions independently propose a span-error-helper rule (telemetry rule 'choose by error CLASS'; errors rule 'gate on IsBusinessError predicate') and a structured-logging rule, with DIFFERENT canonical_examples (telemetry: reporter/report.go:98; errors: pkg/reporter/net/http/errors.go:18-57) and different framing of the single-point-logging concern (errors dimension adds an N-layer-logging rule the telemetry dimension never states). A normalization plan needs ONE merged rule set; today there are two overlapping-but-divergent rulebooks that will produce conflicting lint/review guidance.",
+    "suggested_followup": "Merge the two proposed_standard arrays into one deduplicated rule set, resolving the span-helper rule to a single canonical predicate+example, and explicitly incorporate the errors-dimension 'log at exactly ONE layer' rule (absent from telemetry) since N-layer logging is the root cause both dimensions circle."
+   },
+   {
+    "description": "MIGRATION-BURDEN COUNTS ARE INTERNALLY INCONSISTENT AND LIKELY UNDERESTIMATED. The fmt.Sprintf-in-logger tallies disagree between the two dimensions for the same slices (telemetry: ledger-core 816, fees 105, ledger-http 254; errors: ledger-core 402+71, fees ~91, ledger-http 234) with no reconciliation, and BOTH exclude the streaming command files (services/command alone has 21 files with fmt.Sprintf-in-logger per my grep). ledger-core is marked effort L in both, but the burden description omits the streaming-emit migration, the Redis/balance-sync sweep, and the additional panic sites \u2014 so 'L' is anchored to an undercount. The verifier even flagged its own count drift (859 vs 816) without resolving it.",
+    "suggested_followup": "Produce one authoritative per-slice violation count (single grep methodology, including services/command streaming files and bootstrap async workers), then re-derive the L/M/S effort tiers from that reconciled number so the plan's sequencing isn't built on two disagreeing tallies."
+   },
+   {
+    "description": "HEALTH/READINESS AND BOOTSTRAP TELEMETRY POSTURE IS UNSWEPT THOUGH BOTH BASELINE GAP LISTS NAME IT. readyz handlers exist in every slice (ledger bootstrap/readyz.go + readyz_checkers.go, reporter pkg/reporter/readyz/* with its own metrics.go, tracer readyz.go, reporter-worker health-server.go) and the baseline explicitly flags 'no rule on what readiness failures log at, or whether probe traffic is excluded from spans/metrics.' Neither dimension analyzed these handlers. Probe traffic generating spans/metrics is a real cardinality/cost issue (relevant to the metrics P1->P2 finding) and readiness-failure log levels are unspecified. Also unswept: whether the bootstrap telemetry-flush-on-shutdown ordering (proposed as canonical from reporter) actually holds in ledger's shutdown path \u2014 asserted, never verified.",
+    "suggested_followup": "Sweep the readyz/health handlers across all slices for (a) log level on readiness failure, (b) whether probe requests are excluded from tracing/metrics middleware, and (c) verify ledger's shutdown sequence flushes telemetry LAST as the proposed standard claims reporter does; add a probe-exclusion rule to the plan."
+   },
+   {
+    "description": "SEVERAL PROPOSED-STANDARD RULES HAVE NO TEST/ENFORCEMENT ANCHOR, so the plan has no way to prevent regression. The metrics rule (no unbounded labels, snake_case+unit suffix), the single-import-alias rule, the 'no parallel error platform' rule, and the financial/PII prohibition all lack any cited lint rule, contract test, or CI gate \u2014 unlike CRM's error family which the errors dimension notes IS locked by crm_error_contract_test.go. Without an enforcement mechanism per rule, normalization decays back to the current state. The audit proposes rules but never inventories which are mechanically enforceable vs. review-only.",
+    "suggested_followup": "For each proposed rule, specify the enforcement vehicle (golangci-lint custom rule, an import-restriction linter like depguard for the alias/fork rules, a JSONShape/contract test for envelopes and streaming payloads, a forbidigo rule for fmt.Sprintf-in-logger); flag the review-only rules so the plan can add CI gates where cheap."
+   }
+  ],
+  "overall_confidence": "high"
+ }
+}
