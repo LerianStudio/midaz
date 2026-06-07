@@ -25,7 +25,7 @@ on:
 jobs:
   go-analysis:
     name: Go Analysis
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@v1.28.9
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@v1.33.0
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
       # Analysis-class filter: covers every component that still has Go code in-tree
@@ -39,7 +39,7 @@ jobs:
       path_level: 2
       app_name_prefix: "midaz"
       go_version: "1.26.4"
-      golangci_lint_version: "v2.4.0"
+      golangci_lint_version: "v2.12.2"
       golangci_lint_args: "--timeout=5m"
       coverage_threshold: 85
       fail_on_coverage_threshold: true
