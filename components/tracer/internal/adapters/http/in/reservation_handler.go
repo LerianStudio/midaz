@@ -9,9 +9,7 @@ package in
 import (
 	"context"
 	"errors"
-	"net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -22,10 +20,11 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // ReservationService defines the two-phase reservation operations the handler
@@ -96,11 +95,7 @@ func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanError(span, "Payload exceeds size limit", constant.ErrPayloadTooLarge)
 
-		return pkgHTTP.JSONResponse(c, http.StatusRequestEntityTooLarge, libCommons.Response{
-			Code:    constant.CodePayloadTooLarge,
-			Title:   "Payload Too Large",
-			Message: "payload too large: exceeds 100KB limit",
-		})
+		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrPayloadTooLarge, constant.EntityReservation))
 	}
 
 	var request ReserveRequest
@@ -112,7 +107,7 @@ func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, constant.CodeBadRequest, "Bad Request", "invalid request body")
+		return pkgHTTP.WithError(c, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."})
 	}
 
 	now := h.clock.Now()
@@ -124,7 +119,7 @@ func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Request validation failed", err)
 
-		return h.handleReservationInputError(c, err)
+		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(err, constant.EntityReservation))
 	}
 
 	span.SetAttributes(
@@ -246,7 +241,7 @@ func (h *ReservationHandler) terminateByTransaction(
 	transactionID, err := uuid.Parse(c.Params("transaction_id"))
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction ID", err)
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid transaction ID format")
+		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityReservation, "transaction_id"))
 	}
 
 	span.SetAttributes(attribute.String("app.request.transaction_id", transactionID.String()))
@@ -291,7 +286,7 @@ func (h *ReservationHandler) terminate(
 	reservationID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid reservation ID", err)
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid reservation ID format")
+		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityReservation, "id"))
 	}
 
 	span.SetAttributes(attribute.String("app.request.reservation_id", reservationID.String()))
@@ -312,39 +307,6 @@ func (h *ReservationHandler) terminate(
 	})
 }
 
-// reservationInputErrorMappings maps reserve input-validation sentinels to their
-// TRC codes and human-readable messages.
-var reservationInputErrorMappings = map[error]validationErrorMapping{
-	constant.ErrReservationTransactionIDReq:      {code: "TRC-0371", message: "transactionId is required"},
-	constant.ErrCheckLimitsInvalidAmount:         {code: "TRC-0222", message: "amount must be positive"},
-	constant.ErrCheckLimitsInvalidCurrency:       {code: "TRC-0224", message: "currency must be valid ISO 4217 code (e.g., BRL, USD)"},
-	constant.ErrCheckLimitsInvalidAccountID:      {code: "TRC-0227", message: "account is required"},
-	constant.ErrValidationRequestIDRequired:      {code: "TRC-0220", message: "requestId is required"},
-	constant.ErrValidationInvalidTransactionType: {code: "TRC-0221", message: "transactionType must be one of [CARD, WIRE, PIX, CRYPTO]"},
-	constant.ErrValidationAmountNonPositive:      {code: "TRC-0222", message: "amount must be positive"},
-	constant.ErrValidationCurrencyRequired:       {code: "TRC-0223", message: "currency is required"},
-	constant.ErrValidationInvalidCurrency:        {code: "TRC-0224", message: "currency must be valid ISO 4217 code (e.g., BRL, USD)"},
-	constant.ErrValidationTimestampRequired:      {code: "TRC-0225", message: "transactionTimestamp is required"},
-	constant.ErrValidationTimestampFuture:        {code: "TRC-0226", message: "transactionTimestamp cannot be in the future"},
-	constant.ErrValidationAccountRequired:        {code: "TRC-0227", message: "account is required"},
-	constant.ErrValidationTimestampPast:          {code: "TRC-0228", message: "transactionTimestamp is too far in the past (max 24h)"},
-}
-
-// handleReservationInputError converts reserve input-validation errors to HTTP 400
-// responses with field-aware messages.
-func (h *ReservationHandler) handleReservationInputError(c *fiber.Ctx, err error) error {
-	for knownErr, mapping := range reservationInputErrorMappings {
-		if errors.Is(err, knownErr) {
-			return pkgHTTP.BadRequestWithMessage(c, mapping.code, "Validation Error", mapping.message)
-		}
-	}
-
-	logger, _, _, _ := libObservability.NewTrackingFromContext(c.UserContext()) //nolint:dogsled // only logger needed
-	logger.With(libLog.String("error.message", err.Error())).Log(c.UserContext(), libLog.LevelWarn, "Unhandled reservation input error")
-
-	return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", "invalid request")
-}
-
 // handleReservationServiceError converts reservation service errors to HTTP
 // responses. ErrReservationNotFound (a confirm/release against a missing id) maps
 // to 404; everything else is a technical failure mapped to 500.
@@ -353,19 +315,15 @@ func (h *ReservationHandler) handleReservationServiceError(c *fiber.Ctx, span tr
 	case errors.Is(err, context.Canceled):
 		libOpentelemetry.HandleSpanError(span, "Context cancelled", err)
 
-		return pkgHTTP.JSONResponse(c, http.StatusServiceUnavailable, libCommons.Response{
-			Code:    constant.CodeContextCancelled,
-			Title:   "Service Unavailable",
-			Message: "request cancelled",
-		})
+		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrContextCancelled, constant.EntityReservation))
 	case errors.Is(err, constant.ErrReservationNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation not found", err)
 
-		return pkgHTTP.NotFound(c, "TRC-0377", "Not Found", "reservation not found")
+		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrReservationNotFound, constant.EntityReservation))
 	default:
 		libOpentelemetry.HandleSpanError(span, "Reservation processing failed", err)
 
-		return pkgHTTP.InternalServerError(c, constant.CodeInternalServer, "Internal Server Error", "reservation processing failed")
+		return pkgHTTP.WithError(c, pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."})
 	}
 }
 

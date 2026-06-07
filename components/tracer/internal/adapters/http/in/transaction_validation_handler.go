@@ -9,7 +9,6 @@ package in
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
@@ -21,11 +20,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/validation"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // TransactionValidationService defines the interface for transaction validation operations.
@@ -80,7 +80,7 @@ func (h *TransactionValidationHandler) GetTransactionValidation(c *fiber.Ctx) er
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction validation ID", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid transaction validation ID format")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityTransactionValidation, "id"))
 	}
 
 	logger.With(
@@ -99,7 +99,7 @@ func (h *TransactionValidationHandler) GetTransactionValidation(c *fiber.Ctx) er
 		libLog.String("transaction_validation.decision", string(result.Decision)),
 	).Log(ctx, libLog.LevelInfo, "Transaction validation record retrieved")
 
-	return pkgHTTP.OK(c, result)
+	return http.OK(c, result)
 }
 
 // ListTransactionValidations godoc
@@ -144,20 +144,14 @@ func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) 
 	if err := c.QueryParser(&input); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse query parameters", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0006", "Invalid Query Parameter", "Invalid query parameters")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityTransactionValidation, "filters"))
 	}
 
 	// Validate before applying defaults to ensure fail-fast behavior
 	if err := input.Validate(); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
 
-		// Check if error is ValidationError with specific code
-		var validationErr *ValidationError
-		if errors.As(err, &validationErr) {
-			return pkgHTTP.BadRequestWithMessage(c, validationErr.Code, "Invalid Transaction Validation Filters", validationErr.Message)
-		}
-
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0250", "Invalid Transaction Validation Filters", "Invalid transaction validation filters")
+		return http.WithError(c, err)
 	}
 
 	// Apply defaults after validation
@@ -176,7 +170,7 @@ func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) 
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid filters", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0250", "Invalid Transaction Validation Filters", "Invalid transaction validation filters")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidTransactionValidationFilters, constant.EntityTransactionValidation))
 	}
 
 	result, err := h.service.ListTransactionValidations(ctx, filters)
@@ -193,7 +187,7 @@ func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) 
 		libLog.Bool("list.has_more", response.HasMore),
 	).Log(ctx, libLog.LevelInfo, "Transaction validation records listed")
 
-	return pkgHTTP.OK(c, response)
+	return http.OK(c, response)
 }
 
 // handleTransactionValidationServiceError converts service errors to appropriate HTTP responses.
@@ -202,23 +196,19 @@ func handleTransactionValidationServiceError(c *fiber.Ctx, span trace.Span, err 
 	case errors.Is(err, constant.ErrTransactionValidationNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction validation not found", err)
 
-		return pkgHTTP.NotFound(c, "TRC-0251", "Not Found", "Transaction validation not found")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrTransactionValidationNotFound, constant.EntityTransactionValidation))
 	case errors.Is(err, constant.ErrInvalidTransactionValidationFilters):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction validation filters", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0250", "Invalid Transaction Validation Filters", "Invalid transaction validation filters")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidTransactionValidationFilters, constant.EntityTransactionValidation))
 	case errors.Is(err, constant.ErrInvalidCursor):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
 
-		return pkgHTTP.BadRequest(c, fiber.Map{
-			"code":    "TRC-0044",
-			"title":   "Bad Request",
-			"message": "Invalid pagination cursor",
-		})
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidCursor, constant.EntityTransactionValidation))
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
 
-		return pkgHTTP.InternalServerError(c, "TRC-0004", "Internal Server Error", "An unexpected error occurred")
+		return http.WithError(c, pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."})
 	}
 }
 
@@ -248,7 +238,7 @@ func validateUUID(value, fieldName string) error {
 	}
 
 	if _, err := uuid.Parse(value); err != nil {
-		return fmt.Errorf("%s must be a valid UUID", fieldName)
+		return pkg.ValidateBusinessError(constant.ErrInvalidTransactionValidationFilters, constant.EntityTransactionValidation)
 	}
 
 	return nil
@@ -315,7 +305,7 @@ func (i *ListTransactionValidationsInput) Validate() error {
 
 func (i *ListTransactionValidationsInput) validateDecision() error {
 	if i.Decision != "" && !model.Decision(i.Decision).IsValid() {
-		return errors.New("decision must be one of [ALLOW, DENY, REVIEW]")
+		return pkg.ValidateBusinessError(constant.ErrInvalidTransactionValidationFilters, constant.EntityTransactionValidation)
 	}
 
 	return nil
@@ -324,26 +314,17 @@ func (i *ListTransactionValidationsInput) validateDecision() error {
 func (i *ListTransactionValidationsInput) validateDates() error {
 	startDate, err := validation.ParseRFC3339Timestamp(i.StartDate, "start_date")
 	if err != nil {
-		return &ValidationError{
-			Code:    "TRC-0020",
-			Message: "Invalid timestamp format: expected RFC3339",
-		}
+		return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, constant.EntityTransactionValidation)
 	}
 
 	endDate, err := validation.ParseRFC3339Timestamp(i.EndDate, "end_date")
 	if err != nil {
-		return &ValidationError{
-			Code:    "TRC-0020",
-			Message: "Invalid timestamp format: expected RFC3339",
-		}
+		return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, constant.EntityTransactionValidation)
 	}
 
 	// Use user-friendly error message for date range validation
 	if !startDate.IsZero() && !endDate.IsZero() && startDate.After(endDate) {
-		return &ValidationError{
-			Code:    "TRC-0023",
-			Message: "end_date must be on or after start_date",
-		}
+		return pkg.ValidateBusinessError(constant.ErrInvalidDateRange, constant.EntityTransactionValidation)
 	}
 
 	return nil
@@ -371,7 +352,7 @@ func (i *ListTransactionValidationsInput) validateUUIDFilters() error {
 
 func (i *ListTransactionValidationsInput) validateTransactionType() error {
 	if i.TransactionType != "" && !model.TransactionType(i.TransactionType).IsValid() {
-		return errors.New("transaction_type must be one of [CARD, WIRE, PIX, CRYPTO]")
+		return pkg.ValidateBusinessError(constant.ErrInvalidTransactionValidationFilters, constant.EntityTransactionValidation)
 	}
 
 	return nil

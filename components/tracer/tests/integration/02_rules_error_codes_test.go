@@ -100,7 +100,7 @@ func TestCreateRule_MalformedJSON_ReturnsError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			assert.Equal(t, "TRC-0003", errResp.Code, "Test case: %s - Expected TRC-0003 for malformed JSON", tc.description)
+			assert.Equal(t, "0047", errResp.Code, "Test case: %s - Expected TRC-0003 for malformed JSON", tc.description)
 			assert.Equal(t, "Bad Request", errResp.Title, "Test case: %s", tc.description)
 			assert.Equal(t, "Invalid request body", errResp.Message, "Test case: %s", tc.description)
 		})
@@ -129,7 +129,7 @@ func TestCreateRule_EmptyBody_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	assert.Equal(t, "TRC-0003", errResp.Code, "Expected TRC-0003 for empty body")
+	assert.Equal(t, "0047", errResp.Code, "Expected TRC-0003 for empty body")
 	assert.Equal(t, "Bad Request", errResp.Title)
 	assert.Equal(t, "Invalid request body", errResp.Message)
 }
@@ -158,7 +158,7 @@ func TestCreateRule_NullBody_ReturnsError(t *testing.T) {
 
 	// Note: "null" is valid JSON but missing required fields, so it's treated as a validation error
 	// With specific error codes, the first missing required field error is returned
-	assert.Equal(t, "TRC-0106", errResp.Code, "Expected TRC-0106 for null body (name is required)")
+	assert.Equal(t, "0353", errResp.Code, "Expected TRC-0106 for null body (name is required)")
 	assert.Equal(t, "Validation Error", errResp.Title)
 	assert.Equal(t, "name is required", errResp.Message)
 }
@@ -186,7 +186,7 @@ func TestCreateRule_ArrayInsteadOfObject_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	assert.Equal(t, "TRC-0003", errResp.Code, "Expected TRC-0003 for array instead of object")
+	assert.Equal(t, "0047", errResp.Code, "Expected TRC-0003 for array instead of object")
 	assert.Equal(t, "Bad Request", errResp.Title)
 	assert.Equal(t, "Invalid request body", errResp.Message)
 }
@@ -215,7 +215,7 @@ func TestCreateRule_BinaryData_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	assert.Equal(t, "TRC-0003", errResp.Code, "Expected TRC-0003 for binary data")
+	assert.Equal(t, "0047", errResp.Code, "Expected TRC-0003 for binary data")
 	assert.Equal(t, "Bad Request", errResp.Title)
 	assert.Equal(t, "Invalid request body", errResp.Message)
 }
@@ -289,7 +289,7 @@ func TestUpdateRule_InvalidBody_ReturnsError(t *testing.T) {
 				assert.Equal(t, http.StatusBadRequest, statusCode, "Test case: %s - Response: %s", tc.description, string(respBody))
 
 				errResp := testutil.ParseErrorResponse(t, respBody)
-				assert.Equal(t, "TRC-0003", errResp.Code, "Test case: %s - Expected TRC-0003 for malformed JSON", tc.description)
+				assert.Equal(t, "0047", errResp.Code, "Test case: %s - Expected TRC-0003 for malformed JSON", tc.description)
 				assert.Equal(t, "Bad Request", errResp.Title, "Test case: %s", tc.description)
 				assert.Equal(t, "Invalid request body", errResp.Message, "Test case: %s", tc.description)
 			})
@@ -303,7 +303,7 @@ func TestUpdateRule_InvalidBody_ReturnsError(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, statusCode, "Response: %s", string(respBody))
 
 		errResp := testutil.ParseErrorResponse(t, respBody)
-		assert.Equal(t, "TRC-0003", errResp.Code, "Expected TRC-0003 for empty body")
+		assert.Equal(t, "0047", errResp.Code, "Expected TRC-0003 for empty body")
 		assert.Equal(t, "Bad Request", errResp.Title)
 		assert.Equal(t, "Invalid request body", errResp.Message)
 	})
@@ -316,7 +316,7 @@ func TestUpdateRule_InvalidBody_ReturnsError(t *testing.T) {
 
 		errResp := testutil.ParseErrorResponse(t, respBody)
 		// TRC-0002 for missing required fields (empty object has no fields to update)
-		assert.Equal(t, "TRC-0002", errResp.Code, "Expected TRC-0002 for empty object (missing required fields)")
+		assert.Equal(t, "0009", errResp.Code, "Expected TRC-0002 for empty object (missing required fields)")
 		assert.Equal(t, "Validation Error", errResp.Title)
 		assert.Equal(t, "At least one field must be provided for update", errResp.Message)
 	})
@@ -342,56 +342,56 @@ func TestListRules_InvalidQueryParameters_ReturnsError(t *testing.T) {
 		{
 			name:          "invalid_action_filter_lowercase",
 			queryParams:   "action=allow",
-			expectedCode:  "TRC-0006",
+			expectedCode:  "0082",
 			expectedTitle: "Bad Request",
 			description:   "Action filter with lowercase value",
 		},
 		{
 			name:          "invalid_action_filter_value",
 			queryParams:   "action=INVALID_ACTION",
-			expectedCode:  "TRC-0006",
+			expectedCode:  "0082",
 			expectedTitle: "Bad Request",
 			description:   "Action filter with invalid enum value",
 		},
 		{
 			name:          "invalid_status_filter_lowercase",
 			queryParams:   "status=draft",
-			expectedCode:  "TRC-0006",
+			expectedCode:  "0082",
 			expectedTitle: "Bad Request",
 			description:   "Status filter with lowercase value",
 		},
 		{
 			name:          "invalid_status_filter_value",
 			queryParams:   "status=INVALID_STATUS",
-			expectedCode:  "TRC-0006",
+			expectedCode:  "0082",
 			expectedTitle: "Bad Request",
 			description:   "Status filter with invalid enum value",
 		},
 		{
 			name:          "deleted_status_not_allowed",
 			queryParams:   "status=DELETED",
-			expectedCode:  "TRC-0006",
+			expectedCode:  "0082",
 			expectedTitle: "Bad Request",
 			description:   "DELETED status is not allowed in filter",
 		},
 		{
 			name:          "limit_zero",
 			queryParams:   "limit=0",
-			expectedCode:  "TRC-0041",
+			expectedCode:  "0331",
 			expectedTitle: "Bad Request",
 			description:   "Limit of 0 is invalid",
 		},
 		{
 			name:          "limit_negative",
 			queryParams:   "limit=-1",
-			expectedCode:  "TRC-0041",
+			expectedCode:  "0331",
 			expectedTitle: "Bad Request",
 			description:   "Negative limit is invalid",
 		},
 		{
 			name:          "limit_exceeds_max",
 			queryParams:   "limit=101",
-			expectedCode:  "TRC-0040",
+			expectedCode:  "0080",
 			expectedTitle: "Bad Request",
 			description:   "Limit exceeds maximum of 100",
 		},
@@ -473,19 +473,19 @@ func TestListRules_InvalidCursor_ReturnsError(t *testing.T) {
 		{
 			name:         "random_string",
 			cursor:       "not-a-valid-cursor",
-			expectedCode: "TRC-0044",
+			expectedCode: "0333",
 			description:  "Random string as cursor",
 		},
 		{
 			name:         "invalid_base64",
 			cursor:       "!!invalid-base64!!",
-			expectedCode: "TRC-0044",
+			expectedCode: "0333",
 			description:  "Invalid base64 string",
 		},
 		{
 			name:         "malformed_cursor",
 			cursor:       "YWJjZGVm", // valid base64 but not a valid cursor format
-			expectedCode: "TRC-0044",
+			expectedCode: "0333",
 			description:  "Valid base64 but invalid cursor format",
 		},
 	}
@@ -529,7 +529,7 @@ func TestListRules_InvalidSortParameters_ReturnsError(t *testing.T) {
 		{
 			name:            "invalid_sort_column",
 			queryParams:     "sort_by=invalid_column",
-			expectedCode:    "TRC-0043",
+			expectedCode:    "0332",
 			expectedTitle:   "Bad Request",
 			expectedMessage: "sort_by must be one of [created_at updated_at name status]",
 			description:     "Invalid sort column",
@@ -537,7 +537,7 @@ func TestListRules_InvalidSortParameters_ReturnsError(t *testing.T) {
 		{
 			name:            "invalid_sort_order",
 			queryParams:     "sort_order=INVALID",
-			expectedCode:    "TRC-0042",
+			expectedCode:    "0081",
 			expectedTitle:   "Bad Request",
 			expectedMessage: "sort_order must be ASC or DESC",
 			description:     "Invalid sort order",
@@ -639,7 +639,7 @@ func TestCreateRule_ValidJSONWithInvalidTypes_ReturnsBadRequest(t *testing.T) {
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
 			// TRC-0003 is returned for JSON type mismatch errors (bad request)
-			assert.Equal(t, "TRC-0003", errResp.Code, "Expected TRC-0003 for type validation error")
+			assert.Equal(t, "0047", errResp.Code, "Expected TRC-0003 for type validation error")
 			assert.Equal(t, "Bad Request", errResp.Title)
 			assert.Equal(t, "Invalid request body", errResp.Message)
 		})
@@ -680,7 +680,7 @@ func TestCreateRule_LargePayload_HandlesCorrectly(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
 	// Validation error for name exceeding max length
-	assert.Equal(t, "TRC-0107", errResp.Code, "Expected TRC-0107 for name too long")
+	assert.Equal(t, "0354", errResp.Code, "Expected TRC-0107 for name too long")
 	assert.Equal(t, "Validation Error", errResp.Title)
 	assert.Contains(t, errResp.Message, "name")
 }

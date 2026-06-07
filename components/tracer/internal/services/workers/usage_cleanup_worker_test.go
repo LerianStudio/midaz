@@ -366,7 +366,6 @@ func TestUsageCleanupWorker_DefaultConfig(t *testing.T) {
 	config := DefaultUsageCleanupWorkerConfig()
 
 	assert.Equal(t, 24*time.Hour, config.CleanupInterval)
-
 }
 
 func TestUsageCleanupWorker_NilClockUsesRealClock(t *testing.T) {

@@ -204,7 +204,7 @@ func TestValidation_ContextObjects_MissingAccount_ReturnsError(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0227", errResp.Code, "Expected TRC-0227 for missing account")
+	assert.Equal(t, "0420", errResp.Code, "Expected TRC-0227 for missing account")
 	assert.Equal(t, "Validation Error", errResp.Title, "Error title should be Validation Error")
 	assert.Equal(t, "account is required", errResp.Message, "Error message should match exactly")
 }
@@ -577,7 +577,7 @@ func TestValidation_AccountContext_MissingAccountId(t *testing.T) {
 		"Missing accountId should return 400 Bad Request")
 
 	errorResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0227", errorResp.Code, "Error code should be TRC-0227")
+	assert.Equal(t, "0420", errorResp.Code, "Error code should be TRC-0227")
 	assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
 	assert.Equal(t, "account is required", errorResp.Message, "Error message should match exactly")
 }

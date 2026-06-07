@@ -5,51 +5,44 @@
 package in
 
 import (
-	"fmt"
 	"strings"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // ValidateCursorConsistency checks if cursor is used with sort_by/sort_order.
-// Returns ValidationError with TRC-0045 if both are present.
+// Returns a canonical ErrCursorWithSortParams error if both are present.
 // This validation ensures clients don't attempt to override the sort configuration
 // already encoded in the cursor (which contains sort_by and sort_order internally).
 func ValidateCursorConsistency(cursor, sortBy, sortOrder string) error {
 	if cursor != "" && (sortBy != "" || sortOrder != "") {
-		return &ValidationError{
-			Code:    "TRC-0045",
-			Message: "sort_by and sort_order cannot be used with cursor; cursor already contains sort configuration",
-		}
+		return pkg.ValidateBusinessError(constant.ErrCursorWithSortParams, constant.EntityRule)
 	}
 
 	return nil
 }
 
 // ValidatePaginationLimit validates that limit is within the valid range.
-// Returns TRC-0041 if less than 1, TRC-0040 if exceeds maxLimit.
+// Returns ErrPaginationLimitInvalid if less than 1, ErrPaginationLimitExceeded if it exceeds maxLimit.
 func ValidatePaginationLimit(limit *int, maxLimit int) error {
 	if limit == nil {
 		return nil
 	}
 
 	if *limit < 1 {
-		return &ValidationError{
-			Code:    "TRC-0041",
-			Message: "limit must be at least 1",
-		}
+		return pkg.ValidateBusinessError(constant.ErrPaginationLimitInvalid, constant.EntityRule)
 	}
 
 	if *limit > maxLimit {
-		return &ValidationError{
-			Code:    "TRC-0040",
-			Message: fmt.Sprintf("limit must not exceed %d", maxLimit),
-		}
+		return pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, constant.EntityRule, maxLimit)
 	}
 
 	return nil
 }
 
 // ValidateSortOrder validates that sortOrder is ASC or DESC (case-insensitive).
-// Returns TRC-0042 if the value is not one of the allowed values.
+// Returns ErrInvalidSortOrder if the value is not one of the allowed values.
 func ValidateSortOrder(sortOrder string) error {
 	if sortOrder == "" {
 		return nil
@@ -57,17 +50,14 @@ func ValidateSortOrder(sortOrder string) error {
 
 	upperSortOrder := strings.ToUpper(sortOrder)
 	if upperSortOrder != "ASC" && upperSortOrder != "DESC" {
-		return &ValidationError{
-			Code:    "TRC-0042",
-			Message: "sort_order must be ASC or DESC",
-		}
+		return pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, constant.EntityRule)
 	}
 
 	return nil
 }
 
 // ValidateSortBy validates that sortBy is in the whitelist of allowed fields.
-// Returns TRC-0043 if the field is not in the list.
+// Returns ErrInvalidSortColumn if the field is not in the list.
 func ValidateSortBy(sortBy string, allowedFields []string) error {
 	if sortBy == "" {
 		return nil
@@ -79,10 +69,7 @@ func ValidateSortBy(sortBy string, allowedFields []string) error {
 		}
 	}
 
-	return &ValidationError{
-		Code:    "TRC-0043",
-		Message: fmt.Sprintf("sort_by must be one of %v", allowedFields),
-	}
+	return pkg.ValidateBusinessError(constant.ErrInvalidSortColumn, constant.EntityRule)
 }
 
 // NormalizeSortOrder normalizes sortOrder to uppercase (ASC or DESC).

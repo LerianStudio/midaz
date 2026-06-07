@@ -19,8 +19,8 @@ import (
 
 	pgdbMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 func TestNewDraftLimitCommand_NilRepository(t *testing.T) {
@@ -241,7 +241,7 @@ func TestDraftLimitCommand_Execute_InvalidTransition_FromActive(t *testing.T) {
 	result, err := cmd.Execute(ctx, limitID)
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, constant.ErrLimitInvalidStatusChange)
+	assertBusinessCode(t, err, constant.ErrLimitInvalidStatusChange.Error())
 	assert.Nil(t, result)
 }
 
@@ -283,7 +283,7 @@ func TestDraftLimitCommand_Execute_InvalidTransition_FromDeleted(t *testing.T) {
 	result, err := cmd.Execute(ctx, limitID)
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, constant.ErrLimitInvalidStatusChange)
+	assertBusinessCode(t, err, constant.ErrLimitInvalidStatusChange.Error())
 	assert.Nil(t, result)
 }
 

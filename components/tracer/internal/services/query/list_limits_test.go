@@ -15,8 +15,9 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 func TestNewListLimitsQuery(t *testing.T) {
@@ -82,7 +83,7 @@ func TestListLimitsQuery_Execute(t *testing.T) {
 
 	// defaultFilterMatcher verifies filter has default values applied
 	// ApplyDefaults normalizes SortOrder to lowercase
-	defaultFilterMatcher := filterMatcher(constant.DefaultPaginationLimit, "created_at", string(constant.Desc))
+	defaultFilterMatcher := filterMatcher(trcConstant.DefaultPaginationLimit, "created_at", string(trcConstant.Desc))
 
 	tests := []struct {
 		name        string
@@ -126,7 +127,7 @@ func TestListLimitsQuery_Execute(t *testing.T) {
 					return f.Status != nil && *f.Status == model.LimitStatusActive
 				}
 				// ApplyDefaults normalizes SortOrder to lowercase
-				m.EXPECT().List(gomock.Any(), filterMatcher(constant.DefaultPaginationLimit, "created_at", string(constant.Desc), statusCheck)).Return(result, nil)
+				m.EXPECT().List(gomock.Any(), filterMatcher(trcConstant.DefaultPaginationLimit, "created_at", string(trcConstant.Desc), statusCheck)).Return(result, nil)
 			},
 			expectError: false,
 			validate: func(t *testing.T, result *model.ListLimitsResult) {
@@ -152,7 +153,7 @@ func TestListLimitsQuery_Execute(t *testing.T) {
 					return f.LimitType != nil && *f.LimitType == model.LimitTypeDaily
 				}
 				// ApplyDefaults normalizes SortOrder to lowercase
-				m.EXPECT().List(gomock.Any(), filterMatcher(constant.DefaultPaginationLimit, "created_at", string(constant.Desc), limitTypeCheck)).Return(result, nil)
+				m.EXPECT().List(gomock.Any(), filterMatcher(trcConstant.DefaultPaginationLimit, "created_at", string(trcConstant.Desc), limitTypeCheck)).Return(result, nil)
 			},
 			expectError: false,
 			validate: func(t *testing.T, result *model.ListLimitsResult) {
@@ -180,7 +181,7 @@ func TestListLimitsQuery_Execute(t *testing.T) {
 						f.LimitType != nil && *f.LimitType == model.LimitTypeDaily
 				}
 				// ApplyDefaults normalizes SortOrder to lowercase
-				m.EXPECT().List(gomock.Any(), filterMatcher(constant.DefaultPaginationLimit, "created_at", string(constant.Desc), combinedCheck)).Return(result, nil)
+				m.EXPECT().List(gomock.Any(), filterMatcher(trcConstant.DefaultPaginationLimit, "created_at", string(trcConstant.Desc), combinedCheck)).Return(result, nil)
 			},
 			expectError: false,
 			validate: func(t *testing.T, result *model.ListLimitsResult) {
@@ -200,7 +201,7 @@ func TestListLimitsQuery_Execute(t *testing.T) {
 				}
 				// Verify custom limit preserved with default sort
 				// ApplyDefaults normalizes SortOrder to lowercase
-				m.EXPECT().List(gomock.Any(), filterMatcher(2, "created_at", string(constant.Desc))).Return(result, nil)
+				m.EXPECT().List(gomock.Any(), filterMatcher(2, "created_at", string(trcConstant.Desc))).Return(result, nil)
 			},
 			expectError: false,
 			validate: func(t *testing.T, result *model.ListLimitsResult) {
@@ -225,7 +226,7 @@ func TestListLimitsQuery_Execute(t *testing.T) {
 					return f.Cursor == "encoded_cursor_value"
 				}
 				// ApplyDefaults normalizes SortOrder to lowercase
-				m.EXPECT().List(gomock.Any(), filterMatcher(10, "created_at", string(constant.Desc), cursorCheck)).Return(result, nil)
+				m.EXPECT().List(gomock.Any(), filterMatcher(10, "created_at", string(trcConstant.Desc), cursorCheck)).Return(result, nil)
 			},
 			expectError: false,
 			validate: func(t *testing.T, result *model.ListLimitsResult) {
@@ -237,7 +238,7 @@ func TestListLimitsQuery_Execute(t *testing.T) {
 			name: "Success - sort by name ascending",
 			filter: &model.ListLimitsFilter{
 				SortBy:    "name",
-				SortOrder: string(constant.Asc),
+				SortOrder: string(trcConstant.Asc),
 			},
 			setupMock: func(m *MockLimitRepository) {
 				result := &model.ListLimitsResult{
@@ -246,7 +247,7 @@ func TestListLimitsQuery_Execute(t *testing.T) {
 				}
 				// Verify custom sort preserved with default limit
 				// ApplyDefaults normalizes SortOrder to lowercase
-				m.EXPECT().List(gomock.Any(), filterMatcher(constant.DefaultPaginationLimit, "name", string(constant.Asc))).Return(result, nil)
+				m.EXPECT().List(gomock.Any(), filterMatcher(trcConstant.DefaultPaginationLimit, "name", string(trcConstant.Asc))).Return(result, nil)
 			},
 			expectError: false,
 			validate: func(t *testing.T, result *model.ListLimitsResult) {
@@ -257,7 +258,7 @@ func TestListLimitsQuery_Execute(t *testing.T) {
 			name: "Success - sort by createdAt descending",
 			filter: &model.ListLimitsFilter{
 				SortBy:    "created_at",
-				SortOrder: string(constant.Desc),
+				SortOrder: string(trcConstant.Desc),
 			},
 			setupMock: func(m *MockLimitRepository) {
 				result := &model.ListLimitsResult{
@@ -266,7 +267,7 @@ func TestListLimitsQuery_Execute(t *testing.T) {
 				}
 				// Verify explicit sort values preserved
 				// ApplyDefaults normalizes SortOrder to lowercase
-				m.EXPECT().List(gomock.Any(), filterMatcher(constant.DefaultPaginationLimit, "created_at", string(constant.Desc))).Return(result, nil)
+				m.EXPECT().List(gomock.Any(), filterMatcher(trcConstant.DefaultPaginationLimit, "created_at", string(trcConstant.Desc))).Return(result, nil)
 			},
 			expectError: false,
 			validate: func(t *testing.T, result *model.ListLimitsResult) {
@@ -381,9 +382,9 @@ func TestListLimitsQuery_Execute_NilFilter(t *testing.T) {
 			return false
 		}
 		// ApplyDefaults normalizes SortOrder to lowercase
-		return f.Limit == constant.DefaultPaginationLimit &&
+		return f.Limit == trcConstant.DefaultPaginationLimit &&
 			f.SortBy == "created_at" &&
-			f.SortOrder == string(constant.Desc)
+			f.SortOrder == string(trcConstant.Desc)
 	})
 
 	mockRepo := NewMockLimitRepository(ctrl)
@@ -430,7 +431,7 @@ func TestListLimitsQuery_Execute_LimitDefaults(t *testing.T) {
 	filter.ApplyDefaults()
 	err := filter.Validate()
 	require.NoError(t, err)
-	assert.Equal(t, constant.DefaultPaginationLimit, filter.Limit)
+	assert.Equal(t, trcConstant.DefaultPaginationLimit, filter.Limit)
 
 	// Test that limit exceeding max gets capped after ApplyDefaults
 	filter = &model.ListLimitsFilter{
@@ -440,7 +441,7 @@ func TestListLimitsQuery_Execute_LimitDefaults(t *testing.T) {
 	filter.ApplyDefaults()
 	err = filter.Validate()
 	require.NoError(t, err)
-	assert.Equal(t, constant.MaxPaginationLimit, filter.Limit)
+	assert.Equal(t, trcConstant.MaxPaginationLimit, filter.Limit)
 }
 
 func TestListLimitsQuery_Execute_SortDefaults(t *testing.T) {
@@ -452,5 +453,5 @@ func TestListLimitsQuery_Execute_SortDefaults(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "created_at", filter.SortBy)
 	// ApplyDefaults normalizes SortOrder to lowercase
-	assert.Equal(t, string(constant.Desc), filter.SortOrder)
+	assert.Equal(t, string(trcConstant.Desc), filter.SortOrder)
 }

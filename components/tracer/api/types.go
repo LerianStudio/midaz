@@ -7,7 +7,7 @@ package api
 // ErrorResponse represents a standard error response.
 // Used in Swagger documentation for error responses.
 type ErrorResponse struct {
-	Code    string `json:"code" validate:"required" example:"TRC-0001"`
+	Code    string `json:"code" validate:"required" example:"0053"`
 	Title   string `json:"title" validate:"required" example:"Bad Request"`
 	Message string `json:"message" validate:"required" example:"Invalid input provided"`
 }

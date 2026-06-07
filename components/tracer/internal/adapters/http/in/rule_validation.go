@@ -13,8 +13,10 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // ErrValidatorInit is returned when validator initialization fails.
@@ -189,17 +191,6 @@ type ListRulesInput struct {
 	SortOrder       string            `query:"sort_order" enums:"ASC,DESC"`
 }
 
-// ValidationError represents a validation error with a specific TRC code.
-// Used for both rule field validation and list parameter validation.
-type ValidationError struct {
-	Code    string
-	Message string
-}
-
-func (e *ValidationError) Error() string {
-	return e.Message
-}
-
 // Validate validates the ListRulesInput struct.
 // Validates before defaults are applied to ensure fail-fast behavior.
 func (l *ListRulesInput) Validate() error {
@@ -227,26 +218,17 @@ func (l *ListRulesInput) Validate() error {
 	// Validate status filter (TRC-0006 for invalid values)
 	if l.Status != nil {
 		if !l.Status.IsValid() {
-			return &ValidationError{
-				Code:    "TRC-0006",
-				Message: "Status must be one of [DRAFT ACTIVE INACTIVE]",
-			}
+			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityRule, "filters")
 		}
 		// DELETED status is not allowed as a filter (audit handled separately)
 		if *l.Status == model.RuleStatusDeleted {
-			return &ValidationError{
-				Code:    "TRC-0006",
-				Message: "Status filter does not allow DELETED; use audit API for deleted rules",
-			}
+			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityRule, "filters")
 		}
 	}
 
 	// Validate action filter (TRC-0006 for invalid values)
 	if l.Action != nil && !l.Action.IsValid() {
-		return &ValidationError{
-			Code:    "TRC-0006",
-			Message: "Invalid action filter value",
-		}
+		return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityRule, "filters")
 	}
 
 	// Validate scope filter fields (TRC-0006 for invalid values)
@@ -273,10 +255,7 @@ func (l *ListRulesInput) validateScopeFields() error {
 	for _, f := range uuidFields {
 		if f.value != nil && *f.value != "" {
 			if _, err := uuid.Parse(*f.value); err != nil {
-				return &ValidationError{
-					Code:    "TRC-0006",
-					Message: f.name + " must be a valid UUID",
-				}
+				return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityRule, "filters")
 			}
 		}
 	}
@@ -285,10 +264,7 @@ func (l *ListRulesInput) validateScopeFields() error {
 	if l.TransactionType != nil && *l.TransactionType != "" {
 		txType := model.TransactionType(*l.TransactionType)
 		if !txType.IsValid() {
-			return &ValidationError{
-				Code:    "TRC-0006",
-				Message: "transaction_type must be one of [CARD, WIRE, PIX, CRYPTO]",
-			}
+			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityRule, "filters")
 		}
 	}
 
@@ -298,10 +274,7 @@ func (l *ListRulesInput) validateScopeFields() error {
 	if l.SubType != nil {
 		trimmedSubType := strings.TrimSpace(*l.SubType)
 		if trimmedSubType != "" && len(trimmedSubType) > MaxRuleSubTypeLength {
-			return &ValidationError{
-				Code:    "TRC-0006",
-				Message: fmt.Sprintf("sub_type exceeds maximum length of %d characters", MaxRuleSubTypeLength),
-			}
+			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityRule, "filters")
 		}
 	}
 
@@ -313,7 +286,7 @@ func (l *ListRulesInput) validateScopeFields() error {
 // because cursor already contains sort configuration (TRC-0045).
 func (l *ListRulesInput) SetDefaults() {
 	if l.Limit == nil {
-		defaultLimit := constant.DefaultPaginationLimit
+		defaultLimit := trcConstant.DefaultPaginationLimit
 		l.Limit = &defaultLimit
 	}
 
@@ -343,7 +316,7 @@ type ListRulesResponse struct {
 // Scope fields are converted from strings to typed values (UUIDs, enums).
 // Pre-validated by Validate() - safe to use uuid.MustParse for UUID fields.
 func toListFilter(input *ListRulesInput) *model.ListRulesFilter {
-	limit := constant.DefaultPaginationLimit
+	limit := trcConstant.DefaultPaginationLimit
 	if input.Limit != nil {
 		limit = *input.Limit
 	}
@@ -471,16 +444,10 @@ func formatValidationError(err error) error {
 		case "max":
 			return mapMaxFieldToError(jsonFieldName, fieldError.Param())
 		case "decision":
-			return &ValidationError{
-				Code:    "TRC-0110",
-				Message: "action must be one of [ALLOW, DENY, REVIEW]",
-			}
+			return pkg.ValidateBusinessError(constant.ErrRuleInvalidAction, constant.EntityRule)
 		default:
 			// Generic validation error for unmapped cases
-			return &ValidationError{
-				Code:    "TRC-0001",
-				Message: fmt.Sprintf("%s validation failed: %s", jsonFieldName, tag),
-			}
+			return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityRule)
 		}
 	}
 
@@ -488,118 +455,38 @@ func formatValidationError(err error) error {
 }
 
 // mapRequiredFieldToError maps a required field error to its specific TRC code.
-func mapRequiredFieldToError(fieldName string) *ValidationError {
+func mapRequiredFieldToError(fieldName string) error {
 	switch fieldName {
 	case "name":
-		return &ValidationError{
-			Code:    "TRC-0106",
-			Message: "name is required",
-		}
+		return pkg.ValidateBusinessError(constant.ErrRuleNameRequired, constant.EntityRule)
 	case "expression":
-		return &ValidationError{
-			Code:    "TRC-0108",
-			Message: "expression is required",
-		}
+		return pkg.ValidateBusinessError(constant.ErrRuleExpressionRequired, constant.EntityRule)
 	case "action":
-		return &ValidationError{
-			Code:    "TRC-0110",
-			Message: "action is required and must be one of [ALLOW, DENY, REVIEW]",
-		}
+		return pkg.ValidateBusinessError(constant.ErrRuleInvalidAction, constant.EntityRule)
 	default:
-		return &ValidationError{
-			Code:    "TRC-0001",
-			Message: fmt.Sprintf("%s is required", fieldName),
-		}
+		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityRule)
 	}
 }
 
 // mapMaxFieldToError maps a max validation error to its specific TRC code.
-func mapMaxFieldToError(fieldName, maxValue string) *ValidationError {
+func mapMaxFieldToError(fieldName, maxValue string) error {
 	switch fieldName {
 	case "name":
-		return &ValidationError{
-			Code:    "TRC-0107",
-			Message: fmt.Sprintf("name exceeds maximum length of %s characters", maxValue),
-		}
+		return pkg.ValidateBusinessError(constant.ErrRuleNameTooLong, constant.EntityRule)
 	case "description":
-		return &ValidationError{
-			Code:    "TRC-0112",
-			Message: fmt.Sprintf("description exceeds maximum length of %s characters", maxValue),
-		}
+		return pkg.ValidateBusinessError(constant.ErrRuleDescriptionTooLong, constant.EntityRule)
 	case "expression":
-		return &ValidationError{
-			Code:    "TRC-0109",
-			Message: fmt.Sprintf("expression exceeds maximum length of %s characters", maxValue),
-		}
+		return pkg.ValidateBusinessError(constant.ErrRuleExpressionTooLong, constant.EntityRule)
 	case "scopes":
-		return &ValidationError{
-			Code:    "TRC-0113",
-			Message: fmt.Sprintf("scopes exceed maximum of %s entries", maxValue),
-		}
+		return pkg.ValidateBusinessError(constant.ErrRuleScopesTooMany, constant.EntityRule)
 	default:
-		return &ValidationError{
-			Code:    "TRC-0001",
-			Message: fmt.Sprintf("%s exceeds maximum length of %s", fieldName, maxValue),
-		}
+		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityRule)
 	}
 }
 
 // formatScopeFieldErrorWithCode formats a scope field validation error with TRC-0111.
-func formatScopeFieldErrorWithCode(fieldError validator.FieldError) *ValidationError {
-	tag := fieldError.Tag()
-
-	// Handle scopenotempty validation (applies to the whole scope, not a field)
-	if tag == "scopenotempty" {
-		index, err := extractScopeIndex(fieldError.Namespace())
-		if err != nil {
-			return &ValidationError{
-				Code:    "TRC-0111",
-				Message: "scope must have at least one field set",
-			}
-		}
-
-		return &ValidationError{
-			Code:    "TRC-0111",
-			Message: fmt.Sprintf("scope at index %d must have at least one field set", index),
-		}
-	}
-
-	// Other scope field errors
-	fieldName := toScopeJSONFieldName(fieldError.Field())
-	index, err := extractScopeIndex(fieldError.Namespace())
-
-	var msg string
-
-	if err != nil {
-		// Se não conseguimos extrair o índice, usamos mensagem genérica sem índice
-		switch tag {
-		case "uuid":
-			msg = fmt.Sprintf("scope %s must be a valid UUID", fieldName)
-		case "transactiontype":
-			msg = fmt.Sprintf("scope %s must be one of [CARD, WIRE, PIX, CRYPTO]", fieldName)
-		case "max":
-			msg = fmt.Sprintf("scope %s exceeds maximum length of %s characters", fieldName, fieldError.Param())
-		default:
-			msg = fmt.Sprintf("scope %s validation failed", fieldName)
-		}
-	} else {
-		// Índice extraído com sucesso, incluímos na mensagem
-		switch tag {
-		case "uuid":
-			msg = fmt.Sprintf("scope at index %d: %s must be a valid UUID", index, fieldName)
-		case "transactiontype":
-			msg = fmt.Sprintf("scope at index %d: %s must be one of [CARD, WIRE, PIX, CRYPTO]", index, fieldName)
-		case "max":
-			msg = fmt.Sprintf("scope at index %d: %s exceeds maximum length of %s characters", index, fieldName, fieldError.Param())
-		default:
-			msg = fmt.Sprintf("scope at index %d: %s validation failed", index, fieldName)
-		}
-	}
-
-	return &ValidationError{
-		Code:    "TRC-0111",
-		Message: msg,
-	}
+func formatScopeFieldErrorWithCode(fieldError validator.FieldError) error {
+	return pkg.ValidateBusinessError(constant.ErrRuleInvalidScope, constant.EntityRule)
 }
 
 // isScopeFieldError checks if the error is from a scope field (via dive validation).

@@ -24,10 +24,10 @@ import (
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // Compile-time interface implementation checks.

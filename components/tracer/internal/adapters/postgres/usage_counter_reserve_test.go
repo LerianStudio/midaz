@@ -18,7 +18,7 @@ import (
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // upsertReserveSQL is the expected SQL for UpsertAndReserveAtomic using the

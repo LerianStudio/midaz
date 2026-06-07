@@ -305,31 +305,31 @@ func TestListRules_2_4_6_InvalidScopeFiltersReturnError(t *testing.T) {
 		{
 			name:        "invalid account_id UUID",
 			queryParams: "account_id=not-a-uuid",
-			expectCode:  "TRC-0006",
+			expectCode:  "0082",
 			expectMsg:   "account_id",
 		},
 		{
 			name:        "invalid segment_id UUID",
 			queryParams: "segment_id=invalid",
-			expectCode:  "TRC-0006",
+			expectCode:  "0082",
 			expectMsg:   "segment_id",
 		},
 		{
 			name:        "invalid portfolio_id UUID",
 			queryParams: "portfolio_id=bad-uuid",
-			expectCode:  "TRC-0006",
+			expectCode:  "0082",
 			expectMsg:   "portfolio_id",
 		},
 		{
 			name:        "invalid merchant_id UUID",
 			queryParams: "merchant_id=xyz",
-			expectCode:  "TRC-0006",
+			expectCode:  "0082",
 			expectMsg:   "merchant_id",
 		},
 		{
 			name:        "invalid transaction_type enum",
 			queryParams: "transaction_type=INVALID_TYPE",
-			expectCode:  "TRC-0006",
+			expectCode:  "0082",
 			expectMsg:   "transaction_type",
 		},
 	}

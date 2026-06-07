@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -18,9 +17,10 @@ import (
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // Sentinel errors for ActivateRuleService constructor validation.
@@ -105,7 +105,7 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 				libLog.String("rule.id", ruleID.String()),
 			).Log(ctx, libLog.LevelWarn, "Rule not found")
 
-			return nil, libCommons.ValidateBusinessError(constant.ErrRuleNotFound, "Rule")
+			return nil, pkg.ValidateBusinessError(constant.ErrRuleNotFound, constant.EntityRule)
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to get rule from repository", err)
@@ -126,11 +126,11 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 			libLog.String("rule.id", ruleID.String()),
 		).Log(ctx, libLog.LevelWarn, "Rule not found")
 
-		return nil, libCommons.ValidateBusinessError(constant.ErrRuleNotFound, "Rule")
+		return nil, pkg.ValidateBusinessError(constant.ErrRuleNotFound, constant.EntityRule)
 	}
 
 	if rule.Expression == "" {
-		err := libCommons.ValidateBusinessError(constant.ErrBadRequest, "expression is required to activate rule")
+		err := pkg.ValidateBusinessError(constant.ErrRuleExpressionRequired, constant.EntityRule)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Empty expression", err)
 		logger.With(
 			libLog.String("operation", "service.rule.activate"),
@@ -162,7 +162,7 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 	// the post-commit cache update below.
 	program, err := s.expressionCompiler.Compile(ctx, rule.Expression)
 	if err != nil {
-		businessErr := libCommons.ValidateBusinessError(constant.ErrExpressionSyntax, err.Error())
+		businessErr := pkg.ValidateBusinessError(constant.ErrExpressionSyntax, constant.EntityRule)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Expression compilation failed", businessErr)
 		logger.With(
 			libLog.String("operation", "service.rule.activate"),
@@ -303,7 +303,7 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 			// for the sync worker's next poll cycle. In single-tenant mode this
 			// is also a no-op after WarmUp already marked the default bucket
 			// ready, but remains idempotent. See CacheAdapter.GetActiveRules —
-			// the IsReady gate returns ErrRuleCacheNotReady (TRC-0281) until
+			// the IsReady gate returns ErrRuleCacheNotReady until
 			// MarkReady is called for the tenant context.
 			s.cacheWriter.MarkReady(ctx)
 		}()

@@ -13,7 +13,8 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // LimitType represents the period type of a limit
@@ -762,6 +763,23 @@ func (l *Limit) Validate() error {
 	}
 
 	// Validate custom period (required for CUSTOM, forbidden for others)
+	if err := l.validateCustomPeriod(); err != nil {
+		return err
+	}
+
+	// Enforce DeletedAt invariant: must be set iff status is DELETED
+	if err := l.validateDeletedAtInvariant(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateCustomPeriod enforces the custom-period rules: the dates are
+// required for CUSTOM limits, forbidden for every other limit type, and when
+// present must be correctly ordered and within MaxCustomPeriodYears. Extracted
+// from Validate to keep it under the gocyclo budget; behavior is unchanged.
+func (l *Limit) validateCustomPeriod() error {
 	if l.LimitType == LimitTypeCustom {
 		if l.CustomStartDate == nil || l.CustomEndDate == nil {
 			return constant.ErrLimitCustomDatesRequired
@@ -783,7 +801,13 @@ func (l *Limit) Validate() error {
 		return constant.ErrLimitCustomDatesNotAllowed
 	}
 
-	// Enforce DeletedAt invariant: must be set iff status is DELETED
+	return nil
+}
+
+// validateDeletedAtInvariant enforces that DeletedAt is set iff the status is
+// DELETED. Extracted from Validate to keep it under the gocyclo budget;
+// behavior is unchanged.
+func (l *Limit) validateDeletedAtInvariant() error {
 	if l.Status == LimitStatusDeleted && l.DeletedAt == nil {
 		return constant.ErrLimitDeletedAtInvariant
 	}
@@ -904,15 +928,15 @@ func IsValidLimitSortField(field string) bool {
 
 // ApplyDefaults sets default values for Limit, SortBy, and SortOrder fields.
 // This method mutates the filter in-place.
-// - Limit defaults to constant.DefaultPaginationLimit if <= 0
-// - Limit is capped at constant.MaxPaginationLimit
+// - Limit defaults to trcConstant.DefaultPaginationLimit if <= 0
+// - Limit is capped at trcConstant.MaxPaginationLimit
 // - SortBy defaults to "created_at" if empty (snake_case)
 // - SortOrder defaults to "desc" if empty, normalized to lowercase
 func (f *ListLimitsFilter) ApplyDefaults() {
 	if f.Limit <= 0 {
-		f.Limit = constant.DefaultPaginationLimit
-	} else if f.Limit > constant.MaxPaginationLimit {
-		f.Limit = constant.MaxPaginationLimit
+		f.Limit = trcConstant.DefaultPaginationLimit
+	} else if f.Limit > trcConstant.MaxPaginationLimit {
+		f.Limit = trcConstant.MaxPaginationLimit
 	}
 
 	if f.SortBy == "" {
@@ -921,7 +945,7 @@ func (f *ListLimitsFilter) ApplyDefaults() {
 	// Note: SortBy is NOT lowercased because it uses snake_case (e.g., "created_at")
 
 	if f.SortOrder == "" {
-		f.SortOrder = string(constant.Desc)
+		f.SortOrder = string(trcConstant.Desc)
 	} else {
 		f.SortOrder = strings.ToLower(f.SortOrder)
 	}
@@ -943,7 +967,7 @@ func (f *ListLimitsFilter) Validate() error {
 		return constant.ErrPaginationLimitInvalid
 	}
 
-	if f.Limit > constant.MaxPaginationLimit {
+	if f.Limit > trcConstant.MaxPaginationLimit {
 		return constant.ErrPaginationLimitExceeded
 	}
 
@@ -953,7 +977,7 @@ func (f *ListLimitsFilter) Validate() error {
 
 	if f.SortOrder != "" {
 		sortOrder := strings.ToLower(f.SortOrder)
-		if sortOrder != string(constant.Asc) && sortOrder != string(constant.Desc) {
+		if sortOrder != string(trcConstant.Asc) && sortOrder != string(trcConstant.Desc) {
 			return constant.ErrInvalidSortOrder
 		}
 	}

@@ -28,9 +28,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // setupTransactionValidationRepositoryMockDB creates a gomock controller, mock DBConnection, and sqlmock for testing.

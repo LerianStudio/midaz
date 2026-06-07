@@ -16,6 +16,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // Valid UUIDs for testing
@@ -161,7 +163,8 @@ func TestCreateRuleInput_Validation(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+				var canonicalErr pkg.ValidationError
+				require.ErrorAs(t, err, &canonicalErr, "validation failures must surface a canonical 400 ValidationError")
 			} else {
 				require.NoError(t, err)
 			}
@@ -399,7 +402,8 @@ func TestCreateRuleInput_ScopesArray(t *testing.T) {
 			err := input.Validate()
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+				var canonicalErr pkg.ValidationError
+				require.ErrorAs(t, err, &canonicalErr, "validation failures must surface a canonical 400 ValidationError")
 			} else {
 				require.NoError(t, err)
 			}
@@ -436,7 +440,8 @@ func TestScope_UUIDValidation(t *testing.T) {
 			err := input.Validate()
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+				var canonicalErr pkg.ValidationError
+				require.ErrorAs(t, err, &canonicalErr, "validation failures must surface a canonical 400 ValidationError")
 			} else {
 				require.NoError(t, err)
 			}
@@ -479,7 +484,8 @@ func TestScope_TransactionTypeValidation(t *testing.T) {
 		}
 		err := input.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "transactionType must be one of")
+		var canonicalErr pkg.ValidationError
+		require.ErrorAs(t, err, &canonicalErr)
 	})
 }
 
@@ -521,7 +527,8 @@ func TestScope_SubTypeValidation(t *testing.T) {
 		}
 		err := input.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "subType exceeds maximum length of 50 characters")
+		var canonicalErr pkg.ValidationError
+		require.ErrorAs(t, err, &canonicalErr)
 	})
 }
 
@@ -556,7 +563,8 @@ func TestCreateRuleInput_ScopesMaxCount(t *testing.T) {
 		}
 		err := input.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "scopes exceed maximum of 100 entries")
+		var canonicalErr pkg.ValidationError
+		require.ErrorAs(t, err, &canonicalErr)
 	})
 }
 
@@ -690,7 +698,8 @@ func TestUpdateRuleInput_Validation(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+				var canonicalErr pkg.ValidationError
+				require.ErrorAs(t, err, &canonicalErr, "validation failures must surface a canonical 400 ValidationError")
 			} else {
 				require.NoError(t, err)
 			}
@@ -775,7 +784,8 @@ func TestUpdateRuleInput_ScopesMaxCount(t *testing.T) {
 		input := UpdateRuleInput{Scopes: &scopes}
 		err := input.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "scopes exceed maximum of 100 entries")
+		var canonicalErr pkg.ValidationError
+		require.ErrorAs(t, err, &canonicalErr)
 	})
 }
 
@@ -1058,7 +1068,8 @@ func TestListRulesInput_Validate(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+				var canonicalErr pkg.ValidationError
+				require.ErrorAs(t, err, &canonicalErr, "validation failures must surface a canonical 400 ValidationError")
 			} else {
 				require.NoError(t, err)
 			}
@@ -1542,8 +1553,12 @@ func TestFormatScopeFieldErrorWithCode_ScopeNotEmpty_IndexZero(t *testing.T) {
 			validationErr := formatScopeFieldErrorWithCode(mockFieldErr)
 
 			require.NotNil(t, validationErr)
-			assert.Contains(t, validationErr.Message, tt.expectedContain,
-				"Error should contain index: %s", tt.description)
+
+			var vErr pkg.ValidationError
+
+			require.ErrorAs(t, validationErr, &vErr, "Expected canonical ValidationError: %s", tt.description)
+			assert.Equal(t, constant.ErrRuleInvalidScope.Error(), vErr.Code,
+				"Scope field error must carry the canonical rule-invalid-scope code: %s", tt.description)
 		})
 	}
 }

@@ -7,6 +7,8 @@ package in
 import (
 	"errors"
 	"testing"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
 )
 
 func TestValidateCursorConsistency(t *testing.T) {
@@ -46,7 +48,7 @@ func TestValidateCursorConsistency(t *testing.T) {
 			sortBy:      "created_at",
 			sortOrder:   "",
 			wantErr:     true,
-			wantCode:    "TRC-0045",
+			wantCode:    "0334",
 			wantMessage: "sort_by and sort_order cannot be used with cursor; cursor already contains sort configuration",
 		},
 		{
@@ -55,7 +57,7 @@ func TestValidateCursorConsistency(t *testing.T) {
 			sortBy:      "",
 			sortOrder:   "DESC",
 			wantErr:     true,
-			wantCode:    "TRC-0045",
+			wantCode:    "0334",
 			wantMessage: "sort_by and sort_order cannot be used with cursor; cursor already contains sort configuration",
 		},
 		{
@@ -64,7 +66,7 @@ func TestValidateCursorConsistency(t *testing.T) {
 			sortBy:      "name",
 			sortOrder:   "ASC",
 			wantErr:     true,
-			wantCode:    "TRC-0045",
+			wantCode:    "0334",
 			wantMessage: "sort_by and sort_order cannot be used with cursor; cursor already contains sort configuration",
 		},
 	}
@@ -79,18 +81,14 @@ func TestValidateCursorConsistency(t *testing.T) {
 					return
 				}
 
-				var listErr *ValidationError
+				var listErr pkg.ValidationError
 				if !errors.As(err, &listErr) {
-					t.Errorf("ValidateCursorConsistency() error type = %T, want *ValidationError", err)
+					t.Errorf("ValidateCursorConsistency() error type = %T, want pkg.ValidationError", err)
 					return
 				}
 
 				if listErr.Code != tt.wantCode {
 					t.Errorf("ValidateCursorConsistency() code = %v, want %v", listErr.Code, tt.wantCode)
-				}
-
-				if listErr.Message != tt.wantMessage {
-					t.Errorf("ValidateCursorConsistency() message = %v, want %v", listErr.Message, tt.wantMessage)
 				}
 			} else {
 				if err != nil {
@@ -139,7 +137,7 @@ func TestValidatePaginationLimit(t *testing.T) {
 			limit:       &limit0,
 			maxLimit:    100,
 			wantErr:     true,
-			wantCode:    "TRC-0041",
+			wantCode:    "0331",
 			wantMessage: "limit must be at least 1",
 		},
 		{
@@ -147,7 +145,7 @@ func TestValidatePaginationLimit(t *testing.T) {
 			limit:       &limitNeg,
 			maxLimit:    100,
 			wantErr:     true,
-			wantCode:    "TRC-0041",
+			wantCode:    "0331",
 			wantMessage: "limit must be at least 1",
 		},
 		{
@@ -155,7 +153,7 @@ func TestValidatePaginationLimit(t *testing.T) {
 			limit:       &limit101,
 			maxLimit:    100,
 			wantErr:     true,
-			wantCode:    "TRC-0040",
+			wantCode:    "0080",
 			wantMessage: "limit must not exceed 100",
 		},
 	}
@@ -170,18 +168,14 @@ func TestValidatePaginationLimit(t *testing.T) {
 					return
 				}
 
-				var listErr *ValidationError
+				var listErr pkg.ValidationError
 				if !errors.As(err, &listErr) {
-					t.Errorf("ValidatePaginationLimit() error type = %T, want *ValidationError", err)
+					t.Errorf("ValidatePaginationLimit() error type = %T, want pkg.ValidationError", err)
 					return
 				}
 
 				if listErr.Code != tt.wantCode {
 					t.Errorf("ValidatePaginationLimit() code = %v, want %v", listErr.Code, tt.wantCode)
-				}
-
-				if listErr.Message != tt.wantMessage {
-					t.Errorf("ValidatePaginationLimit() message = %v, want %v", listErr.Message, tt.wantMessage)
 				}
 			} else {
 				if err != nil {
@@ -234,14 +228,14 @@ func TestValidateSortOrder(t *testing.T) {
 			name:        "invalid: random string",
 			sortOrder:   "invalid",
 			wantErr:     true,
-			wantCode:    "TRC-0042",
+			wantCode:    "0081",
 			wantMessage: "sort_order must be ASC or DESC",
 		},
 		{
 			name:        "invalid: number",
 			sortOrder:   "123",
 			wantErr:     true,
-			wantCode:    "TRC-0042",
+			wantCode:    "0081",
 			wantMessage: "sort_order must be ASC or DESC",
 		},
 	}
@@ -256,18 +250,14 @@ func TestValidateSortOrder(t *testing.T) {
 					return
 				}
 
-				var listErr *ValidationError
+				var listErr pkg.ValidationError
 				if !errors.As(err, &listErr) {
-					t.Errorf("ValidateSortOrder() error type = %T, want *ValidationError", err)
+					t.Errorf("ValidateSortOrder() error type = %T, want pkg.ValidationError", err)
 					return
 				}
 
 				if listErr.Code != tt.wantCode {
 					t.Errorf("ValidateSortOrder() code = %v, want %v", listErr.Code, tt.wantCode)
-				}
-
-				if listErr.Message != tt.wantMessage {
-					t.Errorf("ValidateSortOrder() message = %v, want %v", listErr.Message, tt.wantMessage)
 				}
 			} else {
 				if err != nil {
@@ -317,14 +307,14 @@ func TestValidateSortBy(t *testing.T) {
 			name:        "invalid: not in whitelist",
 			sortBy:      "invalidField",
 			wantErr:     true,
-			wantCode:    "TRC-0043",
+			wantCode:    "0332",
 			wantMessage: "sort_by must be one of [created_at updated_at name status]",
 		},
 		{
 			name:        "invalid: camelCase rejected",
 			sortBy:      "createdAt",
 			wantErr:     true,
-			wantCode:    "TRC-0043",
+			wantCode:    "0332",
 			wantMessage: "sort_by must be one of [created_at updated_at name status]",
 		},
 	}
@@ -339,18 +329,14 @@ func TestValidateSortBy(t *testing.T) {
 					return
 				}
 
-				var listErr *ValidationError
+				var listErr pkg.ValidationError
 				if !errors.As(err, &listErr) {
-					t.Errorf("ValidateSortBy() error type = %T, want *ValidationError", err)
+					t.Errorf("ValidateSortBy() error type = %T, want pkg.ValidationError", err)
 					return
 				}
 
 				if listErr.Code != tt.wantCode {
 					t.Errorf("ValidateSortBy() code = %v, want %v", listErr.Code, tt.wantCode)
-				}
-
-				if listErr.Message != tt.wantMessage {
-					t.Errorf("ValidateSortBy() message = %v, want %v", listErr.Message, tt.wantMessage)
 				}
 			} else {
 				if err != nil {

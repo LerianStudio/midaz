@@ -9,10 +9,7 @@ package in
 import (
 	"context"
 	"errors"
-	"net/http"
-	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -22,10 +19,11 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // maxPayloadSize is the maximum allowed request body size in bytes (100KB).
@@ -98,11 +96,7 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanError(span, "Payload exceeds size limit", constant.ErrPayloadTooLarge)
 
-		return pkgHTTP.JSONResponse(c, http.StatusRequestEntityTooLarge, libCommons.Response{
-			Code:    constant.CodePayloadTooLarge,
-			Title:   "Payload Too Large",
-			Message: "payload too large: exceeds 100KB limit",
-		})
+		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrPayloadTooLarge, constant.EntityValidationRequest))
 	}
 
 	var request model.ValidationRequest
@@ -114,7 +108,7 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0003", "Bad Request", h.parseErrorToUserMessage(err))
+		return pkgHTTP.WithError(c, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."})
 	}
 
 	// Normalize and validate request (business error - use HandleSpanBusinessErrorEvent)
@@ -129,7 +123,7 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Request validation failed", err)
 
-		return h.handleValidationInputError(c, err)
+		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(err, constant.EntityValidationRequest))
 	}
 
 	logger.With(
@@ -168,104 +162,32 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 	return pkgHTTP.Created(c, result.Response)
 }
 
-// validationErrorMapping maps validation errors to their specific error codes and messages.
-type validationErrorMapping struct {
-	code    string
-	message string
-}
-
-// validationErrorMappings maps validation errors to specific TRC codes and messages.
-var validationErrorMappings = map[error]validationErrorMapping{
-	constant.ErrValidationRequestIDRequired:       {code: "TRC-0220", message: "requestId is required"},
-	constant.ErrValidationInvalidTransactionType:  {code: "TRC-0221", message: "transactionType must be one of [CARD, WIRE, PIX, CRYPTO]"},
-	constant.ErrValidationAmountNonPositive:       {code: "TRC-0222", message: "amount must be positive"},
-	constant.ErrValidationCurrencyRequired:        {code: "TRC-0223", message: "currency is required"},
-	constant.ErrValidationInvalidCurrency:         {code: "TRC-0224", message: "currency must be valid ISO 4217 code (e.g., BRL, USD)"},
-	constant.ErrValidationTimestampRequired:       {code: "TRC-0225", message: "transactionTimestamp is required"},
-	constant.ErrValidationTimestampFuture:         {code: "TRC-0226", message: "transactionTimestamp cannot be in the future"},
-	constant.ErrValidationAccountRequired:         {code: "TRC-0227", message: "account is required"},
-	constant.ErrValidationTimestampPast:           {code: "TRC-0228", message: "transactionTimestamp is too far in the past (max 24h)"},
-	constant.ErrValidationSegmentIDRequired:       {code: "TRC-0230", message: "segment.id is required when segment is provided"},
-	constant.ErrValidationPortfolioIDRequired:     {code: "TRC-0231", message: "portfolio.id is required when portfolio is provided"},
-	constant.ErrValidationSubTypeTooLong:          {code: "TRC-0232", message: "subType exceeds maximum length of 50 characters"},
-	constant.ErrValidationInvalidAccountType:      {code: "TRC-0233", message: "account.type must be one of: checking, savings, credit"},
-	constant.ErrValidationInvalidAccountStatus:    {code: "TRC-0234", message: "account.status must be one of: active, suspended, closed"},
-	constant.ErrValidationInvalidMerchantCategory: {code: "TRC-0235", message: "merchant.category must be a 4-digit MCC code"},
-	constant.ErrValidationInvalidMerchantCountry:  {code: "TRC-0236", message: "merchant.country must be ISO 3166-1 alpha-2 code (e.g., BR, US)"},
-	constant.ErrValidationMerchantIDRequired:      {code: "TRC-0237", message: "merchant.id is required when merchant object is provided"},
-	constant.ErrMetadataEntriesExceeded:           {code: "TRC-0063", message: "metadata exceeds maximum of 50 entries"},
-	constant.ErrMetadataKeyLengthExceeded:         {code: "TRC-0060", message: "metadata key exceeds maximum length of 64 characters"},
-	constant.ErrMetadataKeyInvalidChars:           {code: "TRC-0064", message: "metadata key contains invalid characters (only alphanumeric and underscore allowed)"},
-}
-
-// handleValidationInputError converts input validation errors to appropriate HTTP responses.
-// Maps error codes to human-readable messages with field names for better debugging.
-func (h *ValidationHandler) handleValidationInputError(c *fiber.Ctx, err error) error {
-	for knownErr, mapping := range validationErrorMappings {
-		if errors.Is(err, knownErr) {
-			return pkgHTTP.BadRequestWithMessage(c, mapping.code, "Validation Error", mapping.message)
-		}
-	}
-
-	logger, _, _, _ := libObservability.NewTrackingFromContext(c.UserContext()) //nolint:dogsled // only logger needed
-	logger.With(libLog.String("error.message", err.Error())).Log(c.UserContext(), libLog.LevelWarn, "Unhandled validation input error")
-
-	return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", "invalid request")
-}
-
-// parseErrorToUserMessage converts JSON parsing errors to user-friendly messages.
-// Identifies the field that failed parsing based on error content.
-func (h *ValidationHandler) parseErrorToUserMessage(err error) string {
-	errMsg := err.Error()
-
-	// UUID parsing errors - generic message since Fiber doesn't include field name
-	if strings.Contains(errMsg, "invalid UUID") {
-		return "invalid UUID format in request (check requestId, account.id, segment.id, portfolio.id, merchant.id)"
-	}
-
-	// Time parsing errors
-	if strings.Contains(errMsg, "parsing time") || strings.Contains(errMsg, "cannot parse") {
-		return "timestamp: invalid format (expected RFC3339)"
-	}
-
-	// Return generic message for other cases to avoid leaking parser details
-	return "invalid request body"
-}
-
 // handleValidationError converts service errors to appropriate HTTP responses.
 func (h *ValidationHandler) handleValidationError(c *fiber.Ctx, span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, constant.ErrValidationTimeout):
 		libOpentelemetry.HandleSpanError(span, "Validation timeout", err)
 
-		return pkgHTTP.JSONResponse(c, http.StatusGatewayTimeout, libCommons.Response{
-			Code:    constant.CodeValidationTimeout,
-			Title:   "Gateway Timeout",
-			Message: "validation timeout",
-		})
+		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrValidationTimeout, constant.EntityValidationRequest))
 	case errors.Is(err, context.Canceled):
 		libOpentelemetry.HandleSpanError(span, "Context cancelled", err)
 
-		return pkgHTTP.JSONResponse(c, http.StatusServiceUnavailable, libCommons.Response{
-			Code:    constant.CodeContextCancelled,
-			Title:   "Service Unavailable",
-			Message: "request cancelled",
-		})
+		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrContextCancelled, constant.EntityValidationRequest))
 	case errors.Is(err, constant.ErrAmountExceedsPrecision):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Amount exceeds safe precision", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, constant.CodeAmountExceedsPrecision, "Bad Request", "amount exceeds safe precision limit for evaluation (max: ±2^53)")
+		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrAmountExceedsPrecision, constant.EntityValidationRequest))
 	case errors.Is(err, constant.ErrRuleEvaluationFailed):
 		libOpentelemetry.HandleSpanError(span, "Rule evaluation failed", err)
 
-		return pkgHTTP.InternalServerError(c, constant.CodeRuleEvaluationError, "Internal Server Error", "rule evaluation failed")
+		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrRuleEvaluationFailed, constant.EntityValidationRequest))
 	case errors.Is(err, constant.ErrLimitCheckFailed):
 		libOpentelemetry.HandleSpanError(span, "Limit check failed", err)
 
-		return pkgHTTP.InternalServerError(c, constant.CodeLimitCheckError, "Internal Server Error", "limit check failed")
+		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitCheckFailed, constant.EntityValidationRequest))
 	default:
 		libOpentelemetry.HandleSpanError(span, "Validation failed", err)
 
-		return pkgHTTP.InternalServerError(c, constant.CodeInternalServer, "Internal Server Error", "validation processing failed")
+		return pkgHTTP.WithError(c, pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."})
 	}
 }

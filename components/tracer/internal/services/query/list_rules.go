@@ -15,7 +15,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
@@ -54,7 +54,7 @@ func (q *ListRulesQuery) Execute(ctx context.Context, filter *model.ListRulesFil
 
 	// Apply defaults
 	if normalizedFilter.Limit == 0 {
-		normalizedFilter.Limit = constant.DefaultPaginationLimit
+		normalizedFilter.Limit = trcConstant.DefaultPaginationLimit
 	}
 
 	// SortBy uses snake_case; repository maps to database column names

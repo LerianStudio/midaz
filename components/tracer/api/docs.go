@@ -2320,7 +2320,7 @@ const docTemplate = `{
             "properties": {
                 "code": {
                     "type": "string",
-                    "example": "TRC-0001"
+                    "example": "0053"
                 },
                 "message": {
                     "type": "string",

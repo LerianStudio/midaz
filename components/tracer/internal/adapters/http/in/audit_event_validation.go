@@ -13,6 +13,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // Validation constants for audit event input fields.
@@ -218,19 +220,13 @@ func (l *ListAuditEventsInput) Validate() error {
 	// Validate date formats if provided (TRC-0020)
 	if l.StartDate != "" {
 		if _, err := time.Parse(time.RFC3339, l.StartDate); err != nil {
-			return &ValidationError{
-				Code:    "TRC-0020",
-				Message: "start_date must be in RFC3339 format with timezone (e.g., 2026-01-28T10:30:00Z)",
-			}
+			return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, constant.EntityAuditEvent)
 		}
 	}
 
 	if l.EndDate != "" {
 		if _, err := time.Parse(time.RFC3339, l.EndDate); err != nil {
-			return &ValidationError{
-				Code:    "TRC-0020",
-				Message: "end_date must be in RFC3339 format with timezone (e.g., 2026-01-28T10:30:00Z)",
-			}
+			return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, constant.EntityAuditEvent)
 		}
 	}
 
@@ -240,10 +236,7 @@ func (l *ListAuditEventsInput) Validate() error {
 
 		end, _ := time.Parse(time.RFC3339, l.EndDate)
 		if end.Before(start) {
-			return &ValidationError{
-				Code:    "TRC-0023",
-				Message: "end_date must be on or after start_date",
-			}
+			return pkg.ValidateBusinessError(constant.ErrInvalidDateRange, constant.EntityAuditEvent)
 		}
 	}
 

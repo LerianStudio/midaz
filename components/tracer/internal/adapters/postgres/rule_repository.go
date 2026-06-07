@@ -20,10 +20,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 const tableName = "rules"
@@ -551,7 +552,7 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 	if fetchLimit <= 0 {
 		// This should never happen due to upstream validation, but protect against
 		// potential bypass or refactoring. Use default limit + 1 as safe fallback.
-		fetchLimit = constant.DefaultPaginationLimit + 1
+		fetchLimit = trcConstant.DefaultPaginationLimit + 1
 	}
 
 	query = query.Limit(uint64(fetchLimit)) // #nosec G115 - fetchLimit validated positive above

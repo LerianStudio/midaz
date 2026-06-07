@@ -15,8 +15,10 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // Validation constants define the limits for limit input fields.
@@ -110,7 +112,7 @@ func (i *CreateLimitInput) Validate() error {
 
 	// Custom validation for decimal MaxAmount (validator/v10 gt=0 doesn't work with decimal.Decimal)
 	if i.MaxAmount.LessThanOrEqual(decimal.Zero) {
-		return fmt.Errorf("maxAmount must be greater than 0")
+		return limitFieldValidationErr("maxAmount must be greater than 0")
 	}
 
 	return nil
@@ -141,7 +143,7 @@ func (i *UpdateLimitInput) Validate() error {
 
 	// Custom validation for decimal MaxAmount
 	if i.MaxAmount != nil && i.MaxAmount.LessThanOrEqual(decimal.Zero) {
-		return fmt.Errorf("maxAmount must be greater than 0")
+		return limitFieldValidationErr("maxAmount must be greater than 0")
 	}
 
 	return nil
@@ -175,7 +177,7 @@ type ListLimitsInput struct {
 // because cursor already contains sort configuration (TRC-0045).
 func (i *ListLimitsInput) SetDefaults() {
 	if i.Limit == nil {
-		defaultLimit := constant.DefaultPaginationLimit
+		defaultLimit := trcConstant.DefaultPaginationLimit
 		i.Limit = &defaultLimit
 	}
 
@@ -218,17 +220,11 @@ func (i *ListLimitsInput) Validate() error {
 	if i.Status != "" {
 		status := model.LimitStatus(i.Status)
 		if !status.IsValid() {
-			return &ValidationError{
-				Code:    "TRC-0006",
-				Message: "status must be one of [DRAFT ACTIVE INACTIVE]",
-			}
+			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLimit, "filters")
 		}
 		// Prevent DELETED status in list filters (soft-deleted records should not be queried)
 		if status == model.LimitStatusDeleted {
-			return &ValidationError{
-				Code:    "TRC-0006",
-				Message: "status filter does not allow DELETED",
-			}
+			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLimit, "filters")
 		}
 	}
 
@@ -236,10 +232,7 @@ func (i *ListLimitsInput) Validate() error {
 	if i.LimitType != "" {
 		limitType := model.LimitType(i.LimitType)
 		if !limitType.IsValid() {
-			return &ValidationError{
-				Code:    "TRC-0006",
-				Message: "limit_type must be one of [DAILY WEEKLY MONTHLY CUSTOM PER_TRANSACTION]",
-			}
+			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLimit, "filters")
 		}
 	}
 
@@ -255,10 +248,7 @@ func (i *ListLimitsInput) Validate() error {
 func (i *ListLimitsInput) validateScopeFields() error {
 	// Validate name length (prevent oversized ILIKE queries)
 	if i.Name != nil && len(*i.Name) > MaxLimitNameFilterLength {
-		return &ValidationError{
-			Code:    "TRC-0006",
-			Message: fmt.Sprintf("name filter exceeds maximum length of %d characters", MaxLimitNameFilterLength),
-		}
+		return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLimit, "filters")
 	}
 
 	// Validate UUID fields
@@ -275,10 +265,7 @@ func (i *ListLimitsInput) validateScopeFields() error {
 	for _, f := range uuidFields {
 		if f.value != nil && *f.value != "" {
 			if _, err := uuid.Parse(*f.value); err != nil {
-				return &ValidationError{
-					Code:    "TRC-0006",
-					Message: f.name + " must be a valid UUID",
-				}
+				return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLimit, "filters")
 			}
 		}
 	}
@@ -287,10 +274,7 @@ func (i *ListLimitsInput) validateScopeFields() error {
 	if i.TransactionType != nil && *i.TransactionType != "" {
 		txType := model.TransactionType(*i.TransactionType)
 		if !txType.IsValid() {
-			return &ValidationError{
-				Code:    "TRC-0006",
-				Message: "transaction_type must be one of [CARD WIRE PIX CRYPTO]",
-			}
+			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLimit, "filters")
 		}
 	}
 
@@ -300,10 +284,7 @@ func (i *ListLimitsInput) validateScopeFields() error {
 	if i.SubType != nil {
 		trimmedSubType := strings.TrimSpace(*i.SubType)
 		if trimmedSubType != "" && len(trimmedSubType) > MaxLimitSubTypeLength {
-			return &ValidationError{
-				Code:    "TRC-0006",
-				Message: fmt.Sprintf("sub_type exceeds maximum length of %d characters", MaxLimitSubTypeLength),
-			}
+			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLimit, "filters")
 		}
 	}
 
@@ -362,10 +343,10 @@ func ToUpdateLimitServiceInput(input *UpdateLimitInput) *command.UpdateLimitInpu
 }
 
 // ToListLimitsFilter converts HTTP ListLimitsInput to model ListLimitsFilter.
-// Safely handles nil input.Limit by defaulting to constant.DefaultPaginationLimit.
+// Safely handles nil input.Limit by defaulting to trcConstant.DefaultPaginationLimit.
 // SortBy is passed as snake_case and maps directly to DB column names.
 func ToListLimitsFilter(input *ListLimitsInput) *model.ListLimitsFilter {
-	limit := constant.DefaultPaginationLimit
+	limit := trcConstant.DefaultPaginationLimit
 	if input.Limit != nil {
 		limit = *input.Limit
 	}
@@ -483,6 +464,16 @@ func ToListLimitsResponse(result *model.ListLimitsResult) *ListLimitsResponse {
 	}
 }
 
+// limitFieldValidationErr wraps a field-level validation message in the canonical
+// 400 ValidationError envelope so the handler can render it via http.WithError.
+func limitFieldValidationErr(format string, args ...any) error {
+	return pkg.ValidationError{
+		Code:    constant.ErrMissingFieldsInRequest.Error(),
+		Title:   "Validation Error",
+		Message: fmt.Sprintf(format, args...),
+	}
+}
+
 // formatLimitValidationError formats validator errors into user-friendly messages for limits.
 func formatLimitValidationError(err error) error {
 	var validationErrors validator.ValidationErrors
@@ -509,35 +500,35 @@ func formatLimitValidationError(err error) error {
 
 	switch tag {
 	case "required":
-		return fmt.Errorf("%s is a required field", toLimitJSONFieldName(fieldName))
+		return limitFieldValidationErr("%s is a required field", toLimitJSONFieldName(fieldName))
 	case "min":
 		jsonFieldName := toLimitJSONFieldName(fieldName)
 		if jsonFieldName == "scopes" {
-			return fmt.Errorf("%s must have at least %s item(s)", jsonFieldName, fieldError.Param())
+			return limitFieldValidationErr("%s must have at least %s item(s)", jsonFieldName, fieldError.Param())
 		}
 
-		return fmt.Errorf("%s must be at least %s characters", jsonFieldName, fieldError.Param())
+		return limitFieldValidationErr("%s must be at least %s characters", jsonFieldName, fieldError.Param())
 	case "max":
 		jsonFieldName := toLimitJSONFieldName(fieldName)
 		if jsonFieldName == "scopes" {
-			return fmt.Errorf("%s must have a maximum of %s items", jsonFieldName, fieldError.Param())
+			return limitFieldValidationErr("%s must have a maximum of %s items", jsonFieldName, fieldError.Param())
 		}
 
-		return fmt.Errorf("%s must be a maximum of %s characters", jsonFieldName, fieldError.Param())
+		return limitFieldValidationErr("%s must be a maximum of %s characters", jsonFieldName, fieldError.Param())
 	case "len":
-		return fmt.Errorf("%s must be exactly %s characters", toLimitJSONFieldName(fieldName), fieldError.Param())
+		return limitFieldValidationErr("%s must be exactly %s characters", toLimitJSONFieldName(fieldName), fieldError.Param())
 	case "uppercase":
-		return fmt.Errorf("%s must be uppercase", toLimitJSONFieldName(fieldName))
+		return limitFieldValidationErr("%s must be uppercase", toLimitJSONFieldName(fieldName))
 	case "gt":
-		return fmt.Errorf("%s must be greater than %s", toLimitJSONFieldName(fieldName), fieldError.Param())
+		return limitFieldValidationErr("%s must be greater than %s", toLimitJSONFieldName(fieldName), fieldError.Param())
 	case "oneof":
-		return fmt.Errorf("%s must be one of [%s]", toLimitJSONFieldName(fieldName), fieldError.Param())
+		return limitFieldValidationErr("%s must be one of [%s]", toLimitJSONFieldName(fieldName), fieldError.Param())
 	case "limittype":
-		return fmt.Errorf("%s must be one of [DAILY WEEKLY MONTHLY CUSTOM PER_TRANSACTION]", toLimitJSONFieldName(fieldName))
+		return limitFieldValidationErr("%s must be one of [DAILY WEEKLY MONTHLY CUSTOM PER_TRANSACTION]", toLimitJSONFieldName(fieldName))
 	case "limitstatus":
-		return fmt.Errorf("%s must be one of [DRAFT ACTIVE INACTIVE]", toLimitJSONFieldName(fieldName))
+		return limitFieldValidationErr("%s must be one of [DRAFT ACTIVE INACTIVE]", toLimitJSONFieldName(fieldName))
 	default:
-		return fmt.Errorf("%s validation failed: %s", toLimitJSONFieldName(fieldName), tag)
+		return limitFieldValidationErr("%s validation failed: %s", toLimitJSONFieldName(fieldName), tag)
 	}
 }
 
@@ -554,10 +545,10 @@ func formatLimitScopeFieldError(fieldError validator.FieldError) error {
 	if tag == "scopenotempty" {
 		index := extractLimitScopeIndex(fieldError.Namespace())
 		if index == -1 {
-			return fmt.Errorf("scope must have at least one field set")
+			return limitFieldValidationErr("scope must have at least one field set")
 		}
 
-		return fmt.Errorf("scope at index %d must have at least one field set", index)
+		return limitFieldValidationErr("scope at index %d must have at least one field set", index)
 	}
 
 	fieldName := toLimitScopeJSONFieldName(fieldError.Field())
@@ -580,10 +571,10 @@ func formatLimitScopeFieldError(fieldError validator.FieldError) error {
 	// Extract index from namespace (e.g., "CreateLimitInput.Scopes[0].SegmentID")
 	index := extractLimitScopeIndex(fieldError.Namespace())
 	if index == -1 {
-		return fmt.Errorf("scope %s", msg)
+		return limitFieldValidationErr("scope %s", msg)
 	}
 
-	return fmt.Errorf("scope at index %d: %s", index, msg)
+	return limitFieldValidationErr("scope at index %d: %s", index, msg)
 }
 
 // extractLimitScopeIndex extracts the scope index from the namespace.

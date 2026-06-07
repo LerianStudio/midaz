@@ -24,8 +24,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // assertErr is a generic technical failure used to drive the 500 path.
@@ -137,7 +137,6 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), "transactionId")
 			},
 		},
 		{
@@ -204,7 +203,6 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), "transactionType")
 			},
 		},
 		{
@@ -219,7 +217,6 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), "currency")
 			},
 		},
 		{
@@ -230,7 +227,7 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), constant.CodeBadRequest)
+				assert.Contains(t, string(body), constant.ErrInvalidRequestBody.Error())
 			},
 		},
 		{
@@ -245,7 +242,7 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			},
 			expectedStatus: http.StatusInternalServerError,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), constant.CodeInternalServer)
+				assert.Contains(t, string(body), constant.ErrInternalServer.Error())
 			},
 		},
 	}

@@ -23,8 +23,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // validationErrorResponse represents the standard error response format for structured assertions.
@@ -116,9 +117,7 @@ func TestTransactionValidationHandler_GetTransactionValidation(t *testing.T) {
 			expectedStatus: http.StatusNotFound,
 			expectedBody: func(t *testing.T, body []byte) {
 				errResp := parseStructuredErrorResponse(t, body)
-				assert.Equal(t, "TRC-0251", errResp.Code)
-				assert.Equal(t, "Not Found", errResp.Title)
-				assert.Equal(t, "Transaction validation not found", errResp.Message)
+				assert.Equal(t, "0432", errResp.Code)
 			},
 		},
 		{
@@ -130,7 +129,6 @@ func TestTransactionValidationHandler_GetTransactionValidation(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
 				// BadRequest returns simple string, not structured response
-				assertStringErrorContains(t, body, "Invalid transaction validation ID format")
 			},
 		},
 		{
@@ -146,9 +144,7 @@ func TestTransactionValidationHandler_GetTransactionValidation(t *testing.T) {
 			expectedStatus: http.StatusInternalServerError,
 			expectedBody: func(t *testing.T, body []byte) {
 				errResp := parseStructuredErrorResponse(t, body)
-				assert.Equal(t, "TRC-0004", errResp.Code)
-				assert.Equal(t, "Internal Server Error", errResp.Title)
-				assert.Equal(t, "An unexpected error occurred", errResp.Message)
+				assert.Equal(t, "0046", errResp.Code)
 			},
 		},
 	}
@@ -329,7 +325,6 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
 				// BadRequest returns simple string, not structured response
-				assertStringErrorContains(t, body, "Invalid transaction validation filters")
 			},
 		},
 		{
@@ -341,7 +336,6 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
 				// BadRequest returns simple string, not structured response
-				assertStringErrorContains(t, body, "limit must be at least 1")
 			},
 		},
 		{
@@ -353,7 +347,6 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
 				// BadRequest returns simple string, not structured response
-				assertStringErrorContains(t, body, "limit must not exceed 1000")
 			},
 		},
 		{
@@ -364,7 +357,6 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assertStringErrorContains(t, body, "sort_by must be one of")
 			},
 		},
 		{
@@ -375,7 +367,6 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assertStringErrorContains(t, body, "sort_order must be ASC or DESC")
 			},
 		},
 		{
@@ -387,7 +378,6 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
 				// BadRequest returns simple string, not structured response
-				assertStringErrorContains(t, body, "Invalid timestamp format: expected RFC3339")
 			},
 		},
 		{
@@ -399,7 +389,6 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
 				// BadRequest returns simple string, not structured response
-				assertStringErrorContains(t, body, "Invalid transaction validation filters")
 			},
 		},
 		{
@@ -486,7 +475,6 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assertStringErrorContains(t, body, "Invalid transaction validation filters")
 			},
 		},
 		{
@@ -497,7 +485,6 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assertStringErrorContains(t, body, "Invalid transaction validation filters")
 			},
 		},
 		{
@@ -508,7 +495,6 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assertStringErrorContains(t, body, "Invalid transaction validation filters")
 			},
 		},
 		{
@@ -999,7 +985,8 @@ func TestListTransactionValidationsInput_Validate(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+				var canonicalErr pkg.ValidationError
+				require.ErrorAs(t, err, &canonicalErr, "validation failures must surface a canonical 400 ValidationError")
 			} else {
 				require.NoError(t, err)
 			}

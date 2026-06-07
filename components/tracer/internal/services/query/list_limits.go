@@ -13,9 +13,9 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // ErrNilListLimitsRepository is returned when the LimitRepository is nil.
@@ -39,8 +39,8 @@ func NewListLimitsQuery(repo LimitRepository) (*ListLimitsQuery, error) {
 // Execute retrieves limits with cursor-based pagination and filtering.
 //
 // Pagination behavior:
-// - Limit defaults to constant.DefaultPaginationLimit (10) if not specified
-// - Limit is capped at constant.MaxPaginationLimit (100)
+// - Limit defaults to the configured default pagination limit (10) if not specified
+// - Limit is capped at the maximum pagination limit (100)
 // - Cursor is a base64-encoded cursor for keyset pagination
 // - NextCursor is returned when more results exist
 // - HasMore indicates if additional pages are available

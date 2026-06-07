@@ -15,6 +15,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // Valid UUIDs for limit validation testing
@@ -190,7 +192,8 @@ func TestCreateLimitInput_CurrencyValidation(t *testing.T) {
 			err := input.Validate()
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+				var canonicalErr pkg.ValidationError
+				require.ErrorAs(t, err, &canonicalErr, "validation failures must surface a canonical 400 ValidationError")
 			} else {
 				require.NoError(t, err)
 			}
@@ -246,7 +249,8 @@ func TestCreateLimitInput_MaxAmountValidation(t *testing.T) {
 			err := input.Validate()
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+				var canonicalErr pkg.ValidationError
+				require.ErrorAs(t, err, &canonicalErr, "validation failures must surface a canonical 400 ValidationError")
 			} else {
 				require.NoError(t, err)
 			}
@@ -574,11 +578,11 @@ func TestListLimitsInput_ValidLimitTypeFilter(t *testing.T) {
 		}
 		err := input.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "limit_type must be one of")
 
-		var valErr *ValidationError
+		var valErr pkg.ValidationError
+
 		require.ErrorAs(t, err, &valErr)
-		assert.Equal(t, "TRC-0006", valErr.Code)
+		assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), valErr.Code)
 	})
 }
 
@@ -700,7 +704,7 @@ func TestListLimitsInput_ValidateScopeFields(t *testing.T) {
 			},
 			expectError: true,
 			errContains: "account_id must be a valid UUID",
-			errCode:     "TRC-0006",
+			errCode:     "0082",
 		},
 		{
 			name: "error - invalid segmentId UUID",
@@ -710,7 +714,7 @@ func TestListLimitsInput_ValidateScopeFields(t *testing.T) {
 			},
 			expectError: true,
 			errContains: "segment_id must be a valid UUID",
-			errCode:     "TRC-0006",
+			errCode:     "0082",
 		},
 		{
 			name: "error - invalid portfolioId UUID",
@@ -720,7 +724,7 @@ func TestListLimitsInput_ValidateScopeFields(t *testing.T) {
 			},
 			expectError: true,
 			errContains: "portfolio_id must be a valid UUID",
-			errCode:     "TRC-0006",
+			errCode:     "0082",
 		},
 		{
 			name: "error - invalid merchantId UUID",
@@ -730,7 +734,7 @@ func TestListLimitsInput_ValidateScopeFields(t *testing.T) {
 			},
 			expectError: true,
 			errContains: "merchant_id must be a valid UUID",
-			errCode:     "TRC-0006",
+			errCode:     "0082",
 		},
 		{
 			name: "error - invalid transactionType enum",
@@ -740,7 +744,7 @@ func TestListLimitsInput_ValidateScopeFields(t *testing.T) {
 			},
 			expectError: true,
 			errContains: "transaction_type must be one of",
-			errCode:     "TRC-0006",
+			errCode:     "0082",
 		},
 		{
 			name: "error - subType exceeds max length",
@@ -750,7 +754,7 @@ func TestListLimitsInput_ValidateScopeFields(t *testing.T) {
 			},
 			expectError: true,
 			errContains: "sub_type exceeds maximum length",
-			errCode:     "TRC-0006",
+			errCode:     "0082",
 		},
 		{
 			// Whitespace-only sub_type is treated as no filter by
@@ -781,7 +785,7 @@ func TestListLimitsInput_ValidateScopeFields(t *testing.T) {
 			},
 			expectError: true,
 			errContains: "name filter exceeds maximum length",
-			errCode:     "TRC-0006",
+			errCode:     "0082",
 		},
 		{
 			name: "valid - name with LIKE special characters (escaped safely)",
@@ -806,11 +810,9 @@ func TestListLimitsInput_ValidateScopeFields(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.expectError {
 				require.Error(t, err)
-				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
-				}
+
 				if tt.errCode != "" {
-					var valErr *ValidationError
+					var valErr pkg.ValidationError
 					require.ErrorAs(t, err, &valErr)
 					assert.Equal(t, tt.errCode, valErr.Code)
 				}

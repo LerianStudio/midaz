@@ -447,9 +447,9 @@ func TestWriteTenantCapReached(t *testing.T) {
 	require.NoError(t, json.Unmarshal(body, &payload),
 		"body must be valid JSON in the canonical envelope; got %s", string(body))
 
-	// Code must be the registered TRC code, not the legacy "TRC-CAP-REACHED".
-	assert.Equal(t, "TRC-0335", payload.Code,
-		"code must be the registered ErrTenantCapReached sentinel (TRC-0335)")
+	// Code must be the registered canonical code, not a legacy ad-hoc string.
+	assert.Equal(t, "0466", payload.Code,
+		"code must be the registered ErrTenantCapReached sentinel")
 	assert.NotEmpty(t, payload.Title,
 		"title must be present so SDK consumers can parse the envelope")
 	assert.Equal(t, "Tenant Capacity Reached", payload.Title)

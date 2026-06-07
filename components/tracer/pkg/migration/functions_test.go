@@ -99,7 +99,7 @@ func TestLoadMigrations(t *testing.T) {
 
 	for filename, content := range testMigrations {
 		filePath := filepath.Join(tempDir, filename)
-		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
 			t.Fatalf("failed to write test file: %v", err)
 		}
 	}
@@ -138,7 +138,7 @@ func TestLoadMigrations_IgnoresNonUpFiles(t *testing.T) {
 
 	for filename, content := range files {
 		filePath := filepath.Join(tempDir, filename)
-		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
 			t.Fatalf("failed to write test file: %v", err)
 		}
 	}
@@ -269,7 +269,7 @@ func TestUp_Success(t *testing.T) {
 	err = os.WriteFile(
 		filepath.Join(tempDir, "000001_test_func.up.sql"),
 		[]byte("CREATE FUNCTION test_func() RETURNS void AS $$ BEGIN END; $$ LANGUAGE plpgsql;"),
-		0644,
+		0o644,
 	)
 	require.NoError(t, err)
 
@@ -315,14 +315,14 @@ func TestUp_SkipsAlreadyAppliedMigrations(t *testing.T) {
 	err = os.WriteFile(
 		filepath.Join(tempDir, "000001_first.up.sql"),
 		[]byte("SELECT 1;"),
-		0644,
+		0o644,
 	)
 	require.NoError(t, err)
 
 	err = os.WriteFile(
 		filepath.Join(tempDir, "000002_second.up.sql"),
 		[]byte("SELECT 2;"),
-		0644,
+		0o644,
 	)
 	require.NoError(t, err)
 
@@ -361,7 +361,7 @@ func TestUp_DirtyStateError(t *testing.T) {
 	err = os.WriteFile(
 		filepath.Join(tempDir, "000001_test.up.sql"),
 		[]byte("SELECT 1;"),
-		0644,
+		0o644,
 	)
 	require.NoError(t, err)
 
@@ -393,7 +393,7 @@ func TestUp_AcquireLockError(t *testing.T) {
 	err = os.WriteFile(
 		filepath.Join(tempDir, "000001_test.up.sql"),
 		[]byte("SELECT 1;"),
-		0644,
+		0o644,
 	)
 	require.NoError(t, err)
 
@@ -420,7 +420,7 @@ func TestUp_MigrationSQLError(t *testing.T) {
 	err = os.WriteFile(
 		filepath.Join(tempDir, "000001_test.up.sql"),
 		[]byte("INVALID SQL SYNTAX"),
-		0644,
+		0o644,
 	)
 	require.NoError(t, err)
 
@@ -452,14 +452,14 @@ func TestLoadMigrations_DuplicateVersion(t *testing.T) {
 	err := os.WriteFile(
 		filepath.Join(tempDir, "000001_first.up.sql"),
 		[]byte("SELECT 1;"),
-		0644,
+		0o644,
 	)
 	require.NoError(t, err)
 
 	err = os.WriteFile(
 		filepath.Join(tempDir, "000001_second.up.sql"),
 		[]byte("SELECT 2;"),
-		0644,
+		0o644,
 	)
 	require.NoError(t, err)
 
@@ -479,7 +479,7 @@ func TestLoadMigrations_LogsSkippedFiles(t *testing.T) {
 	err := os.WriteFile(
 		filepath.Join(tempDir, "000001_valid.up.sql"),
 		[]byte("SELECT 1;"),
-		0644,
+		0o644,
 	)
 	require.NoError(t, err)
 
@@ -487,7 +487,7 @@ func TestLoadMigrations_LogsSkippedFiles(t *testing.T) {
 	err = os.WriteFile(
 		filepath.Join(tempDir, "000002.up.sql"),
 		[]byte("SELECT 2;"),
-		0644,
+		0o644,
 	)
 	require.NoError(t, err)
 

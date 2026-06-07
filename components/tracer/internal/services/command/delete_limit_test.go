@@ -18,8 +18,8 @@ import (
 
 	pgdbMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 func TestNewDeleteLimitCommand_NilRepository(t *testing.T) {
@@ -97,7 +97,7 @@ func TestDeleteLimitCommand_Execute_InvalidTransition_FromActive(t *testing.T) {
 
 	// ACTIVE → DELETED is not a valid transition (ACTIVE can only go to INACTIVE)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, constant.ErrLimitInvalidStatusChange)
+	assertBusinessCode(t, err, constant.ErrLimitInvalidStatusChange.Error())
 }
 
 func TestDeleteLimitCommand_Execute_Success_FromInactive(t *testing.T) {

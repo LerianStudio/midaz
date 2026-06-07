@@ -19,10 +19,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // LimitService defines the interface for limit operations.
@@ -80,18 +81,13 @@ func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
 	if err := c.BodyParser(&input); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0003", "Bad Request", "Invalid request body")
+		return http.WithError(c, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."})
 	}
 
 	if err := input.Validate(); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
 
-		var validationErr *ValidationError
-		if errors.As(err, &validationErr) {
-			return pkgHTTP.BadRequestWithMessage(c, validationErr.Code, "Validation Error", validationErr.Message)
-		}
-
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", formatValidationMessage(err))
+		return http.WithError(c, err)
 	}
 
 	logger.With(
@@ -112,7 +108,7 @@ func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
 		libLog.String("limit.id", result.ID.String()),
 	).Log(ctx, libLog.LevelInfo, "Limit created")
 
-	return pkgHTTP.Created(c, result)
+	return http.Created(c, result)
 }
 
 // GetLimit godoc
@@ -147,7 +143,7 @@ func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid limit ID format")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
 	}
 
 	logger.With(
@@ -166,7 +162,7 @@ func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
 		libLog.String("limit.name", result.Name),
 	).Log(ctx, libLog.LevelInfo, "Limit retrieved")
 
-	return pkgHTTP.OK(c, result)
+	return http.OK(c, result)
 }
 
 // ListLimits godoc
@@ -211,19 +207,14 @@ func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
 	if err := c.QueryParser(&input); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse query parameters", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0006", "Invalid Query Parameter", "Invalid query parameters")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLimit, "filters"))
 	}
 
 	// Validate before applying defaults to ensure fail-fast behavior
 	if err := input.Validate(); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
 
-		var validationErr *ValidationError
-		if errors.As(err, &validationErr) {
-			return pkgHTTP.BadRequestWithMessage(c, validationErr.Code, "Validation Error", validationErr.Message)
-		}
-
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", formatValidationMessage(err))
+		return http.WithError(c, err)
 	}
 
 	// Apply defaults after validation
@@ -255,7 +246,7 @@ func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
 		libLog.Bool("list.has_more", response.HasMore),
 	).Log(ctx, libLog.LevelInfo, "Limits listed")
 
-	return pkgHTTP.OK(c, response)
+	return http.OK(c, response)
 }
 
 // UpdateLimit godoc
@@ -292,7 +283,7 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid limit ID format")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
 	}
 
 	// Check for immutable fields BEFORE parsing into struct
@@ -302,13 +293,13 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 		if _, hasLimitType := rawBody["limitType"]; hasLimitType {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Immutable field limitType in request", constant.ErrLimitImmutableField)
 
-			return pkgHTTP.BadRequestWithMessage(c, "TRC-0138", "Immutable Field", "limitType cannot be modified after creation")
+			return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitImmutableField, constant.EntityLimit))
 		}
 
 		if _, hasCurrency := rawBody["currency"]; hasCurrency {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Immutable field currency in request", constant.ErrLimitImmutableField)
 
-			return pkgHTTP.BadRequestWithMessage(c, "TRC-0138", "Immutable Field", "currency cannot be modified after creation")
+			return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitImmutableField, constant.EntityLimit))
 		}
 	}
 
@@ -316,24 +307,19 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 	if err := c.BodyParser(&input); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0003", "Bad Request", "Invalid request body")
+		return http.WithError(c, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."})
 	}
 
 	if err := input.Validate(); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
 
-		var validationErr *ValidationError
-		if errors.As(err, &validationErr) {
-			return pkgHTTP.BadRequestWithMessage(c, validationErr.Code, "Validation Error", validationErr.Message)
-		}
-
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", formatValidationMessage(err))
+		return http.WithError(c, err)
 	}
 
 	if input.IsEmpty() {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No fields to update", nil)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0002", "Validation Error", "At least one field must be provided for update")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, constant.EntityLimit))
 	}
 
 	logger.With(
@@ -354,7 +340,7 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 		libLog.String("limit.id", result.ID.String()),
 	).Log(ctx, libLog.LevelInfo, "Limit updated")
 
-	return pkgHTTP.OK(c, result)
+	return http.OK(c, result)
 }
 
 // ActivateLimit godoc
@@ -388,7 +374,7 @@ func (h *LimitHandler) ActivateLimit(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid limit ID format")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
 	}
 
 	logger.With(
@@ -406,7 +392,7 @@ func (h *LimitHandler) ActivateLimit(c *fiber.Ctx) error {
 		libLog.String("limit.id", id.String()),
 	).Log(ctx, libLog.LevelInfo, "Limit activated")
 
-	return pkgHTTP.OK(c, limit)
+	return http.OK(c, limit)
 }
 
 // DeactivateLimit godoc
@@ -440,7 +426,7 @@ func (h *LimitHandler) DeactivateLimit(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid limit ID format")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
 	}
 
 	logger.With(
@@ -458,7 +444,7 @@ func (h *LimitHandler) DeactivateLimit(c *fiber.Ctx) error {
 		libLog.String("limit.id", id.String()),
 	).Log(ctx, libLog.LevelInfo, "Limit deactivated")
 
-	return pkgHTTP.OK(c, limit)
+	return http.OK(c, limit)
 }
 
 // DraftLimit godoc
@@ -492,7 +478,7 @@ func (h *LimitHandler) DraftLimit(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid limit ID format")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
 	}
 
 	logger.With(
@@ -510,7 +496,7 @@ func (h *LimitHandler) DraftLimit(c *fiber.Ctx) error {
 		libLog.String("limit.id", id.String()),
 	).Log(ctx, libLog.LevelInfo, "Limit transitioned to draft")
 
-	return pkgHTTP.OK(c, limit)
+	return http.OK(c, limit)
 }
 
 // DeleteLimit godoc
@@ -544,7 +530,7 @@ func (h *LimitHandler) DeleteLimit(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid limit ID format")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
 	}
 
 	logger.With(
@@ -561,7 +547,7 @@ func (h *LimitHandler) DeleteLimit(c *fiber.Ctx) error {
 		libLog.String("limit.id", id.String()),
 	).Log(ctx, libLog.LevelInfo, "Limit deleted")
 
-	return pkgHTTP.NoContent(c)
+	return http.NoContent(c)
 }
 
 // GetLimitUsage godoc
@@ -595,7 +581,7 @@ func (h *LimitHandler) GetLimitUsage(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid limit ID format")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
 	}
 
 	logger.With(
@@ -615,7 +601,7 @@ func (h *LimitHandler) GetLimitUsage(c *fiber.Ctx) error {
 		libLog.Any("utilization_percent", snapshot.UtilizationPercent),
 	).Log(ctx, libLog.LevelInfo, "Limit usage retrieved")
 
-	return pkgHTTP.OK(c, snapshot)
+	return http.OK(c, snapshot)
 }
 
 // handleLimitServiceError converts service errors to appropriate HTTP responses.
@@ -624,76 +610,66 @@ func handleLimitServiceError(c *fiber.Ctx, span trace.Span, err error) error {
 	case errors.Is(err, constant.ErrLimitNameAlreadyExists):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit name already exists", err)
 
-		return pkgHTTP.Conflict(c, "TRC-0304", "Conflict", "Limit name already exists")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitNameAlreadyExists, constant.EntityLimit))
 	case errors.Is(err, constant.ErrLimitNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit not found", err)
 
-		return pkgHTTP.NotFound(c, "TRC-0120", "Not Found", "Limit not found")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitNotFound, constant.EntityLimit))
 	case errors.Is(err, constant.ErrLimitAlreadyDeleted):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit already deleted", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0128", "Bad Request", "Cannot modify deleted limit")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitAlreadyDeleted, constant.EntityLimit))
 	case errors.Is(err, constant.ErrLimitInvalidStatusChange):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid status transition", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0121", "Bad Request", "Invalid status transition")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitInvalidStatusChange, constant.EntityLimit))
 	case errors.Is(err, constant.ErrInvalidCursor):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0044", "Bad Request", "Invalid pagination cursor")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidCursor, constant.EntityLimit))
 	case errors.Is(err, constant.ErrInvalidSortColumn):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid sort column", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0043", "Bad Request", "Invalid sort column")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidSortColumn, constant.EntityLimit))
 	case errors.Is(err, constant.ErrInvalidSortOrder):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid sort order", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0042", "Bad Request", "Invalid sort order")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, constant.EntityLimit))
 	case errors.Is(err, constant.ErrLimitNameRequired):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit name required", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0126", "Validation Error", "name is required")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitNameRequired, constant.EntityLimit))
 	case errors.Is(err, constant.ErrLimitNameTooLong):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit name too long", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0127", "Validation Error", "name exceeds maximum length")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitNameTooLong, constant.EntityLimit))
 	case errors.Is(err, constant.ErrLimitNameInvalidChars):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit name invalid chars", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0129", "Validation Error", "name contains invalid characters")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitNameInvalidChars, constant.EntityLimit))
 	case errors.Is(err, constant.ErrLimitDescriptionInvalidChars):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit description invalid chars", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0130", "Validation Error", "description contains invalid characters")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitDescriptionInvalidChars, constant.EntityLimit))
 	case errors.Is(err, constant.ErrLimitInvalidType):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit type", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0122", "Validation Error", "limitType must be one of [DAILY, WEEKLY, MONTHLY, CUSTOM, PER_TRANSACTION]")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitInvalidType, constant.EntityLimit))
 	case errors.Is(err, constant.ErrLimitInvalidMaxAmount):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid max amount", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0123", "Validation Error", "maxAmount must be positive")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitInvalidMaxAmount, constant.EntityLimit))
 	case errors.Is(err, constant.ErrLimitInvalidCurrency):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid currency", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0124", "Validation Error", "currency must be a valid 3-letter ISO 4217 code")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitInvalidCurrency, constant.EntityLimit))
 	case errors.Is(err, constant.ErrLimitInvalidScope):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid scope", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0125", "Validation Error", "scopes must have at least one entry with at least one field set")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitInvalidScope, constant.EntityLimit))
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
 
-		return pkgHTTP.InternalServerError(c, "TRC-0004", "Internal Server Error", "An unexpected error occurred")
+		return http.WithError(c, pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."})
 	}
-}
-
-// formatValidationMessage returns a generic, client-safe validation message.
-// Raw error text is never returned, to avoid exposing internal error details.
-func formatValidationMessage(err error) string {
-	if err == nil {
-		return "Invalid input"
-	}
-
-	return "Validation error"
 }

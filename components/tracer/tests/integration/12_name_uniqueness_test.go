@@ -145,7 +145,7 @@ func TestCreateRule_DuplicateName_Returns409(t *testing.T) {
 		err = json.Unmarshal(respBody2, &errResp)
 		require.NoError(t, err)
 
-		assert.Equal(t, "TRC-0303", errResp.Code, "Error code should be TRC-0303 for duplicate rule name in same context")
+		assert.Equal(t, "0441", errResp.Code, "Error code should be TRC-0303 for duplicate rule name in same context")
 		assert.Equal(t, "Conflict", errResp.Title, "Error title should be Conflict")
 		assert.Contains(t, errResp.Message, "name", "Error message should mention name")
 	}
@@ -424,7 +424,7 @@ func TestCreateLimit_DuplicateName_Returns409(t *testing.T) {
 		err = json.Unmarshal(respBody2, &errResp)
 		require.NoError(t, err)
 
-		assert.Equal(t, "TRC-0304", errResp.Code, "Error code should be TRC-0304 for duplicate limit name")
+		assert.Equal(t, "0442", errResp.Code, "Error code should be TRC-0304 for duplicate limit name")
 		assert.Equal(t, "Conflict", errResp.Title, "Error title should be Conflict")
 		assert.Contains(t, errResp.Message, "name", "Error message should mention name")
 	}

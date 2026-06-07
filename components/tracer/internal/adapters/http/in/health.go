@@ -15,16 +15,16 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/observability"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // Sentinel errors for health check failures.
 //
-// All TRC-coded sentinels live in pkg/constant/errors.go (TRC-0328..TRC-0333)
-// per Ring standards — every error surfaced over the wire MUST carry a TRC
-// code so dashboards/alerts can match by stable code rather than free-form
-// English text. The aliases below are kept so existing call sites in
-// readyz.go / health_handler.go keep compiling without churn.
+// All sentinels live in the canonical pkg/constant/errors.go registry — every
+// error surfaced over the wire MUST carry a stable code so dashboards/alerts can
+// match by code rather than free-form English text. The aliases below are kept
+// so existing call sites in readyz.go / health_handler.go keep compiling without
+// churn.
 var (
 	ErrConnectionNotEstablished = constant.ErrReadyzPgConnectionNotEstablished
 	ErrConnectionFailed         = constant.ErrReadyzPgConnectionFailed

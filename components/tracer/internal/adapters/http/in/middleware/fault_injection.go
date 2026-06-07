@@ -10,8 +10,10 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // FaultInjectionConfig holds configuration for the fault injection middleware.
@@ -20,7 +22,7 @@ type FaultInjectionConfig struct {
 	// Should only be true in integration test environments.
 	Enabled bool
 
-	// TimeoutDuration is how long to wait before returning 504.
+	// TimeoutDuration is how long to wait before returning the timeout error.
 	// Default is 100ms (enough to trigger context deadline).
 	TimeoutDuration time.Duration
 }
@@ -38,8 +40,8 @@ func DefaultFaultInjectionConfig() FaultInjectionConfig {
 //
 // Usage in tests:
 //
-//	req.Header.Set("X-Test-Fault-Injection", "timeout")     // Returns 504
-//	req.Header.Set("X-Test-Fault-Injection", "unavailable") // Returns 503
+//	req.Header.Set("X-Test-Fault-Injection", "timeout")     // timeout error (503)
+//	req.Header.Set("X-Test-Fault-Injection", "unavailable") // service unavailable (503)
 func FaultInjection(config ...FaultInjectionConfig) fiber.Handler {
 	cfg := DefaultFaultInjectionConfig()
 	if len(config) > 0 {
@@ -53,26 +55,27 @@ func FaultInjection(config ...FaultInjectionConfig) fiber.Handler {
 		}
 
 		// Check for fault injection header
-		faultType := c.Get(constant.FaultInjectionHeader)
+		faultType := c.Get(trcConstant.FaultInjectionHeader)
 		if faultType == "" {
 			return c.Next()
 		}
 
 		switch faultType {
-		case constant.FaultTimeout:
+		case trcConstant.FaultTimeout:
 			// Simulate processing that exceeds timeout
 			time.Sleep(cfg.TimeoutDuration)
 
-			// Return appropriate error code based on endpoint
-			// GET /v1/validations (list) uses TRC-0252, POST /v1/validations uses TRC-0229
+			// Return the appropriate timeout code based on endpoint.
+			// GET /v1/validations (list) maps to the list-validations timeout,
+			// POST /v1/validations to the validation timeout.
 			if c.Method() == "GET" && c.Path() == "/v1/validations" {
-				return pkgHTTP.GatewayTimeout(c, constant.CodeListValidationsTimeout, "Gateway Timeout", "query timeout exceeded")
+				return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrListValidationsTimeout, constant.EntityTransactionValidation))
 			}
 
-			return pkgHTTP.GatewayTimeout(c, constant.CodeValidationTimeout, "Gateway Timeout", "validation timeout")
+			return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrValidationTimeout, constant.EntityValidationRequest))
 
-		case constant.FaultUnavailable:
-			return pkgHTTP.ServiceUnavailable(c, "TRC-0012", "Service Unavailable", "service temporarily unavailable")
+		case trcConstant.FaultUnavailable:
+			return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrContextCancelled, constant.EntityRule))
 
 		default:
 			// Unknown fault type, continue normally

@@ -36,7 +36,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/resilience"
 )
@@ -1124,7 +1124,7 @@ func initHTTPServer(
 		APIKeyEnabled:     cfg.APIKeyEnabled,
 		APIKeyLabel:       cfg.APIKeyLabel,
 		PluginAuthEnabled: cfg.PluginAuthEnabled,
-		AppName:           constant.ApplicationName,
+		AppName:           trcConstant.ApplicationName,
 	}, authClient)
 
 	// Extract multi-tenant bits for the middleware registration. In
@@ -1697,35 +1697,12 @@ func InitServers(ctx context.Context) (*Service, error) {
 	auditEventRepo := postgres.NewAuditEventRepositoryWithConnection(pgConn)
 	auditWriter := command.NewRecordAuditEventCommand(auditEventRepo)
 
-	// Init Clock (supports MOCK_TIME for integration tests)
-	clk := initClock()
-
-	// Init Rule Cache: warm up from database, compile CEL expressions, wire into evaluation path
-	ruleCache := cache.NewRuleCache(clk)
-	ruleSyncRepo := postgres.NewRuleSyncRepositoryWithConnection(pgConn)
-
-	warmUpCtx, warmUpCancel := context.WithTimeout(ctx, 30*time.Second)
-	defer warmUpCancel()
-
-	cacheCompiler := &celCompilerAdapter{adapter: celAdapter}
-
-	if err := conditionalWarmUpCache(warmUpCtx, cfg, ruleCache, ruleSyncRepo, cacheCompiler, logger, clk); err != nil {
+	// Init Clock, Rule Cache (warm up + CEL compile), and the single-tenant
+	// sync worker. Extracted into initRuleCacheStack to keep InitServers under
+	// the gocyclo budget; behavior and ordering are unchanged.
+	clk, ruleCache, ruleSyncRepo, syncWorker, err := initRuleCacheStack(ctx, cfg, pgConn, celAdapter, logger)
+	if err != nil {
 		return nil, err
-	}
-
-	// Init sync worker for background polling (cross-instance consistency).
-	//
-	// M19: Skip the singleton sync worker in MT mode. The supervisor spawns a
-	// per-tenant sync worker for each active tenant on its own; the singleton
-	// would never be registered and its allocation (+config load) would be
-	// dead work on every MT boot.
-	var syncWorker *workers.RuleSyncWorker
-
-	if !cfg.MultiTenantEnabled {
-		syncWorker, err = initSyncWorker(ctx, cfg, ruleCache, ruleSyncRepo, celAdapter, logger)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	txBeginner, err := initTxBeginner(ctx, postgresConn, cfg.MultiTenantEnabled)
@@ -1789,6 +1766,57 @@ func InitServers(ctx context.Context) (*Service, error) {
 	initSuccess = true
 
 	return svc, nil
+}
+
+// initRuleCacheStack builds the clock, rule cache, rule-sync repository, and
+// (single-tenant only) sync worker. Extracted from InitServers to keep the
+// composition root under the gocyclo budget; behavior and ordering are
+// unchanged.
+//
+// The cache warmup runs under a 30s timeout context that is created and
+// cancelled inside this helper. The warmup context never escapes the helper,
+// so cancelling it here (rather than at InitServers teardown) is observably
+// equivalent.
+//
+// M19: the singleton sync worker is skipped in MT mode — the supervisor spawns
+// a per-tenant sync worker for each active tenant, so the singleton would never
+// be registered and its allocation (+config load) would be dead work on boot.
+func initRuleCacheStack(
+	ctx context.Context,
+	cfg *Config,
+	pgConn pgdb.Connection,
+	celAdapter *cel.Adapter,
+	logger libLog.Logger,
+) (clock.Clock, *cache.RuleCache, *postgres.RuleSyncRepository, *workers.RuleSyncWorker, error) {
+	// Init Clock (supports MOCK_TIME for integration tests)
+	clk := initClock()
+
+	// Init Rule Cache: warm up from database, compile CEL expressions, wire into evaluation path
+	ruleCache := cache.NewRuleCache(clk)
+	ruleSyncRepo := postgres.NewRuleSyncRepositoryWithConnection(pgConn)
+
+	warmUpCtx, warmUpCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer warmUpCancel()
+
+	cacheCompiler := &celCompilerAdapter{adapter: celAdapter}
+
+	if err := conditionalWarmUpCache(warmUpCtx, cfg, ruleCache, ruleSyncRepo, cacheCompiler, logger, clk); err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	// Init sync worker for background polling (cross-instance consistency).
+	var syncWorker *workers.RuleSyncWorker
+
+	if !cfg.MultiTenantEnabled {
+		var err error
+
+		syncWorker, err = initSyncWorker(ctx, cfg, ruleCache, ruleSyncRepo, celAdapter, logger)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+	}
+
+	return clk, ruleCache, ruleSyncRepo, syncWorker, nil
 }
 
 // finalizeStartup wires workers, runs the one-shot startup self-probe, and

@@ -89,7 +89,6 @@ type listLimitsResponse struct {
 // =============================================================================
 
 func TestLimits_Authentication(t *testing.T) {
-
 	baseURL := testutil.GetBaseURL()
 
 	tests := []struct {
@@ -141,7 +140,6 @@ func TestLimits_Authentication(t *testing.T) {
 // =============================================================================
 
 func TestLimits_ListLimits_InvalidCursor(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -158,7 +156,6 @@ func TestLimits_ListLimits_InvalidCursor(t *testing.T) {
 }
 
 func TestLimits_ListLimits_CursorWithInvalidSortBy(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -179,7 +176,6 @@ func TestLimits_ListLimits_CursorWithInvalidSortBy(t *testing.T) {
 }
 
 func TestLimits_ListLimits_InvalidSortColumn(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -200,7 +196,6 @@ func TestLimits_ListLimits_InvalidSortColumn(t *testing.T) {
 // =============================================================================
 
 func TestLimits_GetLimit_InvalidUUID(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -216,7 +211,6 @@ func TestLimits_GetLimit_InvalidUUID(t *testing.T) {
 }
 
 func TestLimits_UpdateLimit_InvalidUUID(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -238,7 +232,6 @@ func TestLimits_UpdateLimit_InvalidUUID(t *testing.T) {
 }
 
 func TestLimits_DeleteLimit_InvalidUUID(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -254,7 +247,6 @@ func TestLimits_DeleteLimit_InvalidUUID(t *testing.T) {
 }
 
 func TestLimits_ActivateLimit_InvalidUUID(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -270,7 +262,6 @@ func TestLimits_ActivateLimit_InvalidUUID(t *testing.T) {
 }
 
 func TestLimits_DeactivateLimit_InvalidUUID(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -290,7 +281,6 @@ func TestLimits_DeactivateLimit_InvalidUUID(t *testing.T) {
 // =============================================================================
 
 func TestLimits_CreateLimit_ValidationError_NameTooLong(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -320,7 +310,6 @@ func TestLimits_CreateLimit_ValidationError_NameTooLong(t *testing.T) {
 }
 
 func TestLimits_CreateLimit_ValidationError_DescriptionTooLong(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -351,7 +340,6 @@ func TestLimits_CreateLimit_ValidationError_DescriptionTooLong(t *testing.T) {
 }
 
 func TestLimits_CreateLimit_ValidationError_InvalidCurrency(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -379,7 +367,6 @@ func TestLimits_CreateLimit_ValidationError_InvalidCurrency(t *testing.T) {
 }
 
 func TestLimits_CreateLimit_ValidationError_NegativeMaxAmount(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -411,7 +398,6 @@ func TestLimits_CreateLimit_ValidationError_NegativeMaxAmount(t *testing.T) {
 // =============================================================================
 
 func TestLimits_ActivateLimit_AlreadyActive_Idempotent(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -452,7 +438,6 @@ func TestLimits_ActivateLimit_AlreadyActive_Idempotent(t *testing.T) {
 }
 
 func TestLimits_DeactivateLimit_AlreadyInactive_Idempotent(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -507,7 +492,6 @@ func TestLimits_DeactivateLimit_AlreadyInactive_Idempotent(t *testing.T) {
 // =============================================================================
 
 func TestLimits_ActivateDeletedLimit_InvalidTransition(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -559,7 +543,6 @@ func TestLimits_ActivateDeletedLimit_InvalidTransition(t *testing.T) {
 }
 
 func TestLimits_DeactivateDeletedLimit_InvalidTransition(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -615,7 +598,6 @@ func TestLimits_DeactivateDeletedLimit_InvalidTransition(t *testing.T) {
 // =============================================================================
 
 func TestLimits_ActivateLimit_NotFound(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -633,7 +615,6 @@ func TestLimits_ActivateLimit_NotFound(t *testing.T) {
 }
 
 func TestLimits_DeactivateLimit_NotFound(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -651,7 +632,6 @@ func TestLimits_DeactivateLimit_NotFound(t *testing.T) {
 }
 
 func TestLimits_DeleteLimit_NotFound(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -673,7 +653,6 @@ func TestLimits_DeleteLimit_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestLimits_CreateLimit_Success(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -726,7 +705,6 @@ func TestLimits_CreateLimit_Success(t *testing.T) {
 }
 
 func TestLimits_CreateLimit_ValidationError_MissingName(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -756,7 +734,6 @@ func TestLimits_CreateLimit_ValidationError_MissingName(t *testing.T) {
 }
 
 func TestLimits_CreateLimit_ValidationError_InvalidLimitType(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -786,7 +763,6 @@ func TestLimits_CreateLimit_ValidationError_InvalidLimitType(t *testing.T) {
 }
 
 func TestLimits_CreateLimit_ValidationError_EmptyScopes(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -814,7 +790,6 @@ func TestLimits_CreateLimit_ValidationError_EmptyScopes(t *testing.T) {
 }
 
 func TestLimits_GetLimit_Success(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -848,7 +823,6 @@ func TestLimits_GetLimit_Success(t *testing.T) {
 }
 
 func TestLimits_GetLimit_NotFound(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -866,7 +840,6 @@ func TestLimits_GetLimit_NotFound(t *testing.T) {
 }
 
 func TestLimits_ListLimits_Success(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -897,7 +870,6 @@ func TestLimits_ListLimits_Success(t *testing.T) {
 }
 
 func TestLimits_ListLimits_FilterByStatus(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -940,7 +912,6 @@ func TestLimits_ListLimits_FilterByStatus(t *testing.T) {
 }
 
 func TestLimits_ListLimits_FilterByLimitType(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -1129,7 +1100,6 @@ func TestLimits_ListLimits_FilterByCustomType(t *testing.T) {
 }
 
 func TestLimits_UpdateLimit_Success(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -1173,7 +1143,6 @@ func TestLimits_UpdateLimit_Success(t *testing.T) {
 }
 
 func TestLimits_UpdateLimit_NotFound(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -1202,7 +1171,6 @@ func TestLimits_UpdateLimit_NotFound(t *testing.T) {
 // is silently ignored when sent via PATCH. Status changes must be done via
 // dedicated endpoints: POST /activate and POST /deactivate.
 func TestLimits_UpdateLimit_StatusFieldIgnored(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -1297,7 +1265,6 @@ func TestLimits_UpdateLimit_StatusFieldIgnored(t *testing.T) {
 }
 
 func TestLimits_ActivateLimit_Success(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -1439,7 +1406,6 @@ func TestLimits_DeactivateLimit_FromActive(t *testing.T) {
 
 // TestLimits_DeactivateLimit_Success tests successful deactivation (ACTIVE -> INACTIVE)
 func TestLimits_DeactivateLimit_Success(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -1481,7 +1447,6 @@ func TestLimits_DeactivateLimit_Success(t *testing.T) {
 }
 
 func TestLimits_DeleteLimit_Success(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -1533,7 +1498,6 @@ func TestLimits_DeleteLimit_Success(t *testing.T) {
 }
 
 func TestLimits_FullLifecycle(t *testing.T) {
-
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -1964,7 +1928,7 @@ func TestLimits_CreateLimit_ScopeWithoutFields_BadRequest(t *testing.T) {
 
 	// Verify error response structure (code, title, message)
 	errResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "TRC-0001", errResp.Code, "Error code should be TRC-0001")
+	assert.Equal(t, "0053", errResp.Code, "Error code should be TRC-0001")
 	assert.Equal(t, "Validation Error", errResp.Title, "Error title should be 'Validation Error'")
 	assert.Equal(t, "scope at index 0 must have at least one field set", errResp.Message, "Error message should indicate scope validation failure")
 }
@@ -2286,7 +2250,7 @@ func TestLimits_UpdateLimit_EmptyBody_ReturnsTRC0002(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
 	// TRC-0002 for missing required fields (empty object has no fields to update)
-	assert.Equal(t, "TRC-0002", errResp.Code, "Expected TRC-0002 for empty JSON body (no fields to update)")
+	assert.Equal(t, "0009", errResp.Code, "Expected TRC-0002 for empty JSON body (no fields to update)")
 	assert.Equal(t, "Validation Error", errResp.Title, "Error title should be 'Validation Error'")
 	assert.Equal(t, "At least one field must be provided for update", errResp.Message, "Error message should indicate at least one field required")
 
@@ -3808,7 +3772,7 @@ func TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138(t *testing.T) {
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
 			// Assert error code is TRC-0138 (ImmutableField)
-			assert.Equal(t, "TRC-0138", errResp.Code,
+			assert.Equal(t, "0380", errResp.Code,
 				"[%s] Expected error code TRC-0138 (ImmutableField), got %s",
 				tc.name, errResp.Code)
 

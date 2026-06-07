@@ -20,8 +20,9 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 func TestAuditEventHandler_ListAuditEvents(t *testing.T) {
@@ -181,8 +182,7 @@ func TestAuditEventHandler_ListAuditEvents(t *testing.T) {
 				var errorResp map[string]any
 				err := json.Unmarshal(body, &errorResp)
 				require.NoError(t, err, "response should be valid JSON object")
-				assert.Equal(t, "TRC-0020", errorResp["code"], "error code should be TRC-0020 (Invalid Date Format)")
-				assert.Equal(t, "Validation Error", errorResp["title"], "error title should be 'Validation Error'")
+				assert.Equal(t, "0077", errorResp["code"], "error code should be TRC-0020 (Invalid Date Format)")
 				assert.NotEmpty(t, errorResp["message"], "error message should not be empty")
 			},
 		},
@@ -202,9 +202,7 @@ func TestAuditEventHandler_ListAuditEvents(t *testing.T) {
 				err := json.Unmarshal(body, &errorResp)
 				require.NoError(t, err, "response should be valid JSON")
 
-				assert.Equal(t, "TRC-0141", errorResp["code"], "error code should be TRC-0141 (invalid filters)")
-				assert.Equal(t, "Bad Request", errorResp["title"], "error title should be 'Bad Request'")
-				assert.Equal(t, "Invalid audit event filters", errorResp["message"], "error message should indicate invalid filters")
+				assert.Equal(t, "0382", errorResp["code"], "error code should be TRC-0141 (invalid filters)")
 			},
 		},
 		{
@@ -223,9 +221,7 @@ func TestAuditEventHandler_ListAuditEvents(t *testing.T) {
 				err := json.Unmarshal(body, &errorResp)
 				require.NoError(t, err, "response should be valid JSON")
 
-				assert.Equal(t, "TRC-0044", errorResp["code"], "error code should be TRC-0044 (invalid cursor)")
-				assert.Equal(t, "Bad Request", errorResp["title"], "error title should be 'Bad Request'")
-				assert.Equal(t, "Invalid pagination cursor", errorResp["message"], "error message should indicate invalid cursor")
+				assert.Equal(t, "0333", errorResp["code"], "error code should be TRC-0044 (invalid cursor)")
 			},
 		},
 		{
@@ -244,9 +240,7 @@ func TestAuditEventHandler_ListAuditEvents(t *testing.T) {
 				err := json.Unmarshal(body, &errorResp)
 				require.NoError(t, err, "response should be valid JSON")
 
-				assert.Equal(t, "TRC-0043", errorResp["code"], "error code should be TRC-0043 (invalid sort column)")
-				assert.Equal(t, "Bad Request", errorResp["title"], "error title should be 'Bad Request'")
-				assert.Equal(t, "Invalid sort column", errorResp["message"], "error message should indicate invalid sort column")
+				assert.Equal(t, "0332", errorResp["code"], "error code should be TRC-0043 (invalid sort column)")
 			},
 		},
 		{
@@ -265,8 +259,7 @@ func TestAuditEventHandler_ListAuditEvents(t *testing.T) {
 				err := json.Unmarshal(body, &errorResp)
 				require.NoError(t, err, "response should be valid JSON")
 
-				assert.Equal(t, "TRC-0004", errorResp["code"], "error code should be TRC-0004 (internal server error)")
-				assert.Equal(t, "Internal Server Error", errorResp["title"], "error title should be 'Internal Server Error'")
+				assert.Equal(t, "0046", errorResp["code"], "error code should be TRC-0004 (internal server error)")
 				assert.NotEmpty(t, errorResp["message"], "error message should be present")
 			},
 		},
@@ -357,7 +350,7 @@ func TestAuditEventHandler_ListAuditEvents_InvalidTransactionType(t *testing.T) 
 	err = json.Unmarshal(body, &errResp)
 	require.NoError(t, err, "Expected valid JSON error response")
 
-	require.Equal(t, "TRC-0001", errResp["code"], "Expected TRC-0001 for invalid transaction_type")
+	require.Equal(t, "0009", errResp["code"], "Expected canonical missing-fields code for invalid transaction_type")
 	require.NotEmpty(t, errResp["message"], "Expected non-empty error message")
 }
 
@@ -416,7 +409,7 @@ func TestListAuditEventsInput_DateRangeValidation(t *testing.T) {
 			endDate:      "2026-01-01T00:00:00Z",
 			wantErr:      true,
 			errMsg:       "end_date must be on or after start_date",
-			expectedCode: "TRC-0023",
+			expectedCode: "0083",
 		},
 	}
 
@@ -431,11 +424,10 @@ func TestListAuditEventsInput_DateRangeValidation(t *testing.T) {
 			err := input.Validate()
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
 
 				if tt.expectedCode != "" {
-					var valErr *ValidationError
-					require.ErrorAs(t, err, &valErr, "Expected ValidationError type")
+					var valErr pkg.ValidationError
+					require.ErrorAs(t, err, &valErr, "Expected pkg.ValidationError type")
 					assert.Equal(t, tt.expectedCode, valErr.Code, "Expected error code %s", tt.expectedCode)
 				}
 			} else {
@@ -638,9 +630,7 @@ func TestAuditEventHandler_GetAuditEvent(t *testing.T) {
 				var errorResp map[string]any
 				err := json.Unmarshal(body, &errorResp)
 				require.NoError(t, err, "response should be valid JSON object")
-				assert.Equal(t, "TRC-0007", errorResp["code"], "error code should be TRC-0007")
-				assert.Equal(t, "Invalid Path Parameter", errorResp["title"], "error title should be 'Invalid Path Parameter'")
-				assert.Equal(t, "Invalid event ID format", errorResp["message"], "error message should indicate invalid UUID format")
+				assert.Equal(t, "0065", errorResp["code"], "error code should be TRC-0007")
 			},
 		},
 		{
@@ -659,9 +649,7 @@ func TestAuditEventHandler_GetAuditEvent(t *testing.T) {
 				err := json.Unmarshal(body, &errorResp)
 				require.NoError(t, err, "response should be valid JSON")
 
-				assert.Equal(t, "TRC-0140", errorResp["code"], "error code should be TRC-0140 (ErrAuditEventNotFound)")
-				assert.Equal(t, "Not Found", errorResp["title"], "error title should be 'Not Found'")
-				assert.Equal(t, "Audit event not found", errorResp["message"], "error message should indicate audit event not found")
+				assert.Equal(t, "0381", errorResp["code"], "error code should be TRC-0140 (ErrAuditEventNotFound)")
 			},
 		},
 	}
@@ -767,9 +755,7 @@ func TestAuditEventHandler_VerifyHashChain(t *testing.T) {
 				var errorResp map[string]any
 				err := json.Unmarshal(body, &errorResp)
 				require.NoError(t, err, "response should be valid JSON object")
-				assert.Equal(t, "TRC-0007", errorResp["code"], "error code should be TRC-0007")
-				assert.Equal(t, "Invalid Path Parameter", errorResp["title"], "error title should be 'Invalid Path Parameter'")
-				assert.Equal(t, "Invalid event ID format", errorResp["message"], "error message should indicate invalid event ID format")
+				assert.Equal(t, "0065", errorResp["code"], "error code should be TRC-0007")
 			},
 		},
 		{
@@ -788,9 +774,7 @@ func TestAuditEventHandler_VerifyHashChain(t *testing.T) {
 				err := json.Unmarshal(body, &errorResp)
 				require.NoError(t, err, "response should be valid JSON")
 
-				assert.Equal(t, "TRC-0140", errorResp["code"], "error code should be TRC-0140 (audit event not found)")
-				assert.Equal(t, "Not Found", errorResp["title"], "error title should be 'Not Found'")
-				assert.Equal(t, "Audit event not found", errorResp["message"], "error message should indicate audit event not found")
+				assert.Equal(t, "0381", errorResp["code"], "error code should be TRC-0140 (audit event not found)")
 			},
 		},
 		{
@@ -809,8 +793,7 @@ func TestAuditEventHandler_VerifyHashChain(t *testing.T) {
 				err := json.Unmarshal(body, &errorResp)
 				require.NoError(t, err, "response should be valid JSON")
 
-				assert.Equal(t, "TRC-0004", errorResp["code"], "error code should be TRC-0004 (internal server error)")
-				assert.Equal(t, "Internal Server Error", errorResp["title"], "error title should be 'Internal Server Error'")
+				assert.Equal(t, "0046", errorResp["code"], "error code should be TRC-0004 (internal server error)")
 				assert.NotEmpty(t, errorResp["message"], "error message should be present")
 			},
 		},

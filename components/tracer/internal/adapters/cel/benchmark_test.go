@@ -20,7 +20,6 @@ func BenchmarkCompile(b *testing.B) {
 
 	for b.Loop() {
 		compiled, err := adapter.Compile(ctx, expression)
-
 		if err != nil {
 			b.Fatalf("Compile failed: %v", err)
 		}
@@ -37,7 +36,6 @@ func BenchmarkCompile_ComplexExpression(b *testing.B) {
 
 	for b.Loop() {
 		compiled, err := adapter.Compile(ctx, expression)
-
 		if err != nil {
 			b.Fatalf("Compile failed: %v", err)
 		}

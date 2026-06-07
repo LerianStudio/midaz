@@ -14,9 +14,9 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // formatTimeOrNotSet formats a time value for logging, returning "not set" for zero time.

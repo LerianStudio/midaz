@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -18,9 +17,10 @@ import (
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // Sentinel errors for DeactivateRuleService constructor validation.
@@ -99,7 +99,7 @@ func (s *DeactivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (
 				libLog.String("rule.id", ruleID.String()),
 			).Log(ctx, libLog.LevelWarn, "Rule not found")
 
-			return nil, libCommons.ValidateBusinessError(constant.ErrRuleNotFound, "Rule")
+			return nil, pkg.ValidateBusinessError(constant.ErrRuleNotFound, constant.EntityRule)
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to get rule from repository", err)
@@ -120,7 +120,7 @@ func (s *DeactivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (
 			libLog.String("rule.id", ruleID.String()),
 		).Log(ctx, libLog.LevelWarn, "Rule not found")
 
-		return nil, libCommons.ValidateBusinessError(constant.ErrRuleNotFound, "Rule")
+		return nil, pkg.ValidateBusinessError(constant.ErrRuleNotFound, constant.EntityRule)
 	}
 
 	// Idempotency: if already inactive, return the rule (no-op)

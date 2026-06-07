@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -17,9 +16,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // DeleteRuleService handles rule deletion (DRAFT/INACTIVE → DELETED).
@@ -89,7 +89,7 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) error
 				libLog.String("rule.id", ruleID.String()),
 			).Log(ctx, libLog.LevelWarn, "Rule not found")
 
-			return libCommons.ValidateBusinessError(constant.ErrRuleNotFound, "Rule")
+			return pkg.ValidateBusinessError(constant.ErrRuleNotFound, constant.EntityRule)
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to get rule from repository", err)
@@ -110,7 +110,7 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) error
 			libLog.String("rule.id", ruleID.String()),
 		).Log(ctx, libLog.LevelWarn, "Rule not found")
 
-		return libCommons.ValidateBusinessError(constant.ErrRuleNotFound, "Rule")
+		return pkg.ValidateBusinessError(constant.ErrRuleNotFound, constant.EntityRule)
 	}
 
 	// Idempotency: if already deleted, return success (no-op)

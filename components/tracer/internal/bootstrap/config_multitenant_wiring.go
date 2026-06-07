@@ -98,42 +98,12 @@ func buildComponentsMT(
 		return nil, fmt.Errorf("multi-tenant wiring: must only be called when MULTI_TENANT_ENABLED=true")
 	}
 
-	// 1. Tenant Manager HTTP client.
-	//
-	// lib-commons v4 enforces HTTPS by default. When the operator has
-	// explicitly configured an http:// URL (typical in dev/test clusters where
-	// the Tenant Manager is reachable only on a private network), mirror that
-	// choice by opting in to WithAllowInsecureHTTP. Production deployments
-	// MUST configure an https:// URL in MULTI_TENANT_URL.
-	clientOpts := []tmclient.ClientOption{
-		tmclient.WithServiceAPIKey(cfg.MultiTenantServiceAPIKey),
-		tmclient.WithCircuitBreaker(
-			cfg.MultiTenantCircuitBreakerThreshold,
-			time.Duration(cfg.MultiTenantCircuitBreakerTimeoutSec)*time.Second,
-		),
-		tmclient.WithTimeout(time.Duration(cfg.MultiTenantTimeout) * time.Second),
-		// MULTI_TENANT_CACHE_TTL_SEC (default 120s) controls how long the
-		// tenant-manager HTTP client caches /settings responses. Without this
-		// option lib-commons defaults to 1h, which would silently ignore the
-		// operator-configured value.
-		tmclient.WithCacheTTL(time.Duration(cfg.MultiTenantCacheTTLSec) * time.Second),
-	}
-
-	if strings.HasPrefix(cfg.MultiTenantURL, "http://") {
-		if !cfg.MultiTenantAllowInsecureHTTP {
-			return nil, fmt.Errorf(
-				"multi-tenant config: MULTI_TENANT_URL uses http:// but MULTI_TENANT_ALLOW_INSECURE_HTTP is false. " +
-					"Set MULTI_TENANT_ALLOW_INSECURE_HTTP=true to explicitly opt in (NOT for production — " +
-					"credentials travel in cleartext)")
-		}
-
-		logger.With(
-			libLog.String("config", "MULTI_TENANT_URL"),
-			libLog.String("scheme", "http"),
-		).Log(context.Background(), libLog.LevelWarn,
-			"SECURITY: MULTI_TENANT_URL uses cleartext HTTP — service API key and tenant credentials travel in plaintext")
-
-		clientOpts = append(clientOpts, tmclient.WithAllowInsecureHTTP())
+	// 1. Tenant Manager HTTP client options. The clientOpts assembly + the
+	// http:// scheme validation/warning is extracted to keep buildComponentsMT
+	// under the gocyclo budget; behavior is unchanged.
+	clientOpts, err := buildTMClientOptions(cfg, logger)
+	if err != nil {
+		return nil, err
 	}
 
 	// M5: track every resource opened during wiring and close them in reverse
@@ -231,24 +201,10 @@ func buildComponentsMT(
 		return nil, err
 	}
 
-	supervisorDeps := supervisorExtras
-	supervisorDeps.SyncRepo = deps.SyncRepo
-	supervisorDeps.UsageRepo = deps.UsageRepo
-	supervisorDeps.Compiler = mtCompiler
-	supervisorDeps.SyncConfig = deps.SyncConfig
-	supervisorDeps.CleanupConfig = deps.CleanupConfig
-	supervisorDeps.CleanupWorkerEnabled = deps.CleanupWorkerEnabled
-	supervisorDeps.CBTemplate = deps.CBTemplate
-	supervisorDeps.TenantList = tmClient
-	supervisorDeps.PoolResolver = poolResolver
-
-	if supervisorDeps.MaxTenants == 0 {
-		supervisorDeps.MaxTenants = cfg.MultiTenantMaxTenantPools
-	}
-
-	if supervisorDeps.Service == "" {
-		supervisorDeps.Service = cfg.ApplicationName
-	}
+	// supervisorDeps assembly (MT-sourced field fill-in + MaxTenants/Service
+	// defaulting) is extracted to keep buildComponentsMT under the gocyclo
+	// budget; behavior is unchanged.
+	supervisorDeps := buildSupervisorDeps(cfg, supervisorExtras, deps, mtCompiler, tmClient, poolResolver)
 
 	supervisor, err := workers.NewWorkerSupervisor(supervisorDeps)
 	if err != nil {
@@ -350,4 +306,83 @@ func resolveCompiler(deps wiringDepsMT) (workers.ExpressionCompiler, error) {
 	default:
 		return nil, fmt.Errorf("multi-tenant wiring: Compiler or CELAdapter is required")
 	}
+}
+
+// buildTMClientOptions assembles the tenant-manager HTTP client options and
+// enforces the http:// scheme policy (cleartext requires explicit opt-in,
+// emitting a one-time security warning). Extracted from buildComponentsMT to
+// keep it under the gocyclo budget; behavior is unchanged.
+//
+// lib-commons v4 enforces HTTPS by default. When the operator has explicitly
+// configured an http:// URL (typical in dev/test clusters where the Tenant
+// Manager is reachable only on a private network), mirror that choice by
+// opting in to WithAllowInsecureHTTP. Production deployments MUST configure an
+// https:// URL in MULTI_TENANT_URL.
+func buildTMClientOptions(cfg *Config, logger libLog.Logger) ([]tmclient.ClientOption, error) {
+	clientOpts := []tmclient.ClientOption{
+		tmclient.WithServiceAPIKey(cfg.MultiTenantServiceAPIKey),
+		tmclient.WithCircuitBreaker(
+			cfg.MultiTenantCircuitBreakerThreshold,
+			time.Duration(cfg.MultiTenantCircuitBreakerTimeoutSec)*time.Second,
+		),
+		tmclient.WithTimeout(time.Duration(cfg.MultiTenantTimeout) * time.Second),
+		// MULTI_TENANT_CACHE_TTL_SEC (default 120s) controls how long the
+		// tenant-manager HTTP client caches /settings responses. Without this
+		// option lib-commons defaults to 1h, which would silently ignore the
+		// operator-configured value.
+		tmclient.WithCacheTTL(time.Duration(cfg.MultiTenantCacheTTLSec) * time.Second),
+	}
+
+	if strings.HasPrefix(cfg.MultiTenantURL, "http://") {
+		if !cfg.MultiTenantAllowInsecureHTTP {
+			return nil, fmt.Errorf(
+				"multi-tenant config: MULTI_TENANT_URL uses http:// but MULTI_TENANT_ALLOW_INSECURE_HTTP is false. " +
+					"Set MULTI_TENANT_ALLOW_INSECURE_HTTP=true to explicitly opt in (NOT for production — " +
+					"credentials travel in cleartext)")
+		}
+
+		logger.With(
+			libLog.String("config", "MULTI_TENANT_URL"),
+			libLog.String("scheme", "http"),
+		).Log(context.Background(), libLog.LevelWarn,
+			"SECURITY: MULTI_TENANT_URL uses cleartext HTTP — service API key and tenant credentials travel in plaintext")
+
+		clientOpts = append(clientOpts, tmclient.WithAllowInsecureHTTP())
+	}
+
+	return clientOpts, nil
+}
+
+// buildSupervisorDeps fills the MT-sourced fields onto the caller-provided
+// supervisorExtras and applies MaxTenants/Service defaults. Extracted from
+// buildComponentsMT to keep it under the gocyclo budget; behavior is
+// unchanged.
+func buildSupervisorDeps(
+	cfg *Config,
+	supervisorExtras workers.WorkerSupervisorDeps,
+	deps wiringDepsMT,
+	mtCompiler workers.ExpressionCompiler,
+	tmClient *tmclient.Client,
+	poolResolver workers.WorkerPoolResolver,
+) workers.WorkerSupervisorDeps {
+	supervisorDeps := supervisorExtras
+	supervisorDeps.SyncRepo = deps.SyncRepo
+	supervisorDeps.UsageRepo = deps.UsageRepo
+	supervisorDeps.Compiler = mtCompiler
+	supervisorDeps.SyncConfig = deps.SyncConfig
+	supervisorDeps.CleanupConfig = deps.CleanupConfig
+	supervisorDeps.CleanupWorkerEnabled = deps.CleanupWorkerEnabled
+	supervisorDeps.CBTemplate = deps.CBTemplate
+	supervisorDeps.TenantList = tmClient
+	supervisorDeps.PoolResolver = poolResolver
+
+	if supervisorDeps.MaxTenants == 0 {
+		supervisorDeps.MaxTenants = cfg.MultiTenantMaxTenantPools
+	}
+
+	if supervisorDeps.Service == "" {
+		supervisorDeps.Service = cfg.ApplicationName
+	}
+
+	return supervisorDeps
 }

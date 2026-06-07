@@ -26,7 +26,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/metrics"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/sanitize"
@@ -454,7 +454,7 @@ func (s *ValidationService) emitMessageProcessed(ctx context.Context, result *Va
 		decisionLabel = "ALLOW"
 	}
 
-	s.mtMetrics.IncMessagesProcessed(ctx, tenantID, constant.ModuleName, decisionLabel)
+	s.mtMetrics.IncMessagesProcessed(ctx, tenantID, trcConstant.ModuleName, decisionLabel)
 }
 
 // finalizeDenyByRule handles the DENY-by-rule terminal branch: persist the

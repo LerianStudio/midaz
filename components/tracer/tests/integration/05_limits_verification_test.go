@@ -1871,7 +1871,7 @@ func TestLimitsVerification_5_4_2_PastTimestampRejection(t *testing.T) {
 	require.NoError(t, err)
 
 	// Error code should be TRC-0228
-	assert.Equal(t, "TRC-0228", errResp.Code,
+	assert.Equal(t, "0421", errResp.Code,
 		"Error code should be TRC-0228 (timestamp too far in past)")
 
 	t.Logf("Past timestamp rejection verified: timestamps older than 24h rejected with TRC-0228")
@@ -1946,7 +1946,7 @@ func TestLimitsVerification_5_4_3_MaxTimestampAgeBoundary(t *testing.T) {
 		err := json.Unmarshal(body, &errResp)
 		require.NoError(t, err)
 
-		assert.Equal(t, "TRC-0228", errResp.Code,
+		assert.Equal(t, "0421", errResp.Code,
 			"Error code should be TRC-0228 for timestamp beyond MaxTimestampAge")
 
 		t.Logf("Boundary test: timestamp 24h+1min in past rejected with TRC-0228")

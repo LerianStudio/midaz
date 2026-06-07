@@ -21,15 +21,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres"
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // ---------------------------------------------------------------------------
@@ -614,7 +614,7 @@ func TestIntegration_ReservationOverCommit(t *testing.T) {
 			limitSeed := int64(8900 + round)
 			limitID := resSeedLimit(t, db, limitSeed, "overcommit-rand-"+uuid.NewString()[:8], capacity)
 
-			scopeKey := "acct:rand-" + testutil.MustDeterministicUUID(int64(8950+round)).String()[:8]
+			scopeKey := "acct:rand-" + testutil.MustDeterministicUUID(int64(8950 + round)).String()[:8]
 			periodKey := "2026-06"
 
 			// Pre-compute each contender's random amount in [1, capacity] so a

@@ -23,8 +23,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testhelper"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // errDatabase is a sentinel error for testing database error paths.
@@ -142,7 +143,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 					Status:   &status,
 					Currency: &currency,
-					Limit:    constant.MaxPaginationLimit,
+					Limit:    trcConstant.MaxPaginationLimit,
 				}).Return(&model.ListLimitsResult{
 					Limits:  []model.Limit{},
 					HasMore: false,
@@ -167,7 +168,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 					Status:   &status,
 					Currency: &currency,
-					Limit:    constant.MaxPaginationLimit,
+					Limit:    trcConstant.MaxPaginationLimit,
 				}).Return(&model.ListLimitsResult{
 					Limits: []model.Limit{
 						{
@@ -207,7 +208,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 					Status:   &status,
 					Currency: &currency,
-					Limit:    constant.MaxPaginationLimit,
+					Limit:    trcConstant.MaxPaginationLimit,
 				}).Return(&model.ListLimitsResult{
 					Limits: []model.Limit{
 						{
@@ -247,7 +248,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 					Status:   &status,
 					Currency: &currency,
-					Limit:    constant.MaxPaginationLimit,
+					Limit:    trcConstant.MaxPaginationLimit,
 				}).Return(&model.ListLimitsResult{
 					Limits: []model.Limit{
 						{
@@ -283,7 +284,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 					Status:   &status,
 					Currency: &currency,
-					Limit:    constant.MaxPaginationLimit,
+					Limit:    trcConstant.MaxPaginationLimit,
 				}).Return(&model.ListLimitsResult{
 					Limits: []model.Limit{
 						{
@@ -318,7 +319,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 					Status:   &status,
 					Currency: &currency,
-					Limit:    constant.MaxPaginationLimit,
+					Limit:    trcConstant.MaxPaginationLimit,
 				}).Return(&model.ListLimitsResult{
 					Limits: []model.Limit{
 						{
@@ -372,7 +373,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 					Status:   &status,
 					Currency: &currency,
-					Limit:    constant.MaxPaginationLimit,
+					Limit:    trcConstant.MaxPaginationLimit,
 				}).Return(&model.ListLimitsResult{
 					Limits:  []model.Limit{},
 					HasMore: false,
@@ -398,7 +399,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 					Status:   &status,
 					Currency: &currency,
-					Limit:    constant.MaxPaginationLimit,
+					Limit:    trcConstant.MaxPaginationLimit,
 				}).Return(&model.ListLimitsResult{
 					Limits: []model.Limit{
 						{
@@ -433,7 +434,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 					Status:   &status,
 					Currency: &currency,
-					Limit:    constant.MaxPaginationLimit,
+					Limit:    trcConstant.MaxPaginationLimit,
 				}).Return(&model.ListLimitsResult{
 					Limits: []model.Limit{
 						{
@@ -505,7 +506,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 					Status:   &status,
 					Currency: &currency,
-					Limit:    constant.MaxPaginationLimit,
+					Limit:    trcConstant.MaxPaginationLimit,
 				}).Return(&model.ListLimitsResult{
 					Limits: []model.Limit{
 						{
@@ -546,7 +547,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 					Status:   &status,
 					Currency: &currency,
-					Limit:    constant.MaxPaginationLimit,
+					Limit:    trcConstant.MaxPaginationLimit,
 				}).Return(&model.ListLimitsResult{
 					Limits: []model.Limit{
 						{
@@ -587,7 +588,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 					Status:   &status,
 					Currency: &currency,
-					Limit:    constant.MaxPaginationLimit,
+					Limit:    trcConstant.MaxPaginationLimit,
 				}).Return(nil, errDatabase)
 			},
 			wantAllowed: false,
@@ -608,7 +609,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 					Status:   &status,
 					Currency: &currency,
-					Limit:    constant.MaxPaginationLimit,
+					Limit:    trcConstant.MaxPaginationLimit,
 				}).Return(&model.ListLimitsResult{
 					Limits: []model.Limit{
 						{
@@ -719,7 +720,7 @@ func TestLimitCheckerService_CheckLimits_ConcurrentAccess(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -844,7 +845,7 @@ func TestLimitCheckerService_CheckLimits_TwoPhaseNoPartialIncrement(t *testing.T
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -984,7 +985,7 @@ func TestLimitCheckerService_CheckLimits_LargeAmountNearInt64Max(t *testing.T) {
 			mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 				Status:   &status,
 				Currency: &currency,
-				Limit:    constant.MaxPaginationLimit,
+				Limit:    trcConstant.MaxPaginationLimit,
 				Cursor:   "",
 			}).Return(&model.ListLimitsResult{
 				Limits: []model.Limit{
@@ -1108,7 +1109,7 @@ func TestLimitCheckerService_CheckLimits_PaginationLoop(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -1139,7 +1140,7 @@ func TestLimitCheckerService_CheckLimits_PaginationLoop(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "cursor-page-2",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -1231,7 +1232,7 @@ func TestLimitCheckerService_CheckLimits_LargeDecimalValues(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -1453,7 +1454,7 @@ func TestLimitChecker_MerchantScope(t *testing.T) {
 						"scope key must not include merchant token when limit scope has no MerchantID")
 				default:
 					// All-nil (global) scope: canonical key is GlobalScopeKey.
-					require.Equal(t, constant.GlobalScopeKey, scopeKey,
+					require.Equal(t, trcConstant.GlobalScopeKey, scopeKey,
 						"calculateScopeKeyFromScopes must return canonical GlobalScopeKey for all-nil scope")
 				}
 			}
@@ -1470,14 +1471,14 @@ func TestLimitChecker_MerchantScope(t *testing.T) {
 				assert.NotEmpty(t, scopeStr, "formatScopeString must return non-empty string")
 
 				// Tighter assertion for the all-nil (global) scope: canonical
-				// rendering is constant.GlobalScopeKey ("global"). A bug
+				// rendering is trcConstant.GlobalScopeKey ("global"). A bug
 				// returning "" would be caught by NotEmpty above, but pinning
 				// the exact canonical value catches subtler regressions (e.g.,
 				// returning "()" or "(global)") that NotContains/NotEmpty miss.
 				if tc.limitScope.AccountID == nil && tc.limitScope.SegmentID == nil &&
 					tc.limitScope.PortfolioID == nil && tc.limitScope.MerchantID == nil &&
 					tc.limitScope.TransactionType == nil && tc.limitScope.SubType == nil {
-					require.Equal(t, constant.GlobalScopeKey, scopeStr,
+					require.Equal(t, trcConstant.GlobalScopeKey, scopeStr,
 						"formatScopeString must return canonical GlobalScopeKey for all-nil scope")
 				}
 			}
@@ -1753,7 +1754,7 @@ func TestCheckLimits_ServerTimestamp(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -1828,7 +1829,7 @@ func TestCheckLimits_ServerTimestamp_Monthly(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -1895,7 +1896,7 @@ func TestCheckLimits_PerTransactionUnaffectedByClock(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -1969,7 +1970,7 @@ func TestLimitCheckerService_CheckLimits_PreCheckGetUsageError(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -2038,7 +2039,7 @@ func TestLimitCheckerService_CheckLimits_ScopeKeyPerLimit(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -2154,7 +2155,7 @@ func TestCheckLimits_TimeWindow_OutsideWindow_Skipped(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -2244,7 +2245,7 @@ func TestCheckLimits_TimeWindow_InsideWindow_Evaluated(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -2337,7 +2338,7 @@ func TestCheckLimits_TimeWindow_OvernightWindow_EarlyMorning_Evaluated(t *testin
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -2422,7 +2423,7 @@ func TestCheckLimits_TimeWindow_BusinessHours_Boundary_Inclusive(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -2505,7 +2506,7 @@ func TestCheckLimits_TimeWindow_BusinessHours_Boundary_Exclusive(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -2586,7 +2587,7 @@ func TestCheckLimits_TimeWindow_NoTimeWindow_AlwaysEvaluated(t *testing.T) {
 			mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 				Status:   &status,
 				Currency: &currency,
-				Limit:    constant.MaxPaginationLimit,
+				Limit:    trcConstant.MaxPaginationLimit,
 				Cursor:   "",
 			}).Return(&model.ListLimitsResult{
 				Limits: []model.Limit{
@@ -2677,7 +2678,7 @@ func TestCheckLimits_TimeWindow_MixedLimits_SomeSkipped(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -2827,7 +2828,7 @@ func TestCheckLimits_TimeWindow_SkippedLimit_NoExceededFlag(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -2907,7 +2908,7 @@ func TestCheckLimits_TimeWindow_PerTransaction_Skipped(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -3104,7 +3105,7 @@ func TestCheckLimits_TimeWindow_TableDriven(t *testing.T) {
 			mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 				Status:   &status,
 				Currency: &currency,
-				Limit:    constant.MaxPaginationLimit,
+				Limit:    trcConstant.MaxPaginationLimit,
 				Cursor:   "",
 			}).Return(&model.ListLimitsResult{
 				Limits:  []model.Limit{limit},
@@ -3190,7 +3191,7 @@ func TestCheckLimits_CustomPeriod_OutsideCustomPeriod_Skipped(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -3271,7 +3272,7 @@ func TestCheckLimits_CustomPeriod_InsideCustomPeriod_Evaluated(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -3361,7 +3362,7 @@ func TestCheckLimits_CustomPeriod_Boundary_Start_Inclusive(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -3447,7 +3448,7 @@ func TestCheckLimits_CustomPeriod_Boundary_End_Exclusive(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -3524,7 +3525,7 @@ func TestCheckLimits_CustomPeriod_BeforePeriod_Skipped(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -3599,7 +3600,7 @@ func TestCheckLimits_CustomPeriod_AfterPeriod_Skipped(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -3684,7 +3685,7 @@ func TestCheckLimits_CustomPeriod_TwoTransactionsSamePeriod_CounterAccumulates(t
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -3802,7 +3803,7 @@ func TestCheckLimits_CustomPeriod_MixedLimits_SomeSkipped(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -3912,7 +3913,7 @@ func TestCheckLimits_CustomPeriod_SkippedLimit_NoExceededFlag(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -4062,7 +4063,7 @@ func TestCheckLimits_CustomPeriod_TableDriven(t *testing.T) {
 			mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 				Status:   &status,
 				Currency: &currency,
-				Limit:    constant.MaxPaginationLimit,
+				Limit:    trcConstant.MaxPaginationLimit,
 				Cursor:   "",
 			}).Return(&model.ListLimitsResult{
 				Limits: []model.Limit{
@@ -4156,7 +4157,7 @@ func TestCheckLimits_EvaluatedAt_Consistency(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
@@ -4245,7 +4246,7 @@ func TestCheckLimits_NoActiveLimits_HasEvaluatedAt(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits:  []model.Limit{},
@@ -4410,7 +4411,7 @@ func TestLimitCheckerService_CheckLimits_UsesProvidedDB(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
 			{
@@ -4477,7 +4478,7 @@ func TestLimitCheckerService_CheckLimits_PropagatesDB(t *testing.T) {
 	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
 		Status:   &status,
 		Currency: &currency,
-		Limit:    constant.MaxPaginationLimit,
+		Limit:    trcConstant.MaxPaginationLimit,
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
 			{

@@ -19,8 +19,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 func TestRuleEvaluator_Evaluate(t *testing.T) {

@@ -17,7 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // newTestLimit creates a valid Limit for testing purposes.
@@ -1459,56 +1460,56 @@ func TestListLimitsFilter_ApplyDefaults(t *testing.T) {
 		{
 			name:           "empty filter applies all defaults",
 			filter:         ListLimitsFilter{},
-			expectedLimit:  constant.DefaultPaginationLimit,
+			expectedLimit:  trcConstant.DefaultPaginationLimit,
 			expectedSortBy: DefaultLimitSortField,
-			expectedOrder:  string(constant.Desc),
+			expectedOrder:  string(trcConstant.Desc),
 		},
 		{
 			name: "preserves valid values",
 			filter: ListLimitsFilter{
 				Limit:     50,
 				SortBy:    "name",
-				SortOrder: string(constant.Asc),
+				SortOrder: string(trcConstant.Asc),
 			},
 			expectedLimit:  50,
 			expectedSortBy: "name",
-			expectedOrder:  string(constant.Asc),
+			expectedOrder:  string(trcConstant.Asc),
 		},
 		{
 			name: "caps limit at MaxPaginationLimit",
 			filter: ListLimitsFilter{
 				Limit: 200,
 			},
-			expectedLimit:  constant.MaxPaginationLimit,
+			expectedLimit:  trcConstant.MaxPaginationLimit,
 			expectedSortBy: DefaultLimitSortField,
-			expectedOrder:  string(constant.Desc),
+			expectedOrder:  string(trcConstant.Desc),
 		},
 		{
 			name: "negative limit gets default",
 			filter: ListLimitsFilter{
 				Limit: -10,
 			},
-			expectedLimit:  constant.DefaultPaginationLimit,
+			expectedLimit:  trcConstant.DefaultPaginationLimit,
 			expectedSortBy: DefaultLimitSortField,
-			expectedOrder:  string(constant.Desc),
+			expectedOrder:  string(trcConstant.Desc),
 		},
 		{
 			name: "normalizes sort order to lowercase",
 			filter: ListLimitsFilter{
 				SortOrder: "ASC",
 			},
-			expectedLimit:  constant.DefaultPaginationLimit,
+			expectedLimit:  trcConstant.DefaultPaginationLimit,
 			expectedSortBy: DefaultLimitSortField,
-			expectedOrder:  string(constant.Asc),
+			expectedOrder:  string(trcConstant.Asc),
 		},
 		{
 			name: "preserves non-empty sort by value",
 			filter: ListLimitsFilter{
 				SortBy: "updated_at",
 			},
-			expectedLimit:  constant.DefaultPaginationLimit,
+			expectedLimit:  trcConstant.DefaultPaginationLimit,
 			expectedSortBy: "updated_at",
-			expectedOrder:  string(constant.Desc),
+			expectedOrder:  string(trcConstant.Desc),
 		},
 	}
 
@@ -1537,7 +1538,7 @@ func TestListLimitsFilter_Validate(t *testing.T) {
 				LimitType: testutil.Ptr(LimitTypeDaily),
 				Limit:     50,
 				SortBy:    "name",
-				SortOrder: string(constant.Asc),
+				SortOrder: string(trcConstant.Asc),
 			},
 			expectError: false,
 		},
@@ -1587,7 +1588,7 @@ func TestListLimitsFilter_Validate(t *testing.T) {
 		{
 			name: "rejects limit exceeding maximum",
 			filter: ListLimitsFilter{
-				Limit: constant.MaxPaginationLimit + 1,
+				Limit: trcConstant.MaxPaginationLimit + 1,
 			},
 			expectError: true,
 			errorIs:     constant.ErrPaginationLimitExceeded,

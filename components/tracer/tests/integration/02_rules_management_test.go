@@ -305,7 +305,7 @@ func TestCreateRule_2_1_5_RejectsMissingName(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0106", errResp.Code, "Error code should be TRC-0106 for name required")
+	assert.Equal(t, "0353", errResp.Code, "Error code should be TRC-0106 for name required")
 	assert.Equal(t, "Validation Error", errResp.Title, "Error title should be Validation Error")
 	assert.Equal(t, "name is required", errResp.Message, "Error message should indicate name is required")
 }
@@ -338,7 +338,7 @@ func TestCreateRule_2_1_6_RejectsMissingExpression(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0108", errResp.Code, "Error code should be TRC-0108 for expression required")
+	assert.Equal(t, "0355", errResp.Code, "Error code should be TRC-0108 for expression required")
 	assert.Equal(t, "Validation Error", errResp.Title, "Error title should be Validation Error")
 	assert.Equal(t, "expression is required", errResp.Message, "Error message should indicate expression is required")
 }
@@ -371,7 +371,7 @@ func TestCreateRule_2_1_7_RejectsMissingAction(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0110", errResp.Code, "Error code should be TRC-0110 for action required/invalid")
+	assert.Equal(t, "0357", errResp.Code, "Error code should be TRC-0110 for action required/invalid")
 	assert.Equal(t, "Validation Error", errResp.Title, "Error title should be Validation Error")
 	assert.Equal(t, "action is required and must be one of [ALLOW, DENY, REVIEW]", errResp.Message, "Error message should indicate action is required")
 }
@@ -403,7 +403,7 @@ func TestCreateRule_2_1_8_RejectsAllMissingRequiredFields(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0106", errResp.Code, "Error code should be TRC-0106 for name required (first missing field)")
+	assert.Equal(t, "0353", errResp.Code, "Error code should be TRC-0106 for name required (first missing field)")
 	assert.Equal(t, "Validation Error", errResp.Title, "Error title should be Validation Error")
 	assert.Equal(t, "name is required", errResp.Message, "Error message should indicate name is required")
 }
@@ -437,7 +437,7 @@ func TestCreateRule_2_1_9_RejectsEmptyName(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0106", errResp.Code, "Error code should be TRC-0106 for empty name validation error")
+	assert.Equal(t, "0353", errResp.Code, "Error code should be TRC-0106 for empty name validation error")
 	assert.Equal(t, "Validation Error", errResp.Title, "Error title should be Validation Error")
 	assert.Equal(t, "name is required", errResp.Message, "Error message should indicate name is required")
 }
@@ -493,7 +493,7 @@ func TestCreateRule_2_1_10_RejectsNameExceedingMaxLength(t *testing.T) {
 				})
 			} else {
 				errResp := testutil.ParseErrorResponse(t, respBody)
-				assert.Equal(t, "TRC-0107", errResp.Code)
+				assert.Equal(t, "0354", errResp.Code)
 				assert.Equal(t, "Validation Error", errResp.Title)
 				assert.Contains(t, errResp.Message, "name")
 			}
@@ -530,7 +530,7 @@ func TestCreateRule_2_1_11_RejectsEmptyExpression(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0108", errResp.Code, "Error code should be TRC-0108 for empty expression validation error")
+	assert.Equal(t, "0355", errResp.Code, "Error code should be TRC-0108 for empty expression validation error")
 	assert.Equal(t, "Validation Error", errResp.Title, "Error title should be Validation Error")
 	assert.Equal(t, "expression is required", errResp.Message, "Error message should indicate expression is required")
 }
@@ -604,7 +604,7 @@ func TestCreateRule_2_1_12_RejectsExpressionExceedingMaxLength(t *testing.T) {
 				})
 			} else {
 				errResp := testutil.ParseErrorResponse(t, respBody)
-				assert.Equal(t, "TRC-0109", errResp.Code)
+				assert.Equal(t, "0356", errResp.Code)
 				assert.Equal(t, "Validation Error", errResp.Title)
 				assert.Contains(t, errResp.Message, "expression")
 			}
@@ -665,7 +665,7 @@ func TestCreateRule_2_1_13_RejectsDescriptionExceedingMaxLength(t *testing.T) {
 				})
 			} else {
 				errResp := testutil.ParseErrorResponse(t, respBody)
-				assert.Equal(t, "TRC-0112", errResp.Code, "Error code should be TRC-0112 for description too long")
+				assert.Equal(t, "0359", errResp.Code, "Error code should be TRC-0112 for description too long")
 				assert.Equal(t, "Validation Error", errResp.Title)
 				assert.Contains(t, errResp.Message, "description")
 			}
@@ -706,7 +706,7 @@ func TestCreateRule_2_1_14_RejectsInvalidActionEnum(t *testing.T) {
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
-			assert.Equal(t, "TRC-0110", errResp.Code, "Error code should be TRC-0110 for invalid action enum")
+			assert.Equal(t, "0357", errResp.Code, "Error code should be TRC-0110 for invalid action enum")
 			assert.Equal(t, "Validation Error", errResp.Title)
 			assert.Contains(t, errResp.Message, "action")
 		})
@@ -751,7 +751,7 @@ func TestCreateRule_2_1_15_RejectsInvalidCELExpressionSyntax(t *testing.T) {
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
-			assert.Equal(t, "TRC-0083", errResp.Code)
+			assert.Equal(t, "0340", errResp.Code)
 			assert.Equal(t, "Bad Request", errResp.Title)
 			assert.Equal(t, "Invalid CEL expression syntax", errResp.Message)
 		})
@@ -794,7 +794,7 @@ func TestCreateRule_2_1_16_RejectsExpressionNotReturningBoolean(t *testing.T) {
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
-			assert.Equal(t, "TRC-0084", errResp.Code)
+			assert.Equal(t, "0341", errResp.Code)
 			assert.Equal(t, "Bad Request", errResp.Title)
 			assert.Equal(t, "Expression must evaluate to boolean", errResp.Message)
 		})
@@ -867,7 +867,7 @@ func TestCreateRule_2_1_18_RejectsDuplicateRuleName(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, resp2.StatusCode, "Response: %s", string(respBody2))
 
 	errResp := testutil.ParseErrorResponse(t, respBody2)
-	assert.Equal(t, "TRC-0303", errResp.Code)
+	assert.Equal(t, "0441", errResp.Code)
 	assert.Equal(t, "Conflict", errResp.Title)
 	assert.Equal(t, "Rule name already exists in this context", errResp.Message)
 }
@@ -906,7 +906,7 @@ func TestCreateRule_2_1_19_RejectsInvalidNameType(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			// TRC-0003 is returned for JSON type mismatch errors (bad request)
-			assert.Equal(t, "TRC-0003", errResp.Code)
+			assert.Equal(t, "0047", errResp.Code)
 			assert.Equal(t, "Bad Request", errResp.Title)
 			assert.Equal(t, "Invalid request body", errResp.Message)
 		})
@@ -931,7 +931,7 @@ func TestCreateRule_2_1_19_RejectsInvalidNameType(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 		errResp := testutil.ParseErrorResponse(t, respBody)
-		assert.Equal(t, "TRC-0106", errResp.Code, "Error code should be TRC-0106 for null name validation error")
+		assert.Equal(t, "0353", errResp.Code, "Error code should be TRC-0106 for null name validation error")
 		assert.Equal(t, "Validation Error", errResp.Title)
 		assert.Contains(t, errResp.Message, "name")
 	})
@@ -971,7 +971,7 @@ func TestCreateRule_2_1_20_RejectsInvalidExpressionType(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			// TRC-0003 is returned for JSON type mismatch errors (bad request)
-			assert.Equal(t, "TRC-0003", errResp.Code)
+			assert.Equal(t, "0047", errResp.Code)
 			assert.Equal(t, "Bad Request", errResp.Title)
 			assert.Equal(t, "Invalid request body", errResp.Message)
 		})
@@ -996,7 +996,7 @@ func TestCreateRule_2_1_20_RejectsInvalidExpressionType(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 		errResp := testutil.ParseErrorResponse(t, respBody)
-		assert.Equal(t, "TRC-0108", errResp.Code, "Error code should be TRC-0108 for null expression validation error")
+		assert.Equal(t, "0355", errResp.Code, "Error code should be TRC-0108 for null expression validation error")
 		assert.Equal(t, "Validation Error", errResp.Title)
 		assert.Contains(t, errResp.Message, "expression")
 	})
@@ -1036,7 +1036,7 @@ func TestCreateRule_2_1_21_RejectsInvalidActionType(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			// TRC-0003 is returned for JSON type mismatch errors (bad request)
-			assert.Equal(t, "TRC-0003", errResp.Code)
+			assert.Equal(t, "0047", errResp.Code)
 			assert.Equal(t, "Bad Request", errResp.Title)
 			assert.Equal(t, "Invalid request body", errResp.Message)
 		})
@@ -1061,7 +1061,7 @@ func TestCreateRule_2_1_21_RejectsInvalidActionType(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 		errResp := testutil.ParseErrorResponse(t, respBody)
-		assert.Equal(t, "TRC-0110", errResp.Code, "Error code should be TRC-0110 for null action validation error")
+		assert.Equal(t, "0357", errResp.Code, "Error code should be TRC-0110 for null action validation error")
 		assert.Equal(t, "Validation Error", errResp.Title)
 		assert.Contains(t, errResp.Message, "action")
 	})
@@ -1102,7 +1102,7 @@ func TestCreateRule_2_1_22_RejectsInvalidScopesType(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			// TRC-0003 is returned for JSON type mismatch errors (bad request)
-			assert.Equal(t, "TRC-0003", errResp.Code)
+			assert.Equal(t, "0047", errResp.Code)
 			assert.Equal(t, "Bad Request", errResp.Title)
 			assert.Equal(t, "Invalid request body", errResp.Message)
 		})
@@ -1141,7 +1141,7 @@ func TestCreateRule_2_1_23_RejectsScopeWithNoFieldsSet(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0111", errResp.Code, "Error code should be TRC-0111 for empty scope")
+	assert.Equal(t, "0358", errResp.Code, "Error code should be TRC-0111 for empty scope")
 	assert.Equal(t, "Validation Error", errResp.Title, "Error title should be Validation Error")
 	assert.Equal(t, "scope at index 0 must have at least one field set", errResp.Message, "Error message should indicate scope must have at least one field")
 }
@@ -1207,7 +1207,7 @@ func TestCreateRule_2_1_24_RejectsScopeWithInvalidUUIDFormat(t *testing.T) {
 			} else {
 				errResp := testutil.ParseErrorResponse(t, respBody)
 				// TRC-0003 is returned for JSON type mismatch errors (bad request)
-				assert.Equal(t, "TRC-0003", errResp.Code)
+				assert.Equal(t, "0047", errResp.Code)
 				assert.Equal(t, "Bad Request", errResp.Title)
 				assert.NotEmpty(t, errResp.Message)
 			}
@@ -1272,7 +1272,7 @@ func TestCreateRule_2_1_25_RejectsScopeWithInvalidTransactionTypeEnum(t *testing
 				})
 			} else {
 				errResp := testutil.ParseErrorResponse(t, respBody)
-				assert.Equal(t, "TRC-0111", errResp.Code, "Error code should be TRC-0111 for invalid transactionType enum")
+				assert.Equal(t, "0358", errResp.Code, "Error code should be TRC-0111 for invalid transactionType enum")
 				assert.Equal(t, "Validation Error", errResp.Title)
 				assert.Contains(t, errResp.Message, "transactionType")
 			}
@@ -1337,7 +1337,7 @@ func TestCreateRule_2_1_26_RejectsSubTypeExceedingMaxLength(t *testing.T) {
 				})
 			} else {
 				errResp := testutil.ParseErrorResponse(t, respBody)
-				assert.Equal(t, "TRC-0111", errResp.Code, "Error code should be TRC-0111 for scope field validation")
+				assert.Equal(t, "0358", errResp.Code, "Error code should be TRC-0111 for scope field validation")
 				assert.Equal(t, "Validation Error", errResp.Title)
 				assert.Contains(t, errResp.Message, "subType")
 			}
@@ -1400,7 +1400,7 @@ func TestCreateRule_2_1_27_RejectsScopesExceedingMaxCount(t *testing.T) {
 				})
 			} else {
 				errResp := testutil.ParseErrorResponse(t, respBody)
-				assert.Equal(t, "TRC-0113", errResp.Code, "Error code should be TRC-0113 for scopes exceeding max count")
+				assert.Equal(t, "0360", errResp.Code, "Error code should be TRC-0113 for scopes exceeding max count")
 				assert.Equal(t, "Validation Error", errResp.Title)
 				assert.Contains(t, errResp.Message, "scope")
 			}
@@ -1657,7 +1657,7 @@ func TestGetRule_2_2_3_Returns404ForNonExistentRuleID(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, getResp.StatusCode, "Response: %s", string(getRespBody))
 
 	errResp := testutil.ParseErrorResponse(t, getRespBody)
-	assert.Equal(t, "TRC-0100", errResp.Code)
+	assert.Equal(t, "0347", errResp.Code)
 	assert.Equal(t, "Not Found", errResp.Title)
 	assert.Equal(t, "Rule not found", errResp.Message)
 }
@@ -1689,7 +1689,7 @@ func TestGetRule_2_2_4_RejectsInvalidUUIDFormatInPath(t *testing.T) {
 			assert.Equal(t, http.StatusBadRequest, getResp.StatusCode, "Response: %s", string(getRespBody))
 
 			errResp := testutil.ParseErrorResponse(t, getRespBody)
-			assert.Equal(t, "TRC-0007", errResp.Code)
+			assert.Equal(t, "0065", errResp.Code)
 			assert.Equal(t, "Invalid Path Parameter", errResp.Title)
 			assert.Equal(t, "Invalid rule ID format", errResp.Message)
 		})
@@ -1723,7 +1723,7 @@ func TestGetRule_2_2_5_Returns404ForDeletedRule(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, getResp.StatusCode, "Response: %s", string(getRespBody))
 
 	errResp := testutil.ParseErrorResponse(t, getRespBody)
-	assert.Equal(t, "TRC-0100", errResp.Code)
+	assert.Equal(t, "0347", errResp.Code)
 	assert.Equal(t, "Not Found", errResp.Title)
 	assert.Equal(t, "Rule not found", errResp.Message)
 }
@@ -2052,7 +2052,7 @@ func TestListRules_2_3_5_RejectsDELETEDStatusFilter(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0006", errResp.Code)
+	assert.Equal(t, "0082", errResp.Code)
 	assert.Equal(t, "Bad Request", errResp.Title)
 	assert.Contains(t, errResp.Message, "DELETED")
 }
@@ -2350,7 +2350,7 @@ func TestListRules_2_3_12_RejectsInvalidSortByValue(t *testing.T) {
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
-			assert.Equal(t, "TRC-0043", errResp.Code)
+			assert.Equal(t, "0332", errResp.Code)
 			assert.Equal(t, "Bad Request", errResp.Title)
 			assert.Contains(t, errResp.Message, "sort_by")
 		})
@@ -2391,7 +2391,7 @@ func TestListRules_2_3_13_RejectsInvalidSortOrderValue(t *testing.T) {
 
 			if tc.expect == http.StatusBadRequest {
 				errResp := testutil.ParseErrorResponse(t, respBody)
-				assert.Equal(t, "TRC-0042", errResp.Code)
+				assert.Equal(t, "0081", errResp.Code)
 				assert.Equal(t, "Bad Request", errResp.Title)
 				assert.NotEmpty(t, errResp.Message)
 			}
@@ -2431,7 +2431,7 @@ func TestListRules_2_3_14_RejectsLimitBelowMinimum(t *testing.T) {
 
 			if tc.expect == http.StatusBadRequest {
 				errResp := testutil.ParseErrorResponse(t, respBody)
-				assert.Equal(t, "TRC-0041", errResp.Code)
+				assert.Equal(t, "0331", errResp.Code)
 				assert.Equal(t, "Bad Request", errResp.Title)
 				assert.NotEmpty(t, errResp.Message)
 			}
@@ -2470,7 +2470,7 @@ func TestListRules_2_3_15_RejectsLimitAboveMaximum(t *testing.T) {
 
 			if tc.expect == http.StatusBadRequest {
 				errResp := testutil.ParseErrorResponse(t, respBody)
-				assert.Equal(t, "TRC-0040", errResp.Code)
+				assert.Equal(t, "0080", errResp.Code)
 				assert.Equal(t, "Bad Request", errResp.Title)
 				assert.NotEmpty(t, errResp.Message)
 			}
@@ -2501,7 +2501,7 @@ func TestListRules_2_3_16_RejectsInvalidCursor(t *testing.T) {
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
-			assert.Equal(t, "TRC-0044", errResp.Code)
+			assert.Equal(t, "0333", errResp.Code)
 			assert.Equal(t, "Bad Request", errResp.Title)
 			assert.Equal(t, "Invalid pagination cursor", errResp.Message)
 		})
@@ -2540,7 +2540,7 @@ func TestListRules_2_3_17_RejectsInvalidActionFilterValue(t *testing.T) {
 
 			if tc.expect == http.StatusBadRequest {
 				errResp := testutil.ParseErrorResponse(t, respBody)
-				assert.Equal(t, "TRC-0006", errResp.Code)
+				assert.Equal(t, "0082", errResp.Code)
 				assert.Equal(t, "Bad Request", errResp.Title)
 				assert.Contains(t, errResp.Message, "action")
 			}
@@ -2580,7 +2580,7 @@ func TestListRules_2_3_18_RejectsInvalidStatusFilterValue(t *testing.T) {
 
 			if tc.expect == http.StatusBadRequest {
 				errResp := testutil.ParseErrorResponse(t, respBody)
-				assert.Equal(t, "TRC-0006", errResp.Code)
+				assert.Equal(t, "0082", errResp.Code)
 				assert.Equal(t, "Bad Request", errResp.Title)
 				assert.Contains(t, errResp.Message, "Status")
 			}
@@ -2963,7 +2963,7 @@ func TestUpdateRule_2_4_7_RejectsExpressionUpdateOnActiveRule(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0104", errResp.Code)
+	assert.Equal(t, "0351", errResp.Code)
 	assert.Equal(t, "Bad Request", errResp.Title)
 	assert.Equal(t, "Expression cannot be modified for non-DRAFT rules", errResp.Message)
 
@@ -3022,7 +3022,7 @@ func TestUpdateRule_2_4_8_RejectsExpressionUpdateOnInactiveRule(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0104", errResp.Code)
+	assert.Equal(t, "0351", errResp.Code)
 	assert.Equal(t, "Bad Request", errResp.Title)
 	assert.Equal(t, "Expression cannot be modified for non-DRAFT rules", errResp.Message)
 
@@ -3122,7 +3122,7 @@ func TestUpdateRule_2_4_10_RejectsEmptyUpdate(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0002", errResp.Code)
+	assert.Equal(t, "0009", errResp.Code)
 	assert.Equal(t, "Validation Error", errResp.Title)
 	assert.Equal(t, "At least one field must be provided for update", errResp.Message)
 
@@ -3188,7 +3188,7 @@ func TestUpdateRule_2_4_11_RejectsDuplicateName(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0303", errResp.Code)
+	assert.Equal(t, "0441", errResp.Code)
 	assert.Equal(t, "Conflict", errResp.Title)
 	assert.Equal(t, "Rule name already exists in this context", errResp.Message)
 }
@@ -3258,7 +3258,7 @@ func TestUpdateRule_2_4_13_RejectsInvalidUUIDInPath(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0007", errResp.Code) // Invalid path parameter (UUID format)
+	assert.Equal(t, "0065", errResp.Code) // Invalid path parameter (UUID format)
 	assert.Equal(t, "Invalid Path Parameter", errResp.Title)
 	assert.Equal(t, "Invalid rule ID format", errResp.Message)
 }
@@ -3290,7 +3290,7 @@ func TestUpdateRule_2_4_14_Returns404ForNonExistentRuleID(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0100", errResp.Code) // Rule not found
+	assert.Equal(t, "0347", errResp.Code) // Rule not found
 	assert.Equal(t, "Not Found", errResp.Title)
 	assert.Equal(t, "Rule not found", errResp.Message)
 }
@@ -3339,7 +3339,7 @@ func TestUpdateRule_2_4_15_RejectsNameExceedingMaxLength(t *testing.T) {
 
 			if tc.expect == http.StatusBadRequest {
 				errResp := testutil.ParseErrorResponse(t, respBody)
-				assert.Equal(t, "TRC-0107", errResp.Code)
+				assert.Equal(t, "0354", errResp.Code)
 				assert.Equal(t, "Validation Error", errResp.Title)
 				assert.Contains(t, errResp.Message, "name")
 			} else if tc.expect == http.StatusOK {
@@ -3386,7 +3386,7 @@ func TestUpdateRule_2_4_16_RejectsInvalidExpressionSyntaxOnUpdate(t *testing.T) 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0083", errResp.Code)
+	assert.Equal(t, "0340", errResp.Code)
 	assert.Equal(t, "Bad Request", errResp.Title)
 	assert.Equal(t, "Invalid CEL expression syntax", errResp.Message)
 }
@@ -3423,7 +3423,7 @@ func TestUpdateRule_2_4_17_RejectsExpressionNotReturningBooleanOnUpdate(t *testi
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0084", errResp.Code)
+	assert.Equal(t, "0341", errResp.Code)
 	assert.Equal(t, "Bad Request", errResp.Title)
 	assert.Equal(t, "Expression must evaluate to boolean", errResp.Message)
 }
@@ -3464,7 +3464,7 @@ func TestUpdateRule_2_4_18_RejectsInvalidActionEnumOnUpdate(t *testing.T) {
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
-			assert.Equal(t, "TRC-0110", errResp.Code)
+			assert.Equal(t, "0357", errResp.Code)
 			assert.Equal(t, "Validation Error", errResp.Title)
 			assert.Contains(t, errResp.Message, "action")
 		})
@@ -3505,7 +3505,7 @@ func TestUpdateRule_2_4_19_RejectsInvalidScopeFormatOnUpdate(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0111", errResp.Code)
+	assert.Equal(t, "0358", errResp.Code)
 	assert.Equal(t, "Validation Error", errResp.Title)
 	assert.Contains(t, strings.ToLower(errResp.Message), "scope")
 }
@@ -3728,7 +3728,7 @@ func TestActivateRule_2_5_4_RevalidatesExpressionOnActivation(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.True(t, errResp.Code == "TRC-0083" || errResp.Code == "TRC-0084",
+	assert.True(t, errResp.Code == "0340" || errResp.Code == "0341",
 		"Expected TRC-0083 or TRC-0084, got %s", errResp.Code)
 	assert.Equal(t, "Bad Request", errResp.Title)
 	assert.NotEmpty(t, errResp.Message)
@@ -3757,7 +3757,7 @@ func TestActivateRule_2_5_5_RejectsActivationOfDeletedRule(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0100", errResp.Code)
+	assert.Equal(t, "0347", errResp.Code)
 	assert.Equal(t, "Not Found", errResp.Title)
 	assert.Equal(t, "Rule not found", errResp.Message)
 }
@@ -3781,7 +3781,7 @@ func TestActivateRule_2_5_6_RejectsInvalidUUIDInPath(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0007", errResp.Code) // Invalid path parameter (UUID format)
+	assert.Equal(t, "0065", errResp.Code) // Invalid path parameter (UUID format)
 	assert.Equal(t, "Invalid Path Parameter", errResp.Title)
 	assert.Equal(t, "Invalid rule ID format", errResp.Message)
 }
@@ -3805,7 +3805,7 @@ func TestActivateRule_2_5_7_Returns404ForNonExistentRuleID(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0100", errResp.Code) // Rule not found
+	assert.Equal(t, "0347", errResp.Code) // Rule not found
 	assert.Equal(t, "Not Found", errResp.Title)
 	assert.Equal(t, "Rule not found", errResp.Message)
 }
@@ -3991,7 +3991,7 @@ func TestDeactivateRule_2_6_4_RejectsDeactivationOfDeletedRule(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0100", errResp.Code)
+	assert.Equal(t, "0347", errResp.Code)
 	assert.Equal(t, "Not Found", errResp.Title)
 	assert.Equal(t, "Rule not found", errResp.Message)
 }
@@ -4015,7 +4015,7 @@ func TestDeactivateRule_2_6_5_RejectsInvalidUUIDInPath(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0007", errResp.Code) // Invalid path parameter (UUID format)
+	assert.Equal(t, "0065", errResp.Code) // Invalid path parameter (UUID format)
 	assert.Equal(t, "Invalid Path Parameter", errResp.Title)
 	assert.Equal(t, "Invalid rule ID format", errResp.Message)
 }
@@ -4039,7 +4039,7 @@ func TestDeactivateRule_2_6_6_Returns404ForNonExistentRuleID(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0100", errResp.Code) // Rule not found
+	assert.Equal(t, "0347", errResp.Code) // Rule not found
 	assert.Equal(t, "Not Found", errResp.Title)
 	assert.Equal(t, "Rule not found", errResp.Message)
 }
@@ -4153,7 +4153,7 @@ func TestDeleteRule_2_7_3_RejectsDeletionOfActiveRule(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0102", errResp.Code) // Invalid rule status transition
+	assert.Equal(t, "0349", errResp.Code) // Invalid rule status transition
 	assert.Equal(t, "Invalid State Transition", errResp.Title)
 	assert.Equal(t, "invalid status transition from ACTIVE to DELETED", errResp.Message)
 }
@@ -4182,7 +4182,7 @@ func TestDeleteRule_2_7_4_RejectsDeletionOfAlreadyDeletedRule(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0100", errResp.Code) // Rule not found
+	assert.Equal(t, "0347", errResp.Code) // Rule not found
 	assert.Equal(t, "Not Found", errResp.Title)
 	assert.Equal(t, "Rule not found", errResp.Message)
 }
@@ -4206,7 +4206,7 @@ func TestDeleteRule_2_7_5_RejectsInvalidUUIDInPath(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0007", errResp.Code) // Invalid path parameter (UUID format)
+	assert.Equal(t, "0065", errResp.Code) // Invalid path parameter (UUID format)
 	assert.Equal(t, "Invalid Path Parameter", errResp.Title)
 	assert.Equal(t, "Invalid rule ID format", errResp.Message)
 }
@@ -4230,7 +4230,7 @@ func TestDeleteRule_2_7_6_Returns404ForNonExistentRuleID(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0100", errResp.Code) // Rule not found
+	assert.Equal(t, "0347", errResp.Code) // Rule not found
 	assert.Equal(t, "Not Found", errResp.Title)
 	assert.Equal(t, "Rule not found", errResp.Message)
 }
@@ -4415,7 +4415,7 @@ func TestDraftRule_2_8_4_RejectsInvalidUUIDInPath(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0007", errResp.Code) // Invalid path parameter (UUID format)
+	assert.Equal(t, "0065", errResp.Code) // Invalid path parameter (UUID format)
 	assert.Equal(t, "Invalid Path Parameter", errResp.Title)
 	assert.Equal(t, "Invalid rule ID format", errResp.Message)
 }
@@ -4439,7 +4439,7 @@ func TestDraftRule_2_8_5_Returns404ForNonExistentRuleID(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0100", errResp.Code) // Rule not found
+	assert.Equal(t, "0347", errResp.Code) // Rule not found
 	assert.Equal(t, "Not Found", errResp.Title)
 	assert.Equal(t, "Rule not found", errResp.Message)
 }
@@ -4498,7 +4498,7 @@ func TestDraftRule_2_8_7_RejectsDraftOfDeletedRule(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0100", errResp.Code) // Rule not found
+	assert.Equal(t, "0347", errResp.Code) // Rule not found
 	assert.Equal(t, "Not Found", errResp.Title)
 	assert.Equal(t, "Rule not found", errResp.Message)
 }

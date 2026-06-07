@@ -14,7 +14,8 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // CheckLimitsInput represents the input for limit checking operations.
@@ -224,10 +225,10 @@ func CalculatePeriodKey(limitType LimitType, timestamp time.Time) (string, error
 // CalculateScopeKey computes a deterministic scope key for usage tracking.
 // Format: "prefix:uuid|prefix:uuid|..." ordered alphabetically by prefix.
 // Prefixes: acct (account), merch (merchant), port (portfolio), seg (segment).
-// Returns constant.GlobalScopeKey for empty scopes.
+// Returns trcConstant.GlobalScopeKey for empty scopes.
 func CalculateScopeKey(scope *Scope) string {
 	if scope == nil || scope.IsEmpty() {
-		return constant.GlobalScopeKey
+		return trcConstant.GlobalScopeKey
 	}
 
 	var parts []string

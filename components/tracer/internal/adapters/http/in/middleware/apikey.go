@@ -13,7 +13,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // HeaderAPIKey is the HTTP header name for API key authentication.

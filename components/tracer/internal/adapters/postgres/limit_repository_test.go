@@ -23,9 +23,10 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // setupLimitRepositoryMockDB creates a gomock controller, mock DBConnection, and sqlmock for testing.
@@ -594,22 +595,22 @@ func TestLimitRepository_normalizeListFilters(t *testing.T) {
 		{
 			name:          "nil filters returns default limit",
 			filters:       nil,
-			expectedLimit: constant.DefaultPaginationLimit,
+			expectedLimit: trcConstant.DefaultPaginationLimit,
 		},
 		{
 			name:          "zero limit uses default",
 			filters:       &model.ListLimitsFilter{Limit: 0},
-			expectedLimit: constant.DefaultPaginationLimit,
+			expectedLimit: trcConstant.DefaultPaginationLimit,
 		},
 		{
 			name:          "negative limit uses default",
 			filters:       &model.ListLimitsFilter{Limit: -5},
-			expectedLimit: constant.DefaultPaginationLimit,
+			expectedLimit: trcConstant.DefaultPaginationLimit,
 		},
 		{
 			name:          "limit exceeding max is capped",
 			filters:       &model.ListLimitsFilter{Limit: 500},
-			expectedLimit: constant.MaxPaginationLimit,
+			expectedLimit: trcConstant.MaxPaginationLimit,
 		},
 		{
 			name:          "valid limit is preserved",
@@ -618,8 +619,8 @@ func TestLimitRepository_normalizeListFilters(t *testing.T) {
 		},
 		{
 			name:          "limit at max boundary is preserved",
-			filters:       &model.ListLimitsFilter{Limit: constant.MaxPaginationLimit},
-			expectedLimit: constant.MaxPaginationLimit,
+			filters:       &model.ListLimitsFilter{Limit: trcConstant.MaxPaginationLimit},
+			expectedLimit: trcConstant.MaxPaginationLimit,
 		},
 	}
 

@@ -21,10 +21,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // LimitRepository implements limitsvc.LimitRepository using PostgreSQL with Squirrel query builder.
@@ -239,7 +240,7 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 	if fetchLimit <= 0 {
 		// This should never happen due to upstream validation, but protect against
 		// potential bypass or refactoring. Use default limit + 1 as safe fallback.
-		fetchLimit = constant.DefaultPaginationLimit + 1
+		fetchLimit = trcConstant.DefaultPaginationLimit + 1
 	}
 
 	query = query.Limit(uint64(fetchLimit)) // #nosec G115 - fetchLimit validated positive above
@@ -643,13 +644,13 @@ func (r *LimitRepository) buildNextCursor(lmt *model.Limit, sortBy, sortOrder st
 // Handles nil filter, zero/negative limit, and limit bounds.
 func (r *LimitRepository) normalizeListFilters(filters *model.ListLimitsFilter) *model.ListLimitsFilter {
 	if filters == nil {
-		return &model.ListLimitsFilter{Limit: constant.DefaultPaginationLimit}
+		return &model.ListLimitsFilter{Limit: trcConstant.DefaultPaginationLimit}
 	}
 
 	if filters.Limit <= 0 {
-		filters.Limit = constant.DefaultPaginationLimit
-	} else if filters.Limit > constant.MaxPaginationLimit {
-		filters.Limit = constant.MaxPaginationLimit
+		filters.Limit = trcConstant.DefaultPaginationLimit
+	} else if filters.Limit > trcConstant.MaxPaginationLimit {
+		filters.Limit = trcConstant.MaxPaginationLimit
 	}
 
 	return filters

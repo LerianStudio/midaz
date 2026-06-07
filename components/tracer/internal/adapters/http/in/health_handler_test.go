@@ -335,7 +335,6 @@ func TestDefaultHealthCheckTimeout(t *testing.T) {
 	t.Run("default timeout is 3 seconds", func(t *testing.T) {
 		assert.Equal(t, 3*time.Second, DefaultHealthCheckTimeout)
 	})
-
 }
 
 func TestReadiness_CacheNotReady_Returns503Down(t *testing.T) {

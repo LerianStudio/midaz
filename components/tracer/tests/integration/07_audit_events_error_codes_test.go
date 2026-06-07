@@ -85,7 +85,7 @@ func TestGetAuditEvent_InvalidUUID_ReturnsTRC0007(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			assert.Equal(t, "TRC-0007", errResp.Code, "Test case: %s - Expected TRC-0007 for invalid UUID", tc.desc)
+			assert.Equal(t, "0065", errResp.Code, "Test case: %s - Expected TRC-0007 for invalid UUID", tc.desc)
 			assert.Equal(t, "Invalid Path Parameter", errResp.Title, "Test case: %s", tc.desc)
 			assert.Equal(t, "Invalid event ID format", errResp.Message, "Test case: %s", tc.desc)
 		})
@@ -136,7 +136,7 @@ func TestGetAuditEvent_NonExistentUUID_ReturnsTRC0140(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			assert.Equal(t, "TRC-0140", errResp.Code, "Test case: %s - Expected TRC-0140 for audit event not found", tc.desc)
+			assert.Equal(t, "0381", errResp.Code, "Test case: %s - Expected TRC-0140 for audit event not found", tc.desc)
 			assert.Equal(t, "Not Found", errResp.Title, "Test case: %s", tc.desc)
 			assert.Equal(t, "Audit event not found", errResp.Message, "Test case: %s", tc.desc)
 		})
@@ -186,7 +186,7 @@ func TestListAuditEvents_InvalidSortColumn_ReturnsTRC0043(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			assert.Equal(t, "TRC-0043", errResp.Code, "Test case: %s - Expected TRC-0043 for invalid sort column", tc.desc)
+			assert.Equal(t, "0332", errResp.Code, "Test case: %s - Expected TRC-0043 for invalid sort column", tc.desc)
 			assert.Equal(t, "Validation Error", errResp.Title, "Test case: %s", tc.desc)
 		})
 	}
@@ -230,7 +230,7 @@ func TestListAuditEvents_InvalidCursor_ReturnsTRC0044(t *testing.T) {
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Test case: %s - Response: %s", tc.desc, string(respBody))
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
-			assert.Equal(t, "TRC-0044", errResp.Code, "Test case: %s - Expected TRC-0044 for invalid cursor", tc.desc)
+			assert.Equal(t, "0333", errResp.Code, "Test case: %s - Expected TRC-0044 for invalid cursor", tc.desc)
 			assert.Equal(t, "Bad Request", errResp.Title, "Test case: %s", tc.desc)
 		})
 	}
@@ -253,77 +253,77 @@ func TestListAuditEvents_InvalidFilters_ReturnsValidationError(t *testing.T) {
 		{
 			name:          "invalid_event_type",
 			queryParams:   "event_type=INVALID_EVENT_TYPE",
-			expectedCode:  "TRC-0001",
+			expectedCode:  "0053",
 			expectedTitle: "Validation Error",
 			desc:          "Invalid event type enum value",
 		},
 		{
 			name:          "invalid_action",
 			queryParams:   "action=INVALID_ACTION",
-			expectedCode:  "TRC-0001",
+			expectedCode:  "0053",
 			expectedTitle: "Validation Error",
 			desc:          "Invalid action enum value",
 		},
 		{
 			name:          "invalid_result",
 			queryParams:   "result=INVALID_RESULT",
-			expectedCode:  "TRC-0001",
+			expectedCode:  "0053",
 			expectedTitle: "Validation Error",
 			desc:          "Invalid result enum value",
 		},
 		{
 			name:          "invalid_resource_type",
 			queryParams:   "resource_type=invalid_type",
-			expectedCode:  "TRC-0001",
+			expectedCode:  "0053",
 			expectedTitle: "Validation Error",
 			desc:          "Invalid resource type",
 		},
 		{
 			name:          "invalid_start_date_format",
 			queryParams:   "start_date=not-a-date",
-			expectedCode:  "TRC-0020",
+			expectedCode:  "0077",
 			expectedTitle: "Validation Error",
 			desc:          "Invalid start date format",
 		},
 		{
 			name:          "invalid_end_date_format",
 			queryParams:   "end_date=2024-13-45",
-			expectedCode:  "TRC-0020",
+			expectedCode:  "0077",
 			expectedTitle: "Validation Error",
 			desc:          "Invalid end date format",
 		},
 		{
 			name:          "limit_negative",
 			queryParams:   "limit=-5",
-			expectedCode:  "TRC-0041",
+			expectedCode:  "0331",
 			expectedTitle: "Validation Error",
 			desc:          "Negative limit is invalid",
 		},
 		{
 			name:          "limit_zero",
 			queryParams:   "limit=0",
-			expectedCode:  "TRC-0041",
+			expectedCode:  "0331",
 			expectedTitle: "Validation Error",
 			desc:          "Zero limit is invalid (must be at least 1)",
 		},
 		{
 			name:          "limit_exceeds_max",
 			queryParams:   "limit=2000",
-			expectedCode:  "TRC-0040",
+			expectedCode:  "0080",
 			expectedTitle: "Validation Error",
 			desc:          "Limit exceeds maximum allowed (1000)",
 		},
 		{
 			name:          "invalid_transaction_type",
 			queryParams:   "transaction_type=INVALID_TYPE",
-			expectedCode:  "TRC-0001",
+			expectedCode:  "0053",
 			expectedTitle: "Validation Error",
 			desc:          "Invalid transaction type enum value",
 		},
 		{
 			name:          "invalid_sort_order",
 			queryParams:   "sort_order=INVALID",
-			expectedCode:  "TRC-0042",
+			expectedCode:  "0081",
 			expectedTitle: "Validation Error",
 			desc:          "Invalid sort order value (must be ASC or DESC)",
 		},
@@ -413,7 +413,7 @@ func TestListAuditEvents_CursorWithSortParams_ReturnsTRC0045(t *testing.T) {
 
 		errResp := testutil.ParseErrorResponse(t, respBody)
 
-		assert.Equal(t, "TRC-0045", errResp.Code, "Expected TRC-0045 for cursor with sortBy")
+		assert.Equal(t, "0334", errResp.Code, "Expected TRC-0045 for cursor with sortBy")
 		assert.Equal(t, "Validation Error", errResp.Title, "Expected 'Validation Error' title")
 	})
 
@@ -434,7 +434,7 @@ func TestListAuditEvents_CursorWithSortParams_ReturnsTRC0045(t *testing.T) {
 
 		errResp := testutil.ParseErrorResponse(t, respBody)
 
-		assert.Equal(t, "TRC-0045", errResp.Code, "Expected TRC-0045 for cursor with sortOrder")
+		assert.Equal(t, "0334", errResp.Code, "Expected TRC-0045 for cursor with sortOrder")
 		assert.Equal(t, "Validation Error", errResp.Title, "Expected 'Validation Error' title")
 	})
 
@@ -455,7 +455,7 @@ func TestListAuditEvents_CursorWithSortParams_ReturnsTRC0045(t *testing.T) {
 
 		errResp := testutil.ParseErrorResponse(t, respBody)
 
-		assert.Equal(t, "TRC-0045", errResp.Code, "Expected TRC-0045 for cursor with both sort params")
+		assert.Equal(t, "0334", errResp.Code, "Expected TRC-0045 for cursor with both sort params")
 		assert.Equal(t, "Validation Error", errResp.Title, "Expected 'Validation Error' title")
 	})
 }
@@ -508,7 +508,7 @@ func TestVerifyAuditEvent_InvalidUUID_ReturnsTRC0007(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			assert.Equal(t, "TRC-0007", errResp.Code, "Test case: %s - Expected TRC-0007 for invalid UUID", tc.desc)
+			assert.Equal(t, "0065", errResp.Code, "Test case: %s - Expected TRC-0007 for invalid UUID", tc.desc)
 			assert.Equal(t, "Invalid Path Parameter", errResp.Title, "Test case: %s", tc.desc)
 			assert.Equal(t, "Invalid event ID format", errResp.Message, "Test case: %s", tc.desc)
 		})
@@ -554,7 +554,7 @@ func TestVerifyAuditEvent_NonExistentUUID_ReturnsTRC0140(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			assert.Equal(t, "TRC-0140", errResp.Code, "Test case: %s - Expected TRC-0140 for audit event not found", tc.desc)
+			assert.Equal(t, "0381", errResp.Code, "Test case: %s - Expected TRC-0140 for audit event not found", tc.desc)
 			assert.Equal(t, "Not Found", errResp.Title, "Test case: %s", tc.desc)
 			assert.Equal(t, "Audit event not found", errResp.Message, "Test case: %s", tc.desc)
 		})
@@ -684,13 +684,13 @@ func TestDateRangeValidation_ConsistentAcrossEndpoints(t *testing.T) {
 		{
 			name:            "audit-events",
 			url:             fmt.Sprintf("%s/v1/audit-events?start_date=%s&end_date=%s", baseURL, startDate, endDate),
-			expectedCode:    "TRC-0023",
+			expectedCode:    "0083",
 			expectedMessage: "end_date must be on or after start_date",
 		},
 		{
 			name:            "transaction-validations",
 			url:             fmt.Sprintf("%s/v1/validations?start_date=%s&end_date=%s", baseURL, startDate, endDate),
-			expectedCode:    "TRC-0023",
+			expectedCode:    "0083",
 			expectedMessage: "end_date must be on or after start_date",
 		},
 	}

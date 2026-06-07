@@ -659,7 +659,7 @@ func TestValidation_1_1_47_RejectsAmountExceedingCELPrecision(t *testing.T) {
 
 	var errResp map[string]interface{}
 	require.NoError(t, json.Unmarshal(body, &errResp), "Response body should be valid JSON")
-	assert.Equal(t, "TRC-0089", errResp["code"], "Error code should be TRC-0089 (amount exceeds precision)")
+	assert.Equal(t, "0346", errResp["code"], "Error code should be TRC-0089 (amount exceeds precision)")
 	assert.Equal(t, "Bad Request", errResp["title"])
 }
 
@@ -809,7 +809,7 @@ func TestValidation_1_1_50_VeryOldTimestamp(t *testing.T) {
 		"Very old timestamp should be rejected (max age 24h): %s", string(body))
 
 	errorResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "TRC-0228", errorResp.Code,
+	assert.Equal(t, "0421", errorResp.Code,
 		"Error code should be TRC-0228 for timestamp too far in the past")
 }
 
@@ -839,7 +839,7 @@ func TestValidation_1_1_51_LowercaseCurrencyRejected(t *testing.T) {
 
 	// Verify structured error response
 	errResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "TRC-0224", errResp.Code, "Error response should have invalid currency error code")
+	assert.Equal(t, "0417", errResp.Code, "Error response should have invalid currency error code")
 	assert.Equal(t, "Validation Error", errResp.Title, "Error response should have validation error title")
 	assert.Equal(t, "currency must be valid ISO 4217 code (e.g., BRL, USD)", errResp.Message, "Error message should indicate valid currency format")
 }

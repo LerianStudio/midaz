@@ -462,7 +462,8 @@ func TestAuditEventRecording_ValidationEvent(t *testing.T) {
 		gomock.Any(),
 		gomock.Any(),
 	).DoAndReturn(func(ctx context.Context, valID uuid.UUID, req map[string]any,
-		evalRes model.EvaluationResult, respCtx model.ValidationResponseContext) error {
+		evalRes model.EvaluationResult, respCtx model.ValidationResponseContext,
+	) error {
 		capturedRequest = req
 		capturedEvalResult = evalRes
 		return nil

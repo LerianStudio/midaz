@@ -15,8 +15,8 @@ import (
 
 	pgdbMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 func TestNewDeactivateRuleService_NilRepository(t *testing.T) {
@@ -287,7 +287,7 @@ func TestDeactivateRule_NilRuleFromRepo(t *testing.T) {
 
 	require.Error(t, err)
 	require.Nil(t, result, "rule pointer must be nil when repo returns (nil, nil)")
-	assert.ErrorIs(t, err, constant.ErrRuleNotFound, "guard must surface ErrRuleNotFound, wrapped via ValidateBusinessError")
+	assertBusinessCode(t, err, constant.ErrRuleNotFound.Error())
 }
 
 func TestDeactivateRule_AlreadyInactive_Idempotent(t *testing.T) {

@@ -23,9 +23,10 @@ import (
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // calculateCounterExpiresAt calculates when a usage counter should expire based on limit type.
@@ -39,7 +40,7 @@ func calculateCounterExpiresAt(limitType model.LimitType, resetAt *time.Time, cu
 			return nil
 		}
 
-		exp := resetAt.AddDate(0, 0, constant.CounterRetentionDays)
+		exp := resetAt.AddDate(0, 0, trcConstant.CounterRetentionDays)
 
 		return &exp
 
@@ -48,7 +49,7 @@ func calculateCounterExpiresAt(limitType model.LimitType, resetAt *time.Time, cu
 			return nil
 		}
 
-		exp := customEndDate.AddDate(0, 0, constant.CounterRetentionDays)
+		exp := customEndDate.AddDate(0, 0, trcConstant.CounterRetentionDays)
 
 		return &exp
 
@@ -499,7 +500,7 @@ func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, input *mo
 		filter := &model.ListLimitsFilter{
 			Status:   &status,
 			Currency: &currency,
-			Limit:    constant.MaxPaginationLimit,
+			Limit:    trcConstant.MaxPaginationLimit,
 			Cursor:   cursor,
 		}
 
@@ -586,10 +587,10 @@ func scopeMatchesLimit(limitScopes []model.Scope, txScope *model.Scope) bool {
 // calculateScopeKeyFromScopes computes the scope key from a list of scopes based on the limit's scope, not the transaction's.
 // This prevents counter fragmentation when limits have different scope granularities.
 // Used for both CheckLimits and rollback operations.
-// Returns the first matching scope's key, or constant.GlobalScopeKey if no scopes.
+// Returns the first matching scope's key, or trcConstant.GlobalScopeKey if no scopes.
 func calculateScopeKeyFromScopes(scopes []model.Scope, txScope *model.Scope) string {
 	if len(scopes) == 0 {
-		return constant.GlobalScopeKey
+		return trcConstant.GlobalScopeKey
 	}
 
 	// Find the first scope that matches the transaction
@@ -612,7 +613,7 @@ func calculateScopeKeyFromScopes(scopes []model.Scope, txScope *model.Scope) str
 // Each scope is wrapped in parentheses; multiple scopes (OR alternatives) are joined with " OR ".
 func formatScopeString(scopes []model.Scope) string {
 	if len(scopes) == 0 {
-		return constant.GlobalScopeKey
+		return trcConstant.GlobalScopeKey
 	}
 
 	var scopeGroups []string
@@ -650,7 +651,7 @@ func formatScopeString(scopes []model.Scope) string {
 	}
 
 	if len(scopeGroups) == 0 {
-		return constant.GlobalScopeKey
+		return trcConstant.GlobalScopeKey
 	}
 
 	return strings.Join(scopeGroups, " OR ")

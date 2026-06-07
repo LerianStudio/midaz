@@ -145,7 +145,7 @@ func TestValidation_Metadata_ExceedsMaxEntries(t *testing.T) {
 		"Request with 51 metadata entries should be rejected. Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0063", errResp.Code, "Expected TRC-0063 for metadata entries exceeded")
+	assert.Equal(t, "0335", errResp.Code, "Expected TRC-0063 for metadata entries exceeded")
 	assert.Equal(t, "Validation Error", errResp.Title, "Error title should be Validation Error")
 	assert.Equal(t, "metadata exceeds maximum of 50 entries", errResp.Message, "Error message should match exactly")
 }
@@ -227,7 +227,7 @@ func TestValidation_Metadata_KeyWithInvalidCharacters(t *testing.T) {
 				"Test case: %s - Response: %s", tc.description, string(respBody))
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
-			assert.Equal(t, "TRC-0064", errResp.Code,
+			assert.Equal(t, "0336", errResp.Code,
 				"Test case: %s - Expected TRC-0064 for invalid metadata key characters", tc.description)
 			assert.Equal(t, "Validation Error", errResp.Title, "Error title should be Validation Error")
 			assert.Equal(t, "metadata key contains invalid characters (only alphanumeric and underscore allowed)", errResp.Message, "Error message should match exactly")
@@ -280,7 +280,7 @@ func TestValidation_Metadata_KeyExceedsMaxLength(t *testing.T) {
 		"Metadata key with 65 characters should be rejected. Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0060", errResp.Code, "Expected TRC-0060 for metadata key length exceeded")
+	assert.Equal(t, "0050", errResp.Code, "Expected TRC-0060 for metadata key length exceeded")
 	assert.Equal(t, "Validation Error", errResp.Title, "Error title should be Validation Error")
 	assert.Equal(t, "metadata key exceeds maximum length of 64 characters", errResp.Message, "Error message should match exactly")
 }

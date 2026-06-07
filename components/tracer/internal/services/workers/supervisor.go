@@ -20,8 +20,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/cache"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/metrics"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/resilience"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // defaultMaxTenantWorkers mirrors the MULTI_TENANT_MAX_TENANT_POOLS default.
@@ -173,9 +174,8 @@ type WorkerSupervisor struct {
 // Callers (HTTP middleware, tenant event handlers) can match it via errors.Is
 // to surface a clean 503 / drop the event without retrying.
 //
-// Aliased to constant.ErrSupervisorShuttingDown (TRC-0334) so the wire-level
-// error carries a stable TRC code while existing callers keep using the
-// package-local symbol.
+// Aliased to constant.ErrSupervisorShuttingDown so the wire-level error carries
+// a stable code while existing callers keep using the package-local symbol.
 var ErrSupervisorShutdown = constant.ErrSupervisorShuttingDown
 
 // tenantWorkerSet holds the running workers for a single tenant plus the
@@ -359,7 +359,7 @@ func (s *WorkerSupervisor) EnsureWorkers(ctx context.Context, tenantID string) e
 			libLog.Int("max_tenants", s.maxTenants),
 		).Log(ctx, libLog.LevelWarn, "Tenant worker cap reached, declining to spawn workers")
 
-		s.metrics.IncConnectionErrors(ctx, tenantID, constant.ModuleName, "tenant_cap_reached")
+		s.metrics.IncConnectionErrors(ctx, tenantID, trcConstant.ModuleName, "tenant_cap_reached")
 
 		// Wrap the sentinel so the HTTP middleware (M18) can match via
 		// errors.Is while still preserving the cap value in the message.
@@ -379,7 +379,7 @@ func (s *WorkerSupervisor) EnsureWorkers(ctx context.Context, tenantID string) e
 		s.ruleCache, s.syncRepo, s.compiler, s.syncConfig, s.logger, cb, s.clock, tenantID, s.poolResolver,
 	)
 	if err != nil {
-		s.metrics.IncConnectionErrors(ctx, tenantID, constant.ModuleName, "sync_worker_init")
+		s.metrics.IncConnectionErrors(ctx, tenantID, trcConstant.ModuleName, "sync_worker_init")
 
 		return fmt.Errorf("supervisor: new sync worker for tenant %q: %w", tenantID, err)
 	}
@@ -395,7 +395,7 @@ func (s *WorkerSupervisor) EnsureWorkers(ctx context.Context, tenantID string) e
 			s.usageRepo, s.cleanupConfig, s.logger, s.clock, tenantID, s.poolResolver,
 		)
 		if err != nil {
-			s.metrics.IncConnectionErrors(ctx, tenantID, constant.ModuleName, "cleanup_worker_init")
+			s.metrics.IncConnectionErrors(ctx, tenantID, trcConstant.ModuleName, "cleanup_worker_init")
 
 			return fmt.Errorf("supervisor: new cleanup worker for tenant %q: %w", tenantID, err)
 		}
@@ -413,7 +413,7 @@ func (s *WorkerSupervisor) EnsureWorkers(ctx context.Context, tenantID string) e
 			s.reaperRepo, s.reaperAuditor, s.reaperConfig, s.logger, s.clock, tenantID, s.poolResolver,
 		)
 		if err != nil {
-			s.metrics.IncConnectionErrors(ctx, tenantID, constant.ModuleName, "reaper_worker_init")
+			s.metrics.IncConnectionErrors(ctx, tenantID, trcConstant.ModuleName, "reaper_worker_init")
 
 			return fmt.Errorf("supervisor: new reservation reaper worker for tenant %q: %w", tenantID, err)
 		}
@@ -511,8 +511,8 @@ func (s *WorkerSupervisor) EnsureWorkers(ctx context.Context, tenantID string) e
 	// tenant_connections_total is a cumulative counter (monotonic) while
 	// tenant_consumers_active is a gauge that must match the live worker set
 	// count. Paired with the Dec in StopWorkers' LoadAndDelete block.
-	s.metrics.IncConnectionsTotal(ctx, tenantID, constant.ModuleName)
-	s.metrics.IncConsumersActive(ctx, tenantID, constant.ModuleName)
+	s.metrics.IncConnectionsTotal(ctx, tenantID, trcConstant.ModuleName)
+	s.metrics.IncConsumersActive(ctx, tenantID, trcConstant.ModuleName)
 
 	return nil
 }
@@ -540,7 +540,7 @@ func (s *WorkerSupervisor) StopWorkers(tenantID string) {
 	// exited — dashboards that drive "active consumers" alerts rely on the
 	// invariant that the gauge value matches the number of live worker sets.
 	s.activeCount.Add(-1)
-	s.metrics.DecConsumersActive(context.Background(), tenantID, constant.ModuleName)
+	s.metrics.DecConsumersActive(context.Background(), tenantID, trcConstant.ModuleName)
 
 	s.logger.With(
 		libLog.String("operation", "supervisor.stop_workers"),

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -18,9 +17,10 @@ import (
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // DeleteLimitCommand handles limit deletion (soft-delete).
@@ -158,7 +158,7 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) error {
 			libLog.String("limit.status_to", "DELETED"),
 		).Log(ctx, libLog.LevelWarn, "Invalid transition")
 
-		return libCommons.ValidateBusinessError(constant.ErrLimitInvalidStatusChange, err.Error())
+		return pkg.ValidateBusinessError(constant.ErrLimitInvalidStatusChange, constant.EntityLimit)
 	}
 
 	// Persist status change + audit event atomically.

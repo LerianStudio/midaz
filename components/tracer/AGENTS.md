@@ -101,7 +101,7 @@ Always start with tracking + span. Enrich logger with trace context.
 - Cursor-based pagination (no offset)
 
 ### Error Handling
-- Sentinels: `var ErrRuleNotFound = errors.New("TRC-0100")` in `pkg/constant/errors.go`
+- Sentinels live in the canonical registry `github.com/LerianStudio/midaz/v4/pkg/constant` (e.g. `constant.ErrRuleNotFound`); render via `pkg.ValidateBusinessError(constant.ErrX, constant.EntityY)` + `http.WithError`. The former `TRC-xxxx` fork was folded into the numeric registry.
 - Wrapping: `fmt.Errorf("context: %w", err)` — always `%w`, never `%v`
 - Business: `libOtel.HandleSpanBusinessErrorEvent(span, "msg", err)` — span stays OK
 - Technical: `libOtel.HandleSpanError(span, "msg", err)` — span marked ERROR

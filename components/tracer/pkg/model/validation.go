@@ -14,7 +14,8 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // metadataKeyPattern allows only alphanumeric characters and underscores
@@ -469,12 +470,12 @@ func (r *ValidationRequest) validateMetadata() error {
 		return nil
 	}
 
-	if len(r.Metadata) > constant.MaxMetadataEntries {
+	if len(r.Metadata) > trcConstant.MaxMetadataEntries {
 		return constant.ErrMetadataEntriesExceeded
 	}
 
 	for key := range r.Metadata {
-		if len(key) > constant.MaxMetadataKeyLength {
+		if len(key) > trcConstant.MaxMetadataKeyLength {
 			return constant.ErrMetadataKeyLengthExceeded
 		}
 

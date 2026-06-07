@@ -142,7 +142,7 @@ func TestCompile_InvalidExpression(t *testing.T) {
 		{
 			name:           "Error - syntax error",
 			expression:     "invalid syntax !!!",
-			expectedErrMsg: "TRC-0083",
+			expectedErrMsg: "0340",
 			description:    "Should fail on malformed CEL syntax",
 		},
 		{
@@ -154,7 +154,7 @@ func TestCompile_InvalidExpression(t *testing.T) {
 		{
 			name:           "Error - type mismatch",
 			expression:     `transactionTimestamp == "string"`,
-			expectedErrMsg: "TRC-0084",
+			expectedErrMsg: "0341",
 			description:    "Should fail on type mismatch (timestamp int vs string)",
 		},
 		{
@@ -405,7 +405,7 @@ func TestCompile_TypeValidation(t *testing.T) {
 			if tc.expectError {
 				assert.Nil(t, result, "CompiledProgram should be nil for non-boolean expression")
 				assert.Error(t, err, "Compile should return error for non-boolean expression")
-				assert.Contains(t, err.Error(), "TRC-0084", "Error should be ErrExpressionType")
+				assert.Contains(t, err.Error(), "0341", "Error should be ErrExpressionType")
 			} else {
 				require.NoError(t, err, "Compile should not return error for boolean expression")
 				assert.NotNil(t, result, "CompiledProgram should not be nil")
@@ -528,7 +528,7 @@ func TestCompile_CostValidation(t *testing.T) {
 			if tc.expectError {
 				assert.Nil(t, result, "CompiledProgram should be nil when cost exceeds limit")
 				assert.Error(t, err, "Compile should return error when cost exceeds limit")
-				assert.Contains(t, err.Error(), "TRC-0085", "Error should be ErrExpressionCostExceeded")
+				assert.Contains(t, err.Error(), "0342", "Error should be ErrExpressionCostExceeded")
 			} else {
 				require.NoError(t, err, "Compile should not return error when within cost limit")
 				assert.NotNil(t, result, "CompiledProgram should not be nil")
@@ -676,7 +676,7 @@ func TestCompile_CostValidationIsCompileTimeOnly(t *testing.T) {
 
 		// Verify: cost exceeded error happens at COMPILE time, not runtime
 		require.Error(t, err, "Compile should reject expression exceeding cost limit")
-		assert.Contains(t, err.Error(), "TRC-0085",
+		assert.Contains(t, err.Error(), "0342",
 			"Error should be ErrExpressionCostExceeded at compile time")
 	})
 

@@ -128,7 +128,6 @@ func TestValidation_Scope_SegmentId(t *testing.T) {
 // TestValidation_Scope_PortfolioId verifies rules are filtered by portfolioId scope.
 // Test 4.2.3 from roteiro 04-rules-evaluation.md
 func TestValidation_Scope_PortfolioId(t *testing.T) {
-
 	portfolioID := testutil.MustDeterministicUUID(4505).String()
 
 	// PRECONDITIONS: Create rule scoped to specific portfolioId
@@ -172,7 +171,6 @@ func TestValidation_Scope_PortfolioId(t *testing.T) {
 // TestValidation_Scope_MerchantId verifies rules are filtered by merchantId scope.
 // Test 4.2.4 from roteiro 04-rules-evaluation.md
 func TestValidation_Scope_MerchantId(t *testing.T) {
-
 	merchantID := testutil.MustDeterministicUUID(4507).String()
 
 	// PRECONDITIONS: Create rule scoped to specific merchantId
@@ -253,7 +251,6 @@ func TestValidation_Scope_TransactionType(t *testing.T) {
 // TestValidation_Scope_SubType verifies rules are filtered by subType scope.
 // Test 4.2.6 from roteiro 04-rules-evaluation.md
 func TestValidation_Scope_SubType(t *testing.T) {
-
 	subType := "credit"
 
 	// PRECONDITIONS: Create rule scoped to credit subType
@@ -291,7 +288,6 @@ func TestValidation_Scope_SubType(t *testing.T) {
 // TestValidation_Scope_MultipleScopeFields verifies AND logic for multiple fields in one scope.
 // Test 4.2.7 from roteiro 04-rules-evaluation.md
 func TestValidation_Scope_MultipleScopeFields(t *testing.T) {
-
 	accountID := testutil.MustDeterministicUUID(4509).String()
 
 	// PRECONDITIONS: Create rule with scope containing both accountId AND transactionType
@@ -364,7 +360,6 @@ func TestValidation_Scope_MultipleScopeFields(t *testing.T) {
 // TestValidation_Scope_MultipleScopes verifies OR logic for multiple scopes in one rule.
 // Test 4.2.8 from roteiro 04-rules-evaluation.md
 func TestValidation_Scope_MultipleScopes(t *testing.T) {
-
 	accountID1 := testutil.MustDeterministicUUID(4511).String()
 	accountID2 := testutil.MustDeterministicUUID(4512).String()
 

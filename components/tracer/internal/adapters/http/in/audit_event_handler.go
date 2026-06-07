@@ -17,10 +17,11 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // AuditEventService defines the interface for audit event query operations.
@@ -89,7 +90,7 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 
 	if err := c.QueryParser(&input); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse query parameters", err)
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0006", "Invalid Query Parameter", "Invalid query parameters")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityAuditEvent, "filters"))
 	}
 
 	// Validate before applying defaults to ensure fail-fast behavior
@@ -100,13 +101,7 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 			libLog.String("error", err.Error()),
 		).Log(ctx, libLog.LevelError, "Failed to validate request parameters")
 
-		// Check if it's a ValidationError with a specific code (e.g., TRC-0043)
-		var valErr *ValidationError
-		if errors.As(err, &valErr) && valErr.Code != "" {
-			return pkgHTTP.BadRequestWithMessage(c, valErr.Code, "Validation Error", valErr.Message)
-		}
-
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", "Validation error")
+		return http.WithError(c, err)
 	}
 
 	// Apply defaults after validation
@@ -129,12 +124,7 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 			libLog.String("error", err.Error()),
 		).Log(ctx, libLog.LevelError, "Failed to convert filter parameters")
 
-		var valErr *ValidationError
-		if errors.As(err, &valErr) && valErr.Code != "" {
-			return pkgHTTP.BadRequestWithMessage(c, valErr.Code, "Validation Error", valErr.Message)
-		}
-
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0006", "Invalid Query Parameter", "Invalid query parameter")
+		return http.WithError(c, err)
 	}
 
 	result, err := h.service.ListAuditEvents(ctx, filters)
@@ -151,7 +141,7 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 		libLog.Bool("list.has_more", response.HasMore),
 	).Log(ctx, libLog.LevelInfo, "Audit events listed")
 
-	return pkgHTTP.OK(c, response)
+	return http.OK(c, response)
 }
 
 // GetAuditEvent godoc
@@ -185,7 +175,7 @@ func (h *AuditEventHandler) GetAuditEvent(c *fiber.Ctx) error {
 	eventID, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid event ID", err)
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid event ID format")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityAuditEvent, "id"))
 	}
 
 	logger.With(
@@ -204,7 +194,7 @@ func (h *AuditEventHandler) GetAuditEvent(c *fiber.Ctx) error {
 		libLog.Any("audit_event.type", result.EventType),
 	).Log(ctx, libLog.LevelInfo, "Audit event retrieved")
 
-	return pkgHTTP.OK(c, result)
+	return http.OK(c, result)
 }
 
 // VerifyHashChain godoc
@@ -238,7 +228,7 @@ func (h *AuditEventHandler) VerifyHashChain(c *fiber.Ctx) error {
 	eventID, err := uuid.Parse(eventIDParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid event ID", err)
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid event ID format")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityAuditEvent, "id"))
 	}
 
 	logger.With(
@@ -257,7 +247,7 @@ func (h *AuditEventHandler) VerifyHashChain(c *fiber.Ctx) error {
 		libLog.Any("total_checked", result.TotalChecked),
 	).Log(ctx, libLog.LevelInfo, "Hash chain verification completed")
 
-	return pkgHTTP.OK(c, result)
+	return http.OK(c, result)
 }
 
 // handleAuditEventServiceError converts service errors to appropriate HTTP responses.
@@ -265,21 +255,21 @@ func handleAuditEventServiceError(c *fiber.Ctx, span trace.Span, err error) erro
 	switch {
 	case errors.Is(err, constant.ErrAuditEventNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Audit event not found", err)
-		return pkgHTTP.NotFound(c, "TRC-0140", "Not Found", "Audit event not found")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrAuditEventNotFound, constant.EntityAuditEvent))
 	case errors.Is(err, constant.ErrInvalidAuditEventFilters):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid filters", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0141", "Bad Request", "Invalid audit event filters")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidAuditEventFilters, constant.EntityAuditEvent))
 	case errors.Is(err, constant.ErrInvalidCursor):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0044", "Bad Request", "Invalid pagination cursor")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidCursor, constant.EntityAuditEvent))
 	case errors.Is(err, constant.ErrInvalidSortColumn):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid sort column", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0043", "Bad Request", "Invalid sort column")
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidSortColumn, constant.EntityAuditEvent))
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
-		return pkgHTTP.InternalServerError(c, "TRC-0004", "Internal Server Error", "An unexpected error occurred")
+		return http.WithError(c, pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."})
 	}
 }

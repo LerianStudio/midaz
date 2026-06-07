@@ -12,9 +12,9 @@ import (
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // ReservationSpec is one counter-backed limit's resolved reservation parameters.

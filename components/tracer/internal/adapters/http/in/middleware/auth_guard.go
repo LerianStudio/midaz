@@ -10,7 +10,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/components/tracer/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // CodeUnauthorizedMissingSub is the response code returned when a Bearer token
@@ -20,9 +21,9 @@ import (
 // is preferable to silently falling back to a generic system actor, which was
 // the structural failure mode the Taura audit flagged.
 //
-// Mirrors constant.ErrUnauthorizedMissingSub on the Go side so support /
-// clients can pattern-match the TRC-XXXX taxonomy in error responses.
-const CodeUnauthorizedMissingSub = "TRC-0350"
+// Mirrors constant.ErrUnauthorizedMissingSub so support / clients can
+// pattern-match the canonical error taxonomy in responses.
+var CodeUnauthorizedMissingSub = constant.ErrUnauthorizedMissingSub.Error()
 
 // AuthGuardConfig holds all configuration for the auth guard.
 type AuthGuardConfig struct {
