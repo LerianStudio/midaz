@@ -11,6 +11,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
@@ -72,18 +73,6 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 
 	// Validate filter values after defaults are applied
 	if err := filter.Validate(); err != nil {
-		if attrErr := libOpentelemetry.SetSpanAttributesFromValue(span, "list_limits_filter", map[string]any{
-			"limit":           filter.Limit,
-			"has_cursor":      filter.Cursor != "",
-			"sort_by":         filter.SortBy,
-			"sort_order":      filter.SortOrder,
-			"status":          filterStatus,
-			"limit_type":      filterLimitType,
-			"service.success": false,
-		}, nil); attrErr != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", attrErr)
-		}
-
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid filter", err)
 		logger.With(
 			libLog.String("operation", "service.limit.list"),
@@ -95,18 +84,6 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 		).Log(ctx, libLog.LevelWarn, "Invalid filter provided")
 
 		return nil, err
-	}
-
-	// Record validated filter on span for all paths (success, cancellation, repo error)
-	if attrErr := libOpentelemetry.SetSpanAttributesFromValue(span, "list_limits_filter", map[string]any{
-		"limit":      filter.Limit,
-		"has_cursor": filter.Cursor != "",
-		"sort_by":    filter.SortBy,
-		"sort_order": filter.SortOrder,
-		"status":     filterStatus,
-		"limit_type": filterLimitType,
-	}, nil); attrErr != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", attrErr)
 	}
 
 	logger.With(
@@ -149,14 +126,12 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 	}
 
 	// Record result attributes on span
-	if attrErr := libOpentelemetry.SetSpanAttributesFromValue(span, "list_limits_result", map[string]any{
-		"service.success": true,
-		"limits_count":    len(result.Limits),
-		"has_more":        result.HasMore,
-		"has_cursor":      result.NextCursor != "",
-	}, nil); attrErr != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", attrErr)
-	}
+	span.SetAttributes(
+		attribute.Bool("app.response.success", true),
+		attribute.Int("app.response.limits_count", len(result.Limits)),
+		attribute.Bool("app.response.has_more", result.HasMore),
+		attribute.Bool("app.response.has_cursor", result.NextCursor != ""),
+	)
 
 	logger.With(
 		libLog.String("operation", "service.limit.list"),

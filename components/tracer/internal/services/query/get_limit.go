@@ -12,6 +12,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
@@ -51,12 +52,7 @@ func (q *GetLimitQuery) Execute(ctx context.Context, id uuid.UUID) (*model.Limit
 		libLog.String("limit.id", id.String()),
 	).Log(ctx, libLog.LevelInfo, "Getting limit")
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "get_limit_input", map[string]any{
-		"limit_id": id.String(),
-	}, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
+	span.SetAttributes(attribute.String("app.request.limit_id", id.String()))
 
 	// Retrieve from repository
 	limit, err := q.repo.GetByID(ctx, id)

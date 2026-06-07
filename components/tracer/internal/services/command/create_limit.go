@@ -15,6 +15,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/attribute"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
@@ -135,20 +136,19 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 		libLog.String("limit.currency", normalizedInput.Currency),
 	).Log(ctx, libLog.LevelInfo, "Creating limit")
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "create_limit_input", map[string]any{
-		"name":       normalizedInput.Name,
-		"limit_type": string(normalizedInput.LimitType),
-		"max_amount": normalizedInput.MaxAmount,
-		"currency":   normalizedInput.Currency,
-	}, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
+	span.SetAttributes(
+		attribute.String("app.request.limit_name", normalizedInput.Name),
+		attribute.String("app.request.limit_type", string(normalizedInput.LimitType)),
+		attribute.String("app.request.currency", normalizedInput.Currency),
+	)
 
 	// Create domain entity via appropriate NewLimit* function
 	now := c.clock.Now()
 
-	var limit *model.Limit
+	var (
+		limit *model.Limit
+		err   error
+	)
 
 	// Determine which constructor to use based on provided fields
 	hasTimeWindow := normalizedInput.ActiveTimeStart != nil && normalizedInput.ActiveTimeEnd != nil

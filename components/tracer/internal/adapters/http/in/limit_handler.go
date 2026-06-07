@@ -99,11 +99,6 @@ func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
 		libLog.String("limit.name", input.Name),
 	).Log(ctx, libLog.LevelInfo, "Creating limit")
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "limit_input", input, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
-
 	// Convert HTTP input to service input
 	serviceInput := ToCreateLimitServiceInput(&input)
 
@@ -345,11 +340,6 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 		libLog.String("operation", "handler.limit.update"),
 		libLog.String("limit.id", id.String()),
 	).Log(ctx, libLog.LevelInfo, "Updating limit")
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "limit_update", input, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
 
 	// Convert HTTP input to service input
 	serviceInput := ToUpdateLimitServiceInput(&input)
@@ -698,19 +688,12 @@ func handleLimitServiceError(c *fiber.Ctx, span trace.Span, err error) error {
 	}
 }
 
-// formatValidationMessage extracts user-friendly message from validation error.
-// Falls back to generic message to avoid exposing internal error details.
+// formatValidationMessage returns a generic, client-safe validation message.
+// Raw error text is never returned, to avoid exposing internal error details.
 func formatValidationMessage(err error) string {
 	if err == nil {
 		return "Invalid input"
 	}
 
-	// The error message from formatLimitValidationError is already user-friendly
-	// but we add a safety net in case of unexpected errors
-	msg := err.Error()
-	if msg == "" {
-		return "Invalid input"
-	}
-
-	return msg
+	return "Validation error"
 }

@@ -44,12 +44,7 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uui
 		attribute.String("app.request.package_id", id.String()),
 	)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", up, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update package: %v", up))
+	logger.Log(ctx, libLog.LevelInfo, "Trying to update package", libLog.String("package_id", id.String()))
 
 	setOperationFields, unsetOperationFields, errUpdateFields := uc.buildUpdateFields(ctx, logger, id, organizationID, up)
 	if errUpdateFields != nil {
@@ -65,7 +60,7 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uui
 		updateFields["$unset"] = unsetOperationFields
 	}
 
-	err = uc.packageRepo.Update(ctx, id, organizationID, &updateFields)
+	err := uc.packageRepo.Update(ctx, id, organizationID, &updateFields)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to update organization on repo by id", err)
 

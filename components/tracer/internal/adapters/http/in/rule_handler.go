@@ -88,18 +88,13 @@ func (h *Handler) CreateRule(c *fiber.Ctx) error {
 			return pkgHTTP.BadRequestWithMessage(c, validationErr.Code, "Validation Error", validationErr.Message)
 		}
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", err.Error())
+		return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", "Validation error")
 	}
 
 	logger.With(
 		libLog.String("operation", "handler.rule.create"),
 		libLog.String("rule.name", input.Name),
 	).Log(ctx, libLog.LevelInfo, "Creating rule")
-
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "rule_input", input, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
 
 	// Convert HTTP input to service input
 	serviceInput := toServiceInput(&input)
@@ -167,7 +162,7 @@ func (h *Handler) UpdateRule(c *fiber.Ctx) error {
 			return pkgHTTP.BadRequestWithMessage(c, validationErr.Code, "Validation Error", validationErr.Message)
 		}
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", err.Error())
+		return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", "Validation error")
 	}
 
 	if input.IsEmpty() {
@@ -179,11 +174,6 @@ func (h *Handler) UpdateRule(c *fiber.Ctx) error {
 		libLog.String("operation", "handler.rule.update"),
 		libLog.String("rule.id", id.String()),
 	).Log(ctx, libLog.LevelInfo, "Updating rule")
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "rule_update", input, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
 
 	// Convert HTTP input to service input
 	serviceInput := toUpdateServiceInput(&input)
@@ -307,7 +297,7 @@ func (h *Handler) ListRules(c *fiber.Ctx) error {
 			return pkgHTTP.BadRequestWithMessage(c, validationErr.Code, "Bad Request", validationErr.Message)
 		}
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", err.Error())
+		return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", "Validation error")
 	}
 
 	// Apply defaults after validation passes (for non-specified optional fields)
@@ -549,7 +539,7 @@ func handleLifecycleError(c *fiber.Ctx, span trace.Span, err error) error {
 	var invalidTransitionErr *model.InvalidTransitionError
 	if errors.As(err, &invalidTransitionErr) {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid state transition", err)
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0102", "Invalid State Transition", err.Error())
+		return pkgHTTP.BadRequestWithMessage(c, "TRC-0102", "Invalid State Transition", "Invalid state transition")
 	}
 
 	return handleServiceError(c, span, err)

@@ -249,10 +249,12 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	spanUpdate.SetAttributes(attributes...)
 
-	err = libOpenTelemetry.SetSpanAttributesFromValue(spanUpdate, "app.request.repository_input", alias, nil)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to set span attributes", err)
-	}
+	spanUpdate.SetAttributes(
+		attribute.Bool("app.request.repository_input.has_metadata", len(alias.Metadata) > 0),
+		attribute.Bool("app.request.repository_input.has_banking_details", alias.BankingDetails != nil),
+		attribute.Bool("app.request.repository_input.has_regulatory_fields", alias.RegulatoryFields != nil),
+		attribute.Int("app.request.repository_input.related_parties_count", len(alias.RelatedParties)),
+	)
 
 	aliasToUpdate := &MongoDBModel{}
 

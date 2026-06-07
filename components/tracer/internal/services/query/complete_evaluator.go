@@ -15,6 +15,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -178,14 +179,12 @@ func (e *CompleteEvaluator) EvaluateAll(
 	}
 
 	// 5. Set span attributes with counts
-	if err := libOpentelemetry.SetSpanAttributesFromValue(span, "rules", map[string]any{
-		"evaluated_count": len(collector.EvaluatedRuleIDs),
-		"deny_count":      len(collector.DenyRuleIDs),
-		"allow_count":     len(collector.AllowRuleIDs),
-		"review_count":    len(collector.ReviewRuleIDs),
-	}, nil); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
+	span.SetAttributes(
+		attribute.Int("app.response.evaluated_count", len(collector.EvaluatedRuleIDs)),
+		attribute.Int("app.response.deny_count", len(collector.DenyRuleIDs)),
+		attribute.Int("app.response.allow_count", len(collector.AllowRuleIDs)),
+		attribute.Int("app.response.review_count", len(collector.ReviewRuleIDs)),
+	)
 
 	logger.With(
 		libLog.String("operation", "service.rules.evaluate_all"),

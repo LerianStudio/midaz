@@ -68,11 +68,6 @@ func (q *GetTransactionValidationQuery) Execute(ctx context.Context, validationI
 		return nil, err
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "transaction_validation", validation, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
-
 	logger.With(
 		libLog.String("operation", "service.transaction-validation.get"),
 		libLog.String("validation.id", validation.ID.String()),

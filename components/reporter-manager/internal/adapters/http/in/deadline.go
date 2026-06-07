@@ -118,12 +118,11 @@ func (dh *DeadlineHandler) GetAllDeadlines(c *fiber.Ctx) error {
 	pagination := model.Pagination{Limit: headerParams.Limit, Page: headerParams.Page}
 
 	dh.service.Logger.Log(ctx, log.LevelInfo, "Initiating retrieval of all deadlines")
-	span.SetAttributes(attribute.String("app.request.request_id", reqId))
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert query params to JSON string", err)
-	}
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.Int("app.request.limit", headerParams.Limit),
+		attribute.Int("app.request.page", headerParams.Page),
+	)
 
 	deadlines, total, err := dh.service.GetAllDeadlines(ctx, *headerParams)
 	if err != nil {

@@ -35,11 +35,6 @@ func (r *BillingPackageMongoDBRepository) Create(ctx context.Context, bp *model.
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", bp, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert billing package payload to JSON string", err)
-	}
-
 	db, err := r.getDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
@@ -55,11 +50,6 @@ func (r *BillingPackageMongoDBRepository) Create(ctx context.Context, bp *model.
 	defer spanInsert.End()
 
 	spanInsert.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanInsert, "app.request.repository_input", record, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanInsert, "Failed to convert billing package record to JSON string", err)
-	}
 
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {

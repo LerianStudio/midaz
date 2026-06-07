@@ -168,11 +168,6 @@ func (dr *DeadlineMongoDBRepository) FindList(ctx context.Context, filters http.
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", filters, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert filters to JSON string", err)
-	}
-
 	coll, err := dr.getCollection(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
@@ -215,11 +210,6 @@ func (dr *DeadlineMongoDBRepository) FindList(ctx context.Context, filters http.
 	ctx, spanFind := tracer.Start(ctx, "repository.deadline.find_list_exec")
 
 	spanFind.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanFind, "app.request.repository_filter", filters, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to convert filters to JSON string", err)
-	}
 
 	cur, err := coll.Find(ctx, queryFilter, opts)
 	if err != nil {
@@ -327,14 +317,10 @@ func (dr *DeadlineMongoDBRepository) Create(ctx context.Context, record *Deadlin
 
 	attributes := []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqID),
+		attribute.String("app.request.deadline_id", record.ID.String()),
 	}
 
 	span.SetAttributes(attributes...)
-
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", record, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert deadline record to JSON string", err)
-	}
 
 	coll, err := dr.getCollection(ctx)
 	if err != nil {
@@ -346,11 +332,6 @@ func (dr *DeadlineMongoDBRepository) Create(ctx context.Context, record *Deadlin
 	ctx, spanInsert := tracer.Start(ctx, "repository.deadline.create_exec")
 
 	spanInsert.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanInsert, "app.request.repository_input", record, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanInsert, "Failed to convert deadline record to JSON string", err)
-	}
 
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
@@ -379,11 +360,6 @@ func (dr *DeadlineMongoDBRepository) Update(ctx context.Context, id uuid.UUID, u
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", updateFields, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert deadline record to JSON string", err)
-	}
-
 	coll, err := dr.getCollection(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
@@ -395,11 +371,6 @@ func (dr *DeadlineMongoDBRepository) Update(ctx context.Context, id uuid.UUID, u
 	ctx, spanUpdate := tracer.Start(ctx, "repository.deadline.update_exec")
 
 	spanUpdate.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanUpdate, "app.request.repository_input", updateFields, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to convert deadline record to JSON string", err)
-	}
 
 	filter := bson.M{"_id": id, "deleted_at": bson.D{{Key: "$eq", Value: nil}}}
 

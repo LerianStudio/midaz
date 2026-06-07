@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // onboardingEntities maps onboarding entity names to their MongoDB collection names.
@@ -245,14 +246,10 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to set span attributes", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to set span attributes, Error: %s", libLog.Err(err))
-
-		return http.WithError(c, err)
-	}
+	span.SetAttributes(
+		attribute.String("app.request.entity_name", entityName),
+		attribute.Bool("app.request.query_params.has_metadata", headerParams.Metadata != nil),
+	)
 
 	payload, ok := p.(*mmodel.CreateMetadataIndexInput)
 	if !ok {
@@ -334,14 +331,10 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to set span attributes", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to set span attributes, Error: %s", libLog.Err(err))
-
-		return http.WithError(c, err)
-	}
+	span.SetAttributes(
+		attribute.Bool("app.request.query_params.has_entity_name", headerParams.EntityName != nil),
+		attribute.Bool("app.request.query_params.has_metadata", headerParams.Metadata != nil),
+	)
 
 	// Check if filtering by entity name
 	if headerParams.EntityName != nil && *headerParams.EntityName != "" {

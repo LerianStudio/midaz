@@ -15,11 +15,11 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	midaz "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/midaz"
 	billing_package "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
+	midaz "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/midaz"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -179,12 +179,13 @@ func (s *BillingCalculateService) Calculate(
 	// Step 6: Build summary.
 	summary := buildSummary(results)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Billing calculation completed: totalResults=%d, totalVolume=%d, totalMaintenance=%d, totalNetAmount=%s",
-		summary.TotalResults, summary.TotalVolume, summary.TotalMaintenance, summary.TotalNetAmount.String()))
+	logger.Log(ctx, libLog.LevelInfo, "Billing calculation completed",
+		libLog.Int("total_results", summary.TotalResults),
+		libLog.Int("total_volume", summary.TotalVolume),
+		libLog.Int("total_maintenance", summary.TotalMaintenance))
 
 	span.SetAttributes(
 		attribute.Int("app.response.total_results", summary.TotalResults),
-		attribute.String("app.response.total_net_amount", summary.TotalNetAmount.String()),
 	)
 
 	return &model.BillingCalculateResponse{
@@ -420,14 +421,19 @@ func (s *BillingCalculateService) calculateVolume(
 		netAmount = grossAmount.Sub(discount.DiscountAmount)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Volume calculation result: packageId=%s, totalEvents=%d, billable=%d, unitPrice=%s, gross=%s, net=%s",
-		bp.ID, totalEvents, billableEvents, unitPrice.String(), grossAmount.String(), netAmount.String()))
+	logger.Log(ctx, libLog.LevelInfo, "Volume calculation result",
+		libLog.String("billing_package_id", bp.ID),
+		libLog.Any("total_events", totalEvents),
+		libLog.Any("billable_events", billableEvents))
 
 	// Step 5: If net amount is zero (e.g. free quota covered all events), return result
 	// with empty payload {} to signal "processed but nothing to submit to Midaz".
 	if netAmount.IsZero() {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Volume billing net amount is zero (free quota or discount covered all): packageId=%s, totalEvents=%d, billable=%d, skipping payload generation",
-			bp.ID, totalEvents, billableEvents))
+		logger.Log(ctx, libLog.LevelInfo, "Volume billing net amount is zero, skipping payload generation",
+			libLog.String("billing_package_id", bp.ID),
+			libLog.Any("total_events", totalEvents),
+			libLog.Any("billable_events", billableEvents),
+			libLog.Bool("net_amount_is_zero", true))
 
 		return &model.BillingCalculationResult{
 			BillingPackageID:    bp.ID,
@@ -542,8 +548,9 @@ func (s *BillingCalculateService) calculateMaintenance(
 
 	netAmount := feeAmount.Mul(decimal.NewFromInt(int64(len(accounts))))
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Maintenance calculation result: packageId=%s, accounts=%d, feeAmount=%s, netAmount=%s",
-		bp.ID, len(accounts), feeAmount.String(), netAmount.String()))
+	logger.Log(ctx, libLog.LevelInfo, "Maintenance calculation result",
+		libLog.String("billing_package_id", bp.ID),
+		libLog.Int("account_count", len(accounts)))
 
 	// Step 3: Build transaction payload using the rounded feeAmount so that
 	// each per-account from-entry and send.value reflect the asset precision.

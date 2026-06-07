@@ -106,7 +106,7 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 			return pkgHTTP.BadRequestWithMessage(c, valErr.Code, "Validation Error", valErr.Message)
 		}
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", err.Error())
+		return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", "Validation error")
 	}
 
 	// Apply defaults after validation
@@ -134,7 +134,7 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 			return pkgHTTP.BadRequestWithMessage(c, valErr.Code, "Validation Error", valErr.Message)
 		}
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0006", "Invalid Query Parameter", err.Error())
+		return pkgHTTP.BadRequestWithMessage(c, "TRC-0006", "Invalid Query Parameter", "Invalid query parameter")
 	}
 
 	result, err := h.service.ListAuditEvents(ctx, filters)

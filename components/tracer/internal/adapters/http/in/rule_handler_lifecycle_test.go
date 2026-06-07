@@ -108,7 +108,7 @@ func TestActivateRuleHandler_ServiceError(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "TRC-0102", body["code"])
 	assert.Equal(t, "Invalid State Transition", body["title"])
-	assert.Contains(t, body["message"], "DELETED to ACTIVE")
+	assert.Equal(t, "Invalid state transition", body["message"])
 }
 
 func TestActivateRuleHandler_NotFound(t *testing.T) {
@@ -258,7 +258,7 @@ func TestDeactivateRuleHandler_ServiceError(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "TRC-0102", body["code"])
 	assert.Equal(t, "Invalid State Transition", body["title"])
-	assert.Contains(t, body["message"], "DELETED to INACTIVE")
+	assert.Equal(t, "Invalid state transition", body["message"])
 }
 
 func TestDeactivateRuleHandler_NotFound(t *testing.T) {
@@ -426,7 +426,7 @@ func TestDeleteRuleHandler_InvalidTransition(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "TRC-0102", body["code"])
 	assert.Equal(t, "Invalid State Transition", body["title"])
-	assert.Contains(t, body["message"], "ACTIVE to DELETED")
+	assert.Equal(t, "Invalid state transition", body["message"])
 }
 
 func TestDeleteRuleHandler_InternalError(t *testing.T) {
@@ -546,7 +546,7 @@ func TestDraftRuleHandler_ServiceError(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "TRC-0102", body["code"])
 	assert.Equal(t, "Invalid State Transition", body["title"])
-	assert.Contains(t, body["message"], "ACTIVE to DRAFT")
+	assert.Equal(t, "Invalid state transition", body["message"])
 }
 
 func TestDraftRuleHandler_NotFound(t *testing.T) {

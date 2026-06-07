@@ -127,14 +127,11 @@ func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 		return h.handleReservationInputError(c, err)
 	}
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "reservation_request", map[string]any{
-		"transaction_id":   request.TransactionID.String(),
-		"transaction_type": string(request.TransactionType),
-		"currency":         request.Currency,
-	}, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
+	span.SetAttributes(
+		attribute.String("app.request.transaction_id", request.TransactionID.String()),
+		attribute.String("app.request.transaction_type", string(request.TransactionType)),
+		attribute.String("app.request.currency", request.Currency),
+	)
 
 	result, err := h.service.Reserve(ctx, request.TransactionID, request.ToReserveInput(), request.LongLived)
 	if err != nil {

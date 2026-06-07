@@ -11,13 +11,12 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
+	feeUtils "github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
-	feeUtils "github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -42,10 +41,9 @@ func (uc *UseCase) CalculateFee(ctx context.Context, cf *model.FeeCalculate, org
 		attribute.String("app.request.organization_id", organizationID.String()),
 	)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", cf, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	span.SetAttributes(
+		attribute.String("app.request.ledger_id", cf.LedgerID.String()),
+	)
 
 	packages, err := uc.packageRepo.FindByOrganizationIDAndLedgerID(ctx, organizationID, cf.LedgerID)
 	if err != nil {

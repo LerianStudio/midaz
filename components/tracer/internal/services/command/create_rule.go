@@ -184,12 +184,7 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 		return nil, err
 	}
 
-	// 3. Persist rule
-	if err := libOpentelemetry.SetSpanAttributesFromValue(span, "rule_input", rule, nil); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
-
-	// Persist rule insert + audit event atomically. Audit failures roll the
+	// 3. Persist rule insert + audit event atomically. Audit failures roll the
 	// rule insert back so a successful Execute always implies a successful
 	// audit record.
 	var result *model.Rule

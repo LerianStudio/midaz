@@ -42,10 +42,14 @@ func (pm *PackageMongoDBRepository) FindList(ctx context.Context, filters http.Q
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", filters, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	span.SetAttributes(
+		attribute.Int("app.request.limit", filters.Limit),
+		attribute.Int("app.request.page", filters.Page),
+		attribute.Bool("app.request.has_segment_id", filters.SegmentID != uuid.Nil),
+		attribute.Bool("app.request.has_ledger_id", filters.LedgerID != uuid.Nil),
+		attribute.Bool("app.request.has_transaction_route", filters.TransactionRoute != nil),
+		attribute.Bool("app.request.has_enable", filters.Enable != nil),
+	)
 
 	db, err := pm.getDatabase(ctx)
 	if err != nil {
@@ -91,11 +95,6 @@ func (pm *PackageMongoDBRepository) FindList(ctx context.Context, filters http.Q
 	ctx, spanFind := tracer.Start(ctx, "repository.package.find_list.find")
 
 	spanFind.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanFind, "app.request.repository_filter", queryFilter, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to convert query filter to JSON string", err)
-	}
 
 	cur, err := coll.Find(ctx, queryFilter, opts)
 	if err != nil {
@@ -213,11 +212,6 @@ func (pm *PackageMongoDBRepository) FindByOrganizationIDAndLedgerID(ctx context.
 
 	spanFind.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanFind, "app.request.query_filter", queryFilter, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to convert query filter to JSON string", err)
-	}
-
 	cur, err := coll.Find(ctx, queryFilter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanFind, fmt.Sprintf("Failed to find packages by organizationID %v and ledgerId %v", organizationID, ledgerID), err)
@@ -304,16 +298,6 @@ func (pm *PackageMongoDBRepository) FindFeesAndAmountDataByPackageID(ctx context
 	defer spanFindOne.End()
 
 	spanFindOne.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanFindOne, "app.request.filter", filter, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFindOne, "Failed to convert filter to JSON string", err)
-	}
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanFindOne, "app.request.projection", projection, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFindOne, "Failed to convert projection to JSON string", err)
-	}
 
 	err = coll.FindOne(ctx, filter, options.FindOne().SetProjection(projection)).Decode(&result)
 	if err != nil {

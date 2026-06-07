@@ -17,6 +17,7 @@ import (
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
@@ -173,12 +174,10 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	// Compute expression hash
 	hash := HashExpression(expression)
 
-	if err := libOtel.SetSpanAttributesFromValue(span, "compile_input", map[string]any{
-		"expression_hash":   hash,
-		"expression_length": len(expression),
-	}, nil); err != nil {
-		libOtel.HandleSpanError(span, "Failed to set span attributes", err)
-	}
+	span.SetAttributes(
+		attribute.String("app.request.expression_hash", hash),
+		attribute.Int("app.request.expression_length", len(expression)),
+	)
 
 	// Compile to AST
 	ast, err := a.env.Compile(expression)
@@ -232,26 +231,22 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 		costErr := fmt.Errorf("%w: estimated cost %d exceeds limit %d", constant.ErrExpressionCostExceeded, costEstimate.Max, a.costLimit)
 		libOtel.HandleSpanBusinessErrorEvent(span, "expression cost exceeds limit", costErr)
 
-		if err := libOtel.SetSpanAttributesFromValue(span, "cost_validation", map[string]any{
-			"estimated_cost_min": costEstimate.Min,
-			"estimated_cost_max": costEstimate.Max,
-			"cost_limit":         a.costLimit,
-			"exceeded":           true,
-		}, nil); err != nil {
-			libOtel.HandleSpanError(span, "Failed to set span attributes", err)
-		}
+		span.SetAttributes(
+			attribute.Int64("app.cost_estimate_min", int64(costEstimate.Min)),
+			attribute.Int64("app.cost_estimate_max", int64(costEstimate.Max)),
+			attribute.Int64("app.cost_limit", int64(a.costLimit)),
+			attribute.Bool("app.cost_exceeded", true),
+		)
 
 		return nil, costErr
 	}
 
-	if err := libOtel.SetSpanAttributesFromValue(span, "cost_validation", map[string]any{
-		"estimated_cost_min": costEstimate.Min,
-		"estimated_cost_max": costEstimate.Max,
-		"cost_limit":         a.costLimit,
-		"exceeded":           false,
-	}, nil); err != nil {
-		libOtel.HandleSpanError(span, "Failed to set span attributes", err)
-	}
+	span.SetAttributes(
+		attribute.Int64("app.cost_estimate_min", int64(costEstimate.Min)),
+		attribute.Int64("app.cost_estimate_max", int64(costEstimate.Max)),
+		attribute.Int64("app.cost_limit", int64(a.costLimit)),
+		attribute.Bool("app.cost_exceeded", false),
+	)
 
 	// Create program (compile-time cost validation already done above via checker.Cost)
 	program, err := a.env.Program(ast)
@@ -274,11 +269,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 		CompileTimeMs:    compileTimeMs,
 	}
 
-	if err := libOtel.SetSpanAttributesFromValue(span, "compile_result", map[string]any{
-		"compile_time_ms": compileTimeMs,
-	}, nil); err != nil {
-		libOtel.HandleSpanError(span, "Failed to set span attributes", err)
-	}
+	span.SetAttributes(attribute.Int64("app.compile_time_ms", compileTimeMs))
 
 	logger.With(
 		libLog.String("operation", "adapter.cel.compile"),
@@ -314,11 +305,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 		return false, err
 	}
 
-	if err := libOtel.SetSpanAttributesFromValue(span, "evaluate_input", map[string]any{
-		"expression_hash": program.ExpressionHash,
-	}, nil); err != nil {
-		libOtel.HandleSpanError(span, "Failed to set span attributes", err)
-	}
+	span.SetAttributes(attribute.String("app.request.expression_hash", program.ExpressionHash))
 
 	// Validate request is not nil
 	if req == nil {
@@ -358,12 +345,10 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	// Record span attributes
 	durationMs := time.Since(start).Milliseconds()
 
-	if err := libOtel.SetSpanAttributesFromValue(span, "evaluate_result", map[string]any{
-		"duration_ms": durationMs,
-		"result":      result,
-	}, nil); err != nil {
-		libOtel.HandleSpanError(span, "Failed to set span attributes", err)
-	}
+	span.SetAttributes(
+		attribute.Int64("app.evaluate_duration_ms", durationMs),
+		attribute.Bool("app.evaluate_result", result),
+	)
 
 	return result, nil
 }

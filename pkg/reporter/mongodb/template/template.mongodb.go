@@ -152,11 +152,6 @@ func (tm *TemplateMongoDBRepository) FindList(ctx context.Context, filters http.
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", filters, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert filters to JSON string", err)
-	}
-
 	coll, err := tm.getCollection(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
@@ -172,11 +167,6 @@ func (tm *TemplateMongoDBRepository) FindList(ctx context.Context, filters http.
 	ctx, spanFind := tracer.Start(ctx, "repository.template.find_list_exec")
 
 	spanFind.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanFind, "app.request.repository_filter", filters, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to convert filters to JSON string", err)
-	}
 
 	cur, err := coll.Find(ctx, queryFilter, opts)
 	if err != nil {
@@ -378,14 +368,10 @@ func (tm *TemplateMongoDBRepository) Create(ctx context.Context, record *Templat
 
 	attributes := []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqID),
+		attribute.String("app.request.template_id", record.ID.String()),
 	}
 
 	span.SetAttributes(attributes...)
-
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", record, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert template record to JSON string", err)
-	}
 
 	coll, err := tm.getCollection(ctx)
 	if err != nil {
@@ -397,11 +383,6 @@ func (tm *TemplateMongoDBRepository) Create(ctx context.Context, record *Templat
 	ctx, spanInsert := tracer.Start(ctx, "repository.template.create_exec")
 
 	spanInsert.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanInsert, "app.request.repository_input", record, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanInsert, "Failed to convert template record to JSON string", err)
-	}
 
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
@@ -425,14 +406,10 @@ func (tm *TemplateMongoDBRepository) Update(ctx context.Context, id uuid.UUID, u
 
 	attributes := []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqID),
+		attribute.String("app.request.template_id", id.String()),
 	}
 
 	span.SetAttributes(attributes...)
-
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", updateFields, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert template record to JSON string", err)
-	}
 
 	coll, err := tm.getCollection(ctx)
 	if err != nil {
@@ -445,11 +422,6 @@ func (tm *TemplateMongoDBRepository) Update(ctx context.Context, id uuid.UUID, u
 	ctx, spanUpdate := tracer.Start(ctx, "repository.template.update_exec")
 
 	spanUpdate.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanUpdate, "app.request.repository_input", updateFields, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to convert template record from entity to JSON string", err)
-	}
 
 	filter := bson.M{"_id": id}
 

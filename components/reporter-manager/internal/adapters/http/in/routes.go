@@ -175,7 +175,7 @@ func legacyFiberErrorHandler(c *fiber.Ctx, err error) error {
 		return c.Status(code).JSON(fiber.Map{"error": nethttp.StatusText(code)})
 	}
 
-	return c.Status(code).JSON(fiber.Map{"error": err.Error()})
+	return c.Status(code).JSON(fiber.Map{"error": nethttp.StatusText(code)})
 }
 
 // WhenEnabled is a helper that conditionally applies a middleware if it's not nil.

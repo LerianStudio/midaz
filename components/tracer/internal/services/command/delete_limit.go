@@ -14,6 +14,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
@@ -86,12 +87,10 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) error {
 		return constant.ErrLimitInvalidID
 	}
 
-	if err := libOpentelemetry.SetSpanAttributesFromValue(span, "delete_input", map[string]any{
-		"limit_id":  id.String(),
-		"operation": "delete",
-	}, nil); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
+	span.SetAttributes(
+		attribute.String("app.request.limit_id", id.String()),
+		attribute.String("app.request.operation", "delete"),
+	)
 
 	logger.With(
 		libLog.String("operation", "service.limit.delete"),

@@ -34,11 +34,6 @@ func (r *BillingPackageMongoDBRepository) Update(ctx context.Context, id string,
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", updateFields, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert billing package update fields to JSON string", err)
-	}
-
 	db, err := r.getDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
@@ -53,11 +48,6 @@ func (r *BillingPackageMongoDBRepository) Update(ctx context.Context, id string,
 	defer spanUpdate.End()
 
 	spanUpdate.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanUpdate, "app.request.repository_input", updateFields, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to convert billing package update fields to JSON string", err)
-	}
 
 	filter := bson.M{
 		"_id":             id,

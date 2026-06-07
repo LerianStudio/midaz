@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability"
@@ -229,7 +230,6 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 		libLog.Any("validation.id", validationID),
 		libLog.Any("request.id", req.RequestID),
 		libLog.Any("transaction.type", req.TransactionType),
-		libLog.Any("transaction.amount", req.Amount),
 	).Log(ctx, libLog.LevelInfo, "Starting validation")
 
 	// Build response
@@ -335,34 +335,23 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	// Step 5: ALLOW path - persist validation and audit inside transaction, then COMMIT
 	response.ProcessingTimeMs = float64(time.Since(startTime).Nanoseconds()) / 1e6
 
-	// Persist transaction validation inside tx
-	if err := s.persistTransactionValidationWithTx(txCtx, tx, req, response, logger); err != nil {
-		if dup := s.handleConcurrentDuplicate(ctx, err, req, logger); dup != nil {
-			return dup, nil
-		}
-
-		// tx.Rollback() will be called by defer
-		libOpentelemetry.HandleSpanError(span, "failed to persist transaction validation", err)
-
-		return nil, fmt.Errorf("failed to persist transaction validation: %w", err)
+	// The persist-validation/persist-audit/COMMIT sequence is extracted into
+	// commitAllowPath to keep Validate under the gocyclo budget. A non-nil dup
+	// signals a concurrent-duplicate short-circuit (tx must NOT be detached so
+	// the defer rolls back); committed=true means COMMIT succeeded and the
+	// caller must detach tx to prevent the defer from rolling it back.
+	dup, committed, err := s.commitAllowPath(ctx, txCtx, tx, req, response, span, logger)
+	if err != nil {
+		return nil, err
 	}
 
-	// Persist audit event inside tx
-	if err := s.persistAuditEventWithTx(txCtx, tx, req, response, logger); err != nil {
-		// tx.Rollback() will be called by defer
-		libOpentelemetry.HandleSpanError(span, "failed to persist audit event", err)
-
-		return nil, fmt.Errorf("failed to persist audit event: %w", err)
+	if dup != nil {
+		return dup, nil
 	}
 
-	// COMMIT the transaction
-	if err := tx.Commit(); err != nil {
-		libOpentelemetry.HandleSpanError(span, "failed to commit transaction", err)
-
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	if committed {
+		tx = nil // Prevent defer from rolling back after successful commit
 	}
-
-	tx = nil // Prevent defer from rolling back after successful commit
 
 	logger.With(
 		libLog.String("operation", "service.validation.orchestrate"),
@@ -374,6 +363,54 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 		Response:    response,
 		IsDuplicate: false,
 	}, nil
+}
+
+// commitAllowPath persists the transaction validation and audit event inside
+// tx and commits. Extracted from Validate to keep it under the gocyclo budget;
+// control flow and side effects are identical to the inlined version.
+//
+// Return contract:
+//   - (dup, false, nil): a concurrent duplicate was detected during persist;
+//     the caller returns dup and leaves tx attached so the defer rolls it back.
+//   - (nil, true, nil): persist + COMMIT succeeded; the caller detaches tx.
+//   - (nil, false, err): a persist or commit error; tx stays attached so the
+//     defer rolls it back.
+func (s *ValidationService) commitAllowPath(
+	ctx, txCtx context.Context,
+	tx pgdb.Tx,
+	req *model.ValidationRequest,
+	response *model.ValidationResponse,
+	span trace.Span,
+	logger libLog.Logger,
+) (*ValidateResult, bool, error) {
+	// Persist transaction validation inside tx
+	if err := s.persistTransactionValidationWithTx(txCtx, tx, req, response, logger); err != nil {
+		if dup := s.handleConcurrentDuplicate(ctx, err, req, logger); dup != nil {
+			return dup, false, nil
+		}
+
+		// tx.Rollback() will be called by defer
+		libOpentelemetry.HandleSpanError(span, "failed to persist transaction validation", err)
+
+		return nil, false, fmt.Errorf("failed to persist transaction validation: %w", err)
+	}
+
+	// Persist audit event inside tx
+	if err := s.persistAuditEventWithTx(txCtx, tx, req, response, logger); err != nil {
+		// tx.Rollback() will be called by defer
+		libOpentelemetry.HandleSpanError(span, "failed to persist audit event", err)
+
+		return nil, false, fmt.Errorf("failed to persist audit event: %w", err)
+	}
+
+	// COMMIT the transaction
+	if err := tx.Commit(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "failed to commit transaction", err)
+
+		return nil, false, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil, true, nil
 }
 
 // tenantIDFromContext returns the tenant identifier from ctx, or "" in

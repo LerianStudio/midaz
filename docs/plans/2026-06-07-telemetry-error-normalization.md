@@ -17,7 +17,7 @@
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
 | 1 | Audit gaps closed; unified standard authored; decision memo resolved with owner | 1.1, 1.2 | **Complete** |
-| 2 | Zero financial values / PII / raw payloads on any telemetry signal or client-surfaced error | 2.1, 2.2, 2.3 | Epic-level |
+| 2 | Zero financial values / PII / raw payloads on any telemetry signal or client-surfaced error | 2.1, 2.2, 2.3 | **Complete** |
 | 3 | One error platform: forks deleted, canonical boundary hardened, one envelope, status table enforced (D2) | 3.1–3.6 | Epic-level |
 | 4 | Async error resilience: transaction consumer can't hot-loop; panic inventory dispositioned; reporter posture hardened (D7) | 4.1–4.5 | Epic-level |
 | 5 | Hygiene sweep + metrics normalization: structured logging, span topology, level discipline, helper-by-class, one metrics stack (D4), domain metrics (D6) | 5.1–5.7 | Epic-level |
@@ -254,30 +254,158 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 ---
 
-## Phase 2: P0 leak remediation
+## Phase 2: P0 leak remediation — **Detailed**
 
-**Milestone:** No financial values, PII, or raw payloads on any telemetry signal or client-surfaced error field. Wire-invisible (telemetry-only), so safe to ship first. Verified by grep sweeps + targeted tests.
+**Milestone:** No financial values, PII, or raw payloads on any telemetry signal or client-surfaced error field. Wire-invisible except 2.3's message-text changes (no shape changes). Elaborated 2026-06-07 against ground truth from two fresh sweeps: **14 financial-value log sites** (not 6), **76 nil-redactor sites**, **14 client-leak sites** (not 4).
+
+**Dispatch note:** tasks are organized by epic but EXECUTED by slice (fees / tracer / reporter / crm+ledger) because the same files carry violations from multiple epics (e.g. `fees_package_handler.go` has both `%#v` dumps and nil-redactor sites). One commit for the phase — hunk-splitting per epic across shared files is not worth it.
 
 ### Epic 2.1: Financial values out of logs (F1)
 
-**Goal:** fees and tracer log no monetary amounts at any level; `%#v` payload logging eliminated repo-wide.
-**Scope:** `components/ledger/internal/services/fees/` (billing-calculate, volume/maintenance builders), `components/tracer/internal/services/validation_service.go`, fees handlers with `%#v`.
-**Dependencies:** Phase 1 (standard rule 9 defines what replaces them: IDs + presence flags + counts).
-**Done when:** rg for amount-bearing log fields (`gross|net|unitPrice|feeAmount|totalNetAmount|amount`) inside logger calls in those slices returns only non-value matches; existing tests still green.
+**Goal:** fees and tracer log no monetary amounts at any level; `%#v`/`%v` payload dumps in logger calls eliminated.
+**Scope:** per Task 2.1.1/2.1.2 site lists.
+**Dependencies:** standard T9.
+**Done when:** rg for amount-bearing identifiers inside logger calls in fees/tracer returns only non-value matches; tests green.
+
+#### Task 2.1.1: Strip financial values from fees logs + the one span attribute
+
+- [x] Done
+
+**Context:** 13 value-carrying sites: `billing-calculate-service.go:182-183` (totalNetAmount), `:187` (`attribute.String("app.response.total_net_amount", ...)` — explicit span attr), `:423-424` (unitPrice/gross/net), `:429-430` (zero-net context values), `:545-546` (feeAmount/netAmount); `payload_builder.go:37-38` (netAmount), `:227-228` (totalValue/fromSum in an Error message), `:231-232` (totalValue); `billing_calculate_handler.go:103-104` (totalNetAmount); payload dumps `fees_handler.go:74` (`%#v` FeeEstimate), `:95` (`%v` FeeCalculate), `fees_package_handler.go:89,312` (`%#v` package inputs with min/max/fee amounts).
+
+**Implementation vision:** Per T9: keep the log line, drop the value — message becomes constant, fields become IDs (`billing_package_id`, `package_id`), counts (`total_events`, `billable_events`, `account_count`), and presence/zero flags (`net_amount_is_zero` boolean where the zero-branch needs signal). The span attribute at `:187` is deleted (T4: outputs that are financial go nowhere; `app.response.result_count` is the acceptable replacement). `%#v` dumps replaced with ID + presence fields. While editing these exact lines, convert them to structured `libLog` fields (T6) — do NOT sweep the rest of the file (Phase 5 owns that).
+
+**Files:** Modify: `components/ledger/internal/services/fees/billing-calculate-service.go`, `payload_builder.go`, `components/ledger/internal/adapters/http/in/billing_calculate_handler.go`, `fees_handler.go`, `fees_package_handler.go`. Tests: adjust any test asserting old log/attr content.
+
+**Verification:** `rg -n 'logger\.|attribute\.' <those files>` shows no amount-valued field; `go build ./...` + `go test ./components/ledger/internal/services/fees/... ./components/ledger/internal/adapters/http/in/...` green.
+
+**Done when:** zero monetary values in fees logs/span attrs; tests green.
+
+#### Task 2.1.2: Strip transaction.amount from tracer validation log
+
+- [x] Done
+
+**Context:** `components/tracer/internal/services/validation_service.go:233` logs `transaction.amount` as a `libLog.Any` field at Info.
+
+**Implementation vision:** Drop the amount field; keep transaction ID/index fields. If the surrounding line is per-request Info noise, leave the level alone (Phase 5 owns levels) — this task only removes the value.
+
+**Files:** Modify: `components/tracer/internal/services/validation_service.go` (+ test fixture if any asserts the field).
+
+**Verification:** `rg -n 'amount' components/tracer/internal/services/validation_service.go` shows no logged amount value; `go test ./components/tracer/...` green.
+
+**Done when:** no monetary value logged in tracer.
 
 ### Epic 2.2: PII and payloads off spans (F2)
 
-**Goal:** zero `SetSpanAttributesFromValue(..., nil)` call sites; CRM update-path spans carry presence flags, not entities; rabbitmq consumer span carries message IDs, not the body.
-**Scope:** all 48 nil-redactor sites (tracer 28, fees 9+, crm 2, reporter 2, rabbitmq 1, + remainder per Task 1.1.4 tally); `consumer.rabbitmq.go:316`; `holder.mongodb.go:256`, `instrument.mongodb.go:252`.
-**Dependencies:** Phase 1 (rule 4 decides presence-flag shape; D4 unaffected).
-**Done when:** `rg 'SetSpanAttributesFromValue\(.*nil\)'` returns zero non-test hits; crm create-path `has_*` idiom extended to update paths.
+**Goal:** zero `SetSpanAttributesFromValue(..., nil)` non-test call sites (76 per the appendix tally: fees 30, reporter 21, tracer 18, crm 4, ledger-http 2, ledger-core 1).
+**Scope:** per Task 2.2.1–2.2.4 site lists (appendix §5 per-file breakdown).
+**Dependencies:** standard T4.
+**Done when:** `rg -U 'SetSpanAttributesFromValue\([^)]*nil\s*\)' --glob '!*_test.go'` returns zero hits repo-wide.
+
+#### Task 2.2.1: fees nil-redactor sites (30)
+
+- [x] Done
+
+**Context:** `mongodb/fees/{pack,billing_package}/{find,create,update,delete}.go` (20), `services/fees/{update-package-by-id,get-all-packages,estimate-fee-calculation,create-package,calculate-fee}.go` (5), `http/in/{fees_package_handler(3),fees_handler(1),billing_calculate_handler(1)}.go` (5). Inputs include package definitions with fee amounts and full calculate payloads.
+
+**Implementation vision:** Default replacement: DELETE the `SetSpanAttributesFromValue` call and ensure the span carries the scoping IDs as explicit `app.request.*` string attributes (org/ledger/package IDs — most spans already set them; add if missing). Where the flattened struct conveyed real signal (e.g. filter shape on find paths), add bounded explicit attributes (`app.request.limit`, `app.request.has_filter_X` booleans). No redactor-based retention — fees data is financial; nothing of the payload goes on the span.
+
+**Files:** Modify the 14 fees files listed in appendix §5.
+
+**Verification:** nil-redactor rg returns zero under the fees globs; `go test ./components/ledger/internal/adapters/mongodb/fees/... ./components/ledger/internal/services/fees/...` green.
+
+**Done when:** fees count = 0.
+
+#### Task 2.2.2: reporter nil-redactor sites (21)
+
+- [x] Done
+
+**Context:** `pkg/reporter/mongodb/{template(6),deadline(6),report(5)}.mongodb.go`, `pkg/reporter/postgres/datasource_filters.go` (2), `reporter-manager http/in/{template,deadline}.go` (2). Templates may embed datasource queries/credentials-adjacent config; reports carry tenant metadata.
+
+**Implementation vision:** Same default: delete the call, keep/add explicit ID attributes (`app.request.template_id`, `report_id`, `organization_id`) and bounded shape attributes (`app.request.field_count` style) where the dump carried signal.
+
+**Files:** the 6 reporter files above.
+
+**Verification:** nil-redactor rg zero under reporter globs; `go test ./pkg/reporter/... ./components/reporter-manager/...` green.
+
+**Done when:** reporter count = 0.
+
+#### Task 2.2.3: tracer nil-redactor sites (18)
+
+- [x] Done
+
+**Context:** `adapters/cel/adapter.go` (5 — CEL program inputs incl. transaction payloads), `services/query/{rule_evaluator(2),list_limits(2),limit_checker(1),get_transaction_validation(1),get_rule(1)}.go`, `services/command/{update_rule(1),create_rule(1)}.go`, `http/in/{rule_handler(2),limit_handler(2)}.go`.
+
+**Implementation vision:** Same default. The CEL adapter sites flatten evaluation inputs (transaction data) — replace with `app.request.rule_id`, `app.request.expression_hash` (or length) and result booleans.
+
+**Files:** the 10 tracer files above.
+
+**Verification:** nil-redactor rg zero under `components/tracer/`; `go test ./components/tracer/...` green.
+
+**Done when:** tracer count = 0.
+
+#### Task 2.2.4: crm + ledger nil-redactor sites (7) and the rabbitmq body dump
+
+- [x] Done
+
+**Context:** `crm/adapters/mongodb/{holder,instrument}.mongodb.go:256/:252` (full entity incl. plaintext CPF/email pre-encryption — THE P0 exemplar), `ledger http/in/{holder,instrument}.go` (1 each), `http/in/metadata.go` (2), `consumer.rabbitmq.go:316` (raw transaction msg.Body flattened onto the consumer span).
+
+**Implementation vision:** CRM update paths: extend the create-path `has_*` idiom (`holder.mongodb.go:132-137` is the canonical block) to the update methods — presence flags + IDs, never the entity. Handlers/metadata: delete the call, keep ID attributes. Consumer: replace body dump with `app.request.message_id`, `app.request.body_size_bytes`, routing key.
+
+**Files:** 6 files above.
+
+**Verification:** nil-redactor rg zero repo-wide (this task closes the last 7); `go test ./components/crm/... ./components/ledger/internal/adapters/rabbitmq/...` green.
+
+**Done when:** repo-wide count = 0.
 
 ### Epic 2.3: Client-surfaced internal detail (F3)
 
-**Goal:** reporter persists a classified `error_code` (not raw `err.Error()`) into report metadata; tracer never sets client message fields from unmapped `err.Error()`.
-**Scope:** `components/reporter-worker/internal/services/generate-report.go:203-223`, `data-pipeline.go:40`, `components/tracer/internal/adapters/http/in/rule_handler.go:91,170,310`.
-**Dependencies:** Phase 1 (rule 9); independent of Epics 2.1/2.2.
-**Done when:** GET report metadata shows classified codes for induced failures; tracer unmapped errors render generic messages; tests cover both.
+**Goal:** no raw `err.Error()` reaches a client-visible field; report metadata carries classified codes only.
+**Scope:** 14 sites per fresh sweep.
+**Dependencies:** standard E9; minimal fixes only — Phase 3 deletes the tracer/reporter mapping layers these sites live in.
+**Done when:** targeted rg for `err.Error()` into response/metadata fields returns zero on the listed sites; tests assert the new shapes.
+
+#### Task 2.3.1: reporter — classified codes only in report metadata + manager fallback
+
+- [x] Done
+
+**Context:** `generate-report.go:203-223` `reportErrorMetadata` persists `metadata["error_detail"] = reportErr.Error()` (`:210`) — flows into Mongo and out through reporter-manager GET report (client-visible `Report.Metadata`). The classified `error_code` channel (`report_generation_failed`, `report_generation_timeout`, ...) already exists and stays. `routes.go:178` (reporter-manager) returns `fiber.Map{"error": err.Error()}` for non-500s. `data-pipeline.go:40` — verify whether raw error text lands in any persisted/client field; fix the same way if so.
+
+**Implementation vision:** Test-first: extend the generate-report tests to assert metadata contains `error_code` and does NOT contain raw error text for an induced failure. Then drop `error_detail` entirely (the operator-facing detail belongs in logs/spans, which already carry it — E9). `routes.go:178` falls back to the canonical envelope shape with a generic message (no raw text).
+
+**Files:** Modify: `components/reporter-worker/internal/services/generate-report.go`, `data-pipeline.go` (if affected), `components/reporter-manager/internal/adapters/http/in/routes.go`. Test: generate-report test file.
+
+**Verification:** new test RED then GREEN; `go test ./components/reporter-worker/... ./components/reporter-manager/...` green.
+
+**Done when:** induced failure persists classified code, zero raw text.
+
+#### Task 2.3.2: tracer — generic messages on the 12 fallback sites
+
+- [x] Done
+
+**Context:** raw `err.Error()` into client `message` fields: `rule_handler.go:91,170,310,552`, `audit_event_handler.go:109,137`, `transaction_validation_handler.go:160,179,329,337`, `limit_handler.go:710` (formatValidationMessage fallback). All are fallback paths of the hand-rolled mappers Phase 3 deletes — fix is message-argument substitution only, no mapping rework.
+
+**Implementation vision:** Replace each `err.Error()` message argument with a constant, code-appropriate generic message ("Validation error", "Invalid timestamp format", "Invalid state transition", ...). The typed-error branches (which carry pre-built client-safe messages) stay untouched.
+
+**Files:** the 4 tracer handler files.
+
+**Verification:** `rg -n 'err\.Error\(\)' components/tracer/internal/adapters/http/in/` shows zero hits flowing into response fields; `go test ./components/tracer/...` green.
+
+**Done when:** zero raw error text in tracer responses.
+
+#### Task 2.3.3: ledger legacy envelope — status text, not error text
+
+- [x] Done
+
+**Context:** `components/ledger/internal/adapters/http/in/errors.go:51` emits `fiber.Map{"error": err.Error()}`; the sibling 500-path at `:47` already uses `stdhttp.StatusText`.
+
+**Implementation vision:** Mirror `:47`: `fiber.Map{"error": stdhttp.StatusText(statusCode)}`. The whole envelope dies in Epic 3.5; this just closes the leak meanwhile.
+
+**Files:** Modify: `components/ledger/internal/adapters/http/in/errors.go` (+ its test).
+
+**Verification:** existing LegacyErrorBoundary tests adjusted and green.
+
+**Done when:** no raw error text in the legacy envelope.
 
 ---
 
@@ -455,7 +583,8 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 ## Execution Notes
 
 - **2026-06-07 Phase 1 executed and checkpointed.** Epic 1.1: four parallel sweep agents closed G1/G3/G4/G7/G8 into the appendix; spot-check corrections applied (nil-redactor 76/100 with anchored pattern — agent's unanchored 87 rejected; probe-traffic finding downgraded P1→P2 after confirming `WithTelemetry` exclusion is opt-in, one-arg fix). Epic 1.2: both standards authored with all canonical refs verified; agents corrected 10+ suggested line refs against reality. Decision memo: D1/D2/D4/D6 resolved AGAINST the original recommendations — owner's governing frame is "tracer/reporter greenfield, v4 = one breaking window"; plan scope updated (Epics 3.6, 4.5, 5.6, 5.7 added; D5 deferred to Phase 4 elaboration). D7 re-framed at the checkpoint (greenfield flips the HMAC asymmetry: enforce now is free, enforce later is breaking).
-- Commits: `65b793010` (plan + audit JSON + appendix), `9e48d3ef4` (standards), Phase-1-close commit (this update).
+- Commits: `65b793010` (plan + audit JSON + appendix), `9e48d3ef4` (standards), `fd39b6d6c` (Phase 1 close).
+- **2026-06-07 Phase 2 executed.** Dispatched by slice (4 parallel agents), one commit (shared files across epics). Nil-redactor true count was **99 of 100** (appendix corrected — anchored regex missed multi-line map-literal calls; tracer held 41, not 18). Extra F1-class financial leaks found and fixed during execution beyond the elaborated list: tracer `validation_handler.go` (`amount` in a span map), `create_limit.go`/`limit_checker.go` (`max_amount` on spans), fees `fees_package_handler.go:137` (`packOut` `%v` dump with Min/MaxAmount), `payload_builder.go:225` (amount-carrying string recorded onto span via HandleSpanBusinessErrorEvent). Reporter `error_detail` dropped entirely (E9) with RED→GREEN test evidence; `routes_test.go:410` was asserting a path leak. Working tree carries an unrelated pre-existing format pass (~100 files import-reorder) + 4 substantive non-plan changes (`tracer/bootstrap/config*.go`, `tracer/pkg/model/limit.go`, `pkg/reporter/pdf/pool.go`, workflow version bumps, `AGENTS.md`) — deliberately NOT staged.
 
 ## Out of Scope
 

@@ -33,10 +33,14 @@ func (uc *UseCase) GetAllPackages(ctx context.Context, filters http.QueryHeader,
 
 	filters.OrganizationID = organizationID
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", filters, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	span.SetAttributes(
+		attribute.Int("app.request.limit", filters.Limit),
+		attribute.Int("app.request.page", filters.Page),
+		attribute.Bool("app.request.has_segment_id", filters.SegmentID != uuid.Nil),
+		attribute.Bool("app.request.has_ledger_id", filters.LedgerID != uuid.Nil),
+		attribute.Bool("app.request.has_transaction_route", filters.TransactionRoute != nil),
+		attribute.Bool("app.request.has_enable", filters.Enable != nil),
+	)
 
 	packs, err := uc.packageRepo.FindList(ctx, filters)
 	if err != nil {

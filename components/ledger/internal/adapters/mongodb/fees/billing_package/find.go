@@ -56,11 +56,6 @@ func (r *BillingPackageMongoDBRepository) FindByID(ctx context.Context, id strin
 		"deleted_at":      bson.M{"$eq": nil},
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanFindOne, "app.request.filter", filter, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFindOne, "Failed to convert filter to JSON string", err)
-	}
-
 	if err = coll.FindOne(ctx, filter).Decode(&record); err != nil {
 		if err == mongo.ErrNoDocuments {
 			libOpentelemetry.HandleSpanError(spanFindOne, "Billing package not found", err)
@@ -157,11 +152,6 @@ func (r *BillingPackageMongoDBRepository) FindAll(ctx context.Context, organizat
 
 	spanFind.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanFind, "app.request.repository_filter", queryFilter, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to convert query filter to JSON string", err)
-	}
-
 	cur, err := coll.Find(ctx, queryFilter, opts)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanFind, "Failed to find billing packages", err)
@@ -244,11 +234,6 @@ func (r *BillingPackageMongoDBRepository) FindMatchingPackages(ctx context.Conte
 
 	spanFind.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanFind, "app.request.repository_filter", queryFilter, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to convert query filter to JSON string", err)
-	}
-
 	cur, err := coll.Find(ctx, queryFilter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanFind, "Failed to find matching billing packages", err)
@@ -330,11 +315,6 @@ func (r *BillingPackageMongoDBRepository) FindActiveByType(ctx context.Context, 
 	ctx, spanFind := tracer.Start(ctx, "repository.billing_package.find_active_by_type.find")
 
 	spanFind.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanFind, "app.request.repository_filter", queryFilter, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to convert query filter to JSON string", err)
-	}
 
 	cur, err := coll.Find(ctx, queryFilter)
 	if err != nil {

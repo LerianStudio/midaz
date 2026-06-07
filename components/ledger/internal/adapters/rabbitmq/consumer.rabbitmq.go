@@ -9,11 +9,11 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libObservability "github.com/LerianStudio/lib-observability"
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -313,12 +313,13 @@ func (cr *ConsumerRoutes) startWorker(channelCtx context.Context, workerID int, 
 
 		ctx = libObservability.ContextWithSpanAttributes(ctx, attribute.String("app.request.request_id", reqId))
 
-		err := libOpentelemetry.SetSpanAttributesFromValue(spanConsumer, "app.request.rabbitmq.consumer.message", msg.Body, nil)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(spanConsumer, "Failed to convert message to JSON string", err)
-		}
+		spanConsumer.SetAttributes(
+			attribute.String("app.request.message_id", midazID),
+			attribute.String("app.request.routing_key", msg.RoutingKey),
+			attribute.Int("app.request.body_size_bytes", len(msg.Body)),
+		)
 
-		err = handlerFunc(ctx, msg.Body)
+		err := handlerFunc(ctx, msg.Body)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanConsumer, "Error processing message from queue", err)
 			spanConsumer.End()

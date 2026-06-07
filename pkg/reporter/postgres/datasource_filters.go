@@ -14,7 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 
 	"github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/Masterminds/squirrel"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -28,12 +27,12 @@ func (ds *ExternalDataSource) ValidateTableAndFields(ctx context.Context, schema
 	_, span := tracer.Start(ctx, "repository.datasource.validate_table_and_fields")
 	defer span.End()
 
-	span.SetAttributes(attribute.String("app.request.request_id", reqID))
-
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.repository_filter", map[string]any{"table": tableName, "fields": requestedFields, "schema": schema}, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert repository filter to JSON string", err)
-	}
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqID),
+		attribute.String("app.request.schema", schemaName),
+		attribute.String("app.request.table", tableName),
+		attribute.Int("app.request.requested_fields_count", len(requestedFields)),
+	)
 
 	logger.Log(ctx, log.LevelInfo, "Validating table and fields", log.String("table", tableName), log.Any("fields", requestedFields))
 
@@ -152,12 +151,13 @@ func (ds *ExternalDataSource) QueryWithAdvancedFilters(ctx context.Context, sche
 	ctx, span := tracer.Start(ctx, "repository.datasource.query_with_advanced_filters")
 	defer span.End()
 
-	span.SetAttributes(attribute.String("app.request.request_id", reqID))
-
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.repository_filter", map[string]any{"schema": schemaName, "table": table, "fields": fields, "filter": filter}, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert repository filter to JSON string", err)
-	}
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqID),
+		attribute.String("app.request.schema", schemaName),
+		attribute.String("app.request.table", table),
+		attribute.Int("app.request.requested_fields_count", len(fields)),
+		attribute.Int("app.request.filter_conditions_count", len(filter)),
+	)
 
 	qualifiedTable := qualifyTableName(schemaName, table)
 	logger.Log(ctx, log.LevelInfo, "Querying table with advanced filters", log.String("table", qualifiedTable), log.Any("fields", fields))

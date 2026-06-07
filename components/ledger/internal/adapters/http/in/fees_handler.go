@@ -6,7 +6,6 @@ package in
 
 import (
 	"context"
-	"fmt"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
@@ -71,12 +70,13 @@ func (handler *FeeHandler) EstimateFeeCalculation(p any, c *fiber.Ctx) error {
 	)
 
 	payload := p.(*model.FeeEstimate)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create a fee estimate with details: %#v", payload))
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	span.SetAttributes(
+		attribute.String("app.request.package_id", payload.PackageID.String()),
+		attribute.String("app.request.ledger_id", payload.LedgerID.String()),
+	)
+
+	logger.Log(ctx, libLog.LevelInfo, "Request to create a fee estimate")
 
 	feeCalculate, errCreateFee := handler.Service.EstimateFeeCalculation(ctx, payload, organizationID)
 	if errCreateFee != nil {
@@ -92,7 +92,7 @@ func (handler *FeeHandler) EstimateFeeCalculation(p any, c *fiber.Ctx) error {
 		})
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully estimated fee: %v", feeCalculate))
+	logger.Log(ctx, libLog.LevelInfo, "Successfully estimated fee")
 
 	// 200 OK is intentional: this is a compute/RPC-style endpoint that performs
 	// a calculation without creating a persistent resource.

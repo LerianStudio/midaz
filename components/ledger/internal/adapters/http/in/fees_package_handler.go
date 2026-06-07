@@ -86,12 +86,7 @@ func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 	)
 
 	payload := p.(*model.CreatePackageInput)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create a pack with details: %#v", payload))
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	logger.Log(ctx, libLog.LevelInfo, "Request to create a pack")
 
 	if !commons.IsNilOrEmpty(payload.SegmentID) {
 		segmentID, errParseUUID = uuid.Parse(*payload.SegmentID)
@@ -134,7 +129,7 @@ func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 		return feehttp.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully created pack: %v", packOut))
+	logger.Log(ctx, libLog.LevelInfo, "Successfully created pack", libLog.String("package_id", packOut.ID.String()))
 
 	return commonsHttp.Respond(c, fiber.StatusCreated, packOut)
 }
@@ -187,10 +182,14 @@ func (handler *PackageHandler) GetAllPackages(c *fiber.Ctx) error {
 		return feehttp.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert query_params to JSON string", err)
-	}
+	span.SetAttributes(
+		attribute.Int("app.request.limit", headerParams.Limit),
+		attribute.Int("app.request.page", headerParams.Page),
+		attribute.Bool("app.request.has_segment_id", headerParams.SegmentID != uuid.Nil),
+		attribute.Bool("app.request.has_ledger_id", headerParams.LedgerID != uuid.Nil),
+		attribute.Bool("app.request.has_transaction_route", headerParams.TransactionRoute != nil),
+		attribute.Bool("app.request.has_enable", headerParams.Enable != nil),
+	)
 
 	pagination := model.Pagination{
 		Limit: headerParams.Limit,
@@ -309,12 +308,7 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 	)
 
 	payload := p.(*model.UpdatePackageInput)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update a package: %#v", payload))
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	logger.Log(ctx, libLog.LevelInfo, "Request to update a package", libLog.String("package_id", id.String()))
 
 	if payload.Fee != nil {
 		errValidateInput := payload.ValidateFees()

@@ -157,7 +157,7 @@ func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) 
 			return pkgHTTP.BadRequestWithMessage(c, validationErr.Code, "Invalid Transaction Validation Filters", validationErr.Message)
 		}
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0250", "Invalid Transaction Validation Filters", err.Error())
+		return pkgHTTP.BadRequestWithMessage(c, "TRC-0250", "Invalid Transaction Validation Filters", "Invalid transaction validation filters")
 	}
 
 	// Apply defaults after validation
@@ -176,7 +176,7 @@ func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) 
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid filters", err)
 
-		return pkgHTTP.BadRequestWithMessage(c, "TRC-0250", "Invalid Transaction Validation Filters", err.Error())
+		return pkgHTTP.BadRequestWithMessage(c, "TRC-0250", "Invalid Transaction Validation Filters", "Invalid transaction validation filters")
 	}
 
 	result, err := h.service.ListTransactionValidations(ctx, filters)
@@ -326,7 +326,7 @@ func (i *ListTransactionValidationsInput) validateDates() error {
 	if err != nil {
 		return &ValidationError{
 			Code:    "TRC-0020",
-			Message: err.Error(),
+			Message: "Invalid timestamp format: expected RFC3339",
 		}
 	}
 
@@ -334,7 +334,7 @@ func (i *ListTransactionValidationsInput) validateDates() error {
 	if err != nil {
 		return &ValidationError{
 			Code:    "TRC-0020",
-			Message: err.Error(),
+			Message: "Invalid timestamp format: expected RFC3339",
 		}
 	}
 

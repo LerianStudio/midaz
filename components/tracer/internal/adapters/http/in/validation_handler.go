@@ -17,6 +17,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services"
@@ -139,15 +140,11 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 		libLog.String("request.transaction_type", string(request.TransactionType)),
 	).Log(ctx, libLog.LevelInfo, "Processing validation request")
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "validation_request", map[string]any{
-		"request_id":       request.RequestID.String(),
-		"transaction_type": string(request.TransactionType),
-		"amount":           request.Amount,
-		"currency":         request.Currency,
-	}, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
+	span.SetAttributes(
+		attribute.String("app.request.request_id", request.RequestID.String()),
+		attribute.String("app.request.transaction_type", string(request.TransactionType)),
+		attribute.String("app.request.currency", request.Currency),
+	)
 
 	// Call validation service
 	result, err := h.service.Validate(ctx, &request)

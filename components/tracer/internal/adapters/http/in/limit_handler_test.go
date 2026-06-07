@@ -90,7 +90,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), "name")
+				assert.Contains(t, string(body), "Validation error")
 			},
 		},
 		{
@@ -108,7 +108,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), "limitType")
+				assert.Contains(t, string(body), "Validation error")
 			},
 		},
 		{
@@ -127,7 +127,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), "limitType")
+				assert.Contains(t, string(body), "Validation error")
 			},
 		},
 		{
@@ -146,7 +146,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), "currency")
+				assert.Contains(t, string(body), "Validation error")
 			},
 		},
 		{
@@ -165,7 +165,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), "maxAmount")
+				assert.Contains(t, string(body), "Validation error")
 			},
 		},
 		{
@@ -182,7 +182,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), "scopes")
+				assert.Contains(t, string(body), "Validation error")
 			},
 		},
 		{

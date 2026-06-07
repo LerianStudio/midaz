@@ -48,7 +48,7 @@ func legacyFiberErrorHandler(c *fiber.Ctx, err error) error {
 	}
 
 	// Keep the legacy response envelope for compatibility with older clients.
-	return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
+	return c.Status(statusCode).JSON(fiber.Map{"error": stdhttp.StatusText(statusCode)})
 }
 
 func LegacyErrorBoundary() fiber.Handler {

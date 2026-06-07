@@ -206,10 +206,6 @@ func reportErrorMetadata(reportErr error) map[string]any {
 		"error_code": "report_generation_failed",
 	}
 
-	if reportErr != nil {
-		metadata["error_detail"] = reportErr.Error()
-	}
-
 	switch {
 	case errors.Is(reportErr, context.DeadlineExceeded):
 		metadata["error"] = "Report generation timed out"

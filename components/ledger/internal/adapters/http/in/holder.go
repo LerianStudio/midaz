@@ -181,12 +181,8 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.holder_id", id.String()),
+		attribute.Int("app.request.fields_to_remove_count", len(fieldsToRemove)),
 	)
-
-	err = libOpenTelemetry.SetSpanAttributesFromValue(span, "app.request.fields_to_remove", fieldsToRemove, nil)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to convert fields_to_remove to JSON string", err)
-	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update holder with id: %v", id.String()))
 

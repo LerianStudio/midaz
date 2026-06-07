@@ -18,6 +18,7 @@ import (
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
@@ -160,15 +161,6 @@ func (s *LimitCheckerService) checkLimitsInternal(
 	if err := input.Validate(); err != nil {
 		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid input", err)
 		return nil, err
-	}
-
-	if err := libOtel.SetSpanAttributesFromValue(span, "input", input, nil); err != nil {
-		span.RecordError(err)
-
-		logger.With(
-			libLog.String("operation", operationName),
-			libLog.String("error", err.Error()),
-		).Log(ctx, libLog.LevelWarn, "Failed to set span attributes for input")
 	}
 
 	// Get applicable limits (active limits matching currency and scopes)
@@ -353,21 +345,11 @@ func (s *LimitCheckerService) processLimitAtomic(
 
 	logger = logging.WithTrace(ctx, logger)
 
-	if err := libOtel.SetSpanAttributesFromValue(span, "limit", map[string]any{
-		"id":        limit.ID.String(),
-		"name":      limit.Name,
-		"type":      string(limit.LimitType),
-		"maxAmount": limit.MaxAmount,
-	}, nil); err != nil {
-		span.RecordError(err)
-
-		logger.With(
-			libLog.String("operation", "service.limit_checker.process_limit_atomic"),
-			libLog.String("limit_id", limit.ID.String()),
-			libLog.String("limit_name", limit.Name),
-			libLog.String("error", err.Error()),
-		).Log(ctx, libLog.LevelWarn, "Failed to set span attributes for limit")
-	}
+	span.SetAttributes(
+		attribute.String("app.request.limit_id", limit.ID.String()),
+		attribute.String("app.request.limit_name", limit.Name),
+		attribute.String("app.request.limit_type", string(limit.LimitType)),
+	)
 
 	// Check time window FIRST (before any counter operations)
 	if detail, shouldSkip := skipIfOutsideTimeWindow(limit, input, serverNow); shouldSkip {

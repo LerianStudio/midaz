@@ -38,11 +38,6 @@ func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageIn
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", cpi, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
-
 	newSegmentID := &segmentID
 	if segmentID.ID() == 0 {
 		newSegmentID = nil

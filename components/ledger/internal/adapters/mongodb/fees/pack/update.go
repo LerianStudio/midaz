@@ -35,11 +35,6 @@ func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organization
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", updateFields, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert package record from entity to JSON string", err)
-	}
-
 	db, err := pm.getDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
@@ -53,11 +48,6 @@ func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organization
 	defer spanUpdate.End()
 
 	spanUpdate.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanUpdate, "app.request.repository_input", updateFields, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to convert package record from entity to JSON string", err)
-	}
 
 	result, err := coll.UpdateOne(ctx, bson.M{"_id": id, "organization_id": organizationID, "deleted_at": bson.D{{Key: "$eq", Value: nil}}}, updateFields, opts)
 	if err != nil {
@@ -88,11 +78,6 @@ func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organization
 	}
 
 	updateEnable := bson.M{"$set": bson.M{"enable": false}}
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanUpdateEnable, "app.request.repository_input", updateEnable, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanUpdateEnable, "Failed to convert package record from entity to JSON string", err)
-	}
 
 	_, err = coll.UpdateOne(ctx, updateEnableFilter, updateEnable)
 	if err != nil {

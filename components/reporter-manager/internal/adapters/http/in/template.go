@@ -221,12 +221,11 @@ func (th *TemplateHandler) GetAllTemplates(c *fiber.Ctx) error {
 	pagination := model.Pagination{Limit: headerParams.Limit, Page: headerParams.Page}
 
 	th.service.Logger.Log(ctx, log.LevelInfo, "Initiating retrieval all templates")
-	span.SetAttributes(attribute.String("app.request.request_id", reqId))
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert query params to JSON string", err)
-	}
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.Int("app.request.limit", headerParams.Limit),
+		attribute.Int("app.request.page", headerParams.Page),
+	)
 
 	templates, err := th.service.GetAllTemplates(ctx, *headerParams)
 	if err != nil {

@@ -30,11 +30,6 @@ func (pm *PackageMongoDBRepository) Create(ctx context.Context, p *Package, orga
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", p, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert package payload to JSON string", err)
-	}
-
 	db, err := pm.getDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
@@ -55,11 +50,6 @@ func (pm *PackageMongoDBRepository) Create(ctx context.Context, p *Package, orga
 	defer spanInsert.End()
 
 	spanInsert.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanInsert, "app.request.repository_input", record, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanInsert, "Failed to convert package record from entity to JSON string", err)
-	}
 
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {

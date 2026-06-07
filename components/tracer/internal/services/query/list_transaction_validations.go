@@ -12,6 +12,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
@@ -91,13 +92,10 @@ func (q *ListTransactionValidationsQuery) Execute(ctx context.Context, filters *
 		return nil, fmt.Errorf("repository list failed: %w", err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "list_result", map[string]any{
-		"validations_count": len(result.TransactionValidations),
-		"has_more":          result.HasMore,
-	}, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
+	span.SetAttributes(
+		attribute.Int("app.response.validations_count", len(result.TransactionValidations)),
+		attribute.Bool("app.response.has_more", result.HasMore),
+	)
 
 	logger.With(
 		libLog.String("operation", "service.transaction-validation.list"),

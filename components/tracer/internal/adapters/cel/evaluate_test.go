@@ -196,12 +196,12 @@ func TestEvaluate_WithTracing(t *testing.T) {
 
 	require.NotEmpty(t, evalSpan.Name, "Should have adapter.cel.evaluate span")
 
-	// Check attributes - lib-commons v4 flattens struct attributes into dotted keys
-	// e.g. "evaluate_result.duration_ms", "evaluate_result.result"
+	// Check attributes set explicitly on the evaluate span
+	// e.g. "app.evaluate_duration_ms", "app.evaluate_result"
 	attrs := attributesToMap(evalSpan.Attributes)
-	assert.Contains(t, attrs, "evaluate_result.duration_ms", "Should have evaluate_result.duration_ms attribute")
-	assert.Contains(t, attrs, "evaluate_result.result", "Should have evaluate_result.result attribute")
-	assert.Equal(t, true, attrs["evaluate_result.result"], "Result should be true")
+	assert.Contains(t, attrs, "app.evaluate_duration_ms", "Should have app.evaluate_duration_ms attribute")
+	assert.Contains(t, attrs, "app.evaluate_result", "Should have app.evaluate_result attribute")
+	assert.Equal(t, true, attrs["app.evaluate_result"], "Result should be true")
 }
 
 // TestEvaluate_NilFields tests evaluation with nil optional fields.

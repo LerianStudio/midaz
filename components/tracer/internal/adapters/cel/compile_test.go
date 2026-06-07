@@ -237,8 +237,8 @@ func TestCompile_SpanAttributes(t *testing.T) {
 			name:       "Success - span has expression_hash attribute",
 			expression: "amount > 100",
 			expectedAttrs: map[string]any{
-				"compile_input.expression_hash":   HashExpression("amount > 100"),
-				"compile_input.expression_length": len("amount > 100"),
+				"app.request.expression_hash":   HashExpression("amount > 100"),
+				"app.request.expression_length": len("amount > 100"),
 			},
 			description: "Span should have expression_hash and expression_length attributes",
 		},
@@ -246,7 +246,7 @@ func TestCompile_SpanAttributes(t *testing.T) {
 			name:       "Success - long expression has correct length",
 			expression: `transactionType == "CARD" && amount > 100 && account.status == "active" && currency == "USD"`,
 			expectedAttrs: map[string]any{
-				"compile_input.expression_length": len(`transactionType == "CARD" && amount > 100 && account.status == "active" && currency == "USD"`),
+				"app.request.expression_length": len(`transactionType == "CARD" && amount > 100 && account.status == "active" && currency == "USD"`),
 			},
 			description: "Span should have correct expression_length for longer expressions",
 		},
@@ -275,8 +275,8 @@ func TestCompile_SpanAttributes(t *testing.T) {
 
 			require.NotNil(t, compileSpan, "Compile span should exist")
 
-			// Verify attributes - lib-commons v4 flattens struct attributes into dotted keys
-			// e.g. "compile_input.expression_hash", "compile_input.expression_length"
+			// Verify attributes set explicitly on the compile span
+			// e.g. "app.request.expression_hash", "app.request.expression_length"
 			attrs := attributesToMap(compileSpan.Attributes)
 
 			for expectedKey, expectedVal := range tc.expectedAttrs {

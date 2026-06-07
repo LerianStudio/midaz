@@ -109,7 +109,7 @@ Single methodology, non-test `.go`, excluding mocks/generated. Slice globs:
 1. Sprintf-in-logger: `rg 'logger\.(Log|Info|Infof|Warn|Warnf|Error|Errorf|Debug|Debugf|Fatal)[^\n]*fmt\.Sprint' <slice> --glob '*.go' --glob '!*_test.go' --glob '!*mock*' -c`
 2. ctx-rebinds (raw): `rg -n 'ctx, span\w* :?= .*[tT]racer\.Start' <slice> ...` — raw count includes legitimate root spans; non-root share estimated by span-name depth sampling (~30-37% per slice)
 3. Info noise: `rg '(Info|LevelInfo)[^\n]*"(Initiating|Retrieving|Trying to|Successfully|Starting|Sending|Getting|Creating|Updating|Deleting|Fetching)' <slice> ...`
-4. Nil-redactor: `rg -U 'SetSpanAttributesFromValue\([^)]*nil\s*\)' <slice> ...` (anchored on `nil)` as final arg — unanchored variants overcount)
+4. Nil-redactor: count ALL `SetSpanAttributesFromValue(` call sites (`rg -Un 'SetSpanAttributesFromValue\(' ...`) and inspect each final argument. **Correction (Phase 2 execution):** the anchored single-line pattern (`[^)]*nil\s*\)`) undercounts — it misses multi-line calls whose map-literal args contain inner parens. True count was **99 of 100** sites passing nil (tracer had 41, not 18; the 23 extra were multi-line map-literal calls). The unanchored count of 87 was also wrong (different miss profile). Lesson recorded: for call-shape counts, enumerate call sites and inspect; don't anchor on argument position.
 
 ### Tally
 
@@ -131,7 +131,7 @@ Single methodology, non-test `.go`, excluding mocks/generated. Slice globs:
 | Claim (original) | Authoritative | Impact |
 |---|---|---|
 | ledger-core Sprintf 859 / 816 / 402 | **780** | tier unchanged (L) |
-| nil-redactor "48 of 81", tracer 28 | **76 of 100**; fees 30, reporter 21, tracer 18, crm 4, ledger-http 2, ledger-core 1 | Epic 2.2 scope grows ~60%; distribution shifts to fees/reporter |
+| nil-redactor "48 of 81", tracer 28 | **99 of 100** (corrected during Phase 2; see §5 command-4 note); fees 30, tracer 41, reporter 21, crm 4, ledger-http 2, ledger-core 1 | Epic 2.2 scope doubled vs original; tracer is the largest holder |
 | ctx-rebinds "135 (ledger 121, crm 13)" | raw 958; ~325 estimated non-root — original counted only *confirmed leaf-I/O* rebinds | Epic 5.2 elaboration must do per-file review, not blind regex; estimate is name-depth heuristic (medium confidence) |
 | Info noise (uncounted) | 400 | Epic 5.3 scope quantified |
 

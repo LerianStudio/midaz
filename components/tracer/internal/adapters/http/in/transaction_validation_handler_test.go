@@ -329,7 +329,7 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
 				// BadRequest returns simple string, not structured response
-				assertStringErrorContains(t, body, "decision must be one of")
+				assertStringErrorContains(t, body, "Invalid transaction validation filters")
 			},
 		},
 		{
@@ -387,7 +387,7 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
 				// BadRequest returns simple string, not structured response
-				assertStringErrorContains(t, body, "start_date must be in RFC3339 format")
+				assertStringErrorContains(t, body, "Invalid timestamp format: expected RFC3339")
 			},
 		},
 		{
@@ -399,7 +399,7 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
 				// BadRequest returns simple string, not structured response
-				assertStringErrorContains(t, body, "account_id must be a valid UUID")
+				assertStringErrorContains(t, body, "Invalid transaction validation filters")
 			},
 		},
 		{
@@ -486,7 +486,7 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assertStringErrorContains(t, body, "transaction_type must be one of")
+				assertStringErrorContains(t, body, "Invalid transaction validation filters")
 			},
 		},
 		{
@@ -497,7 +497,7 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assertStringErrorContains(t, body, "segment_id must be a valid UUID")
+				assertStringErrorContains(t, body, "Invalid transaction validation filters")
 			},
 		},
 		{
@@ -508,7 +508,7 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: func(t *testing.T, body []byte) {
-				assertStringErrorContains(t, body, "portfolio_id must be a valid UUID")
+				assertStringErrorContains(t, body, "Invalid transaction validation filters")
 			},
 		},
 		{
@@ -908,7 +908,7 @@ func TestListTransactionValidationsInput_Validate(t *testing.T) {
 				StartDate: "2026-01-01",
 			},
 			wantErr: true,
-			errMsg:  "start_date must be in RFC3339 format",
+			errMsg:  "Invalid timestamp format: expected RFC3339",
 		},
 		{
 			name: "error - invalid endDate format",
@@ -916,7 +916,7 @@ func TestListTransactionValidationsInput_Validate(t *testing.T) {
 				EndDate: "invalid",
 			},
 			wantErr: true,
-			errMsg:  "end_date must be in RFC3339 format",
+			errMsg:  "Invalid timestamp format: expected RFC3339",
 		},
 		{
 			name: "error - invalid accountId UUID",

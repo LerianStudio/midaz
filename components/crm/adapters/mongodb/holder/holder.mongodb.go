@@ -253,10 +253,14 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	spanUpdate.SetAttributes(attributes...)
 
-	err = libOpenTelemetry.SetSpanAttributesFromValue(spanUpdate, "app.request.repository_input", holder, nil)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to convert holder to JSON string", err)
-	}
+	spanUpdate.SetAttributes(
+		attribute.Bool("app.request.repository_input.has_metadata", len(holder.Metadata) > 0),
+		attribute.Bool("app.request.repository_input.has_external_id", holder.ExternalID != nil),
+		attribute.Bool("app.request.repository_input.has_contact", holder.Contact != nil),
+		attribute.Bool("app.request.repository_input.has_addresses", holder.Addresses != nil),
+		attribute.Bool("app.request.repository_input.has_natural_person", holder.NaturalPerson != nil),
+		attribute.Bool("app.request.repository_input.has_legal_person", holder.LegalPerson != nil),
+	)
 
 	holderToUpdate := &MongoDBModel{}
 

@@ -59,11 +59,6 @@ func (r *BillingPackageMongoDBRepository) SoftDelete(ctx context.Context, id str
 	now := time.Now().UTC().Format(time.RFC3339)
 	deletedAt := bson.D{{Key: "$set", Value: bson.D{{Key: "deleted_at", Value: now}}}}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanDelete, "app.request.filter", filter, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanDelete, "Failed to convert filter to JSON string", err)
-	}
-
 	deleted, err := coll.UpdateOne(ctx, filter, deletedAt)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete billing package", err)

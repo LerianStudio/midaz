@@ -143,11 +143,6 @@ func (rm *ReportMongoDBRepository) UpdateReportStatusById(
 		"$set": updateFields,
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanUpdate, "app.request.repository_input", update, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to convert update to JSON string", err)
-	}
-
 	result, err := coll.UpdateOne(ctx, filter, update)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to update report status", err)
@@ -173,14 +168,10 @@ func (rm *ReportMongoDBRepository) Create(ctx context.Context, report *Report) (
 
 	attributes := []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqID),
+		attribute.String("app.request.report_id", report.ID.String()),
 	}
 
 	span.SetAttributes(attributes...)
-
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", report, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert report record to JSON string", err)
-	}
 
 	coll, err := rm.getCollection(ctx)
 	if err != nil {
@@ -200,11 +191,6 @@ func (rm *ReportMongoDBRepository) Create(ctx context.Context, report *Report) (
 	ctx, spanInsert := tracer.Start(ctx, "repository.report.create_exec")
 
 	spanInsert.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanInsert, "app.request.repository_input", record, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanInsert, "Failed to convert report record to JSON string", err)
-	}
 
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
@@ -279,11 +265,6 @@ func (rm *ReportMongoDBRepository) FindList(ctx context.Context, filters http.Qu
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", filters, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert filters to JSON string", err)
-	}
-
 	coll, err := rm.getCollection(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
@@ -322,11 +303,6 @@ func (rm *ReportMongoDBRepository) FindList(ctx context.Context, filters http.Qu
 	ctx, spanFind := tracer.Start(ctx, "repository.report.find_list_exec")
 
 	spanFind.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromValue(spanFind, "app.request.repository_filter", filters, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to convert filters to JSON string", err)
-	}
 
 	cur, err := coll.Find(ctx, queryFilter, opts)
 	if err != nil {

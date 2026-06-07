@@ -75,13 +75,16 @@ func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) er
 	payload := p.(*model.BillingCalculateRequest)
 	payload.OrganizationID = organizationID.String()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to calculate billing: ledger=%s, period=%s, type=%s",
-		payload.LedgerID, payload.Period, payload.Type))
+	span.SetAttributes(
+		attribute.String("app.request.ledger_id", payload.LedgerID),
+		attribute.String("app.request.period", payload.Period),
+		attribute.String("app.request.type", payload.Type),
+	)
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	logger.Log(ctx, libLog.LevelInfo, "Request to calculate billing",
+		libLog.String("ledger_id", payload.LedgerID),
+		libLog.String("period", payload.Period),
+		libLog.String("type", payload.Type))
 
 	if errValidation := validateBillingCalculateRequest(payload); errValidation != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Billing calculate request validation failed", errValidation)
@@ -100,8 +103,8 @@ func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) er
 		return feehttp.WithError(c, fmt.Errorf("service returned nil result without error"))
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Billing calculation completed: totalResults=%d, totalNetAmount=%s",
-		result.Summary.TotalResults, result.Summary.TotalNetAmount.String()))
+	logger.Log(ctx, libLog.LevelInfo, "Billing calculation completed",
+		libLog.Int("total_results", result.Summary.TotalResults))
 
 	return commonsHttp.Respond(c, fiber.StatusOK, result)
 }

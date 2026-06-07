@@ -21,6 +21,7 @@ import (
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
 	"github.com/sony/gobreaker"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/cache"
@@ -274,34 +275,10 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 
 	fetched, err := w.queryDelta(ctx, since)
 	if err != nil {
-		// Circuit breaker open or half-open rejecting: skip cycle, serve stale cache
-		if errors.Is(err, gobreaker.ErrOpenState) || errors.Is(err, gobreaker.ErrTooManyRequests) {
-			logger.With(
-				libLog.String("operation", "worker.rule_sync.sync_cycle"),
-				libLog.String("circuit_breaker.state", "open_or_half_open"),
-			).Log(ctx, libLog.LevelWarn, "Circuit breaker rejecting request, skipping sync cycle - serving stale cache")
-
-			w.emitSkipMetrics(ctx, metricsFactory, "skipped", "circuit_open")
-
-			return
-		}
-
-		// Context cancellation: normal during shutdown, not a real failure
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			logger.With(
-				libLog.String("operation", "worker.rule_sync.sync_cycle"),
-			).Log(ctx, libLog.LevelInfo, "Sync cycle interrupted by context cancellation")
-
-			return
-		}
-
-		libOtel.HandleSpanError(span, "Delta query failed", err)
-		logger.With(
-			libLog.String("operation", "worker.rule_sync.sync_cycle"),
-			libLog.String("error.message", err.Error()),
-		).Log(ctx, libLog.LevelError, "Failed to query rule changes")
-
-		w.emitSkipMetrics(ctx, metricsFactory, "error", "db_error")
+		// Error classification (circuit-open / context-cancelled / db-error) is
+		// extracted to keep runSyncCycle under the package gocyclo budget. The
+		// helper logs, marks the span, and emits skip metrics as appropriate.
+		w.handleQueryDeltaError(ctx, span, logger, metricsFactory, err)
 
 		return // lastSync NOT updated on error
 	}
@@ -414,15 +391,54 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 		}
 	}
 
-	if err := libOtel.SetSpanAttributesFromValue(span, "sync_result", map[string]any{
-		"new_count":      len(changes.New),
-		"updated_count":  len(changes.Updated),
-		"deleted_count":  len(changes.Deleted),
-		"compile_errors": compileErrors,
-		"cache_size":     w.cache.Size(ctx),
-	}, nil); err != nil {
-		libOtel.HandleSpanError(span, "Failed to set span attributes", err)
+	span.SetAttributes(
+		attribute.Int("app.response.new_count", len(changes.New)),
+		attribute.Int("app.response.updated_count", len(changes.Updated)),
+		attribute.Int("app.response.deleted_count", len(changes.Deleted)),
+		attribute.Int("app.response.compile_errors", compileErrors),
+		attribute.Int("app.response.cache_size", w.cache.Size(ctx)),
+	)
+}
+
+// handleQueryDeltaError classifies a queryDelta failure and performs the
+// matching side effects (logging, span marking, skip metrics). Extracted from
+// runSyncCycle to keep it under the package gocyclo budget; the control flow
+// and every side effect are identical to the inlined version.
+func (w *RuleSyncWorker) handleQueryDeltaError(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	metricsFactory *libMetrics.MetricsFactory,
+	err error,
+) {
+	// Circuit breaker open or half-open rejecting: skip cycle, serve stale cache
+	if errors.Is(err, gobreaker.ErrOpenState) || errors.Is(err, gobreaker.ErrTooManyRequests) {
+		logger.With(
+			libLog.String("operation", "worker.rule_sync.sync_cycle"),
+			libLog.String("circuit_breaker.state", "open_or_half_open"),
+		).Log(ctx, libLog.LevelWarn, "Circuit breaker rejecting request, skipping sync cycle - serving stale cache")
+
+		w.emitSkipMetrics(ctx, metricsFactory, "skipped", "circuit_open")
+
+		return
 	}
+
+	// Context cancellation: normal during shutdown, not a real failure
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		logger.With(
+			libLog.String("operation", "worker.rule_sync.sync_cycle"),
+		).Log(ctx, libLog.LevelInfo, "Sync cycle interrupted by context cancellation")
+
+		return
+	}
+
+	libOtel.HandleSpanError(span, "Delta query failed", err)
+	logger.With(
+		libLog.String("operation", "worker.rule_sync.sync_cycle"),
+		libLog.String("error.message", err.Error()),
+	).Log(ctx, libLog.LevelError, "Failed to query rule changes")
+
+	w.emitSkipMetrics(ctx, metricsFactory, "error", "db_error")
 }
 
 // emitSuccessMetrics records metrics for a successful sync cycle.

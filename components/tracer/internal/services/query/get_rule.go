@@ -64,11 +64,6 @@ func (q *GetRuleQuery) Execute(ctx context.Context, id uuid.UUID) (*model.Rule, 
 		return nil, err
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "rule", rule, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
-
 	logger.With(
 		libLog.String("operation", "service.rule.get"),
 		libLog.String("rule.id", rule.ID.String()),

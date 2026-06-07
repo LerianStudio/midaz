@@ -13,6 +13,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
@@ -81,13 +82,10 @@ func (q *ListRulesQuery) Execute(ctx context.Context, filter *model.ListRulesFil
 		return nil, err
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "list_result", map[string]any{
-		"rules_count": len(result.Rules),
-		"has_more":    result.HasMore,
-	}, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
+	span.SetAttributes(
+		attribute.Int("app.response.rules_count", len(result.Rules)),
+		attribute.Bool("app.response.has_more", result.HasMore),
+	)
 
 	logger.With(
 		libLog.String("operation", "service.rule.list"),

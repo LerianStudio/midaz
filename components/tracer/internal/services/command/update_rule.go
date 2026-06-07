@@ -190,10 +190,6 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 		return nil, err
 	}
 
-	if err := libOpentelemetry.SetSpanAttributesFromValue(span, "rule_update", rule, nil); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
-
 	// Persist rule update + audit event atomically. Audit failures roll the
 	// rule update back so a successful Execute always implies a successful
 	// audit record.

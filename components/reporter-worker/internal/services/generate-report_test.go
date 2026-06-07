@@ -513,7 +513,8 @@ func TestUseCase_UpdateReportWithErrors(t *testing.T) {
 					DoAndReturn(func(_ context.Context, _ string, _ uuid.UUID, _ time.Time, metadata map[string]any) error {
 						assert.Equal(t, "Report generation failed", metadata["error"])
 						assert.Equal(t, "report_generation_failed", metadata["error_code"])
-						assert.Equal(t, "test error message", metadata["error_detail"])
+						_, hasDetail := metadata["error_detail"]
+						assert.False(t, hasDetail, "raw error text must not leak into report metadata (E9)")
 						return nil
 					})
 			},
@@ -574,7 +575,8 @@ func TestUseCase_UpdateReportWithErrors_SanitizesTimeoutMetadata(t *testing.T) {
 		DoAndReturn(func(_ context.Context, _ string, _ uuid.UUID, _ time.Time, metadata map[string]any) error {
 			assert.Equal(t, "Report generation timed out", metadata["error"])
 			assert.Equal(t, "report_generation_timeout", metadata["error_code"])
-			assert.Equal(t, context.DeadlineExceeded.Error(), metadata["error_detail"])
+			_, hasDetail := metadata["error_detail"]
+			assert.False(t, hasDetail, "raw error text must not leak into report metadata (E9)")
 			return nil
 		})
 

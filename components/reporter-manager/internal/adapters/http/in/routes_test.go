@@ -407,7 +407,7 @@ func TestLegacyFiberErrorHandler_RouteNotFound_UsesLegacyShape(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-	assert.Equal(t, "Cannot GET /missing", body["error"])
+	assert.Equal(t, http.StatusText(http.StatusNotFound), body["error"])
 	assert.Len(t, body, 1)
 }
 

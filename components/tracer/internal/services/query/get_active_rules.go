@@ -14,6 +14,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -87,12 +88,7 @@ func (q *GetActiveRulesQuery) Execute(ctx context.Context, txScope *model.Scope)
 		return nil, fmt.Errorf("failed to get active rules: %w", err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "result", map[string]any{
-		"rules.count": len(rules),
-	}, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
-	}
+	span.SetAttributes(attribute.Int("app.response.rules_count", len(rules)))
 
 	logger.With(
 		libLog.String("operation", "service.rules.get_active"),

@@ -25,12 +25,13 @@ func TestLegacyFiberErrorHandler_PreservesLegacyErrorEnvelope(t *testing.T) {
 		return errors.New("boom")
 	})
 
-	t.Run("fiber error uses raw message", func(t *testing.T) {
+	t.Run("fiber error uses generic status text, not raw message", func(t *testing.T) {
 		resp, err := app.Test(httptest.NewRequest("GET", "/bad-request", nil))
 		require.NoError(t, err)
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.JSONEq(t, `{"error":"invalid request"}`, string(body))
+		require.JSONEq(t, `{"error":"Bad Request"}`, string(body))
+		require.NotContains(t, string(body), "invalid request")
 	})
 
 	t.Run("generic error uses internal server error text", func(t *testing.T) {
@@ -55,5 +56,6 @@ func TestLegacyErrorBoundary_PreservesLegacyErrorEnvelopeInGroupMiddleware(t *te
 	require.NoError(t, err)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"error":"invalid request"}`, string(body))
+	require.JSONEq(t, `{"error":"Bad Request"}`, string(body))
+	require.NotContains(t, string(body), "invalid request")
 }
