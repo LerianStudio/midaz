@@ -19,7 +19,7 @@
 | 1 | Audit gaps closed; unified standard authored; decision memo resolved with owner | 1.1, 1.2 | **Complete** |
 | 2 | Zero financial values / PII / raw payloads on any telemetry signal or client-surfaced error | 2.1, 2.2, 2.3 | **Complete** |
 | 3 | One error platform: forks deleted, canonical boundary hardened, one envelope, status table enforced (D2) | 3.1–3.6 | **Complete** |
-| 4 | Async error resilience: transaction consumer can't hot-loop; authorized transactions can't strand (quarantine); panics dispositioned; reporter hardened (D7) | 4.1–4.5 | Detailed |
+| 4 | Async error resilience: transaction consumer can't hot-loop; authorized transactions can't strand (quarantine); panics dispositioned; reporter hardened (D7) | 4.1–4.5 | **Complete** |
 | 5 | Hygiene sweep + metrics normalization: structured logging, span topology, level discipline, helper-by-class, one metrics stack (D4), domain metrics (D6) | 5.1–5.7 | Epic-level |
 | 6 | Enforcement: lint gates + contract tests in CI; docs synced | 6.1–6.3 | Epic-level |
 
@@ -698,7 +698,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 4.1.1: Extract the generic retry core
 
-- [ ] Done
+- [x] Done
 
 **Context:** `components/reporter-worker/internal/adapters/rabbitmq/retry_manager.go` `HandleFailure:61-122` (classify → maxRetries → backoff → BuildRetryHeaders → republish ST/MT → Ack) and `pkg/reporter/rabbitmq/` (`error_classifier.go`, retry-header helpers, `TenantIDFromHeaders`). Generic vs reporter-specific split mapped in the Phase-4 exploration: headers/backoff/republish/DLQ-nack are generic; the classifier's domain code set is reporter-specific.
 
@@ -719,7 +719,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 4.2.1: Provision `transaction.dlx`/`transaction.dlq` topology
 
-- [ ] Done
+- [x] Done
 
 **Context:** `definitions.json:77-81` — transaction queue has no DLX args; reporter pattern at `:82-108` (DLX direct exchange, DLQ with `x-message-ttl: 604800000`, `x-max-length: 10000`, binding via `.dlq.key`). D5-v2: TTL acceptable — the queue is never the last copy (Redis backup hash is).
 
@@ -733,7 +733,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 4.2.2: Rework consumer error paths onto the retry engine + constructor error
 
-- [ ] Done
+- [x] Done
 
 **Context:** `consumer.rabbitmq.go:339,533,637` blanket `Nack(false,true)`; `:116` constructor panic (`NewConsumerRoutes` on `conn.GetNewConnect()` failure); bulk path invariants (`acknowledgeByResults` multiple=false comment). Handlers route to `CreateBalanceTransactionOperationsAsync` which is idempotent via PG unique constraints — safe for redelivery.
 
@@ -754,7 +754,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 4.3.1: newValidator returns error
 
-- [ ] Done
+- [x] Done
 
 **Context:** `withBody.go:253-262` — `newValidator()` panics if `RegisterDefaultTranslations` fails; called from `ValidateStruct` (`:185`) per request; single internal call site; ValidateStruct already returns error.
 
@@ -770,7 +770,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 4.4.1: Quarantine table + repository
 
-- [ ] Done
+- [x] Done
 
 **Context:** Migration pattern: `components/ledger/migrations/transaction/0000NN_*.up/.down.sql`. The poison record payload is the `mmodel.TransactionRedisQueue` JSON held in the backup hash; key shape `transaction:{orgId}:{ledgerId}:{txId}`.
 
@@ -784,7 +784,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 4.4.2: Poison-record retry counter + quarantine flow in the consumer
 
-- [ ] Done
+- [x] Done
 
 **Context:** Five skip paths (`redis.consumer.go:286,291,354,452,520` post-drift). Counter must survive pod restarts → Redis parallel hash `backup_queue:{transactions}:attempts` keyed by the same field key (HIncrBy); cycle = 30min.
 
@@ -798,7 +798,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 4.4.3: Backup-queue + balance-sync observability
 
-- [ ] Done
+- [x] Done
 
 **Context:** No metrics today; MetricsFactory reachable via bootstrap wiring (`rabbitmq.server.go:189` precedent); F23 silent tenant skip at `balance_sync.worker.go:313-324`.
 
@@ -814,7 +814,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 4.5.1: HMAC hard-fail
 
-- [ ] Done
+- [x] Done
 
 **Context:** `components/reporter-worker/internal/services/data-pipeline.go:73-104` `auditHMAC` — mismatch logs Warn and processing continues; empty-signature and no-key paths exist. Consumer chain has retry-manager access (notification consumer). D7: invalid signature → reject + dead-letter; security born enforcing.
 
@@ -828,7 +828,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 4.5.2: Explicit PARTIAL report status + per-section error codes
 
-- [ ] Done
+- [x] Done
 
 **Context:** Reports with failed sections deliver partial today with no loud marker. Status enum + section metadata shape: locate in `pkg/reporter/mongodb/report/report.go` (Status field) and the worker's section-failure path (generate-report.go section loop). E9: classified `error_code` per section, never raw text.
 
@@ -929,6 +929,8 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 - **2026-06-07 Phase 2 executed.** Dispatched by slice (4 parallel agents), one commit (shared files across epics). Nil-redactor true count was **99 of 100** (appendix corrected — anchored regex missed multi-line map-literal calls; tracer held 41, not 18). Extra F1-class financial leaks found and fixed during execution beyond the elaborated list: tracer `validation_handler.go` (`amount` in a span map), `create_limit.go`/`limit_checker.go` (`max_amount` on spans), fees `fees_package_handler.go:137` (`packOut` `%v` dump with Min/MaxAmount), `payload_builder.go:225` (amount-carrying string recorded onto span via HandleSpanBusinessErrorEvent). Reporter `error_detail` dropped entirely (E9) with RED→GREEN test evidence; `routes_test.go:410` was asserting a path leak. Working tree carries an unrelated pre-existing format pass (~100 files import-reorder) + 4 substantive non-plan changes (`tracer/bootstrap/config*.go`, `tracer/pkg/model/limit.go`, `pkg/reporter/pdf/pool.go`, workflow version bumps, `AGENTS.md`) — deliberately NOT staged.
 
 - **2026-06-07 Phase 3 executed** (commits 7ded3c7af, dd3ad2cb4, b3fa4e298, 72ea1bb85, 99bcda86a, 0410dc95b, 2aa805a24). Corrections vs elaboration: tracer fork held **172** TRC- sentinels (not 73 — second tracer undercount); feeshared/nethttp is NOT a pure clone (fee-specific QueryHeader/WithBodyTracing infra survives with canonical internals — deleting it would have re-typed the ledger-wide QueryHeader); LegacyErrorBoundary was dead code (deleted, replaced by CanonicalFiberErrorHandler for fiber.Error producers, new sentinels 0484/0485); reporter E5 went full adapter-boundary (the two extra raw-ErrNoDocuments gaps proved the service-layer convention fails the every-caller-guards test); codes 0046/0047/0053/0094 are deliberately factory-served (NOT ValidateBusinessError arms) — convention now followed by all migrations; mainline re-typing shipped 23x 400→422 + 1x 409 + 2 reverse fixes (0017, 0096), locked by mainline_error_contract_test. Tracer commit absorbed previously uncommitted limit-validation/bootstrap-clock work entangled in shared files — flagged for owner awareness.
+
+- **2026-06-07 Phase 4 executed** (commits 9adb0365a, 45c322866). pkg/rabbitmq retry engine extracted with RepublishFunc seam (reporter MT coupling stays reporter-side); two load-bearing classifier divergences preserved deliberately (reporter treats ctx-cancel and FailedPrecondition as permanent; generic engine does not). Quarantine invariant (insert-before-delete) guarded by mock-ordering tests; threshold 3 cycles; attempts counter survives restarts in a parallel Redis hash. HMAC hard-fail uses new sentinel 0310 (reporter headroom) typed UnauthorizedError -> non-retryable on both classifier paths; reconciler recovery path enforced too. PARTIAL status required converting the report data loop from fail-fast to per-database accumulation (no section concept existed; database = section unit). Transaction queue x-arguments are immutable -> deployment caveat recorded (drain+recreate). Staging slip: 9adb0365a missed test files + PARTIAL constant; landed in 45c322866.
 
 ## Out of Scope
 
