@@ -432,7 +432,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Entity Not Found",
 			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		},
-		constant.ErrActionNotPermitted: ValidationError{
+		constant.ErrActionNotPermitted: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrActionNotPermitted.Error(),
 			Title:      "Action Not Permitted",
@@ -444,31 +444,31 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Missing Fields in Request",
 			Message:    fmt.Sprintf("Your request is missing one or more required fields: %v. Please refer to the documentation to ensure all necessary fields are included in your request.", args...),
 		},
-		constant.ErrAccountTypeImmutable: ValidationError{
+		constant.ErrAccountTypeImmutable: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountTypeImmutable.Error(),
 			Title:      "Account Type Immutable",
 			Message:    "The account type specified cannot be modified. Please ensure the correct account type is being used and try again.",
 		},
-		constant.ErrInactiveAccountType: ValidationError{
+		constant.ErrInactiveAccountType: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrInactiveAccountType.Error(),
 			Title:      "Inactive Account Type Error",
 			Message:    "The account type specified cannot be set to INACTIVE. Please ensure the correct account type is being used and try again.",
 		},
-		constant.ErrAccountBalanceDeletion: ValidationError{
+		constant.ErrAccountBalanceDeletion: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountBalanceDeletion.Error(),
 			Title:      "Account Balance Deletion Error",
 			Message:    "An account or sub-account cannot be deleted if it has a remaining balance. Please ensure all remaining balances are transferred to another account before attempting to delete.",
 		},
-		constant.ErrResourceAlreadyDeleted: ValidationError{
+		constant.ErrResourceAlreadyDeleted: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrResourceAlreadyDeleted.Error(),
 			Title:      "Resource Already Deleted",
 			Message:    "The resource you are trying to delete has already been deleted. Ensure you are using the correct ID and try again.",
 		},
-		constant.ErrSegmentIDInactive: ValidationError{
+		constant.ErrSegmentIDInactive: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrSegmentIDInactive.Error(),
 			Title:      "Segment ID Inactive",
@@ -486,7 +486,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Balance Remaining Deletion Error",
 			Message:    "The asset cannot be deleted because there is a remaining balance. Please ensure all balances are cleared before attempting to delete again.",
 		},
-		constant.ErrInvalidScriptFormat: EntityConflictError{
+		constant.ErrInvalidScriptFormat: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrInvalidScriptFormat.Error(),
 			Title:      "Invalid Script Format Error",
@@ -528,7 +528,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Deletion Of Internal Balance Error",
 			Message:    "Internal-scope balances cannot be deleted. They are managed by the system and must remain for accounting consistency.",
 		},
-		constant.ErrReservedBalanceKey: ValidationError{
+		constant.ErrReservedBalanceKey: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrReservedBalanceKey.Error(),
 			Title:      "Reserved Balance Key Error",
@@ -594,19 +594,19 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Timing Restriction",
 			Message:    fmt.Sprintf("You can only perform another transaction using %v of %f from %v to %v after %v. Please wait until the specified time to try again.", args...),
 		},
-		constant.ErrAccountStatusTransactionRestriction: ValidationError{
+		constant.ErrAccountStatusTransactionRestriction: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountStatusTransactionRestriction.Error(),
 			Title:      "Account Status Transaction Restriction",
 			Message:    "The current statuses of the source and/or destination accounts do not permit transactions. Change the account status(es) and try again.",
 		},
-		constant.ErrInsufficientAccountBalance: ValidationError{
+		constant.ErrInsufficientAccountBalance: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrInsufficientAccountBalance.Error(),
 			Title:      "Insufficient Account Balance Error",
 			Message:    fmt.Sprintf("The account %v does not have sufficient balance. Please try again with an amount that is less than or equal to the available balance.", args...),
 		},
-		constant.ErrTransactionMethodRestriction: ValidationError{
+		constant.ErrTransactionMethodRestriction: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionMethodRestriction.Error(),
 			Title:      "Transaction Method Restriction",
@@ -630,7 +630,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Parent Account ID",
 			Message:    "The specified parent account ID does not exist. Please verify the ID is correct and attempt your request again.",
 		},
-		constant.ErrMismatchedAssetCode: ValidationError{
+		constant.ErrMismatchedAssetCode: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrMismatchedAssetCode.Error(),
 			Title:      "Mismatched Asset Code",
@@ -870,13 +870,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Transaction Type",
 			Message:    fmt.Sprintf("Only one transaction type ('amount', 'share', or 'remaining') must be specified in the '%v' field for each entry. Please review your input and try again.", args...),
 		},
-		constant.ErrTransactionValueMismatch: ValidationError{
+		constant.ErrTransactionValueMismatch: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionValueMismatch.Error(),
 			Title:      "Transaction Value Mismatch",
 			Message:    "The values for the source, the destination, or both do not match the specified transaction amount. Please verify the values and try again.",
 		},
-		constant.ErrForbiddenExternalAccountManipulation: ValidationError{
+		constant.ErrForbiddenExternalAccountManipulation: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrForbiddenExternalAccountManipulation.Error(),
 			Title:      "External Account Modification Prohibited",
@@ -948,43 +948,43 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Alias Not Found",
 			Message:    "The provided account Alias does not exist in our records. Please verify the account Alias and try again.",
 		},
-		constant.ErrLockVersionAccountBalance: ValidationError{
+		constant.ErrLockVersionAccountBalance: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrLockVersionAccountBalance.Error(),
 			Title:      "Race condition detected",
 			Message:    "A race condition was detected while processing your request. Please try again",
 		},
-		constant.ErrTransactionIDHasAlreadyParentTransaction: ValidationError{
+		constant.ErrTransactionIDHasAlreadyParentTransaction: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionIDHasAlreadyParentTransaction.Error(),
 			Title:      "Transaction Revert already exist",
 			Message:    "Transaction revert already exists. Please try again.",
 		},
-		constant.ErrTransactionIDIsAlreadyARevert: ValidationError{
+		constant.ErrTransactionIDIsAlreadyARevert: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionIDIsAlreadyARevert.Error(),
 			Title:      "Transaction is already a reversal",
 			Message:    "Transaction is already a reversal. Please try again",
 		},
-		constant.ErrTransactionCantRevert: ValidationError{
+		constant.ErrTransactionCantRevert: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionCantRevert.Error(),
 			Title:      "Transaction can't be reverted",
 			Message:    "Transaction can't be reverted. Please try again",
 		},
-		constant.ErrTransactionAmbiguous: ValidationError{
+		constant.ErrTransactionAmbiguous: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionAmbiguous.Error(),
 			Title:      "Transaction ambiguous account",
 			Message:    "Transaction can't use the same account in sources and destinations",
 		},
-		constant.ErrBalancesCantBeDeleted: ValidationError{
+		constant.ErrBalancesCantBeDeleted: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrBalancesCantBeDeleted.Error(),
 			Title:      "Balance cannot be deleted",
 			Message:    "Balance cannot be deleted because it still has funds in it.",
 		},
-		constant.ErrParentIDSameID: ValidationError{
+		constant.ErrParentIDSameID: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrParentIDSameID.Error(),
 			Title:      "ID cannot be used as the parent ID",
@@ -996,7 +996,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Message Broker Unavailable",
 			Message:    "The server encountered an unexpected error while connecting to Message Broker. Please try again later or contact support.",
 		},
-		constant.ErrAccountAliasInvalid: InternalServerError{
+		constant.ErrAccountAliasInvalid: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountAliasInvalid.Error(),
 			Title:      "Invalid Account Alias",
@@ -1176,7 +1176,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicated Alias Key Value Error",
 			Message:    "An account alias with the specified key value already exists for this organization and ledger. Please use a different key value.",
 		},
-		constant.ErrAdditionalBalanceNotAllowed: ValidationError{
+		constant.ErrAdditionalBalanceNotAllowed: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAdditionalBalanceNotAllowed.Error(),
 			Title:      "Additional Balance Creation Not Allowed",
@@ -1284,7 +1284,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Metadata Key Format",
 			Message:    "The metadata key format is invalid. Keys must start with a letter and contain only alphanumeric characters and underscores.",
 		},
-		constant.ErrMetadataIndexLimitExceeded: ValidationError{
+		constant.ErrMetadataIndexLimitExceeded: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrMetadataIndexLimitExceeded.Error(),
 			Title:      "Metadata Index Limit Exceeded",
@@ -1296,7 +1296,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Metadata Index Creation Failed",
 			Message:    "The metadata index could not be created. Please try again later or contact support.",
 		},
-		constant.ErrMetadataIndexDeletionForbidden: ValidationError{
+		constant.ErrMetadataIndexDeletionForbidden: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrMetadataIndexDeletionForbidden.Error(),
 			Title:      "Metadata Index Deletion Forbidden",
@@ -1434,7 +1434,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Route Action",
 			Message:    fmt.Sprintf("The action '%v' is not a valid route action. Please provide a valid action value.", args...),
 		},
-		constant.ErrDuplicateActionRoute: ValidationError{
+		constant.ErrDuplicateActionRoute: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrDuplicateActionRoute.Error(),
 			Title:      "Duplicate Action Route",

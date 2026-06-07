@@ -604,7 +604,7 @@ func TestRevertTransaction_AlreadyHasRevert_ReturnsError(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 400, resp.StatusCode, "expected HTTP 400 for already reverted transaction")
+	assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for already reverted transaction")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -692,7 +692,7 @@ func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 400, resp.StatusCode, "expected HTTP 400 for transaction that is already a revert")
+	assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for transaction that is already a revert")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -844,7 +844,7 @@ func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 }
 
 // TestRevertTransaction_EmptyRevert_ReturnsError validates that when TransactionRevert
-// returns an empty result (transaction can't be reverted), HTTP 400 is returned.
+// returns an empty result (transaction can't be reverted), HTTP 422 is returned.
 // TransactionRevert.IsEmpty() returns true when AssetCode is empty and Amount is zero.
 func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 	t.Parallel()
@@ -920,7 +920,7 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 400, resp.StatusCode, "expected HTTP 400 for empty revert")
+	assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for empty revert")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)

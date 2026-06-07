@@ -81,10 +81,10 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 
-		var validationErr midazpkg.ValidationError
+		var unprocessableErr midazpkg.UnprocessableOperationError
 		assert.Error(t, err)
-		assert.True(t, errors.As(err, &validationErr))
-		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
+		assert.True(t, errors.As(err, &unprocessableErr))
+		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), unprocessableErr.Code)
 	})
 
 	t.Run("balances with funds remaining prevent deletion", func(t *testing.T) {
@@ -100,10 +100,10 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 
-		var validationErr midazpkg.ValidationError
+		var unprocessableErr midazpkg.UnprocessableOperationError
 		assert.Error(t, err)
-		assert.True(t, errors.As(err, &validationErr))
-		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
+		assert.True(t, errors.As(err, &unprocessableErr))
+		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), unprocessableErr.Code)
 	})
 
 	t.Run("toggle balance transfers error", func(t *testing.T) {

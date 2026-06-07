@@ -783,12 +783,12 @@ func TestHandler_DeleteLedgerByID(t *testing.T) {
 			},
 		},
 		{
-			name:    "production environment returns 400 validation error",
+			name:    "production environment returns 422 unprocessable error",
 			envName: "production",
 			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
 				// No repository calls expected in production
 			},
-			expectedStatus: 400,
+			expectedStatus: 422,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)

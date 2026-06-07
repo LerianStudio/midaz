@@ -477,3 +477,111 @@ All `400→422` re-types carry the `status-change` flag in their row (fork typed
 - **tracer (12):** TRC-0085 (CEL cost over threshold), 0089 (amount exceeds CEL precision), 0102 (rule status transition), 0104 (expression immutable for non-DRAFT), 0114 (rule transition not allowed), 0121 (limit status transition), 0128 (limit already DELETED), 0138 (limit immutable field), 0167 (usage counter exceeds limit), 0307 (custom period > 5y), 0308 (custom period expired), 0378 (reservation already terminal).
 
 Infra/availability re-types — fork-generic-500 → 503 ServiceUnavailable for TRC-0012/0229/0252/0281/0328–0335, TPL-0034/0058, REP-0061 — are class refinements within the 5xx family per E3's 500/503 split, flagged in-row via the typed-class column (they do not carry the `400→422` flag).
+
+---
+
+## Mainline 400 reclassification (Task 3.6.1)
+
+**Scope.** Every errorMap arm in `pkg/errors.go`'s `ValidateBusinessError` that currently produces a `ValidationError` (→ HTTP 400) **and** whose sentinel code is in the original mainline range `0001–0178`. The migrated-family blocks (`0179+`: fees, reporter, tracer) are already classified above and excluded here. CRM-prefixed sentinels (`CRM-00xx` — `ErrHolderHasInstruments`, `ErrInstrumentClosingDateBeforeCreation`, `ErrInvalidRelatedPartyRole`, `ErrRelatedPartyDocumentRequired`, `ErrRelatedPartyNameRequired`, `ErrRelatedPartyStartDateRequired`, `ErrRelatedPartyEndDateInvalid`) are also excluded — they have a `CRM-` wire prefix, not a numeric code ≤0178, and are owned by the CRM contract lock (E14).
+
+**Standard applied (E3).** Malformed/syntactic input (bad body/UUID/date/timestamp/pagination/query/path format, missing required fields, type/enum-shape errors, unknown/unmodifiable fields) → **keep-400**. Semantic business-rule violations (state restrictions, value reconciliation, domain invariants, "cannot do X because business state Y") → **move-422** (`UnprocessableOperationError`). Conflict/duplicate-identity typed as `ValidationError` today → **move-409** (`EntityConflictError`). Genuine ambiguity biases **keep-400** (smaller wire change) and is marked `borderline`.
+
+**Total mainline `ValidationError`-400 arms found (code ≤0178, CRM excluded): 75.** (The full mainline-block scan returns 76 `ValidationError` sentinels; `ErrMethodNotAllowed` resolves to code `0485` — a late-allocated routing code outside the ≤0178 scope — so it is excluded, leaving 75. The two reverse-misclassification entries `0017`/`0096` appear in the table as flagged notes but are NOT `ValidationError` today, so they are not part of the 75.)
+
+| code | sentinel | current title | disposition | rationale |
+|---|---|---|---|---|
+| 0004 | ErrCodeUppercaseRequirement | Code Uppercase Requirement | keep-400 | format rule on a field value (uppercase) — syntactic |
+| 0005 | ErrCurrencyCodeStandardCompliance | Currency Code Standard Compliance | keep-400 | ISO-4217 format check — syntactic |
+| 0006 | ErrUnmodifiableField | Unmodifiable Field Error | keep-400 | request contains a non-editable field — malformed request shape |
+| 0008 | ErrActionNotPermitted | Action Not Permitted | move-422 | action disallowed in current environment/state — semantic rule, not malformed input |
+| 0009 | ErrMissingFieldsInRequest | Missing Fields in Request | keep-400 | missing required fields — syntactic |
+| 0010 | ErrAccountTypeImmutable | Account Type Immutable | move-422 `borderline` | "type cannot be modified" is a domain immutability rule (state), not request-shape; leans 422 but adjacent to ErrImmutableField which stays 400 |
+| 0011 | ErrInactiveAccountType | Inactive Account Type Error | move-422 | cannot set account type INACTIVE — business-state rule |
+| 0012 | ErrAccountBalanceDeletion | Account Balance Deletion Error | move-422 | cannot delete account with remaining balance — business-state rule |
+| 0013 | ErrResourceAlreadyDeleted | Resource Already Deleted | move-422 | already-deleted is a terminal-state violation, not malformed input |
+| 0014 | ErrSegmentIDInactive | Segment ID Inactive | move-422 | referenced segment is inactive — business-state rule |
+| 0022 | ErrImmutableField | Immutable Field Error | keep-400 `borderline` | rejects a field present in the request body before any state read — request-shape; kept 400 (contrast 0010 which gates on stored account type) |
+| 0024 | ErrAccountStatusTransactionRestriction | Account Status Transaction Restriction | move-422 | account status does not permit the transaction — business-state rule (fires in transaction validation, `pkg/mtransaction/validations.go`) |
+| 0025 | ErrInsufficientAccountBalance | Insufficient Account Balance Error | move-422 | insufficient balance — financial business-rule (semantic sibling of ErrInsufficientFunds 0018, already 422) |
+| 0026 | ErrTransactionMethodRestriction | Transaction Method Restriction | move-422 | method not permitted for these accounts — business-rule |
+| 0029 | ErrInvalidParentAccountID | Invalid Parent Account ID | keep-400 `borderline` | message says the parent account "does not exist"; reads like a 404, but typed as a request-field validation. Kept 400 (smaller change); flag for owner — arguably EntityNotFound-404 |
+| 0030 | ErrMismatchedAssetCode | Mismatched Asset Code | move-422 | parent account's asset code conflicts with the requested one — cross-entity consistency rule, not malformed input |
+| 0031 | ErrChartTypeNotFound | Chart Type Not Found | keep-400 `borderline` | "chart type does not exist" — enum-membership check on an input value; kept 400 (enum-shape), not a stored-entity 404 |
+| 0032 | ErrInvalidCountryCode | Invalid Country Code | keep-400 | ISO-3166 format check — syntactic |
+| 0033 | ErrInvalidCodeFormat | Invalid Code Format | keep-400 | alphanumeric/case format rule — syntactic |
+| 0040 | ErrInvalidType | Invalid Type | keep-400 | enum-shape check on `type` — syntactic |
+| 0048 | ErrInvalidDSLFileFormat | Invalid DSL File Format | keep-400 | malformed DSL file structure/syntax — syntactic |
+| 0049 | ErrEmptyDSLFile | Empty DSL File | keep-400 | empty uploaded file — malformed input |
+| 0050 | ErrMetadataKeyLengthExceeded | Metadata Key Length Exceeded | keep-400 | length constraint on input — syntactic |
+| 0051 | ErrMetadataValueLengthExceeded | Metadata Value Length Exceeded | keep-400 | length constraint on input — syntactic |
+| 0065 | ErrInvalidPathParameter | Invalid Path Parameter | keep-400 | malformed path param format — syntactic |
+| 0066 | ErrInvalidAccountType | Invalid Account Type | keep-400 | enum-shape check — syntactic |
+| 0067 | ErrInvalidMetadataNesting | Invalid Metadata Nesting | keep-400 | nested metadata is a structural-shape violation — syntactic |
+| 0072 | ErrInvalidTransactionType | Invalid Transaction Type | keep-400 | exactly-one-of field-shape rule, fires in body validation (`withBody.go`) — syntactic |
+| 0073 | ErrTransactionValueMismatch | Transaction Value Mismatch | move-422 | source/destination sums do not reconcile to the amount — the canonical E3 example of a semantic rule mis-typed as 400 (`error-handling.md` E3) |
+| 0074 | ErrForbiddenExternalAccountManipulation | External Account Modification Prohibited | move-422 | external accounts cannot be modified/deleted — domain rule on entity kind, not malformed input |
+| 0077 | ErrInvalidDateFormat | Invalid Date Format Error | keep-400 | yyyy-mm-dd format check — syntactic |
+| 0078 | ErrInvalidFinalDate | Invalid Final Date Error | keep-400 `borderline` | finalDate < initialDate is a range rule but on raw query params at parse time; kept 400 (pagination/date-param family stays 400 for consistency) |
+| 0079 | ErrDateRangeExceedsLimit | Date Range Exceeds Limit Error | keep-400 | query date-range bound — pagination/query family, syntactic |
+| 0080 | ErrPaginationLimitExceeded | Pagination Limit Exceeded | keep-400 | pagination bound — syntactic |
+| 0081 | ErrInvalidSortOrder | Invalid Sort Order | keep-400 | enum-shape on sort_order — syntactic |
+| 0082 | ErrInvalidQueryParameter | Invalid Query Parameter | keep-400 | malformed query param — syntactic |
+| 0083 | ErrInvalidDateRange | Invalid Date Range Error | keep-400 | required date fields/format — syntactic |
+| 0086 | ErrLockVersionAccountBalance | Race condition detected | move-422 `borderline` | optimistic-lock/version conflict — a concurrency state condition, not malformed input. Sibling ErrStaleBalanceVersion (0174) is already 422; 409 is also defensible (conflict). Recommend 422 to match the sibling; flag for owner |
+| 0087 | ErrTransactionIDHasAlreadyParentTransaction | Transaction Revert already exist | move-422 | revert already exists — terminal-state rule on the transaction (fires in RevertTransaction) |
+| 0088 | ErrTransactionIDIsAlreadyARevert | Transaction is already a reversal | move-422 | transaction is already a reversal — state rule, cannot revert a revert |
+| 0089 | ErrTransactionCantRevert | Transaction can't be reverted | move-422 | transaction not in a revertable state — business-state rule |
+| 0090 | ErrTransactionAmbiguous | Transaction ambiguous account | move-422 `borderline` | same account in sources+destinations — semantic accounting rule; fires in ValidateSendSourceAndDistribute. Leans 422 (double-entry invariant), though arguably request-shape; recommend 422 |
+| 0091 | ErrParentIDSameID | ID cannot be used as the parent ID | move-422 `borderline` | self-referential parent — relational invariant on the entity graph; could read as field-shape (400). Recommend 422 (it depends on the entity identity, not just syntax) |
+| 0093 | ErrBalancesCantBeDeleted | Balance cannot be deleted | move-422 | cannot delete a balance with funds — business-state rule (sibling of ErrBalanceRemainingDeletion 0016, already 422) |
+| 0096 | ErrAccountAliasInvalid | Invalid Account Alias | keep-400 `borderline` | alias contains invalid characters → syntactic; **note misclassification**: currently typed `InternalServerError`-500, NOT ValidationError — see flag list below (excluded from the 75 count) |
+| 0103 | ErrInvalidOperationRouteType | Invalid Operation Route Type | keep-400 | enum-shape on operationType — syntactic |
+| 0104 | ErrMissingOperationRoutes | Missing Operation Routes in Request | keep-400 `borderline` | "must include at least one of each type" — could be a composition rule (422) but reads as a required-fields completeness check at request validation. Kept 400 (missing-fields family) |
+| 0111 | ErrInvalidAccountRuleType | Invalid Account Rule Type | keep-400 | enum-shape on ruleType — syntactic |
+| 0112 | ErrInvalidAccountRuleValue | Invalid Account Rule Value | keep-400 | type-shape on validIf (string vs array) — syntactic |
+| 0115 | ErrInvalidTransactionRouteID | Invalid Transaction Route ID | keep-400 | malformed UUID — syntactic |
+| 0120 | ErrInvalidAccountTypeKeyValue | Invalid Characters | keep-400 | invalid-char check on keyValue — syntactic |
+| 0121 | ErrInvalidFutureTransactionDate | Invalid Future Date Error | keep-400 `borderline` | "transactionDate cannot be future" is a temporal rule; but it validates a single input field against now() at request validation — kept 400 (date-field family). Flag: sibling temporal rules in migrated families (e.g. DueDateInPast) went 422 |
+| 0122 | ErrInvalidPendingFutureTransactionDate | Invalid Field for Pending Transaction Error | keep-400 | field not supported for pending mode — request-shape conditional-field rule |
+| 0124 | ErrAdditionalBalanceNotAllowed | Additional Balance Creation Not Allowed | move-422 | additional balances not allowed for external account type — domain rule on entity kind |
+| 0131 | ErrInvalidDatetimeFormat | Invalid Datetime Format Error | keep-400 | datetime format check — syntactic |
+| 0134 | ErrMetadataIndexInvalidKey | Invalid Metadata Key Format | keep-400 | key format rule — syntactic |
+| 0135 | ErrMetadataIndexLimitExceeded | Metadata Index Limit Exceeded | move-422 `borderline` | max-indexes-reached is a resource/state cap, not malformed input. Recommend 422; small surface (CRM/metadata-index endpoint). Flag for owner |
+| 0137 | ErrMetadataIndexDeletionForbidden | Metadata Index Deletion Forbidden | move-422 | system indexes cannot be deleted — domain rule on entity kind (not auth/403, not malformed input) |
+| 0138 | ErrInvalidEntityName | Invalid Entity Name | keep-400 | entity-name shape check — syntactic |
+| 0140 | ErrInvalidTimestamp | Invalid Timestamp | keep-400 `borderline` | "timestamp cannot be in the future" — temporal field check at request validation; kept 400 (timestamp-field family, same call as 0121) |
+| 0142 | ErrMissingRequiredQueryParameter | Missing Required Query Parameter | keep-400 | missing query param — syntactic |
+| 0143 | ErrPayloadTooLarge | Payload Too Large | keep-400 | request size bound — syntactic (HTTP 413-adjacent; stays in 400 family per current typing) |
+| 0144 | ErrJSONNestingDepthExceeded | JSON Nesting Depth Exceeded | keep-400 | structural bound on payload — syntactic |
+| 0145 | ErrJSONKeyCountExceeded | JSON Key Count Exceeded | keep-400 | structural bound on payload — syntactic |
+| 0147 | ErrUnknownSettingsField | Unknown Settings Field | keep-400 | unknown field in body — syntactic |
+| 0148 | ErrInvalidSettingsFieldType | Invalid Settings Field Type | keep-400 | type-shape on settings field — syntactic |
+| 0149 | ErrSettingsRootLevelField | Settings Field at Root Level | keep-400 | field-nesting structural rule — syntactic |
+| 0153 | ErrNoSourceForAction | No Source for Action | keep-400 `borderline` | action requires a source route — route-composition completeness; sibling ErrNoRoutesForAction (0157) is 422. Borderline 422, kept 400 (validates the submitted route payload shape). Flag for owner |
+| 0154 | ErrNoDestinationForAction | No Destination for Action | keep-400 `borderline` | mirror of 0153 — same reasoning, flag for owner |
+| 0155 | ErrInvalidRouteAction | Invalid Route Action | keep-400 | enum-shape on action — syntactic |
+| 0156 | ErrDuplicateActionRoute | Duplicate Action Route | move-409 `borderline` | "operation route already assigned to action" — duplicate-within-payload. Conflict semantics → 409. Borderline: it is a within-request duplicate (not a stored-identity collision), so 422 is also defensible; recommend 409 to match the conflict class, flag for owner |
+| 0158 | ErrTooManyOperationRoutes | Too Many Operation Routes | keep-400 | count bound on operation routes — syntactic (size/cardinality of the submitted payload) |
+| 0176 | ErrInvalidSettingsFieldValue | Invalid Settings Field Value | keep-400 | allowed-values enum check — syntactic |
+| 0170 | ErrReservedBalanceKey | Reserved Balance Key Error | move-422 `borderline` | the supplied balance key is reserved for system use — a namespace/domain rule, not a malformed value. Leans 422; kept-400 also defensible (input-validation). Recommend 422 |
+| 0171 | ErrInvalidBalanceDirection | Invalid Balance Direction Error | keep-400 | enum-shape ("credit"/"debit") — syntactic |
+| 0172 | ErrInvalidBalanceSettings | Invalid Balance Settings Error | keep-400 | malformed settings payload (overdraft/limit/scope) — syntactic |
+| 0017 | ErrInvalidScriptFormat | Invalid Script Format Error | keep-400 `borderline` | **note misclassification**: currently typed `EntityConflictError`-409, NOT ValidationError. Message is a DSL parse/format error → should be 400. Excluded from the 75 count; see flag list below |
+
+### Disposition counts (of the 75 ValidationError-400 arms)
+
+- **keep-400: 51**
+- **move-422: 23** — 0008, 0010, 0011, 0012, 0013, 0014, 0024, 0025, 0026, 0030, 0073, 0074, 0086, 0087, 0088, 0089, 0090, 0091, 0093, 0124, 0135, 0137, 0170
+- **move-409: 1** — 0156 (ErrDuplicateActionRoute)
+- of which `borderline`-flagged: **16** (0010, 0022, 0029, 0031, 0078, 0086, 0090, 0091, 0104, 0121, 0135, 0140, 0153, 0154, 0156, 0170)
+
+(51 + 23 + 1 = 75. ✓)
+
+### Reverse-misclassification flags (codes ≤0178 NOT typed ValidationError that look syntactic — flag-only, no disposition)
+
+These are currently typed `UnprocessableOperationError`/`EntityConflictError`/`InternalServerError` but their title/message reads syntactic (malformed input), the opposite of the 400→422 drift. Surfaced for owner review; not part of the 75-arm re-typing:
+
+- **0017 ErrInvalidScriptFormat** — typed `EntityConflictError`-409. A DSL parse/format failure is malformed input → looks like it should be **400**, not 409. The 409 class is almost certainly a historical mistake (a parse error is not a resource conflict).
+- **0096 ErrAccountAliasInvalid** — typed `InternalServerError`-500. Title/message ("The alias contains invalid characters") is plainly client-supplied malformed input → should be **400**, never 500. A 500 here leaks an input-validation failure as a server fault (also brushes E9).
+
+No syntactic-looking arms were found mis-typed as 422 among the accounting/transaction `UnprocessableOperationError` set — those (0098, 0099, 0107, 0113, 0114, 0116–0119, 0150–0152, 0157, 0162–0169, 0173–0175, 0177, 0178) are all genuine semantic/state rules and correctly 422.

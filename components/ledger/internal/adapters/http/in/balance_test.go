@@ -687,7 +687,7 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 			},
 		},
 		{
-			name: "balance with non-zero funds returns 400 bad request",
+			name: "balance with non-zero funds returns 422 unprocessable entity",
 			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, balanceID uuid.UUID) {
 				// Test both Available and OnHold scenarios in subtests
 				// Balance found with non-zero amounts (cannot be deleted)
@@ -703,7 +703,7 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 					Times(1)
 				// Delete should NOT be called
 			},
-			expectedStatus: 400,
+			expectedStatus: 422,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)
@@ -1227,7 +1227,7 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			},
 		},
 		{
-			name: "external account type returns 400 validation error",
+			name: "external account type returns 422 unprocessable error",
 			payload: &mmodel.CreateAdditionalBalance{
 				Key:            "new-key",
 				AllowSending:   testutils.Ptr(true),
@@ -1257,7 +1257,7 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 					}, nil).
 					Times(1)
 			},
-			expectedStatus: 400,
+			expectedStatus: 422,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)

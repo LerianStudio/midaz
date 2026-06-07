@@ -64,9 +64,9 @@ func TestDeleteBalance(t *testing.T) {
 
 				err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 
-				var validationErr midazpkg.ValidationError
-				assert.True(t, errors.As(err, &validationErr))
-				assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
+				var unprocessableErr midazpkg.UnprocessableOperationError
+				assert.True(t, errors.As(err, &unprocessableErr))
+				assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), unprocessableErr.Code)
 			})
 		}
 	})
