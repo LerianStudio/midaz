@@ -158,7 +158,8 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 
 		telemetry := &libOpentelemetry.Telemetry{}
 
-		consumerRoutes := rabbitmq.NewConsumerRoutes(conn, 1, 1, logger, telemetry)
+		consumerRoutes, err := rabbitmq.NewConsumerRoutes(conn, 1, 1, logger, telemetry)
+		require.NoError(t, err, "failed to create consumer routes")
 
 		// Create MultiQueueConsumer with mocked UseCase
 		consumer := &MultiQueueConsumer{

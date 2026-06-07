@@ -40,3 +40,11 @@ The `code`, `title`, and `message` of every arm are unchanged — only the typed
 | 0096 | 500 | 400 | Invalid Account Alias | alias contains invalid characters (reverse fix: bad input is not a server fault) |
 
 **Totals:** 23 codes 400→422, 1 code 400→409, 2 reverse fixes →400. **26 rows.**
+
+## Deployment caveat — transaction DLQ topology (Epic 4.2)
+
+Task 4.2.1 adds dead-letter arguments to the existing `transaction.transaction_balance_operation.queue` (`x-dead-letter-exchange: transaction.dlx`, `x-dead-letter-routing-key: transaction.dlq.key`) plus the `transaction.dlx` exchange, the `transaction.dlq` queue, and their binding.
+
+RabbitMQ queue arguments are immutable after declaration: it refuses to redeclare an existing queue with different `x-arguments` (`PRECONDITION_FAILED`). Greenfield/local stacks just re-provision from `definitions.json` and pick the new args up automatically. Environments that already hold the old argument-less `transaction.transaction_balance_operation.queue` must **drain and recreate** it during the deploy window — stop the consumer, let the queue empty (or accept redelivery), delete the queue, then re-import the definitions so it is recreated with the DLX arguments. The `transaction.dlx`/`transaction.dlq` additions are new objects and import without conflict.
+
+No message loss results from the recreate: the durable copy of every in-flight transaction message lives in the Redis backup hash (D5-v2 layer 1), so the DLQ is a flow-control/diagnostic surface, not the durability mechanism.

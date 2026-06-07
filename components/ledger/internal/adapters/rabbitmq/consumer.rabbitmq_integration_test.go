@@ -103,7 +103,8 @@ func setupConsumerInfra(t *testing.T, numWorkers, prefetch int) *consumerTestInf
 	telemetry := &libOpentelemetry.Telemetry{}
 
 	// Create consumer routes
-	consumer := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
+	consumer, err := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
+	require.NoError(t, err, "failed to create consumer routes")
 
 	// Create producer for publishing test messages
 	producer, err := NewProducerRabbitMQ(conn)
@@ -155,7 +156,8 @@ func setupConsumerChaosInfra(t *testing.T, numWorkers, prefetch int) *consumerCh
 	telemetry := &libOpentelemetry.Telemetry{}
 
 	// Create consumer routes
-	consumer := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
+	consumer, err := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
+	require.NoError(t, err, "failed to create consumer routes")
 
 	// Create producer for publishing test messages
 	producer, err := NewProducerRabbitMQ(conn)
@@ -235,7 +237,8 @@ func setupConsumerNetworkChaosInfra(t *testing.T, numWorkers, prefetch int) *con
 	telemetry := &libOpentelemetry.Telemetry{}
 
 	// Create consumer through proxy
-	proxyConsumer := NewConsumerRoutes(proxyConn, numWorkers, prefetch, logger, telemetry)
+	proxyConsumer, err := NewConsumerRoutes(proxyConn, numWorkers, prefetch, logger, telemetry)
+	require.NoError(t, err, "failed to create proxy consumer routes")
 
 	// Create producer through proxy
 	proxyProducer, err := NewProducerRabbitMQ(proxyConn)
@@ -348,10 +351,10 @@ func publishTestMessageDirect(t *testing.T, channel *amqp.Channel, exchange, rou
 // INTEGRATION TESTS - BASIC OPERATIONS
 // =============================================================================
 
-// TestIntegration_NewConsumerRoutes_PanicOnConnectionFailure tests that the constructor
-// panics when RabbitMQ connection fails. This is an integration test because it makes
-// a real network dial attempt to an invalid address.
-func TestIntegration_NewConsumerRoutes_PanicOnConnectionFailure(t *testing.T) {
+// TestIntegration_NewConsumerRoutes_ErrorOnConnectionFailure tests that the constructor
+// returns an error when RabbitMQ connection fails. This is an integration test because it
+// makes a real network dial attempt to an invalid address.
+func TestIntegration_NewConsumerRoutes_ErrorOnConnectionFailure(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -364,10 +367,12 @@ func TestIntegration_NewConsumerRoutes_PanicOnConnectionFailure(t *testing.T) {
 		Logger:                 logger,
 	}
 
-	// The constructor should panic when connection fails
-	assert.Panics(t, func() {
-		NewConsumerRoutes(conn, 5, 10, logger, nil)
-	}, "NewConsumerRoutes should panic when RabbitMQ connection fails")
+	telemetry := &libOpentelemetry.Telemetry{}
+
+	// The constructor should return an error when connection fails
+	cr, err := NewConsumerRoutes(conn, 5, 10, logger, telemetry)
+	assert.Error(t, err, "NewConsumerRoutes should return an error when RabbitMQ connection fails")
+	assert.Nil(t, cr, "ConsumerRoutes should be nil on connection failure")
 }
 
 // TestIntegration_Consumer_BasicMessageConsumption tests that the consumer receives

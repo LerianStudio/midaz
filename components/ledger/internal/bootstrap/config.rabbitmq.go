@@ -12,15 +12,15 @@ import (
 	"time"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/lib-observability/metrics"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
 	tmrabbitmq "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/rabbitmq"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-observability/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -77,10 +77,10 @@ type rabbitMQComponents struct {
 	multiQueueConsumer    *MultiQueueConsumer
 	multiTenantConsumer   *tmconsumer.MultiTenantConsumer
 	circuitBreakerManager *CircuitBreakerManager
-	pgManager             *tmpostgres.Manager      // nil in single-tenant mode; used by consumer handler for per-tenant PG resolution
-	mongoManager          *tmmongo.Manager          // nil in single-tenant mode; used by consumer handler for per-tenant Mongo resolution
-	rabbitmqManager       *tmrabbitmq.Manager       // nil in single-tenant mode; used by event dispatcher to close tenant RabbitMQ connections
-	metricsFactory        *metrics.MetricsFactory   // nil in single-tenant mode or when telemetry disabled; used for tenant metrics emission
+	pgManager             *tmpostgres.Manager     // nil in single-tenant mode; used by consumer handler for per-tenant PG resolution
+	mongoManager          *tmmongo.Manager        // nil in single-tenant mode; used by consumer handler for per-tenant Mongo resolution
+	rabbitmqManager       *tmrabbitmq.Manager     // nil in single-tenant mode; used by event dispatcher to close tenant RabbitMQ connections
+	metricsFactory        *metrics.MetricsFactory // nil in single-tenant mode or when telemetry disabled; used for tenant metrics emission
 
 	// wireConsumer is a callback that wires the consumer with the UseCase.
 	// Must be called after UseCase creation because the handler needs UseCase.
@@ -406,13 +406,16 @@ func initSingleTenantRabbitMQ(
 			Logger:                 logger,
 		}
 
-		routes := rabbitmq.NewConsumerRoutes(
+		routes, err := rabbitmq.NewConsumerRoutes(
 			rabbitMQConsumerConnection,
 			cfg.RabbitMQNumbersOfWorkers,
 			cfg.RabbitMQNumbersOfPrefetch,
 			logger,
 			telemetry,
 		)
+		if err != nil {
+			return fmt.Errorf("failed to create consumer routes: %w", err)
+		}
 
 		// Configure bulk processing if enabled
 		if shouldUseBulkMode(cfg) {

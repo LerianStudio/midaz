@@ -9,4 +9,7 @@ const (
 	FinishedStatus          = "Finished"
 	ErrorStatus             = "Error"
 	PendingExtractionStatus = "PendingExtraction"
+	// PartialStatus marks a report where at least one data section succeeded and at
+	// least one failed. Per-section canonical error codes are carried in metadata.
+	PartialStatus = "Partial"
 )

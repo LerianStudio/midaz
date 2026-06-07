@@ -27,6 +27,37 @@ var (
 		Description: "Total schedule cleanup failures after successful balance sync.",
 	}
 
+	// BalanceSyncTenantSkip counts tenants skipped by the balance sync worker when
+	// their PostgreSQL connection cannot be resolved for a cycle.
+	BalanceSyncTenantSkip = metrics.Metric{
+		Name:        "balance_sync_tenant_skip_total",
+		Unit:        "1",
+		Description: "Total tenants skipped by the balance sync worker due to connection resolution failure.",
+	}
+
+	// Redis backup-queue (poison record) observability metrics.
+
+	// RedisBackupQueueDepth is the number of records currently in the backup queue.
+	RedisBackupQueueDepth = metrics.Metric{
+		Name:        "redis_backup_queue_depth",
+		Unit:        "1",
+		Description: "Number of records currently in the Redis transaction backup queue.",
+	}
+
+	// RedisBackupQueueOldestAgeSeconds is the age of the oldest record in the backup queue.
+	RedisBackupQueueOldestAgeSeconds = metrics.Metric{
+		Name:        "redis_backup_queue_oldest_age_seconds",
+		Unit:        "s",
+		Description: "Age in seconds of the oldest record in the Redis transaction backup queue.",
+	}
+
+	// RedisBackupQuarantineTotal counts poison records moved to the durable quarantine table.
+	RedisBackupQuarantineTotal = metrics.Metric{
+		Name:        "redis_backup_quarantine_total",
+		Unit:        "1",
+		Description: "Total poison backup records moved to the Postgres quarantine table.",
+	}
+
 	// CircuitBreakerState indicates the current state of the RabbitMQ circuit breaker.
 	// Values: 0 = closed (healthy), 1 = open (unhealthy), 2 = half-open (recovering)
 	CircuitBreakerState = metrics.Metric{

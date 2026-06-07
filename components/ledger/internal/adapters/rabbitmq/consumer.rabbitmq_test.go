@@ -14,6 +14,7 @@ import (
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libZap "github.com/LerianStudio/lib-observability/zap"
+	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/rabbitmq"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
@@ -1101,7 +1102,7 @@ func TestAcknowledgeByResults_WithResults_AllSucceeded_UsesIndividualAck(t *test
 	assert.False(t, ack2.ackMultiple, "message 2 should use individual ack")
 }
 
-func TestAcknowledgeByResults_MixedResults_CorrectAckNack(t *testing.T) {
+func TestAcknowledgeByResults_MixedResults_RoutesFailureThroughRetryEngine(t *testing.T) {
 	t.Parallel()
 
 	ack1 := &mockAcknowledger{}
@@ -1110,36 +1111,37 @@ func TestAcknowledgeByResults_MixedResults_CorrectAckNack(t *testing.T) {
 
 	deliveries := []amqp.Delivery{
 		{Acknowledger: ack1, DeliveryTag: 1, Body: []byte("msg1")},
-		{Acknowledger: ack2, DeliveryTag: 2, Body: []byte("msg2")},
+		{Acknowledger: ack2, DeliveryTag: 2, Body: []byte("msg2"), Headers: amqp.Table{}},
 		{Acknowledger: ack3, DeliveryTag: 3, Body: []byte("msg3")},
 	}
 
-	// Mixed results: first and third succeed, second fails
+	// Mixed results: first and third succeed, second fails with a transient error.
 	results := []BulkMessageResult{
 		{Index: 0, Success: true},
 		{Index: 1, Success: false, Error: errors.New("processing failed")},
 		{Index: 2, Success: true},
 	}
 
+	channel := &spyChannel{}
 	cr := &ConsumerRoutes{
-		Logger: testLogger,
+		Logger:       testLogger,
+		retryManager: newTestRetryManager(channel),
 	}
 
 	ctx := context.Background()
 	cr.acknowledgeByResults(ctx, deliveries, results, testLogger, "test-queue")
 
-	// Message 1: acked individually
+	// Message 1: acked individually (multiple=false invariant preserved).
 	assert.True(t, ack1.ackCalled, "message 1 should be acked")
 	assert.False(t, ack1.ackMultiple, "message 1 should use individual ack")
 	assert.False(t, ack1.nackCalled, "message 1 should not be nacked")
 
-	// Message 2: nacked with requeue
-	assert.False(t, ack2.ackCalled, "message 2 should not be acked")
-	assert.True(t, ack2.nackCalled, "message 2 should be nacked")
-	assert.False(t, ack2.nackMultiple, "message 2 should use individual nack")
-	assert.True(t, ack2.nackRequeue, "message 2 should be requeued")
+	// Message 2: transient failure under budget → republished, original acked, not nacked.
+	assert.True(t, channel.publishCalled, "failed message should be republished for retry")
+	assert.True(t, ack2.ackCalled, "republished message's original delivery should be acked")
+	assert.False(t, ack2.nackCalled, "failed message under retry budget should not be nacked")
 
-	// Message 3: acked individually
+	// Message 3: acked individually.
 	assert.True(t, ack3.ackCalled, "message 3 should be acked")
 	assert.False(t, ack3.ackMultiple, "message 3 should use individual ack")
 	assert.False(t, ack3.nackCalled, "message 3 should not be nacked")
@@ -1157,46 +1159,45 @@ func TestAcknowledgeByResults_EmptyDeliveries_NoAction(t *testing.T) {
 	cr.acknowledgeByResults(ctx, []amqp.Delivery{}, []BulkMessageResult{}, testLogger, "test-queue")
 }
 
-func TestAcknowledgeByResults_AllFailed_NacksAllMessages(t *testing.T) {
+func TestAcknowledgeByResults_AllFailedAtMaxRetries_NacksAllToDLQ(t *testing.T) {
 	t.Parallel()
 
 	ack1 := &mockAcknowledger{}
 	ack2 := &mockAcknowledger{}
 	ack3 := &mockAcknowledger{}
 
+	// Each message has already exhausted its retry budget, so all route to the DLQ
+	// individually (multiple=false, requeue=false). This verifies the failure path no
+	// longer requeues and that DLQ nacks are per-message, never bulk.
+	exhausted := amqp.Table{pkgRabbitmq.RetryCountHeader: maxMessageRetries}
 	deliveries := []amqp.Delivery{
-		{Acknowledger: ack1, DeliveryTag: 1, Body: []byte("msg1")},
-		{Acknowledger: ack2, DeliveryTag: 2, Body: []byte("msg2")},
-		{Acknowledger: ack3, DeliveryTag: 3, Body: []byte("msg3")},
+		{Acknowledger: ack1, DeliveryTag: 1, Body: []byte("msg1"), Headers: exhausted},
+		{Acknowledger: ack2, DeliveryTag: 2, Body: []byte("msg2"), Headers: exhausted},
+		{Acknowledger: ack3, DeliveryTag: 3, Body: []byte("msg3"), Headers: exhausted},
 	}
 
-	// All messages failed
 	results := []BulkMessageResult{
 		{Index: 0, Success: false, Error: errors.New("db error")},
 		{Index: 1, Success: false, Error: errors.New("validation error")},
 		{Index: 2, Success: false, Error: errors.New("timeout error")},
 	}
 
+	channel := &spyChannel{}
 	cr := &ConsumerRoutes{
-		Logger: testLogger,
+		Logger:       testLogger,
+		retryManager: newTestRetryManager(channel),
 	}
 
 	ctx := context.Background()
 	cr.acknowledgeByResults(ctx, deliveries, results, testLogger, "test-queue")
 
-	// All messages should be nacked individually with requeue
-	assert.False(t, ack1.ackCalled, "message 1 should not be acked")
-	assert.True(t, ack1.nackCalled, "message 1 should be nacked")
-	assert.False(t, ack1.nackMultiple, "message 1 should use individual nack")
-	assert.True(t, ack1.nackRequeue, "message 1 should be requeued")
+	assert.False(t, channel.publishCalled, "exhausted retries should not republish")
 
-	assert.False(t, ack2.ackCalled, "message 2 should not be acked")
-	assert.True(t, ack2.nackCalled, "message 2 should be nacked")
-	assert.False(t, ack2.nackMultiple, "message 2 should use individual nack")
-	assert.True(t, ack2.nackRequeue, "message 2 should be requeued")
-
-	assert.False(t, ack3.ackCalled, "message 3 should not be acked")
-	assert.True(t, ack3.nackCalled, "message 3 should be nacked")
-	assert.False(t, ack3.nackMultiple, "message 3 should use individual nack")
-	assert.True(t, ack3.nackRequeue, "message 3 should be requeued")
+	// All messages nacked to DLQ individually (multiple=false, requeue=false).
+	for i, ack := range []*mockAcknowledger{ack1, ack2, ack3} {
+		assert.False(t, ack.ackCalled, "message %d should not be acked", i+1)
+		assert.True(t, ack.nackCalled, "message %d should be nacked to DLQ", i+1)
+		assert.False(t, ack.nackMultiple, "message %d should use individual nack", i+1)
+		assert.False(t, ack.nackRequeue, "message %d should nack to DLQ (requeue=false)", i+1)
+	}
 }

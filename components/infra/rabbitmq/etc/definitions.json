@@ -77,7 +77,20 @@
     {
       "name": "transaction.transaction_balance_operation.queue",
       "vhost": "/",
-      "durable": true
+      "durable": true,
+      "arguments": {
+        "x-dead-letter-exchange": "transaction.dlx",
+        "x-dead-letter-routing-key": "transaction.dlq.key"
+      }
+    },
+    {
+      "name": "transaction.dlq",
+      "vhost": "/",
+      "durable": true,
+      "arguments": {
+        "x-message-ttl": 604800000,
+        "x-max-length": 10000
+      }
     },
     {
       "name": "reporter.generate-report.queue",
@@ -110,6 +123,12 @@
   "exchanges": [
     {
       "name": "transaction.transaction_balance_operation.exchange",
+      "vhost": "/",
+      "type": "direct",
+      "durable": true
+    },
+    {
+      "name": "transaction.dlx",
       "vhost": "/",
       "type": "direct",
       "durable": true
@@ -155,6 +174,13 @@
       "destination": "transaction.transaction_balance_operation.queue",
       "destination_type": "queue",
       "routing_key": "transaction.transaction_balance_operation.key"
+    },
+    {
+      "source": "transaction.dlx",
+      "vhost": "/",
+      "destination": "transaction.dlq",
+      "destination_type": "queue",
+      "routing_key": "transaction.dlq.key"
     },
     {
       "source": "reporter.generate-report.exchange",

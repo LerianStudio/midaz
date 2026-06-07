@@ -6,6 +6,7 @@ package rabbitmq
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
@@ -14,11 +15,16 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/rabbitmq"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	attribute "go.opentelemetry.io/otel/attribute"
 )
+
+// fallbackWorkerID labels retry-engine log lines that originate outside a numbered
+// worker loop (bulk-result acknowledgment and individual fallback processing).
+const fallbackWorkerID = -1
 
 func resolveMessageHeaderID(headers amqp.Table) string {
 	if raw, found := headers[libConstants.HeaderID]; found {
@@ -85,6 +91,7 @@ type ConsumerRoutes struct {
 	routes            map[string]QueueHandlerFunc
 	bulkRoutes        map[string]BulkHandlerFunc
 	bulkConfig        *BulkConfig
+	retryManager      *ConsumerRetryManager
 	NumbersOfWorkers  int
 	NumbersOfPrefetch int
 	libLog.Logger
@@ -92,7 +99,9 @@ type ConsumerRoutes struct {
 }
 
 // NewConsumerRoutes creates a new instance of ConsumerRoutes.
-func NewConsumerRoutes(conn *libRabbitmq.RabbitMQConnection, numbersOfWorkers int, numbersOfPrefetch int, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry) *ConsumerRoutes {
+// It returns an error if the RabbitMQ connection cannot be established so the
+// bootstrap can surface the failure through its fatal-init path.
+func NewConsumerRoutes(conn *libRabbitmq.RabbitMQConnection, numbersOfWorkers int, numbersOfPrefetch int, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry) (*ConsumerRoutes, error) {
 	if numbersOfWorkers == 0 {
 		numbersOfWorkers = 5
 	}
@@ -105,18 +114,18 @@ func NewConsumerRoutes(conn *libRabbitmq.RabbitMQConnection, numbersOfWorkers in
 		conn:              conn,
 		routes:            make(map[string]QueueHandlerFunc),
 		bulkRoutes:        make(map[string]BulkHandlerFunc),
+		retryManager:      NewConsumerRetryManager(channelProviderFor(conn), logger),
 		NumbersOfWorkers:  numbersOfWorkers,
 		NumbersOfPrefetch: numbersOfWorkers * numbersOfPrefetch,
 		Logger:            logger,
 		Telemetry:         *telemetry,
 	}
 
-	_, err := conn.GetNewConnect()
-	if err != nil {
-		panic("Failed to connect rabbitmq")
+	if _, err := conn.GetNewConnect(); err != nil {
+		return nil, fmt.Errorf("failed to connect rabbitmq: %w", err)
 	}
 
-	return cr
+	return cr, nil
 }
 
 // ConfigureBulk sets the bulk processing configuration.
@@ -321,8 +330,6 @@ func (cr *ConsumerRoutes) startWorker(channelCtx context.Context, workerID int, 
 
 		err := handlerFunc(ctx, msg.Body)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanConsumer, "Error processing message from queue", err)
-			spanConsumer.End()
 			logger.Log(ctx, libLog.LevelError, "Error processing message from queue", libLog.Int("workerID", workerID), libLog.String("queue", queue), libLog.Err(err))
 
 			// Check if channel context is cancelled before nacking
@@ -332,11 +339,18 @@ func (cr *ConsumerRoutes) startWorker(channelCtx context.Context, workerID int, 
 					libLog.Int("workerID", workerID),
 					libLog.String("queue", queue),
 				)
+				spanConsumer.End()
 
 				continue
 			}
 
-			_ = msg.Nack(false, true)
+			// Classify and route: transient errors are republished with backoff up to
+			// maxMessageRetries, permanent (business) errors and exhausted budgets go to
+			// the DLQ. The durable copy lives in the Redis backup hash, so DLQ routing is
+			// flow-control, not data loss.
+			retryCount := pkgRabbitmq.RetryCountFromHeaders(msg.Headers)
+			cr.retryManager.HandleFailure(ctx, workerID, queue, msg, err, retryCount, spanConsumer)
+			spanConsumer.End()
 
 			continue
 		}
@@ -529,14 +543,11 @@ func (cr *ConsumerRoutes) acknowledgeByResults(
 		result, hasResult := resultMap[i]
 
 		if hasResult && !result.Success {
-			// Failed: nack with requeue
-			if err := delivery.Nack(false, true); err != nil {
-				logger.Log(ctx, libLog.LevelError, "Failed to nack message",
-					libLog.String("queue", queue),
-					libLog.Int("index", i),
-					libLog.Err(err),
-				)
-			}
+			// Failed: classify and route through the retry engine (republish with backoff
+			// up to maxMessageRetries, then DLQ). Individual handling per message preserves
+			// the multiple=false invariant — a bulk nack would dead-letter or requeue
+			// messages other workers are still processing.
+			cr.handleBulkMessageFailure(ctx, delivery, result.Error, queue, i)
 		} else {
 			// Succeeded or no result (treat as success): individual ack
 			if err := delivery.Ack(false); err != nil {
@@ -548,6 +559,20 @@ func (cr *ConsumerRoutes) acknowledgeByResults(
 			}
 		}
 	}
+}
+
+// handleBulkMessageFailure routes a single failed bulk message through the retry engine,
+// opening a child span for the routing decision so the republish/DLQ outcome is traced.
+func (cr *ConsumerRoutes) handleBulkMessageFailure(ctx context.Context, delivery amqp.Delivery, cause error, queue string, index int) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "rabbitmq.consumer.handle_bulk_failure")
+	defer span.End()
+
+	span.SetAttributes(attribute.Int("app.request.bulk_index", index))
+
+	retryCount := pkgRabbitmq.RetryCountFromHeaders(delivery.Headers)
+	cr.retryManager.HandleFailure(ctx, fallbackWorkerID, queue, delivery, cause, retryCount, span)
 }
 
 // buildBulkContext creates a context for bulk processing with trace information.
@@ -628,13 +653,14 @@ func (cr *ConsumerRoutes) processIndividualMessage(
 
 	err := handler(msgCtx, msg.Body)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Error processing message (fallback)", err)
 		logger.Log(msgCtx, libLog.LevelError, "Error processing message (fallback)",
 			libLog.String("queue", queue),
 			libLog.Err(err),
 		)
 
-		_ = msg.Nack(false, true)
+		// Classify and route through the retry engine. workerID -1 marks the fallback path.
+		retryCount := pkgRabbitmq.RetryCountFromHeaders(msg.Headers)
+		cr.retryManager.HandleFailure(msgCtx, fallbackWorkerID, queue, msg, err, retryCount, span)
 
 		return
 	}
