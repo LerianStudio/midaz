@@ -1,0 +1,185 @@
+# Telemetry Standard
+
+This is the single telemetry standard for every Go service in the Midaz monorepo: `components/ledger` (including the folded-in CRM and fees code), `components/tracer`, `components/reporter-manager`, and `components/reporter-worker`. It governs traces, logs, and metrics — the three telemetry signals. It does **not** govern the lib-streaming event bus, which is a separate data-plane wire contract (see T9). The rules below are derived from the 2026-06-07 telemetry/error audit and are binding; the machine-readable findings are in [`../plans/2026-06-07-telemetry-error-audit.json`](../plans/2026-06-07-telemetry-error-audit.json) and the count/coverage appendix in [`../plans/2026-06-07-telemetry-error-audit-appendix.md`](../plans/2026-06-07-telemetry-error-audit-appendix.md). Each rule carries a normative statement, a one-paragraph rationale, a verified in-repo canonical example (`file:line`), and the enforcement vehicle that gates it (wired in Phase 6).
+
+Two rules — **T5** (span-error helper by class) and **T8** (single-point logging) — are defined **only here** and referenced by `error-handling.md`. They are not restated there; do not duplicate them.
+
+---
+
+## T1 — Telemetry acquisition
+
+**Rule:** Telemetry handles MUST be acquired via `libObservability.NewTrackingFromContext(ctx)` at the top of each instrumented function. MUST NOT inject a tracer or logger into struct fields, and MUST NOT call the raw OpenTelemetry API directly.
+
+**Rationale:** A single acquisition path keeps the logger trace-correlated and the tracer context-bound without per-struct wiring, and prevents an un-instrumented logger or a raw `otel.Tracer(...)` from drifting out of the lib-observability conventions that everything else depends on.
+
+**Canonical example:** [`components/ledger/internal/services/command/create_account.go:34`](../../components/ledger/internal/services/command/create_account.go) — `logger, tracer, requestID, _ := libObservability.NewTrackingFromContext(ctx)`.
+
+**Enforcement:** `custom-lint` — flag `otel.Tracer(`/`otel.GetTracerProvider(` outside bootstrap, and `*libLog.Logger`/`trace.Tracer` struct fields in service/adapter packages.
+
+---
+
+## T2 — Span naming
+
+**Rule:** Span names MUST be `<layer>.<operation>` in dotted snake_case (e.g. `command.create_account`, `mongodb.update_holder`). Child I/O spans MUST extend the parent name with a `.exec` / `.query` / `.find` (etc.) suffix. MUST NOT use bespoke prefixes or free-form names.
+
+**Rationale:** A predictable two-segment scheme makes spans groupable by layer and operation across services and lets dashboards and trace search rely on a stable naming contract instead of per-author conventions.
+
+**Canonical example:** [`components/ledger/internal/adapters/postgres/account/account.postgresql.go:192`](../../components/ledger/internal/adapters/postgres/account/account.postgresql.go) — `tracer.Start(ctx, "postgres.create.exec")` (child I/O span with `.exec` suffix under the `command.create_account` parent).
+
+**Enforcement:** `review-only` — naming intent is not mechanically distinguishable from valid free text; gate at code review.
+
+---
+
+## T3 — Span lifecycle and context binding
+
+**Rule:** `defer span.End()` MUST immediately follow `tracer.Start`. Child I/O spans MUST use the non-rebinding form `_, spanX := tracer.Start(ctx, ...)`. The parent `ctx` MAY be rebound (`ctx, spanX := ...`) ONLY for genuinely sequential nesting, or for a deliberate `context.WithoutCancel` detach — and in either case an intent comment MUST state why.
+
+**Rationale:** Rebinding `ctx` on a leaf I/O span makes sibling spans nest under each other instead of under the shared parent, because `span.End()` does not restore the parent into the Go `ctx`; the audit traced 135+ confirmed leaf sites distorting trace topology this way. Detach via `WithoutCancel` is the one legitimate rebind — it preserves trace and values while severing cancellation — and must be self-documenting.
+
+**Canonical example (sanctioned detach):** [`components/tracer/internal/services/validation_service.go:637`](../../components/tracer/internal/services/validation_service.go) — `context.WithTimeout(context.WithoutCancel(ctx), ...)` with a three-line intent comment explaining the SOX/GLBA persistence budget.
+
+**Counter-example (forbidden leaf rebind):** [`components/ledger/internal/adapters/postgres/account/account.postgresql.go:192`](../../components/ledger/internal/adapters/postgres/account/account.postgresql.go) — `ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")` rebinds `ctx` on a leaf exec span with no detach intent.
+
+**Enforcement:** `custom-lint` — flag `ctx, span\w* := .*tracer.Start` on leaf spans; allowlist requires an adjacent `WithoutCancel` or an intent comment (per-file review where ambiguous).
+
+---
+
+## T4 — Span attributes
+
+**Rule:** Inputs (handler args, path/query params, payload-derived values) MUST use the `app.request.*` namespace. Outputs and system observations MUST use `db.*` / `app.response.*`. `libOpentelemetry.SetSpanAttributesFromValue` with a **nil Redactor is BANNED**. Sensitive or large inputs MUST be reduced to boolean presence flags (`has_*`) plus counts, never the value itself.
+
+**Rationale:** `SetSpanAttributesFromValue(span, prefix, value, nil)` flattens every struct field onto the span — the mechanism behind the audit's P0 PII leak (76 of 100 call sites passed a nil Redactor, including plaintext CPF/email/phone before encryption). Namespacing inputs vs. outputs keeps span queries unambiguous, and presence-flags preserve observability of optionality without putting the data on the wire.
+
+**Canonical example (presence-flag idiom):** [`components/crm/adapters/mongodb/holder/holder.mongodb.go:132`](../../components/crm/adapters/mongodb/holder/holder.mongodb.go) — `attribute.Bool("app.request.repository_input.has_contact", record.Contact != nil)` and the surrounding `has_*` block (lines 132–137).
+
+**Counter-example (banned nil-Redactor flatten):** [`components/crm/adapters/mongodb/holder/holder.mongodb.go:256`](../../components/crm/adapters/mongodb/holder/holder.mongodb.go) — `SetSpanAttributesFromValue(spanUpdate, "app.request.repository_input", holder, nil)` flattens the full holder (PII) onto the span.
+
+**Enforcement:** `forbidigo` — pattern `SetSpanAttributesFromValue\(.*,\s*nil\)` rejected in non-test code; `app.request.*` vs `db.*`/`app.response.*` namespace placement is `review-only`.
+
+---
+
+## T5 — Span-error helper by error class
+
+**Rule:** The span-error helper MUST be chosen by **error class**, decided through the shared `IsBusinessError` predicate — never by code origin or call-site convenience. Business / 4xx errors MUST use `libOpentelemetry.HandleSpanBusinessErrorEvent` (span status stays green/UNSET). Technical / 5xx errors MUST use `libOpentelemetry.HandleSpanError` (span flips red, feeding error-rate SLOs).
+
+> This is **the** merged span-error rule. It is referenced by `error-handling.md` **Rule E7** and defined only here — do not restate it there.
+
+**Rationale:** Recording every 4xx via `HandleSpanError` flips spans red on expected business outcomes (validation failures, not-found, conflicts), inflating error-rate SLOs and burying real infrastructure failures. The audit found CRM using `HandleSpanError` exclusively (0 business events) and fees crossing over mid-file. A single predicate keyed on error class makes the choice mechanical and consistent across services.
+
+**Canonical example:** [`pkg/reporter/net/http/errors.go:18`](../../pkg/reporter/net/http/errors.go) — `IsBusinessError(err error) bool` (lines 18–57), the `errors.As`-based class predicate. This predicate moves to `pkg/` during Phase 3; the rule is unaffected by the move.
+
+**Enforcement:** `contract-test` — a per-path test asserting that an induced validation failure leaves span status UNSET with a business event, and an induced infra failure sets status Error. (`review-only` for the predicate-selection wiring at each call site.)
+
+---
+
+## T6 — Structured logging
+
+**Rule:** Log calls MUST use a constant string message plus typed fields (`libLog.Err` / `libLog.String` / `libLog.Int` / …). `fmt.Sprintf`, `fmt.Sprintln`, and `%#v` MUST NOT appear as arguments to a logger call. Printf-style logger methods (`Infof`, `Errorf`, etc.) MUST NOT be used in new code.
+
+**Rationale:** Interpolating into the message destroys field-level queryability and is the single largest violation class in the codebase (~1,450 sites). Constant messages with typed fields keep logs aggregatable and parseable, and stop accidental interpolation of sensitive values into the message string (see T9).
+
+**Canonical example:** [`components/reporter-worker/internal/adapters/rabbitmq/retry_manager.go:75`](../../components/reporter-worker/internal/adapters/rabbitmq/retry_manager.go) — constant message `"Max retries exceeded, sending to DLQ"` with `log.Int(...)`, `log.String(...)`, `log.Err(err)` fields (lines 75–80). reporter and tracer have zero `fmt.Sprintf`-in-logger violations.
+
+**Enforcement:** `custom-lint` — flag `fmt.Sprintf`/`fmt.Sprintln` as an argument to `logger.Log`/`logger.Info`/etc., and any `.Infof(`/`.Errorf(`/`.Warnf(`/`.Debugf(` logger method.
+
+---
+
+## T7 — Log levels
+
+**Rule:** Log levels MUST follow this matrix:
+- **Debug** — per-request / per-message entry-exit, assembled SQL, cache detail, batch stats.
+- **Info** — sparse, one-time process milestones ONLY. The closed list: boot-sequence steps, config loaded, server/worker started, leader elected, shutdown begun. Nothing per-request.
+- **Warn** — business/validation failure, or degraded-but-recoverable fallback.
+- **Error** — infrastructure/system failure requiring operator attention.
+
+Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT be logged at Info.
+
+**Rationale:** The audit found inverted discipline (ledger-http: 192 Info vs 9 Debug) where per-request narration drowns the rare milestones that Info is meant to surface and duplicates information already captured by spans. A closed Info list keeps production logs scannable and makes per-request noise a mechanical violation.
+
+**Canonical example:** [`components/reporter-worker/internal/bootstrap/service.go:153`](../../components/reporter-worker/internal/bootstrap/service.go) — `app.Info("Flushing telemetry...")` is a genuine one-time shutdown milestone (the only sanctioned Info shape).
+
+**Enforcement:** `custom-lint` — flag Info-level calls whose message matches `^(Initiating|Retrieving|Trying to|Successfully|Starting)\b` outside bootstrap packages.
+
+---
+
+## T8 — Single-point logging
+
+**Rule:** An error MUST be logged at exactly **one** layer — the boundary that owns the handling decision (HTTP handler or consumer loop). Inner layers (use cases, repositories, adapters) MUST record the error onto the span and return it; they MUST NOT log it.
+
+> This rule is referenced by `error-handling.md` **Rule E8** and defined only here — do not restate it there.
+
+**Rationale:** Logging the same error at every layer it passes through produces N-layer duplicate log lines (the audit found triple-logs per create in tracer), inflating log volume and making it impossible to count distinct failures. The span carries the error detail for trace correlation; the owning boundary logs it once with the level decision (T7).
+
+**Canonical example:** [`components/ledger/internal/services/command/create_account.go:47`](../../components/ledger/internal/services/command/create_account.go) — the use case records onto the span via `HandleSpanBusinessErrorEvent` and returns; the logging-vs-recording decision is owned upward at the boundary. (Inner adapters such as `account.postgresql.go` are the violation pattern: they both `HandleSpanError` and `logger.Log` the same error.)
+
+**Enforcement:** `review-only` — "which layer owns the decision" is not mechanically inferable; gate at code review against the boundary-owns-logging convention.
+
+---
+
+## T9 — Sensitive-data prohibition (scoped to telemetry)
+
+**Rule:** No financial values (amounts, balances, prices), PII, secrets, raw payloads, or SQL args MAY appear on ANY telemetry signal: log lines, span attributes, metric labels, or persisted error metadata.
+
+**Carve-out:** The lib-streaming **event bus is OUT of this rule's scope.** It is a governed wire contract — JSONShape-locked payloads with PII redaction in the `New<Event>` constructors — and intentionally carries domain data (e.g. balance Available/OnHold) by design. This rule governs telemetry, not data-plane events.
+
+**Rationale:** Telemetry is sampled, fanned out to third-party backends, and retained on different terms than the data plane; financial values and PII on a span or log line are an uncontrolled disclosure. The event bus is the opposite: a deliberate, versioned, redaction-reviewed contract that consumers depend on — applying the telemetry prohibition to it would break legitimate downstream consumers.
+
+**Canonical example (carve-out, by design):** [`pkg/streaming/events/balance_created.go:65`](../../pkg/streaming/events/balance_created.go) — `Available decimal.Decimal` and `OnHold decimal.Decimal` (lines 65–66) carried on the wire intentionally, JSONShape-locked.
+
+**Counter-example (telemetry violation):** [`components/crm/adapters/mongodb/holder/holder.mongodb.go:256`](../../components/crm/adapters/mongodb/holder/holder.mongodb.go) — full holder PII flattened onto a span (also a T4 violation).
+
+**Enforcement:** `review-only` — value sensitivity is semantic, not syntactic; the mechanical proxy is the T4 `forbidigo` nil-Redactor gate plus the T6 `fmt.Sprintf`-in-logger gate. Field-name sensitivity is gated at review.
+
+---
+
+## T10 — Trace propagation
+
+**Rule:** Trace context MUST be injected and extracted on every broker boundary (e.g. RabbitMQ message headers). Background goroutines MUST derive their context via `context.WithoutCancel(ctx)` — never bare `context.Background()`.
+
+**Rationale:** A bare `context.Background()` severs the goroutine's work from the request trace, making async side-effects (idempotency writes, audit emits) invisible in the parent trace and unattributable when they fail. `WithoutCancel` preserves trace and values while correctly detaching the request's cancellation.
+
+**Counter-example (forbidden bare Background):** [`components/ledger/internal/adapters/http/in/transaction_create.go:1376`](../../components/ledger/internal/adapters/http/in/transaction_create.go) — `context.Background()` (wrapped only with the tenant ID) seeds the idempotency and audit goroutines on lines 1378–1380, dropping the trace.
+
+**Enforcement:** `custom-lint` — flag `context.Background()` used as the seed for a `go` statement's context; broker inject/extract presence is `review-only`.
+
+---
+
+## T11 — Metrics
+
+**Rule:** New metrics MUST be created via the lib-observability `MetricsFactory`. Names MUST be snake_case with a unit suffix (e.g. `_ms`, `_total`). Labels MUST be bounded-cardinality only. Metric emit errors MUST be logged at Debug — never swallowed via `_ =`. HTTP telemetry middleware MUST exclude the probe paths `/health`, `/readyz`, `/metrics` by passing them as `excludedRoutes` to `WithTelemetry`. Tracer's pinned bespoke Prometheus metric families are a sanctioned, documented exception (`per D4 outcome`).
+
+**Rationale:** Unbounded label cardinality is the classic way to blow up a Prometheus backend; bounding labels at the emission point and routing all new metrics through one factory keeps the metric surface governable. Probe traffic generates a span and metric per k8s probe — high-volume, zero-information — so excluding probe routes removes pure noise and cost. Swallowed emit errors hide a broken metrics pipeline.
+
+**Canonical example (bounded-label allowlist — the model):** [`components/tracer/internal/observability/recorder.go:32`](../../components/tracer/internal/observability/recorder.go) — `allowedDeps` / `allowedStatuses` bounded sets (lines 32–49) drop any out-of-set label value at the emission point; the pinned-name contract is documented at [`recorder.go:66`](../../components/tracer/internal/observability/recorder.go).
+
+**Probe-exclusion support:** `github.com/LerianStudio/lib-observability@v1.0.1/middleware/telemetry.go:86` — `WithTelemetry(tl, excludedRoutes ...string)` with the `isRouteExcludedFromList` check (lines 86–97). Tracer passes excluded routes; ledger currently does not (audit appendix F22) and MUST be fixed.
+
+**Enforcement:** `custom-lint` for `_ =` on a metrics emit return; `review-only` for `MetricsFactory` usage, naming, label cardinality, and the probe-exclusion argument.
+
+---
+
+## T12 — Bootstrap and shutdown
+
+**Rule:** Telemetry MUST be wired exactly once at bootstrap via `libOpentelemetry.NewTelemetry(...)` followed by `ApplyGlobals()`. Telemetry flush/shutdown MUST happen **last** in the teardown sequence, after all other components have stopped.
+
+**Rationale:** Wiring once at the composition root keeps a single global tracer/meter provider; flushing last guarantees that spans and metrics emitted during the shutdown of every other component are captured before the exporter closes. The audit validated flush-last for all three services; reporter-worker is the cleanest reference.
+
+**Canonical example (wiring):** [`components/ledger/internal/bootstrap/config.go:394`](../../components/ledger/internal/bootstrap/config.go) — `libOpentelemetry.NewTelemetry(...)` then `telemetry.ApplyGlobals()` at line 409.
+
+**Canonical example (flush last):** [`components/reporter-worker/internal/bootstrap/service.go:151`](../../components/reporter-worker/internal/bootstrap/service.go) — `// Flush telemetry (must be last to capture shutdown spans)` followed by `ShutdownTelemetry()` (lines 151–155).
+
+**Enforcement:** `review-only` — teardown ordering is sequence-dependent and not mechanically gateable; verify at review of bootstrap changes.
+
+---
+
+## T13 — Import aliases
+
+**Rule:** lib-observability and lib-commons packages MUST use exactly these aliases, one alias per package repo-wide: `libObservability`, `libOpentelemetry` (lowercase `t`), `libLog`, `libZap`, `libCommons`. Variants such as `libObs` or `libOpenTelemetry` (capital `T`) MUST NOT be used.
+
+**Rationale:** One alias per package keeps imports greppable and diffs clean, and lets depguard/import-rule lints reason about a single canonical name. The audit found drift (`libObs`/`libObservability`, `libOpenTelemetry`/`libOpentelemetry`) that defeats mechanical import enforcement and makes cross-file search unreliable.
+
+**Canonical example (correct):** [`components/ledger/internal/services/command/create_account.go:14`](../../components/ledger/internal/services/command/create_account.go) — `libObservability "..."`, `libLog "..."`, `libOpentelemetry "..."` (lowercase `t`), lines 13–16.
+
+**Counter-example (drift):** [`components/crm/adapters/mongodb/holder/holder.mongodb.go:25`](../../components/crm/adapters/mongodb/holder/holder.mongodb.go) — imports the tracing package as `libOpenTelemetry` (capital `T`), and at line 23 imports lib-observability as `libObs` instead of `libObservability`.
+
+**Enforcement:** `depguard` — import-alias rules pinning each lib-observability/lib-commons package to its canonical alias; reject all variants.

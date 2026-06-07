@@ -177,7 +177,7 @@ These are wire-visible or ops-owned calls. Each has a recommendation; none is ex
 
 #### Task 1.2.1: Write `docs/standards/telemetry.md`
 
-- [ ] Done
+- [x] Done
 
 **Context:** The audit produced 13 telemetry rules (`2026-06-07-telemetry-error-audit.json` → `dimensions[telemetry].proposed_standard`) but with critique-flagged defects: the PII rule is unscoped (G2 — would forbid the streaming wire contract), the span-helper rule duplicates/diverges from the errors dimension's version (G6), and no rule names an enforcement vehicle (G9).
 
@@ -207,7 +207,7 @@ Each rule carries: statement, rationale (one paragraph max), canonical example (
 
 #### Task 1.2.2: Write `docs/standards/error-handling.md`
 
-- [ ] Done
+- [x] Done
 
 **Context:** The audit produced 14 error rules with one P0 framing refuted (F15: WithError unwrap is latent hardening, not a live bug — the rule must say so) and the 400/422 rule colliding with mainline reality (F16).
 
