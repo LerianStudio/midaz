@@ -487,7 +487,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.2.2: Implement the unified registry
 
-- [ ] Done
+- [x] Done
 
 **Context:** mapping table from 3.2.1. `pkg/errors.go` `ValidateBusinessError` errorMap must gain an arm per new code with the table's status class; `pkg/constant/entity.go` gains the new entities.
 
@@ -571,7 +571,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.4.1: Migrate tracer services + collapse ValidateBusinessError variants
 
-- [ ] Done
+- [x] Done
 
 **Context:** Fork variant at `tracer/pkg/errors.go:294` (used by `with_body.go:361-530`); libCommons variant used at 18 command sites (`activate_limit.go:158` et al.). Canonical target: `pkg.ValidateBusinessError` only.
 
@@ -585,7 +585,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.4.2: Migrate tracer handlers to the canonical boundary + envelope
 
-- [ ] Done
+- [x] Done
 
 **Context:** Handlers hand-roll mapping via `pkgHTTP.BadRequestWithMessage/NotFound/Conflict/...` (`tracer/pkg/net/http/response.go`) with 25+ inline `"TRC-` literals; `validation_handler.go:178-199` has a 17-entry error→response map; dead central mapper at `tracer/pkg/net/http/errors.go` (zero callers). Canonical envelope comes free with `pkg/net/http.WithError`.
 
@@ -599,7 +599,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.4.3: Tracer error contract test
 
-- [ ] Done
+- [x] Done
 
 **Context:** CRM template as in 3.2.4; tracer's wire surface = rule/limit/validation/audit/reservation endpoints + readyz codes.
 
@@ -620,7 +620,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.5.1: Delete LegacyErrorBoundary; canonical envelope for fiber.Errors
 
-- [ ] Done
+- [x] Done
 
 **Context:** `LegacyErrorBoundary`/`legacyFiberErrorHandler` (`http/in/errors.go`) has ZERO call sites — dead code (Phase 2 patched its leak; now it dies). Real fiber.Error producers: `MarkTrustedAuthAssertion` (`pkg/net/http/protected_routes.go:48-58`, three 401s) and Fiber's own router/body-limit errors — today rendered by Fiber's default handler (`{"message":...}` shape), NOT the canonical envelope.
 
@@ -634,7 +634,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.5.2: CRM duplicate-key via WriteException index-name inspection
 
-- [ ] Done
+- [x] Done
 
 **Context:** `holder.mongodb.go:144-148` (`strings.Contains(err.Error(), "document")` → ErrDocumentAssociationError; unique index on `search.document`), `instrument.mongodb.go:146-150` (`"account_id"` → ErrAccountAlreadyAssociated; unique index `account_id`; also `ledger_id+account_id` and `_id+holder_id` uniques). Idempotency contract: `create-holder-with-id.go:62-78` relies on raw `_id` collisions remaining classifiable AFTER the named-index branches.
 

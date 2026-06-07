@@ -50,9 +50,7 @@ func NewUnifiedServer(
 	app := fiber.New(fiber.Config{
 		AppName:               "Midaz Ledger API",
 		DisableStartupMessage: true,
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.FiberErrorHandler(ctx, err)
-		},
+		ErrorHandler:          midazhttp.CanonicalFiberErrorHandler,
 	})
 
 	// Add common middleware (only once for all routes).

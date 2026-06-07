@@ -11,7 +11,6 @@ import (
 	"net"
 	"os"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	tmmiddleware "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/middleware"
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
@@ -171,9 +170,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.FiberErrorHandler(ctx, err)
-		},
+		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
 	})
 	// Check if telemetry should be skipped to avoid data race in lib-commons ContextWithLogger.
 	// The race occurs when multiple goroutines call WithTelemetry concurrently in tests.

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/dupkey"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -141,9 +142,9 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(spanInsert, "Failed to insert holder", err)
 
-		if mongo.IsDuplicateKeyError(err) {
-			if strings.Contains(err.Error(), "document") {
-				return nil, pkg.ValidateBusinessError(cn.ErrDocumentAssociationError, reflect.TypeOf(mmodel.Holder{}).Name())
+		if indexName, ok := dupkey.ClassifyDuplicateKey(err); ok {
+			if strings.HasPrefix(indexName, "search.document") {
+				return nil, pkg.ValidateBusinessError(cn.ErrDocumentAssociationError, cn.EntityHolder)
 			}
 		}
 

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/dupkey"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -143,8 +144,8 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(spanInsert, "Failed to insert alias", err)
 
-		if mongo.IsDuplicateKeyError(err) {
-			if strings.Contains(err.Error(), "account_id") {
+		if indexName, ok := dupkey.ClassifyDuplicateKey(err); ok {
+			if strings.HasPrefix(indexName, "account_id") || strings.HasPrefix(indexName, "ledger_id_1_account_id") {
 				return nil, pkg.ValidateBusinessError(cn.ErrAccountAlreadyAssociated, cn.EntityInstrument)
 			}
 		}
