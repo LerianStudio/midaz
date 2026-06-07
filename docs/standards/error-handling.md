@@ -70,7 +70,7 @@ The decision memo (D1–D7) outcomes are baked into the rules below and recorded
 
 ## E5 — Not-found at the adapter boundary
 
-**Rule.** Adapters map driver-level not-found (`sql.ErrNoRows`, `mongo.ErrNoDocuments`) to a platform sentinel at the repository boundary. The ledger pattern is the **sanctioned alternative**: the adapter returns a generic `services.ErrDatabaseItemNotFound`, and the use-case maps it to the entity-specific 404 (`EntityNotFoundError`) via `errors.Is`. This alternative is permitted **iff every caller guards** the generic sentinel — verified across the ledger at 73/73 call sites today. A raw driver not-found error must never reach `WithError`, where it degrades to a generic 500.
+**Rule.** Adapters map driver-level not-found (`sql.ErrNoRows`, `mongo.ErrNoDocuments`) to a platform sentinel at the repository boundary. The ledger pattern is the **sanctioned alternative**: the adapter returns a generic `services.ErrDatabaseItemNotFound`, and the use-case maps it to the entity-specific 404 (`EntityNotFoundError`) via `errors.Is`. This alternative is permitted **iff every caller guards** the generic sentinel — every ledger call site guards it via `errors.Is(err, services.ErrDatabaseItemNotFound)`. A raw driver not-found error must never reach `WithError`, where it degrades to a generic 500.
 
 **Rationale.** A driver not-found that escapes the adapter is a 404 rendered as a 500 — a correctness bug visible to clients. The two sanctioned shapes (map-at-adapter, or generic-sentinel-mapped-at-use-case) both guarantee the client sees 404; the unguarded raw return does not.
 
