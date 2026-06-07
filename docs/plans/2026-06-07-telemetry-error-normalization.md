@@ -424,7 +424,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.1.1: `WithError` errors.As rewrite + explicit FailedPrecondition/HTTPError arms
 
-- [ ] Done
+- [x] Done
 
 **Context:** `pkg/net/http/errors.go:16-67` — bare type switch; only `pkg.ResponseError` (`:41`) uses errors.As. `FailedPreconditionError` (constructed by `ValidateBusinessError` for `ErrPermissionEnforcement`/`ErrJWKFetch`, `pkg/errors.go:668-673`) and `HTTPError` (`pkg/errors.go:139-150`) hit the default arm → 500. The feeshared/reporter clones (`feeshared/nethttp/errors.go:62-118`, `pkg/reporter/net/http/errors.go:60-118`) already use errors.As on all arms — they are the shape model.
 
@@ -438,7 +438,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.1.2: `GetUUIDFromLocals` returns a typed 400
 
-- [ ] Done
+- [x] Done
 
 **Context:** `pkg/net/http/httputils.go:563-575` returns raw `constant.ErrInvalidPathParameter` → WithError default → **500 today** for what is a 400-class failure (F11 live wrong-status).
 
@@ -452,7 +452,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.1.3: Eliminate bare-sentinel WithError passes (8 sites)
 
-- [ ] Done
+- [x] Done
 
 **Context:** `components/ledger/internal/adapters/http/in/instrument.go:54,190,199` and `holder.go:51,168,177` pass raw `cn.ErrInternalServer` to WithError (works by accident via default arm; violates E2/E4 — sentinel, not typed).
 
@@ -473,7 +473,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.2.1: Author the four-family mapping table
 
-- [ ] Done
+- [x] Done
 
 **Context:** D1 = break ALL. FEE-0001..0072 (gaps; semantic overlaps with canonical: ErrInvalidPathParameter≈0065, ErrInvalidQueryParameter, ErrEntityNotFound, ErrInternalServer, pagination/date codes...), TPL-0001..0062 + REP-0060..0080, TRC-0001..0378 (73 codes, categorized ranges incl. readyz TRC-0328..0342 and HTTP-code consts `constant.CodeBadRequest="TRC-0003"` etc.). Canonical highest = 0178. D2: each mapped code gets a status class — business-rule violations → 422 (`UnprocessableOperationError`), conflicts → 409, syntactic → 400, not-found → 404.
 

@@ -14,54 +14,98 @@ import (
 )
 
 // WithError returns an error with the given status code and message.
+//
+// Typed platform errors are resolved via errors.As so a wrapped error is still
+// classified to its proper status. Business errors remain returned unwrapped by
+// convention (E2); this is defensive hardening, not a license to wrap them.
 func WithError(c *fiber.Ctx, err error) error {
-	switch e := err.(type) {
-	case pkg.EntityNotFoundError:
-		return NotFound(c, e.Code, e.Title, e.Message)
-	case pkg.EntityConflictError:
-		return Conflict(c, e.Code, e.Title, e.Message)
-	case pkg.ValidationError:
+	var notFoundErr pkg.EntityNotFoundError
+	if errors.As(err, &notFoundErr) {
+		return NotFound(c, notFoundErr.Code, notFoundErr.Title, notFoundErr.Message)
+	}
+
+	var conflictErr pkg.EntityConflictError
+	if errors.As(err, &conflictErr) {
+		return Conflict(c, conflictErr.Code, conflictErr.Title, conflictErr.Message)
+	}
+
+	var validationErr pkg.ValidationError
+	if errors.As(err, &validationErr) {
 		return BadRequest(c, pkg.ValidationKnownFieldsError{
-			Code:    e.Code,
-			Title:   e.Title,
-			Message: e.Message,
+			Code:    validationErr.Code,
+			Title:   validationErr.Title,
+			Message: validationErr.Message,
 			Fields:  nil,
 		})
-	case pkg.UnprocessableOperationError:
-		return UnprocessableEntity(c, e.Code, e.Title, e.Message)
-	case pkg.UnauthorizedError:
-		return Unauthorized(c, e.Code, e.Title, e.Message)
-	case pkg.ForbiddenError:
-		return Forbidden(c, e.Code, e.Title, e.Message)
-	case pkg.ValidationKnownFieldsError, pkg.ValidationUnknownFieldsError:
-		return BadRequest(c, e)
-	case pkg.ResponseError:
-		var rErr pkg.ResponseError
+	}
 
-		_ = errors.As(err, &rErr)
+	var unprocessableErr pkg.UnprocessableOperationError
+	if errors.As(err, &unprocessableErr) {
+		return UnprocessableEntity(c, unprocessableErr.Code, unprocessableErr.Title, unprocessableErr.Message)
+	}
 
-		return JSONResponseError(c, rErr)
-	case libCommons.Response:
-		switch e.Code {
+	var unauthorizedErr pkg.UnauthorizedError
+	if errors.As(err, &unauthorizedErr) {
+		return Unauthorized(c, unauthorizedErr.Code, unauthorizedErr.Title, unauthorizedErr.Message)
+	}
+
+	var forbiddenErr pkg.ForbiddenError
+	if errors.As(err, &forbiddenErr) {
+		return Forbidden(c, forbiddenErr.Code, forbiddenErr.Title, forbiddenErr.Message)
+	}
+
+	var knownFieldsErr pkg.ValidationKnownFieldsError
+	if errors.As(err, &knownFieldsErr) {
+		return BadRequest(c, knownFieldsErr)
+	}
+
+	var unknownFieldsErr pkg.ValidationUnknownFieldsError
+	if errors.As(err, &unknownFieldsErr) {
+		return BadRequest(c, unknownFieldsErr)
+	}
+
+	var responseErr pkg.ResponseError
+	if errors.As(err, &responseErr) {
+		return JSONResponseError(c, responseErr)
+	}
+
+	var commonsResponse libCommons.Response
+	if errors.As(err, &commonsResponse) {
+		switch commonsResponse.Code {
 		case libConstants.ErrInsufficientFunds.Error(), libConstants.ErrAccountIneligibility.Error():
-			return UnprocessableEntity(c, e.Code, e.Title, e.Message)
+			return UnprocessableEntity(c, commonsResponse.Code, commonsResponse.Title, commonsResponse.Message)
 		case libConstants.ErrAssetCodeNotFound.Error():
-			return NotFound(c, e.Code, e.Title, e.Message)
+			return NotFound(c, commonsResponse.Code, commonsResponse.Title, commonsResponse.Message)
 		case libConstants.ErrOverFlowInt64.Error():
-			return InternalServerError(c, e.Code, e.Title, e.Message)
+			return InternalServerError(c, commonsResponse.Code, commonsResponse.Title, commonsResponse.Message)
 		default:
 			return BadRequest(c, pkg.ValidationKnownFieldsError{
-				Code:    e.Code,
-				Title:   e.Title,
-				Message: e.Message,
+				Code:    commonsResponse.Code,
+				Title:   commonsResponse.Title,
+				Message: commonsResponse.Message,
 			})
 		}
-
-	case pkg.InternalServerError:
-		return InternalServerError(c, e.Code, e.Title, e.Message)
-	case pkg.ServiceUnavailableError:
-		return ServiceUnavailable(c, e.Code, e.Title, e.Message)
-	default:
-		return pkg.ValidateInternalError(err, "")
 	}
+
+	var internalErr pkg.InternalServerError
+	if errors.As(err, &internalErr) {
+		return InternalServerError(c, internalErr.Code, internalErr.Title, internalErr.Message)
+	}
+
+	var failedPreconditionErr pkg.FailedPreconditionError
+	if errors.As(err, &failedPreconditionErr) {
+		return InternalServerError(c, failedPreconditionErr.Code, failedPreconditionErr.Title, failedPreconditionErr.Message)
+	}
+
+	var httpErr pkg.HTTPError
+	if errors.As(err, &httpErr) {
+		return InternalServerError(c, httpErr.Code, httpErr.Title, httpErr.Message)
+	}
+
+	var unavailableErr pkg.ServiceUnavailableError
+	if errors.As(err, &unavailableErr) {
+		return ServiceUnavailable(c, unavailableErr.Code, unavailableErr.Title, unavailableErr.Message)
+	}
+
+	return pkg.ValidateInternalError(err, "")
 }

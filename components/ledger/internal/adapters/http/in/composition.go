@@ -9,6 +9,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/composition"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -53,7 +54,7 @@ func (handler *CompositionHandler) CreateHolderAccount(p any, c *fiber.Ctx) erro
 
 	payload, ok := p.(*mmodel.CreateHolderAccountInput)
 	if !ok || payload == nil {
-		return http.WithError(c, constant.ErrInternalServer)
+		return http.WithError(c, pkg.ValidateInternalError(nil, constant.EntityAccount))
 	}
 
 	// Path param is :id; ParseUUIDPathParameters("holder") parses it (it is a

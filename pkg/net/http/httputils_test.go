@@ -874,6 +874,29 @@ func TestGetUUIDFromLocals_DifferentKeys(t *testing.T) {
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 }
 
+// TestGetUUIDFromLocals_RendersTyped400 asserts the error returned by
+// GetUUIDFromLocals, when passed to WithError, renders a 400 carrying code 0065,
+// not a generic 500/0046.
+func TestGetUUIDFromLocals_RendersTyped400(t *testing.T) {
+	app := fiber.New()
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		_, err := GetUUIDFromLocals(c, "organization_id")
+		return WithError(c, err)
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	assert.Contains(t, string(body), `"code":"0065"`)
+}
+
 func TestEscapeSearchMetacharacters_NoSpecialChars(t *testing.T) {
 	result := EscapeSearchMetacharacters("Lerian Financial")
 	assert.Equal(t, "Lerian Financial", result)

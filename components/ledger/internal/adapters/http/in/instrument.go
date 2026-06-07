@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/LerianStudio/midaz/v4/components/crm/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -51,7 +52,7 @@ func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
 
 	payload, ok := p.(*mmodel.CreateInstrumentInput)
 	if !ok || payload == nil {
-		return http.WithError(c, cn.ErrInternalServer)
+		return http.WithError(c, pkg.ValidateInternalError(nil, cn.EntityInstrument))
 	}
 
 	holderID, err := http.GetUUIDFromLocals(c, "holder_id")
@@ -187,7 +188,7 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 
 	payload, ok := p.(*mmodel.UpdateInstrumentInput)
 	if !ok || payload == nil {
-		return http.WithError(c, cn.ErrInternalServer)
+		return http.WithError(c, pkg.ValidateInternalError(nil, cn.EntityInstrument))
 	}
 
 	fieldsToRemove, ok := c.Locals("patchRemove").([]string)
@@ -196,7 +197,7 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelError, "Failed to get fields to remove")
 
-		return http.WithError(c, cn.ErrInternalServer)
+		return http.WithError(c, pkg.ValidateInternalError(nil, cn.EntityInstrument))
 	}
 
 	span.SetAttributes(

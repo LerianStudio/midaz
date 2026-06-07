@@ -563,12 +563,12 @@ func GetBooleanParam(c *fiber.Ctx, queryParamName string) bool {
 func GetUUIDFromLocals(c *fiber.Ctx, key string) (uuid.UUID, error) {
 	val := c.Locals(key)
 	if val == nil {
-		return uuid.Nil, constant.ErrInvalidPathParameter
+		return uuid.Nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", key)
 	}
 
 	id, ok := val.(uuid.UUID)
 	if !ok {
-		return uuid.Nil, constant.ErrInvalidPathParameter
+		return uuid.Nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", key)
 	}
 
 	return id, nil
