@@ -18,7 +18,7 @@
 |-------|-----------|-------|--------|
 | 1 | Audit gaps closed; unified standard authored; decision memo resolved with owner | 1.1, 1.2 | **Complete** |
 | 2 | Zero financial values / PII / raw payloads on any telemetry signal or client-surfaced error | 2.1, 2.2, 2.3 | **Complete** |
-| 3 | One error platform: forks deleted, canonical boundary hardened, one envelope, status table enforced (D2) | 3.1–3.6 | Detailed |
+| 3 | One error platform: forks deleted, canonical boundary hardened, one envelope, status table enforced (D2) | 3.1–3.6 | **Complete** |
 | 4 | Async error resilience: transaction consumer can't hot-loop; panic inventory dispositioned; reporter posture hardened (D7) | 4.1–4.5 | Epic-level |
 | 5 | Hygiene sweep + metrics normalization: structured logging, span topology, level discipline, helper-by-class, one metrics stack (D4), domain metrics (D6) | 5.1–5.7 | Epic-level |
 | 6 | Enforcement: lint gates + contract tests in CI; docs synced | 6.1–6.3 | Epic-level |
@@ -501,7 +501,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.2.3: Migrate fee surfaces and delete the feeshared error platform
 
-- [ ] Done
+- [x] Done
 
 **Context:** 62 non-test importers. Error surface to delete: `feeshared/errors.go`, `feeshared/constant/errors.go`, `feeshared/nethttp/**` (WithError clone + httputils/body_parser/body_validator clones — handlers migrate to `pkg/net/http` equivalents). SURVIVES: `feeshared/model/**`, `bsondecimal`, `resolver`, non-error constants (mongo collections etc.). Fee `ValidationError` json-tag drift dies with the fork (D3 — envelope fix is automatic).
 
@@ -515,7 +515,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.2.4: Fee error contract test + artifact regen
 
-- [ ] Done
+- [x] Done
 
 **Context:** CRM template `components/ledger/internal/adapters/http/in/crm_error_contract_test.go` (`TestErrorContract_CanonicalCodes:56`). Fee routes' swagger/postman embed FEE- codes in examples; envelope shape changed (json tags restored).
 
@@ -536,7 +536,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.3.1: Migrate reporter to canonical + relocate IsBusinessError
 
-- [ ] Done
+- [x] Done
 
 **Context:** ~50 importer files (manager 20+, worker 15+). `pkg/reporter/net/http/errors.go:18-57` `IsBusinessError` is the canonical predicate model — it MUST survive as `pkg.IsBusinessError` (in `pkg/errors.go`, beside the types it inspects; Phase 5 Epic 5.4 consumes it). TPL-/REP- per mapping table.
 
@@ -550,7 +550,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.3.2: Unify mongo not-found conventions; fix the live 500
 
-- [ ] Done
+- [x] Done
 
 **Context:** Three coexisting conventions in `pkg/reporter/mongodb`: raw `mongo.ErrNoDocuments` return (`template.mongodb.go:132-133` FindByID), mapped `ValidateBusinessError(ErrEntityNotFound...)`, bare sentinel return (`report.mongodb.go` update). Live bug: `update-template-by-id.go:213-218` propagates raw ErrNoDocuments → 500.
 
@@ -655,7 +655,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.6.1: Classify the 82 ValidationError registrations
 
-- [ ] Done
+- [x] Done
 
 **Context:** `pkg/errors.go` errorMap: 82 codes typed ValidationError-400 vs 31 Unprocessable-422. E3 table: semantic business-rule → 422, conflict/duplicate → 409, malformed/syntactic input → 400.
 
@@ -669,7 +669,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 #### Task 3.6.2: Execute the re-typing + lock + migration notes
 
-- [ ] Done
+- [x] Done
 
 **Context:** table from 3.6.1.
 
@@ -811,6 +811,8 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 - **2026-06-07 Phase 1 executed and checkpointed.** Epic 1.1: four parallel sweep agents closed G1/G3/G4/G7/G8 into the appendix; spot-check corrections applied (nil-redactor 76/100 with anchored pattern — agent's unanchored 87 rejected; probe-traffic finding downgraded P1→P2 after confirming `WithTelemetry` exclusion is opt-in, one-arg fix). Epic 1.2: both standards authored with all canonical refs verified; agents corrected 10+ suggested line refs against reality. Decision memo: D1/D2/D4/D6 resolved AGAINST the original recommendations — owner's governing frame is "tracer/reporter greenfield, v4 = one breaking window"; plan scope updated (Epics 3.6, 4.5, 5.6, 5.7 added; D5 deferred to Phase 4 elaboration). D7 re-framed at the checkpoint (greenfield flips the HMAC asymmetry: enforce now is free, enforce later is breaking).
 - Commits: `65b793010` (plan + audit JSON + appendix), `9e48d3ef4` (standards), `fd39b6d6c` (Phase 1 close).
 - **2026-06-07 Phase 2 executed.** Dispatched by slice (4 parallel agents), one commit (shared files across epics). Nil-redactor true count was **99 of 100** (appendix corrected — anchored regex missed multi-line map-literal calls; tracer held 41, not 18). Extra F1-class financial leaks found and fixed during execution beyond the elaborated list: tracer `validation_handler.go` (`amount` in a span map), `create_limit.go`/`limit_checker.go` (`max_amount` on spans), fees `fees_package_handler.go:137` (`packOut` `%v` dump with Min/MaxAmount), `payload_builder.go:225` (amount-carrying string recorded onto span via HandleSpanBusinessErrorEvent). Reporter `error_detail` dropped entirely (E9) with RED→GREEN test evidence; `routes_test.go:410` was asserting a path leak. Working tree carries an unrelated pre-existing format pass (~100 files import-reorder) + 4 substantive non-plan changes (`tracer/bootstrap/config*.go`, `tracer/pkg/model/limit.go`, `pkg/reporter/pdf/pool.go`, workflow version bumps, `AGENTS.md`) — deliberately NOT staged.
+
+- **2026-06-07 Phase 3 executed** (commits 7ded3c7af, dd3ad2cb4, b3fa4e298, 72ea1bb85, 99bcda86a, 0410dc95b, 2aa805a24). Corrections vs elaboration: tracer fork held **172** TRC- sentinels (not 73 — second tracer undercount); feeshared/nethttp is NOT a pure clone (fee-specific QueryHeader/WithBodyTracing infra survives with canonical internals — deleting it would have re-typed the ledger-wide QueryHeader); LegacyErrorBoundary was dead code (deleted, replaced by CanonicalFiberErrorHandler for fiber.Error producers, new sentinels 0484/0485); reporter E5 went full adapter-boundary (the two extra raw-ErrNoDocuments gaps proved the service-layer convention fails the every-caller-guards test); codes 0046/0047/0053/0094 are deliberately factory-served (NOT ValidateBusinessError arms) — convention now followed by all migrations; mainline re-typing shipped 23x 400→422 + 1x 409 + 2 reverse fixes (0017, 0096), locked by mainline_error_contract_test. Tracer commit absorbed previously uncommitted limit-validation/bootstrap-clock work entangled in shared files — flagged for owner awareness.
 
 ## Out of Scope
 
