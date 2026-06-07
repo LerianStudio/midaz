@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	pkg "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	model "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
@@ -44,10 +44,10 @@ func (m *MockAccountResolver) EXPECT() *MockAccountResolverMockRecorder {
 }
 
 // ResolveAccounts mocks base method.
-func (m *MockAccountResolver) ResolveAccounts(ctx context.Context, orgID, ledgerID uuid.UUID, target model.AccountTarget) ([]pkg.Account, error) {
+func (m *MockAccountResolver) ResolveAccounts(ctx context.Context, orgID, ledgerID uuid.UUID, target model.AccountTarget) ([]feeshared.Account, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ResolveAccounts", ctx, orgID, ledgerID, target)
-	ret0, _ := ret[0].([]pkg.Account)
+	ret0, _ := ret[0].([]feeshared.Account)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/google/uuid"
@@ -260,7 +260,7 @@ func TestCreateFeeEstimate(t *testing.T) {
 					Return(nil, constant.ErrEntityNotFound)
 			},
 			expectErr:   true,
-			errContains: "FEE-0012",
+			errContains: "0007",
 			expectResul: nil,
 		},
 	}
@@ -362,12 +362,12 @@ func TestEstimateFeeCalculation_PackageNotFound_MongoErrNoDocuments(t *testing.T
 	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID)
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	// Verify if the error contains "FEE-0012" or the entity not found message
+	// Verify if the error contains "0007" or the entity not found message
 	assert.True(t,
 		errors.Is(err, constant.ErrEntityNotFound) ||
 			errors.As(err, &pkg.EntityNotFoundError{}) ||
-			strings.Contains(err.Error(), "FEE-0012") ||
-			strings.Contains(err.Error(), "No Package entity was found"))
+			strings.Contains(err.Error(), "0007") ||
+			strings.Contains(err.Error(), "No entity was found"))
 }
 
 // TestEstimateFeeCalculation_PackageNotFound_OtherError tests when another error occurs while searching for package
@@ -660,7 +660,7 @@ func TestEstimateFeeCalculation_CalculateFeeError(t *testing.T) {
 	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID)
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "FEE-0044")
+	assert.Contains(t, err.Error(), "0206")
 }
 
 // TestEstimateFeeCalculation_NoFeeApplied tests when fee is not applied (package without fees)

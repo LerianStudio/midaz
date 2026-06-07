@@ -8,16 +8,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/bsondecimal"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -67,7 +66,7 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uui
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating package on repo by id: %v", err))
 
 		if errors.Is(err, ErrDatabaseItemNotFound) {
-			return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", reflect.TypeOf(pack.Package{}).Name())
+			return pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)
 		}
 
 		return err
@@ -119,7 +118,7 @@ func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, 
 	}
 
 	if len(setFields) == 0 && len(unsetFields) == 0 {
-		return setFields, unsetFields, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, reflect.TypeOf(pack.Package{}).Name())
+		return setFields, unsetFields, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, constant.EntityPackage)
 	}
 
 	setFields["updated_at"] = time.Now()
@@ -258,7 +257,7 @@ func (uc *UseCase) convertFeeToMongoFormat(fee model.Fee) (pack.Fee, error) {
 	for _, calc := range fee.CalculationModel.Calculations {
 		value, err := decimal.NewFromString(calc.Value)
 		if err != nil {
-			return pack.Fee{}, pkg.ValidateBusinessError(constant.ErrConvertToDecimal, reflect.TypeOf(pack.Package{}).Name(), "calculationModel.calculations.value")
+			return pack.Fee{}, pkg.ValidateBusinessError(constant.ErrConvertToDecimal, constant.EntityPackage, "calculationModel.calculations.value")
 		}
 
 		calculations = append(calculations, pack.Calculation{

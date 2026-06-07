@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	libZap "github.com/LerianStudio/lib-observability/zap"
@@ -68,12 +68,12 @@ func denominationFixture(asset string, deductible bool) (*model.FeeCalculate, *p
 		Fees: map[string]model.Fee{"fee": {
 			FeeLabel:         "PctFee",
 			Priority:         1,
-			ReferenceAmount:  constant.ReferenceAmountOriginalAmount,
+			ReferenceAmount:  feeconstant.ReferenceAmountOriginalAmount,
 			IsDeductibleFrom: boolPtr(deductible),
 			CreditAccount:    "@fee_credit",
 			CalculationModel: &model.CalculationModel{
-				ApplicationRule: constant.AppRulePercentual,
-				Calculations:    []model.Calculation{{Type: constant.FeeTypePercentage, Value: "2.5"}},
+				ApplicationRule: feeconstant.AppRulePercentual,
+				Calculations:    []model.Calculation{{Type: feeconstant.FeeTypePercentage, Value: "2.5"}},
 			},
 		}},
 		WaivedAccounts: &[]string{},

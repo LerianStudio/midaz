@@ -7,16 +7,15 @@ package services
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -60,14 +59,14 @@ func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageIn
 	if errMinDec != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse minAmount decimal", errMinDec)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrConvertToDecimal, reflect.TypeOf(pack.Package{}).Name(), "minimumAmount")
+		return nil, pkg.ValidateBusinessError(constant.ErrConvertToDecimal, constant.EntityPackage, "minimumAmount")
 	}
 
 	maxAmount, errMaxDec := decimal.NewFromString(cpi.MaxAmount)
 	if errMaxDec != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse maxAmount decimal", errMaxDec)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrConvertToDecimal, reflect.TypeOf(pack.Package{}).Name(), "maximumAmount")
+		return nil, pkg.ValidateBusinessError(constant.ErrConvertToDecimal, constant.EntityPackage, "maximumAmount")
 	}
 
 	packModel, errNewPkg := pack.NewPackage(organizationID, ledgerID, cpi.FeeGroupLabel, minAmount, maxAmount, cpi.Fee, cpi.Enable)
@@ -92,7 +91,7 @@ func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageIn
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, spanMsg, err)
 
-			return nil, pkg.ValidateBusinessError(constant.ErrDuplicatePackage, reflect.TypeOf(pack.Package{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrDuplicatePackage, constant.EntityPackage)
 		}
 
 		libOpentelemetry.HandleSpanError(span, spanMsg, err)

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

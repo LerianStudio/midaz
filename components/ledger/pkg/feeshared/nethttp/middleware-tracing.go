@@ -9,7 +9,7 @@ import (
 
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/attribute"
 )

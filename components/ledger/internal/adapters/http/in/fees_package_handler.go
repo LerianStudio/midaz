@@ -7,15 +7,14 @@ package in
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	feeerrors "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	feehttp "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	feeerrors "github.com/LerianStudio/midaz/v4/pkg"
+	feeconstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
@@ -91,32 +90,32 @@ func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 	if !commons.IsNilOrEmpty(payload.SegmentID) {
 		segmentID, errParseUUID = uuid.Parse(*payload.SegmentID)
 		if errParseUUID != nil {
-			return feehttp.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidSegmentID, ""))
+			return http.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidSegmentID, ""))
 		}
 	}
 
 	ledgerID, errParseUUID = uuid.Parse(payload.LedgerID)
 	if errParseUUID != nil {
-		return feehttp.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidLedgerID, ""))
+		return http.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidLedgerID, ""))
 	}
 
 	if errAmount := payload.ValidateMinAndMaxAmount(); errAmount != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid min/max amount validation", errAmount)
 
-		return feehttp.WithError(c, errAmount)
+		return http.WithError(c, errAmount)
 	}
 
 	errValidateInput := payload.ValidateFees()
 	if errValidateInput != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Error on validation of input payload: Err ", errValidateInput)
 
-		return feehttp.WithError(c, errValidateInput)
+		return http.WithError(c, errValidateInput)
 	}
 
 	seenPriorities := make(map[int]bool)
 	for _, fee := range payload.Fee {
 		if seenPriorities[fee.Priority] {
-			return feehttp.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrPriorityInvalid, reflect.TypeOf(pack.Fee{}).Name()))
+			return http.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrPriorityInvalid, feeconstant.EntityPackage))
 		}
 
 		seenPriorities[fee.Priority] = true
@@ -126,7 +125,7 @@ func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create pack on command", err)
 
-		return feehttp.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, "Successfully created pack", libLog.String("package_id", packOut.ID.String()))
@@ -179,7 +178,7 @@ func (handler *PackageHandler) GetAllPackages(c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate query parameters")
 
-		return feehttp.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	span.SetAttributes(
@@ -200,7 +199,7 @@ func (handler *PackageHandler) GetAllPackages(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Packages on query", err)
 
-		return feehttp.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Packages")
@@ -257,7 +256,7 @@ func (handler *PackageHandler) GetPackageByID(c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to retrieve Package", libLog.String("package_id", id.String()))
 
-		return feehttp.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Package with ID: %s", id.String()))
@@ -315,7 +314,7 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 		if errValidateInput != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Error on validation of input payload: Err ", errValidateInput)
 
-			return feehttp.WithError(c, errValidateInput)
+			return http.WithError(c, errValidateInput)
 		}
 
 		seenPriorities := make(map[int]bool)
@@ -323,7 +322,7 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 		for _, fee := range payload.Fee {
 			if !fee.ValidateIfFeeIsNil() {
 				if seenPriorities[fee.Priority] && fee.Priority != 0 {
-					return feehttp.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrPriorityInvalid, reflect.TypeOf(pack.Fee{}).Name()))
+					return http.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrPriorityInvalid, feeconstant.EntityPackage))
 				}
 
 				seenPriorities[fee.Priority] = true
@@ -334,20 +333,20 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 	if errValidateAmount := payload.ValidateMinAndMaxAmount(); errValidateAmount != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid values for maxAmount and minAmount", errValidateAmount)
 
-		return feehttp.WithError(c, errValidateAmount)
+		return http.WithError(c, errValidateAmount)
 	}
 
 	if errUpdate := handler.Service.UpdatePackageByID(ctx, id, organizationID, payload); errUpdate != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update package", errUpdate)
 
-		return feehttp.WithError(c, errUpdate)
+		return http.WithError(c, errUpdate)
 	}
 
 	packUpdated, err := handler.Service.GetPackageByID(ctx, id, organizationID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve package on query", err)
 
-		return feehttp.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Package with ID: %s", id))
@@ -399,7 +398,7 @@ func (handler *PackageHandler) DeletePackageByID(c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to remove Package", libLog.String("package_id", id.String()))
 
-		return feehttp.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Package with ID: %s", id.String()))

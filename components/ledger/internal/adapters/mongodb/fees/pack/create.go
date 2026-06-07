@@ -11,7 +11,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -37,7 +37,7 @@ func (pm *PackageMongoDBRepository) Create(ctx context.Context, p *Package, orga
 		return nil, err
 	}
 
-	coll := db.Collection(strings.ToLower(constant.PackageCollection))
+	coll := db.Collection(strings.ToLower(feeconstant.PackageCollection))
 	record := &PackageMongoDBModel{}
 
 	if err := record.FromEntity(p, organizationID); err != nil {

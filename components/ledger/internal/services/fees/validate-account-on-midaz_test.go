@@ -8,9 +8,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
-	pkg "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/google/uuid"
@@ -23,7 +23,7 @@ func TestValidateExistenceOfAccountOnMidaz_DeduplicatesAliases(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPackRepo := pack.NewMockRepository(ctrl)
-	mockResolver := pkg.NewMockMidazResolver(ctrl)
+	mockResolver := feeshared.NewMockMidazResolver(ctrl)
 
 	svc := &UseCase{
 		packageRepo: mockPackRepo,
@@ -136,7 +136,7 @@ func TestValidateExistenceOfAccountOnMidaz_DeduplicatesAliases(t *testing.T) {
 
 			if tt.expectErr {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), "FEE-0014")
+				assert.Contains(t, err.Error(), "0181")
 			} else {
 				assert.NoError(t, err)
 			}

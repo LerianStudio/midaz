@@ -10,11 +10,11 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	mongoPack "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/bsondecimal"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
-	pkg "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -32,7 +32,7 @@ func TestUpdatePackage(t *testing.T) {
 	flagTrue := true
 
 	mockPackageRepo := pack.NewMockRepository(ctrl)
-	mockResolver := pkg.NewMockMidazResolver(ctrl)
+	mockResolver := feeshared.NewMockMidazResolver(ctrl)
 
 	orgId := uuid.New()
 	packID := uuid.New()
@@ -210,7 +210,7 @@ func TestUpdatePackage(t *testing.T) {
 					Return(amountData, nil)
 			},
 			expectErr:   true,
-			errContains: "No Package entity was found",
+			errContains: "No entity was found",
 		},
 		{
 			name:      "Error - Update package by id",
@@ -236,7 +236,7 @@ func TestUpdatePackage(t *testing.T) {
 					Return(amountData, nil)
 			},
 			expectErr:   true,
-			errContains: "FEE-0003",
+			errContains: "0047",
 		},
 		{
 			name:      "Error - No fields to update package by id",
@@ -249,7 +249,7 @@ func TestUpdatePackage(t *testing.T) {
 					Return(amountData, nil)
 			},
 			expectErr:   true,
-			errContains: "FEE-0017",
+			errContains: "0183",
 		},
 	}
 
@@ -280,7 +280,7 @@ func TestUpdatePackageByID_UpdatedAtFieldSet(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPackageRepo := pack.NewMockRepository(ctrl)
-	mockResolver := pkg.NewMockMidazResolver(ctrl)
+	mockResolver := feeshared.NewMockMidazResolver(ctrl)
 
 	orgId := uuid.New()
 	packID := uuid.New()

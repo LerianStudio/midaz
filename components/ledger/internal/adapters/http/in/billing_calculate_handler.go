@@ -11,10 +11,9 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
-	feeerrors "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
-	feehttp "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	feeerrors "github.com/LerianStudio/midaz/v4/pkg"
+	feeconstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -89,18 +88,18 @@ func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) er
 	if errValidation := validateBillingCalculateRequest(payload); errValidation != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Billing calculate request validation failed", errValidation)
 
-		return feehttp.WithError(c, errValidation)
+		return http.WithError(c, errValidation)
 	}
 
 	result, errCalc := handler.Service.Calculate(ctx, *payload)
 	if errCalc != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to calculate billing", errCalc)
 
-		return feehttp.WithError(c, errCalc)
+		return http.WithError(c, errCalc)
 	}
 
 	if result == nil {
-		return feehttp.WithError(c, fmt.Errorf("service returned nil result without error"))
+		return http.WithError(c, fmt.Errorf("service returned nil result without error"))
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, "Billing calculation completed",
@@ -112,15 +111,25 @@ func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) er
 // validateBillingCalculateRequest validates the billing calculate request payload.
 func validateBillingCalculateRequest(req *model.BillingCalculateRequest) error {
 	if req.OrganizationID == "" {
-		return feeerrors.ValidateBusinessError(feeconstant.ErrInvalidHeaderParameter, "BillingCalculation", "organizationId")
+		return feeerrors.ValidateBusinessError(feeconstant.ErrFeeInvalidHeaderParameter, "BillingCalculation", "organizationId")
 	}
 
 	if req.LedgerID == "" {
-		return feeerrors.ValidateBusinessError(feeconstant.ErrInvalidRequestBody, "BillingCalculation", "ledgerId is required")
+		return feeerrors.ValidationError{
+			EntityType: "BillingCalculation",
+			Code:       feeconstant.ErrInvalidRequestBody.Error(),
+			Title:      "Invalid Request Body",
+			Message:    "The request body contains an invalid value: ledgerId is required. Please check the documentation and try again.",
+		}
 	}
 
 	if _, err := uuid.Parse(req.LedgerID); err != nil {
-		return feeerrors.ValidateBusinessError(feeconstant.ErrInvalidRequestBody, "BillingCalculation", "ledgerId must be a valid UUID")
+		return feeerrors.ValidationError{
+			EntityType: "BillingCalculation",
+			Code:       feeconstant.ErrInvalidRequestBody.Error(),
+			Title:      "Invalid Request Body",
+			Message:    "The request body contains an invalid value: ledgerId must be a valid UUID. Please check the documentation and try again.",
+		}
 	}
 
 	if err := validateBillingPeriod(req.Period); err != nil {

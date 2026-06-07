@@ -8,18 +8,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	feeUtils "github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -35,7 +33,12 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 	// Defensive nil check for the main input parameter
 	if cf == nil {
 		logger.Log(ctx, libLog.LevelError, "Invalid input: FeeEstimate is nil")
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidRequestBody, "")
+
+		return nil, pkg.ValidationError{
+			Code:    constant.ErrInvalidRequestBody.Error(),
+			Title:   "Invalid Request Body",
+			Message: "The request body is required. Please check the documentation and try again.",
+		}
 	}
 
 	ctx, span := tracer.Start(ctx, "service.estimate_fee_calculation")
@@ -59,7 +62,7 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error to find package by organizationID %v and package %v, Error: %v", organizationID, cf.PackageID, err))
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", reflect.TypeOf(pack.Package{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)
 		}
 
 		return nil, err

@@ -10,7 +10,6 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
-	feehttp "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -82,7 +81,7 @@ func (handler *FeeHandler) EstimateFeeCalculation(p any, c *fiber.Ctx) error {
 	if errCreateFee != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to estimate fee calculation", errCreateFee)
 
-		return feehttp.WithError(c, errCreateFee)
+		return http.WithError(c, errCreateFee)
 	}
 
 	if feeCalculate.Transaction.Metadata["packageAppliedID"] == nil {

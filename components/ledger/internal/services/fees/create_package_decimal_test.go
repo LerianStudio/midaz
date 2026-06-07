@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
-	pkg "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +24,7 @@ func TestCreatePackage_InvalidDecimalMinAmount(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPackRepo := pack.NewMockRepository(ctrl)
-	mockResolver := pkg.NewMockMidazResolver(ctrl)
+	mockResolver := feeshared.NewMockMidazResolver(ctrl)
 	enableFlag := true
 
 	packSvc := &UseCase{
@@ -44,28 +44,28 @@ func TestCreatePackage_InvalidDecimalMinAmount(t *testing.T) {
 			minAmount: "1000,50",
 			maxAmount: "2000",
 			wantErr:   true,
-			errMsg:    "FEE-0042",
+			errMsg:    "Remember to use dot",
 		},
 		{
 			name:      "Error - invalid minAmount with letters",
 			minAmount: "abc",
 			maxAmount: "2000",
 			wantErr:   true,
-			errMsg:    "FEE-0042",
+			errMsg:    "Remember to use dot",
 		},
 		{
 			name:      "Error - invalid maxAmount with comma separator",
 			minAmount: "1000",
 			maxAmount: "2000,50",
 			wantErr:   true,
-			errMsg:    "FEE-0042",
+			errMsg:    "Remember to use dot",
 		},
 		{
 			name:      "Error - invalid maxAmount with letters",
 			minAmount: "1000",
 			maxAmount: "xyz",
 			wantErr:   true,
-			errMsg:    "FEE-0042",
+			errMsg:    "Remember to use dot",
 		},
 	}
 

@@ -10,8 +10,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	mongoPack "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/google/uuid"
@@ -256,7 +256,7 @@ func TestCreateFee(t *testing.T) {
 					Return(nil, constant.ErrEntityNotFound)
 			},
 			expectErr:   true,
-			errContains: "FEE-0012",
+			errContains: "0007",
 		},
 	}
 
@@ -480,7 +480,7 @@ func TestCalculateFee_SinglePackage_CalculateFeeError(t *testing.T) {
 	ctx := context.Background()
 	err := feeSvc.CalculateFee(ctx, feeInput, orgID)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "FEE-0044")
+	assert.Contains(t, err.Error(), "0206")
 }
 
 // TestCalculateFee_SinglePackage_WithMetadataUpdate tests metadata update when From/To change
@@ -734,7 +734,7 @@ func TestCalculateFee_MultiplePackages_CalculateFeeError(t *testing.T) {
 	ctx := context.Background()
 	err := feeSvc.CalculateFee(ctx, feeInput, orgID)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "FEE-0044")
+	assert.Contains(t, err.Error(), "0206")
 }
 
 // TestCalculateFee_SinglePackage_ValueAtMinimum tests value at minimum limit

@@ -7,8 +7,8 @@ package model
 import (
 	"strings"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/shopspring/decimal"
 )

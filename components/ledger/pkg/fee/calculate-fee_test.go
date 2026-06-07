@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	libZap "github.com/LerianStudio/lib-observability/zap"
@@ -57,9 +57,9 @@ func TestCalculateFee_Basic(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "TestFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "100",
 			}},
 		},
@@ -126,9 +126,9 @@ func TestCalculateFee_Percentage(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "PercentFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRulePercentual,
+			ApplicationRule: feeconstant.AppRulePercentual,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypePercentage,
+				Type:  feeconstant.FeeTypePercentage,
 				Value: "10",
 			}},
 		},
@@ -182,7 +182,7 @@ func TestCalculateFee_InvalidApplicationRule(t *testing.T) {
 		CalculationModel: &model.CalculationModel{
 			ApplicationRule: "invalidRule",
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "100",
 			}},
 		},
@@ -203,7 +203,7 @@ func TestCalculateFee_InvalidApplicationRule(t *testing.T) {
 	}
 	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "FEE-0044")
+	assert.Contains(t, err.Error(), "0206")
 }
 
 func TestCalculateFee_InvalidFeeValue(t *testing.T) {
@@ -232,9 +232,9 @@ func TestCalculateFee_InvalidFeeValue(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "InvalidValue",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "not_a_number",
 			}},
 		},
@@ -255,7 +255,7 @@ func TestCalculateFee_InvalidFeeValue(t *testing.T) {
 	}
 	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "FEE-0044")
+	assert.Contains(t, err.Error(), "0206")
 }
 
 // TestFindPackageToCalculateFee tests all package search scenarios
@@ -415,10 +415,10 @@ func TestCalculateFee_MaxBetweenTypes(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "MaxBetweenFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleMaxBetweenTypes,
+			ApplicationRule: feeconstant.AppRuleMaxBetweenTypes,
 			Calculations: []model.Calculation{
-				{Type: constant.FeeTypeFlat, Value: "50"},
-				{Type: constant.FeeTypePercentage, Value: "5"},
+				{Type: feeconstant.FeeTypeFlat, Value: "50"},
+				{Type: feeconstant.FeeTypePercentage, Value: "5"},
 			},
 		},
 		ReferenceAmount:  "originalAmount",
@@ -472,13 +472,13 @@ func TestCalculateFee_AfterFeesAmount(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "AfterFeesFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRulePercentual,
+			ApplicationRule: feeconstant.AppRulePercentual,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypePercentage,
+				Type:  feeconstant.FeeTypePercentage,
 				Value: "10",
 			}},
 		},
-		ReferenceAmount:  constant.ReferenceAmountAfterFeesAmount,
+		ReferenceAmount:  feeconstant.ReferenceAmountAfterFeesAmount,
 		Priority:         1,
 		IsDeductibleFrom: func() *bool { b := false; return &b }(),
 		CreditAccount:    "@fee_account",
@@ -527,9 +527,9 @@ func TestCalculateFee_IsDeductibleFrom(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "DeductibleFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "100",
 			}},
 		},
@@ -589,9 +589,9 @@ func TestCalculateFee_IsDeductibleFrom_ExemptSourceSkipsFee(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "DeductibleFlatFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "10",
 			}},
 		},
@@ -664,9 +664,9 @@ func TestCalculateFee_IsDeductibleFrom_NonExemptSourceAppliesFee(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "DeductibleFlatFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "10",
 			}},
 		},
@@ -738,9 +738,9 @@ func TestCalculateFee_NonDeductible_ExemptSourceSkipsFee(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "NonDeductibleFlatFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "10",
 			}},
 		},
@@ -810,9 +810,9 @@ func TestCalculateFee_CombinedExemption_AllAccountsExempt(t *testing.T) {
 	fee1 := model.Fee{
 		FeeLabel: "NonDeductibleFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "10",
 			}},
 		},
@@ -827,9 +827,9 @@ func TestCalculateFee_CombinedExemption_AllAccountsExempt(t *testing.T) {
 	fee2 := model.Fee{
 		FeeLabel: "DeductibleFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "5",
 			}},
 		},
@@ -908,9 +908,9 @@ func TestCalculateFee_IsDeductibleFrom_RoundingDistribution(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "DeductibleRoundingFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "2",
 			}},
 		},
@@ -982,9 +982,9 @@ func TestCalculateFee_MultipleFees(t *testing.T) {
 	fee1 := model.Fee{
 		FeeLabel: "Fee1",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "50",
 			}},
 		},
@@ -997,9 +997,9 @@ func TestCalculateFee_MultipleFees(t *testing.T) {
 	fee2 := model.Fee{
 		FeeLabel: "Fee2",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRulePercentual,
+			ApplicationRule: feeconstant.AppRulePercentual,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypePercentage,
+				Type:  feeconstant.FeeTypePercentage,
 				Value: "5",
 			}},
 		},
@@ -1054,9 +1054,9 @@ func TestCalculateFee_WaivedAccountsNil(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "TestFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "100",
 			}},
 		},
@@ -1113,10 +1113,10 @@ func TestCalculateFee_MaxBetweenTypes_InvalidValue(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "InvalidMaxFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleMaxBetweenTypes,
+			ApplicationRule: feeconstant.AppRuleMaxBetweenTypes,
 			Calculations: []model.Calculation{
-				{Type: constant.FeeTypeFlat, Value: "invalid"},
-				{Type: constant.FeeTypePercentage, Value: "5"},
+				{Type: feeconstant.FeeTypeFlat, Value: "invalid"},
+				{Type: feeconstant.FeeTypePercentage, Value: "5"},
 			},
 		},
 		ReferenceAmount:  "originalAmount",
@@ -1139,7 +1139,7 @@ func TestCalculateFee_MaxBetweenTypes_InvalidValue(t *testing.T) {
 
 	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "FEE-0044")
+	assert.Contains(t, err.Error(), "0206")
 }
 
 // TestCalculateFee_MaxBetweenTypes_UnknownType tests error with unknown type in maxBetweenTypes
@@ -1168,7 +1168,7 @@ func TestCalculateFee_MaxBetweenTypes_UnknownType(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "UnknownTypeFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleMaxBetweenTypes,
+			ApplicationRule: feeconstant.AppRuleMaxBetweenTypes,
 			Calculations: []model.Calculation{
 				{Type: "unknown", Value: "100"},
 			},
@@ -1193,7 +1193,7 @@ func TestCalculateFee_MaxBetweenTypes_UnknownType(t *testing.T) {
 
 	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "FEE-0044")
+	assert.Contains(t, err.Error(), "0206")
 }
 
 // TestFilterByTransactionRoute tests filter by transaction route
@@ -1353,7 +1353,7 @@ func TestSelectReferenceAmount(t *testing.T) {
 	}
 
 	feeAfterFees := model.Fee{
-		ReferenceAmount: constant.ReferenceAmountAfterFeesAmount,
+		ReferenceAmount: feeconstant.ReferenceAmountAfterFeesAmount,
 	}
 
 	currentValue := decimal.NewFromInt(1100)
@@ -1818,9 +1818,9 @@ func TestCalculateFee_WithRouteFromAndRouteTo(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "FeeWithRoutes",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "100",
 			}},
 		},
@@ -1880,9 +1880,9 @@ func TestCalculateFee_ProportionalFeeWithRepeatingDecimal(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "ProportionalFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "100",
 			}},
 		},
@@ -1943,9 +1943,9 @@ func TestCalculateFee_WithExemptAccounts(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "FeeWithExempt",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "100",
 			}},
 		},
@@ -2004,10 +2004,10 @@ func TestCalculateFee_MaxBetweenTypes_FlatGreaterThanPercentage(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "MaxBetweenFlat",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleMaxBetweenTypes,
+			ApplicationRule: feeconstant.AppRuleMaxBetweenTypes,
 			Calculations: []model.Calculation{
-				{Type: constant.FeeTypeFlat, Value: "100"},
-				{Type: constant.FeeTypePercentage, Value: "5"},
+				{Type: feeconstant.FeeTypeFlat, Value: "100"},
+				{Type: feeconstant.FeeTypePercentage, Value: "5"},
 			},
 		},
 		ReferenceAmount:  "originalAmount",
@@ -2060,10 +2060,10 @@ func TestCalculateFee_MaxBetweenTypes_PercentageGreaterThanFlat(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "MaxBetweenPercentage",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleMaxBetweenTypes,
+			ApplicationRule: feeconstant.AppRuleMaxBetweenTypes,
 			Calculations: []model.Calculation{
-				{Type: constant.FeeTypeFlat, Value: "50"},
-				{Type: constant.FeeTypePercentage, Value: "10"},
+				{Type: feeconstant.FeeTypeFlat, Value: "50"},
+				{Type: feeconstant.FeeTypePercentage, Value: "10"},
 			},
 		},
 		ReferenceAmount:  "originalAmount",
@@ -2116,9 +2116,9 @@ func TestCalculateFee_Unrounded(t *testing.T) {
 			name:            "percentual BRL 2% of 29.25 is 0.585 unrounded",
 			asset:           "BRL",
 			txValue:         "29.25",
-			applicationRule: constant.AppRulePercentual,
+			applicationRule: feeconstant.AppRulePercentual,
 			calculations: []model.Calculation{{
-				Type:  constant.FeeTypePercentage,
+				Type:  feeconstant.FeeTypePercentage,
 				Value: "2",
 			}},
 			expectedFee: "0.585",
@@ -2128,9 +2128,9 @@ func TestCalculateFee_Unrounded(t *testing.T) {
 			name:            "percentual BTC 2% of 0.12345678 is 0.0024691356 unrounded",
 			asset:           "BTC",
 			txValue:         "0.12345678",
-			applicationRule: constant.AppRulePercentual,
+			applicationRule: feeconstant.AppRulePercentual,
 			calculations: []model.Calculation{{
-				Type:  constant.FeeTypePercentage,
+				Type:  feeconstant.FeeTypePercentage,
 				Value: "2",
 			}},
 			expectedFee: "0.0024691356",
@@ -2140,9 +2140,9 @@ func TestCalculateFee_Unrounded(t *testing.T) {
 			name:            "percentual JPY 7% of 999 is 69.93 unrounded",
 			asset:           "JPY",
 			txValue:         "999",
-			applicationRule: constant.AppRulePercentual,
+			applicationRule: feeconstant.AppRulePercentual,
 			calculations: []model.Calculation{{
-				Type:  constant.FeeTypePercentage,
+				Type:  feeconstant.FeeTypePercentage,
 				Value: "7",
 			}},
 			expectedFee: "69.93",
@@ -2152,9 +2152,9 @@ func TestCalculateFee_Unrounded(t *testing.T) {
 			name:            "flatFee BRL fractional 0.585 is 0.585 unrounded",
 			asset:           "BRL",
 			txValue:         "100",
-			applicationRule: constant.AppRuleFlatFee,
+			applicationRule: feeconstant.AppRuleFlatFee,
 			calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "0.585",
 			}},
 			expectedFee: "0.585",
@@ -2164,14 +2164,14 @@ func TestCalculateFee_Unrounded(t *testing.T) {
 			name:            "maxBetweenTypes BRL selects percentual 0.585 unrounded",
 			asset:           "BRL",
 			txValue:         "29.25",
-			applicationRule: constant.AppRuleMaxBetweenTypes,
+			applicationRule: feeconstant.AppRuleMaxBetweenTypes,
 			calculations: []model.Calculation{
 				{
-					Type:  constant.FeeTypeFlat,
+					Type:  feeconstant.FeeTypeFlat,
 					Value: "0.50",
 				},
 				{
-					Type:  constant.FeeTypePercentage,
+					Type:  feeconstant.FeeTypePercentage,
 					Value: "2",
 				},
 			},
@@ -2282,14 +2282,14 @@ func TestCalculatePercentualFee_EmptyCalculations(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "EmptyPercentualFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRulePercentual,
+			ApplicationRule: feeconstant.AppRulePercentual,
 			Calculations:    []model.Calculation{},
 		},
 	}
 
 	result, err := calculatePercentualFee(fee, decimal.NewFromInt(1000), "BRL")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "FEE-0023")
+	assert.Contains(t, err.Error(), "0187")
 	assert.Equal(t, transaction.Amount{}, result)
 }
 
@@ -2301,9 +2301,9 @@ func TestCalculatePercentualFee_InvalidPercentageValue(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "InvalidPercentualFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRulePercentual,
+			ApplicationRule: feeconstant.AppRulePercentual,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypePercentage,
+				Type:  feeconstant.FeeTypePercentage,
 				Value: "not_a_number",
 			}},
 		},
@@ -2311,7 +2311,7 @@ func TestCalculatePercentualFee_InvalidPercentageValue(t *testing.T) {
 
 	result, err := calculatePercentualFee(fee, decimal.NewFromInt(1000), "BRL")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "FEE-0044")
+	assert.Contains(t, err.Error(), "0206")
 	assert.Equal(t, transaction.Amount{}, result)
 }
 
@@ -2323,14 +2323,14 @@ func TestCalculateFlatFee_EmptyCalculations(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "EmptyFlatFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations:    []model.Calculation{},
 		},
 	}
 
 	result, err := calculateFlatFee(fee, "BRL")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "FEE-0023")
+	assert.Contains(t, err.Error(), "0187")
 	assert.Equal(t, transaction.Amount{}, result)
 }
 
@@ -2342,9 +2342,9 @@ func TestCalculateFlatFee_InvalidDecimalValue(t *testing.T) {
 	fee := model.Fee{
 		FeeLabel: "InvalidFlatFee",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
+			ApplicationRule: feeconstant.AppRuleFlatFee,
 			Calculations: []model.Calculation{{
-				Type:  constant.FeeTypeFlat,
+				Type:  feeconstant.FeeTypeFlat,
 				Value: "abc_invalid",
 			}},
 		},
@@ -2352,7 +2352,7 @@ func TestCalculateFlatFee_InvalidDecimalValue(t *testing.T) {
 
 	result, err := calculateFlatFee(fee, "BRL")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "FEE-0044")
+	assert.Contains(t, err.Error(), "0206")
 	assert.Equal(t, transaction.Amount{}, result)
 }
 

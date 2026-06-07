@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	pkg "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -18,13 +18,13 @@ import (
 )
 
 // newTestTransactionCounter creates a midazTransactionCounter with a mock MidazResolver for testing.
-func newTestTransactionCounter(t *testing.T) (TransactionCounter, *pkg.MockMidazResolver) {
+func newTestTransactionCounter(t *testing.T) (TransactionCounter, *feeshared.MockMidazResolver) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
 	t.Cleanup(func() { ctrl.Finish() })
 
-	mockResolver := pkg.NewMockMidazResolver(ctrl)
+	mockResolver := feeshared.NewMockMidazResolver(ctrl)
 
 	counter, err := NewTransactionCounter(mockResolver)
 	assert.NoError(t, err)

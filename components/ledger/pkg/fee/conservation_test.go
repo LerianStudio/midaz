@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	libZap "github.com/LerianStudio/lib-observability/zap"
@@ -151,24 +151,24 @@ func expectedFeeTotal(t *testing.T, f model.Fee, sendValue decimal.Decimal, _ st
 	t.Helper()
 
 	switch f.CalculationModel.ApplicationRule {
-	case constant.AppRuleFlatFee:
+	case feeconstant.AppRuleFlatFee:
 		v, err := decimal.NewFromString(f.CalculationModel.Calculations[0].Value)
 		require.NoError(t, err)
 
 		return v
-	case constant.AppRulePercentual:
+	case feeconstant.AppRulePercentual:
 		pct, err := decimal.NewFromString(f.CalculationModel.Calculations[0].Value)
 		require.NoError(t, err)
 
 		return sendValue.Mul(pct.Div(decimal.NewFromInt(100)))
-	case constant.AppRuleMaxBetweenTypes:
+	case feeconstant.AppRuleMaxBetweenTypes:
 		var maxVal decimal.Decimal
 
 		for _, c := range f.CalculationModel.Calculations {
 			v, err := decimal.NewFromString(c.Value)
 			require.NoError(t, err)
 
-			if c.Type == constant.FeeTypePercentage {
+			if c.Type == feeconstant.FeeTypePercentage {
 				v = sendValue.Mul(v.Div(decimal.NewFromInt(100)))
 			}
 
@@ -190,12 +190,12 @@ func flatFee(value string, deductible bool) model.Fee {
 	return model.Fee{
 		FeeLabel:         "FlatFee",
 		Priority:         1,
-		ReferenceAmount:  constant.ReferenceAmountOriginalAmount,
+		ReferenceAmount:  feeconstant.ReferenceAmountOriginalAmount,
 		IsDeductibleFrom: boolPtr(deductible),
 		CreditAccount:    "@fee_credit",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleFlatFee,
-			Calculations:    []model.Calculation{{Type: constant.FeeTypeFlat, Value: value}},
+			ApplicationRule: feeconstant.AppRuleFlatFee,
+			Calculations:    []model.Calculation{{Type: feeconstant.FeeTypeFlat, Value: value}},
 		},
 	}
 }
@@ -204,12 +204,12 @@ func pctFee(value string, deductible bool) model.Fee {
 	return model.Fee{
 		FeeLabel:         "PctFee",
 		Priority:         1,
-		ReferenceAmount:  constant.ReferenceAmountOriginalAmount,
+		ReferenceAmount:  feeconstant.ReferenceAmountOriginalAmount,
 		IsDeductibleFrom: boolPtr(deductible),
 		CreditAccount:    "@fee_credit",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRulePercentual,
-			Calculations:    []model.Calculation{{Type: constant.FeeTypePercentage, Value: value}},
+			ApplicationRule: feeconstant.AppRulePercentual,
+			Calculations:    []model.Calculation{{Type: feeconstant.FeeTypePercentage, Value: value}},
 		},
 	}
 }
@@ -218,14 +218,14 @@ func maxFee(flatValue, pctValue string, deductible bool) model.Fee {
 	return model.Fee{
 		FeeLabel:         "MaxFee",
 		Priority:         1,
-		ReferenceAmount:  constant.ReferenceAmountOriginalAmount,
+		ReferenceAmount:  feeconstant.ReferenceAmountOriginalAmount,
 		IsDeductibleFrom: boolPtr(deductible),
 		CreditAccount:    "@fee_credit",
 		CalculationModel: &model.CalculationModel{
-			ApplicationRule: constant.AppRuleMaxBetweenTypes,
+			ApplicationRule: feeconstant.AppRuleMaxBetweenTypes,
 			Calculations: []model.Calculation{
-				{Type: constant.FeeTypeFlat, Value: flatValue},
-				{Type: constant.FeeTypePercentage, Value: pctValue},
+				{Type: feeconstant.FeeTypeFlat, Value: flatValue},
+				{Type: feeconstant.FeeTypePercentage, Value: pctValue},
 			},
 		},
 	}

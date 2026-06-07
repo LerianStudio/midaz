@@ -13,8 +13,8 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	modelTransaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/go-playground/locales/en"
@@ -43,7 +43,7 @@ func ValidateStruct(s any) error {
 	}
 
 	k := reflect.ValueOf(s).Kind()
-	if k == reflect.Ptr {
+	if k == reflect.Pointer {
 		k = reflect.ValueOf(s).Elem().Kind()
 	}
 

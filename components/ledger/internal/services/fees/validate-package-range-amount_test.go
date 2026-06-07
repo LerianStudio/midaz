@@ -10,9 +10,10 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -244,7 +245,7 @@ func TestValidatePackageMaxAndMinAmountRange(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockRepo := pack.NewMockRepository(ctrl)
-			mockMidaz := pkg.NewMockMidazResolver(ctrl)
+			mockMidaz := feeshared.NewMockMidazResolver(ctrl)
 
 			uc := &UseCase{
 				packageRepo: mockRepo,

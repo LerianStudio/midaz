@@ -14,8 +14,9 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -44,7 +45,7 @@ func (pm *PackageMongoDBRepository) SoftDelete(ctx context.Context, id, organiza
 		return err
 	}
 
-	coll := db.Collection(strings.ToLower(constant.PackageCollection))
+	coll := db.Collection(strings.ToLower(feeconstant.PackageCollection))
 
 	ctx, spanDelete := tracer.Start(ctx, "repository.package.delete.delete_one")
 	defer spanDelete.End()
@@ -67,7 +68,7 @@ func (pm *PackageMongoDBRepository) SoftDelete(ctx context.Context, id, organiza
 
 	if deleted.MatchedCount == 0 {
 		libOpentelemetry.HandleSpanError(spanDelete, "No package found to delete", mongo.ErrNoDocuments)
-		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.PackageCollection)
+		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", feeconstant.PackageCollection)
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Return from delete one: %v", deleted))

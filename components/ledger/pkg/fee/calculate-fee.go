@@ -12,9 +12,11 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -26,7 +28,7 @@ import (
 // When nil or when Resolver is nil, CalculateFee falls back to exact alias matching only.
 type SegmentContext struct {
 	Ctx            context.Context
-	Resolver       pkg.MidazResolver
+	Resolver       feeshared.MidazResolver
 	OrganizationID uuid.UUID
 	LedgerID       uuid.UUID
 }
@@ -123,15 +125,15 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 		var err error
 
 		switch fee.CalculationModel.ApplicationRule {
-		case constant.AppRuleMaxBetweenTypes:
+		case feeconstant.AppRuleMaxBetweenTypes:
 			logger.Log(context.TODO(), libLog.LevelInfo, fmt.Sprintf("Calculating fee with app rule maxBetweenTypes (feeIndex=%d)", feeIndex))
 
 			result, err = calculateMaxBetweenTypesFee(fee, valueToCalculate, feeAsset)
-		case constant.AppRuleFlatFee:
+		case feeconstant.AppRuleFlatFee:
 			logger.Log(context.TODO(), libLog.LevelInfo, fmt.Sprintf("Calculating fee with app rule flatFee (feeIndex=%d)", feeIndex))
 
 			result, err = calculateFlatFee(fee, feeAsset)
-		case constant.AppRulePercentual:
+		case feeconstant.AppRulePercentual:
 			logger.Log(context.TODO(), libLog.LevelInfo, fmt.Sprintf("Calculating fee with app rule percentual (feeIndex=%d)", feeIndex))
 
 			result, err = calculatePercentualFee(fee, valueToCalculate, feeAsset)
@@ -164,7 +166,7 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 
 // selectReferenceAmount chooses the correct transaction value for fee calculation based on the fee's reference amount rule.
 func selectReferenceAmount(fee model.Fee, currentValue, originalValue decimal.Decimal) decimal.Decimal {
-	if fee.ReferenceAmount == constant.ReferenceAmountAfterFeesAmount {
+	if fee.ReferenceAmount == feeconstant.ReferenceAmountAfterFeesAmount {
 		return currentValue
 	}
 
@@ -185,7 +187,7 @@ func calculateMaxBetweenTypesFee(fee model.Fee, valueToCalculate decimal.Decimal
 		var resultAmount transaction.Amount
 
 		switch calc.Type {
-		case constant.FeeTypeFlat:
+		case feeconstant.FeeTypeFlat:
 			realValue, err = decimal.NewFromString(calc.Value)
 			if err != nil {
 				return transaction.Amount{}, pkg.ValidateBusinessError(constant.ErrApplicationRule, "", fmt.Sprintf("invalid flat fee value: %v", err))
@@ -195,7 +197,7 @@ func calculateMaxBetweenTypesFee(fee model.Fee, valueToCalculate decimal.Decimal
 				Asset: feeAsset,
 				Value: realValue,
 			}
-		case constant.FeeTypePercentage:
+		case feeconstant.FeeTypePercentage:
 			percentValue, err := decimal.NewFromString(calc.Value)
 			if err != nil {
 				return transaction.Amount{}, pkg.ValidateBusinessError(constant.ErrApplicationRule, "", fmt.Sprintf("invalid percentage fee value: %v", err))

@@ -11,8 +11,9 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -41,7 +42,7 @@ func (r *BillingPackageMongoDBRepository) Update(ctx context.Context, id string,
 		return err
 	}
 
-	coll := db.Collection(strings.ToLower(constant.BillingPackageCollection))
+	coll := db.Collection(strings.ToLower(feeconstant.BillingPackageCollection))
 	opts := options.UpdateOne().SetUpsert(false)
 
 	ctx, spanUpdate := tracer.Start(ctx, "repository.billing_package.update.update_one")
@@ -65,7 +66,7 @@ func (r *BillingPackageMongoDBRepository) Update(ctx context.Context, id string,
 	if result.MatchedCount == 0 {
 		libOpentelemetry.HandleSpanError(spanUpdate, "No document matched for update", mongo.ErrNoDocuments)
 
-		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "BillingPackage", constant.BillingPackageCollection)
+		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "BillingPackage", feeconstant.BillingPackageCollection)
 	}
 
 	return nil

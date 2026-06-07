@@ -7,7 +7,7 @@ package fee
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	libZap "github.com/LerianStudio/lib-observability/zap"
@@ -55,12 +55,12 @@ func FuzzConservation_LegSumEqualsFeeTotal_TableDeleted(f *testing.F) {
 		fee := model.Fee{
 			FeeLabel:         "FuzzFee",
 			Priority:         1,
-			ReferenceAmount:  constant.ReferenceAmountOriginalAmount,
+			ReferenceAmount:  feeconstant.ReferenceAmountOriginalAmount,
 			IsDeductibleFrom: boolPtr(deductible),
 			CreditAccount:    "@fee_credit",
 			CalculationModel: &model.CalculationModel{
-				ApplicationRule: constant.AppRulePercentual,
-				Calculations:    []model.Calculation{{Type: constant.FeeTypePercentage, Value: pct.String()}},
+				ApplicationRule: feeconstant.AppRulePercentual,
+				Calculations:    []model.Calculation{{Type: feeconstant.FeeTypePercentage, Value: pct.String()}},
 			},
 		}
 

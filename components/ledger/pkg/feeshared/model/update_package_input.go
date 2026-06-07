@@ -8,8 +8,10 @@ import (
 	"context"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/google/uuid"
@@ -166,7 +168,7 @@ func (a *AmountData) GetTransactionRoute() string {
 	return *a.TransactionRoute
 }
 
-func (f *Fee) SetAndValidateHasFieldsToUpdate(ctx context.Context, updateDeductibleFrom *bool, minAmount decimal.Decimal, existingFees map[string]Fee, feeKey string, organizationID, ledgerID uuid.UUID, upFields bson.M, resolver pkg.MidazResolver) (bool, error) {
+func (f *Fee) SetAndValidateHasFieldsToUpdate(ctx context.Context, updateDeductibleFrom *bool, minAmount decimal.Decimal, existingFees map[string]Fee, feeKey string, organizationID, ledgerID uuid.UUID, upFields bson.M, resolver feeshared.MidazResolver) (bool, error) {
 	hasValueToUpdate := false
 
 	if updated, err := f.updateCalculationModel(existingFees, updateDeductibleFrom, feeKey, minAmount, upFields); err != nil {
@@ -238,7 +240,7 @@ func (f *Fee) updateReferenceAmount(existingFees map[string]Fee, feeKey string, 
 		}
 
 		if f.IsDeductibleFrom == nil {
-			if f.ReferenceAmount == constant.ReferenceAmountAfterFeesAmount && existingFees[feeKey].IsDeductibleFrom != nil && *existingFees[feeKey].IsDeductibleFrom {
+			if f.ReferenceAmount == feeconstant.ReferenceAmountAfterFeesAmount && existingFees[feeKey].IsDeductibleFrom != nil && *existingFees[feeKey].IsDeductibleFrom {
 				return false, pkg.ValidateBusinessError(constant.ErrIsDeductibleFrom, "", feeKey)
 			}
 		}
@@ -285,7 +287,7 @@ func (f *Fee) validateDeductibleFromReferenceAmount(existingFees map[string]Fee,
 	}
 
 	existingFee := existingFees[feeKey]
-	if existingFee.ReferenceAmount == constant.ReferenceAmountAfterFeesAmount && f.GetIsDeductibleFrom() {
+	if existingFee.ReferenceAmount == feeconstant.ReferenceAmountAfterFeesAmount && f.GetIsDeductibleFrom() {
 		return pkg.ValidateBusinessError(constant.ErrIsDeductibleFrom, "", feeKey)
 	}
 
@@ -348,7 +350,7 @@ func (f *Fee) validateFlatCalculation(valueCalc, minAmount decimal.Decimal, feeK
 	return nil
 }
 
-func (f *Fee) updateCreditAccount(ctx context.Context, feeKey string, organizationID, ledgerID uuid.UUID, upFields bson.M, resolver pkg.MidazResolver) (bool, error) {
+func (f *Fee) updateCreditAccount(ctx context.Context, feeKey string, organizationID, ledgerID uuid.UUID, upFields bson.M, resolver feeshared.MidazResolver) (bool, error) {
 	if !commons.IsNilOrEmpty(&f.CreditAccount) {
 		return f.setAndValidateCreditAccount(ctx, feeKey, organizationID, ledgerID, upFields, resolver)
 	}
@@ -490,7 +492,7 @@ func (f *Fee) shouldValidateDeductibleCalculation(existingFees map[string]Fee, u
 }
 
 // setAndValidateCreditAccount handles credit account validation and update logic
-func (f *Fee) setAndValidateCreditAccount(ctx context.Context, feeKey string, organizationID, ledgerID uuid.UUID, upFields bson.M, resolver pkg.MidazResolver) (bool, error) {
+func (f *Fee) setAndValidateCreditAccount(ctx context.Context, feeKey string, organizationID, ledgerID uuid.UUID, upFields bson.M, resolver feeshared.MidazResolver) (bool, error) {
 	if errValidate := resolver.AccountExistsByAlias(ctx, organizationID, ledgerID, f.CreditAccount); errValidate != nil {
 		return false, errValidate
 	}

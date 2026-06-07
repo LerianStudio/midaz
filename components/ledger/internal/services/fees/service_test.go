@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	pkg "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -21,12 +21,12 @@ func TestNewUseCase(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPackRepo := pack.NewMockRepository(ctrl)
-	mockResolver := pkg.NewMockMidazResolver(ctrl)
+	mockResolver := feeshared.NewMockMidazResolver(ctrl)
 
 	tests := []struct {
 		name            string
 		packageRepo     pack.Repository
-		resolver        pkg.MidazResolver
+		resolver        feeshared.MidazResolver
 		defaultCurrency string
 		wantErr         bool
 		errContains     string

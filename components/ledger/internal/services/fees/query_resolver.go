@@ -40,7 +40,7 @@ const accountListPageSize = 100
 // membership resolution must not be time-windowed.
 var resolverFarFutureEndDate = time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
 
-// queryResolver is the in-process implementation of pkg.MidazResolver, backed
+// queryResolver is the in-process implementation of feeshared.MidazResolver, backed
 // by the ledger query.UseCase. It serves the account/transaction reads that the
 // fee paths previously obtained over HTTP.
 type queryResolver struct {

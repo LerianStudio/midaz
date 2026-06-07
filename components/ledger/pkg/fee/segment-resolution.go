@@ -14,7 +14,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	pkg "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/google/uuid"
 )
 
@@ -60,7 +60,7 @@ func isAccountExemptWithSegments(
 	account string,
 	directAliases *[]string,
 	segmentIDs []uuid.UUID,
-	resolver pkg.MidazResolver,
+	resolver feeshared.MidazResolver,
 	organizationID, ledgerID uuid.UUID,
 ) (bool, error) {
 	// Fast path: exact alias match avoids any resolution call.

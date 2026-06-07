@@ -10,10 +10,10 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	mongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
-	pkg "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -29,7 +29,7 @@ func TestCreatePackage(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPackRepo := pack.NewMockRepository(ctrl)
-	mockResolver := pkg.NewMockMidazResolver(ctrl)
+	mockResolver := feeshared.NewMockMidazResolver(ctrl)
 	enableFlag := true
 	packID := uuid.New()
 	ledgerID := uuid.New()
@@ -185,7 +185,7 @@ func TestCreatePackage(t *testing.T) {
 					Return(packListExistent, nil)
 			},
 			expectErr:      true,
-			errContains:    "FEE-0018",
+			errContains:    "A package already exists",
 			expectedResult: nil,
 		},
 		{
@@ -204,7 +204,7 @@ func TestCreatePackage(t *testing.T) {
 					Return(packListTest2, nil)
 			},
 			expectErr:      true,
-			errContains:    "FEE-0035",
+			errContains:    "0199",
 			expectedResult: nil,
 		},
 		{
@@ -220,7 +220,7 @@ func TestCreatePackage(t *testing.T) {
 					Return(constant.ErrFindAccountOnMidaz)
 			},
 			expectErr:      true,
-			errContains:    "FEE-0014",
+			errContains:    "0181",
 			expectedResult: nil,
 		},
 		{
@@ -244,7 +244,7 @@ func TestCreatePackage(t *testing.T) {
 					Return(nil, constant.ErrBadRequest)
 			},
 			expectErr:      true,
-			errContains:    "FEE-0003",
+			errContains:    "0047",
 			expectedResult: nil,
 		},
 		{
@@ -281,7 +281,7 @@ func TestCreatePackage(t *testing.T) {
 					})
 			},
 			expectErr:      true,
-			errContains:    "FEE-0018",
+			errContains:    "A package already exists",
 			expectedResult: nil,
 		},
 	}

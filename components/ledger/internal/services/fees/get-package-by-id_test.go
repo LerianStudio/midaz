@@ -10,7 +10,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	mongoPack "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -88,7 +88,7 @@ func TestGetPackageByID(t *testing.T) {
 					Return(nil, constant.ErrBadRequest)
 			},
 			expectErr:      true,
-			errContains:    "FEE-0003",
+			errContains:    "0047",
 			expectedResult: nil,
 		},
 		{
@@ -101,7 +101,7 @@ func TestGetPackageByID(t *testing.T) {
 					Return(nil, mongo.ErrNoDocuments)
 			},
 			expectErr:      true,
-			errContains:    "No Package entity was found",
+			errContains:    "No entity was found",
 			expectedResult: nil,
 		},
 	}

@@ -8,7 +8,7 @@ import (
 	"errors"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	pkg "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 )
 
 // UseCase is a struct to implement the services methods.
@@ -19,7 +19,7 @@ type UseCase struct {
 	packageRepo pack.Repository
 
 	// resolver resolves account/transaction reads in-process via the ledger query layer.
-	resolver pkg.MidazResolver
+	resolver feeshared.MidazResolver
 
 	// defaultCurrency is the default currency for fee calculations
 	defaultCurrency string
@@ -36,7 +36,7 @@ var ErrEmptyDefaultCurrency = errors.New("DefaultCurrency is required and cannot
 
 // NewUseCase creates a new UseCase with validated dependencies.
 // Returns an error if any required dependency is nil or empty.
-func NewUseCase(packageRepo pack.Repository, resolver pkg.MidazResolver, defaultCurrency string) (*UseCase, error) {
+func NewUseCase(packageRepo pack.Repository, resolver feeshared.MidazResolver, defaultCurrency string) (*UseCase, error) {
 	if packageRepo == nil {
 		return nil, ErrNilPackageRepo
 	}
@@ -62,7 +62,7 @@ func (uc *UseCase) PackageRepo() pack.Repository {
 }
 
 // Resolver returns the in-process Midaz resolver dependency.
-func (uc *UseCase) Resolver() pkg.MidazResolver {
+func (uc *UseCase) Resolver() feeshared.MidazResolver {
 	return uc.resolver
 }
 

@@ -12,7 +12,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -42,7 +42,7 @@ func (r *BillingPackageMongoDBRepository) Create(ctx context.Context, bp *model.
 		return nil, err
 	}
 
-	coll := db.Collection(strings.ToLower(constant.BillingPackageCollection))
+	coll := db.Collection(strings.ToLower(feeconstant.BillingPackageCollection))
 	record := &BillingPackageMongoDBModel{}
 	record.FromEntity(bp)
 

@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -53,8 +53,8 @@ func TestSegmentExemption_EndToEnd_SegmentMatch(t *testing.T) {
 
 			segID := tt.accountSegID
 			resolver := &mockSegmentResolver{
-				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*pkg.Account, error) {
-					return &pkg.Account{
+				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*feeshared.Account, error) {
+					return &feeshared.Account{
 						ID:        "acc1",
 						Alias:     tt.account,
 						SegmentID: segID,
@@ -110,8 +110,8 @@ func TestSegmentExemption_EndToEnd_SegmentNoMatch(t *testing.T) {
 
 			segID := tt.accountSegID
 			resolver := &mockSegmentResolver{
-				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*pkg.Account, error) {
-					return &pkg.Account{
+				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*feeshared.Account, error) {
+					return &feeshared.Account{
 						ID:        "acc1",
 						Alias:     tt.account,
 						SegmentID: segID,
@@ -161,8 +161,8 @@ func TestSegmentExemption_EndToEnd_NilSegmentOnAccount(t *testing.T) {
 			t.Parallel()
 
 			resolver := &mockSegmentResolver{
-				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*pkg.Account, error) {
-					return &pkg.Account{
+				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*feeshared.Account, error) {
+					return &feeshared.Account{
 						ID:        "acc1",
 						Alias:     tt.account,
 						SegmentID: nil,
@@ -261,7 +261,7 @@ func TestSegmentExemption_EndToEnd_ExternalError_FEE0062(t *testing.T) {
 
 			clientErr := tt.clientErr
 			resolver := &mockSegmentResolver{
-				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*pkg.Account, error) {
+				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*feeshared.Account, error) {
 					return nil, clientErr
 				},
 			}
@@ -331,8 +331,8 @@ func TestSegmentExemption_EndToEnd_MixedWaivedAccounts(t *testing.T) {
 
 			segID := tt.accountSegID
 			resolver := &mockSegmentResolver{
-				getAccountFn: func(_ context.Context, _, _ uuid.UUID, alias string) (*pkg.Account, error) {
-					return &pkg.Account{
+				getAccountFn: func(_ context.Context, _, _ uuid.UUID, alias string) (*feeshared.Account, error) {
+					return &feeshared.Account{
 						ID:        alias,
 						Alias:     alias,
 						SegmentID: segID,
@@ -446,8 +446,8 @@ func TestSegmentExemption_EndToEnd_CacheHitBehavior(t *testing.T) {
 
 			segID := tt.accountSegID
 			resolver := &mockSegmentResolver{
-				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*pkg.Account, error) {
-					return &pkg.Account{
+				getAccountFn: func(_ context.Context, _, _ uuid.UUID, _ string) (*feeshared.Account, error) {
+					return &feeshared.Account{
 						ID:        "acc1",
 						Alias:     tt.account,
 						SegmentID: segID,

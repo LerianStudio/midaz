@@ -5,8 +5,9 @@
 package model
 
 import (
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/shopspring/decimal"
 )
@@ -270,7 +271,7 @@ func (f *Fee) formatCalculationFieldName(c Calculation) map[string]any {
 
 // Validation of reference amount possible values
 func (f *Fee) validateReferenceAmountIsInvalid() bool {
-	return f.ReferenceAmount != constant.ReferenceAmountOriginalAmount && f.ReferenceAmount != constant.ReferenceAmountAfterFeesAmount
+	return f.ReferenceAmount != feeconstant.ReferenceAmountOriginalAmount && f.ReferenceAmount != feeconstant.ReferenceAmountAfterFeesAmount
 }
 
 // Validation of application rule possible values

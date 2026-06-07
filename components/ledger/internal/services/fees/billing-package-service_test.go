@@ -10,9 +10,11 @@ import (
 	"testing"
 
 	billing_package "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -24,14 +26,14 @@ import (
 // newTestBillingPackageService creates a BillingPackageService with mock dependencies for testing.
 func newTestBillingPackageService(
 	t *testing.T,
-) (*BillingPackageService, *billing_package.MockRepository, *pkg.MockMidazResolver) {
+) (*BillingPackageService, *billing_package.MockRepository, *feeshared.MockMidazResolver) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
 	t.Cleanup(func() { ctrl.Finish() })
 
 	mockRepo := billing_package.NewMockRepository(ctrl)
-	mockMidaz := pkg.NewMockMidazResolver(ctrl)
+	mockMidaz := feeshared.NewMockMidazResolver(ctrl)
 
 	svc, err := NewBillingPackageService(mockRepo, mockMidaz)
 	assert.NoError(t, err)
@@ -281,7 +283,7 @@ func TestCreateBillingPackage_ValidationError(t *testing.T) {
 				Label:          "Bad Type",
 				Type:           "invalid-type",
 			},
-			errContains: "FEE-0053",
+			errContains: "0214",
 		},
 		{
 			name: "Error - Missing volume fields",
@@ -291,7 +293,7 @@ func TestCreateBillingPackage_ValidationError(t *testing.T) {
 				Label:          "Missing Fields",
 				Type:           model.BillingPackageTypeVolume,
 			},
-			errContains: "FEE-0054",
+			errContains: "0215",
 		},
 	}
 
@@ -382,9 +384,9 @@ func TestCreateBillingPackage_AccountValidationError(t *testing.T) {
 
 				mockMidaz.EXPECT().
 					AccountExistsByAlias(gomock.Any(), uuid.MustParse(bp.OrganizationID), uuid.MustParse(bp.LedgerID), *bp.CreditAccountAlias).
-					Return(errors.New("FEE-0014"))
+					Return(errors.New("0181"))
 			},
-			errContains: "FEE-0014",
+			errContains: "0181",
 		},
 	}
 
@@ -666,7 +668,7 @@ func TestDeleteBillingPackage_NotFound(t *testing.T) {
 				// The service should remap this to FEE-0052 (BillingPackageNotFound).
 				mockRepo.EXPECT().
 					SoftDelete(gomock.Any(), bpID, orgID).
-					Return(pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.BillingPackageCollection))
+					Return(pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", feeconstant.BillingPackageCollection))
 			},
 			errContains: "No billing package was found",
 		},
@@ -890,9 +892,9 @@ func TestValidateMaintenanceCreate_CreditAccountFails(t *testing.T) {
 			mockSetup: func() {
 				mockMidaz.EXPECT().
 					AccountExistsByAlias(gomock.Any(), uuid.MustParse(bp.OrganizationID), uuid.MustParse(bp.LedgerID), *bp.MaintenanceCreditAccount).
-					Return(errors.New("FEE-0014"))
+					Return(errors.New("0181"))
 			},
-			errContains: "FEE-0014",
+			errContains: "0181",
 		},
 	}
 
@@ -934,9 +936,9 @@ func TestValidateVolumeCreate_DebitAccountAliasFails(t *testing.T) {
 
 				mockMidaz.EXPECT().
 					AccountExistsByAlias(gomock.Any(), uuid.MustParse(bp.OrganizationID), uuid.MustParse(bp.LedgerID), *bp.DebitAccountAlias).
-					Return(errors.New("FEE-0014"))
+					Return(errors.New("0181"))
 			},
-			errContains: "FEE-0014",
+			errContains: "0181",
 		},
 	}
 
@@ -961,14 +963,14 @@ func TestNewBillingPackageService_NilDependencies(t *testing.T) {
 	tests := []struct {
 		name        string
 		repo        billing_package.Repository
-		midaz       pkg.MidazResolver
+		midaz       feeshared.MidazResolver
 		expectErr   bool
 		errContains string
 	}{
 		{
 			name:        "Error - nil repository",
 			repo:        nil,
-			midaz:       pkg.NewMockMidazResolver(gomock.NewController(t)),
+			midaz:       feeshared.NewMockMidazResolver(gomock.NewController(t)),
 			expectErr:   true,
 			errContains: "BillingPackage repository is required",
 		},

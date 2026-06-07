@@ -38,7 +38,7 @@ func TestConvertFeeToMongoFormat_InvalidDecimal(t *testing.T) {
 				CreditAccount:    "account",
 			},
 			wantErr: true,
-			errMsg:  "FEE-0042",
+			errMsg:  "Remember to use dot",
 		},
 		{
 			name: "Error - invalid calculation value with letters",
@@ -56,7 +56,7 @@ func TestConvertFeeToMongoFormat_InvalidDecimal(t *testing.T) {
 				CreditAccount:    "account",
 			},
 			wantErr: true,
-			errMsg:  "FEE-0042",
+			errMsg:  "Remember to use dot",
 		},
 		{
 			name: "Success - valid calculation value",

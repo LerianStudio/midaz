@@ -11,9 +11,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/google/uuid"
 
-	feeError "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
-	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
@@ -71,7 +69,7 @@ func (handler *TransactionHandler) applyFees(
 	if err := handler.FeeApplier.CalculateFee(ctx, cf, organizationID); err != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Failed to apply fees to transaction", libLog.Err(err))
 
-		return translateFeeError(err)
+		return err
 	}
 
 	// The engine mutated cf.Transaction.Send in place (fee legs + moved value
@@ -80,27 +78,4 @@ func (handler *TransactionHandler) applyFees(
 	*transactionInput = cf.Transaction
 
 	return nil
-}
-
-// translateFeeError maps a feeshared error type onto the equivalent ledger
-// pkg error type so ledger's http.WithError surfaces the correct 4xx status.
-// The fee engine returns feeshared.*Error values, which are a distinct Go type
-// family from pkg.*Error; without translation they fall through to
-// http.WithError's default branch and become a 500 instead of the intended
-// business 422/404/400. Code/Title/Message are preserved verbatim.
-func translateFeeError(err error) error {
-	switch e := err.(type) {
-	case feeError.ValidationError:
-		return pkg.ValidationError{EntityType: e.EntityType, Title: e.Title, Message: e.Message, Code: e.Code, Err: e.Err}
-	case feeError.UnprocessableOperationError:
-		return pkg.UnprocessableOperationError{EntityType: e.EntityType, Title: e.Title, Message: e.Message, Code: e.Code, Err: e.Err}
-	case feeError.EntityNotFoundError:
-		return pkg.EntityNotFoundError{EntityType: e.EntityType, Title: e.Title, Message: e.Message, Code: e.Code, Err: e.Err}
-	case feeError.EntityConflictError:
-		return pkg.EntityConflictError{EntityType: e.EntityType, Title: e.Title, Message: e.Message, Code: e.Code, Err: e.Err}
-	default:
-		// Unknown/technical fee failure: wrap as an internal error so the HTTP
-		// layer returns 500 with no fee-internal detail leaked to the client.
-		return pkg.ValidateInternalError(err, "")
-	}
 }

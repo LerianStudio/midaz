@@ -13,11 +13,12 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/bsondecimal"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -57,7 +58,7 @@ func (pm *PackageMongoDBRepository) FindList(ctx context.Context, filters http.Q
 		return nil, err
 	}
 
-	coll := db.Collection(strings.ToLower(constant.PackageCollection))
+	coll := db.Collection(strings.ToLower(feeconstant.PackageCollection))
 
 	queryFilter := bson.M{}
 
@@ -152,7 +153,7 @@ func (pm *PackageMongoDBRepository) FindByID(ctx context.Context, id, organizati
 		return nil, err
 	}
 
-	coll := db.Collection(strings.ToLower(constant.PackageCollection))
+	coll := db.Collection(strings.ToLower(feeconstant.PackageCollection))
 
 	var record *PackageMongoDBModel
 
@@ -199,7 +200,7 @@ func (pm *PackageMongoDBRepository) FindByOrganizationIDAndLedgerID(ctx context.
 		return nil, err
 	}
 
-	coll := db.Collection(strings.ToLower(constant.PackageCollection))
+	coll := db.Collection(strings.ToLower(feeconstant.PackageCollection))
 
 	queryFilter := bson.M{}
 
@@ -267,7 +268,7 @@ func (pm *PackageMongoDBRepository) FindFeesAndAmountDataByPackageID(ctx context
 		return nil, err
 	}
 
-	coll := db.Collection(strings.ToLower(constant.PackageCollection))
+	coll := db.Collection(strings.ToLower(feeconstant.PackageCollection))
 
 	filter := bson.M{
 		"_id":             packageID,

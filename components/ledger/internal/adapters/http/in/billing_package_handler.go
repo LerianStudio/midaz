@@ -11,10 +11,9 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
-	feeerrors "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
-	feehttp "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	feeerrors "github.com/LerianStudio/midaz/v4/pkg"
+	feeconstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -91,11 +90,11 @@ func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) 
 	if errCreate != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create billing package", errCreate)
 
-		return feehttp.WithError(c, errCreate)
+		return http.WithError(c, errCreate)
 	}
 
 	if result == nil {
-		return feehttp.WithError(c, fmt.Errorf("service returned nil result without error"))
+		return http.WithError(c, fmt.Errorf("service returned nil result without error"))
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully created billing package: %v", result.ID))
@@ -145,7 +144,7 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 			err := feeerrors.ValidateBusinessError(feeconstant.ErrInvalidQueryParameter, "", "ledgerId")
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ledgerId query parameter", err)
 
-			return feehttp.WithError(c, err)
+			return http.WithError(c, err)
 		}
 	}
 
@@ -156,7 +155,7 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 		parsed, errParse := strconv.Atoi(l)
 		if errParse != nil || parsed < 1 {
 			validationErr := feeerrors.ValidateBusinessError(feeconstant.ErrInvalidQueryParameter, "BillingPackage", "limit")
-			return feehttp.WithError(c, validationErr)
+			return http.WithError(c, validationErr)
 		}
 
 		limit = parsed
@@ -166,7 +165,7 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 		parsed, errParse := strconv.Atoi(p)
 		if errParse != nil || parsed < 1 {
 			validationErr := feeerrors.ValidateBusinessError(feeconstant.ErrInvalidQueryParameter, "BillingPackage", "page")
-			return feehttp.WithError(c, validationErr)
+			return http.WithError(c, validationErr)
 		}
 
 		page = parsed
@@ -185,7 +184,7 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 	if errGet != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all billing packages", errGet)
 
-		return feehttp.WithError(c, errGet)
+		return http.WithError(c, errGet)
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved all billing packages: count=%d, total=%d", len(results), total))
@@ -247,7 +246,7 @@ func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error 
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to retrieve BillingPackage", libLog.String("billing_package_id", id.String()))
 
-		return feehttp.WithError(c, errGet)
+		return http.WithError(c, errGet)
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved BillingPackage with ID: %s", id.String()))
@@ -310,7 +309,7 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 	if validationErr := payload.Validate(); validationErr != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid update payload", validationErr)
 
-		return feehttp.WithError(c, validationErr)
+		return http.WithError(c, validationErr)
 	}
 
 	updates := payload.ToMap()
@@ -318,14 +317,14 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 		validationErr := feeerrors.ValidateBusinessError(feeconstant.ErrNothingToUpdate, "BillingPackage")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Empty update payload", validationErr)
 
-		return feehttp.WithError(c, validationErr)
+		return http.WithError(c, validationErr)
 	}
 
 	result, errUpdate := handler.Service.UpdateBillingPackage(ctx, id.String(), organizationID.String(), updates)
 	if errUpdate != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update billing package", errUpdate)
 
-		return feehttp.WithError(c, errUpdate)
+		return http.WithError(c, errUpdate)
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated BillingPackage with ID: %s", id.String()))
@@ -377,7 +376,7 @@ func (handler *BillingPackageHandler) DeleteBillingPackage(c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to remove BillingPackage", libLog.String("billing_package_id", id.String()))
 
-		return feehttp.WithError(c, errDelete)
+		return http.WithError(c, errDelete)
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed BillingPackage with ID: %s", id.String()))

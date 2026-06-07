@@ -13,7 +13,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	pkg "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -38,11 +38,11 @@ var ErrNilResolverCounter = errors.New("MidazResolver is required and cannot be 
 
 // midazTransactionCounter implements TransactionCounter by delegating to the in-process MidazResolver.
 type midazTransactionCounter struct {
-	resolver pkg.MidazResolver
+	resolver feeshared.MidazResolver
 }
 
 // NewTransactionCounter creates a new TransactionCounter backed by the given MidazResolver.
-func NewTransactionCounter(resolver pkg.MidazResolver) (TransactionCounter, error) {
+func NewTransactionCounter(resolver feeshared.MidazResolver) (TransactionCounter, error) {
 	if resolver == nil {
 		return nil, ErrNilResolverCounter
 	}

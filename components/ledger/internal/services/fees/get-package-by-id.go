@@ -8,15 +8,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
@@ -44,7 +43,7 @@ func (uc *UseCase) GetPackageByID(ctx context.Context, id, organizationID uuid.U
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting package on repo by id: %v", err))
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", reflect.TypeOf(pack.Package{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)
 		}
 
 		return nil, err

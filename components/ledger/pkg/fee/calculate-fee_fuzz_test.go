@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	libZap "github.com/LerianStudio/lib-observability/zap"
@@ -62,9 +62,9 @@ func FuzzCalculateFee_Amount(f *testing.F) {
 		fee := model.Fee{
 			FeeLabel: "FuzzFee",
 			CalculationModel: &model.CalculationModel{
-				ApplicationRule: constant.AppRuleFlatFee,
+				ApplicationRule: feeconstant.AppRuleFlatFee,
 				Calculations: []model.Calculation{{
-					Type:  constant.FeeTypeFlat,
+					Type:  feeconstant.FeeTypeFlat,
 					Value: feeValueDec.String(),
 				}},
 			},
@@ -136,9 +136,9 @@ func FuzzCalculateFee_Percentage(f *testing.F) {
 		fee := model.Fee{
 			FeeLabel: "FuzzPercentFee",
 			CalculationModel: &model.CalculationModel{
-				ApplicationRule: constant.AppRulePercentual,
+				ApplicationRule: feeconstant.AppRulePercentual,
 				Calculations: []model.Calculation{{
-					Type:  constant.FeeTypePercentage,
+					Type:  feeconstant.FeeTypePercentage,
 					Value: percentDec.String(),
 				}},
 			},

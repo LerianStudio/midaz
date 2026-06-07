@@ -11,8 +11,9 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -41,7 +42,7 @@ func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organization
 		return err
 	}
 
-	coll := db.Collection(strings.ToLower(constant.PackageCollection))
+	coll := db.Collection(strings.ToLower(feeconstant.PackageCollection))
 	opts := options.UpdateOne().SetUpsert(false)
 
 	ctx, spanUpdate := tracer.Start(ctx, "repository.package.update.update_one")
@@ -57,7 +58,7 @@ func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organization
 
 	if result.MatchedCount == 0 {
 		libOpentelemetry.HandleSpanError(spanUpdate, "No document matched for update", mongo.ErrNoDocuments)
-		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.PackageCollection)
+		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", feeconstant.PackageCollection)
 	}
 
 	ctx, spanUpdateEnable := tracer.Start(ctx, "repository.package.update.enable")

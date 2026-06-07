@@ -8,7 +8,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 
 	mmongoDB "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -23,7 +23,7 @@ func EnsureIndexes(ctx context.Context, mc *mmongoDB.MongoConnection) error {
 		return err
 	}
 
-	coll := db.Database(strings.ToLower(mc.Database)).Collection(strings.ToLower(constant.BillingPackageCollection))
+	coll := db.Database(strings.ToLower(mc.Database)).Collection(strings.ToLower(feeconstant.BillingPackageCollection))
 
 	indexes := []mongo.IndexModel{
 		// Index 1: org + ledger + type + enable + deleted_at (for FindActiveByType)

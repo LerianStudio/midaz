@@ -9,8 +9,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -207,8 +207,12 @@ func isNonBlankString(s *string) bool {
 func (bp *BillingPackage) validateVolumeFields() error {
 	// Reject maintenance-specific fields on volume packages.
 	if bp.FeeAmount != nil || bp.MaintenanceCreditAccount != nil || bp.AccountTarget != nil {
-		return pkg.ValidateBusinessError(constant.ErrUnexpectedFieldsInTheRequest, "BillingPackage",
-			"feeAmount, maintenanceCreditAccount, and accountTarget are not allowed for volume packages")
+		return pkg.ValidationError{
+			EntityType: "BillingPackage",
+			Code:       constant.ErrUnexpectedFieldsInTheRequest.Error(),
+			Title:      "Unexpected Fields in the Request",
+			Message:    "The request body contains fields that are not allowed for this type of billing package. feeAmount, maintenanceCreditAccount, and accountTarget are not allowed for volume packages",
+		}
 	}
 
 	if bp.EventFilter == nil ||
@@ -253,8 +257,12 @@ func (bp *BillingPackage) validateMaintenanceFields() error {
 	if bp.PricingModel != nil || len(bp.Tiers) > 0 || bp.EventFilter != nil ||
 		bp.FreeQuota != nil || len(bp.DiscountTiers) > 0 || bp.CountMode != nil ||
 		bp.DebitAccountAlias != nil || bp.CreditAccountAlias != nil {
-		return pkg.ValidateBusinessError(constant.ErrUnexpectedFieldsInTheRequest, "BillingPackage",
-			"pricingModel, tiers, eventFilter, freeQuota, discountTiers, countMode, debitAccountAlias, and creditAccountAlias are not allowed for maintenance packages")
+		return pkg.ValidationError{
+			EntityType: "BillingPackage",
+			Code:       constant.ErrUnexpectedFieldsInTheRequest.Error(),
+			Title:      "Unexpected Fields in the Request",
+			Message:    "The request body contains fields that are not allowed for this type of billing package. pricingModel, tiers, eventFilter, freeQuota, discountTiers, countMode, debitAccountAlias, and creditAccountAlias are not allowed for maintenance packages",
+		}
 	}
 
 	if bp.FeeAmount == nil ||

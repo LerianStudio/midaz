@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	"github.com/LerianStudio/midaz/v4/pkg"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -76,7 +76,7 @@ func getSanitizeCacheEntry(t reflect.Type) *sanitizeCacheEntry {
 			entry.stringFields = append(entry.stringFields, i)
 		case reflect.Struct:
 			entry.structFields = append(entry.structFields, i)
-		case reflect.Ptr:
+		case reflect.Pointer:
 			entry.pointerFields = append(entry.pointerFields, i)
 		case reflect.Slice:
 			entry.sliceFields = append(entry.sliceFields, i)
@@ -93,7 +93,7 @@ func getSanitizeCacheEntry(t reflect.Type) *sanitizeCacheEntry {
 // sanitizeStruct remove all special characters from a struct using cached field indices
 func sanitizeStruct(s any) {
 	v := reflect.ValueOf(s)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
@@ -394,7 +394,7 @@ func compareSlices(original, marshaled []any) []any {
 // parseMetadata For compliance with RFC7396 JSON Merge Patch
 func parseMetadata(s any, originalMap map[string]any) {
 	val := reflect.ValueOf(s)
-	if val.Kind() != reflect.Ptr || val.Elem().Kind() != reflect.Struct {
+	if val.Kind() != reflect.Pointer || val.Elem().Kind() != reflect.Struct {
 		return
 	}
 

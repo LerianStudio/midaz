@@ -7,16 +7,15 @@ package services
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -65,7 +64,7 @@ func (uc *UseCase) ValidatePackageMaxAndMinAmountRange(ctx context.Context, logg
 			if packageID == nil || p.ID != *packageID {
 				// Validate if all package data equals the new package
 				if isSamePackage(p, newMinAmount, newMaxAmount, transactionRoute, segmentID) {
-					err := pkg.ValidateBusinessError(constant.ErrDuplicatePackage, reflect.TypeOf(pack.Package{}).Name())
+					err := pkg.ValidateBusinessError(constant.ErrDuplicatePackage, constant.EntityPackage)
 					libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Duplicate package detected", err)
 
 					return err

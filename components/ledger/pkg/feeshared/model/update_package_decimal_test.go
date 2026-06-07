@@ -24,13 +24,13 @@ func TestValidateMinAmountUpdate_InvalidDecimal(t *testing.T) {
 			name:    "Error - invalid min amount with comma",
 			min:     "100,50",
 			wantErr: true,
-			errMsg:  "FEE-0042",
+			errMsg:  "Remember to use dot",
 		},
 		{
 			name:    "Error - invalid min amount with letters",
 			min:     "abc",
 			wantErr: true,
-			errMsg:  "FEE-0042",
+			errMsg:  "Remember to use dot",
 		},
 		{
 			name:    "Success - valid min amount below max",
@@ -71,13 +71,13 @@ func TestValidateMaxAmountUpdate_InvalidDecimal(t *testing.T) {
 			name:    "Error - invalid max amount with comma",
 			max:     "1000,50",
 			wantErr: true,
-			errMsg:  "FEE-0042",
+			errMsg:  "Remember to use dot",
 		},
 		{
 			name:    "Error - invalid max amount with letters",
 			max:     "xyz",
 			wantErr: true,
-			errMsg:  "FEE-0042",
+			errMsg:  "Remember to use dot",
 		},
 		{
 			name:    "Success - valid max amount above min",
@@ -118,13 +118,13 @@ func TestValidateDeductibleCalculation_InvalidDecimal(t *testing.T) {
 			name:    "Error - invalid decimal value with comma",
 			calc:    Calculation{Type: "percentage", Value: "10,50"},
 			wantErr: true,
-			errMsg:  "FEE-0042",
+			errMsg:  "Remember to use dot",
 		},
 		{
 			name:    "Error - invalid decimal value with letters",
 			calc:    Calculation{Type: "flat", Value: "abc"},
 			wantErr: true,
-			errMsg:  "FEE-0042",
+			errMsg:  "Remember to use dot",
 		},
 		{
 			name:    "Success - valid percentage value",
@@ -172,13 +172,13 @@ func TestValidateCalculationValue_InvalidDecimal(t *testing.T) {
 			name:    "Error - invalid decimal value with comma",
 			calc:    Calculation{Type: "percentage", Value: "10,50"},
 			wantErr: true,
-			errMsg:  "FEE-0042",
+			errMsg:  "Remember to use dot",
 		},
 		{
 			name:    "Error - invalid decimal value with letters",
 			calc:    Calculation{Type: "flat", Value: "not_a_number"},
 			wantErr: true,
-			errMsg:  "FEE-0042",
+			errMsg:  "Remember to use dot",
 		},
 	}
 
@@ -212,13 +212,13 @@ func TestValidateCalculation_InvalidDecimalReturnsError(t *testing.T) {
 			name:    "Error - invalid calculation value with comma",
 			calc:    Calculation{Type: "percentage", Value: "10,50"},
 			wantErr: true,
-			errMsg:  "FEE-0042",
+			errMsg:  "Remember to use dot",
 		},
 		{
 			name:    "Error - invalid calculation value with letters",
 			calc:    Calculation{Type: "flat", Value: "abc"},
 			wantErr: true,
-			errMsg:  "FEE-0042",
+			errMsg:  "Remember to use dot",
 		},
 	}
 

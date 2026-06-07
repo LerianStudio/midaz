@@ -11,7 +11,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -41,7 +41,7 @@ func (r *BillingPackageMongoDBRepository) FindByID(ctx context.Context, id strin
 		return nil, err
 	}
 
-	coll := db.Collection(strings.ToLower(constant.BillingPackageCollection))
+	coll := db.Collection(strings.ToLower(feeconstant.BillingPackageCollection))
 
 	var record BillingPackageMongoDBModel
 
@@ -102,7 +102,7 @@ func (r *BillingPackageMongoDBRepository) FindAll(ctx context.Context, organizat
 		return nil, 0, err
 	}
 
-	coll := db.Collection(strings.ToLower(constant.BillingPackageCollection))
+	coll := db.Collection(strings.ToLower(feeconstant.BillingPackageCollection))
 
 	queryFilter := bson.M{
 		"organization_id": organizationID,
@@ -220,7 +220,7 @@ func (r *BillingPackageMongoDBRepository) FindMatchingPackages(ctx context.Conte
 		return nil, err
 	}
 
-	coll := db.Collection(strings.ToLower(constant.BillingPackageCollection))
+	coll := db.Collection(strings.ToLower(feeconstant.BillingPackageCollection))
 
 	queryFilter := bson.M{
 		"organization_id":                orgID,
@@ -302,7 +302,7 @@ func (r *BillingPackageMongoDBRepository) FindActiveByType(ctx context.Context, 
 		return nil, err
 	}
 
-	coll := db.Collection(strings.ToLower(constant.BillingPackageCollection))
+	coll := db.Collection(strings.ToLower(feeconstant.BillingPackageCollection))
 
 	queryFilter := bson.M{
 		"organization_id": orgID,

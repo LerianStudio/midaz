@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	pkg "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	"github.com/google/uuid"
@@ -18,23 +18,23 @@ import (
 )
 
 // activeStatus returns an AccountStatus with code "active".
-func activeStatus() *pkg.AccountStatus {
-	return &pkg.AccountStatus{Code: "active", Description: "Active account"}
+func activeStatus() *feeshared.AccountStatus {
+	return &feeshared.AccountStatus{Code: "active", Description: "Active account"}
 }
 
 // inactiveStatus returns an AccountStatus with code "inactive".
-func inactiveStatus() *pkg.AccountStatus {
-	return &pkg.AccountStatus{Code: "inactive", Description: "Inactive account"}
+func inactiveStatus() *feeshared.AccountStatus {
+	return &feeshared.AccountStatus{Code: "inactive", Description: "Inactive account"}
 }
 
 // newTestAccountResolver creates an AccountResolver with a mock MidazResolver for testing.
-func newTestAccountResolver(t *testing.T) (AccountResolver, *pkg.MockMidazResolver) {
+func newTestAccountResolver(t *testing.T) (AccountResolver, *feeshared.MockMidazResolver) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
 	t.Cleanup(func() { ctrl.Finish() })
 
-	mockResolver := pkg.NewMockMidazResolver(ctrl)
+	mockResolver := feeshared.NewMockMidazResolver(ctrl)
 
 	resolver, err := NewAccountResolver(mockResolver)
 	assert.NoError(t, err)
@@ -64,7 +64,7 @@ func TestResolveAccounts(t *testing.T) {
 	tests := []struct {
 		name            string
 		target          model.AccountTarget
-		setupMock       func(mock *pkg.MockMidazResolver)
+		setupMock       func(mock *feeshared.MockMidazResolver)
 		expectedCount   int
 		expectedAliases []string
 		expectErr       bool
@@ -74,10 +74,10 @@ func TestResolveAccounts(t *testing.T) {
 			target: model.AccountTarget{
 				SegmentID: &segmentID,
 			},
-			setupMock: func(mock *pkg.MockMidazResolver) {
+			setupMock: func(mock *feeshared.MockMidazResolver) {
 				mock.EXPECT().
 					ListAccounts(gomock.Any(), orgID, ledgerID, &segmentID, nil).
-					Return([]pkg.Account{
+					Return([]feeshared.Account{
 						{ID: "acc-1", Alias: "alice", Status: activeStatus()},
 						{ID: "acc-2", Alias: "bob", Status: activeStatus()},
 					}, nil).
@@ -92,10 +92,10 @@ func TestResolveAccounts(t *testing.T) {
 			target: model.AccountTarget{
 				PortfolioID: &portfolioID,
 			},
-			setupMock: func(mock *pkg.MockMidazResolver) {
+			setupMock: func(mock *feeshared.MockMidazResolver) {
 				mock.EXPECT().
 					ListAccounts(gomock.Any(), orgID, ledgerID, nil, &portfolioID).
-					Return([]pkg.Account{
+					Return([]feeshared.Account{
 						{ID: "acc-3", Alias: "charlie", Status: activeStatus()},
 					}, nil).
 					Times(1)
@@ -109,15 +109,15 @@ func TestResolveAccounts(t *testing.T) {
 			target: model.AccountTarget{
 				Aliases: []string{"alice", "bob", "alice"},
 			},
-			setupMock: func(mock *pkg.MockMidazResolver) {
+			setupMock: func(mock *feeshared.MockMidazResolver) {
 				mock.EXPECT().
 					GetAccountByAlias(gomock.Any(), orgID, ledgerID, "alice").
-					Return(&pkg.Account{ID: "acc-1", Alias: "alice", Status: activeStatus()}, nil).
+					Return(&feeshared.Account{ID: "acc-1", Alias: "alice", Status: activeStatus()}, nil).
 					Times(1)
 
 				mock.EXPECT().
 					GetAccountByAlias(gomock.Any(), orgID, ledgerID, "bob").
-					Return(&pkg.Account{ID: "acc-2", Alias: "bob", Status: activeStatus()}, nil).
+					Return(&feeshared.Account{ID: "acc-2", Alias: "bob", Status: activeStatus()}, nil).
 					Times(1)
 			},
 			expectedCount:   2,
@@ -129,10 +129,10 @@ func TestResolveAccounts(t *testing.T) {
 			target: model.AccountTarget{
 				SegmentID: &segmentID,
 			},
-			setupMock: func(mock *pkg.MockMidazResolver) {
+			setupMock: func(mock *feeshared.MockMidazResolver) {
 				mock.EXPECT().
 					ListAccounts(gomock.Any(), orgID, ledgerID, &segmentID, nil).
-					Return([]pkg.Account{
+					Return([]feeshared.Account{
 						{ID: "acc-1", Alias: "alice", Status: activeStatus()},
 						{ID: "acc-2", Alias: "bob", Status: inactiveStatus()},
 						{ID: "acc-3", Alias: "charlie", Status: activeStatus()},
@@ -148,15 +148,15 @@ func TestResolveAccounts(t *testing.T) {
 			target: model.AccountTarget{
 				Aliases: []string{"alice", "bob"},
 			},
-			setupMock: func(mock *pkg.MockMidazResolver) {
+			setupMock: func(mock *feeshared.MockMidazResolver) {
 				mock.EXPECT().
 					GetAccountByAlias(gomock.Any(), orgID, ledgerID, "alice").
-					Return(&pkg.Account{ID: "acc-1", Alias: "alice", Status: activeStatus()}, nil).
+					Return(&feeshared.Account{ID: "acc-1", Alias: "alice", Status: activeStatus()}, nil).
 					Times(1)
 
 				mock.EXPECT().
 					GetAccountByAlias(gomock.Any(), orgID, ledgerID, "bob").
-					Return(&pkg.Account{ID: "acc-2", Alias: "bob", Status: inactiveStatus()}, nil).
+					Return(&feeshared.Account{ID: "acc-2", Alias: "bob", Status: inactiveStatus()}, nil).
 					Times(1)
 			},
 			expectedCount:   1,
@@ -168,10 +168,10 @@ func TestResolveAccounts(t *testing.T) {
 			target: model.AccountTarget{
 				Aliases: []string{"alice", "ghost"},
 			},
-			setupMock: func(mock *pkg.MockMidazResolver) {
+			setupMock: func(mock *feeshared.MockMidazResolver) {
 				mock.EXPECT().
 					GetAccountByAlias(gomock.Any(), orgID, ledgerID, "alice").
-					Return(&pkg.Account{ID: "acc-1", Alias: "alice", Status: activeStatus()}, nil).
+					Return(&feeshared.Account{ID: "acc-1", Alias: "alice", Status: activeStatus()}, nil).
 					Times(1)
 
 				mock.EXPECT().
@@ -188,10 +188,10 @@ func TestResolveAccounts(t *testing.T) {
 			target: model.AccountTarget{
 				SegmentID: &segmentID,
 			},
-			setupMock: func(mock *pkg.MockMidazResolver) {
+			setupMock: func(mock *feeshared.MockMidazResolver) {
 				mock.EXPECT().
 					ListAccounts(gomock.Any(), orgID, ledgerID, &segmentID, nil).
-					Return([]pkg.Account{}, nil).
+					Return([]feeshared.Account{}, nil).
 					Times(1)
 			},
 			expectedCount: 0,
@@ -202,7 +202,7 @@ func TestResolveAccounts(t *testing.T) {
 			target: model.AccountTarget{
 				SegmentID: &segmentID,
 			},
-			setupMock: func(mock *pkg.MockMidazResolver) {
+			setupMock: func(mock *feeshared.MockMidazResolver) {
 				mock.EXPECT().
 					ListAccounts(gomock.Any(), orgID, ledgerID, &segmentID, nil).
 					Return(nil, errors.New("query failed")).
@@ -216,7 +216,7 @@ func TestResolveAccounts(t *testing.T) {
 			target: model.AccountTarget{
 				Aliases: []string{"alice"},
 			},
-			setupMock: func(mock *pkg.MockMidazResolver) {
+			setupMock: func(mock *feeshared.MockMidazResolver) {
 				mock.EXPECT().
 					GetAccountByAlias(gomock.Any(), orgID, ledgerID, "alice").
 					Return(nil, errors.New("query failed")).
@@ -228,7 +228,7 @@ func TestResolveAccounts(t *testing.T) {
 		{
 			name:          "empty account target returns error",
 			target:        model.AccountTarget{},
-			setupMock:     func(_ *pkg.MockMidazResolver) {},
+			setupMock:     func(_ *feeshared.MockMidazResolver) {},
 			expectedCount: 0,
 			expectErr:     true,
 		},
@@ -237,10 +237,10 @@ func TestResolveAccounts(t *testing.T) {
 			target: model.AccountTarget{
 				SegmentID: &segmentID,
 			},
-			setupMock: func(mock *pkg.MockMidazResolver) {
+			setupMock: func(mock *feeshared.MockMidazResolver) {
 				mock.EXPECT().
 					ListAccounts(gomock.Any(), orgID, ledgerID, &segmentID, nil).
-					Return([]pkg.Account{
+					Return([]feeshared.Account{
 						{ID: "acc-1", Alias: "alice", Status: activeStatus()},
 						{ID: "acc-2", Alias: "bob", Status: nil},
 					}, nil).

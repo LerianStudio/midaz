@@ -13,7 +13,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/shopspring/decimal"
@@ -139,7 +139,7 @@ func BuildMaintenancePayload(
 	ctx context.Context,
 	bp model.BillingPackage,
 	period string,
-	accounts []pkg.Account,
+	accounts []feeshared.Account,
 ) *transaction.Transaction {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

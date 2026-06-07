@@ -10,9 +10,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -177,7 +178,7 @@ func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.
 
 		var route string
 
-		if strings.Contains(account, constant.SuffixFeeSource) {
+		if strings.Contains(account, feeconstant.SuffixFeeSource) {
 			cleanAccount, metadata = processAccount(account)
 		}
 

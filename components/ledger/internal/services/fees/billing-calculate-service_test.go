@@ -9,9 +9,9 @@ import (
 	"errors"
 	"testing"
 
-	midaz "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/midaz"
 	billing_package "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	midaz "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/midaz"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	"github.com/google/uuid"
@@ -194,7 +194,7 @@ func TestBillingCalculateService_MaintenanceHappyPath(t *testing.T) {
 	orgUUID := uuid.MustParse(orgID)
 	ledgerUUID := uuid.MustParse(ledgerID)
 
-	activeStatus := &pkg.AccountStatus{Code: "active", Description: "Active"}
+	activeStatus := &feeshared.AccountStatus{Code: "active", Description: "Active"}
 
 	tests := []struct {
 		name      string
@@ -216,7 +216,7 @@ func TestBillingCalculateService_MaintenanceHappyPath(t *testing.T) {
 
 				mockResolver.EXPECT().
 					ResolveAccounts(gomock.Any(), orgUUID, ledgerUUID, *maintPkg.AccountTarget).
-					Return([]pkg.Account{
+					Return([]feeshared.Account{
 						{ID: uuid.New().String(), Alias: "acc1@wallet", Status: activeStatus},
 						{ID: uuid.New().String(), Alias: "acc2@wallet", Status: activeStatus},
 						{ID: uuid.New().String(), Alias: "acc3@wallet", Status: activeStatus},
@@ -273,7 +273,7 @@ func TestBillingCalculateService_MixedBothTypes(t *testing.T) {
 	orgUUID := uuid.MustParse(orgID)
 	ledgerUUID := uuid.MustParse(ledgerID)
 
-	activeStatus := &pkg.AccountStatus{Code: "active", Description: "Active"}
+	activeStatus := &feeshared.AccountStatus{Code: "active", Description: "Active"}
 
 	tests := []struct {
 		name      string
@@ -303,7 +303,7 @@ func TestBillingCalculateService_MixedBothTypes(t *testing.T) {
 
 				mockResolver.EXPECT().
 					ResolveAccounts(gomock.Any(), orgUUID, ledgerUUID, *maintPkg.AccountTarget).
-					Return([]pkg.Account{
+					Return([]feeshared.Account{
 						{ID: uuid.New().String(), Alias: "acc1@wallet", Status: activeStatus},
 					}, nil)
 			},
@@ -611,13 +611,13 @@ func TestParsePeriod(t *testing.T) {
 			name:        "Error - invalid week number W00",
 			period:      "2026-W00",
 			wantErr:     true,
-			errContains: "FEE-0063",
+			errContains: "0224",
 		},
 		{
 			name:        "Error - invalid week number W54",
 			period:      "2026-W54",
 			wantErr:     true,
-			errContains: "FEE-0063",
+			errContains: "0224",
 		},
 		{
 			name:      "Weekly - year with 53 weeks (2026-W53)",
@@ -632,7 +632,7 @@ func TestParsePeriod(t *testing.T) {
 			name:        "Error - week 53 on year without 53 weeks (valid format, invalid ISO week)",
 			period:      "2025-W53",
 			wantErr:     true,
-			errContains: "FEE-0063",
+			errContains: "0224",
 		},
 		{
 			// 2026-W1 fails the strict two-digit enforcement (ISO 8601 requires W01..W53).
@@ -641,31 +641,31 @@ func TestParsePeriod(t *testing.T) {
 			name:        "Error - single digit week (not ISO 8601)",
 			period:      "2026-W1",
 			wantErr:     true,
-			errContains: "FEE-0063",
+			errContains: "0224",
 		},
 		{
 			name:        "Error - empty string",
 			period:      "",
 			wantErr:     true,
-			errContains: "FEE-0063",
+			errContains: "0224",
 		},
 		{
 			name:        "Error - invalid format",
 			period:      "2026-13",
 			wantErr:     true,
-			errContains: "FEE-0063",
+			errContains: "0224",
 		},
 		{
 			name:        "Error - garbage input",
 			period:      "not-a-date",
 			wantErr:     true,
-			errContains: "FEE-0063",
+			errContains: "0224",
 		},
 		{
 			name:        "Error - invalid day",
 			period:      "2026-02-30",
 			wantErr:     true,
-			errContains: "FEE-0063",
+			errContains: "0224",
 		},
 	}
 
@@ -1074,7 +1074,7 @@ func TestCalculateMaintenance_NilFeeAmount(t *testing.T) {
 		},
 	}
 
-	activeStatus := &pkg.AccountStatus{Code: "active", Description: "Active"}
+	activeStatus := &feeshared.AccountStatus{Code: "active", Description: "Active"}
 
 	tests := []struct {
 		name      string
@@ -1096,7 +1096,7 @@ func TestCalculateMaintenance_NilFeeAmount(t *testing.T) {
 
 				mockResolver.EXPECT().
 					ResolveAccounts(gomock.Any(), orgUUID, ledgerUUID, *nilFeePkg.AccountTarget).
-					Return([]pkg.Account{
+					Return([]feeshared.Account{
 						{ID: uuid.New().String(), Alias: "acc1@wallet", Status: activeStatus},
 						{ID: uuid.New().String(), Alias: "acc2@wallet", Status: activeStatus},
 					}, nil)
@@ -1156,7 +1156,7 @@ func TestCalculateMaintenance_ZeroResolvedAccounts(t *testing.T) {
 
 				mockResolver.EXPECT().
 					ResolveAccounts(gomock.Any(), orgUUID, ledgerUUID, *maintPkg.AccountTarget).
-					Return([]pkg.Account{}, nil)
+					Return([]feeshared.Account{}, nil)
 			},
 		},
 	}
@@ -1199,7 +1199,7 @@ func TestBillingCalculateService_InvalidPeriod(t *testing.T) {
 				LedgerID:       uuid.New().String(),
 				Period:         "invalid-period",
 			},
-			errContains: "FEE-0063",
+			errContains: "0224",
 		},
 		{
 			name: "Error - Empty period",
@@ -1208,7 +1208,7 @@ func TestBillingCalculateService_InvalidPeriod(t *testing.T) {
 				LedgerID:       uuid.New().String(),
 				Period:         "",
 			},
-			errContains: "FEE-0063",
+			errContains: "0224",
 		},
 	}
 

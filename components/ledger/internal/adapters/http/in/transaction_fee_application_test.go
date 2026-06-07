@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	feeError "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -132,10 +131,10 @@ func TestApplyFees_FoldsMutatedSendBack(t *testing.T) {
 	assert.Equal(t, "pkg-1", input.Metadata["packageAppliedID"])
 }
 
-func TestApplyFees_TranslatesBusinessError(t *testing.T) {
-	applier := &fakeFeeApplier{err: feeError.ValidationError{
-		Code:    "FEE-0001",
-		Title:   "Fee out of range",
+func TestApplyFees_PropagatesBusinessError(t *testing.T) {
+	applier := &fakeFeeApplier{err: pkg.ValidationError{
+		Code:    "0199",
+		Title:   "Package amount range overlap",
 		Message: "transaction value is outside the package range",
 	}}
 	handler := &TransactionHandler{FeeApplier: applier}
@@ -146,45 +145,10 @@ func TestApplyFees_TranslatesBusinessError(t *testing.T) {
 
 	require.Error(t, err)
 
-	var translated pkg.ValidationError
+	var businessErr pkg.ValidationError
 
-	require.True(t, errors.As(err, &translated),
-		"a feeshared.ValidationError must be translated to a ledger pkg.ValidationError so http.WithError returns a 4xx, not a 500")
-	assert.Equal(t, "FEE-0001", translated.Code)
-	assert.Equal(t, "transaction value is outside the package range", translated.Message)
-}
-
-func TestTranslateFeeError(t *testing.T) {
-	t.Run("ValidationError", func(t *testing.T) {
-		got := translateFeeError(feeError.ValidationError{Code: "C", Message: "m"})
-
-		var want pkg.ValidationError
-		require.True(t, errors.As(got, &want))
-		assert.Equal(t, "C", want.Code)
-	})
-
-	t.Run("UnprocessableOperationError", func(t *testing.T) {
-		got := translateFeeError(feeError.UnprocessableOperationError{Code: "C", Message: "m"})
-
-		var want pkg.UnprocessableOperationError
-		require.True(t, errors.As(got, &want))
-		assert.Equal(t, "C", want.Code)
-	})
-
-	t.Run("EntityNotFoundError", func(t *testing.T) {
-		got := translateFeeError(feeError.EntityNotFoundError{Code: "C", Message: "m"})
-
-		var want pkg.EntityNotFoundError
-		require.True(t, errors.As(got, &want))
-		assert.Equal(t, "C", want.Code)
-	})
-
-	t.Run("unknown error wraps to internal", func(t *testing.T) {
-		got := translateFeeError(errors.New("boom"))
-
-		// ValidateInternalError returns a pkg.InternalServerError so the HTTP
-		// layer returns 500 without leaking fee-internal detail.
-		var want pkg.InternalServerError
-		assert.True(t, errors.As(got, &want), "unknown fee error must wrap to an internal server error")
-	})
+	require.True(t, errors.As(err, &businessErr),
+		"the fee engine returns a canonical pkg business error that must reach http.WithError unchanged so it surfaces as a 4xx, not a 500")
+	assert.Equal(t, "0199", businessErr.Code)
+	assert.Equal(t, "transaction value is outside the package range", businessErr.Message)
 }

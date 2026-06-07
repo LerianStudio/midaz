@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	"github.com/shopspring/decimal"
@@ -181,7 +181,7 @@ func TestBuildMaintenancePayload(t *testing.T) {
 		name          string
 		pkg           model.BillingPackage
 		period        string
-		accounts      []pkg.Account
+		accounts      []feeshared.Account
 		wantCode      string
 		wantFromCount int
 		wantToCount   int
@@ -190,7 +190,7 @@ func TestBuildMaintenancePayload(t *testing.T) {
 			name:   "N:1 structure with 3 accounts",
 			pkg:    basePkg,
 			period: "2026-01",
-			accounts: []pkg.Account{
+			accounts: []feeshared.Account{
 				{ID: "acc-1", Alias: "@account-1"},
 				{ID: "acc-2", Alias: "@account-2"},
 				{ID: "acc-3", Alias: "@account-3"},
@@ -203,7 +203,7 @@ func TestBuildMaintenancePayload(t *testing.T) {
 			name:   "single account produces 1:1 structure",
 			pkg:    basePkg,
 			period: "2026-02",
-			accounts: []pkg.Account{
+			accounts: []feeshared.Account{
 				{ID: "acc-1", Alias: "@single-account"},
 			},
 			wantCode:      "billing-maintenance",
@@ -214,7 +214,7 @@ func TestBuildMaintenancePayload(t *testing.T) {
 			name:   "N:1 structure with 5 accounts",
 			pkg:    basePkg,
 			period: "2026-03",
-			accounts: []pkg.Account{
+			accounts: []feeshared.Account{
 				{ID: "acc-1", Alias: "@a1"},
 				{ID: "acc-2", Alias: "@a2"},
 				{ID: "acc-3", Alias: "@a3"},

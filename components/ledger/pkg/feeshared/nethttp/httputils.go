@@ -9,8 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -237,7 +239,7 @@ func validatePagination(cursor, sortOrder string, page, limit int) error {
 		return pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)
 	}
 
-	if (sortOrder != string(constant.Asc)) && (sortOrder != string(constant.Desc)) {
+	if (sortOrder != string(feeconstant.Asc)) && (sortOrder != string(feeconstant.Desc)) {
 		return pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "")
 	}
 

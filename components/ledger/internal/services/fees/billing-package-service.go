@@ -13,9 +13,10 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	billing_package "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -29,7 +30,7 @@ import (
 // BillingPackageService handles business logic for billing package CRUD operations.
 type BillingPackageService struct {
 	billingPackageRepo billing_package.Repository
-	resolver           pkg.MidazResolver
+	resolver           feeshared.MidazResolver
 }
 
 // ErrNilBillingPackageRepo is returned when a nil billing package repository is provided.
@@ -39,7 +40,7 @@ var ErrNilBillingPackageRepo = errors.New("BillingPackage repository is required
 var ErrNilBillingPackageResolver = errors.New("MidazResolver is required")
 
 // NewBillingPackageService creates a new BillingPackageService with validated dependencies.
-func NewBillingPackageService(repo billing_package.Repository, resolver pkg.MidazResolver) (*BillingPackageService, error) {
+func NewBillingPackageService(repo billing_package.Repository, resolver feeshared.MidazResolver) (*BillingPackageService, error) {
 	if repo == nil {
 		return nil, ErrNilBillingPackageRepo
 	}
@@ -351,7 +352,7 @@ func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, or
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Deleting billing package: id=%s, org=%s", id, organizationID))
 
 	if err := s.billingPackageRepo.SoftDelete(ctx, id, organizationID); err != nil {
-		// Check if the error is an entity-not-found from the repo layer and remap to FEE-0052.
+		// Remap a repo-layer entity-not-found to the billing-package-not-found business error.
 		var notFoundErr pkg.EntityNotFoundError
 		if errors.As(err, &notFoundErr) {
 			bizErr := pkg.ValidateBusinessError(constant.ErrBillingPackageNotFound, "BillingPackage", id)
