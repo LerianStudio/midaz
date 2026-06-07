@@ -514,7 +514,6 @@ func TestValidateBusinessError_AllErrorTypes(t *testing.T) {
 		{constant.ErrInvalidPathParameter, "Path", []any{"id"}},
 		{constant.ErrNothingToUpdate, "Package", nil},
 		{constant.ErrInvalidHeaderParameter, "Header", []any{"X-Org-Id"}},
-		{constant.ErrHeaderParameterRequired, "Header", []any{"X-Org-Id"}},
 		{constant.ErrDuplicatePackage, "Package", nil},
 		{constant.ErrInvalidTransactionType, "Transaction", []any{"from"}},
 		{constant.ErrCalculateFee, "Fee", nil},

@@ -3976,394 +3976,6 @@ info:
   title: Midaz Ledger API
   version: v4.0.0
 paths:
-  /v1/billing-packages:
-    get:
-      description: List all billing packages
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
-      - description: The unique identifier of the Organization.
-        in: header
-        name: X-Organization-Id
-        required: true
-        type: string
-      - description: Ledger ID (optional — omit to list all packages for the organization)
-        in: query
-        name: ledgerId
-        type: string
-      - description: Filter by billing package type (volume or maintenance)
-        in: query
-        name: type
-        type: string
-      - default: 10
-        description: Limit
-        in: query
-        name: limit
-        type: integer
-      - default: 1
-        description: Page
-        in: query
-        name: page
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/Pagination'
-            - properties:
-                items:
-                  items:
-                    $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
-                  type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
-                total:
-                  type: integer
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/Error'
-      summary: Get all billing packages
-      tags:
-      - BillingPackages
-    post:
-      consumes:
-      - application/json
-      description: Create a BillingPackage with the input payload
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
-      - description: The unique identifier of the Organization.
-        in: header
-        name: X-Organization-Id
-        required: true
-        type: string
-      - description: BillingPackage Input
-        in: body
-        name: billingPackage
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/Error'
-        "409":
-          description: Conflict
-          schema:
-            $ref: '#/definitions/Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/Error'
-      summary: Create a BillingPackage
-      tags:
-      - BillingPackages
-  /v1/billing-packages/{id}:
-    delete:
-      description: SoftDelete a BillingPackage with the input ID
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
-      - description: The unique identifier of the Organization.
-        in: header
-        name: X-Organization-Id
-        required: true
-        type: string
-      - description: BillingPackage ID
-        in: path
-        name: id
-        required: true
-        type: string
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/Error'
-      summary: SoftDelete a BillingPackage by ID
-      tags:
-      - BillingPackages
-    get:
-      description: Get a billing package by id
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
-      - description: The unique identifier of the Organization.
-        in: header
-        name: X-Organization-Id
-        required: true
-        type: string
-      - description: BillingPackage ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/Error'
-      summary: Get billing package
-      tags:
-      - BillingPackages
-    patch:
-      consumes:
-      - application/json
-      description: Update a billing package with the input payload
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
-      - description: The unique identifier of the Organization.
-        in: header
-        name: X-Organization-Id
-        required: true
-        type: string
-      - description: BillingPackage ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Update BillingPackage Input
-        in: body
-        name: billingPackage
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackageUpdate'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/Error'
-        "409":
-          description: Conflict
-          schema:
-            $ref: '#/definitions/Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/Error'
-      summary: Update a billing package
-      tags:
-      - BillingPackages
-  /v1/billing/calculate:
-    post:
-      consumes:
-      - application/json
-      description: Calculate billing for a given organization, ledger, and period
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
-      - description: The unique identifier of the Organization.
-        in: header
-        name: X-Organization-Id
-        required: true
-        type: string
-      - description: Billing Calculation Input
-        in: body
-        name: billingCalculate
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/Error'
-        "422":
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/Error'
-      summary: Calculate billing
-      tags:
-      - BillingCalculate
-  /v1/estimates:
-    post:
-      consumes:
-      - application/json
-      description: Create a fee estimate calculation with input payload
-      parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
-        required: true
-        type: string
-      - description: Fee Input
-        in: body
-        name: fee
-        required: true
-        schema:
-          $ref: '#/definitions/FeeEstimate'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/FeeEstimateResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/Error'
-        "409":
-          description: Conflict
-          schema:
-            $ref: '#/definitions/Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/Error'
-      summary: Create a fee estimate calculation
-      tags:
-      - Fees
   /v1/organizations:
     get:
       description: Returns a paginated list of organizations, optionally filtered
@@ -4658,6 +4270,393 @@ paths:
       summary: Update an existing organization
       tags:
       - Organizations
+  /v1/organizations/{organization_id}/billing-packages:
+    get:
+      description: List all billing packages
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID (optional — omit to list all packages for the organization)
+        in: query
+        name: ledgerId
+        type: string
+      - description: Filter by billing package type (volume or maintenance)
+        in: query
+        name: type
+        type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
+                  type: array
+                limit:
+                  type: integer
+                page:
+                  type: integer
+                total:
+                  type: integer
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Get all billing packages
+      tags:
+      - BillingPackages
+    post:
+      consumes:
+      - application/json
+      description: Create a BillingPackage with the input payload
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: BillingPackage Input
+        in: body
+        name: billingPackage
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create a BillingPackage
+      tags:
+      - BillingPackages
+  /v1/organizations/{organization_id}/billing-packages/{id}:
+    delete:
+      description: SoftDelete a BillingPackage with the input ID
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: BillingPackage ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: SoftDelete a BillingPackage by ID
+      tags:
+      - BillingPackages
+    get:
+      description: Get a billing package by id
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: BillingPackage ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Get billing package
+      tags:
+      - BillingPackages
+    patch:
+      consumes:
+      - application/json
+      description: Update a billing package with the input payload
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: BillingPackage ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update BillingPackage Input
+        in: body
+        name: billingPackage
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackageUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Update a billing package
+      tags:
+      - BillingPackages
+  /v1/organizations/{organization_id}/billing/calculate:
+    post:
+      consumes:
+      - application/json
+      description: Calculate billing for a given organization, ledger, and period
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Billing Calculation Input
+        in: body
+        name: billingCalculate
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Calculate billing
+      tags:
+      - BillingCalculate
+  /v1/organizations/{organization_id}/estimates:
+    post:
+      consumes:
+      - application/json
+      description: Create a fee estimate calculation with input payload
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Fee Input
+        in: body
+        name: fee
+        required: true
+        schema:
+          $ref: '#/definitions/FeeEstimate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/FeeEstimateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create a fee estimate calculation
+      tags:
+      - Fees
   /v1/organizations/{organization_id}/holders:
     get:
       description: List all Holders. CRM listing endpoints support pagination using
@@ -10435,43 +10434,7 @@ paths:
       summary: Count total ledgers
       tags:
       - Ledgers
-  /v1/organizations/metrics/count:
-    head:
-      description: Returns the total count of organizations as a header without a
-        response body
-      parameters:
-      - description: 'Bearer token authentication. Format: Bearer {access_token}.
-          Only required when auth plugin is enabled.'
-        in: header
-        name: Authorization
-        type: string
-      - description: Request ID for tracing
-        in: header
-        name: X-Request-Id
-        type: string
-      responses:
-        "204":
-          description: No content with X-Total-Count header containing the count
-        "401":
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        "403":
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        "404":
-          description: Organization not found
-          schema:
-            $ref: '#/definitions/Error'
-        "500":
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-      summary: Count total organizations
-      tags:
-      - Organizations
-  /v1/packages:
+  /v1/organizations/{organization_id}/packages:
     get:
       description: List all the packages
       parameters:
@@ -10480,10 +10443,9 @@ paths:
         in: header
         name: Authorization
         type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
         required: true
         type: string
       - description: Segment ID
@@ -10565,10 +10527,9 @@ paths:
         in: header
         name: Authorization
         type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
         required: true
         type: string
       - description: Package Input
@@ -10611,7 +10572,7 @@ paths:
       summary: Create a Package
       tags:
       - Packages
-  /v1/packages/{id}:
+  /v1/organizations/{organization_id}/packages/{id}:
     delete:
       description: SoftDelete a Package with the input ID
       parameters:
@@ -10620,10 +10581,9 @@ paths:
         in: header
         name: Authorization
         type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
         required: true
         type: string
       - description: Package ID
@@ -10665,10 +10625,9 @@ paths:
         in: header
         name: Authorization
         type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
         required: true
         type: string
       - description: Package ID
@@ -10716,10 +10675,9 @@ paths:
         in: header
         name: Authorization
         type: string
-      - description: The unique identifier of the Organization associated with the
-          Ledger.
-        in: header
-        name: X-Organization-Id
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
         required: true
         type: string
       - description: Package ID
@@ -10763,6 +10721,42 @@ paths:
       summary: Update a package
       tags:
       - Packages
+  /v1/organizations/metrics/count:
+    head:
+      description: Returns the total count of organizations as a header without a
+        response body
+      parameters:
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
+        in: header
+        name: Authorization
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      responses:
+        "204":
+          description: No content with X-Total-Count header containing the count
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count total organizations
+      tags:
+      - Organizations
   /v1/settings/metadata-indexes:
     get:
       description: Get all metadata indexes, optionally filtered by entity name

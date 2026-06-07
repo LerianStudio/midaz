@@ -22,7 +22,9 @@ const feesApplicationName = "plugin-fees"
 // Fiber router. It is the fee analogue of RegisterCRMRoutesToApp: routes are
 // protected by the ledger ProtectedRouteChain (auth -> route-scoped post-auth
 // middleware via routeOptions -> handlers) and carry the plugin-fees auth
-// namespace verbatim.
+// namespace verbatim. Organization is path-scoped: every route carries
+// :organization_id, validated as a UUID by ParseUUIDPathParameters together
+// with the resource :id where present.
 //
 // The fee calculate endpoint (POST /v1/fees) is intentionally NOT mounted: in
 // the unified binary fees run in-process via the transaction seam, so only the
@@ -37,24 +39,24 @@ func RegisterFeesRoutesToApp(
 	routeOptions *http.ProtectedRouteOptions,
 ) {
 	// Packages
-	f.Post("/v1/packages", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "packages", "post"), routeOptions, parseFeeHeaderParameters, feehttp.WithBodyTracing(new(model.CreatePackageInput), ph.CreatePackage))...)
-	f.Get("/v1/packages", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "packages", "get"), routeOptions, parseFeeHeaderParameters, ph.GetAllPackages)...)
-	f.Get("/v1/packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "packages", "get"), routeOptions, parseFeeHeaderParameters, parseFeePathParameters, ph.GetPackageByID)...)
-	f.Patch("/v1/packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "packages", "patch"), routeOptions, parseFeeHeaderParameters, parseFeePathParameters, feehttp.WithBodyTracing(new(model.UpdatePackageInput), ph.UpdatePackageByID))...)
-	f.Delete("/v1/packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "packages", "delete"), routeOptions, parseFeeHeaderParameters, parseFeePathParameters, ph.DeletePackageByID)...)
+	f.Post("/v1/organizations/:organization_id/packages", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "packages", "post"), routeOptions, http.ParseUUIDPathParameters("packages"), feehttp.WithBodyTracing(new(model.CreatePackageInput), ph.CreatePackage))...)
+	f.Get("/v1/organizations/:organization_id/packages", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "packages", "get"), routeOptions, http.ParseUUIDPathParameters("packages"), ph.GetAllPackages)...)
+	f.Get("/v1/organizations/:organization_id/packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "packages", "get"), routeOptions, http.ParseUUIDPathParameters("packages"), ph.GetPackageByID)...)
+	f.Patch("/v1/organizations/:organization_id/packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "packages", "patch"), routeOptions, http.ParseUUIDPathParameters("packages"), feehttp.WithBodyTracing(new(model.UpdatePackageInput), ph.UpdatePackageByID))...)
+	f.Delete("/v1/organizations/:organization_id/packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "packages", "delete"), routeOptions, http.ParseUUIDPathParameters("packages"), ph.DeletePackageByID)...)
 
 	// Fee estimate (dry-run). POST /v1/fees is NOT mounted — fees run in-process via the seam.
-	f.Post("/v1/estimates", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "estimates", "post"), routeOptions, parseFeeHeaderParameters, feehttp.WithBodyTracing(new(model.FeeEstimate), fh.EstimateFeeCalculation))...)
+	f.Post("/v1/organizations/:organization_id/estimates", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "estimates", "post"), routeOptions, http.ParseUUIDPathParameters("estimates"), feehttp.WithBodyTracing(new(model.FeeEstimate), fh.EstimateFeeCalculation))...)
 
 	// Billing packages
-	f.Post("/v1/billing-packages", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-packages", "post"), routeOptions, parseFeeHeaderParameters, feehttp.WithBodyTracing(new(model.BillingPackage), bph.CreateBillingPackage))...)
-	f.Get("/v1/billing-packages", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-packages", "get"), routeOptions, parseFeeHeaderParameters, bph.GetAllBillingPackages)...)
-	f.Get("/v1/billing-packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-packages", "get"), routeOptions, parseFeeHeaderParameters, parseFeePathParameters, bph.GetBillingPackageByID)...)
-	f.Patch("/v1/billing-packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-packages", "patch"), routeOptions, parseFeeHeaderParameters, parseFeePathParameters, feehttp.WithBodyTracing(new(model.BillingPackageUpdate), bph.UpdateBillingPackage))...)
-	f.Delete("/v1/billing-packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-packages", "delete"), routeOptions, parseFeeHeaderParameters, parseFeePathParameters, bph.DeleteBillingPackage)...)
+	f.Post("/v1/organizations/:organization_id/billing-packages", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-packages", "post"), routeOptions, http.ParseUUIDPathParameters("billing-packages"), feehttp.WithBodyTracing(new(model.BillingPackage), bph.CreateBillingPackage))...)
+	f.Get("/v1/organizations/:organization_id/billing-packages", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-packages", "get"), routeOptions, http.ParseUUIDPathParameters("billing-packages"), bph.GetAllBillingPackages)...)
+	f.Get("/v1/organizations/:organization_id/billing-packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-packages", "get"), routeOptions, http.ParseUUIDPathParameters("billing-packages"), bph.GetBillingPackageByID)...)
+	f.Patch("/v1/organizations/:organization_id/billing-packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-packages", "patch"), routeOptions, http.ParseUUIDPathParameters("billing-packages"), feehttp.WithBodyTracing(new(model.BillingPackageUpdate), bph.UpdateBillingPackage))...)
+	f.Delete("/v1/organizations/:organization_id/billing-packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-packages", "delete"), routeOptions, http.ParseUUIDPathParameters("billing-packages"), bph.DeleteBillingPackage)...)
 
 	// Billing calculate
-	f.Post("/v1/billing/calculate", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-calculate", "post"), routeOptions, parseFeeHeaderParameters, feehttp.WithBodyTracing(new(model.BillingCalculateRequest), bch.CalculateBilling))...)
+	f.Post("/v1/organizations/:organization_id/billing/calculate", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-calculate", "post"), routeOptions, http.ParseUUIDPathParameters("billing-calculate"), feehttp.WithBodyTracing(new(model.BillingCalculateRequest), bch.CalculateBilling))...)
 }
 
 // CreateFeesRouteRegistrar returns a registrar that mounts the fee/billing routes

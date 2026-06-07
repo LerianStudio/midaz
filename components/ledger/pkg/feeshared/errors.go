@@ -396,12 +396,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid header parameter",
 			Message:    fmt.Sprintf("One or more header parameters are in an incorrect format. Please check the following parameters %v and ensure they meet the required format before trying again.", args),
 		},
-		constant.ErrHeaderParameterRequired: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrHeaderParameterRequired.Error(),
-			Title:      "Missing header",
-			Message:    fmt.Sprintf("Header parameters are required. Please check the following header parameters %v and ensure they are passing the values correctly.", args),
-		},
 		constant.ErrDuplicatePackage: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrDuplicatePackage.Error(),

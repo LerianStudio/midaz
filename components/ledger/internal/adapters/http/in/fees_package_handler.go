@@ -16,6 +16,7 @@ import (
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	feehttp "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -50,7 +51,7 @@ type PackageHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization		header		string						false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string						true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path		string						true	"The unique identifier of the Organization."
 //	@Param			pack				body		model.CreatePackageInput	true	"Package Input"
 //	@Success		201					{object}	pack.Package
 //	@Failure		400					{object}	mmodel.Error
@@ -59,7 +60,7 @@ type PackageHandler struct {
 //	@Failure		404					{object}	mmodel.Error
 //	@Failure		409					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/packages [post]
+//	@Router			/v1/organizations/{organization_id}/packages [post]
 func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 	var (
 		segmentID    uuid.UUID
@@ -74,7 +75,10 @@ func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_package")
 	defer span.End()
 
-	organizationID := c.Locals(feeOrgIDHeaderParameter).(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -84,7 +88,7 @@ func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 	payload := p.(*model.CreatePackageInput)
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create a pack with details: %#v", payload))
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
 	}
@@ -142,7 +146,7 @@ func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 //	@Tags			Packages
 //	@Produce		json
 //	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string	true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Param			segmentId			query		string	false	"Segment ID"
 //	@Param			ledgerId			query		string	false	"Ledger ID"
 //	@Param			transactionRoute	query		string	false	"Transaction Route"
@@ -155,7 +159,7 @@ func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 //	@Failure		403					{object}	mmodel.Error
 //	@Failure		404					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/packages [get]
+//	@Router			/v1/organizations/{organization_id}/packages [get]
 func (handler *PackageHandler) GetAllPackages(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -164,7 +168,10 @@ func (handler *PackageHandler) GetAllPackages(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_package")
 	defer span.End()
 
-	organizationID := c.Locals(feeOrgIDHeaderParameter).(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -212,7 +219,7 @@ func (handler *PackageHandler) GetAllPackages(c *fiber.Ctx) error {
 //	@Tags			Packages
 //	@Produce		json
 //	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string	true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Param			id					path		string	true	"Package ID"
 //	@Success		200					{object}	pack.Package
 //	@Failure		400					{object}	mmodel.Error
@@ -220,7 +227,7 @@ func (handler *PackageHandler) GetAllPackages(c *fiber.Ctx) error {
 //	@Failure		403					{object}	mmodel.Error
 //	@Failure		404					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/packages/{id} [get]
+//	@Router			/v1/organizations/{organization_id}/packages/{id} [get]
 func (handler *PackageHandler) GetPackageByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -229,8 +236,15 @@ func (handler *PackageHandler) GetPackageByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_package_by_id")
 	defer span.End()
 
-	organizationID := c.Locals(feeOrgIDHeaderParameter).(uuid.UUID)
-	id := c.Locals(feeUUIDPathParameter).(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -260,7 +274,7 @@ func (handler *PackageHandler) GetPackageByID(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization		header		string						false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string						true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path		string						true	"The unique identifier of the Organization."
 //	@Param			id					path		string						true	"Package ID"
 //	@Param			package				body		model.UpdatePackageInput	true	"Update Package Input"
 //	@Success		200					{object}	pack.Package
@@ -269,7 +283,7 @@ func (handler *PackageHandler) GetPackageByID(c *fiber.Ctx) error {
 //	@Failure		403					{object}	mmodel.Error
 //	@Failure		404					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/packages/{id} [patch]
+//	@Router			/v1/organizations/{organization_id}/packages/{id} [patch]
 func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -278,8 +292,15 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_package")
 	defer span.End()
 
-	organizationID := c.Locals(feeOrgIDHeaderParameter).(uuid.UUID)
-	id := c.Locals(feeUUIDPathParameter).(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -290,7 +311,7 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 	payload := p.(*model.UpdatePackageInput)
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update a package: %#v", payload))
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
 	}
@@ -346,7 +367,7 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 //	@Description	SoftDelete a Package with the input ID
 //	@Tags			Packages
 //	@Param			Authorization		header	string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header	string	true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			organization_id		path	string	true	"The unique identifier of the Organization."
 //	@Param			id					path	string	true	"Package ID"
 //	@Success		204
 //	@Failure		400	{object}	mmodel.Error
@@ -354,7 +375,7 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 //	@Failure		403	{object}	mmodel.Error
 //	@Failure		404	{object}	mmodel.Error
 //	@Failure		500	{object}	mmodel.Error
-//	@Router			/v1/packages/{id} [delete]
+//	@Router			/v1/organizations/{organization_id}/packages/{id} [delete]
 func (handler *PackageHandler) DeletePackageByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -363,8 +384,15 @@ func (handler *PackageHandler) DeletePackageByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_package_by_id")
 	defer span.End()
 
-	organizationID := c.Locals(feeOrgIDHeaderParameter).(uuid.UUID)
-	id := c.Locals(feeUUIDPathParameter).(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

@@ -15,6 +15,7 @@ import (
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	feehttp "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -47,7 +48,7 @@ type BillingPackageHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization		header		string					false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string					true	"The unique identifier of the Organization."
+//	@Param			organization_id		path		string					true	"The unique identifier of the Organization."
 //	@Param			billingPackage		body		model.BillingPackage	true	"BillingPackage Input"
 //	@Success		201					{object}	model.BillingPackage
 //	@Failure		400					{object}	mmodel.Error
@@ -55,7 +56,7 @@ type BillingPackageHandler struct {
 //	@Failure		403					{object}	mmodel.Error
 //	@Failure		409					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/billing-packages [post]
+//	@Router			/v1/organizations/{organization_id}/billing-packages [post]
 func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -64,12 +65,10 @@ func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) 
 	ctx, span := tracer.Start(ctx, "handler.create_billing_package")
 	defer span.End()
 
-	orgVal, orgOK := c.Locals(feeOrgIDHeaderParameter).(uuid.UUID)
-	if !orgOK {
-		return feehttp.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrHeaderParameterRequired, "", feeOrgIDHeaderParameter))
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
 	}
-
-	organizationID := orgVal
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -111,7 +110,7 @@ func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) 
 //	@Tags			BillingPackages
 //	@Produce		json
 //	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string	true	"The unique identifier of the Organization."
+//	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Param			ledgerId			query		string	false	"Ledger ID (optional — omit to list all packages for the organization)"
 //	@Param			type				query		string	false	"Filter by billing package type (volume or maintenance)"
 //	@Param			limit				query		int		false	"Limit"	default(10)
@@ -121,7 +120,7 @@ func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) 
 //	@Failure		401					{object}	mmodel.Error
 //	@Failure		403					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/billing-packages [get]
+//	@Router			/v1/organizations/{organization_id}/billing-packages [get]
 func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -130,12 +129,10 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 	ctx, span := tracer.Start(ctx, "handler.get_all_billing_packages")
 	defer span.End()
 
-	orgVal, orgOK := c.Locals(feeOrgIDHeaderParameter).(uuid.UUID)
-	if !orgOK {
-		return feehttp.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrHeaderParameterRequired, "", feeOrgIDHeaderParameter))
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
 	}
-
-	organizationID := orgVal
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -211,7 +208,7 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 //	@Tags			BillingPackages
 //	@Produce		json
 //	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string	true	"The unique identifier of the Organization."
+//	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Param			id					path		string	true	"BillingPackage ID"
 //	@Success		200					{object}	model.BillingPackage
 //	@Failure		400					{object}	mmodel.Error
@@ -219,7 +216,7 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 //	@Failure		403					{object}	mmodel.Error
 //	@Failure		404					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/billing-packages/{id} [get]
+//	@Router			/v1/organizations/{organization_id}/billing-packages/{id} [get]
 func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -228,18 +225,15 @@ func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error 
 	ctx, span := tracer.Start(ctx, "handler.get_billing_package_by_id")
 	defer span.End()
 
-	orgVal, orgOK := c.Locals(feeOrgIDHeaderParameter).(uuid.UUID)
-	if !orgOK {
-		return feehttp.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrHeaderParameterRequired, "", feeOrgIDHeaderParameter))
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
 	}
 
-	idVal, idOK := c.Locals(feeUUIDPathParameter).(uuid.UUID)
-	if !idOK {
-		return feehttp.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidPathParameter, "", "id"))
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
 	}
-
-	organizationID := orgVal
-	id := idVal
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -269,7 +263,7 @@ func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error 
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization		header		string						false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string						true	"The unique identifier of the Organization."
+//	@Param			organization_id		path		string						true	"The unique identifier of the Organization."
 //	@Param			id					path		string						true	"BillingPackage ID"
 //	@Param			billingPackage		body		model.BillingPackageUpdate	true	"Update BillingPackage Input"
 //	@Success		200					{object}	model.BillingPackage
@@ -279,7 +273,7 @@ func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error 
 //	@Failure		404					{object}	mmodel.Error
 //	@Failure		409					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/billing-packages/{id} [patch]
+//	@Router			/v1/organizations/{organization_id}/billing-packages/{id} [patch]
 func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -288,18 +282,15 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 	ctx, span := tracer.Start(ctx, "handler.update_billing_package")
 	defer span.End()
 
-	orgVal, orgOK := c.Locals(feeOrgIDHeaderParameter).(uuid.UUID)
-	if !orgOK {
-		return feehttp.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrHeaderParameterRequired, "", feeOrgIDHeaderParameter))
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
 	}
 
-	idVal, idOK := c.Locals(feeUUIDPathParameter).(uuid.UUID)
-	if !idOK {
-		return feehttp.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidPathParameter, "", "id"))
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
 	}
-
-	organizationID := orgVal
-	id := idVal
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -348,7 +339,7 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 //	@Description	SoftDelete a BillingPackage with the input ID
 //	@Tags			BillingPackages
 //	@Param			Authorization		header	string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header	string	true	"The unique identifier of the Organization."
+//	@Param			organization_id		path	string	true	"The unique identifier of the Organization."
 //	@Param			id					path	string	true	"BillingPackage ID"
 //	@Success		204
 //	@Failure		400	{object}	mmodel.Error
@@ -356,7 +347,7 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 //	@Failure		403	{object}	mmodel.Error
 //	@Failure		404	{object}	mmodel.Error
 //	@Failure		500	{object}	mmodel.Error
-//	@Router			/v1/billing-packages/{id} [delete]
+//	@Router			/v1/organizations/{organization_id}/billing-packages/{id} [delete]
 func (handler *BillingPackageHandler) DeleteBillingPackage(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -365,18 +356,15 @@ func (handler *BillingPackageHandler) DeleteBillingPackage(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_billing_package")
 	defer span.End()
 
-	orgVal, orgOK := c.Locals(feeOrgIDHeaderParameter).(uuid.UUID)
-	if !orgOK {
-		return feehttp.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrHeaderParameterRequired, "", feeOrgIDHeaderParameter))
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
 	}
 
-	idVal, idOK := c.Locals(feeUUIDPathParameter).(uuid.UUID)
-	if !idOK {
-		return feehttp.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidPathParameter, "", "id"))
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
 	}
-
-	organizationID := orgVal
-	id := idVal
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

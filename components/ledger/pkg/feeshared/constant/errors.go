@@ -29,7 +29,6 @@ var (
 	ErrNothingToUpdate                      = errors.New("FEE-0017")
 	ErrDuplicatePackage                     = errors.New("FEE-0018")
 	ErrInvalidHeaderParameter               = errors.New("FEE-0019")
-	ErrHeaderParameterRequired              = errors.New("FEE-0020")
 	ErrInvalidTransactionType               = errors.New("FEE-0021")
 	ErrCalculateFee                         = errors.New("FEE-0022")
 	ErrCalculationRequired                  = errors.New("FEE-0023")

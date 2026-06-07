@@ -15,6 +15,7 @@ import (
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	feehttp "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -43,7 +44,7 @@ type BillingCalculateHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization		header		string							false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string							true	"The unique identifier of the Organization."
+//	@Param			organization_id		path		string							true	"The unique identifier of the Organization."
 //	@Param			billingCalculate	body		model.BillingCalculateRequest	true	"Billing Calculation Input"
 //	@Success		200					{object}	model.BillingCalculateResponse
 //	@Failure		400					{object}	mmodel.Error
@@ -52,7 +53,7 @@ type BillingCalculateHandler struct {
 //	@Failure		404					{object}	mmodel.Error
 //	@Failure		422					{object}	mmodel.Error
 //	@Failure		500					{object}	mmodel.Error
-//	@Router			/v1/billing/calculate [post]
+//	@Router			/v1/organizations/{organization_id}/billing/calculate [post]
 func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -61,12 +62,10 @@ func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) er
 	ctx, span := tracer.Start(ctx, "handler.calculate_billing")
 	defer span.End()
 
-	orgVal, orgOK := c.Locals(feeOrgIDHeaderParameter).(uuid.UUID)
-	if !orgOK {
-		return feehttp.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrHeaderParameterRequired, "", feeOrgIDHeaderParameter))
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
 	}
-
-	organizationID := orgVal
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -79,7 +78,7 @@ func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) er
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to calculate billing: ledger=%s, period=%s, type=%s",
 		payload.LedgerID, payload.Period, payload.Type))
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
 	}
