@@ -13,13 +13,13 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/template"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/mock/gomock"
 )
 
@@ -84,11 +84,11 @@ func TestUseCase_GetTemplateByID(t *testing.T) {
 				mockTempRepo := template.NewMockRepository(ctrl)
 				mockTempRepo.EXPECT().
 					FindByID(gomock.Any(), gomock.Any()).
-					Return(nil, mongo.ErrNoDocuments)
+					Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTemplate))
 				return &UseCase{Logger: log.NewNop(), Tracer: noop.NewTracerProvider().Tracer("test"), TemplateRepo: mockTempRepo}
 			},
 			expectErr:      true,
-			errContains:    "No template entity was found",
+			errContains:    "No entity was found",
 			expectedResult: nil,
 		},
 	}

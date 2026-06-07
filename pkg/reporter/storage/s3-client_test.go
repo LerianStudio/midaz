@@ -832,22 +832,22 @@ func TestS3Client_SentinelErrors(t *testing.T) {
 		{
 			name:    "ErrBucketRequired",
 			err:     ErrBucketRequired,
-			wantMsg: "TPL-0041",
+			wantMsg: "0271",
 		},
 		{
 			name:    "ErrKeyRequired",
 			err:     ErrKeyRequired,
-			wantMsg: "TPL-0042",
+			wantMsg: "0272",
 		},
 		{
 			name:    "ErrObjectNotFound",
 			err:     ErrObjectNotFound,
-			wantMsg: "TPL-0043",
+			wantMsg: "0273",
 		},
 		{
 			name:    "ErrTTLNotSupported",
 			err:     ErrTTLNotSupported,
-			wantMsg: "TPL-0044",
+			wantMsg: "0274",
 		},
 	}
 

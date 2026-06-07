@@ -12,7 +12,8 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/deadline"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/template"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
@@ -307,7 +308,7 @@ func TestUseCase_CreateDeadline(t *testing.T) {
 				return &UseCase{Logger: log.NewNop(), Tracer: noop.NewTracerProvider().Tracer("test")}
 			},
 			expectErr:   true,
-			errContains: constant.ErrMissingRequiredFields.Error(),
+			errContains: constant.ErrMissingFieldsInRequest.Error(),
 		},
 		{
 			name: "Error - Repository Create fails",
@@ -352,7 +353,7 @@ func TestUseCase_CreateDeadline(t *testing.T) {
 
 				mockTemplateRepo.EXPECT().
 					FindByID(gomock.Any(), templateID).
-					Return(nil, mongo.ErrNoDocuments)
+					Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTemplate))
 
 				return &UseCase{
 					Logger:       log.NewNop(),
@@ -362,7 +363,7 @@ func TestUseCase_CreateDeadline(t *testing.T) {
 				}
 			},
 			expectErr:   true,
-			errContains: "template",
+			errContains: "No entity was found",
 		},
 	}
 

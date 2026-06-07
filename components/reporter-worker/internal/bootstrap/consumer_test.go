@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/components/reporter-worker/internal/services"
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	reportData "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs/template"
@@ -54,8 +55,8 @@ func TestMultiQueueConsumer_HandlerGenerateReport_ErrorClassification(t *testing
 				// Template repo returns a business error (ValidationError)
 				mockTemplateRepo.EXPECT().
 					Get(gomock.Any(), gomock.Any()).
-					Return(nil, pkg.ValidationError{
-						Code:    "TPL-0001",
+					Return(nil, pkgErr.ValidationError{
+						Code:    "0009",
 						Title:   "Missing required fields",
 						Message: "template validation failed",
 					})
@@ -130,8 +131,8 @@ func TestMultiQueueConsumer_HandlerGenerateReport_ErrorClassification(t *testing
 				// Template repo returns an EntityNotFoundError (business error)
 				mockTemplateRepo.EXPECT().
 					Get(gomock.Any(), gomock.Any()).
-					Return(nil, pkg.EntityNotFoundError{
-						Code:    "TPL-0010",
+					Return(nil, pkgErr.EntityNotFoundError{
+						Code:    "0256",
 						Title:   "Entity Not Found",
 						Message: "template not found in storage",
 					})

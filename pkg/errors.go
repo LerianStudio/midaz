@@ -247,6 +247,55 @@ func (r ValidationUnknownFieldsError) Error() string {
 // UnknownFields is a map of unknown fields and their error messages.
 type UnknownFields map[string]any
 
+// IsBusinessError reports whether err is a business/domain error (validation, not-found,
+// conflict, auth) as opposed to a technical/infrastructure error. Business errors should
+// use HandleSpanBusinessErrorEvent so they don't pollute error-rate metrics with expected
+// conditions. Wrapped errors are unwrapped via errors.As.
+func IsBusinessError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var notFoundErr EntityNotFoundError
+	if errors.As(err, &notFoundErr) {
+		return true
+	}
+
+	var validationErr ValidationError
+	if errors.As(err, &validationErr) {
+		return true
+	}
+
+	var conflictErr EntityConflictError
+	if errors.As(err, &conflictErr) {
+		return true
+	}
+
+	var unauthorizedErr UnauthorizedError
+	if errors.As(err, &unauthorizedErr) {
+		return true
+	}
+
+	var forbiddenErr ForbiddenError
+	if errors.As(err, &forbiddenErr) {
+		return true
+	}
+
+	var unprocessableErr UnprocessableOperationError
+	if errors.As(err, &unprocessableErr) {
+		return true
+	}
+
+	var validationKnownFieldsErr ValidationKnownFieldsError
+	if errors.As(err, &validationKnownFieldsErr) {
+		return true
+	}
+
+	var validationUnknownFieldsErr ValidationUnknownFieldsError
+
+	return errors.As(err, &validationUnknownFieldsErr)
+}
+
 // Methods to create errors for different scenarios:
 
 // ValidateInternalError validates the error and returns an appropriate InternalServerError.
@@ -1294,6 +1343,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrNoBalanceDataAtTimestamp.Error(),
 			Title:      "No Balance Data at Date",
 			Message:    "No balance data is available at the specified date.",
+		},
+		constant.ErrRouteNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrRouteNotFound.Error(),
+			Title:      "Route Not Found",
+			Message:    "The requested route does not exist. Please verify the HTTP method and path and try again.",
+		},
+		constant.ErrMethodNotAllowed: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMethodNotAllowed.Error(),
+			Title:      "Method Not Allowed",
+			Message:    "The HTTP method is not allowed for the requested route. Please verify the method and try again.",
 		},
 		constant.ErrPayloadTooLarge: ValidationError{
 			EntityType: entityType,

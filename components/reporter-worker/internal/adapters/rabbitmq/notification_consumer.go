@@ -7,8 +7,8 @@ package rabbitmq
 import (
 	"context"
 
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
@@ -54,7 +54,7 @@ func (h *NotificationConsumerHandler) Handle(ctx context.Context, body []byte) e
 
 	err := h.handler.ProcessFetcherNotification(ctx, body)
 	if err != nil {
-		if pkgHTTP.IsBusinessError(err) {
+		if pkgErr.IsBusinessError(err) {
 			libOtel.HandleSpanBusinessErrorEvent(span, "Error processing Fetcher notification.", err)
 		} else {
 			libOtel.HandleSpanError(span, "Error processing Fetcher notification.", err)

@@ -15,6 +15,9 @@ import (
 
 	"go.opentelemetry.io/otel/trace/noop"
 
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
+
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
@@ -128,7 +131,7 @@ func TestUseCase_CreateTemplate(t *testing.T) {
 
 				mockTempRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil, constant.ErrInternalServer)
+					Return(nil, cnErr.ErrInternalServer)
 
 				return &UseCase{
 					Logger:            log.NewNop(),
@@ -146,7 +149,7 @@ func TestUseCase_CreateTemplate(t *testing.T) {
 				}
 			},
 			expectErr:   true,
-			errContains: constant.ErrInternalServer.Error(),
+			errContains: cnErr.ErrInternalServer.Error(),
 		},
 		{
 			name:         "Error - Create a template with <script> tag",
@@ -162,7 +165,7 @@ func TestUseCase_CreateTemplate(t *testing.T) {
 				}
 			},
 			expectErr:   true,
-			errContains: constant.ErrScriptTagDetected.Error(),
+			errContains: cnErr.ErrScriptTagDetected.Error(),
 		},
 		{
 			name:         "Error - ReadMultipartFile failure",
@@ -816,7 +819,7 @@ func TestUseCase_CreateTemplate_Idempotency(t *testing.T) {
 				}
 			},
 			expectErr:      true,
-			errContains:    constant.ErrScriptTagDetected.Error(),
+			errContains:    cnErr.ErrScriptTagDetected.Error(),
 			expectedResult: nil,
 			testDesc:       "Failures after acquiring the idempotency lock must release the key so retries are not blocked.",
 		},
@@ -898,7 +901,7 @@ func TestUseCase_CreateTemplate_Idempotency(t *testing.T) {
 				// Redis is unavailable
 				mockRedisRepo.EXPECT().
 					SetNX(gomock.Any(), expectedIdempotencyKey, gomock.Any(), idempotencyTTL).
-					Return(false, constant.ErrInternalServer)
+					Return(false, cnErr.ErrInternalServer)
 
 				return &UseCase{
 					Logger:            log.NewNop(),
@@ -926,7 +929,7 @@ func TestUseCase_CreateTemplate_Idempotency(t *testing.T) {
 				}
 			},
 			expectErr:      true,
-			errContains:    constant.ErrInternalServer.Error(),
+			errContains:    cnErr.ErrInternalServer.Error(),
 			expectedResult: nil,
 			testDesc: "When Redis SetNX fails due to infrastructure error, the service must " +
 				"return an error rather than proceeding without idempotency protection.",
@@ -1021,9 +1024,9 @@ func TestUseCase_HandleDuplicateTemplateRequest_RedisGetKeyVanished(t *testing.T
 	require.Error(t, err)
 	assert.Nil(t, result)
 
-	var conflictErr pkg.EntityConflictError
+	var conflictErr pkgErr.EntityConflictError
 	require.ErrorAs(t, err, &conflictErr)
-	assert.Equal(t, constant.ErrDuplicateRequestInFlight.Error(), conflictErr.Code)
+	assert.Equal(t, cnErr.ErrDuplicateRequestInFlight.Error(), conflictErr.Code)
 }
 
 func TestUseCase_HandleDuplicateTemplateRequest_InvalidCachedJSON(t *testing.T) {

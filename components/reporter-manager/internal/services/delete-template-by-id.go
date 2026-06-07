@@ -7,8 +7,8 @@ package services
 import (
 	"context"
 
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 
 	"github.com/LerianStudio/lib-observability/log"
 	opentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -52,7 +52,7 @@ func (uc *UseCase) DeleteTemplateByID(ctx context.Context, id uuid.UUID, hardDel
 	}
 
 	if err := uc.TemplateRepo.Delete(ctx, id, hardDelete); err != nil {
-		if pkgHTTP.IsBusinessError(err) {
+		if pkgErr.IsBusinessError(err) {
 			opentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete template on repo by id", err)
 		} else {
 			opentelemetry.HandleSpanError(span, "Failed to delete template on repo by id", err)

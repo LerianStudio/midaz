@@ -15,10 +15,10 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 
 	"github.com/LerianStudio/midaz/v4/components/reporter-manager/internal/services"
+	netHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	_ "github.com/LerianStudio/midaz/v4/pkg/reporter" // swag: resolves pkg.HTTPError in annotations
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
-
+	http "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -152,7 +152,7 @@ func (mh *MetricsHandler) GetMetrics(c *fiber.Ctx) error {
 			libOpentelemetry.HandleSpanError(span, "Failed to fetch metrics", e)
 			mh.service.Logger.Log(ctx, log.LevelError, "Failed to fetch metrics", log.Err(e))
 
-			return http.WithError(c, e)
+			return netHTTP.WithError(c, e)
 		}
 	}
 

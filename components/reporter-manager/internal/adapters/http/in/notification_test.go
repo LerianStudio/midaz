@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/deadline"
 
+	midazHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -30,9 +31,7 @@ import (
 func setupNotificationTestApp(handler *NotificationHandler) *fiber.App {
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": err.Error(),
-			})
+			return midazHTTP.WithError(c, err)
 		},
 	})
 
@@ -357,7 +356,7 @@ func TestNotificationHandler_GetNotifications(t *testing.T) {
 			checkBody: func(t *testing.T, body []byte) {
 				var resp map[string]any
 				require.NoError(t, json.Unmarshal(body, &resp))
-				assert.Equal(t, "TPL-0018", resp["code"])
+				assert.Equal(t, "0046", resp["code"])
 				assert.Equal(t, "Internal Server Error", resp["title"])
 				assert.Contains(t, resp["message"], "The server encountered an unexpected error")
 			},

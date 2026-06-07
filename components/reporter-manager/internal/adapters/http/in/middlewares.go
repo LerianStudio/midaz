@@ -8,11 +8,10 @@ import (
 	"regexp"
 	"strings"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
-
 	"github.com/LerianStudio/lib-commons/v5/commons"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
+	http "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/google/uuid"

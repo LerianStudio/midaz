@@ -6,12 +6,14 @@ package template
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
@@ -125,12 +127,12 @@ func (tm *TemplateMongoDBRepository) FindByID(ctx context.Context, id uuid.UUID)
 		FindOne(ctx, filter).
 		Decode(&record); err != nil {
 		libOpentelemetry.HandleSpanError(spanFindOne, "Failed to find template by entity", err)
-		return nil, err
+		return nil, mapTemplateNotFound(err)
 	}
 
 	if nil == record {
 		libOpentelemetry.HandleSpanError(span, "Template record is nil after decode", mongo.ErrNoDocuments)
-		return nil, mongo.ErrNoDocuments
+		return nil, mapTemplateNotFound(mongo.ErrNoDocuments)
 	}
 
 	spanFindOne.End()
@@ -326,7 +328,7 @@ func (tm *TemplateMongoDBRepository) FindOutputFormatByID(ctx context.Context, i
 		FindOne(ctx, filter, opts).
 		Decode(&record); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to find template output_format by entity", err)
-		return nil, err
+		return nil, mapTemplateNotFound(err)
 	}
 
 	return &record.OutputFormat, nil
@@ -352,7 +354,7 @@ func (tm *TemplateMongoDBRepository) FindOutputFormatByIDIncludeDeleted(ctx cont
 	opts := options.FindOne().SetProjection(bson.M{"output_format": 1, "_id": 0})
 
 	if err = coll.FindOne(ctx, bson.M{"_id": id}, opts).Decode(&record); err != nil {
-		return nil, err
+		return nil, mapTemplateNotFound(err)
 	}
 
 	return &record.OutputFormat, nil
@@ -433,7 +435,7 @@ func (tm *TemplateMongoDBRepository) Update(ctx context.Context, id uuid.UUID, u
 
 	if result.MatchedCount == 0 {
 		spanUpdate.End()
-		return mongo.ErrNoDocuments
+		return mapTemplateNotFound(mongo.ErrNoDocuments)
 	}
 
 	spanUpdate.End()
@@ -486,7 +488,7 @@ func (tm *TemplateMongoDBRepository) Delete(ctx context.Context, id uuid.UUID, h
 		spanDelete.End()
 
 		if deleted.DeletedCount == 0 {
-			return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionTemplate)
+			return mapTemplateNotFound(mongo.ErrNoDocuments)
 		}
 	} else {
 		update := bson.D{
@@ -503,7 +505,7 @@ func (tm *TemplateMongoDBRepository) Delete(ctx context.Context, id uuid.UUID, h
 		}
 
 		if updateResult.MatchedCount == 0 {
-			return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionTemplate)
+			return mapTemplateNotFound(mongo.ErrNoDocuments)
 		}
 	}
 
@@ -553,8 +555,20 @@ func (tm *TemplateMongoDBRepository) FindMappedFieldsAndOutputFormatByID(ctx con
 		FindOne(ctx, filter, opts).
 		Decode(&record); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to find template output_format and mapped_fields by entity ID", err)
-		return nil, nil, "", err
+		return nil, nil, "", mapTemplateNotFound(err)
 	}
 
 	return &record.OutputFormat, record.MappedFields, record.Description, nil
+}
+
+// mapTemplateNotFound maps the MongoDB driver's not-found sentinel to the canonical
+// typed not-found error at the adapter boundary, so callers receive a 404-rendering
+// error instead of the raw driver error (which would render 500). Other errors pass
+// through unchanged.
+func mapTemplateNotFound(err error) error {
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, cnErr.EntityTemplate, constant.MongoCollectionTemplate)
+	}
+
+	return err
 }

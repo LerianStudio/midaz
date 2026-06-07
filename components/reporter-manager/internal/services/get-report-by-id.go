@@ -8,7 +8,8 @@ import (
 	"context"
 	"errors"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
@@ -16,7 +17,6 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	opentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -37,8 +37,8 @@ func (uc *UseCase) GetReportByID(ctx context.Context, id uuid.UUID) (*report.Rep
 	if err != nil {
 		uc.Logger.Log(ctx, log.LevelError, "Error getting report on repo by id", log.Err(err))
 
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			errNotFound := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionReport)
+		if nf := (pkg.EntityNotFoundError{}); errors.As(err, &nf) {
+			errNotFound := pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, "", constant.MongoCollectionReport)
 
 			opentelemetry.HandleSpanBusinessErrorEvent(span, "Report not found", errNotFound)
 

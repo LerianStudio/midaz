@@ -7,12 +7,20 @@ package rabbitmq
 import (
 	"context"
 	"errors"
-	"strings"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 )
+
+// permanentReporterCodes are canonical wire codes that map to InternalServerError
+// (5xx, not part of the business-error set) yet represent permanent failures that
+// will never succeed on retry. They are inspected via the typed error's Code field.
+var permanentReporterCodes = map[string]struct{}{
+	constant.ErrTemplateRenderFailed.Error(): {}, // 0289: render failure, deterministic
+	constant.ErrExtractionJobFailed.Error():  {}, // 0287: extraction job failure
+}
 
 // ErrorClassifier classifies errors for retry eligibility in RabbitMQ message processing.
 // Implementations determine whether a failed message should be retried or sent to DLQ.
@@ -26,8 +34,8 @@ type ErrorClassifier interface {
 }
 
 // DefaultErrorClassifier is the standard error classifier for the reporter service.
-// It classifies business validation errors, template errors (TPL-XXXX), and
-// permanent tenant-manager errors as non-retryable. All other errors are retryable.
+// It classifies business/domain errors, permanent reporter codes, and permanent
+// tenant-manager errors as non-retryable. All other errors are retryable.
 type DefaultErrorClassifier struct{}
 
 // NewDefaultErrorClassifier creates a new DefaultErrorClassifier.
@@ -36,9 +44,9 @@ func NewDefaultErrorClassifier() *DefaultErrorClassifier {
 }
 
 // IsRetryable classifies an error as retryable or non-retryable.
-// Business validation errors (TPL-XXXX codes) are non-retryable because retrying
-// will not change the outcome. Network, timeout, and unknown errors are retryable
-// as transient failures may resolve on subsequent attempts.
+// Business/domain errors and permanent reporter codes are non-retryable because
+// retrying will not change the outcome. Network, timeout, and unknown errors are
+// retryable as transient failures may resolve on subsequent attempts.
 func (c *DefaultErrorClassifier) IsRetryable(err error) bool {
 	if err == nil {
 		return false
@@ -48,11 +56,11 @@ func (c *DefaultErrorClassifier) IsRetryable(err error) bool {
 		return false
 	}
 
-	if strings.Contains(err.Error(), "TPL-") {
+	if isNonRetryableDomainError(err) {
 		return false
 	}
 
-	if isNonRetryableDomainError(err) {
+	if isPermanentReporterCode(err) {
 		return false
 	}
 
@@ -160,4 +168,19 @@ func isNonRetryableDomainError(err error) bool {
 	var preconditionErr pkg.FailedPreconditionError
 
 	return errors.As(err, &preconditionErr)
+}
+
+// isPermanentReporterCode reports whether err carries a canonical reporter code
+// that maps to a 5xx typed error yet is permanent (won't succeed on retry).
+// These are not part of the business-error set, so isNonRetryableDomainError
+// does not catch them; they are matched by their Code field.
+func isPermanentReporterCode(err error) bool {
+	var internalErr pkg.InternalServerError
+	if errors.As(err, &internalErr) {
+		if _, ok := permanentReporterCodes[internalErr.Code]; ok {
+			return true
+		}
+	}
+
+	return false
 }

@@ -15,9 +15,9 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/reporter-worker/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v4/components/reporter-worker/internal/services"
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/readyz"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
@@ -277,7 +277,7 @@ func (mq *MultiQueueConsumer) handlerGenerateReport(ctx context.Context, body []
 
 	err := mq.UseCase.GenerateReport(ctx, body)
 	if err != nil {
-		if pkgHTTP.IsBusinessError(err) {
+		if pkgErr.IsBusinessError(err) {
 			opentelemetry.HandleSpanBusinessErrorEvent(span, "Error generating report.", err)
 		} else {
 			opentelemetry.HandleSpanError(span, "Error generating report.", err)

@@ -6,11 +6,13 @@ package deadline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
@@ -141,12 +143,12 @@ func (dr *DeadlineMongoDBRepository) FindByID(ctx context.Context, id uuid.UUID)
 		FindOne(ctx, filter).
 		Decode(&record); err != nil {
 		libOpentelemetry.HandleSpanError(spanFindOne, "Failed to find deadline by entity", err)
-		return nil, err
+		return nil, mapDeadlineNotFound(err)
 	}
 
 	if nil == record {
 		libOpentelemetry.HandleSpanError(span, "Deadline record is nil after decode", err)
-		return nil, mongo.ErrNoDocuments
+		return nil, mapDeadlineNotFound(mongo.ErrNoDocuments)
 	}
 
 	spanFindOne.End()
@@ -382,7 +384,7 @@ func (dr *DeadlineMongoDBRepository) Update(ctx context.Context, id uuid.UUID, u
 
 	if result.MatchedCount == 0 {
 		spanUpdate.End()
-		return mongo.ErrNoDocuments
+		return mapDeadlineNotFound(mongo.ErrNoDocuments)
 	}
 
 	spanUpdate.End()
@@ -436,7 +438,7 @@ func (dr *DeadlineMongoDBRepository) Delete(ctx context.Context, id uuid.UUID) e
 	}
 
 	if updateResult.MatchedCount == 0 {
-		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionDeadline)
+		return mapDeadlineNotFound(mongo.ErrNoDocuments)
 	}
 
 	spanDelete.End()
@@ -557,4 +559,15 @@ func (dl *DeadlineMongoDBRepository) FindActiveNotifiable(ctx context.Context) (
 	}
 
 	return deadlines, nil
+}
+
+// mapDeadlineNotFound maps the MongoDB driver's not-found sentinel to the canonical
+// typed not-found error at the adapter boundary, so callers receive a 404-rendering
+// error instead of the raw driver error. Other errors pass through unchanged.
+func mapDeadlineNotFound(err error) error {
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, cnErr.EntityDeadline, constant.MongoCollectionDeadline)
+	}
+
+	return err
 }

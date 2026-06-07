@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 
@@ -98,11 +100,11 @@ func normalizeParams(params map[string]string) map[string]string {
 func parsePositiveInt(value, paramName string) (int, error) {
 	parsed, err := strconv.Atoi(value)
 	if err != nil {
-		return 0, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", paramName)
+		return 0, pkgErr.ValidateBusinessError(cn.ErrInvalidQueryParameter, "", paramName)
 	}
 
 	if parsed < 1 {
-		return 0, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", paramName)
+		return 0, pkgErr.ValidateBusinessError(cn.ErrInvalidQueryParameter, "", paramName)
 	}
 
 	return parsed, nil
@@ -120,7 +122,7 @@ func parseFilterParams(qh *QueryHeader, key, value string) error {
 	case "created_at":
 		parsed, errParse := time.Parse("2006-01-02", value)
 		if errParse != nil {
-			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "created_at")
+			return pkgErr.ValidateBusinessError(cn.ErrInvalidQueryParameter, "", "created_at")
 		}
 
 		qh.CreatedAt = parsed
@@ -133,26 +135,26 @@ func parseFilterParams(qh *QueryHeader, key, value string) error {
 			b := false
 			qh.Active = &b
 		default:
-			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "active")
+			return pkgErr.ValidateBusinessError(cn.ErrInvalidQueryParameter, "", "active")
 		}
 	case "type":
 		qh.Type = value
 	case "start_date":
 		parsed, err := time.Parse("2006-01-02", value)
 		if err != nil {
-			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "start_date")
+			return pkgErr.ValidateBusinessError(cn.ErrInvalidQueryParameter, "", "start_date")
 		}
 
 		qh.StartDate = parsed
 	case "end_date":
 		parsed, err := time.Parse("2006-01-02", value)
 		if err != nil {
-			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "end_date")
+			return pkgErr.ValidateBusinessError(cn.ErrInvalidQueryParameter, "", "end_date")
 		}
 
 		qh.EndDate = parsed
 	default:
-		return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", key)
+		return pkgErr.ValidateBusinessError(cn.ErrInvalidQueryParameter, "", key)
 	}
 
 	return nil
@@ -180,14 +182,14 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			qh.UseMetadata = true
 		case key == "output_format":
 			if !pkg.IsOutputFormatValuesValid(&value) {
-				return nil, pkg.ValidateBusinessError(constant.ErrInvalidOutputFormat, "")
+				return nil, pkgErr.ValidateBusinessError(cn.ErrInvalidOutputFormat, "")
 			}
 
 			qh.OutputFormat = value
 		case key == "template_id":
 			parsedID, err := uuid.Parse(value)
 			if err != nil {
-				return nil, pkg.ValidateBusinessError(constant.ErrInvalidTemplateID, "")
+				return nil, pkgErr.ValidateBusinessError(cn.ErrInvalidTemplateID, "")
 			}
 
 			qh.TemplateID = parsedID
@@ -227,11 +229,11 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 // GetFileFromHeader method that get file from header and give a string
 func GetFileFromHeader(fileHeader *multipart.FileHeader) (string, error) {
 	if !strings.Contains(fileHeader.Filename, fileExtension) {
-		return "", pkg.ValidateBusinessError(constant.ErrInvalidFileFormat, "")
+		return "", pkgErr.ValidateBusinessError(cn.ErrInvalidFileFormat, "")
 	}
 
 	if fileHeader.Size == 0 {
-		return "", pkg.ValidateBusinessError(constant.ErrEmptyFile, "")
+		return "", pkgErr.ValidateBusinessError(cn.ErrEmptyFile, "")
 	}
 
 	file, err := fileHeader.Open()
@@ -245,7 +247,7 @@ func GetFileFromHeader(fileHeader *multipart.FileHeader) (string, error) {
 
 	buf := new(bytes.Buffer)
 	if _, err := io.Copy(buf, file); err != nil {
-		return "", pkg.ValidateBusinessError(constant.ErrInvalidFileUploaded, "", err)
+		return "", pkgErr.ValidateBusinessError(cn.ErrInvalidFileUploaded, "", err)
 	}
 
 	fileString := buf.String()
@@ -267,17 +269,17 @@ func validatePagination(cursor, sortOrder string, limit int) error {
 	maxPaginationLimit := pkg.SafeInt64ToInt(pkg.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", constant.DefaultMaxPaginationLimit))
 
 	if limit > maxPaginationLimit {
-		return pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)
+		return pkgErr.ValidateBusinessError(cn.ErrPaginationLimitExceeded, "", maxPaginationLimit)
 	}
 
 	if (sortOrder != string(constant.Asc)) && (sortOrder != string(constant.Desc)) {
-		return pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "")
+		return pkgErr.ValidateBusinessError(cn.ErrInvalidSortOrder, "")
 	}
 
 	if !pkg.IsNilOrEmpty(&cursor) {
 		_, err := DecodeCursor(cursor)
 		if err != nil {
-			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor")
+			return pkgErr.ValidateBusinessError(cn.ErrInvalidQueryParameter, "", "cursor")
 		}
 	}
 

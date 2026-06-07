@@ -12,7 +12,8 @@ import (
 
 	"go.opentelemetry.io/otel/trace/noop"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
@@ -27,7 +28,6 @@ import (
 	goRedis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/mock/gomock"
 )
 
@@ -116,7 +116,7 @@ func TestUseCase_CreateReport(t *testing.T) {
 
 				mockTempRepo.EXPECT().
 					FindMappedFieldsAndOutputFormatByID(gomock.Any(), gomock.Any()).
-					Return(nil, nil, "", constant.ErrInternalServer)
+					Return(nil, nil, "", cnErr.ErrInternalServer)
 
 				return &UseCase{
 					Logger:       log.NewNop(),
@@ -127,7 +127,7 @@ func TestUseCase_CreateReport(t *testing.T) {
 				}
 			},
 			expectErr:      true,
-			errContains:    constant.ErrInternalServer.Error(),
+			errContains:    cnErr.ErrInternalServer.Error(),
 			expectedResult: nil,
 		},
 		{
@@ -144,7 +144,7 @@ func TestUseCase_CreateReport(t *testing.T) {
 
 				mockReportRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil, constant.ErrInternalServer)
+					Return(nil, cnErr.ErrInternalServer)
 
 				return &UseCase{
 					Logger:       log.NewNop(),
@@ -155,7 +155,7 @@ func TestUseCase_CreateReport(t *testing.T) {
 				}
 			},
 			expectErr:      true,
-			errContains:    constant.ErrInternalServer.Error(),
+			errContains:    cnErr.ErrInternalServer.Error(),
 			expectedResult: nil,
 		},
 		{
@@ -176,7 +176,7 @@ func TestUseCase_CreateReport(t *testing.T) {
 
 				mockRabbitMQ.EXPECT().
 					ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, constant.ErrInternalServer)
+					Return(nil, cnErr.ErrInternalServer)
 
 				// Expect the report status to be updated to error when queue send fails
 				mockReportRepo.EXPECT().
@@ -192,7 +192,7 @@ func TestUseCase_CreateReport(t *testing.T) {
 				}
 			},
 			expectErr:      true,
-			errContains:    constant.ErrInternalServer.Error(),
+			errContains:    cnErr.ErrInternalServer.Error(),
 			expectedResult: nil,
 		},
 		{
@@ -224,7 +224,7 @@ func TestUseCase_CreateReport(t *testing.T) {
 
 				mockTempRepo.EXPECT().
 					FindMappedFieldsAndOutputFormatByID(gomock.Any(), gomock.Any()).
-					Return(nil, nil, "", mongo.ErrNoDocuments)
+					Return(nil, nil, "", pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, cnErr.EntityTemplate))
 
 				return &UseCase{
 					Logger:       log.NewNop(),
@@ -235,7 +235,7 @@ func TestUseCase_CreateReport(t *testing.T) {
 				}
 			},
 			expectErr:      true,
-			errContains:    "template",
+			errContains:    "No entity was found",
 			expectedResult: nil,
 		},
 		{
@@ -295,12 +295,12 @@ func TestUseCase_CreateReport(t *testing.T) {
 
 				mockRabbitMQ.EXPECT().
 					ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, constant.ErrInternalServer)
+					Return(nil, cnErr.ErrInternalServer)
 
 				// Expect the report status update to also fail
 				mockReportRepo.EXPECT().
 					UpdateReportStatusById(gomock.Any(), constant.ErrorStatus, reportId, gomock.Any(), gomock.Any()).
-					Return(constant.ErrInternalServer)
+					Return(cnErr.ErrInternalServer)
 
 				return &UseCase{
 					Logger:       log.NewNop(),
@@ -311,7 +311,7 @@ func TestUseCase_CreateReport(t *testing.T) {
 				}
 			},
 			expectErr:      true,
-			errContains:    constant.ErrInternalServer.Error(),
+			errContains:    cnErr.ErrInternalServer.Error(),
 			expectedResult: nil,
 		},
 	}
@@ -637,7 +637,7 @@ func TestUseCase_CreateReport_Idempotency(t *testing.T) {
 
 				mockTempRepo.EXPECT().
 					FindMappedFieldsAndOutputFormatByID(gomock.Any(), gomock.Any()).
-					Return(nil, nil, "", constant.ErrEntityNotFound)
+					Return(nil, nil, "", cnErr.ErrEntityNotFound)
 
 				mockRedisRepo.EXPECT().
 					Del(gomock.Any(), expectedIdempotencyKey).
@@ -716,7 +716,7 @@ func TestUseCase_CreateReport_Idempotency(t *testing.T) {
 				// Redis is unavailable
 				mockRedisRepo.EXPECT().
 					SetNX(gomock.Any(), expectedIdempotencyKey, gomock.Any(), idempotencyTTL).
-					Return(false, constant.ErrInternalServer)
+					Return(false, cnErr.ErrInternalServer)
 
 				return &UseCase{
 					Logger:       log.NewNop(),
@@ -918,7 +918,7 @@ func TestUseCase_HandleDuplicateRequest_RedisGetKeyVanished(t *testing.T) {
 
 	var conflictErr pkg.EntityConflictError
 	require.ErrorAs(t, err, &conflictErr)
-	assert.Equal(t, constant.ErrDuplicateRequestInFlight.Error(), conflictErr.Code)
+	assert.Equal(t, cnErr.ErrDuplicateRequestInFlight.Error(), conflictErr.Code)
 }
 
 func TestUseCase_HandleDuplicateRequest_InvalidCachedJSON(t *testing.T) {

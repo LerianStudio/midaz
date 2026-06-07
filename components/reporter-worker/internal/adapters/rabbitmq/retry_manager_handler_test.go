@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
+
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/reporter/rabbitmq"
@@ -110,7 +112,7 @@ func TestHandleFailure_NonRetryableError_SendsToDLQ(t *testing.T) {
 	message := buildDelivery(ack, nil)
 	span := testSpan()
 
-	nonRetryableErr := pkg.ValidationError{
+	nonRetryableErr := pkgErr.ValidationError{
 		Code:    "VAL-001",
 		Title:   "Validation Error",
 		Message: "invalid field",

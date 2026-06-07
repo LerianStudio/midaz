@@ -10,8 +10,9 @@ import (
 	"fmt"
 	"testing"
 
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
 	pg "github.com/LerianStudio/midaz/v4/pkg/reporter/postgres"
 
@@ -174,8 +175,10 @@ func TestDirectProvider_GetDataSourceSchema_NilPostgresRepository(t *testing.T) 
 	require.Error(t, err)
 	assert.Nil(t, schema)
 	// nil PostgresRepository is caught by the unavailability check before reaching
-	// getPostgresSchema, so the error is ErrDataSourceUnavailable (TPL-0058).
-	assert.Contains(t, err.Error(), constant.ErrDataSourceUnavailable.Error())
+	// getPostgresSchema, so the error is ErrDataSourceUnavailable (0285).
+	var unavailableErr pkgErr.ServiceUnavailableError
+	require.ErrorAs(t, err, &unavailableErr)
+	assert.Equal(t, constant.ErrDataSourceUnavailable.Error(), unavailableErr.Code)
 }
 
 // H3: Test nil MongoDBRepository returns error.
@@ -197,8 +200,10 @@ func TestDirectProvider_GetDataSourceSchema_NilMongoDBRepository(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, schema)
 	// nil MongoDBRepository is caught by the unavailability check before reaching
-	// getMongoDBSchema, so the error is ErrDataSourceUnavailable (TPL-0058).
-	assert.Contains(t, err.Error(), constant.ErrDataSourceUnavailable.Error())
+	// getMongoDBSchema, so the error is ErrDataSourceUnavailable (0285).
+	var unavailableErr pkgErr.ServiceUnavailableError
+	require.ErrorAs(t, err, &unavailableErr)
+	assert.Equal(t, constant.ErrDataSourceUnavailable.Error(), unavailableErr.Code)
 }
 
 // H4: Test repository error propagates correctly.

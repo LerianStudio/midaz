@@ -8,8 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
-
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 )
 
@@ -39,15 +38,15 @@ type Template struct {
 //   - error: Wrapped ErrMissingRequiredFields if any invariant is violated
 func NewTemplate(id uuid.UUID, outputFormat, description, fileName string) (*Template, error) {
 	if id == uuid.Nil {
-		return nil, fmt.Errorf("template id must not be nil: %w", constant.ErrMissingRequiredFields)
+		return nil, fmt.Errorf("template id must not be nil: %w", constant.ErrMissingFieldsInRequest)
 	}
 
 	if outputFormat == "" {
-		return nil, fmt.Errorf("template outputFormat must not be empty: %w", constant.ErrMissingRequiredFields)
+		return nil, fmt.Errorf("template outputFormat must not be empty: %w", constant.ErrMissingFieldsInRequest)
 	}
 
 	if fileName == "" {
-		return nil, fmt.Errorf("template fileName must not be empty: %w", constant.ErrMissingRequiredFields)
+		return nil, fmt.Errorf("template fileName must not be empty: %w", constant.ErrMissingFieldsInRequest)
 	}
 
 	now := time.Now()

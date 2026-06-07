@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
+
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 )
@@ -424,7 +426,7 @@ func TestNewReport(t *testing.T) {
 			status:      constant.ProcessingStatus,
 			filters:     validFilters,
 			wantErr:     true,
-			expectedErr: constant.ErrMissingRequiredFields,
+			expectedErr: cnErr.ErrMissingFieldsInRequest,
 		},
 		{
 			name:        "nil templateID returns error",
@@ -433,7 +435,7 @@ func TestNewReport(t *testing.T) {
 			status:      constant.ProcessingStatus,
 			filters:     validFilters,
 			wantErr:     true,
-			expectedErr: constant.ErrMissingRequiredFields,
+			expectedErr: cnErr.ErrMissingFieldsInRequest,
 		},
 		{
 			name:        "empty status returns error",
@@ -442,7 +444,7 @@ func TestNewReport(t *testing.T) {
 			status:      "",
 			filters:     validFilters,
 			wantErr:     true,
-			expectedErr: constant.ErrMissingRequiredFields,
+			expectedErr: cnErr.ErrMissingFieldsInRequest,
 		},
 	}
 

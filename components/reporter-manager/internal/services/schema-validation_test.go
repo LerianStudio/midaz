@@ -101,7 +101,7 @@ func TestUseCase_ValidateSchemaViaProvider(t *testing.T) {
 			},
 			wantWarnings: nil,
 			wantErr:      true,
-			errContains:  "TPL-0059",
+			errContains:  "0286",
 		},
 		{
 			name: "Error - Provider returns error",

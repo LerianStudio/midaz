@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
+
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
@@ -606,7 +608,7 @@ func TestNewReport_Validation(t *testing.T) {
 			status:      constant.ProcessingStatus,
 			filters:     validFilters,
 			wantErr:     true,
-			expectedErr: constant.ErrMissingRequiredFields,
+			expectedErr: cnErr.ErrMissingFieldsInRequest,
 		},
 		{
 			name:        "invalid - nil templateID",
@@ -615,7 +617,7 @@ func TestNewReport_Validation(t *testing.T) {
 			status:      constant.ProcessingStatus,
 			filters:     validFilters,
 			wantErr:     true,
-			expectedErr: constant.ErrMissingRequiredFields,
+			expectedErr: cnErr.ErrMissingFieldsInRequest,
 		},
 		{
 			name:        "invalid - empty status",
@@ -624,7 +626,7 @@ func TestNewReport_Validation(t *testing.T) {
 			status:      "",
 			filters:     validFilters,
 			wantErr:     true,
-			expectedErr: constant.ErrMissingRequiredFields,
+			expectedErr: cnErr.ErrMissingFieldsInRequest,
 		},
 	}
 

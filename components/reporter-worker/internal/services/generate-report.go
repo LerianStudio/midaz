@@ -10,10 +10,10 @@ import (
 	"errors"
 	"time"
 
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
@@ -164,7 +164,7 @@ func (uc *UseCase) handleErrorWithUpdate(ctx context.Context, reportID uuid.UUID
 		return errUpdate
 	}
 
-	if pkgHTTP.IsBusinessError(err) {
+	if pkgErr.IsBusinessError(err) {
 		libOtel.HandleSpanBusinessErrorEvent(*span, errorMsg, err)
 	} else {
 		libOtel.HandleSpanError(*span, errorMsg, err)

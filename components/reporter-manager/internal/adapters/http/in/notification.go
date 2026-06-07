@@ -15,11 +15,11 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 
 	"github.com/LerianStudio/midaz/v4/components/reporter-manager/internal/services"
+	netHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	_ "github.com/LerianStudio/midaz/v4/pkg/reporter" // swag: resolves pkg.HTTPError in annotations
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/deadline"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
-
+	http "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -107,7 +107,7 @@ func (nh *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanError(span, "Failed to fetch notifications", err)
 		nh.service.Logger.Log(ctx, log.LevelError, "Failed to fetch notifications", log.Err(err))
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	now := time.Now().UTC()

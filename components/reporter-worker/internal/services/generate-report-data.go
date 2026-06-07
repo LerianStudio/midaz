@@ -10,6 +10,9 @@ import (
 	"sort"
 	"strings"
 
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
+
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
@@ -61,7 +64,7 @@ func (uc *UseCase) queryDatabase(
 
 	dataSource, exists := uc.ExternalDataSources.Get(databaseName)
 	if !exists {
-		err := pkg.ValidationError{Code: constant.ErrCodeDataSourceNotFound, Title: "Data Source Not Found", Message: fmt.Sprintf("data source not found: %s", databaseName)}
+		err := pkgErr.ValidationError{Code: cnErr.ErrCodeDataSourceNotFound.Error(), Title: "Data Source Not Found", Message: fmt.Sprintf("data source not found: %s", databaseName)}
 		libOtel.HandleSpanError(dbSpan, "Referenced datasource is missing", err)
 		uc.Logger.Log(ctx, log.LevelError, "Referenced datasource is missing, failing report",
 			log.String("database", databaseName))
@@ -84,7 +87,7 @@ func (uc *UseCase) queryDatabase(
 	if !dataSource.Initialized {
 		// Check if datasource is marked as unavailable from initialization
 		if dataSource.Status == libConstants.DataSourceStatusUnavailable {
-			err := pkg.FailedPreconditionError{Code: constant.ErrCodeDataSourceUnavailable, Title: "Data Source Unavailable", Message: fmt.Sprintf("datasource %s is unavailable (initialization failed)", databaseName)}
+			err := pkgErr.FailedPreconditionError{Code: cnErr.ErrCodeDataSourceUnavailable.Error(), Title: "Data Source Unavailable", Message: fmt.Sprintf("datasource %s is unavailable (initialization failed)", databaseName)}
 			libOtel.HandleSpanError(dbSpan, "Datasource unavailable", err)
 			uc.Logger.Log(ctx, log.LevelError, "Datasource is unavailable",
 				log.String("database", databaseName), log.String("last_error", pkg.SanitizeExternalError(dataSource.LastError)))
@@ -113,7 +116,7 @@ func (uc *UseCase) queryDatabase(
 	case pkg.MongoDBType:
 		return uc.queryMongoDatabase(ctx, &dataSource, databaseName, tables, databaseFilters, result)
 	default:
-		return pkg.ValidationError{Code: constant.ErrCodeUnsupportedDatabaseType, Title: "Unsupported Database Type", Message: fmt.Sprintf("unsupported database type: %s for database: %s", dataSource.DatabaseType, databaseName)}
+		return pkgErr.ValidationError{Code: cnErr.ErrCodeUnsupportedDatabaseType.Error(), Title: "Unsupported Database Type", Message: fmt.Sprintf("unsupported database type: %s for database: %s", dataSource.DatabaseType, databaseName)}
 	}
 }
 
@@ -161,7 +164,7 @@ func (uc *UseCase) queryPostgresDatabase(
 		uc.Logger.Log(ctx, log.LevelError, "Unexpected schema result type",
 			log.String("database", databaseName), log.Any("actual_type", schemaResult))
 
-		return pkg.FailedPreconditionError{Code: constant.ErrCodeUnexpectedSchemaResult, Title: "Unexpected Schema Result", Message: fmt.Sprintf("unexpected schema result type for database %s", databaseName)}
+		return pkgErr.FailedPreconditionError{Code: cnErr.ErrCodeUnexpectedSchemaResult.Error(), Title: "Unexpected Schema Result", Message: fmt.Sprintf("unexpected schema result type for database %s", databaseName)}
 	}
 
 	// Initialize SchemaResolver with discovered tables
@@ -230,7 +233,7 @@ func (uc *UseCase) queryPostgresDatabase(
 
 		tableResult, ok := queryResult.([]map[string]any)
 		if !ok {
-			return pkg.FailedPreconditionError{Code: constant.ErrCodeUnexpectedTableResult, Title: "Unexpected Query Result", Message: fmt.Sprintf("unexpected query result type for table %s.%s in %s", schemaName, tableName, databaseName)}
+			return pkgErr.FailedPreconditionError{Code: cnErr.ErrCodeUnexpectedTableResult.Error(), Title: "Unexpected Query Result", Message: fmt.Sprintf("unexpected query result type for table %s.%s in %s", schemaName, tableName, databaseName)}
 		}
 
 		if len(tableFilters) > 0 {
@@ -414,7 +417,7 @@ func (uc *UseCase) processPluginCRMCollection(
 		uc.Logger.Log(ctx, log.LevelError, "Error decrypting data for collection",
 			log.String("collection", collection), log.Err(err))
 
-		return pkg.ValidateBusinessError(constant.ErrDecryptionData, "", err)
+		return pkgErr.ValidateBusinessError(cnErr.ErrDecryptionData, "", err)
 	}
 
 	result["plugin_crm"][collection] = decryptedResult
@@ -502,7 +505,7 @@ func (uc *UseCase) queryMongoCollectionWithFilters(
 
 	collectionResult, ok := queryResult.([]map[string]any)
 	if !ok {
-		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeUnexpectedCollectionResult, Title: "Unexpected Query Result", Message: fmt.Sprintf("unexpected query result type for collection %s in %s", collection, databaseName)}
+		return nil, pkgErr.FailedPreconditionError{Code: cnErr.ErrCodeUnexpectedCollectionResult.Error(), Title: "Unexpected Query Result", Message: fmt.Sprintf("unexpected query result type for collection %s in %s", collection, databaseName)}
 	}
 
 	if len(collectionFilters) > 0 {
@@ -565,7 +568,7 @@ func (uc *UseCase) transformPluginCRMAdvancedFilters(filter map[string]model.Fil
 	}
 
 	if uc.CryptoHashSecretKeyPluginCRM == "" {
-		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeCRMHashKeyNotConfigured, Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM not configured"}
+		return nil, pkgErr.FailedPreconditionError{Code: cnErr.ErrCodeCRMHashKeyNotConfigured.Error(), Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM not configured"}
 	}
 
 	crypto := &libCrypto.Crypto{
@@ -686,11 +689,11 @@ func (uc *UseCase) decryptPluginCRMData(collectionResult []map[string]any, field
 
 	// Initialize crypto instance using centralized configuration
 	if uc.CryptoEncryptSecretKeyPluginCRM == "" {
-		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeCRMEncryptKeyNotConfigured, Title: "CRM Crypto Not Configured", Message: "CRYPTO_ENCRYPT_SECRET_KEY_PLUGIN_CRM not configured"}
+		return nil, pkgErr.FailedPreconditionError{Code: cnErr.ErrCodeCRMEncryptKeyNotConfigured.Error(), Title: "CRM Crypto Not Configured", Message: "CRYPTO_ENCRYPT_SECRET_KEY_PLUGIN_CRM not configured"}
 	}
 
 	if uc.CryptoHashSecretKeyPluginCRM == "" {
-		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeCRMHashKeyNotConfigured, Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM not configured"}
+		return nil, pkgErr.FailedPreconditionError{Code: cnErr.ErrCodeCRMHashKeyNotConfigured.Error(), Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM not configured"}
 	}
 
 	crypto := &libCrypto.Crypto{
@@ -701,14 +704,14 @@ func (uc *UseCase) decryptPluginCRMData(collectionResult []map[string]any, field
 
 	err := crypto.InitializeCipher()
 	if err != nil {
-		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeCipherInitFailed, Title: "Cipher Initialization Failed", Message: fmt.Sprintf("failed to initialize cipher: %s", err.Error()), Err: err}
+		return nil, pkgErr.FailedPreconditionError{Code: cnErr.ErrCodeCipherInitFailed.Error(), Title: "Cipher Initialization Failed", Message: fmt.Sprintf("failed to initialize cipher: %s", err.Error()), Err: err}
 	}
 
 	// Process each record in the collection
 	for i, record := range collectionResult {
 		decryptedRecord, err := uc.decryptRecord(record, crypto)
 		if err != nil {
-			return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeRecordDecryptionFailed, Title: "Decryption Failed", Message: fmt.Sprintf("failed to decrypt record %d: %s", i, err.Error()), Err: err}
+			return nil, pkgErr.FailedPreconditionError{Code: cnErr.ErrCodeRecordDecryptionFailed.Error(), Title: "Decryption Failed", Message: fmt.Sprintf("failed to decrypt record %d: %s", i, err.Error()), Err: err}
 		}
 
 		collectionResult[i] = decryptedRecord

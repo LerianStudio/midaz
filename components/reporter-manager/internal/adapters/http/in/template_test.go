@@ -20,7 +20,7 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 
 	"github.com/LerianStudio/midaz/v4/components/reporter-manager/internal/services"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/template"
 	redisRepo "github.com/LerianStudio/midaz/v4/pkg/reporter/redis"
 	templateSeaweedFS "github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs/template"
@@ -629,7 +629,7 @@ func TestTemplateHandler_CreateTemplate_InvalidUTF8FileContent(t *testing.T) {
 
 	// File content carries invalid UTF-8 byte sequences (replay of fuzz seed
 	// FuzzTemplate_InvalidTags/59acff2ca3d606b6). Templates are text by
-	// definition, so this must be rejected at upload with TPL-0061 / 400 rather
+	// definition, so this must be rejected at upload with 0288 / 400 rather
 	// than accepted and later 500 during report rendering.
 	body, contentType := createMultipartForm(t, "template.tpl", "0\xc9\xc9", "txt", "Test description")
 

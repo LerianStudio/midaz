@@ -14,6 +14,9 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 
 	"github.com/LerianStudio/midaz/v4/components/reporter-manager/internal/services"
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
+	netHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
@@ -54,10 +57,10 @@ func NewTemplateHandler(service *services.UseCase) (*TemplateHandler, error) {
 //	@Param			outputFormat	formData	string	true	"Output format (html, pdf, txt, xml)"
 //	@Param			description		formData	string	false	"Template description"
 //	@Success		201				{object}	TemplateResponse
-//	@Failure		400				{object}	pkg.HTTPError
-//	@Failure		401				{object}	pkg.HTTPError
-//	@Failure		403				{object}	pkg.HTTPError
-//	@Failure		500				{object}	pkg.HTTPError
+//	@Failure		400				{object}	pkgErr.HTTPError
+//	@Failure		401				{object}	pkgErr.HTTPError
+//	@Failure		403				{object}	pkgErr.HTTPError
+//	@Failure		500				{object}	pkgErr.HTTPError
 //	@Router			/v1/templates [post]
 func (th *TemplateHandler) CreateTemplate(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -87,45 +90,45 @@ func (th *TemplateHandler) CreateTemplate(c *fiber.Ctx) error {
 	fileHeader, err := c.FormFile("template")
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get template file from form", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidFileUploaded, "", err))
+		return netHTTP.WithError(c, pkgErr.ValidateBusinessError(cnErr.ErrInvalidFileUploaded, "", err))
 	}
 
 	templateFile, errFile := http.GetFileFromHeader(fileHeader)
 	if errFile != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get file from header", errFile)
-		return http.WithError(c, errFile)
+		return netHTTP.WithError(c, errFile)
 	}
 
 	if errUTF8 := pkg.ValidateUTF8Field("template", templateFile); errUTF8 != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid UTF-8 in template file content", errUTF8)
 		th.service.Logger.Log(ctx, log.LevelWarn, "Template file content is not valid UTF-8", log.Err(errUTF8))
 
-		return http.WithError(c, errUTF8)
+		return netHTTP.WithError(c, errUTF8)
 	}
 
 	if errValidate := pkg.ValidateFormDataFields(&outputFormat, &description); errValidate != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate form data fields", errValidate)
 		th.service.Logger.Log(ctx, log.LevelError, "Error validating form data fields", log.Err(errValidate))
 
-		return http.WithError(c, errValidate)
+		return netHTTP.WithError(c, errValidate)
 	}
 
 	if errValidateFile := pkg.ValidateFileFormat(outputFormat, templateFile); errValidateFile != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate file format", errValidateFile)
 		th.service.Logger.Log(ctx, log.LevelError, "Error validating file format", log.Err(errValidateFile))
 
-		return http.WithError(c, errValidateFile)
+		return netHTTP.WithError(c, errValidateFile)
 	}
 
 	templateOut, warnings, err := th.service.CreateTemplate(ctx, templateFile, outputFormat, description, fileHeader)
 	if err != nil {
-		if http.IsBusinessError(err) {
+		if pkgErr.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create template", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to create template", err)
 		}
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	th.service.Logger.Log(ctx, log.LevelInfo, "Successfully created template", log.String("template_id", templateOut.ID.String()))
@@ -149,11 +152,11 @@ func (th *TemplateHandler) CreateTemplate(c *fiber.Ctx) error {
 //	@Security		BearerAuth
 //	@Param			id		path		string	true	"Template ID"
 //	@Success		200		{object}	template.Template
-//	@Failure		400		{object}	pkg.HTTPError
-//	@Failure		401		{object}	pkg.HTTPError
-//	@Failure		403		{object}	pkg.HTTPError
-//	@Failure		404		{object}	pkg.HTTPError
-//	@Failure		500		{object}	pkg.HTTPError
+//	@Failure		400		{object}	pkgErr.HTTPError
+//	@Failure		401		{object}	pkgErr.HTTPError
+//	@Failure		403		{object}	pkgErr.HTTPError
+//	@Failure		404		{object}	pkgErr.HTTPError
+//	@Failure		500		{object}	pkgErr.HTTPError
 //	@Router			/v1/templates/{id} [get]
 func (th *TemplateHandler) GetTemplateByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -164,7 +167,7 @@ func (th *TemplateHandler) GetTemplateByID(c *fiber.Ctx) error {
 
 	id, ok := c.Locals("id").(uuid.UUID)
 	if !ok {
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "id"))
+		return netHTTP.WithError(c, pkgErr.ValidateBusinessError(cnErr.ErrInvalidPathParameter, "", "id"))
 	}
 
 	th.service.Logger.Log(ctx, log.LevelInfo, "Initiating get template", log.String("template_id", id.String()))
@@ -172,7 +175,7 @@ func (th *TemplateHandler) GetTemplateByID(c *fiber.Ctx) error {
 
 	templateModel, err := th.service.GetTemplateByID(ctx, id)
 	if err != nil {
-		if http.IsBusinessError(err) {
+		if pkgErr.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve template on query", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve template on query", err)
@@ -180,7 +183,7 @@ func (th *TemplateHandler) GetTemplateByID(c *fiber.Ctx) error {
 
 		th.service.Logger.Log(ctx, log.LevelError, "Failed to retrieve template", log.String("template_id", id.String()), log.Err(err))
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	th.service.Logger.Log(ctx, log.LevelInfo, "Successfully retrieved template", log.String("template_id", id.String()))
@@ -198,10 +201,10 @@ func (th *TemplateHandler) GetTemplateByID(c *fiber.Ctx) error {
 //	@Param			limit		query		int		false	"Limit"		default(10)
 //	@Param			page		query		int		false	"Page"		default(1)
 //	@Success		200			{object}	model.Pagination{items=[]template.Template,page=int,limit=int,total=int}
-//	@Failure		400			{object}	pkg.HTTPError
-//	@Failure		401			{object}	pkg.HTTPError
-//	@Failure		403			{object}	pkg.HTTPError
-//	@Failure		500			{object}	pkg.HTTPError
+//	@Failure		400			{object}	pkgErr.HTTPError
+//	@Failure		401			{object}	pkgErr.HTTPError
+//	@Failure		403			{object}	pkgErr.HTTPError
+//	@Failure		500			{object}	pkgErr.HTTPError
 //	@Router			/v1/templates [get]
 func (th *TemplateHandler) GetAllTemplates(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -215,7 +218,7 @@ func (th *TemplateHandler) GetAllTemplates(c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 		th.service.Logger.Log(ctx, log.LevelError, "Failed to validate query parameters", log.Err(err))
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	pagination := model.Pagination{Limit: headerParams.Limit, Page: headerParams.Page}
@@ -229,7 +232,7 @@ func (th *TemplateHandler) GetAllTemplates(c *fiber.Ctx) error {
 
 	templates, err := th.service.GetAllTemplates(ctx, *headerParams)
 	if err != nil {
-		if http.IsBusinessError(err) {
+		if pkgErr.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Templates on query", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve all Templates on query", err)
@@ -237,7 +240,7 @@ func (th *TemplateHandler) GetAllTemplates(c *fiber.Ctx) error {
 
 		th.service.Logger.Log(ctx, log.LevelError, "Failed to retrieve all templates", log.Err(err))
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	if templates == nil {
@@ -249,7 +252,7 @@ func (th *TemplateHandler) GetAllTemplates(c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanError(span, "Failed to count templates on query", err)
 		th.service.Logger.Log(ctx, log.LevelError, "Failed to count templates", log.Err(err))
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	th.service.Logger.Log(ctx, log.LevelInfo, "Successfully retrieved all templates")
@@ -272,11 +275,11 @@ func (th *TemplateHandler) GetAllTemplates(c *fiber.Ctx) error {
 //	@Param			outputFormat	formData	string	false	"Output format (html, pdf, txt, xml)"
 //	@Param			description		formData	string	false	"Template description"
 //	@Success		200				{object}	TemplateResponse
-//	@Failure		400				{object}	pkg.HTTPError
-//	@Failure		401				{object}	pkg.HTTPError
-//	@Failure		403				{object}	pkg.HTTPError
-//	@Failure		404				{object}	pkg.HTTPError
-//	@Failure		500				{object}	pkg.HTTPError
+//	@Failure		400				{object}	pkgErr.HTTPError
+//	@Failure		401				{object}	pkgErr.HTTPError
+//	@Failure		403				{object}	pkgErr.HTTPError
+//	@Failure		404				{object}	pkgErr.HTTPError
+//	@Failure		500				{object}	pkgErr.HTTPError
 //	@Router			/v1/templates/{id} [patch]
 func (th *TemplateHandler) UpdateTemplateByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -287,7 +290,7 @@ func (th *TemplateHandler) UpdateTemplateByID(c *fiber.Ctx) error {
 
 	id, ok := c.Locals("id").(uuid.UUID)
 	if !ok {
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "id"))
+		return netHTTP.WithError(c, pkgErr.ValidateBusinessError(cnErr.ErrInvalidPathParameter, "", "id"))
 	}
 
 	th.service.Logger.Log(ctx, log.LevelInfo, "Initiating update of template", log.String("template_id", id.String()))
@@ -305,7 +308,7 @@ func (th *TemplateHandler) UpdateTemplateByID(c *fiber.Ctx) error {
 	if err != nil {
 		if !errors.Is(err, fasthttp.ErrMissingFile) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get template file from form", err)
-			return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidFileUploaded, "", err))
+			return netHTTP.WithError(c, pkgErr.ValidateBusinessError(cnErr.ErrInvalidFileUploaded, "", err))
 		}
 
 		fileHeader = nil
@@ -313,7 +316,7 @@ func (th *TemplateHandler) UpdateTemplateByID(c *fiber.Ctx) error {
 
 	templateUpdated, warnings, errUpdate := th.service.UpdateTemplateByID(ctx, outputFormat, description, id, fileHeader)
 	if errUpdate != nil {
-		if http.IsBusinessError(errUpdate) {
+		if pkgErr.IsBusinessError(errUpdate) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update template", errUpdate)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to update template", errUpdate)
@@ -321,7 +324,7 @@ func (th *TemplateHandler) UpdateTemplateByID(c *fiber.Ctx) error {
 
 		th.service.Logger.Log(ctx, log.LevelError, "Failed to update template", log.String("template_id", id.String()), log.Err(errUpdate))
 
-		return http.WithError(c, errUpdate)
+		return netHTTP.WithError(c, errUpdate)
 	}
 
 	th.service.Logger.Log(ctx, log.LevelInfo, "Successfully updated template", log.String("template_id", id.String()))
@@ -339,11 +342,11 @@ func (th *TemplateHandler) UpdateTemplateByID(c *fiber.Ctx) error {
 //	@Security		BearerAuth
 //	@Param			id		path		string	true	"Template ID"
 //	@Success		204
-//	@Failure		400		{object}	pkg.HTTPError
-//	@Failure		401		{object}	pkg.HTTPError
-//	@Failure		403		{object}	pkg.HTTPError
-//	@Failure		404		{object}	pkg.HTTPError
-//	@Failure		500		{object}	pkg.HTTPError
+//	@Failure		400		{object}	pkgErr.HTTPError
+//	@Failure		401		{object}	pkgErr.HTTPError
+//	@Failure		403		{object}	pkgErr.HTTPError
+//	@Failure		404		{object}	pkgErr.HTTPError
+//	@Failure		500		{object}	pkgErr.HTTPError
 //	@Router			/v1/templates/{id} [delete]
 func (th *TemplateHandler) DeleteTemplateByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -354,14 +357,14 @@ func (th *TemplateHandler) DeleteTemplateByID(c *fiber.Ctx) error {
 
 	id, ok := c.Locals("id").(uuid.UUID)
 	if !ok {
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "id"))
+		return netHTTP.WithError(c, pkgErr.ValidateBusinessError(cnErr.ErrInvalidPathParameter, "", "id"))
 	}
 
 	th.service.Logger.Log(ctx, log.LevelInfo, "Initiating removal of template", log.String("template_id", id.String()))
 	span.SetAttributes(attribute.String("app.request.request_id", reqId), attribute.String("app.request.template_id", id.String()))
 
 	if err := th.service.DeleteTemplateByID(ctx, id, false); err != nil {
-		if http.IsBusinessError(err) {
+		if pkgErr.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove template on database", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to remove template on database", err)
@@ -369,7 +372,7 @@ func (th *TemplateHandler) DeleteTemplateByID(c *fiber.Ctx) error {
 
 		th.service.Logger.Log(ctx, log.LevelError, "Failed to remove template", log.String("template_id", id.String()), log.Err(err))
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	th.service.Logger.Log(ctx, log.LevelInfo, "Successfully removed template", log.String("template_id", id.String()))

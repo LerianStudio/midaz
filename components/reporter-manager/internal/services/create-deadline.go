@@ -8,7 +8,8 @@ import (
 	"context"
 	"errors"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/deadline"
@@ -78,8 +79,8 @@ func (uc *UseCase) CreateDeadline(ctx context.Context, input *deadline.CreateDea
 
 		tmpl, errFind := uc.TemplateRepo.FindByID(ctx, *input.TemplateID)
 		if errFind != nil {
-			if errors.Is(errFind, mongo.ErrNoDocuments) {
-				errNotFound := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionTemplate)
+			if nf := (pkg.EntityNotFoundError{}); errors.As(errFind, &nf) {
+				errNotFound := pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, "", constant.MongoCollectionTemplate)
 
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Template not found", errNotFound)
 
@@ -93,7 +94,7 @@ func (uc *UseCase) CreateDeadline(ctx context.Context, input *deadline.CreateDea
 		}
 
 		if tmpl == nil {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionTemplate)
+			return nil, pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, "", constant.MongoCollectionTemplate)
 		}
 
 		entity.TemplateName = tmpl.Description
@@ -105,7 +106,7 @@ func (uc *UseCase) CreateDeadline(ctx context.Context, input *deadline.CreateDea
 	result, err := uc.DeadlineRepo.Create(ctx, model)
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {
-			errDuplicate := pkg.ValidateBusinessError(constant.ErrDuplicateDeadline, constant.MongoCollectionDeadline)
+			errDuplicate := pkg.ValidateBusinessError(cnErr.ErrDuplicateDeadline, constant.MongoCollectionDeadline)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Duplicate deadline detected", errDuplicate)
 

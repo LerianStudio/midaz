@@ -21,6 +21,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
+
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
@@ -592,7 +594,7 @@ func TestUseCase_GetDataSourceDetailsByID(t *testing.T) {
 				return &UseCase{Logger: log.NewNop(), Tracer: noop.NewTracerProvider().Tracer("test"), ExternalDataSources: pkg.NewSafeDataSources(map[string]pkg.DataSource{}), RedisRepo: mockRedisRepo}
 			},
 			expectErr:    true,
-			errContains:  constant.ErrMissingDataSource.Error(),
+			errContains:  cnErr.ErrMissingDataSource.Error(),
 			expectResult: nil,
 		},
 		{
@@ -618,7 +620,7 @@ func TestUseCase_GetDataSourceDetailsByID(t *testing.T) {
 				}
 			},
 			expectErr:    true,
-			errContains:  constant.ErrMissingDataSource.Error(),
+			errContains:  cnErr.ErrMissingDataSource.Error(),
 			expectResult: nil,
 		},
 		{
@@ -645,7 +647,7 @@ func TestUseCase_GetDataSourceDetailsByID(t *testing.T) {
 				}
 			},
 			expectErr:    true,
-			errContains:  constant.ErrMissingDataSource.Error(),
+			errContains:  cnErr.ErrMissingDataSource.Error(),
 			expectResult: nil,
 		},
 	}
@@ -703,7 +705,7 @@ func TestUseCase_GetDataSourceDetailsByID_DefaultType(t *testing.T) {
 	result, err := svc.GetDataSourceDetailsByID(ctx, "unknown_ds")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), constant.ErrMissingDataSource.Error())
+	assert.Contains(t, err.Error(), cnErr.ErrMissingDataSource.Error())
 	assert.Nil(t, result)
 }
 
@@ -915,6 +917,6 @@ func TestUseCase_GetDataSourceDetailsByID_UnregisteredDatasource(t *testing.T) {
 	result, err := svc.GetDataSourceDetailsByID(ctx, "unregistered_ds")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), constant.ErrMissingDataSource.Error())
+	assert.Contains(t, err.Error(), cnErr.ErrMissingDataSource.Error())
 	assert.Nil(t, result)
 }

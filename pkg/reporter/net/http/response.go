@@ -6,8 +6,9 @@ package http
 
 import (
 	"encoding/json"
+	"strconv"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -95,5 +96,7 @@ func InternalServerError(c *fiber.Ctx, code, title, message string) error {
 // type includes a Code int field for HTTP status, which differs from lib-commons' Response type.
 // This is an accepted deviation documented for future migration.
 func JSONResponseError(c *fiber.Ctx, err pkg.ResponseError) error {
-	return c.Status(err.Code).JSON(err)
+	code, _ := strconv.Atoi(err.Code)
+
+	return c.Status(code).JSON(err)
 }

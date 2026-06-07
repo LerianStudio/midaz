@@ -11,7 +11,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 
 	"github.com/google/uuid"
@@ -140,11 +140,11 @@ const StatusDelivered = "delivered"
 //   - error: Wrapped ErrMissingRequiredFields if any invariant is violated
 func NewDeadline(id uuid.UUID, name, deadlineType string, dueDate time.Time, frequency, color string) (*Deadline, error) {
 	if id == uuid.Nil {
-		return nil, fmt.Errorf("deadline id must not be nil: %w", constant.ErrMissingRequiredFields)
+		return nil, fmt.Errorf("deadline id must not be nil: %w", constant.ErrMissingFieldsInRequest)
 	}
 
 	if name == "" {
-		return nil, fmt.Errorf("deadline name must not be empty: %w", constant.ErrMissingRequiredFields)
+		return nil, fmt.Errorf("deadline name must not be empty: %w", constant.ErrMissingFieldsInRequest)
 	}
 
 	if !ValidTypes[deadlineType] {
@@ -152,7 +152,7 @@ func NewDeadline(id uuid.UUID, name, deadlineType string, dueDate time.Time, fre
 	}
 
 	if dueDate.IsZero() {
-		return nil, fmt.Errorf("deadline dueDate must not be zero: %w", constant.ErrMissingRequiredFields)
+		return nil, fmt.Errorf("deadline dueDate must not be zero: %w", constant.ErrMissingFieldsInRequest)
 	}
 
 	today := time.Now().Truncate(24 * time.Hour)

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
+
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 	mongodb2 "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
@@ -694,7 +696,7 @@ func TestUseCase_HandleErrorWithUpdate(t *testing.T) {
 			name:     "Success - Business error uses HandleSpanBusinessErrorEvent",
 			reportID: uuid.New(),
 			errorMsg: "Validation failed",
-			inputErr: pkg.ValidationError{Code: "VAL001", Title: "Validation", Message: "invalid input"},
+			inputErr: pkgErr.ValidationError{Code: "VAL001", Title: "Validation", Message: "invalid input"},
 			mockSetup: func(mockReportDataRepo *reportData.MockRepository, reportID uuid.UUID) {
 				mockReportDataRepo.EXPECT().
 					UpdateReportStatusById(gomock.Any(), "Error", reportID, gomock.Any(), gomock.Any()).

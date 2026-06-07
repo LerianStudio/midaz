@@ -12,8 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -113,25 +112,25 @@ func TestWithBody_EmptyAndNullBody(t *testing.T) {
 			name:           "empty body returns 400",
 			body:           "",
 			expectedStatus: http.StatusBadRequest,
-			expectedCode:   "TPL-0001",
+			expectedCode:   "0009",
 		},
 		{
 			name:           "whitespace-only body returns 400",
 			body:           "   ",
 			expectedStatus: http.StatusBadRequest,
-			expectedCode:   "TPL-0001",
+			expectedCode:   "0009",
 		},
 		{
 			name:           "null literal body returns 400",
 			body:           "null",
 			expectedStatus: http.StatusBadRequest,
-			expectedCode:   "TPL-0001",
+			expectedCode:   "0009",
 		},
 		{
 			name:           "null with whitespace returns 400",
 			body:           "  null  ",
 			expectedStatus: http.StatusBadRequest,
-			expectedCode:   "TPL-0001",
+			expectedCode:   "0009",
 		},
 	}
 
@@ -274,13 +273,13 @@ func TestWithBody_UnknownFields(t *testing.T) {
 			name:           "extra top-level field returns 400",
 			body:           `{"name":"Alice","age":30,"unknown_field":"value"}`,
 			expectedStatus: http.StatusBadRequest,
-			expectedCode:   "TPL-0015",
+			expectedCode:   "0053",
 		},
 		{
 			name:           "multiple extra fields returns 400",
 			body:           `{"name":"Alice","foo":"bar","baz":123}`,
 			expectedStatus: http.StatusBadRequest,
-			expectedCode:   "TPL-0015",
+			expectedCode:   "0053",
 		},
 	}
 

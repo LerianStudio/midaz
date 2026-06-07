@@ -9,15 +9,14 @@ import (
 
 	"github.com/LerianStudio/lib-observability/log"
 
-	"github.com/LerianStudio/midaz/v4/components/reporter-manager/internal/services"
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
-	_ "github.com/LerianStudio/midaz/v4/pkg/reporter/model"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
-
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	"github.com/LerianStudio/midaz/v4/components/reporter-manager/internal/services"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
+	http "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
+	_ "github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -106,7 +105,7 @@ func (ds *DataSourceHandler) GetDataSourceInformationByID(c *fiber.Ctx) error {
 
 	dataSourceInfo, err := ds.service.GetDataSourceDetailsByID(ctx, dataSourceID)
 	if err != nil {
-		if http.IsBusinessError(err) {
+		if pkg.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve data source information on query", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve data source information on query", err)

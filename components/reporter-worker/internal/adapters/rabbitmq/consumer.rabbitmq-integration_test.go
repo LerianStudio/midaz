@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
 	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/reporter/rabbitmq"
 	"github.com/LerianStudio/midaz/v4/tests/reporter/utils/containers"

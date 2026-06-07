@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 
 	"github.com/google/uuid"
@@ -50,15 +50,15 @@ func NewReport(
 	templateOutputFormat, templateDescription string,
 ) (*Report, error) {
 	if id == uuid.Nil {
-		return nil, fmt.Errorf("report id must not be nil: %w", constant.ErrMissingRequiredFields)
+		return nil, fmt.Errorf("report id must not be nil: %w", constant.ErrMissingFieldsInRequest)
 	}
 
 	if templateID == uuid.Nil {
-		return nil, fmt.Errorf("report templateID must not be nil: %w", constant.ErrMissingRequiredFields)
+		return nil, fmt.Errorf("report templateID must not be nil: %w", constant.ErrMissingFieldsInRequest)
 	}
 
 	if status == "" {
-		return nil, fmt.Errorf("report status must not be empty: %w", constant.ErrMissingRequiredFields)
+		return nil, fmt.Errorf("report status must not be empty: %w", constant.ErrMissingFieldsInRequest)
 	}
 
 	now := time.Now()

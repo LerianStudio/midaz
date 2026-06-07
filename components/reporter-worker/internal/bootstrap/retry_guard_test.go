@@ -12,8 +12,9 @@ import (
 	"testing"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgReporter "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -138,24 +139,24 @@ func TestIsNonRetryableHandlerError(t *testing.T) {
 		// SchemaAmbiguityError → non-retryable (permanent config error)
 		{
 			name: "SchemaAmbiguityError is non-retryable",
-			err:  &pkg.SchemaAmbiguityError{Database: "mydb", Table: "users", Schemas: []string{"public", "sales"}},
+			err:  &pkgReporter.SchemaAmbiguityError{Database: "mydb", Table: "users", Schemas: []string{"public", "sales"}},
 			want: true,
 		},
 		{
 			name: "wrapped SchemaAmbiguityError is non-retryable",
-			err:  fmt.Errorf("query: %w", &pkg.SchemaAmbiguityError{Database: "mydb", Table: "orders", Schemas: []string{"a", "b"}}),
+			err:  fmt.Errorf("query: %w", &pkgReporter.SchemaAmbiguityError{Database: "mydb", Table: "orders", Schemas: []string{"a", "b"}}),
 			want: true,
 		},
 
-		// TPL-* error codes → non-retryable
+		// Permanent reporter codes (typed, 5xx) → non-retryable
 		{
-			name: "TPL error code is non-retryable",
-			err:  errors.New("TPL-0042 - template rendering failed"),
+			name: "permanent reporter code is non-retryable",
+			err:  pkg.ValidateBusinessError(constant.ErrExtractionJobFailed, ""),
 			want: true,
 		},
 		{
-			name: "wrapped TPL error is non-retryable",
-			err:  fmt.Errorf("render: %w", errors.New("TPL-0022 - missing field")),
+			name: "wrapped permanent reporter code is non-retryable",
+			err:  fmt.Errorf("render: %w", pkg.ValidateBusinessError(constant.ErrTemplateRenderFailed, "", "missing field")),
 			want: true,
 		},
 
@@ -166,15 +167,15 @@ func TestIsNonRetryableHandlerError(t *testing.T) {
 			want: true,
 		},
 
-		// Template render failure (TPL-0062) → non-retryable.
+		// Template render failure (0289) → non-retryable.
 		// Built exactly as renderTemplate builds it so this pins the real wire path.
 		{
-			name: "TPL-0062 template render failure is non-retryable",
+			name: "0289 template render failure is non-retryable",
 			err:  pkg.ValidateBusinessError(constant.ErrTemplateRenderFailed, "", "field 'amount' not found"),
 			want: true,
 		},
 		{
-			name: "wrapped TPL-0062 template render failure is non-retryable",
+			name: "wrapped 0289 template render failure is non-retryable",
 			err:  fmt.Errorf("generate report: %w", pkg.ValidateBusinessError(constant.ErrTemplateRenderFailed, "", "bad filter chain")),
 			want: true,
 		},
@@ -192,33 +193,33 @@ func TestIsNonRetryableHandlerError(t *testing.T) {
 
 		// Wrapped source errors (REP-006x codes from error wrapping at source)
 		{
-			name: "ValidationError REP-0060 (data source not found) is non-retryable",
-			err:  pkg.ValidationError{Code: "REP-0060", Title: "Data Source Not Found", Message: "data source not found: mydb"},
+			name: "ValidationError 0290 (data source not found) is non-retryable",
+			err:  pkg.ValidationError{Code: "0290", Title: "Data Source Not Found", Message: "data source not found: mydb"},
 			want: true,
 		},
 		{
-			name: "ValidationError REP-0062 (unsupported db type) is non-retryable",
-			err:  pkg.ValidationError{Code: "REP-0062", Title: "Unsupported Database Type", Message: "unsupported database type: oracle for database: mydb"},
+			name: "ValidationError 0292 (unsupported db type) is non-retryable",
+			err:  pkg.ValidationError{Code: "0292", Title: "Unsupported Database Type", Message: "unsupported database type: oracle for database: mydb"},
 			want: true,
 		},
 		{
-			name: "FailedPreconditionError REP-0061 (unavailable datasource) is non-retryable",
-			err:  pkg.FailedPreconditionError{Code: "REP-0061", Title: "Data Source Unavailable", Message: "datasource mydb is unavailable (initialization failed)"},
+			name: "FailedPreconditionError 0291 (unavailable datasource) is non-retryable",
+			err:  pkg.FailedPreconditionError{Code: "0291", Title: "Data Source Unavailable", Message: "datasource mydb is unavailable (initialization failed)"},
 			want: true,
 		},
 		{
-			name: "FailedPreconditionError REP-0066 (crypto config) is non-retryable",
-			err:  pkg.FailedPreconditionError{Code: "REP-0066", Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM not configured"},
+			name: "FailedPreconditionError 0296 (crypto config) is non-retryable",
+			err:  pkg.FailedPreconditionError{Code: "0296", Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM not configured"},
 			want: true,
 		},
 		{
-			name: "FailedPreconditionError REP-0068 (cipher init) is non-retryable",
-			err:  pkg.FailedPreconditionError{Code: "REP-0068", Title: "Cipher Initialization Failed", Message: "failed to initialize cipher: invalid key"},
+			name: "FailedPreconditionError 0298 (cipher init) is non-retryable",
+			err:  pkg.FailedPreconditionError{Code: "0298", Title: "Cipher Initialization Failed", Message: "failed to initialize cipher: invalid key"},
 			want: true,
 		},
 		{
-			name: "wrapped FailedPreconditionError REP-0066 is non-retryable",
-			err:  fmt.Errorf("query: %w", pkg.FailedPreconditionError{Code: "REP-0066", Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM not configured"}),
+			name: "wrapped FailedPreconditionError 0296 is non-retryable",
+			err:  fmt.Errorf("query: %w", pkg.FailedPreconditionError{Code: "0296", Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM not configured"}),
 			want: true,
 		},
 		// Heuristic pattern fallback (safety net for untyped errors)
@@ -324,7 +325,7 @@ func TestNotificationHandler_PermanentErrorsAreClassifiedNonRetryable(t *testing
 		},
 		{
 			name: "ValidationError from notification payload parsing",
-			err:  pkg.ValidationError{Code: "TPL-0050", Message: "invalid notification payload"},
+			err:  pkg.ValidationError{Code: "0279", Message: "invalid notification payload"},
 			want: true,
 		},
 		{

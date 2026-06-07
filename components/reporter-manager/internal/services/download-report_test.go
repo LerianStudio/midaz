@@ -13,6 +13,8 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	"go.opentelemetry.io/otel/trace/noop"
 
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
+
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/template"
@@ -120,7 +122,7 @@ func TestUseCase_DownloadReport(t *testing.T) {
 
 				mockReportRepo.EXPECT().
 					FindByID(gomock.Any(), gomock.Any()).
-					Return(nil, constant.ErrInternalServer)
+					Return(nil, cnErr.ErrInternalServer)
 
 				return &UseCase{
 					Logger:          log.NewNop(),
@@ -131,7 +133,7 @@ func TestUseCase_DownloadReport(t *testing.T) {
 				}
 			},
 			expectErr:     true,
-			errContains:   constant.ErrInternalServer.Error(),
+			errContains:   cnErr.ErrInternalServer.Error(),
 			expectedBytes: nil,
 		},
 		{
@@ -155,7 +157,7 @@ func TestUseCase_DownloadReport(t *testing.T) {
 				}
 			},
 			expectErr:     true,
-			errContains:   constant.ErrReportStatusNotFinished.Error(),
+			errContains:   cnErr.ErrReportStatusNotFinished.Error(),
 			expectedBytes: nil,
 		},
 		{

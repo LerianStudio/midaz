@@ -11,19 +11,18 @@ import (
 	"fmt"
 	"time"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
 	goRedis "github.com/redis/go-redis/v9"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -93,7 +92,7 @@ func (uc *UseCase) CreateReport(ctx context.Context, reportInput *model.CreateRe
 func (uc *UseCase) prepareReportCreation(ctx context.Context, span trace.Span, reportInput *model.CreateReportInput) (uuid.UUID, *string, map[string]map[string][]string, string, error) {
 	templateID, errParseUUID := uuid.Parse(reportInput.TemplateID)
 	if errParseUUID != nil {
-		errInvalidID := pkg.ValidateBusinessError(constant.ErrInvalidTemplateID, "")
+		errInvalidID := pkg.ValidateBusinessError(cnErr.ErrInvalidTemplateID, "")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid template ID format", errInvalidID)
 
 		return uuid.Nil, nil, nil, "", errInvalidID
@@ -103,8 +102,8 @@ func (uc *UseCase) prepareReportCreation(ctx context.Context, span trace.Span, r
 	if err != nil {
 		uc.Logger.Log(ctx, log.LevelError, "Error to find template by id", log.Err(err))
 
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			errNotFound := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionTemplate)
+		if nf := (pkg.EntityNotFoundError{}); errors.As(err, &nf) {
+			errNotFound := pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, "", constant.MongoCollectionTemplate)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Template not found", errNotFound)
 
 			return uuid.Nil, nil, nil, "", errNotFound
@@ -142,7 +141,7 @@ func (uc *UseCase) persistReport(ctx context.Context, span trace.Span, templateI
 
 	reportModel, err := report.NewReport(reportID, templateID, constant.ProcessingStatus, filters, outFmt, templateDescription)
 	if err != nil {
-		if pkgHTTP.IsBusinessError(err) {
+		if pkg.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create report entity", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to create report entity", err)
@@ -243,7 +242,7 @@ func (uc *UseCase) validateReportFilters(ctx context.Context, filters map[string
 
 	_, errValidate := uc.ValidateSchemaViaProvider(ctx, filtersMapped)
 	if errValidate != nil {
-		if pkgHTTP.IsBusinessError(errValidate) {
+		if pkg.IsBusinessError(errValidate) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate filter fields existence on tables", errValidate)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to validate filter fields existence on tables", errValidate)
@@ -310,9 +309,9 @@ func (uc *UseCase) handleDuplicateRequest(ctx context.Context, idempotencyKey st
 		// replay; surface the same in-flight conflict so the client retries
 		// rather than leaking the raw driver sentinel as a 500.
 		if errors.Is(getErr, goRedis.Nil) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(childSpan, "Idempotency key vanished between SetNX and Get", constant.ErrDuplicateRequestInFlight)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(childSpan, "Idempotency key vanished between SetNX and Get", cnErr.ErrDuplicateRequestInFlight)
 
-			return nil, pkg.ValidateBusinessError(constant.ErrDuplicateRequestInFlight, "report")
+			return nil, pkg.ValidateBusinessError(cnErr.ErrDuplicateRequestInFlight, "report")
 		}
 
 		libOpentelemetry.HandleSpanError(childSpan, "Failed to retrieve cached idempotency response", getErr)
@@ -322,9 +321,9 @@ func (uc *UseCase) handleDuplicateRequest(ctx context.Context, idempotencyKey st
 
 	// If the cached value is empty or still "processing", the first request is still in-flight
 	if cachedResponse == "" || cachedResponse == "processing" {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(childSpan, "Duplicate in-flight request detected", constant.ErrDuplicateRequestInFlight)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(childSpan, "Duplicate in-flight request detected", cnErr.ErrDuplicateRequestInFlight)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrDuplicateRequestInFlight, "report")
+		return nil, pkg.ValidateBusinessError(cnErr.ErrDuplicateRequestInFlight, "report")
 	}
 
 	// Unmarshal the cached response

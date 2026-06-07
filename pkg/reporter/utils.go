@@ -12,7 +12,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // GetMapNumKinds get the map of numeric kinds to use in validations and conversions.
@@ -58,11 +59,11 @@ func IsNilOrEmpty(s *string) bool {
 // ValidateFormDataFields returns error if data from form data is invalid
 func ValidateFormDataFields(outFormat, description *string) error {
 	if IsNilOrEmpty(outFormat) {
-		return ValidateBusinessError(constant.ErrMissingRequiredFields, "")
+		return pkgErr.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "")
 	}
 
 	if IsNilOrEmpty(description) {
-		return ValidateBusinessError(constant.ErrMissingRequiredFields, "")
+		return pkgErr.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "")
 	}
 
 	if err := ValidateUTF8Field("description", *description); err != nil {
@@ -70,7 +71,7 @@ func ValidateFormDataFields(outFormat, description *string) error {
 	}
 
 	if !IsOutputFormatValuesValid(outFormat) {
-		return ValidateBusinessError(constant.ErrInvalidOutputFormat, "")
+		return pkgErr.ValidateBusinessError(constant.ErrInvalidOutputFormat, "")
 	}
 
 	return nil
@@ -82,7 +83,7 @@ func ValidateFormDataFields(outFormat, description *string) error {
 // turns that into a 400-class error instead of a 500.
 func ValidateUTF8Field(fieldName, value string) error {
 	if !utf8.ValidString(value) {
-		return ValidateBusinessError(constant.ErrInvalidUTF8, "", fieldName)
+		return pkgErr.ValidateBusinessError(constant.ErrInvalidUTF8, "", fieldName)
 	}
 
 	return nil
@@ -119,7 +120,7 @@ func ValidateFileFormat(outFormat, templateFile string) error {
 
 	if validate, ok := formatValidators[format]; ok {
 		if !validate(templateFile) {
-			return ValidateBusinessError(constant.ErrFileContentInvalid, "", outFormat)
+			return pkgErr.ValidateBusinessError(constant.ErrFileContentInvalid, "", outFormat)
 		}
 	}
 

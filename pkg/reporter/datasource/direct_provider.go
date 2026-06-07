@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"strings"
 
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
+
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/postgres"
@@ -166,7 +168,7 @@ func (dp *DirectProvider) GetDataSourceSchema(ctx context.Context, dataSourceID 
 		logger.Log(ctx, log.LevelWarn, "Data source not found in DirectProvider",
 			log.String("data_source_id", dataSourceID))
 
-		return nil, fmt.Errorf("%w: %w", ErrDataSourceNotFound, pkg.ValidateBusinessError(constant.ErrMissingDataSource, "", dataSourceID))
+		return nil, fmt.Errorf("%w: %w", ErrDataSourceNotFound, pkgErr.ValidateBusinessError(constant.ErrMissingDataSource, "", dataSourceID))
 	}
 
 	logger.Log(ctx, log.LevelInfo, "Retrieving schema via DirectProvider",
@@ -183,7 +185,7 @@ func (dp *DirectProvider) GetDataSourceSchema(ctx context.Context, dataSourceID 
 		if !ds.Initialized || ds.PostgresRepository == nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "PostgreSQL datasource unavailable after connection attempt", ErrDataSourceUnavailable)
 
-			return nil, pkg.ValidateBusinessError(constant.ErrDataSourceUnavailable, "", dataSourceID)
+			return nil, pkgErr.ValidateBusinessError(constant.ErrDataSourceUnavailable, "", dataSourceID)
 		}
 
 		return dp.getPostgresSchema(ctx, dataSourceID, ds)
@@ -191,7 +193,7 @@ func (dp *DirectProvider) GetDataSourceSchema(ctx context.Context, dataSourceID 
 		if !ds.Initialized || ds.MongoDBRepository == nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "MongoDB datasource unavailable after connection attempt", ErrDataSourceUnavailable)
 
-			return nil, pkg.ValidateBusinessError(constant.ErrDataSourceUnavailable, "", dataSourceID)
+			return nil, pkgErr.ValidateBusinessError(constant.ErrDataSourceUnavailable, "", dataSourceID)
 		}
 
 		return dp.getMongoDBSchema(ctx, dataSourceID, ds)
@@ -235,7 +237,7 @@ func (dp *DirectProvider) ValidateSchema(ctx context.Context, dataSourceID strin
 	if !ok {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Data source not found for validation", ErrDataSourceNotFound)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrMissingDataSource, "", dataSourceID)
+		return nil, pkgErr.ValidateBusinessError(constant.ErrMissingDataSource, "", dataSourceID)
 	}
 
 	// Ensure the datasource has an active connection (lazy initialization).

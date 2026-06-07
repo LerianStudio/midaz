@@ -12,8 +12,9 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 
 	"github.com/LerianStudio/midaz/v4/components/reporter-manager/internal/services"
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
+	netHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/deadline"
@@ -65,18 +66,18 @@ func (dh *DeadlineHandler) CreateDeadline(p any, c *fiber.Ctx) error {
 
 	input, ok := p.(*deadline.CreateDeadlineInput)
 	if !ok {
-		return http.BadRequest(c, "invalid request body")
+		return netHTTP.BadRequest(c, "invalid request body")
 	}
 
 	result, err := dh.service.CreateDeadline(ctx, input)
 	if err != nil {
-		if http.IsBusinessError(err) {
+		if pkg.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create deadline", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to create deadline", err)
 		}
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	dh.service.Logger.Log(ctx, log.LevelInfo, "Successfully created deadline", log.String("deadline_id", result.ID.String()))
@@ -112,7 +113,7 @@ func (dh *DeadlineHandler) GetAllDeadlines(c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 		dh.service.Logger.Log(ctx, log.LevelError, "Failed to validate query parameters", log.Err(err))
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	pagination := model.Pagination{Limit: headerParams.Limit, Page: headerParams.Page}
@@ -126,7 +127,7 @@ func (dh *DeadlineHandler) GetAllDeadlines(c *fiber.Ctx) error {
 
 	deadlines, total, err := dh.service.GetAllDeadlines(ctx, *headerParams)
 	if err != nil {
-		if http.IsBusinessError(err) {
+		if pkg.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all deadlines on query", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve all deadlines on query", err)
@@ -134,7 +135,7 @@ func (dh *DeadlineHandler) GetAllDeadlines(c *fiber.Ctx) error {
 
 		dh.service.Logger.Log(ctx, log.LevelError, "Failed to retrieve all deadlines", log.Err(err))
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	dh.service.Logger.Log(ctx, log.LevelInfo, "Successfully retrieved all deadlines")
@@ -170,7 +171,7 @@ func (dh *DeadlineHandler) UpdateDeadlineByID(p any, c *fiber.Ctx) error {
 
 	id, ok := c.Locals("id").(uuid.UUID)
 	if !ok {
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "id"))
+		return netHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "id"))
 	}
 
 	dh.service.Logger.Log(ctx, log.LevelInfo, "Initiating deadline update", log.String("deadline_id", id.String()))
@@ -178,12 +179,12 @@ func (dh *DeadlineHandler) UpdateDeadlineByID(p any, c *fiber.Ctx) error {
 
 	input, ok := p.(*deadline.UpdateDeadlineInput)
 	if !ok {
-		return http.BadRequest(c, "invalid request body")
+		return netHTTP.BadRequest(c, "invalid request body")
 	}
 
 	result, errUpdate := dh.service.UpdateDeadlineByID(ctx, id, input)
 	if errUpdate != nil {
-		if http.IsBusinessError(errUpdate) {
+		if pkg.IsBusinessError(errUpdate) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update deadline", errUpdate)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to update deadline", errUpdate)
@@ -191,7 +192,7 @@ func (dh *DeadlineHandler) UpdateDeadlineByID(p any, c *fiber.Ctx) error {
 
 		dh.service.Logger.Log(ctx, log.LevelError, "Failed to update deadline", log.String("deadline_id", id.String()), log.Err(errUpdate))
 
-		return http.WithError(c, errUpdate)
+		return netHTTP.WithError(c, errUpdate)
 	}
 
 	dh.service.Logger.Log(ctx, log.LevelInfo, "Successfully updated deadline", log.String("deadline_id", id.String()))
@@ -222,14 +223,14 @@ func (dh *DeadlineHandler) DeleteDeadlineByID(c *fiber.Ctx) error {
 
 	id, ok := c.Locals("id").(uuid.UUID)
 	if !ok {
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "id"))
+		return netHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "id"))
 	}
 
 	dh.service.Logger.Log(ctx, log.LevelInfo, "Initiating removal of deadline", log.String("deadline_id", id.String()))
 	span.SetAttributes(attribute.String("app.request.request_id", reqId), attribute.String("app.request.deadline_id", id.String()))
 
 	if err := dh.service.DeleteDeadlineByID(ctx, id); err != nil {
-		if http.IsBusinessError(err) {
+		if pkg.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove deadline on database", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to remove deadline on database", err)
@@ -237,7 +238,7 @@ func (dh *DeadlineHandler) DeleteDeadlineByID(c *fiber.Ctx) error {
 
 		dh.service.Logger.Log(ctx, log.LevelError, "Failed to remove deadline", log.String("deadline_id", id.String()), log.Err(err))
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	dh.service.Logger.Log(ctx, log.LevelInfo, "Successfully removed deadline", log.String("deadline_id", id.String()))
@@ -271,7 +272,7 @@ func (dh *DeadlineHandler) DeliverDeadline(p any, c *fiber.Ctx) error {
 
 	id, ok := c.Locals("id").(uuid.UUID)
 	if !ok {
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "id"))
+		return netHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "id"))
 	}
 
 	dh.service.Logger.Log(ctx, log.LevelInfo, "Initiating deadline delivery", log.String("deadline_id", id.String()))
@@ -279,12 +280,12 @@ func (dh *DeadlineHandler) DeliverDeadline(p any, c *fiber.Ctx) error {
 
 	input, ok := p.(*deadline.DeliverDeadlineInput)
 	if !ok {
-		return http.BadRequest(c, "invalid request body")
+		return netHTTP.BadRequest(c, "invalid request body")
 	}
 
 	result, errDeliver := dh.service.DeliverDeadline(ctx, id, input)
 	if errDeliver != nil {
-		if http.IsBusinessError(errDeliver) {
+		if pkg.IsBusinessError(errDeliver) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to deliver deadline", errDeliver)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to deliver deadline", errDeliver)
@@ -292,7 +293,7 @@ func (dh *DeadlineHandler) DeliverDeadline(p any, c *fiber.Ctx) error {
 
 		dh.service.Logger.Log(ctx, log.LevelError, "Failed to deliver deadline", log.String("deadline_id", id.String()), log.Err(errDeliver))
 
-		return http.WithError(c, errDeliver)
+		return netHTTP.WithError(c, errDeliver)
 	}
 
 	dh.service.Logger.Log(ctx, log.LevelInfo, "Successfully delivered deadline", log.String("deadline_id", id.String()))

@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
+
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
@@ -179,12 +182,12 @@ func deriveDataSourceType(schema *datasource.DataSourceSchema) string {
 func (uc *UseCase) getDataSourceDetailsByIDLegacy(ctx context.Context, dataSourceID, cacheKey string) (*model.DataSourceDetails, error) {
 	if !pkg.IsValidDataSourceID(dataSourceID) {
 		uc.Logger.Log(ctx, log.LevelError, "Unknown data source - not in immutable registry, rejecting request", log.String("data_source_id", dataSourceID))
-		return nil, pkg.ValidateBusinessError(constant.ErrMissingDataSource, "", dataSourceID)
+		return nil, pkgErr.ValidateBusinessError(cnErr.ErrMissingDataSource, "", dataSourceID)
 	}
 
 	dataSource, ok := uc.ExternalDataSources.Get(dataSourceID)
 	if !ok {
-		return nil, pkg.ValidateBusinessError(constant.ErrMissingDataSource, "", dataSourceID)
+		return nil, pkgErr.ValidateBusinessError(cnErr.ErrMissingDataSource, "", dataSourceID)
 	}
 
 	if err := uc.ensureDataSourceConnected(ctx, uc.Logger, dataSourceID, &dataSource); err != nil {
@@ -203,12 +206,12 @@ func (uc *UseCase) getDataSourceDetailsByIDLegacy(ctx context.Context, dataSourc
 	case pkg.MongoDBType:
 		result, errGetDataSource = uc.getDataSourceDetailsOfMongoDBDatabase(ctx, uc.Logger, dataSourceID, dataSource)
 	default:
-		return nil, pkg.ValidateBusinessError(constant.ErrMissingDataSource, "", dataSourceID)
+		return nil, pkgErr.ValidateBusinessError(cnErr.ErrMissingDataSource, "", dataSourceID)
 	}
 
 	if errGetDataSource != nil {
 		uc.Logger.Log(ctx, log.LevelError, "Error to get data source details", log.Err(errGetDataSource))
-		return nil, pkg.ValidateBusinessError(constant.ErrMissingDataSource, "", dataSourceID)
+		return nil, pkgErr.ValidateBusinessError(cnErr.ErrMissingDataSource, "", dataSourceID)
 	}
 
 	errSet := uc.setDataSourceDetailsToCache(ctx, cacheKey, result)

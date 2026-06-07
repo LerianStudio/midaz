@@ -9,11 +9,11 @@ import (
 	"errors"
 	"time"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/deadline"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -37,7 +37,7 @@ func buildDeadlineUpdateFields(input *deadline.UpdateDeadlineInput) (bson.M, err
 
 	if input.Type != nil {
 		if !deadline.ValidTypes[*input.Type] {
-			return nil, pkg.ValidateBusinessError(constant.ErrInvalidDeadlineType, constant.MongoCollectionDeadline)
+			return nil, pkg.ValidateBusinessError(cnErr.ErrInvalidDeadlineType, constant.MongoCollectionDeadline)
 		}
 
 		setFields["type"] = *input.Type
@@ -46,7 +46,7 @@ func buildDeadlineUpdateFields(input *deadline.UpdateDeadlineInput) (bson.M, err
 	if input.DueDate != nil {
 		today := time.Now().Truncate(24 * time.Hour)
 		if input.DueDate.Truncate(24 * time.Hour).Before(today) {
-			return nil, pkg.ValidateBusinessError(constant.ErrDueDateInPast, constant.MongoCollectionDeadline)
+			return nil, pkg.ValidateBusinessError(cnErr.ErrDueDateInPast, constant.MongoCollectionDeadline)
 		}
 
 		setFields["due_date"] = *input.DueDate
@@ -54,7 +54,7 @@ func buildDeadlineUpdateFields(input *deadline.UpdateDeadlineInput) (bson.M, err
 
 	if input.Frequency != nil {
 		if !deadline.ValidFrequencies[*input.Frequency] {
-			return nil, pkg.ValidateBusinessError(constant.ErrInvalidDeadlineFrequency, constant.MongoCollectionDeadline)
+			return nil, pkg.ValidateBusinessError(cnErr.ErrInvalidDeadlineFrequency, constant.MongoCollectionDeadline)
 		}
 
 		setFields["frequency"] = *input.Frequency
@@ -74,7 +74,7 @@ func buildDeadlineUpdateFields(input *deadline.UpdateDeadlineInput) (bson.M, err
 
 	if input.Color != nil {
 		if !deadline.ValidColorRegex.MatchString(*input.Color) {
-			return nil, pkg.ValidateBusinessError(constant.ErrInvalidDeadlineColor, constant.MongoCollectionDeadline)
+			return nil, pkg.ValidateBusinessError(cnErr.ErrInvalidDeadlineColor, constant.MongoCollectionDeadline)
 		}
 
 		setFields["color"] = *input.Color
@@ -129,8 +129,8 @@ func (uc *UseCase) UpdateDeadlineByID(ctx context.Context, id uuid.UUID, input *
 	// Fetch current deadline to validate merged state
 	current, err := uc.DeadlineRepo.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			errNotFound := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionDeadline)
+		if nf := (pkg.EntityNotFoundError{}); errors.As(err, &nf) {
+			errNotFound := pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, "", constant.MongoCollectionDeadline)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Deadline not found", errNotFound)
 
@@ -162,8 +162,8 @@ func (uc *UseCase) UpdateDeadlineByID(ctx context.Context, id uuid.UUID, input *
 
 		tmpl, errFind := uc.TemplateRepo.FindByID(ctx, *input.TemplateID)
 		if errFind != nil {
-			if errors.Is(errFind, mongo.ErrNoDocuments) {
-				errNotFound := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionTemplate)
+			if nf := (pkg.EntityNotFoundError{}); errors.As(errFind, &nf) {
+				errNotFound := pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, "", constant.MongoCollectionTemplate)
 
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Template not found", errNotFound)
 
@@ -177,7 +177,7 @@ func (uc *UseCase) UpdateDeadlineByID(ctx context.Context, id uuid.UUID, input *
 		}
 
 		if tmpl == nil {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionTemplate)
+			return nil, pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, "", constant.MongoCollectionTemplate)
 		}
 
 		setFields["template_name"] = tmpl.Description
@@ -190,8 +190,8 @@ func (uc *UseCase) UpdateDeadlineByID(ctx context.Context, id uuid.UUID, input *
 	}
 
 	if errUpdate := uc.DeadlineRepo.Update(ctx, id, &updateFields); errUpdate != nil {
-		if errors.Is(errUpdate, mongo.ErrNoDocuments) {
-			errNotFound := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionDeadline)
+		if nf := (pkg.EntityNotFoundError{}); errors.As(errUpdate, &nf) {
+			errNotFound := pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, "", constant.MongoCollectionDeadline)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Deadline not found", errNotFound)
 
@@ -199,7 +199,7 @@ func (uc *UseCase) UpdateDeadlineByID(ctx context.Context, id uuid.UUID, input *
 		}
 
 		if mongo.IsDuplicateKeyError(errUpdate) {
-			errDuplicate := pkg.ValidateBusinessError(constant.ErrDuplicateDeadline, constant.MongoCollectionDeadline)
+			errDuplicate := pkg.ValidateBusinessError(cnErr.ErrDuplicateDeadline, constant.MongoCollectionDeadline)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Duplicate deadline detected on update", errDuplicate)
 
@@ -215,7 +215,7 @@ func (uc *UseCase) UpdateDeadlineByID(ctx context.Context, id uuid.UUID, input *
 	// Fetch the updated deadline to return
 	updated, err := uc.DeadlineRepo.FindByID(ctx, id)
 	if err != nil {
-		if pkgHTTP.IsBusinessError(err) {
+		if pkg.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve updated deadline", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve updated deadline", err)

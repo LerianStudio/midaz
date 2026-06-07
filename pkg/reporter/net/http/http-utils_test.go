@@ -196,7 +196,7 @@ func TestValidateParameters_InvalidTemplateID(t *testing.T) {
 	result, err := ValidateParameters(params)
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "TPL-0012")
+	assert.Contains(t, err.Error(), "0257")
 }
 
 func TestValidateParameters_InvalidLimit(t *testing.T) {
@@ -209,7 +209,7 @@ func TestValidateParameters_InvalidLimit(t *testing.T) {
 	result, err := ValidateParameters(params)
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "TPL-0019")
+	assert.Contains(t, err.Error(), "0082")
 }
 
 func TestValidateParameters_InvalidPage(t *testing.T) {
@@ -222,7 +222,7 @@ func TestValidateParameters_InvalidPage(t *testing.T) {
 	result, err := ValidateParameters(params)
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "TPL-0019")
+	assert.Contains(t, err.Error(), "0082")
 }
 
 func TestQueryHeader_ToOffsetPagination(t *testing.T) {
@@ -449,7 +449,7 @@ func TestValidateParameters_InvalidSnakeCaseTemplateID(t *testing.T) {
 	result, err := ValidateParameters(params)
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "TPL-0012")
+	assert.Contains(t, err.Error(), "0257")
 }
 
 // ---------------------------------------------------------------------------
@@ -463,7 +463,7 @@ func TestGetFileFromHeader_InvalidExtension(t *testing.T) {
 
 	_, err := GetFileFromHeader(header)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "TPL-0002")
+	assert.Contains(t, err.Error(), "0249")
 }
 
 func TestGetFileFromHeader_EmptyFile(t *testing.T) {
@@ -473,7 +473,7 @@ func TestGetFileFromHeader_EmptyFile(t *testing.T) {
 
 	_, err := GetFileFromHeader(header)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "TPL-0006")
+	assert.Contains(t, err.Error(), "0253")
 }
 
 func TestGetFileFromHeader_ValidFile(t *testing.T) {
@@ -549,7 +549,7 @@ func TestValidatePagination_InvalidCursorDecode(t *testing.T) {
 	// Non-base64 cursor string should fail decoding
 	err := validatePagination("not-valid-base64!@#$", "desc", 10)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "TPL-0019")
+	assert.Contains(t, err.Error(), "0082")
 }
 
 func TestValidatePagination_ValidBase64ButInvalidJSON(t *testing.T) {
@@ -559,7 +559,7 @@ func TestValidatePagination_ValidBase64ButInvalidJSON(t *testing.T) {
 	invalidJSON := base64.StdEncoding.EncodeToString([]byte("not json"))
 	err := validatePagination(invalidJSON, "desc", 10)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "TPL-0019")
+	assert.Contains(t, err.Error(), "0082")
 }
 
 // TestValidateParameters_QueryParamParseErrors verifies that ValidateParameters
@@ -579,49 +579,49 @@ func TestValidateParameters_QueryParamParseErrors(t *testing.T) {
 			name:        "non-numeric limit returns error",
 			params:      map[string]string{"limit": "abc"},
 			wantErr:     true,
-			errContains: "TPL-0019",
+			errContains: "0082",
 		},
 		{
 			name:        "non-numeric page returns error",
 			params:      map[string]string{"page": "xyz"},
 			wantErr:     true,
-			errContains: "TPL-0019",
+			errContains: "0082",
 		},
 		{
 			name:        "negative limit returns error",
 			params:      map[string]string{"limit": "-1"},
 			wantErr:     true,
-			errContains: "TPL-0019",
+			errContains: "0082",
 		},
 		{
 			name:        "zero page returns error",
 			params:      map[string]string{"page": "0"},
 			wantErr:     true,
-			errContains: "TPL-0019",
+			errContains: "0082",
 		},
 		{
 			name:        "zero limit returns error",
 			params:      map[string]string{"limit": "0"},
 			wantErr:     true,
-			errContains: "TPL-0019",
+			errContains: "0082",
 		},
 		{
 			name:        "negative page returns error",
 			params:      map[string]string{"page": "-5"},
 			wantErr:     true,
-			errContains: "TPL-0019",
+			errContains: "0082",
 		},
 		{
 			name:        "float limit returns error",
 			params:      map[string]string{"limit": "10.5"},
 			wantErr:     true,
-			errContains: "TPL-0019",
+			errContains: "0082",
 		},
 		{
 			name:        "float page returns error",
 			params:      map[string]string{"page": "1.5"},
 			wantErr:     true,
-			errContains: "TPL-0019",
+			errContains: "0082",
 		},
 		{
 			name:    "valid limit and page succeeds",

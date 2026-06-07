@@ -529,6 +529,8 @@ var (
 	ErrReservationExpiresAtRequired           = errors.New("0481")
 	ErrReservationNotFound                    = errors.New("0482")
 	ErrReservationAlreadyTerminal             = errors.New("0483")
+	ErrRouteNotFound                          = errors.New("0484")
+	ErrMethodNotAllowed                       = errors.New("0485")
 )
 
 // List of CRM domain errors.

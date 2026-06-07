@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 
 	"github.com/go-playground/locales/en"
@@ -75,7 +77,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	// Validate that body is not empty, whitespace-only, or literally "null"
 	trimmedBody := strings.TrimSpace(string(bodyBytes))
 	if len(trimmedBody) == 0 || trimmedBody == "null" {
-		return BadRequest(c, pkg.ValidateBusinessError(cn.ErrMissingRequiredFields, ""))
+		return BadRequest(c, pkgErr.ValidateBusinessError(cnErr.ErrMissingFieldsInRequest, ""))
 	}
 
 	if err := json.Unmarshal(bodyBytes, s); err != nil {
@@ -89,7 +91,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 			knownFields["body"] = fmt.Sprintf("Invalid request body: %s", err.Error())
 		}
 
-		return BadRequest(c, pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, knownFields, "", make(map[string]any)))
+		return BadRequest(c, pkgErr.ValidateBadRequestFieldsError(pkgErr.FieldValidations{}, knownFields, "", make(map[string]any)))
 	}
 
 	// Validate type mismatches before proceeding
@@ -115,7 +117,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	diffFields := findUnknownFields(originalMap, marshaledMap)
 
 	if len(diffFields) > 0 {
-		err := pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
+		err := pkgErr.ValidateBadRequestFieldsError(pkgErr.FieldValidations{}, pkgErr.FieldValidations{}, "", diffFields)
 		return BadRequest(c, err)
 	}
 
@@ -237,11 +239,11 @@ func ValidateStruct(s any) error {
 		for _, fieldError := range validationErr.(validator.ValidationErrors) {
 			switch fieldError.Tag() {
 			case "keymax":
-				return pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
+				return pkgErr.ValidateBusinessError(cnErr.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
 			case "valuemax":
-				return pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
+				return pkgErr.ValidateBusinessError(cnErr.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
 			case "nonested":
-				return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
+				return pkgErr.ValidateBusinessError(cnErr.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
 			}
 		}
 
@@ -253,10 +255,10 @@ func ValidateStruct(s any) error {
 	return nil
 }
 
-func fields(errs validator.ValidationErrors, trans ut.Translator) pkg.FieldValidations {
+func fields(errs validator.ValidationErrors, trans ut.Translator) pkgErr.FieldValidations {
 	l := len(errs)
 	if l > 0 {
-		fields := make(pkg.FieldValidations, l)
+		fields := make(pkgErr.FieldValidations, l)
 		for _, e := range errs {
 			fields[e.Field()] = e.Translate(trans)
 		}
@@ -267,8 +269,8 @@ func fields(errs validator.ValidationErrors, trans ut.Translator) pkg.FieldValid
 	return nil
 }
 
-func fieldsRequired(myMap pkg.FieldValidations) pkg.FieldValidations {
-	result := make(pkg.FieldValidations)
+func fieldsRequired(myMap pkgErr.FieldValidations) pkgErr.FieldValidations {
+	result := make(pkgErr.FieldValidations)
 
 	for key, value := range myMap {
 		if strings.Contains(value, "required") {
@@ -279,14 +281,14 @@ func fieldsRequired(myMap pkg.FieldValidations) pkg.FieldValidations {
 	return result
 }
 
-func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) pkg.ValidationKnownFieldsError {
+func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) pkgErr.ValidationKnownFieldsError {
 	invalidFieldsMap := fields(err, trans)
 
 	requiredFields := fieldsRequired(invalidFieldsMap)
 
-	var vErr pkg.ValidationKnownFieldsError
+	var vErr pkgErr.ValidationKnownFieldsError
 
-	_ = errors.As(pkg.ValidateBadRequestFieldsError(requiredFields, invalidFieldsMap, "", make(map[string]any)), &vErr)
+	_ = errors.As(pkgErr.ValidateBadRequestFieldsError(requiredFields, invalidFieldsMap, "", make(map[string]any)), &vErr)
 
 	return vErr
 }
@@ -484,7 +486,7 @@ func validateFieldType(originalValue any, field reflect.Value, fieldType reflect
 	// Define type compatibility rules
 	typeMismatch := getTypeMismatch(originalValue, fieldKind)
 	if typeMismatch != nil {
-		return pkg.ValidateBusinessError(cn.ErrBadRequest, "", fmt.Sprintf("field '%s' expects %s but received %s", jsonName, fieldKind.String(), typeMismatch.receivedType))
+		return pkgErr.ValidateBusinessError(cnErr.ErrBadRequest, "", fmt.Sprintf("field '%s' expects %s but received %s", jsonName, fieldKind.String(), typeMismatch.receivedType))
 	}
 
 	return nil

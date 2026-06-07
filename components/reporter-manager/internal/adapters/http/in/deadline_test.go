@@ -18,8 +18,8 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 
 	"github.com/LerianStudio/midaz/v4/components/reporter-manager/internal/services"
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/deadline"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/template"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"

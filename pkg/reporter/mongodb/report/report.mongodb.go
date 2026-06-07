@@ -6,9 +6,13 @@ package report
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
@@ -150,9 +154,10 @@ func (rm *ReportMongoDBRepository) UpdateReportStatusById(
 	}
 
 	if result.MatchedCount == 0 {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdate, "No report found with the provided UUID", constant.ErrEntityNotFound)
+		errNotFound := mapReportNotFound(mongo.ErrNoDocuments)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdate, "No report found with the provided UUID", errNotFound)
 
-		return constant.ErrEntityNotFound
+		return errNotFound
 	}
 
 	return nil
@@ -238,12 +243,12 @@ func (rm *ReportMongoDBRepository) FindByID(ctx context.Context, id uuid.UUID) (
 		FindOne(ctx, filter).
 		Decode(&record); err != nil {
 		libOpentelemetry.HandleSpanError(spanFindOne, "Failed to find report by entity", err)
-		return nil, err
+		return nil, mapReportNotFound(err)
 	}
 
 	if nil == record {
 		libOpentelemetry.HandleSpanError(span, "Report record is nil after decode", mongo.ErrNoDocuments)
-		return nil, mongo.ErrNoDocuments
+		return nil, mapReportNotFound(mongo.ErrNoDocuments)
 	}
 
 	spanFindOne.End()
@@ -398,4 +403,15 @@ func (rm *ReportMongoDBRepository) CountByStatus(ctx context.Context, status str
 	}
 
 	return total, nil
+}
+
+// mapReportNotFound maps the MongoDB driver's not-found sentinel to the canonical
+// typed not-found error at the adapter boundary, so callers receive a 404-rendering
+// error instead of the raw driver error. Other errors pass through unchanged.
+func mapReportNotFound(err error) error {
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, cnErr.EntityReport, constant.MongoCollectionReport)
+	}
+
+	return err
 }

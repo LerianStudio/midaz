@@ -10,7 +10,8 @@ import (
 	"strings"
 	"time"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
@@ -125,7 +126,7 @@ func (uc *UseCase) dispatchExtraction(
 	}
 
 	if resp == nil {
-		return pkg.FailedPreconditionError{Code: constant.ErrCodeInvalidFetcherResponse, Title: "Invalid Fetcher Response", Message: "fetcher returned nil response for extraction job"}
+		return pkg.FailedPreconditionError{Code: cnErr.ErrCodeInvalidFetcherResponse.Error(), Title: "Invalid Fetcher Response", Message: "fetcher returned nil response for extraction job"}
 	}
 
 	span.SetAttributes(attribute.String("app.request.fetcher_job_id", resp.JobID))

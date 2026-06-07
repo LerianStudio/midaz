@@ -18,8 +18,9 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	"go.opentelemetry.io/otel/trace/noop"
 
+	pkgCanonical "github.com/LerianStudio/midaz/v4/pkg"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/template"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/postgres"
@@ -28,6 +29,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/mock/gomock"
 )
 
@@ -405,7 +407,7 @@ func TestUseCase_UpdateTemplateByID(t *testing.T) {
 			templateFile: nil,
 			description:  "\xb9",
 			tempId:       uuid.New(),
-			errContains:  "TPL-0061",
+			errContains:  "0288",
 			mockSetup:    func() {},
 			expectErr:    true,
 		},
@@ -415,7 +417,7 @@ func TestUseCase_UpdateTemplateByID(t *testing.T) {
 			outFormat:    "txt",
 			description:  "Valid description",
 			tempId:       uuid.New(),
-			errContains:  "TPL-0061",
+			errContains:  "0288",
 			mockSetup:    func() {},
 			expectErr:    true,
 		},
@@ -554,4 +556,37 @@ func TestUseCase_BuildSetFields(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestUseCase_UpdateTemplateByID_NotFound pins the live-500 fix: when the template
+// repository reports the row missing, the adapter maps the driver not-found to a typed
+// EntityNotFoundError at its boundary, and UpdateTemplateByID must propagate that typed
+// not-found (rendering 404) rather than the raw driver error (which renders 500).
+func TestUseCase_UpdateTemplateByID_NotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTempRepo := template.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		Logger:       log.NewNop(),
+		Tracer:       noop.NewTracerProvider().Tracer("test"),
+		TemplateRepo: mockTempRepo,
+	}
+
+	fileHeader, err := createFileHeaderFromString("<root/>", "missing.tpl")
+	require.NoError(t, err)
+
+	// The adapter boundary maps mongo.ErrNoDocuments to the canonical typed not-found.
+	mockTempRepo.EXPECT().
+		FindByID(gomock.Any(), gomock.Any()).
+		Return(nil, pkgCanonical.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTemplate))
+
+	_, _, errUpdate := uc.UpdateTemplateByID(context.Background(), "xml", "desc", uuid.New(), fileHeader)
+
+	require.Error(t, errUpdate)
+	assert.NotErrorIs(t, errUpdate, mongo.ErrNoDocuments, "raw driver not-found must not leak (would render 500)")
+
+	var notFound pkgCanonical.EntityNotFoundError
+	assert.ErrorAs(t, errUpdate, &notFound, "must surface typed not-found (renders 404)")
 }

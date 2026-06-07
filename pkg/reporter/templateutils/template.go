@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
+
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 )
 
@@ -1219,19 +1221,19 @@ func ValidateNoScriptTag(templateFile string) error {
 	// Check for script tags (with or without attributes)
 	// This catches: <script>, <script src="evil.js">, <script type="text/javascript">, etc.
 	if strings.Contains(lower, "<script") || strings.Contains(lower, "</script") {
-		return constant.ErrScriptTagDetected
+		return cnErr.ErrScriptTagDetected
 	}
 
 	// Check for tags that can load external resources (iframe, object, embed).
 	// These enable LFI via file:// URLs in Chrome headless PDF rendering.
 	if strings.Contains(lower, "<iframe") || strings.Contains(lower, "<object") || strings.Contains(lower, "<embed") {
-		return constant.ErrScriptTagDetected
+		return cnErr.ErrScriptTagDetected
 	}
 
 	// Check for inline event handler attributes (onerror=, onload=, onclick=, etc.)
 	// This catches: <img onerror="alert(1)">, <svg onload="alert(1)">, etc.
 	if eventHandlerPattern.MatchString(templateFile) {
-		return constant.ErrScriptTagDetected
+		return cnErr.ErrScriptTagDetected
 	}
 
 	return nil

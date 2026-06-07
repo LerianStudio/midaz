@@ -7,8 +7,8 @@ package services
 import (
 	"context"
 
+	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 
 	"github.com/LerianStudio/lib-observability/log"
 	opentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -30,7 +30,7 @@ func (uc *UseCase) DeleteDeadlineByID(ctx context.Context, id uuid.UUID) error {
 	uc.Logger.Log(ctx, log.LevelInfo, "Remove deadline", log.String("id", id.String()))
 
 	if err := uc.DeadlineRepo.Delete(ctx, id); err != nil {
-		if pkgHTTP.IsBusinessError(err) {
+		if pkgErr.IsBusinessError(err) {
 			opentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete deadline on repo by id", err)
 		} else {
 			opentelemetry.HandleSpanError(span, "Failed to delete deadline on repo by id", err)

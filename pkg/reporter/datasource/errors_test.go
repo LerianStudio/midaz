@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
 )
 
 func TestErrDataSourceNotFound_ImplementsError(t *testing.T) {
@@ -20,7 +20,7 @@ func TestErrDataSourceNotFound_ImplementsError(t *testing.T) {
 	// Verify ErrDataSourceNotFound is defined and usable as an error sentinel.
 	var err error = ErrDataSourceNotFound
 	assert.NotNil(t, err, "ErrDataSourceNotFound should be defined")
-	assert.Contains(t, err.Error(), "TPL-", "error code should follow TPL-XXXX pattern")
+	assert.NotEmpty(t, err.Error(), "error sentinel should carry a canonical code")
 }
 
 func TestErrDataSourceUnavailable_ImplementsError(t *testing.T) {
@@ -29,7 +29,7 @@ func TestErrDataSourceUnavailable_ImplementsError(t *testing.T) {
 	// Verify ErrDataSourceUnavailable is defined for D7 warnings.
 	var err error = ErrDataSourceUnavailable
 	assert.NotNil(t, err, "ErrDataSourceUnavailable should be defined")
-	assert.Contains(t, err.Error(), "TPL-", "error code should follow TPL-XXXX pattern")
+	assert.NotEmpty(t, err.Error(), "error sentinel should carry a canonical code")
 }
 
 func TestErrSchemaValidationFailed_ImplementsError(t *testing.T) {
@@ -37,7 +37,7 @@ func TestErrSchemaValidationFailed_ImplementsError(t *testing.T) {
 
 	var err error = ErrSchemaValidationFailed
 	assert.NotNil(t, err, "ErrSchemaValidationFailed should be defined")
-	assert.Contains(t, err.Error(), "TPL-", "error code should follow TPL-XXXX pattern")
+	assert.NotEmpty(t, err.Error(), "error sentinel should carry a canonical code")
 }
 
 func TestErrExtractionJobFailed_ImplementsError(t *testing.T) {
@@ -45,7 +45,7 @@ func TestErrExtractionJobFailed_ImplementsError(t *testing.T) {
 
 	var err error = ErrExtractionJobFailed
 	assert.NotNil(t, err, "ErrExtractionJobFailed should be defined")
-	assert.Contains(t, err.Error(), "TPL-", "error code should follow TPL-XXXX pattern")
+	assert.NotEmpty(t, err.Error(), "error sentinel should carry a canonical code")
 }
 
 func TestErrorIntegrationWithDomainErrors(t *testing.T) {
@@ -64,16 +64,16 @@ func TestErrorIntegrationWithDomainErrors(t *testing.T) {
 			description:  "should be mappable to pkg.EntityNotFoundError via ValidateBusinessError",
 		},
 		{
-			name:         "DataSourceUnavailable maps to ValidationError",
+			name:         "DataSourceUnavailable maps to ServiceUnavailableError",
 			sentinel:     ErrDataSourceUnavailable,
-			expectedType: "ValidationError",
+			expectedType: "ServiceUnavailableError",
 			description:  "should be mappable to pkg.ValidationError for D7 warning pattern",
 		},
 		{
-			name:         "SchemaValidationFailed maps to ValidationError",
+			name:         "SchemaValidationFailed maps to UnprocessableOperationError",
 			sentinel:     ErrSchemaValidationFailed,
-			expectedType: "ValidationError",
-			description:  "should be mappable to pkg.ValidationError",
+			expectedType: "UnprocessableOperationError",
+			description:  "should be mappable to pkg.UnprocessableOperationError (semantic 422)",
 		},
 		{
 			name:         "ExtractionJobFailed maps to InternalServerError",
@@ -106,10 +106,18 @@ func TestErrorIntegrationWithDomainErrors(t *testing.T) {
 				var target pkg.ValidationError
 				assert.True(t, errors.As(mappedErr, &target),
 					"sentinel %s should map to ValidationError, got: %T", tt.sentinel, mappedErr)
+			case "UnprocessableOperationError":
+				var target pkg.UnprocessableOperationError
+				assert.True(t, errors.As(mappedErr, &target),
+					"sentinel %s should map to UnprocessableOperationError, got: %T", tt.sentinel, mappedErr)
 			case "InternalServerError":
 				var target pkg.InternalServerError
 				assert.True(t, errors.As(mappedErr, &target),
 					"sentinel %s should map to InternalServerError, got: %T", tt.sentinel, mappedErr)
+			case "ServiceUnavailableError":
+				var target pkg.ServiceUnavailableError
+				assert.True(t, errors.As(mappedErr, &target),
+					"sentinel %s should map to ServiceUnavailableError, got: %T", tt.sentinel, mappedErr)
 			}
 		})
 	}

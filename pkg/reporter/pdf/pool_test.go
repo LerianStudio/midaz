@@ -154,13 +154,20 @@ func TestWorkerPool_GetChromeOptions(t *testing.T) {
 func TestBlockedExternalURLPatterns(t *testing.T) {
 	t.Parallel()
 
-	patterns := blockedExternalURLPatterns()
-	assert.Contains(t, patterns, "http://*")
-	assert.Contains(t, patterns, "https://*")
-	assert.Contains(t, patterns, "ws://*")
-	assert.Contains(t, patterns, "wss://*")
-	assert.Contains(t, patterns, "ftp://*")
-	assert.Contains(t, patterns, "file://*", "file:// protocol must be blocked to prevent LFI via Chrome headless PDF rendering")
+	blockPatterns := blockedExternalURLPatterns()
+
+	urlPatterns := make([]string, 0, len(blockPatterns))
+	for _, p := range blockPatterns {
+		assert.True(t, p.Block, "every pattern must block, not allow, matching requests")
+		urlPatterns = append(urlPatterns, p.URLPattern)
+	}
+
+	assert.Contains(t, urlPatterns, "http://*:*/*")
+	assert.Contains(t, urlPatterns, "https://*:*/*")
+	assert.Contains(t, urlPatterns, "ws://*:*/*")
+	assert.Contains(t, urlPatterns, "wss://*:*/*")
+	assert.Contains(t, urlPatterns, "ftp://*:*/*")
+	assert.Contains(t, urlPatterns, "file://*:*/*", "file:// protocol must be blocked to prevent LFI via Chrome headless PDF rendering")
 }
 
 func TestWorkerPool_Struct(t *testing.T) {

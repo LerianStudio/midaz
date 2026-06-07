@@ -12,7 +12,7 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/deadline"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/template"
 

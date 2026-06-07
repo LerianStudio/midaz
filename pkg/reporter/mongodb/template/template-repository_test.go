@@ -648,10 +648,10 @@ func TestRepository_Delete(t *testing.T) {
 			setupMock: func(mockRepo *MockRepository) {
 				mockRepo.EXPECT().
 					Delete(gomock.Any(), gomock.Any(), gomock.Eq(false)).
-					Return(errors.New("TPL-0011"))
+					Return(errors.New("0007"))
 			},
 			wantErr:     true,
-			expectedErr: "TPL-0011",
+			expectedErr: "0007",
 		},
 		{
 			name:       "error - entity not found on hard delete",
@@ -660,10 +660,10 @@ func TestRepository_Delete(t *testing.T) {
 			setupMock: func(mockRepo *MockRepository) {
 				mockRepo.EXPECT().
 					Delete(gomock.Any(), gomock.Any(), gomock.Eq(true)).
-					Return(errors.New("TPL-0011"))
+					Return(errors.New("0007"))
 			},
 			wantErr:     true,
-			expectedErr: "TPL-0011",
+			expectedErr: "0007",
 		},
 		{
 			name:       "error - database connection failure",

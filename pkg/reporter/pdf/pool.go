@@ -49,15 +49,22 @@ type WorkerPool struct {
 	logger  log.Logger
 }
 
-func blockedExternalURLPatterns() []string {
-	return []string{
-		"http://*",
-		"https://*",
-		"ws://*",
-		"wss://*",
-		"ftp://*",
-		"file://*",
+// blockedExternalURLPatterns returns the schemes whose requests must never be
+// loaded during PDF rendering. They are expressed as URLPattern constructor
+// strings (https://urlpattern.spec.whatwg.org/) of the form
+// "scheme://*:*/*" so that any host, port and path of the scheme is matched.
+func blockedExternalURLPatterns() []*network.BlockPattern {
+	schemes := []string{"http", "https", "ws", "wss", "ftp", "file"}
+	patterns := make([]*network.BlockPattern, 0, len(schemes))
+
+	for _, scheme := range schemes {
+		patterns = append(patterns, &network.BlockPattern{
+			URLPattern: scheme + "://*:*/*",
+			Block:      true,
+		})
 	}
+
+	return patterns
 }
 
 // NewWorkerPool creates a new worker pool.
@@ -168,7 +175,7 @@ func (wp *WorkerPool) generatePDF(ctx context.Context, html string) ([]byte, err
 				return err
 			}
 
-			return network.SetBlockedURLs(blockedExternalURLPatterns()).Do(ctx)
+			return network.SetBlockedURLs().WithURLPatterns(blockedExternalURLPatterns()).Do(ctx)
 		}),
 		// Layer 2: intercept ALL requests via Fetch domain.
 		// Any request not to about:blank is failed with AccessDenied.

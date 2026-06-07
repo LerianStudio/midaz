@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 func TestGetMimeType(t *testing.T) {
@@ -1648,7 +1648,7 @@ func TestMappedFieldsOfTemplate_AggregationNestedJSONBWithCompoundConditions(t *
 	t.Parallel()
 
 	// Regression test: nested JSONB field path in "by" clause combined with compound conditions
-	// This was causing TPL-0031 error because fee_charge.totalAmount was incorrectly treated as a datasource
+	// This was causing 0262 error because fee_charge.totalAmount was incorrectly treated as a datasource
 	template := `{% sum_by sales_db:payment.transfers by "fee_charge.totalAmount" if transfer_type == "CASHIN" and destination_person_type == "NATURAL_PERSON" and status == "COMPLETED" %}`
 
 	result := MappedFieldsOfTemplate(template)

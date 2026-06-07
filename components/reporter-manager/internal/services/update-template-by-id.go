@@ -6,11 +6,14 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"strings"
 	"time"
 
+	pkgCanonical "github.com/LerianStudio/midaz/v4/pkg"
+	canonicalConstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
@@ -118,7 +121,7 @@ func (uc *UseCase) prepareTemplateUpdate(ctx context.Context, span trace.Span, i
 
 		currentTemplate, previousMappedFields, err = uc.getTemplateStateForUpdate(ctx, id)
 		if err != nil {
-			if pkgHTTP.IsBusinessError(err) {
+			if pkgCanonical.IsBusinessError(err) {
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve current template state", err)
 			} else {
 				libOpentelemetry.HandleSpanError(span, "Failed to retrieve current template state", err)
@@ -134,7 +137,7 @@ func (uc *UseCase) prepareTemplateUpdate(ctx context.Context, span trace.Span, i
 func (uc *UseCase) processAndValidateTemplateFile(ctx context.Context, span trace.Span, fileHeader *multipart.FileHeader) (string, map[string]map[string][]string, map[string]map[string][]string, error) {
 	templateFile, mappedFields, err := uc.processTemplateFile(ctx, fileHeader)
 	if err != nil {
-		if pkgHTTP.IsBusinessError(err) {
+		if pkgCanonical.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process template file", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to process template file", err)
@@ -169,7 +172,7 @@ func (uc *UseCase) applyTemplateMetadataUpdate(ctx context.Context, span trace.S
 func (uc *UseCase) fetchUpdatedTemplate(ctx context.Context, span trace.Span, id uuid.UUID) (*template.Template, error) {
 	templateUpdated, err := uc.GetTemplateByID(ctx, id)
 	if err != nil {
-		if pkgHTTP.IsBusinessError(err) {
+		if pkgCanonical.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve updated template", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve updated template", err)
@@ -214,6 +217,11 @@ func (uc *UseCase) getTemplateStateForUpdate(ctx context.Context, id uuid.UUID) 
 	currentTemplate, err := uc.TemplateRepo.FindByID(ctx, id)
 	if err != nil {
 		uc.Logger.Log(ctx, log.LevelError, "Failed to retrieve template", log.String("id", id.String()), log.Err(err))
+
+		if nf := (pkgCanonical.EntityNotFoundError{}); errors.As(err, &nf) {
+			return nil, nil, pkgCanonical.ValidateBusinessError(canonicalConstant.ErrEntityNotFound, canonicalConstant.EntityTemplate, constant.MongoCollectionTemplate)
+		}
+
 		return nil, nil, err
 	}
 
@@ -262,7 +270,7 @@ func (uc *UseCase) processTemplateFile(ctx context.Context, fileHeader *multipar
 	}
 
 	if err := templateUtils.ValidateNoScriptTag(templateFile); err != nil {
-		errBusiness := pkg.ValidateBusinessError(constant.ErrScriptTagDetected, "")
+		errBusiness := pkgCanonical.ValidateBusinessError(canonicalConstant.ErrScriptTagDetected, "")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Script tag detected in template file", errBusiness)
 
 		return "", nil, errBusiness
@@ -310,7 +318,7 @@ func (uc *UseCase) validateOutputFormatAndFile(ctx context.Context, id uuid.UUID
 	if fileHeader != nil && commons.IsNilOrEmpty(&outputFormat) {
 		outputFormatExistentTemplate, err := uc.TemplateRepo.FindOutputFormatByID(ctx, id)
 		if err != nil {
-			if pkgHTTP.IsBusinessError(err) {
+			if pkgCanonical.IsBusinessError(err) {
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get outputFormat of template by ID", err)
 			} else {
 				libOpentelemetry.HandleSpanError(span, "Failed to get outputFormat of template by ID", err)
@@ -340,7 +348,7 @@ func (uc *UseCase) validateOutputFormatAndFile(ctx context.Context, id uuid.UUID
 	// If outputFormat is explicitly provided, validate it
 	if !commons.IsNilOrEmpty(&outputFormat) {
 		if !pkg.IsOutputFormatValuesValid(&outputFormat) {
-			errInvalidFormat := pkg.ValidateBusinessError(constant.ErrInvalidOutputFormat, "")
+			errInvalidFormat := pkgCanonical.ValidateBusinessError(canonicalConstant.ErrInvalidOutputFormat, "")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid output format value", errInvalidFormat)
 			uc.Logger.Log(ctx, log.LevelError, "Error invalid outputFormat value", log.String("output_format", outputFormat))
@@ -349,7 +357,7 @@ func (uc *UseCase) validateOutputFormatAndFile(ctx context.Context, id uuid.UUID
 		}
 
 		if fileHeader == nil {
-			errMissingFile := pkg.ValidateBusinessError(constant.ErrOutputFormatWithoutTemplateFile, "")
+			errMissingFile := pkgCanonical.ValidateBusinessError(canonicalConstant.ErrOutputFormatWithoutTemplateFile, "")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Output format provided without template file", errMissingFile)
 			uc.Logger.Log(ctx, log.LevelError, "Can not update outputFormat without passing the file template")

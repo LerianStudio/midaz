@@ -15,7 +15,8 @@ import (
 
 	"go.opentelemetry.io/otel/trace/noop"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
@@ -90,7 +91,7 @@ func TestReportHandler_CreateReport(t *testing.T) {
 			mockSetup: func(mockTempRepo *template.MockRepository, mockReportRepo *report.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository) {
 				mockTempRepo.EXPECT().
 					FindMappedFieldsAndOutputFormatByID(gomock.Any(), gomock.Any()).
-					Return(nil, nil, "", pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionTemplate))
+					Return(nil, nil, "", pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, "", constant.MongoCollectionTemplate))
 			},
 			expectedStatus: fiber.StatusNotFound,
 			expectError:    true,
@@ -115,7 +116,7 @@ func TestReportHandler_CreateReport(t *testing.T) {
 
 				mockReportRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil, constant.ErrInternalServer)
+					Return(nil, cnErr.ErrInternalServer)
 			},
 			expectedStatus: fiber.StatusInternalServerError,
 			expectError:    true,
@@ -257,7 +258,7 @@ func TestReportHandler_GetReport(t *testing.T) {
 			mockSetup: func(mockReportRepo *report.MockRepository) {
 				mockReportRepo.EXPECT().
 					FindByID(gomock.Any(), reportID).
-					Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionReport))
+					Return(nil, pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, "", constant.MongoCollectionReport))
 			},
 			expectedStatus: fiber.StatusNotFound,
 			expectError:    true,
@@ -378,7 +379,7 @@ func TestReportHandler_GetAllReports(t *testing.T) {
 			mockSetup: func(mockReportRepo *report.MockRepository) {
 				mockReportRepo.EXPECT().
 					FindList(gomock.Any(), gomock.Any()).
-					Return(nil, constant.ErrInternalServer)
+					Return(nil, cnErr.ErrInternalServer)
 			},
 			expectedStatus: fiber.StatusInternalServerError,
 			expectedLen:    0,
@@ -486,7 +487,7 @@ func TestReportHandler_GetDownloadReport(t *testing.T) {
 			mockSetup: func(mockReportRepo *report.MockRepository, mockTempRepo *template.MockRepository, mockSeaweedFS *reportSeaweed.MockRepository) {
 				mockReportRepo.EXPECT().
 					FindByID(gomock.Any(), reportID).
-					Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionReport))
+					Return(nil, pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, "", constant.MongoCollectionReport))
 			},
 			expectedStatus: fiber.StatusNotFound,
 			expectError:    true,
@@ -504,7 +505,7 @@ func TestReportHandler_GetDownloadReport(t *testing.T) {
 						CreatedAt:  now,
 					}, nil)
 			},
-			expectedStatus: fiber.StatusBadRequest, // ErrReportStatusNotFinished returns ValidationError (400)
+			expectedStatus: fiber.StatusUnprocessableEntity, // ErrReportStatusNotFinished maps to UnprocessableOperationError (422)
 			expectError:    true,
 		},
 		{
@@ -523,7 +524,7 @@ func TestReportHandler_GetDownloadReport(t *testing.T) {
 
 				mockTempRepo.EXPECT().
 					FindOutputFormatByIDIncludeDeleted(gomock.Any(), tempID).
-					Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionTemplate))
+					Return(nil, pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, "", constant.MongoCollectionTemplate))
 			},
 			expectedStatus: fiber.StatusNotFound,
 			expectError:    true,
@@ -549,7 +550,7 @@ func TestReportHandler_GetDownloadReport(t *testing.T) {
 
 				mockSeaweedFS.EXPECT().
 					Get(gomock.Any(), gomock.Any()).
-					Return(nil, constant.ErrInternalServer)
+					Return(nil, cnErr.ErrInternalServer)
 			},
 			expectedStatus: fiber.StatusInternalServerError,
 			expectError:    true,
@@ -680,7 +681,7 @@ func TestReportHandler_GetReport_InternalError(t *testing.T) {
 
 	mockReportRepo.EXPECT().
 		FindByID(gomock.Any(), reportID).
-		Return(nil, constant.ErrInternalServer)
+		Return(nil, cnErr.ErrInternalServer)
 
 	svc := &services.UseCase{
 		Logger:     log.NewNop(),

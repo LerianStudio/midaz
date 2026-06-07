@@ -10,9 +10,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -373,7 +374,7 @@ func TestJSONResponseError(t *testing.T) {
 		{
 			name: "Success - returns custom status code with ResponseError",
 			err: pkg.ResponseError{
-				Code:    http.StatusTeapot,
+				Code:    strconv.Itoa(http.StatusTeapot),
 				Title:   "I'm a teapot",
 				Message: "Cannot brew coffee",
 			},
@@ -382,7 +383,7 @@ func TestJSONResponseError(t *testing.T) {
 		{
 			name: "Success - returns 502 Bad Gateway",
 			err: pkg.ResponseError{
-				Code:    http.StatusBadGateway,
+				Code:    strconv.Itoa(http.StatusBadGateway),
 				Title:   "Bad Gateway",
 				Message: "Upstream error",
 			},

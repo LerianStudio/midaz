@@ -12,7 +12,8 @@ import (
 	"mime/multipart"
 	"strings"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
@@ -104,7 +105,7 @@ func (uc *UseCase) CreateTemplate(ctx context.Context, templateFile, outFormat, 
 
 func (uc *UseCase) prepareTemplateCreation(ctx context.Context, span trace.Span, templateFile string) (map[string]map[string][]string, map[string]map[string][]string, error) {
 	if err := templateUtils.ValidateNoScriptTag(templateFile); err != nil {
-		errScript := pkg.ValidateBusinessError(constant.ErrScriptTagDetected, "")
+		errScript := pkg.ValidateBusinessError(cnErr.ErrScriptTagDetected, "")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Script tag detected in template", errScript)
 
 		return nil, nil, errScript
@@ -138,7 +139,7 @@ func (uc *UseCase) persistTemplate(ctx context.Context, span trace.Span, outForm
 
 	templateEntity, err := template.NewTemplate(templateID, strings.ToLower(outFormat), description, fileName)
 	if err != nil {
-		if pkgHTTP.IsBusinessError(err) {
+		if pkg.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create template entity", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to create template entity", err)
@@ -313,9 +314,9 @@ func (uc *UseCase) handleDuplicateTemplateRequest(ctx context.Context, idempoten
 		// replay; surface the same in-flight conflict so the client retries
 		// rather than leaking the raw driver sentinel as a 500.
 		if errors.Is(getErr, goRedis.Nil) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(childSpan, "Idempotency key vanished between SetNX and Get", constant.ErrDuplicateRequestInFlight)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(childSpan, "Idempotency key vanished between SetNX and Get", cnErr.ErrDuplicateRequestInFlight)
 
-			return nil, pkg.ValidateBusinessError(constant.ErrDuplicateRequestInFlight, "template")
+			return nil, pkg.ValidateBusinessError(cnErr.ErrDuplicateRequestInFlight, "template")
 		}
 
 		libOpentelemetry.HandleSpanError(childSpan, "Failed to retrieve cached template idempotency response", getErr)
@@ -325,9 +326,9 @@ func (uc *UseCase) handleDuplicateTemplateRequest(ctx context.Context, idempoten
 
 	// If the cached value is empty or still "processing", the first request is still in-flight
 	if cachedResponse == "" || cachedResponse == "processing" {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(childSpan, "Duplicate in-flight template request detected", constant.ErrDuplicateRequestInFlight)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(childSpan, "Duplicate in-flight template request detected", cnErr.ErrDuplicateRequestInFlight)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrDuplicateRequestInFlight, "template")
+		return nil, pkg.ValidateBusinessError(cnErr.ErrDuplicateRequestInFlight, "template")
 	}
 
 	// Unmarshal the cached response

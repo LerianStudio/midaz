@@ -9,8 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
 
 	"github.com/LerianStudio/lib-observability/log"
@@ -28,7 +28,7 @@ func (uc *UseCase) downloadExtractedData(ctx context.Context, dataPath string) (
 	span.SetAttributes(attribute.String("app.request.data_path", dataPath))
 
 	if uc.FetcherDataStorage == nil {
-		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeStorageNotConfigured, Title: "Storage Not Configured", Message: "fetcher data storage client is not configured"}
+		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeStorageNotConfigured.Error(), Title: "Storage Not Configured", Message: "fetcher data storage client is not configured"}
 	}
 
 	uc.Logger.Log(ctx, log.LevelInfo, "Downloading extracted data from Fetcher storage",
@@ -109,7 +109,7 @@ func parseExtractedData(data []byte) (map[string]map[string][]map[string]any, er
 	var result map[string]map[string][]map[string]any
 
 	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeInvalidExtractedData, Title: "Invalid Extracted Data", Message: fmt.Sprintf("unmarshal extracted data: %s", err.Error()), Err: err}
+		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeInvalidExtractedData.Error(), Title: "Invalid Extracted Data", Message: fmt.Sprintf("unmarshal extracted data: %s", err.Error()), Err: err}
 	}
 
 	return result, nil

@@ -11,10 +11,9 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -65,7 +64,7 @@ func (uc *UseCase) ValidateSchemaViaProvider(ctx context.Context, mappedFields m
 
 		result, err := uc.DataSourceProvider.ValidateSchema(ctx, dsID, tables)
 		if err != nil {
-			if pkgHTTP.IsBusinessError(err) {
+			if pkg.IsBusinessError(err) {
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Schema validation failed via provider", err)
 			} else {
 				libOpentelemetry.HandleSpanError(span, "Schema validation failed via provider", err)

@@ -9,8 +9,8 @@ import (
 	"errors"
 	"testing"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	reportData "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs/template"
 
@@ -161,11 +161,10 @@ func TestUseCase_RenderTemplate(t *testing.T) {
 		_, err := useCase.renderTemplate(context.Background(), templateBytes, data, message, &span)
 		require.Error(t, err)
 
-		// The engine error must be wrapped as a permanent, TPL-coded domain error.
-		var renderErr pkg.UnprocessableOperationError
-		require.ErrorAs(t, err, &renderErr, "render failure must surface as UnprocessableOperationError")
-		assert.Equal(t, constant.ErrTemplateRenderFailed.Error(), renderErr.Code, "render failure must carry the TPL-0062 code")
-		assert.Contains(t, renderErr.Code, "TPL-", "code must be in the TPL- namespace for retry classification")
+		// The engine error must be wrapped as a permanent, canonical-coded domain error.
+		var renderErr pkg.InternalServerError
+		require.ErrorAs(t, err, &renderErr, "render failure must surface as InternalServerError")
+		assert.Equal(t, constant.ErrTemplateRenderFailed.Error(), renderErr.Code, "render failure must carry the 0289 code")
 	})
 
 	t.Run("Error - template rendering fails and report update also fails", func(t *testing.T) {

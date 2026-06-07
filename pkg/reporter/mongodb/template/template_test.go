@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	constant "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 func TestTemplateMongoDBModel_ToEntity(t *testing.T) {
@@ -306,7 +306,7 @@ func TestNewTemplate(t *testing.T) {
 			description:  "Test",
 			fileName:     "template.tpl",
 			wantErr:      true,
-			expectedErr:  constant.ErrMissingRequiredFields,
+			expectedErr:  constant.ErrMissingFieldsInRequest,
 		},
 		{
 			name:         "empty outputFormat returns error",
@@ -315,7 +315,7 @@ func TestNewTemplate(t *testing.T) {
 			description:  "Test",
 			fileName:     "template.tpl",
 			wantErr:      true,
-			expectedErr:  constant.ErrMissingRequiredFields,
+			expectedErr:  constant.ErrMissingFieldsInRequest,
 		},
 		{
 			name:         "empty fileName returns error",
@@ -324,7 +324,7 @@ func TestNewTemplate(t *testing.T) {
 			description:  "Test",
 			fileName:     "",
 			wantErr:      true,
-			expectedErr:  constant.ErrMissingRequiredFields,
+			expectedErr:  constant.ErrMissingFieldsInRequest,
 		},
 	}
 

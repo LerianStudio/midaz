@@ -12,13 +12,15 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	"go.opentelemetry.io/otel/trace/noop"
 
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
+
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/mock/gomock"
 )
 
@@ -78,11 +80,11 @@ func TestUseCase_GetReportByID(t *testing.T) {
 				mockReportRepo := report.NewMockRepository(ctrl)
 				mockReportRepo.EXPECT().
 					FindByID(gomock.Any(), gomock.Any()).
-					Return(nil, constant.ErrInternalServer)
+					Return(nil, cnErr.ErrInternalServer)
 				return &UseCase{Logger: log.NewNop(), Tracer: noop.NewTracerProvider().Tracer("test"), ReportRepo: mockReportRepo}
 			},
 			expectErr:      true,
-			errContains:    constant.ErrInternalServer.Error(),
+			errContains:    cnErr.ErrInternalServer.Error(),
 			expectedResult: nil,
 		},
 		{
@@ -92,11 +94,11 @@ func TestUseCase_GetReportByID(t *testing.T) {
 				mockReportRepo := report.NewMockRepository(ctrl)
 				mockReportRepo.EXPECT().
 					FindByID(gomock.Any(), gomock.Any()).
-					Return(nil, mongo.ErrNoDocuments)
+					Return(nil, pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, cnErr.EntityReport))
 				return &UseCase{Logger: log.NewNop(), Tracer: noop.NewTracerProvider().Tracer("test"), ReportRepo: mockReportRepo}
 			},
 			expectErr:      true,
-			errContains:    "No report entity was found",
+			errContains:    "No entity was found",
 			expectedResult: nil,
 		},
 	}

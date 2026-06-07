@@ -171,8 +171,13 @@ func legacyFiberErrorHandler(c *fiber.Ctx, err error) error {
 			log.String("path", c.Path()),
 			log.Err(err),
 		)
+	}
 
-		return c.Status(code).JSON(fiber.Map{"error": nethttp.StatusText(code)})
+	// Render canonical typed platform errors (e.g. InternalServerError returned by
+	// midazHTTP.WithError on the unmapped path) with their structured {code,title,message}
+	// body; bare Fiber errors keep the generic StatusText envelope.
+	if fiberErr == nil {
+		return midazHTTP.WithError(c, err)
 	}
 
 	return c.Status(code).JSON(fiber.Map{"error": nethttp.StatusText(code)})

@@ -12,7 +12,9 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 
 	"github.com/LerianStudio/midaz/v4/components/reporter-manager/internal/services"
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
+	netHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
@@ -79,7 +81,7 @@ func (rh *ReportHandler) CreateReport(p any, c *fiber.Ctx) error {
 
 	payload, ok := p.(*model.CreateReportInput)
 	if !ok {
-		return http.BadRequest(c, "invalid request body")
+		return netHTTP.BadRequest(c, "invalid request body")
 	}
 
 	rh.service.Logger.Log(ctx, log.LevelInfo, "Request to create report",
@@ -95,13 +97,13 @@ func (rh *ReportHandler) CreateReport(p any, c *fiber.Ctx) error {
 
 	reportOut, err := rh.service.CreateReport(ctx, payload)
 	if err != nil {
-		if http.IsBusinessError(err) {
+		if pkg.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create report", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to create report", err)
 		}
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	rh.service.Logger.Log(ctx, log.LevelInfo, "Successfully created report",
@@ -142,7 +144,7 @@ func (rh *ReportHandler) GetDownloadReport(c *fiber.Ctx) error {
 
 	id, ok := c.Locals("id").(uuid.UUID)
 	if !ok {
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "id"))
+		return netHTTP.WithError(c, pkg.ValidateBusinessError(cnErr.ErrInvalidPathParameter, "", "id"))
 	}
 
 	rh.service.Logger.Log(ctx, log.LevelInfo, "Initiating download of report", log.String("report_id", id.String()))
@@ -154,7 +156,7 @@ func (rh *ReportHandler) GetDownloadReport(c *fiber.Ctx) error {
 
 	fileBytes, fileName, contentType, err := rh.service.DownloadReport(ctx, id)
 	if err != nil {
-		if http.IsBusinessError(err) {
+		if pkg.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to download report", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to download report", err)
@@ -162,7 +164,7 @@ func (rh *ReportHandler) GetDownloadReport(c *fiber.Ctx) error {
 
 		rh.service.Logger.Log(ctx, log.LevelError, "Failed to download report", log.String("report_id", id.String()), log.Err(err))
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	c.Set("Content-Type", contentType)
@@ -197,7 +199,7 @@ func (rh *ReportHandler) GetReport(c *fiber.Ctx) error {
 
 	id, ok := c.Locals("id").(uuid.UUID)
 	if !ok {
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "id"))
+		return netHTTP.WithError(c, pkg.ValidateBusinessError(cnErr.ErrInvalidPathParameter, "", "id"))
 	}
 
 	rh.service.Logger.Log(ctx, log.LevelInfo, "Initiating get report", log.String("report_id", id.String()))
@@ -209,7 +211,7 @@ func (rh *ReportHandler) GetReport(c *fiber.Ctx) error {
 
 	reportModel, err := rh.service.GetReportByID(ctx, id)
 	if err != nil {
-		if http.IsBusinessError(err) {
+		if pkg.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve report on query", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve report on query", err)
@@ -217,7 +219,7 @@ func (rh *ReportHandler) GetReport(c *fiber.Ctx) error {
 
 		rh.service.Logger.Log(ctx, log.LevelError, "Failed to retrieve report", log.String("report_id", id.String()), log.Err(err))
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	return commonsHttp.Respond(c, fiber.StatusOK, reportModel)
@@ -261,7 +263,7 @@ func (rh *ReportHandler) GetAllReports(c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 		rh.service.Logger.Log(ctx, log.LevelError, "Failed to validate query parameters", log.Err(err))
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	pagination := model.Pagination{
@@ -282,7 +284,7 @@ func (rh *ReportHandler) GetAllReports(c *fiber.Ctx) error {
 
 	reports, err := rh.service.GetAllReports(ctx, *headerParams)
 	if err != nil {
-		if http.IsBusinessError(err) {
+		if pkg.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Reports on query", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve all Reports on query", err)
@@ -290,7 +292,7 @@ func (rh *ReportHandler) GetAllReports(c *fiber.Ctx) error {
 
 		rh.service.Logger.Log(ctx, log.LevelError, "Failed to retrieve all reports", log.Err(err))
 
-		return http.WithError(c, err)
+		return netHTTP.WithError(c, err)
 	}
 
 	rh.service.Logger.Log(ctx, log.LevelInfo, "Successfully retrieved all reports")

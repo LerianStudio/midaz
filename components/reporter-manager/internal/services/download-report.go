@@ -7,10 +7,10 @@ package services
 import (
 	"context"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 	templateUtils "github.com/LerianStudio/midaz/v4/pkg/reporter/templateutils"
 
 	"github.com/LerianStudio/lib-observability/log"
@@ -37,7 +37,7 @@ func (uc *UseCase) DownloadReport(ctx context.Context, id uuid.UUID) ([]byte, st
 	// Fetch the report
 	reportModel, err := uc.GetReportByID(ctx, id)
 	if err != nil {
-		if pkgHTTP.IsBusinessError(err) {
+		if pkg.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve report on query", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve report on query", err)
@@ -50,7 +50,7 @@ func (uc *UseCase) DownloadReport(ctx context.Context, id uuid.UUID) ([]byte, st
 
 	// Validate report status
 	if reportModel.Status != constant.FinishedStatus {
-		errStatus := pkg.ValidateBusinessError(constant.ErrReportStatusNotFinished, "")
+		errStatus := pkg.ValidateBusinessError(cnErr.ErrReportStatusNotFinished, "")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Report status is not finished", errStatus)
 		uc.Logger.Log(ctx, log.LevelError, "Report is not finished", log.String("id", id.String()))
@@ -66,7 +66,7 @@ func (uc *UseCase) DownloadReport(ctx context.Context, id uuid.UUID) ([]byte, st
 	if outputFormat == "" {
 		format, err := uc.TemplateRepo.FindOutputFormatByIDIncludeDeleted(ctx, reportModel.TemplateID)
 		if err != nil {
-			if pkgHTTP.IsBusinessError(err) {
+			if pkg.IsBusinessError(err) {
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve template output format", err)
 			} else {
 				libOpentelemetry.HandleSpanError(span, "Failed to retrieve template output format", err)

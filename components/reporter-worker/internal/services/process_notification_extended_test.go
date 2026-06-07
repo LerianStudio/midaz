@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/fetcher"

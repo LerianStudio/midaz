@@ -9,17 +9,16 @@ import (
 	"errors"
 	"time"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/deadline"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/reporter/net/http"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -36,7 +35,7 @@ func (uc *UseCase) DeliverDeadline(ctx context.Context, id uuid.UUID, input *dea
 	)
 
 	if input.Delivered == nil {
-		validationErr := pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "delivered field is required")
+		validationErr := pkg.ValidateBusinessError(cnErr.ErrInvalidPathParameter, "", "delivered field is required")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Delivered field is nil", validationErr)
 
 		return nil, validationErr
@@ -62,8 +61,8 @@ func (uc *UseCase) DeliverDeadline(ctx context.Context, id uuid.UUID, input *dea
 	updateFields := bson.M{"$set": setFields}
 
 	if errUpdate := uc.DeadlineRepo.Update(ctx, id, &updateFields); errUpdate != nil {
-		if errors.Is(errUpdate, mongo.ErrNoDocuments) {
-			errNotFound := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.MongoCollectionDeadline)
+		if nf := (pkg.EntityNotFoundError{}); errors.As(errUpdate, &nf) {
+			errNotFound := pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, "", constant.MongoCollectionDeadline)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Deadline not found", errNotFound)
 
@@ -79,7 +78,7 @@ func (uc *UseCase) DeliverDeadline(ctx context.Context, id uuid.UUID, input *dea
 	// Fetch the updated deadline to return
 	updated, err := uc.DeadlineRepo.FindByID(ctx, id)
 	if err != nil {
-		if pkgHTTP.IsBusinessError(err) {
+		if pkg.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve delivered deadline", err)
 		} else {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve delivered deadline", err)

@@ -10,10 +10,20 @@ import (
 	"errors"
 	"strings"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgReporter "github.com/LerianStudio/midaz/v4/pkg/reporter"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 )
+
+// permanentReporterCodes are canonical wire codes that map to InternalServerError
+// (5xx, not in the business-error set) yet represent permanent failures that will
+// never succeed on retry. Matched via the typed error's Code field.
+var permanentReporterCodes = map[string]struct{}{
+	constant.ErrTemplateRenderFailed.Error(): {}, // 0289
+	constant.ErrExtractionJobFailed.Error():  {}, // 0287
+}
 
 // isNonRetryableHandlerError classifies whether a handler error is permanent
 // (non-retryable) and the message should be dropped, or transient and the
@@ -29,7 +39,7 @@ import (
 //   - context.Canceled / context.DeadlineExceeded → non-retryable
 //   - Permanent tenant errors (not found, suspended, closed, not configured) → non-retryable
 //   - Domain validation/business errors (pkg.ValidationError, etc.) → non-retryable
-//   - TPL-* error codes in the error string → non-retryable
+//   - Permanent reporter codes mapping to 5xx typed errors → non-retryable
 //   - Everything else (network, DB, circuit breaker open) → retryable
 func isNonRetryableHandlerError(err error) bool {
 	if err == nil {
@@ -60,8 +70,9 @@ func isNonRetryableHandlerError(err error) bool {
 		return true
 	}
 
-	// TPL-XXXX error codes embedded in the error message.
-	if strings.Contains(err.Error(), "TPL-") {
+	// Permanent reporter codes that map to 5xx typed errors (e.g. template render
+	// failure) but will never succeed on retry.
+	if isPermanentReporterCode(err) {
 		return true
 	}
 
@@ -148,9 +159,22 @@ func isNonRetryableDomainError(err error) bool {
 
 	// SchemaAmbiguityError — permanent data source configuration error
 	// (ambiguous table reference across multiple schemas).
-	_, ok := errors.AsType[*pkg.SchemaAmbiguityError](err)
+	_, ok := errors.AsType[*pkgReporter.SchemaAmbiguityError](err)
 
 	return ok
+}
+
+// isPermanentReporterCode reports whether err carries a canonical reporter code
+// that maps to a 5xx typed error yet is permanent (won't succeed on retry).
+func isPermanentReporterCode(err error) bool {
+	var internalErr pkg.InternalServerError
+	if errors.As(err, &internalErr) {
+		if _, ok := permanentReporterCodes[internalErr.Code]; ok {
+			return true
+		}
+	}
+
+	return false
 }
 
 // isPermanentErrorByPattern is a last-resort safety net that catches permanent
