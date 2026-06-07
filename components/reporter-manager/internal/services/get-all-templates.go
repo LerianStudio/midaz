@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/template"
@@ -17,11 +18,14 @@ import (
 )
 
 // GetAllTemplates fetch all Templates from the repository
-func (uc *UseCase) GetAllTemplates(ctx context.Context, filters http.QueryHeader) ([]*template.Template, error) {
+func (uc *UseCase) GetAllTemplates(ctx context.Context, filters http.QueryHeader) (_ []*template.Template, err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.template.get_all")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opListTemplates, start, err) }()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

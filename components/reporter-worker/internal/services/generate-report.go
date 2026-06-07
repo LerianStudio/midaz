@@ -49,11 +49,14 @@ type GenerateReportMessage struct {
 
 // GenerateReport handles a report generation request by loading a template file,
 // processing it, and storing the final report in the report repository.
-func (uc *UseCase) GenerateReport(ctx context.Context, body []byte) error {
+func (uc *UseCase) GenerateReport(ctx context.Context, body []byte) (err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.report.generate")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opGenerateReport, start, err) }()
 
 	span.SetAttributes(attribute.String("app.request.request_id", reqId))
 

@@ -6,19 +6,26 @@ package services
 
 import (
 	"context"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 // DeletePackageByID delete a package from the repository
-func (uc *UseCase) DeletePackageByID(ctx context.Context, id, organizationID uuid.UUID) error {
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+func (uc *UseCase) DeletePackageByID(ctx context.Context, id, organizationID uuid.UUID) (err error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.delete_package_by_id")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "fees", "delete_package", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

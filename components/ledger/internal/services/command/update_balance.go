@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -134,11 +135,16 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 //     - reducing limit below current usage is rejected
 //  3. Auto-creates the system-managed "overdraft" balance on a false→true
 //     transition (idempotent — existing overdraft balances are reused).
-func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, update mmodel.UpdateBalance) (*mmodel.Balance, error) {
+func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, update mmodel.UpdateBalance) (_ *mmodel.Balance, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.update_balance")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_balance", start, err)
+	}()
 
 	// Always load the current balance so the scope guard can fire
 	// regardless of which fields the payload contains (Settings,

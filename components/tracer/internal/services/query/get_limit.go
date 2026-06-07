@@ -7,6 +7,7 @@ package query
 import (
 	"context"
 	"errors"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -17,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // GetLimitQuery handles retrieving a single limit.
@@ -31,11 +33,16 @@ func NewGetLimitQuery(repo LimitRepository) *GetLimitQuery {
 
 // Execute retrieves a limit by ID.
 // Returns constant.ErrLimitNotFound if the limit doesn't exist.
-func (q *GetLimitQuery) Execute(ctx context.Context, id uuid.UUID) (*model.Limit, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+func (q *GetLimitQuery) Execute(ctx context.Context, id uuid.UUID) (_ *model.Limit, retErr error) {
+	logger, tracer, _, factory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.limit.get")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "limit_get", start, retErr)
+	}()
 
 	logger = logging.WithTrace(ctx, logger)
 

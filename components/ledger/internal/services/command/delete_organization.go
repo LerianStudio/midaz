@@ -18,16 +18,22 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // DeleteOrganizationByID deletes an organization from the repository.
-func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) error {
+func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) (err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.delete_organization_by_id")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "delete_organization", start, err)
+	}()
 
 	if err := uc.OrganizationRepo.Delete(ctx, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {

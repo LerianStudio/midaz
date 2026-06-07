@@ -5,6 +5,7 @@
 package query
 
 import (
+	"github.com/LerianStudio/lib-observability/metrics"
 	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	txMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
@@ -93,4 +94,12 @@ type UseCase struct {
 
 	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.
 	RabbitMQRepo rabbitmq.ProducerRepository
+
+	// --- Observability (D6) ---
+
+	// MetricsFactory emits the bounded domain_operations_total /
+	// domain_operation_duration_ms metrics for the flagship read entrypoints
+	// via utils.RecordDomainOperation. A nil value is a no-op so the binary
+	// runs with telemetry disabled.
+	MetricsFactory *metrics.MetricsFactory
 }

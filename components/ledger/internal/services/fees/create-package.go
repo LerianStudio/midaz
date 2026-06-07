@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -21,11 +23,16 @@ import (
 )
 
 // CreatePackage creates a new pack persists data in the repository.
-func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageInput, organizationID, ledgerID, segmentID uuid.UUID) (*pack.Package, error) {
+func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageInput, organizationID, ledgerID, segmentID uuid.UUID) (_ *pack.Package, err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.create_package")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "fees", "create_package", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

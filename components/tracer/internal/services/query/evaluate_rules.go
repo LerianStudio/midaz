@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // Sentinel errors for EvaluateRulesQuery.
@@ -83,7 +85,7 @@ func NewEvaluateRulesQuery(
 }
 
 // Execute performs complete rule evaluation.
-func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationRequest) (*model.EvaluationResult, error) {
+func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationRequest) (_ *model.EvaluationResult, retErr error) {
 	// Check context cancellation first (per PROJECT_RULES.md)
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -93,10 +95,15 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 		return nil, ErrNilValidationRequest
 	}
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, tracer, _, factory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.rules.evaluate")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "rules_evaluate", start, retErr)
+	}()
 
 	logger = logging.WithTrace(ctx, logger)
 

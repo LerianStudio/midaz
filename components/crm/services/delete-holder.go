@@ -6,20 +6,27 @@ package services
 
 import (
 	"context"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 // DeleteHolderByID deletes a holder by its ID.
-func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, id uuid.UUID, hardDelete bool) error {
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, id uuid.UUID, hardDelete bool) (err error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.delete_holder_by_id")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "crm", "delete_holder", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

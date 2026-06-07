@@ -7,6 +7,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -35,7 +36,7 @@ import (
 //   - error: non-nil if any datasource has invalid tables/fields or provider returns a hard error
 //
 // If DataSourceProvider is nil, validation is skipped (backward compatibility).
-func (uc *UseCase) ValidateSchemaViaProvider(ctx context.Context, mappedFields map[string]map[string][]string) ([]datasource.ValidationWarning, error) {
+func (uc *UseCase) ValidateSchemaViaProvider(ctx context.Context, mappedFields map[string]map[string][]string) (_ []datasource.ValidationWarning, err error) {
 	if uc.DataSourceProvider == nil {
 		return nil, nil
 	}
@@ -44,8 +45,11 @@ func (uc *UseCase) ValidateSchemaViaProvider(ctx context.Context, mappedFields m
 		return nil, nil
 	}
 
+	start := time.Now()
+
 	ctx, span := uc.Tracer.Start(ctx, "service.template.validate_schema_via_provider")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opValidateSchema, start, err) }()
 
 	span.SetAttributes(
 		attribute.Int("app.datasource.count", len(mappedFields)),

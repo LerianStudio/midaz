@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"mime/multipart"
 	"strings"
+	"time"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg"
 	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -35,7 +36,9 @@ import (
 // The third return value contains validation warnings. When a data source is
 // unavailable during schema validation, warnings are returned instead of errors, allowing
 // the template to be created with partial validation.
-func (uc *UseCase) CreateTemplate(ctx context.Context, templateFile, outFormat, description string, fileHeader *multipart.FileHeader) (*template.Template, []datasource.ValidationWarning, error) {
+func (uc *UseCase) CreateTemplate(ctx context.Context, templateFile, outFormat, description string, fileHeader *multipart.FileHeader) (_ *template.Template, _ []datasource.ValidationWarning, err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	var (
@@ -45,6 +48,7 @@ func (uc *UseCase) CreateTemplate(ctx context.Context, templateFile, outFormat, 
 
 	ctx, span := uc.Tracer.Start(ctx, "service.template.create")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opCreateTemplate, start, err) }()
 	defer func() {
 		if shouldCleanupKey {
 			uc.releaseTemplateIdempotencyKey(ctx, idempotencyKey)

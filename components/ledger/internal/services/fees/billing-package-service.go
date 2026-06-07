@@ -17,8 +17,10 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
+	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -30,6 +32,12 @@ import (
 type BillingPackageService struct {
 	billingPackageRepo billing_package.Repository
 	resolver           feeshared.MidazResolver
+
+	// MetricsFactory emits the bounded domain_operations_total /
+	// domain_operation_duration_ms metrics for every state-mutating billing
+	// package entrypoint via utils.RecordDomainOperation. Assigned at bootstrap;
+	// a nil value is a no-op so the binary runs with telemetry disabled.
+	MetricsFactory *metrics.MetricsFactory
 }
 
 // ErrNilBillingPackageRepo is returned when a nil billing package repository is provided.
@@ -71,11 +79,16 @@ func (s *BillingPackageService) resolveAccountExists(ctx context.Context, organi
 }
 
 // CreateBillingPackage validates and creates a new billing package.
-func (s *BillingPackageService) CreateBillingPackage(ctx context.Context, bp *model.BillingPackage) (*model.BillingPackage, error) {
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+func (s *BillingPackageService) CreateBillingPackage(ctx context.Context, bp *model.BillingPackage) (_ *model.BillingPackage, err error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_package.create")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, s.MetricsFactory, logger, "fees", "create_billing_package", start, err)
+	}()
 
 	if bp == nil {
 		return nil, errors.New("billing package cannot be nil")
@@ -270,11 +283,16 @@ func (s *BillingPackageService) GetAllBillingPackages(ctx context.Context, organ
 }
 
 // UpdateBillingPackage updates a billing package by ID with the provided fields.
-func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, organizationID string, updates map[string]any) (*model.BillingPackage, error) {
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, organizationID string, updates map[string]any) (_ *model.BillingPackage, err error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_package.update")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, s.MetricsFactory, logger, "fees", "update_billing_package", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -312,11 +330,16 @@ func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, or
 }
 
 // DeleteBillingPackage soft-deletes a billing package by ID and organization ID.
-func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, organizationID string) error {
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, organizationID string) (err error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_package.delete")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, s.MetricsFactory, logger, "fees", "delete_billing_package", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

@@ -7,6 +7,7 @@ package services
 import (
 	"context"
 	"errors"
+	"time"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg"
 	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -21,11 +22,14 @@ import (
 )
 
 // GetReportByID recover a report by ID
-func (uc *UseCase) GetReportByID(ctx context.Context, id uuid.UUID) (*report.Report, error) {
+func (uc *UseCase) GetReportByID(ctx context.Context, id uuid.UUID) (_ *report.Report, err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.report.get_by_id")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opGetReport, start, err) }()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

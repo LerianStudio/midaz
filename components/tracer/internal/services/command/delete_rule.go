@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -20,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // DeleteRuleService handles rule deletion (DRAFT/INACTIVE → DELETED).
@@ -62,11 +64,16 @@ func NewDeleteRuleService(repository RuleRepository, auditWriter AuditWriter, tx
 // Execute soft-deletes a rule by updating status to DELETED.
 // Only DRAFT/INACTIVE rules can be deleted per state machine.
 // Idempotent: if already DELETED, returns success without error.
-func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (retErr error) {
+	logger, tracer, _, factory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.rule.delete")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "rule_delete", start, retErr)
+	}()
 
 	logger = logging.WithTrace(ctx, logger)
 

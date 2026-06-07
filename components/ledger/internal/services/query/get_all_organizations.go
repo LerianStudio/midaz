@@ -7,6 +7,7 @@ package query
 import (
 	"context"
 	"errors"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -15,16 +16,22 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	// GetAllOrganizations fetch all Organizations from the repository
 	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
-func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHeader) ([]*mmodel.Organization, error) {
+func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHeader) (_ []*mmodel.Organization, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_organizations")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "list_organizations", start, err)
+	}()
 
 	organizations, err := uc.OrganizationRepo.FindAll(ctx, filter)
 	if err != nil {

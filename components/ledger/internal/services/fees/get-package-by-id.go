@@ -7,6 +7,7 @@ package services
 import (
 	"context"
 	"errors"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
@@ -14,17 +15,23 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 // GetPackageByID recover a package by ID
-func (uc *UseCase) GetPackageByID(ctx context.Context, id, organizationID uuid.UUID) (*pack.Package, error) {
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+func (uc *UseCase) GetPackageByID(ctx context.Context, id, organizationID uuid.UUID) (_ *pack.Package, err error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.get_package_by_id")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "fees", "get_package", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

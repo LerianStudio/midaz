@@ -755,6 +755,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Use cases ===
 
+	// Domain-metrics factory (D6): derived once from telemetry (nil when
+	// telemetry is disabled) and shared across every use case so
+	// utils.RecordDomainOperation emits the bounded domain_operations_total /
+	// domain_operation_duration_ms series. Reused below for the readyz handler.
+	var metricsFactory *metrics.MetricsFactory
+	if telemetry != nil {
+		metricsFactory = telemetry.MetricsFactory
+	}
+
 	commandUseCase := &command.UseCase{
 		// Onboarding domain
 		OrganizationRepo:       onbPG.organizationRepo,
@@ -778,6 +787,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionRedisRepo:    txnRedisRepo,
 		// Streaming
 		Streaming: streamingEmitter,
+		// Observability (D6)
+		MetricsFactory: metricsFactory,
 	}
 
 	queryUseCase := &query.UseCase{
@@ -801,6 +812,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMetadataRepo: txnMgo.metadataRepo,
 		RabbitMQRepo:            rmq.producerRepo,
 		TransactionRedisRepo:    txnRedisRepo,
+		// Observability (D6)
+		MetricsFactory: metricsFactory,
 	}
 
 	// === Holder ownership wiring (F1) ===
@@ -813,6 +826,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	commandUseCase.SettingsReader = queryUseCase
 	commandUseCase.HolderProvisioner = crmMgo.holderHandler.Service
 
+	// === CRM domain metrics (D6) ===
+	// The holder and instrument handlers share the SAME CRM use-case instance,
+	// so setting the factory once covers every CRM entrypoint.
+	crmMgo.holderHandler.Service.MetricsFactory = metricsFactory
+
 	// === Fee use cases ===
 	// Built from the fee Mongo slice + the ledger query.UseCase so fee
 	// account/segment/count reads run in-process. HTTP route mounting is
@@ -823,6 +841,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		doCleanup()
 		return nil, fmt.Errorf("failed to initialize fee use cases: %w", err)
 	}
+
+	// === Fee domain metrics (D6) ===
+	fees.useCase.MetricsFactory = metricsFactory
+	fees.billingPackageService.MetricsFactory = metricsFactory
+	fees.billingCalculateService.MetricsFactory = metricsFactory
 
 	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
 	if err := rmq.wireConsumer(commandUseCase); err != nil {
@@ -932,12 +955,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Readyz handler ===
 
-	// Get metricsFactory from telemetry (nil-safe: checked inside handler)
-	var metricsFactory *metrics.MetricsFactory
-	if telemetry != nil {
-		metricsFactory = telemetry.MetricsFactory
-	}
-
+	// metricsFactory derived once with the use cases (nil-safe: checked inside handler).
 	readyzHandler, err := buildReadyzHandler(cfg, logger, redisConnection, onbPG, txnPG, onbMgo, txnMgo, crmMgo, rmq, metricsFactory)
 	if err != nil {
 		doCleanup()

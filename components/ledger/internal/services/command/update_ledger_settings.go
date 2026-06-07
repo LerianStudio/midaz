@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -22,11 +23,16 @@ import (
 // 3. Invalidates the cache after successful write
 // Returns the merged settings after the update.
 // Returns an error if the ledger does not exist or if validation fails.
-func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error) {
+func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (_ map[string]any, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_ledger_settings")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_ledger_settings", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("organization_id", organizationID.String()),

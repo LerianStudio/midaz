@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
@@ -18,11 +19,14 @@ import (
 
 // DeleteTemplateByID delete a template from the repository and cascades the deletion
 // to all deadlines linked to that template, so they are no longer deliverable.
-func (uc *UseCase) DeleteTemplateByID(ctx context.Context, id uuid.UUID, hardDelete bool) error {
+func (uc *UseCase) DeleteTemplateByID(ctx context.Context, id uuid.UUID, hardDelete bool) (err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.template.delete")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opDeleteTemplate, start, err) }()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

@@ -28,11 +28,14 @@ import (
 // already processed), then handles the notification status:
 //   - completed: updates mapping, resumes report generation with extracted data
 //   - failed: updates mapping and report status to FAILED
-func (uc *UseCase) ProcessFetcherNotification(ctx context.Context, body []byte) error {
+func (uc *UseCase) ProcessFetcherNotification(ctx context.Context, body []byte) (err error) {
+	start := time.Now()
+
 	reqID := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.notification.process_fetcher_notification")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opProcessNotification, start, err) }()
 
 	span.SetAttributes(attribute.String("app.request.request_id", reqID))
 

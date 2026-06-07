@@ -6,6 +6,7 @@ package services
 
 import (
 	"github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-observability/metrics"
 	"go.opentelemetry.io/otel/trace"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
@@ -26,6 +27,10 @@ type UseCase struct {
 
 	// Tracer is the OpenTelemetry tracer injected at construction time.
 	Tracer trace.Tracer
+
+	// MetricsFactory emits the D6 domain operation metrics. Nil when telemetry
+	// is disabled — RecordDomainOperation treats a nil factory as a no-op.
+	MetricsFactory *metrics.MetricsFactory
 
 	// DeadlineRepo provides an abstraction on top of the deadline data source.
 	DeadlineRepo deadline.Repository

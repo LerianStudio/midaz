@@ -4,7 +4,81 @@
 
 package utils
 
-import "github.com/LerianStudio/lib-observability/metrics"
+import (
+	"context"
+	"time"
+
+	libLog "github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-observability/metrics"
+	"github.com/LerianStudio/midaz/v4/pkg"
+)
+
+var (
+	// DomainOperationsTotal counts business-operation outcomes across all
+	// components (D6 mandate). Labels: component, operation, result — all
+	// bounded sets (result is success|business_error|technical_error).
+	DomainOperationsTotal = metrics.Metric{
+		Name:        "domain_operations_total",
+		Unit:        "1",
+		Description: "Count of business operations by component, operation and result.",
+	}
+
+	// DomainOperationDuration tracks business-operation latency. Labels:
+	// component, operation.
+	DomainOperationDuration = metrics.Metric{
+		Name:        "domain_operation_duration_ms",
+		Unit:        "ms",
+		Description: "Business operation duration in milliseconds by component and operation.",
+	}
+)
+
+// RecordDomainOperation emits the D6 domain metrics for one business-operation
+// completion. Call it at the single exit boundary of a use case (typically via
+// defer with a named error). A nil factory is a no-op so single binaries can
+// run with metrics disabled; emit failures log at Debug per T11 and never
+// affect the operation.
+func RecordDomainOperation(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, component, operation string, start time.Time, err error) {
+	if factory == nil {
+		return
+	}
+
+	result := "success"
+
+	switch {
+	case err == nil:
+	case pkg.IsBusinessError(err):
+		result = "business_error"
+	default:
+		result = "technical_error"
+	}
+
+	counter, cErr := factory.Counter(DomainOperationsTotal)
+	if cErr == nil {
+		cErr = counter.WithLabels(map[string]string{
+			"component": component,
+			"operation": operation,
+			"result":    result,
+		}).Add(ctx, 1)
+	}
+
+	histogram, hErr := factory.Histogram(DomainOperationDuration)
+	if hErr == nil {
+		hErr = histogram.WithLabels(map[string]string{
+			"component": component,
+			"operation": operation,
+		}).Record(ctx, time.Since(start).Milliseconds())
+	}
+
+	if logger != nil {
+		if cErr != nil {
+			logger.Log(ctx, libLog.LevelDebug, "Failed to emit domain operation counter", libLog.Err(cErr))
+		}
+
+		if hErr != nil {
+			logger.Log(ctx, libLog.LevelDebug, "Failed to emit domain operation histogram", libLog.Err(hErr))
+		}
+	}
+}
 
 var (
 	BalanceSynced = metrics.Metric{

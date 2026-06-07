@@ -7,6 +7,7 @@ package services
 import (
 	"context"
 	"errors"
+	"time"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg"
 	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -21,11 +22,14 @@ import (
 )
 
 // GetTemplateByID recover a package by ID
-func (uc *UseCase) GetTemplateByID(ctx context.Context, id uuid.UUID) (*template.Template, error) {
+func (uc *UseCase) GetTemplateByID(ctx context.Context, id uuid.UUID) (_ *template.Template, err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.template.get_by_id")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opGetTemplate, start, err) }()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

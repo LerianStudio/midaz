@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"errors"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -14,17 +15,23 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 
 	// UpdateTransaction update a transaction from the repository by given id.
 	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
-func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, uti *transaction.UpdateTransactionInput) (*transaction.Transaction, error) {
+func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, uti *transaction.UpdateTransactionInput) (_ *transaction.Transaction, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_transaction", start, err)
+	}()
 
 	trans := &transaction.Transaction{
 		Description: uti.Description,
@@ -62,11 +69,16 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 }
 
 // UpdateTransactionStatus update a status transaction from the repository by given id.
-func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transaction.Transaction) (*transaction.Transaction, error) {
+func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transaction.Transaction) (_ *transaction.Transaction, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction_status")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_transaction_status", start, err)
+	}()
 
 	if tran == nil {
 		err := errors.New("transaction cannot be nil")

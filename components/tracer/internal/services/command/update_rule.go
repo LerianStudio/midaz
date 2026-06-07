@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // Sentinel errors for nil dependencies passed to NewUpdateRuleCommand.
@@ -112,11 +114,16 @@ func NewUpdateRuleCommand(repo RuleRepository, cel ExpressionCompiler, clk clock
 // inside a single transaction. If either step fails, the transaction is rolled
 // back and the caller observes the original error — the rule update is never
 // committed without an audit trail.
-func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *UpdateRuleInput) (*model.Rule, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *UpdateRuleInput) (_ *model.Rule, retErr error) {
+	logger, tracer, _, factory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.rule.update")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "rule_update", start, retErr)
+	}()
 
 	logger = logging.WithTrace(ctx, logger)
 

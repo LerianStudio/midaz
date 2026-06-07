@@ -5,6 +5,7 @@
 package command
 
 import (
+	"github.com/LerianStudio/lib-observability/metrics"
 	libStreaming "github.com/LerianStudio/lib-streaming"
 	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	txMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
@@ -123,4 +124,12 @@ type UseCase struct {
 	// CreateHolderWithID. A nil value skips eager provisioning (the backfill
 	// runner remains the repair path).
 	HolderProvisioner HolderProvisioner
+
+	// --- Observability (D6) ---
+
+	// MetricsFactory emits the bounded domain_operations_total /
+	// domain_operation_duration_ms metrics for every state-mutating command
+	// entrypoint via utils.RecordDomainOperation. A nil value is a no-op so
+	// the binary runs with telemetry disabled.
+	MetricsFactory *metrics.MetricsFactory
 }

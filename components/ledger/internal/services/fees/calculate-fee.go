@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
@@ -17,12 +18,13 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 // CalculateFee creates a new pack persists data in the repository.
-func (uc *UseCase) CalculateFee(ctx context.Context, cf *model.FeeCalculate, organizationID uuid.UUID) error {
+func (uc *UseCase) CalculateFee(ctx context.Context, cf *model.FeeCalculate, organizationID uuid.UUID) (err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	// Defensive nil check for the main input parameter
@@ -32,6 +34,11 @@ func (uc *UseCase) CalculateFee(ctx context.Context, cf *model.FeeCalculate, org
 
 	ctx, span := tracer.Start(ctx, "service.calculate_fee")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "fees", "calculate_fee", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

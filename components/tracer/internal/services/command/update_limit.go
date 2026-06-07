@@ -25,6 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // UpdateLimitInput defines input for updating a limit.
@@ -88,11 +89,16 @@ func NewUpdateLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter Au
 //
 // The persistence of the update and the audit event happens atomically inside a
 // single database transaction via executeInTx: either both land or neither does.
-func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *UpdateLimitInput) (*model.Limit, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *UpdateLimitInput) (_ *model.Limit, retErr error) {
+	logger, tracer, _, factory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.limit.update")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "limit_update", start, retErr)
+	}()
 
 	logger = logging.WithTrace(ctx, logger)
 

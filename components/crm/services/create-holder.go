@@ -12,15 +12,21 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 // CreateHolder inserts a holder data in the repository.
-func (uc *UseCase) CreateHolder(ctx context.Context, organizationID string, chi *mmodel.CreateHolderInput) (*mmodel.Holder, error) {
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+func (uc *UseCase) CreateHolder(ctx context.Context, organizationID string, chi *mmodel.CreateHolderInput) (_ *mmodel.Holder, err error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.create_holder")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "crm", "create_holder", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

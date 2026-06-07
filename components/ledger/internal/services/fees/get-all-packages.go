@@ -6,22 +6,29 @@ package services
 
 import (
 	"context"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	http "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 // GetAllPackages fetch all Packages from the repository
-func (uc *UseCase) GetAllPackages(ctx context.Context, filters http.QueryHeader, organizationID uuid.UUID) ([]*pack.Package, error) {
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+func (uc *UseCase) GetAllPackages(ctx context.Context, filters http.QueryHeader, organizationID uuid.UUID) (_ []*pack.Package, err error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.get_all_packages")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "fees", "list_packages", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -22,6 +23,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 var multipleSpaces = regexp.MustCompile(`\s+`)
@@ -129,11 +131,16 @@ func NewCreateRuleCommand(repo RuleRepository, cel ExpressionCompiler, clk clock
 // inside a single transaction. If either step fails, the transaction is rolled
 // back and the caller observes the original error — the rule insert is never
 // committed without an audit trail.
-func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput) (*model.Rule, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput) (_ *model.Rule, retErr error) {
+	logger, tracer, _, factory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.rule.create")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "rule_create", start, retErr)
+	}()
 
 	logger = logging.WithTrace(ctx, logger)
 

@@ -5,6 +5,7 @@
 package services
 
 import (
+	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/instrument"
@@ -15,6 +16,12 @@ import (
 type UseCase struct {
 	HolderRepo     holder.Repository
 	InstrumentRepo instrument.Repository
+
+	// MetricsFactory emits the bounded domain_operations_total /
+	// domain_operation_duration_ms metrics for every state-mutating CRM
+	// entrypoint via utils.RecordDomainOperation. A nil value is a no-op so the
+	// binary runs with telemetry disabled.
+	MetricsFactory *metrics.MetricsFactory
 }
 
 // recordSpanError records err onto the span using the class-appropriate helper:

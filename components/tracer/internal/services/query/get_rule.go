@@ -9,6 +9,7 @@ package query
 import (
 	"context"
 	"errors"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // RuleRepository defines the interface for rule persistence (read operations).
@@ -37,11 +39,16 @@ func NewGetRuleQuery(repo RuleRepository) *GetRuleQuery {
 }
 
 // Execute retrieves a rule by ID.
-func (q *GetRuleQuery) Execute(ctx context.Context, id uuid.UUID) (*model.Rule, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // only tracer is needed from tracking context
+func (q *GetRuleQuery) Execute(ctx context.Context, id uuid.UUID) (_ *model.Rule, retErr error) {
+	logger, tracer, _, factory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.rule.get")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "rule_get", start, retErr)
+	}()
 
 	rule, err := q.repo.GetByID(ctx, id)
 	if err != nil {

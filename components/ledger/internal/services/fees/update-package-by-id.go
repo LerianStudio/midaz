@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -30,11 +31,16 @@ import (
 var ErrDatabaseItemNotFound = errors.New("errDatabaseItemNotFound")
 
 // UpdatePackageByID update an example from the repository.
-func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uuid.UUID, up *model.UpdatePackageInput) error {
+func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uuid.UUID, up *model.UpdatePackageInput) (err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.update_package_by_id")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "fees", "update_package", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -56,7 +62,7 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uui
 		updateFields["$unset"] = unsetOperationFields
 	}
 
-	err := uc.packageRepo.Update(ctx, id, organizationID, &updateFields)
+	err = uc.packageRepo.Update(ctx, id, organizationID, &updateFields)
 	if err != nil {
 		if errors.Is(err, ErrDatabaseItemNotFound) {
 			bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)

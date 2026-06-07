@@ -16,23 +16,29 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // CreateLedger creates a new ledger and persists it in the repository.
-func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
+func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *mmodel.CreateLedgerInput) (_ *mmodel.Ledger, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_ledger")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_ledger", start, err)
+	}()
 
 	status := cli.Status
 	if status.Code == "" {
 		status.Code = "ACTIVE"
 	}
 
-	_, err := uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
+	_, err = uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find ledger by name", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to find ledger by name", libLog.Err(err))

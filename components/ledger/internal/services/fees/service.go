@@ -7,6 +7,7 @@ package services
 import (
 	"errors"
 
+	"github.com/LerianStudio/lib-observability/metrics"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 )
@@ -23,6 +24,12 @@ type UseCase struct {
 
 	// defaultCurrency is the default currency for fee calculations
 	defaultCurrency string
+
+	// MetricsFactory emits the bounded domain_operations_total /
+	// domain_operation_duration_ms metrics for every state-mutating fee
+	// entrypoint via utils.RecordDomainOperation. Assigned at bootstrap; a nil
+	// value is a no-op so the binary runs with telemetry disabled.
+	MetricsFactory *metrics.MetricsFactory
 }
 
 // ErrNilPackageRepo is returned when a nil PackageRepo is provided to NewUseCase.

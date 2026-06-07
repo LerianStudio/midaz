@@ -25,6 +25,7 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	"github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-observability/metrics"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -696,9 +697,16 @@ func InitServers() (_ *Service, err error) {
 	templateStorageRepo := templateSeaweedFS.NewStorageRepository(storageClient)
 	reportStorageRepo := reportSeaweedFS.NewStorageRepository(storageClient)
 
+	// MetricsFactory carries the D6 domain operation emitter. Nil when
+	// telemetry is disabled — RecordDomainOperation treats nil as a no-op.
+	var domainMetricsFactory *metrics.MetricsFactory
+	if telemetry != nil {
+		domainMetricsFactory = telemetry.MetricsFactory
+	}
+
 	// Build service and handler instances
 	templateHandler, reportHandler, dataSourceHandler, deadlineHandler, templateBuilderHandler, metricsHandler, notificationHandler, err := initHandlers(
-		logger, tracer, cfg, mongo, rabbit.producer, templateStorageRepo, reportStorageRepo, externalDataSources, redisConsumerRepository, dataSourceProvider,
+		logger, tracer, domainMetricsFactory, cfg, mongo, rabbit.producer, templateStorageRepo, reportStorageRepo, externalDataSources, redisConsumerRepository, dataSourceProvider,
 	)
 	if err != nil {
 		return nil, err

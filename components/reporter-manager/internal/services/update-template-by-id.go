@@ -35,11 +35,14 @@ import (
 
 // UpdateTemplateByID updates an existing template, optionally uploading a new file to storage,
 // and returns the updated template with optional validation warnings (D7 pattern).
-func (uc *UseCase) UpdateTemplateByID(ctx context.Context, outputFormat, description string, id uuid.UUID, fileHeader *multipart.FileHeader) (*template.Template, []datasource.ValidationWarning, error) {
+func (uc *UseCase) UpdateTemplateByID(ctx context.Context, outputFormat, description string, id uuid.UUID, fileHeader *multipart.FileHeader) (_ *template.Template, _ []datasource.ValidationWarning, err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.template.update")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opUpdateTemplate, start, err) }()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

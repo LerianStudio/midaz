@@ -22,11 +22,16 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
-func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *assetrate.CreateAssetRateInput) (*assetrate.AssetRate, error) {
+func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *assetrate.CreateAssetRateInput) (_ *assetrate.AssetRate, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_or_update_asset_rate")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_asset_rate", start, err)
+	}()
 
 	if err := utils.ValidateCode(cari.From); err != nil {
 		err := pkg.ValidateBusinessError(err, constant.EntityAssetRate)

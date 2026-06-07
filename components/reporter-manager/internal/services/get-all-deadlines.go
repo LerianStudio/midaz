@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/deadline"
@@ -18,11 +19,14 @@ import (
 
 // GetAllDeadlines retrieves all deadlines from the repository using the provided filters.
 // Returns the list of deadlines and the total count of matching documents.
-func (uc *UseCase) GetAllDeadlines(ctx context.Context, filters http.QueryHeader) ([]*deadline.Deadline, int64, error) {
+func (uc *UseCase) GetAllDeadlines(ctx context.Context, filters http.QueryHeader) (_ []*deadline.Deadline, _ int64, err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.deadline.get_all")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opListDeadlines, start, err) }()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

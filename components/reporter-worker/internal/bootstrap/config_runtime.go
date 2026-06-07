@@ -33,6 +33,7 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
 	clog "github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-observability/metrics"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -165,6 +166,7 @@ func initWorkerDependencies(cfg *Config, logger clog.Logger, cleanups *CleanupMa
 	service := &services.UseCase{
 		Logger:                          logger,
 		Tracer:                          tracer,
+		MetricsFactory:                  workerMetricsFactory(telemetry),
 		TemplateSeaweedFS:               templateSeaweedFS.NewStorageRepository(storageClient),
 		ReportSeaweedFS:                 reportSeaweedFS.NewStorageRepository(storageClient),
 		ExternalDataSources:             externalDataSources,
@@ -215,6 +217,18 @@ func initWorkerDependencies(cfg *Config, logger clog.Logger, cleanups *CleanupMa
 		storageClient:   storageClient,
 		readyzMetrics:   readyzMetrics,
 	}, nil
+}
+
+// workerMetricsFactory returns the lib-observability MetricsFactory carried by
+// the telemetry instance, or nil when telemetry is unavailable. The factory
+// feeds the D6 domain operation metrics; a nil value makes RecordDomainOperation
+// a no-op, so single-tenant / telemetry-disabled deployments stay quiet.
+func workerMetricsFactory(telemetry *libOtel.Telemetry) *metrics.MetricsFactory {
+	if telemetry == nil {
+		return nil
+	}
+
+	return telemetry.MetricsFactory
 }
 
 // initWorkerTelemetry creates and configures the OpenTelemetry instance,

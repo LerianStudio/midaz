@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -21,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 const opDraftLimit = "service.limit.draft"
@@ -60,11 +62,16 @@ func NewDraftLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter Aud
 //
 // The status update and the audit event are persisted atomically inside a single
 // database transaction via executeInTx: either both land or neither does.
-func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.Limit, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *model.Limit, retErr error) {
+	logger, tracer, _, factory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, opDraftLimit)
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "limit_draft", start, retErr)
+	}()
 
 	logger = logging.WithTrace(ctx, logger)
 

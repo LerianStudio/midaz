@@ -22,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // ErrNilLimitRepository is returned when a nil LimitRepository is passed to a limit command constructor.
@@ -107,11 +108,16 @@ func NewCreateLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter Au
 }
 
 // Execute creates a new limit with validation, tracing, and logging.
-func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInput) (*model.Limit, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInput) (_ *model.Limit, retErr error) {
+	logger, tracer, _, factory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.limit.create")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "limit_create", start, retErr)
+	}()
 
 	logger = logging.WithTrace(ctx, logger)
 

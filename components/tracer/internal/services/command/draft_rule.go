@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -21,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // ErrNilRuleRepository is returned when a nil RuleRepository is passed to a rule command constructor.
@@ -64,11 +66,16 @@ func NewDraftRuleService(repository RuleRepository, clk clock.Clock, auditWriter
 // Execute transitions a rule to DRAFT status.
 // Idempotent: if already DRAFT, returns the rule without error.
 // Returns the updated rule for atomic draft-and-return pattern.
-func (s *DraftRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*model.Rule, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+func (s *DraftRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (_ *model.Rule, retErr error) {
+	logger, tracer, _, factory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.rule.draft")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "rule_draft", start, retErr)
+	}()
 
 	logger = logging.WithTrace(ctx, logger)
 

@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
@@ -17,11 +18,14 @@ import (
 )
 
 // DeleteDeadlineByID performs a soft delete on a deadline by setting its deleted_at field.
-func (uc *UseCase) DeleteDeadlineByID(ctx context.Context, id uuid.UUID) error {
+func (uc *UseCase) DeleteDeadlineByID(ctx context.Context, id uuid.UUID) (err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.deadline.delete")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opDeleteDeadline, start, err) }()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

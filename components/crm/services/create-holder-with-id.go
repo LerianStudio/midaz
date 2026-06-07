@@ -11,6 +11,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
@@ -23,11 +24,16 @@ import (
 // runner). A duplicate-key error on the _id is treated as idempotent success:
 // the already-provisioned holder is re-fetched and returned, so re-running the
 // provisioning path is a no-op.
-func (uc *UseCase) CreateHolderWithID(ctx context.Context, organizationID string, id uuid.UUID, chi *mmodel.CreateHolderInput) (*mmodel.Holder, error) {
-	_, tracer, reqID, _ := libObservability.NewTrackingFromContext(ctx)
+func (uc *UseCase) CreateHolderWithID(ctx context.Context, organizationID string, id uuid.UUID, chi *mmodel.CreateHolderInput) (_ *mmodel.Holder, err error) {
+	logger, tracer, reqID, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.create_holder_with_id")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "crm", "create_holder_with_id", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqID),

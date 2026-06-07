@@ -7,6 +7,7 @@ package services
 import (
 	"context"
 	"errors"
+	"time"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg"
 	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -22,11 +23,14 @@ import (
 )
 
 // CreateDeadline creates a new deadline entity after validating the input and persisting to the repository.
-func (uc *UseCase) CreateDeadline(ctx context.Context, input *deadline.CreateDeadlineInput) (*deadline.Deadline, error) {
+func (uc *UseCase) CreateDeadline(ctx context.Context, input *deadline.CreateDeadlineInput) (_ *deadline.Deadline, err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.deadline.create")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opCreateDeadline, start, err) }()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
@@ -17,11 +18,14 @@ import (
 
 // SendReportQueueReports sends a report to the queue of a generation reports message to a RabbitMQ queue for further processing.
 // It uses context for logger and tracer management and handles data serialization and queue message construction.
-func (uc *UseCase) SendReportQueueReports(ctx context.Context, reportMessage model.ReportMessage) error {
+func (uc *UseCase) SendReportQueueReports(ctx context.Context, reportMessage model.ReportMessage) (err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.report.send_queue")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opSendReportQueue, start, err) }()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

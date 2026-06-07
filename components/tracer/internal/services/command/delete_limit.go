@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -21,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // DeleteLimitCommand handles limit deletion (soft-delete).
@@ -59,11 +61,16 @@ func NewDeleteLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter Au
 //
 // The status update and the audit event are persisted atomically inside a single
 // database transaction via executeInTx: either both land or neither does.
-func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) (retErr error) {
+	logger, tracer, _, factory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.limit.delete")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "limit_delete", start, retErr)
+	}()
 
 	logger = logging.WithTrace(ctx, logger)
 

@@ -114,11 +114,14 @@ func validateAndCleanSchedule(current *deadline.Deadline, input *deadline.Update
 }
 
 // UpdateDeadlineByID updates an existing deadline with partial fields and returns the updated entity.
-func (uc *UseCase) UpdateDeadlineByID(ctx context.Context, id uuid.UUID, input *deadline.UpdateDeadlineInput) (*deadline.Deadline, error) {
+func (uc *UseCase) UpdateDeadlineByID(ctx context.Context, id uuid.UUID, input *deadline.UpdateDeadlineInput) (_ *deadline.Deadline, err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.deadline.update")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opUpdateDeadline, start, err) }()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

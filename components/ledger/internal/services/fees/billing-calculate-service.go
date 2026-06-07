@@ -13,6 +13,7 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
+	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	billing_package "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
 	midaz "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/midaz"
@@ -20,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
@@ -31,6 +33,12 @@ type BillingCalculateService struct {
 	billingPackageRepo billing_package.Repository
 	transactionCounter midaz.TransactionCounter
 	accountResolver    midaz.AccountResolver
+
+	// MetricsFactory emits the bounded domain_operations_total /
+	// domain_operation_duration_ms metrics for the billing-calculate entrypoint
+	// via utils.RecordDomainOperation. Assigned at bootstrap; a nil value is a
+	// no-op so the binary runs with telemetry disabled.
+	MetricsFactory *metrics.MetricsFactory
 }
 
 // ErrNilBillingCalcRepo is returned when a nil billing package repository is provided.
@@ -83,11 +91,16 @@ func NewBillingCalculateService(
 func (s *BillingCalculateService) Calculate(
 	ctx context.Context,
 	req model.BillingCalculateRequest,
-) (*model.BillingCalculateResponse, error) {
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+) (_ *model.BillingCalculateResponse, err error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_calculate.calculate")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, s.MetricsFactory, logger, "fees", "calculate_billing", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

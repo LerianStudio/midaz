@@ -71,11 +71,14 @@ var (
 // When a DataSourceProvider is set, it delegates to provider.GetDataSourceSchema()
 // and maps the result to the existing model.DataSourceDetails format. Otherwise,
 // falls back to legacy direct repository access.
-func (uc *UseCase) GetDataSourceDetailsByID(ctx context.Context, dataSourceID string) (*model.DataSourceDetails, error) {
+func (uc *UseCase) GetDataSourceDetailsByID(ctx context.Context, dataSourceID string) (_ *model.DataSourceDetails, err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.data_source.get_details_by_id")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opGetDataSourceDetails, start, err) }()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

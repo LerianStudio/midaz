@@ -23,11 +23,14 @@ import (
 )
 
 // DeliverDeadline marks a deadline as delivered or clears the delivery status.
-func (uc *UseCase) DeliverDeadline(ctx context.Context, id uuid.UUID, input *deadline.DeliverDeadlineInput) (*deadline.Deadline, error) {
+func (uc *UseCase) DeliverDeadline(ctx context.Context, id uuid.UUID, input *deadline.DeliverDeadlineInput) (_ *deadline.Deadline, err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.deadline.deliver")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opDeliverDeadline, start, err) }()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

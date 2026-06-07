@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg"
 	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -22,11 +23,14 @@ import (
 // DownloadReport retrieves the report file bytes, file name, and content type for a given report ID.
 // It validates the report status, fetches the associated template for output format, constructs the
 // storage object name, and downloads the file from object storage.
-func (uc *UseCase) DownloadReport(ctx context.Context, id uuid.UUID) ([]byte, string, string, error) {
+func (uc *UseCase) DownloadReport(ctx context.Context, id uuid.UUID) (_ []byte, _ string, _ string, err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.report.download")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opDownloadReport, start, err) }()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),

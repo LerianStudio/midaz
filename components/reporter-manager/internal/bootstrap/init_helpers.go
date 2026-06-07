@@ -32,6 +32,7 @@ import (
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	tmrabbitmq "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/rabbitmq"
 	"github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-observability/metrics"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/lib-observability/zap"
 	amqp091 "github.com/rabbitmq/amqp091-go"
@@ -451,6 +452,7 @@ func initRedis(cfg *Config, logger log.Logger) (*redis.RedisConsumerRepository, 
 func initHandlers(
 	logger log.Logger,
 	tracer trace.Tracer,
+	metricsFactory *metrics.MetricsFactory,
 	cfg *Config,
 	mongo *mongoResources,
 	rabbitProducer *rabbitmq.ProducerRabbitMQRepository,
@@ -463,6 +465,7 @@ func initHandlers(
 	templateHandler, err := httpIn.NewTemplateHandler(&services.UseCase{
 		Logger:              logger,
 		Tracer:              tracer,
+		MetricsFactory:      metricsFactory,
 		TemplateRepo:        mongo.templateRepo,
 		TemplateSeaweedFS:   templateStorageRepo,
 		ExternalDataSources: externalDataSources,
@@ -477,6 +480,7 @@ func initHandlers(
 	reportHandler, err := httpIn.NewReportHandler(&services.UseCase{
 		Logger:                    logger,
 		Tracer:                    tracer,
+		MetricsFactory:            metricsFactory,
 		ReportRepo:                mongo.reportRepo,
 		RabbitMQRepo:              rabbitProducer,
 		TemplateRepo:              mongo.templateRepo,
@@ -495,6 +499,7 @@ func initHandlers(
 	dataSourceHandler, err := httpIn.NewDataSourceHandler(&services.UseCase{
 		Logger:              logger,
 		Tracer:              tracer,
+		MetricsFactory:      metricsFactory,
 		ExternalDataSources: externalDataSources,
 		DataSourceProvider:  dataSourceProvider,
 		RedisRepo:           redisConsumerRepository,
@@ -504,18 +509,20 @@ func initHandlers(
 	}
 
 	deadlineHandler, err := httpIn.NewDeadlineHandler(&services.UseCase{
-		Logger:       logger,
-		Tracer:       tracer,
-		DeadlineRepo: mongo.deadlineRepo,
-		TemplateRepo: mongo.templateRepo,
+		Logger:         logger,
+		Tracer:         tracer,
+		MetricsFactory: metricsFactory,
+		DeadlineRepo:   mongo.deadlineRepo,
+		TemplateRepo:   mongo.templateRepo,
 	})
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to initialize deadline handler: %w", err)
 	}
 
 	templateBuilderHandler, err := httpIn.NewTemplateBuilderHandler(&services.UseCase{
-		Logger: logger,
-		Tracer: tracer,
+		Logger:         logger,
+		Tracer:         tracer,
+		MetricsFactory: metricsFactory,
 	})
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to initialize template builder handler: %w", err)
@@ -524,6 +531,7 @@ func initHandlers(
 	metricsHandler, err := httpIn.NewMetricsHandler(&services.UseCase{
 		Logger:              logger,
 		Tracer:              tracer,
+		MetricsFactory:      metricsFactory,
 		TemplateRepo:        mongo.templateRepo,
 		ReportRepo:          mongo.reportRepo,
 		ExternalDataSources: externalDataSources,
@@ -534,9 +542,10 @@ func initHandlers(
 	}
 
 	notificationHandler, err := httpIn.NewNotificationHandler(&services.UseCase{
-		Logger:       logger,
-		Tracer:       tracer,
-		DeadlineRepo: mongo.deadlineRepo,
+		Logger:         logger,
+		Tracer:         tracer,
+		MetricsFactory: metricsFactory,
+		DeadlineRepo:   mongo.deadlineRepo,
 	})
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to initialize notification handler: %w", err)

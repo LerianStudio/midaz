@@ -28,7 +28,9 @@ import (
 )
 
 // CreateReport create a new report
-func (uc *UseCase) CreateReport(ctx context.Context, reportInput *model.CreateReportInput) (*report.Report, error) {
+func (uc *UseCase) CreateReport(ctx context.Context, reportInput *model.CreateReportInput) (_ *report.Report, err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	var (
@@ -38,6 +40,7 @@ func (uc *UseCase) CreateReport(ctx context.Context, reportInput *model.CreateRe
 
 	ctx, span := uc.Tracer.Start(ctx, "service.report.create")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opCreateReport, start, err) }()
 	defer func() {
 		if shouldCleanupKey {
 			uc.releaseIdempotencyKey(ctx, idempotencyKey)

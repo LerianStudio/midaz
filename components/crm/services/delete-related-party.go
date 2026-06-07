@@ -6,17 +6,24 @@ package services
 
 import (
 	"context"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
-func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID string, holderID, aliasID, relatedPartyID uuid.UUID) error {
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID string, holderID, aliasID, relatedPartyID uuid.UUID) (err error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.delete_related_party")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "crm", "delete_related_party", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -26,7 +33,7 @@ func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID st
 		attribute.String("app.request.related_party_id", relatedPartyID.String()),
 	)
 
-	err := uc.InstrumentRepo.DeleteRelatedParty(ctx, organizationID, holderID, aliasID, relatedPartyID)
+	err = uc.InstrumentRepo.DeleteRelatedParty(ctx, organizationID, holderID, aliasID, relatedPartyID)
 	if err != nil {
 		recordSpanError(span, "Failed to delete related party", err)
 

@@ -158,6 +158,132 @@ Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT
 
 ---
 
+## Domain metric catalog (D6)
+
+Every public use-case entrypoint (commands + flagship queries) emits two metric families via `pkg/utils.RecordDomainOperation`, called once at the exit boundary (deferred, named error):
+
+- `domain_operations_total` — counter. Labels: `component`, `operation`, `result` (`success` | `business_error` | `technical_error`; derived from `pkg.IsBusinessError`).
+- `domain_operation_duration_ms` — histogram (ms). Labels: `component`, `operation`.
+
+`operation` is a fixed compile-time set per component (T11): no caller-derived values. One table per component.
+
+### reporter
+
+`component = "reporter"`. Shared by both the reporter-manager (HTTP use cases) and reporter-worker (RabbitMQ-consumer use cases); the families aggregate across both binaries. Operation-name constants live in `components/reporter-manager/internal/services/metrics.go` and `components/reporter-worker/internal/services/metrics.go`.
+
+| operation | binary | use-case entrypoint |
+| --- | --- | --- |
+| `create_template` | manager | `(*UseCase).CreateTemplate` |
+| `update_template` | manager | `(*UseCase).UpdateTemplateByID` |
+| `delete_template` | manager | `(*UseCase).DeleteTemplateByID` |
+| `get_template` | manager | `(*UseCase).GetTemplateByID` |
+| `list_templates` | manager | `(*UseCase).GetAllTemplates` |
+| `create_report` | manager | `(*UseCase).CreateReport` |
+| `get_report` | manager | `(*UseCase).GetReportByID` |
+| `list_reports` | manager | `(*UseCase).GetAllReports` |
+| `download_report` | manager | `(*UseCase).DownloadReport` |
+| `send_report_queue` | manager | `(*UseCase).SendReportQueueReports` |
+| `create_deadline` | manager | `(*UseCase).CreateDeadline` |
+| `update_deadline` | manager | `(*UseCase).UpdateDeadlineByID` |
+| `delete_deadline` | manager | `(*UseCase).DeleteDeadlineByID` |
+| `deliver_deadline` | manager | `(*UseCase).DeliverDeadline` |
+| `list_deadlines` | manager | `(*UseCase).GetAllDeadlines` |
+| `get_datasource_details` | manager | `(*UseCase).GetDataSourceDetailsByID` |
+| `validate_schema` | manager | `(*UseCase).ValidateSchemaViaProvider` |
+| `generate_report` | worker | `(*UseCase).GenerateReport` (whole pipeline) |
+| `process_notification` | worker | `(*UseCase).ProcessFetcherNotification` |
+
+The `MetricsFactory` is wired at each bootstrap from `telemetry.MetricsFactory` (manager: `initHandlers`; worker: `initWorkerDependencies`). A nil factory (telemetry disabled / single-tenant without OTel) makes emission a no-op.
+
+### ledger
+
+`component = "ledger"`. Covers the onboarding + transaction command use cases (`components/ledger/internal/services/command`) and the flagship read use cases (`components/ledger/internal/services/query`). The `MetricsFactory` is set on both `command.UseCase` and `query.UseCase` at bootstrap (`InitServers` in `components/ledger/internal/bootstrap/config.go`).
+
+| operation | trigger method |
+| --- | --- |
+| `create_account` | `(command.UseCase).CreateAccount` |
+| `update_account` | `(command.UseCase).UpdateAccount` |
+| `delete_account` | `(command.UseCase).DeleteAccountByID` |
+| `create_account_type` | `(command.UseCase).CreateAccountType` |
+| `update_account_type` | `(command.UseCase).UpdateAccountType` |
+| `delete_account_type` | `(command.UseCase).DeleteAccountTypeByID` |
+| `create_asset` | `(command.UseCase).CreateAsset` |
+| `update_asset` | `(command.UseCase).UpdateAssetByID` |
+| `delete_asset` | `(command.UseCase).DeleteAssetByID` |
+| `create_asset_rate` | `(command.UseCase).CreateOrUpdateAssetRate` |
+| `create_ledger` | `(command.UseCase).CreateLedger` |
+| `update_ledger` | `(command.UseCase).UpdateLedgerByID` |
+| `delete_ledger` | `(command.UseCase).DeleteLedgerByID` |
+| `update_ledger_settings` | `(command.UseCase).UpdateLedgerSettings` |
+| `create_organization` | `(command.UseCase).CreateOrganization` |
+| `update_organization` | `(command.UseCase).UpdateOrganizationByID` |
+| `delete_organization` | `(command.UseCase).DeleteOrganizationByID` |
+| `create_portfolio` | `(command.UseCase).CreatePortfolio` |
+| `update_portfolio` | `(command.UseCase).UpdatePortfolioByID` |
+| `delete_portfolio` | `(command.UseCase).DeletePortfolioByID` |
+| `create_segment` | `(command.UseCase).CreateSegment` |
+| `update_segment` | `(command.UseCase).UpdateSegmentByID` |
+| `delete_segment` | `(command.UseCase).DeleteSegmentByID` |
+| `create_operation_route` | `(command.UseCase).CreateOperationRoute` |
+| `update_operation_route` | `(command.UseCase).UpdateOperationRoute` |
+| `delete_operation_route` | `(command.UseCase).DeleteOperationRouteByID` |
+| `create_transaction_route` | `(command.UseCase).CreateTransactionRoute` |
+| `update_transaction_route` | `(command.UseCase).UpdateTransactionRoute` |
+| `delete_transaction_route` | `(command.UseCase).DeleteTransactionRouteByID` |
+| `create_balance` | `(command.UseCase).CreateAdditionalBalance` |
+| `update_balance` | `(command.UseCase).Update` |
+| `delete_balance` | `(command.UseCase).DeleteBalance` |
+| `delete_all_balances` | `(command.UseCase).DeleteAllBalancesByAccountID` |
+| `update_operation` | `(command.UseCase).UpdateOperation` |
+| `create_transaction` | `(command.UseCase).WriteTransaction` |
+| `update_transaction` | `(command.UseCase).UpdateTransaction` |
+| `update_transaction_status` | `(command.UseCase).UpdateTransactionStatus` |
+| `get_account` | `(query.UseCase).GetAccountByID` |
+| `list_accounts` | `(query.UseCase).GetAllAccount` |
+| `get_ledger` | `(query.UseCase).GetLedgerByID` |
+| `list_ledgers` | `(query.UseCase).GetAllLedgers` |
+| `get_organization` | `(query.UseCase).GetOrganizationByID` |
+| `list_organizations` | `(query.UseCase).GetAllOrganizations` |
+| `get_transaction` | `(query.UseCase).GetTransactionByID` |
+| `list_transactions` | `(query.UseCase).GetAllTransactions` |
+
+### crm
+
+`component = "crm"`. Covers the CRM holder/instrument use cases (`components/crm/services`). The `MetricsFactory` is set on the shared `crmservices.UseCase` instance at bootstrap (`crmMgo.holderHandler.Service.MetricsFactory` in `config.go`).
+
+| operation | trigger method |
+| --- | --- |
+| `create_holder` | `(services.UseCase).CreateHolder` |
+| `create_holder_with_id` | `(services.UseCase).CreateHolderWithID` |
+| `update_holder` | `(services.UseCase).UpdateHolderByID` |
+| `delete_holder` | `(services.UseCase).DeleteHolderByID` |
+| `create_instrument` | `(services.UseCase).CreateInstrument` |
+| `update_instrument` | `(services.UseCase).UpdateInstrumentByID` |
+| `delete_instrument` | `(services.UseCase).DeleteInstrumentByID` |
+| `delete_related_party` | `(services.UseCase).DeleteRelatedPartyByID` |
+| `get_holder` | `(services.UseCase).GetHolderByID` |
+| `list_holders` | `(services.UseCase).GetAllHolders` |
+
+### fees
+
+`component = "fees"`. Covers the fee/billing use cases (`components/ledger/internal/services/fees`). The `MetricsFactory` is set on `fees.useCase`, `fees.billingPackageService`, and `fees.billingCalculateService` at bootstrap (`config.go`, after `initFees`).
+
+| operation | trigger method |
+| --- | --- |
+| `create_package` | `(fees.UseCase).CreatePackage` |
+| `update_package` | `(fees.UseCase).UpdatePackageByID` |
+| `delete_package` | `(fees.UseCase).DeletePackageByID` |
+| `calculate_fee` | `(fees.UseCase).CalculateFee` |
+| `estimate_fee` | `(fees.UseCase).EstimateFeeCalculation` |
+| `get_package` | `(fees.UseCase).GetPackageByID` |
+| `list_packages` | `(fees.UseCase).GetAllPackages` |
+| `create_billing_package` | `(BillingPackageService).CreateBillingPackage` |
+| `update_billing_package` | `(BillingPackageService).UpdateBillingPackage` |
+| `delete_billing_package` | `(BillingPackageService).DeleteBillingPackage` |
+| `calculate_billing` | `(BillingCalculateService).Calculate` |
+
+---
+
 ## T12 — Bootstrap and shutdown
 
 **Rule:** Telemetry MUST be wired exactly once at bootstrap via `libOpentelemetry.NewTelemetry(...)` followed by `ApplyGlobals()`. Telemetry flush/shutdown MUST happen **last** in the teardown sequence, after all other components have stopped.

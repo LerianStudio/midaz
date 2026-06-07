@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
@@ -17,11 +18,14 @@ import (
 )
 
 // GetAllReports fetch all Reports from the repository
-func (uc *UseCase) GetAllReports(ctx context.Context, filters http.QueryHeader) ([]*report.Report, error) {
+func (uc *UseCase) GetAllReports(ctx context.Context, filters http.QueryHeader) (_ []*report.Report, err error) {
+	start := time.Now()
+
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.report.get_all")
 	defer span.End()
+	defer func() { uc.recordDomainOp(ctx, opListReports, start, err) }()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
