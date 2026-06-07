@@ -268,7 +268,7 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 	logger.With(
 		libLog.String("operation", "worker.rule_sync.sync_cycle"),
 		libLog.String("last_sync", w.lastSync.Format(time.RFC3339)),
-	).Log(ctx, libLog.LevelInfo, "Running rule sync cycle")
+	).Log(ctx, libLog.LevelDebug, "Running rule sync cycle")
 
 	// 1. Query delta with overlap buffer (circuit breaker protected)
 	since := w.lastSync.Add(-w.config.OverlapBuffer)
@@ -295,7 +295,7 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 
 		logger.With(
 			libLog.String("operation", "worker.rule_sync.sync_cycle"),
-		).Log(ctx, libLog.LevelInfo, "No rule changes detected")
+		).Log(ctx, libLog.LevelDebug, "No rule changes detected")
 
 		w.emitSuccessMetrics(ctx, metricsFactory, start, 0)
 
@@ -325,7 +325,7 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 		logger.With(
 			libLog.String("operation", "worker.rule_sync.sync_cycle"),
 			libLog.Int("fetched_count", len(fetched)),
-		).Log(ctx, libLog.LevelInfo, "Overlap buffer: all changes already applied")
+		).Log(ctx, libLog.LevelDebug, "Overlap buffer: all changes already applied")
 
 		w.emitSuccessMetrics(ctx, metricsFactory, start, 0)
 
@@ -378,7 +378,7 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 		libLog.Int("new_count", len(changes.New)),
 		libLog.Int("updated_count", len(changes.Updated)),
 		libLog.Int("deleted_count", len(changes.Deleted)),
-	).Log(ctx, libLog.LevelInfo, "Rule sync cycle completed")
+	).Log(ctx, libLog.LevelDebug, "Rule sync cycle completed")
 
 	// 8. Emit metrics and span attributes
 	changedCount := len(changes.New) + len(changes.Updated) + len(changes.Deleted)
@@ -427,7 +427,7 @@ func (w *RuleSyncWorker) handleQueryDeltaError(
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		logger.With(
 			libLog.String("operation", "worker.rule_sync.sync_cycle"),
-		).Log(ctx, libLog.LevelInfo, "Sync cycle interrupted by context cancellation")
+		).Log(ctx, libLog.LevelDebug, "Sync cycle interrupted by context cancellation")
 
 		return
 	}

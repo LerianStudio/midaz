@@ -109,7 +109,7 @@ func (r *ExtractionMappingMongoDBRepository) Create(ctx context.Context, mapping
 	model := &ExtractionMappingMongoDBModel{}
 	model.FromEntity(mapping)
 
-	ctx, spanInsert := tracer.Start(ctx, "repository.extraction_mapping.create_exec")
+	_, spanInsert := tracer.Start(ctx, "repository.extraction_mapping.create_exec")
 	defer spanInsert.End()
 
 	spanInsert.SetAttributes(
@@ -149,7 +149,7 @@ func (r *ExtractionMappingMongoDBRepository) FindByJobID(ctx context.Context, jo
 
 	var model ExtractionMappingMongoDBModel
 
-	ctx, spanFind := tracer.Start(ctx, "repository.extraction_mapping.find_by_job_id_exec")
+	_, spanFind := tracer.Start(ctx, "repository.extraction_mapping.find_by_job_id_exec")
 	defer spanFind.End()
 
 	spanFind.SetAttributes(
@@ -188,7 +188,7 @@ func (r *ExtractionMappingMongoDBRepository) FindByReportID(ctx context.Context,
 
 	var model ExtractionMappingMongoDBModel
 
-	ctx, spanFind := tracer.Start(ctx, "repository.extraction_mapping.find_by_report_id_exec")
+	_, spanFind := tracer.Start(ctx, "repository.extraction_mapping.find_by_report_id_exec")
 	defer spanFind.End()
 
 	spanFind.SetAttributes(
@@ -231,7 +231,7 @@ func (r *ExtractionMappingMongoDBRepository) FindStalePending(ctx context.Contex
 		"created_at": bson.M{"$lt": cutoff},
 	}
 
-	ctx, spanFind := tracer.Start(ctx, "repository.extraction_mapping.find_stale_pending_exec")
+	_, spanFind := tracer.Start(ctx, "repository.extraction_mapping.find_stale_pending_exec")
 	defer spanFind.End()
 
 	spanFind.SetAttributes(
@@ -338,7 +338,7 @@ func (r *ExtractionMappingMongoDBRepository) UpdateStatus(ctx context.Context, j
 
 	update := bson.M{"$set": updateFields}
 
-	ctx, spanUpdate := tracer.Start(ctx, "repository.extraction_mapping.update_status_exec")
+	_, spanUpdate := tracer.Start(ctx, "repository.extraction_mapping.update_status_exec")
 	defer spanUpdate.End()
 
 	spanUpdate.SetAttributes(

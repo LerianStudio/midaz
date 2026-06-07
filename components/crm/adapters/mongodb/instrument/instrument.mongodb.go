@@ -20,9 +20,8 @@ import (
 	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libObs "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	mongoUtils "github.com/LerianStudio/midaz/v4/pkg/mongo"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -86,7 +85,7 @@ func (am *MongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, 
 
 // Create inserts an alias into mongo
 func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, alias *mmodel.Instrument) (*mmodel.Instrument, error) {
-	_, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_alias")
 	defer span.End()
@@ -101,7 +100,7 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	db, err := am.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return nil, err
 	}
@@ -110,25 +109,20 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	err = createIndexes(ctx, coll)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to create indexes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to create indexes", err)
 
 		return nil, err
 	}
-
-	ctx, spanCount := tracer.Start(ctx, "mongodb.create_alias.count_existing")
-	defer spanCount.End()
-
-	spanCount.SetAttributes(attributes...)
 
 	record := &MongoDBModel{}
 
 	if err := record.FromEntity(alias, am.DataSecurity); err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
 
 		return nil, err
 	}
 
-	ctx, spanInsert := tracer.Start(ctx, "mongodb.create_alias.insert")
+	_, spanInsert := tracer.Start(ctx, "mongodb.create_alias.insert")
 	defer spanInsert.End()
 
 	spanInsert.SetAttributes(attributes...)
@@ -142,20 +136,23 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanInsert, "Failed to insert alias", err)
-
 		if indexName, ok := dupkey.ClassifyDuplicateKey(err); ok {
 			if strings.HasPrefix(indexName, "account_id") || strings.HasPrefix(indexName, "ledger_id_1_account_id") {
-				return nil, pkg.ValidateBusinessError(cn.ErrAccountAlreadyAssociated, cn.EntityInstrument)
+				businessErr := pkg.ValidateBusinessError(cn.ErrAccountAlreadyAssociated, cn.EntityInstrument)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(spanInsert, "Account already associated with an alias", businessErr)
+
+				return nil, businessErr
 			}
 		}
+
+		libOpentelemetry.HandleSpanError(spanInsert, "Failed to insert alias", err)
 
 		return nil, err
 	}
 
 	result, err := record.ToEntity(am.DataSecurity)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
 
 		return nil, err
 	}
@@ -165,7 +162,7 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 // Find an alias by holder and alias id
 func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, holderID, id uuid.UUID, includeDeleted bool) (*mmodel.Instrument, error) {
-	_, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_alias")
 	defer span.End()
@@ -181,7 +178,7 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 
 	db, err := am.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return nil, err
 	}
@@ -201,18 +198,21 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 
 	err = coll.FindOne(ctx, filter).Decode(&record)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to find account", err)
-
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
+			businessErr := pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Alias not found", businessErr)
+
+			return nil, businessErr
 		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to find account", err)
 
 		return nil, err
 	}
 
 	result, err := record.ToEntity(am.DataSecurity)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
 
 		return nil, err
 	}
@@ -221,7 +221,7 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 }
 
 func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, holderID, id uuid.UUID, alias *mmodel.Instrument, fieldsToRemove []string) (*mmodel.Instrument, error) {
-	_, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.update_alias")
 	defer span.End()
@@ -238,14 +238,14 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	db, err := am.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return nil, err
 	}
 
 	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
-	ctx, spanUpdate := tracer.Start(ctx, "mongodb.update_alias.update_by_id")
+	_, spanUpdate := tracer.Start(ctx, "mongodb.update_alias.update_by_id")
 	defer spanUpdate.End()
 
 	spanUpdate.SetAttributes(attributes...)
@@ -260,21 +260,21 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 	aliasToUpdate := &MongoDBModel{}
 
 	if err := aliasToUpdate.FromEntity(alias, am.DataSecurity); err != nil {
-		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to convert alias to model", err)
+		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to convert alias to model", err)
 
 		return nil, err
 	}
 
 	bsonData, err := bson.Marshal(aliasToUpdate)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to marshal alias", err)
+		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to marshal alias", err)
 
 		return nil, err
 	}
 
 	var updateDocument bson.M
 	if err := bson.Unmarshal(bsonData, &updateDocument); err != nil {
-		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to unmarshal alias", err)
+		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to unmarshal alias", err)
 
 		return nil, err
 	}
@@ -289,32 +289,35 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	updateResult, err := coll.UpdateOne(ctx, filter, update)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to update alias", err)
+		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to update alias", err)
 
 		return nil, err
 	}
 
 	if updateResult.MatchedCount == 0 {
-		return nil, pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
+		businessErr := pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdate, "Alias not found", businessErr)
+
+		return nil, businessErr
 	}
 
 	var record MongoDBModel
 
-	ctx, spanFind := tracer.Start(ctx, "mongodb.update_alias.find_by_id")
+	_, spanFind := tracer.Start(ctx, "mongodb.update_alias.find_by_id")
 	defer spanFind.End()
 
 	spanFind.SetAttributes(attributes...)
 
 	err = coll.FindOne(ctx, filter).Decode(&record)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanFind, "Failed to find alias after update", err)
+		libOpentelemetry.HandleSpanError(spanFind, "Failed to find alias after update", err)
 
 		return nil, err
 	}
 
 	result, err := record.ToEntity(am.DataSecurity)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanFind, "Failed to convert alias to model", err)
+		libOpentelemetry.HandleSpanError(spanFind, "Failed to convert alias to model", err)
 
 		return nil, err
 	}
@@ -324,7 +327,7 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 // Delete remove an alias
 func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, holderID, id uuid.UUID, hardDelete bool) error {
-	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.delete_alias")
 	defer span.End()
@@ -341,7 +344,7 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 
 	db, err := am.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return err
 	}
@@ -350,7 +353,8 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 
 	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
-	ctx, spanDelete := tracer.Start(ctx, "mongodb.delete_alias.delete_one")
+	_, spanDelete := tracer.Start(ctx, "mongodb.delete_alias.delete_one")
+	defer spanDelete.End()
 
 	spanDelete.SetAttributes(attributes...)
 
@@ -363,15 +367,16 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	if hardDelete {
 		deleted, err := coll.DeleteOne(ctx, filter, opts)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(spanDelete, "Failed to delete alias", err)
+			libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete alias", err)
 
 			return err
 		}
 
-		spanDelete.End()
-
 		if deleted.DeletedCount == 0 {
-			return pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
+			businessErr := pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanDelete, "Alias not found", businessErr)
+
+			return businessErr
 		}
 	} else {
 		update := bson.D{
@@ -382,17 +387,18 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 
 		updateResult, err := coll.UpdateOne(ctx, filter, update)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(spanDelete, "Failed to delete alias", err)
+			libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete alias", err)
 
 			return err
 		}
 
 		if updateResult.MatchedCount == 0 {
-			return pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
+			businessErr := pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanDelete, "Alias not found", businessErr)
+
+			return businessErr
 		}
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintln("Deleted a document with id: ", id.String(), " (hard delete: ", hardDelete, ")"))
 
 	return nil
 }

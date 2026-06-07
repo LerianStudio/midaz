@@ -301,7 +301,7 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 		libLog.String("operation", "service.reservation.reserve"),
 		libLog.String("transaction_id", transactionID.String()),
 		libLog.Int("reservations", len(reservationIDs)),
-	).Log(ctx, libLog.LevelInfo, "Reserved capacity")
+	).Log(ctx, libLog.LevelDebug, "Reserved capacity")
 
 	return &ReserveResult{ReservationIDs: reservationIDs}, nil
 }
@@ -472,7 +472,7 @@ func (s *ReservationService) terminateByTransaction(
 		libLog.String("transaction_id", transactionID.String()),
 		libLog.String("status", string(terminalStatus)),
 		libLog.Int("flipped", flipped),
-	).Log(ctx, libLog.LevelInfo, "Reservations terminated by transaction")
+	).Log(ctx, libLog.LevelDebug, "Reservations terminated by transaction")
 
 	return flipped, nil
 }
@@ -537,7 +537,7 @@ func (s *ReservationService) terminate(
 			logger.With(
 				libLog.String("operation", operation),
 				libLog.String("reservation_id", reservationID.String()),
-			).Log(ctx, libLog.LevelInfo, "Reservation already terminal — idempotent no-op")
+			).Log(ctx, libLog.LevelDebug, "Reservation already terminal — idempotent no-op")
 
 			return nil
 		}
@@ -546,12 +546,6 @@ func (s *ReservationService) terminate(
 
 		return txErr
 	}
-
-	logger.With(
-		libLog.String("operation", operation),
-		libLog.String("reservation_id", reservationID.String()),
-		libLog.String("status", string(terminalStatus)),
-	).Log(ctx, libLog.LevelInfo, "Reservation terminated")
 
 	return nil
 }

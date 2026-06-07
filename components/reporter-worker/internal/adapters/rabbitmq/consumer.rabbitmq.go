@@ -215,7 +215,7 @@ func (cr *ConsumerRoutes) processMessage(workerID int, queue string, handlerFunc
 		span.SetAttributes(attribute.String("app.request.tenant_id", resolvedTenantID))
 	}
 
-	cr.Log(ctx, log.LevelInfo, "Starting message processing",
+	cr.Log(ctx, log.LevelDebug, "Starting message processing",
 		log.Int("worker_id", workerID),
 		log.String("queue", queue),
 		log.Int("attempt", retryCount+1),
@@ -239,7 +239,7 @@ func (cr *ConsumerRoutes) processMessage(workerID int, queue string, handlerFunc
 
 	_ = message.Ack(false)
 
-	cr.Log(ctx, log.LevelInfo, "Successfully processed message",
+	cr.Log(ctx, log.LevelDebug, "Successfully processed message",
 		log.Int("worker_id", workerID),
 		log.String("queue", queue),
 	)

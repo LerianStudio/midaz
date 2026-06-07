@@ -100,11 +100,6 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 		return nil, err
 	}
 
-	logger.With(
-		libLog.String("operation", "service.limit.update"),
-		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Updating limit")
-
 	normalizedInput := c.normalizeInput(input)
 
 	span.SetAttributes(
@@ -145,7 +140,7 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 		logger.With(
 			libLog.String("operation", "service.limit.update"),
 			libLog.String("limit.id", id.String()),
-		).Log(ctx, libLog.LevelInfo, "No changes requested, returning existing limit")
+		).Log(ctx, libLog.LevelDebug, "No changes requested, returning existing limit")
 
 		return limit, nil
 	}
@@ -249,12 +244,6 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 	if txErr != nil {
 		return nil, fmt.Errorf("failed to update limit: %w", txErr)
 	}
-
-	logger.With(
-		libLog.String("operation", "service.limit.update"),
-		libLog.String("limit.id", limit.ID.String()),
-		libLog.String("limit.name", limit.Name),
-	).Log(ctx, libLog.LevelInfo, "Limit updated successfully")
 
 	return limit, nil
 }

@@ -120,11 +120,6 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 
 	logger = logging.WithTrace(ctx, logger)
 
-	logger.With(
-		libLog.String("operation", "service.rule.update"),
-		libLog.String("rule.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Updating rule")
-
 	if input == nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Nil input provided", constant.ErrRuleNilInput)
 
@@ -262,12 +257,6 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 
 		return nil, fmt.Errorf("failed to update rule: %w", txErr)
 	}
-
-	logger.With(
-		libLog.String("operation", "service.rule.update"),
-		libLog.String("rule.id", rule.ID.String()),
-		libLog.String("rule.name", rule.Name),
-	).Log(ctx, libLog.LevelInfo, "Rule updated successfully")
 
 	return rule, nil
 }

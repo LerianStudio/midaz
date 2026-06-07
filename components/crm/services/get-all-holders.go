@@ -7,9 +7,7 @@ package services
 import (
 	"context"
 
-	libObs "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"go.opentelemetry.io/otel/attribute"
@@ -17,7 +15,7 @@ import (
 
 // GetAllHolders retrieves holders that match the query filter.
 func (uc *UseCase) GetAllHolders(ctx context.Context, organizationID string, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.Holder, error) {
-	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.get_all_holders")
 	defer span.End()
@@ -27,13 +25,9 @@ func (uc *UseCase) GetAllHolders(ctx context.Context, organizationID string, fil
 		attribute.String("app.request.organization_id", organizationID),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, "Retrieving holders")
-
 	holders, err := uc.HolderRepo.FindAll(ctx, organizationID, filter, includeDeleted)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to get holders", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to get holders", libLog.Err(err))
+		recordSpanError(span, "Failed to get holders", err)
 
 		return nil, err
 	}

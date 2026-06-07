@@ -8,7 +8,7 @@ import (
 	"context"
 	"errors"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -21,12 +21,10 @@ import (
 
 // GetAllMetadataSegments fetches all segments from the repository.
 func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Segment, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_segments")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Retrieving segments")
 
 	metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, constant.EntitySegment, filter)
 	if err != nil {

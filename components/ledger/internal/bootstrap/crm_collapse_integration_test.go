@@ -181,9 +181,9 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 		// Bad Request with the canonical midaz "missing fields" code (0009) — never
 		// a CRM-00xx translation, because the standalone CRM error transformer is
 		// gone.
-		req := httptest.NewRequest(fiber.MethodPost, "/v1/holders", strings.NewReader("{}"))
+		req := httptest.NewRequest(fiber.MethodPost,
+			"/v1/organizations/"+uuid.New().String()+"/holders", strings.NewReader("{}"))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Organization-Id", "org-test")
 
 		resp, err := app.Test(req, -1)
 		require.NoError(t, err)
@@ -240,8 +240,8 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 		}
 		httpin.RegisterCRMRoutesToApp(app, auth, crm.holderHandler, crm.instrumentHandler, nil, panicOptions)
 
-		req := httptest.NewRequest(fiber.MethodGet, "/v1/holders/"+uuid.New().String(), nil)
-		req.Header.Set("X-Organization-Id", "org-test")
+		req := httptest.NewRequest(fiber.MethodGet,
+			"/v1/organizations/"+uuid.New().String()+"/holders/"+uuid.New().String(), nil)
 
 		resp, err := app.Test(req, -1)
 		require.NoError(t, err, "connection must NOT be dropped on panic")
@@ -287,7 +287,9 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 		tenantB = "tenant-b"
 		dbA     = "crm_tenant_a"
 		dbB     = "crm_tenant_b"
-		orgID   = "org-shared" // identical org in both tenants: only the DB differs
+		// Identical org in both tenants: only the DB differs. A literal UUID
+		// because organization_id is now a path parameter under UUID validation.
+		orgID = "f47ac10b-58cc-4372-a567-0e02b2c3d479"
 	)
 
 	// When isolation is broken, both tenants are pointed at the same database.
@@ -472,9 +474,9 @@ func createHolderHTTP(t *testing.T, app *fiber.App, tenantID, orgID, name, docum
 	})
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(fiber.MethodPost, "/v1/holders", strings.NewReader(string(body)))
+	req := httptest.NewRequest(fiber.MethodPost,
+		"/v1/organizations/"+orgID+"/holders", strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Organization-Id", orgID)
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer "+tenantJWT(t, tenantID))
 
 	resp, err := app.Test(req, -1)
@@ -496,8 +498,8 @@ func createHolderHTTP(t *testing.T, app *fiber.App, tenantID, orgID, name, docum
 func getHolderStatusHTTP(t *testing.T, app *fiber.App, tenantID, orgID, holderID string) int {
 	t.Helper()
 
-	req := httptest.NewRequest(fiber.MethodGet, "/v1/holders/"+holderID, nil)
-	req.Header.Set("X-Organization-Id", orgID)
+	req := httptest.NewRequest(fiber.MethodGet,
+		"/v1/organizations/"+orgID+"/holders/"+holderID, nil)
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer "+tenantJWT(t, tenantID))
 
 	resp, err := app.Test(req, -1)
@@ -510,8 +512,8 @@ func getHolderStatusHTTP(t *testing.T, app *fiber.App, tenantID, orgID, holderID
 func listHolderNamesHTTP(t *testing.T, app *fiber.App, tenantID, orgID string) []string {
 	t.Helper()
 
-	req := httptest.NewRequest(fiber.MethodGet, "/v1/holders?limit=100", nil)
-	req.Header.Set("X-Organization-Id", orgID)
+	req := httptest.NewRequest(fiber.MethodGet,
+		"/v1/organizations/"+orgID+"/holders?limit=100", nil)
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer "+tenantJWT(t, tenantID))
 
 	resp, err := app.Test(req, -1)

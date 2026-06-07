@@ -85,11 +85,6 @@ func (s *DeactivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (
 		attribute.String("app.request.operation", "deactivate"),
 	)
 
-	logger.With(
-		libLog.String("operation", "service.rule.deactivate"),
-		libLog.String("rule.id", ruleID.String()),
-	).Log(ctx, libLog.LevelInfo, "Deactivating rule")
-
 	rule, err := s.repository.GetByID(ctx, ruleID)
 	if err != nil {
 		if errors.Is(err, constant.ErrRuleNotFound) {
@@ -129,7 +124,7 @@ func (s *DeactivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (
 		logger.With(
 			libLog.String("operation", "service.rule.deactivate"),
 			libLog.String("rule.id", ruleID.String()),
-		).Log(ctx, libLog.LevelInfo, "Rule already inactive (idempotent no-op)")
+		).Log(ctx, libLog.LevelDebug, "Rule already inactive (idempotent no-op)")
 
 		return rule, nil
 	}
@@ -232,11 +227,6 @@ func (s *DeactivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (
 
 		return nil, fmt.Errorf("failed to deactivate rule: %w", txErr)
 	}
-
-	logger.With(
-		libLog.String("operation", "service.rule.deactivate"),
-		libLog.String("rule.id", rule.ID.String()),
-	).Log(ctx, libLog.LevelInfo, "Rule deactivated successfully")
 
 	// POST-COMMIT: remove the rule from the in-memory cache. Reached only when
 	// the transaction above committed successfully. The RuleCacheWriter

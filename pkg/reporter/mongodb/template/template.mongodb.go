@@ -117,7 +117,7 @@ func (tm *TemplateMongoDBRepository) FindByID(ctx context.Context, id uuid.UUID)
 
 	var record *TemplateMongoDBModel
 
-	ctx, spanFindOne := tracer.Start(ctx, "repository.template.find_by_id_exec")
+	_, spanFindOne := tracer.Start(ctx, "repository.template.find_by_id_exec")
 
 	spanFindOne.SetAttributes(attributes...)
 
@@ -166,7 +166,7 @@ func (tm *TemplateMongoDBRepository) FindList(ctx context.Context, filters http.
 	skip := int64(filters.Page*filters.Limit - filters.Limit)
 	opts := options.Find().SetLimit(limit).SetSkip(skip)
 
-	ctx, spanFind := tracer.Start(ctx, "repository.template.find_list_exec")
+	_, spanFind := tracer.Start(ctx, "repository.template.find_list_exec")
 
 	spanFind.SetAttributes(attributes...)
 
@@ -226,7 +226,7 @@ func (tm *TemplateMongoDBRepository) Count(ctx context.Context, filters http.Que
 
 	queryFilter := buildTemplateQueryFilter(filters)
 
-	ctx, spanCount := tracer.Start(ctx, "repository.template.count_exec")
+	_, spanCount := tracer.Start(ctx, "repository.template.count_exec")
 	spanCount.SetAttributes(attribute.String("app.request.request_id", reqID))
 
 	total, err := coll.CountDocuments(ctx, queryFilter)
@@ -382,7 +382,7 @@ func (tm *TemplateMongoDBRepository) Create(ctx context.Context, record *Templat
 		return nil, err
 	}
 
-	ctx, spanInsert := tracer.Start(ctx, "repository.template.create_exec")
+	_, spanInsert := tracer.Start(ctx, "repository.template.create_exec")
 
 	spanInsert.SetAttributes(attributes...)
 
@@ -421,7 +421,7 @@ func (tm *TemplateMongoDBRepository) Update(ctx context.Context, id uuid.UUID, u
 
 	opts := options.UpdateOne().SetUpsert(false)
 
-	ctx, spanUpdate := tracer.Start(ctx, "repository.template.update_exec")
+	_, spanUpdate := tracer.Start(ctx, "repository.template.update_exec")
 
 	spanUpdate.SetAttributes(attributes...)
 
@@ -468,7 +468,7 @@ func (tm *TemplateMongoDBRepository) Delete(ctx context.Context, id uuid.UUID, h
 
 	opts := options.DeleteOne()
 
-	ctx, spanDelete := tracer.Start(ctx, "repository.template.delete_exec")
+	_, spanDelete := tracer.Start(ctx, "repository.template.delete_exec")
 
 	spanDelete.SetAttributes(attributes...)
 
@@ -511,7 +511,7 @@ func (tm *TemplateMongoDBRepository) Delete(ctx context.Context, id uuid.UUID, h
 
 	spanDelete.End()
 
-	logger.Log(ctx, log.LevelInfo, "Deleted a template", log.String("id", id.String()), log.Bool("hard_delete", hardDelete))
+	logger.Log(ctx, log.LevelDebug, "Deleted a template", log.String("id", id.String()), log.Bool("hard_delete", hardDelete))
 
 	return nil
 }

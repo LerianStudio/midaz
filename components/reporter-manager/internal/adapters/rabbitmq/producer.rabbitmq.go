@@ -86,7 +86,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	logger := ctxutil.NewLoggerFromContext(ctx)
 	tracer := ctxutil.NewTracerFromContext(ctx)
 	reqID := ctxutil.HeaderIDFromContext(ctx)
-	logger.Log(ctx, clog.LevelInfo, "Init sent message")
+	logger.Log(ctx, clog.LevelDebug, "Init sent message")
 
 	ctx, spanProducer := tracer.Start(ctx, "repository.rabbitmq.publish_message")
 	defer spanProducer.End()
@@ -116,7 +116,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			clog.String("template_id", queueMessage.TemplateID.String()),
 		)
 	} else {
-		logger.Log(ctx, clog.LevelInfo, "Publishing message to RabbitMQ",
+		logger.Log(ctx, clog.LevelDebug, "Publishing message to RabbitMQ",
 			clog.String("tenant_id", tenantID),
 			clog.Bool("multi_tenant_mode", prmq.multiTenantMode),
 			clog.String("exchange", exchange),
@@ -167,7 +167,7 @@ func (prmq *ProducerRabbitMQRepository) publishMultiTenant(
 	for attempt := 0; attempt <= constant.ProducerMaxRetries; attempt++ {
 		if attempt > 0 {
 			sleepDuration := backoff.Jitter(currentBackoff)
-			logger.Log(ctx, clog.LevelInfo, "Retrying multi-tenant publish",
+			logger.Log(ctx, clog.LevelDebug, "Retrying multi-tenant publish",
 				clog.String("tenant_id", tenantID),
 				clog.Int("attempt", attempt+1),
 				clog.Int("max_attempts", constant.ProducerMaxRetries+1),
@@ -211,7 +211,7 @@ func (prmq *ProducerRabbitMQRepository) publishMultiTenant(
 		}
 
 		if publishErr == nil {
-			logger.Log(ctx, clog.LevelInfo, "Message sent successfully to tenant vhost", clog.String("tenant_id", tenantID))
+			logger.Log(ctx, clog.LevelDebug, "Message sent successfully to tenant vhost", clog.String("tenant_id", tenantID))
 			return nil
 		}
 
@@ -259,7 +259,7 @@ func (prmq *ProducerRabbitMQRepository) publishSingleTenant(
 			}
 
 			sleepDuration := backoff.Jitter(currentBackoff)
-			logger.Log(ctx, clog.LevelInfo, "Retrying EnsureChannel",
+			logger.Log(ctx, clog.LevelDebug, "Retrying EnsureChannel",
 				clog.Any("backoff", sleepDuration),
 				clog.Int("attempt", attempt+1),
 				clog.Int("max_attempts", constant.ProducerMaxRetries+1),
@@ -292,7 +292,7 @@ func (prmq *ProducerRabbitMQRepository) publishSingleTenant(
 				Body:         message,
 			})
 		if publishErr == nil {
-			logger.Log(ctx, clog.LevelInfo, "Messages sent successfully")
+			logger.Log(ctx, clog.LevelDebug, "Messages sent successfully")
 			return nil
 		}
 
@@ -310,7 +310,7 @@ func (prmq *ProducerRabbitMQRepository) publishSingleTenant(
 		}
 
 		sleepDuration := backoff.Jitter(currentBackoff)
-		logger.Log(ctx, clog.LevelInfo, "Retrying publish",
+		logger.Log(ctx, clog.LevelDebug, "Retrying publish",
 			clog.Any("backoff", sleepDuration),
 			clog.Int("attempt", attempt+1),
 			clog.Int("max_attempts", constant.ProducerMaxRetries+1),

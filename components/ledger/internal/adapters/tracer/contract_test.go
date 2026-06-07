@@ -69,7 +69,7 @@ type tracerReserveEndpoint struct {
 // AccountContext object, requestId, transactionType, transactionTimestamp) are
 // the real tracer contract — the ledger wire body must deserialize into it.
 type tracerReserveBody struct {
-	TransactionID              uuid.UUID `json:"transactionId"`
+	TransactionID uuid.UUID `json:"transactionId"`
 	tracermodel.ValidationRequest
 }
 
@@ -227,10 +227,10 @@ func TestReserveContract_DetectsLedgerShapeDrift(t *testing.T) {
 	// The ORIGINAL buggy outbound shape: account is a STRING, no requestId, no
 	// transactionTimestamp — exactly what the ledger sent at HEAD before this fix.
 	originalBuggyBody := map[string]any{
-		"transactionId": uuid.MustParse("77777777-7777-7777-7777-777777777777").String(),
-		"amount":        "1000",
-		"currency":      "BRL",
-		"account":       "@source-account", // STRING, not the AccountContext object
+		"transactionId":   uuid.MustParse("77777777-7777-7777-7777-777777777777").String(),
+		"amount":          "1000",
+		"currency":        "BRL",
+		"account":         "@source-account",    // STRING, not the AccountContext object
 		"transactionType": "pending-long-lived", // the invalid enum the old hint smuggled in
 	}
 

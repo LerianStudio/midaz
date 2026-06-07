@@ -232,7 +232,7 @@ func (r *TransactionValidationRepository) insertInternal(
 		libLog.String("operation", operationName),
 		libLog.String("validation.id", validation.ID.String()),
 		libLog.String("validation.decision", string(validation.Decision)),
-	).Log(ctx, libLog.LevelInfo, "Inserting transaction validation record")
+	).Log(ctx, libLog.LevelDebug, "Inserting transaction validation record")
 
 	_, err = db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -282,7 +282,7 @@ func (r *TransactionValidationRepository) GetByID(ctx context.Context, id uuid.U
 	logger.With(
 		libLog.String("operation", "repository.transaction_validation.get_by_id"),
 		libLog.String("validation.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Getting transaction validation by ID")
+	).Log(ctx, libLog.LevelDebug, "Getting transaction validation by ID")
 
 	validation, err := r.scanValidation(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
@@ -447,7 +447,7 @@ func (r *TransactionValidationRepository) List(ctx context.Context, filters *mod
 		libLog.String("operation", "repository.transaction_validation.list"),
 		libLog.Int("filter.limit", filters.Limit),
 		libLog.Bool("filter.has_cursor", filters.Cursor != ""),
-	).Log(ctx, libLog.LevelInfo, "Listing transaction validations")
+	).Log(ctx, libLog.LevelDebug, "Listing transaction validations")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -508,7 +508,7 @@ func (r *TransactionValidationRepository) List(ctx context.Context, filters *mod
 		libLog.String("operation", "repository.transaction_validation.list"),
 		libLog.Int("result.count", len(validations)),
 		libLog.Bool("result.has_more", hasMore),
-	).Log(ctx, libLog.LevelInfo, "Listed transaction validations")
+	).Log(ctx, libLog.LevelDebug, "Listed transaction validations")
 
 	return result, nil
 }
@@ -560,7 +560,7 @@ func (r *TransactionValidationRepository) Count(ctx context.Context, filters *mo
 
 	logger.With(
 		libLog.String("operation", "repository.transaction_validation.count"),
-	).Log(ctx, libLog.LevelInfo, "Counting transaction validations")
+	).Log(ctx, libLog.LevelDebug, "Counting transaction validations")
 
 	var count int64
 
@@ -574,7 +574,7 @@ func (r *TransactionValidationRepository) Count(ctx context.Context, filters *mo
 	logger.With(
 		libLog.String("operation", "repository.transaction_validation.count"),
 		libLog.Any("result.count", count),
-	).Log(ctx, libLog.LevelInfo, "Counted transaction validations")
+	).Log(ctx, libLog.LevelDebug, "Counted transaction validations")
 
 	return count, nil
 }

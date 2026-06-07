@@ -13,7 +13,6 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	billing_package "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
 	midaz "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/midaz"
@@ -85,7 +84,7 @@ func (s *BillingCalculateService) Calculate(
 	ctx context.Context,
 	req model.BillingCalculateRequest,
 ) (*model.BillingCalculateResponse, error) {
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_calculate.calculate")
 	defer span.End()
@@ -97,9 +96,6 @@ func (s *BillingCalculateService) Calculate(
 		attribute.String("app.request.period", req.Period),
 		attribute.String("app.request.type", req.Type),
 	)
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Starting billing calculation: org=%s, ledger=%s, period=%s, type=%s",
-		req.OrganizationID, req.LedgerID, req.Period, req.Type))
 
 	// Step 1: Validate UUIDs before any database calls to fail fast on invalid input.
 	orgUUID, errOrg := uuid.Parse(req.OrganizationID)
@@ -122,7 +118,6 @@ func (s *BillingCalculateService) Calculate(
 	periodStart, periodEnd, err := parsePeriod(req.Period)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid billing period", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid billing period: period=%s, err=%v", req.Period, err))
 
 		return nil, err
 	}
@@ -135,8 +130,6 @@ func (s *BillingCalculateService) Calculate(
 
 	totalPackages := len(volumePackages) + len(maintenancePackages)
 	if totalPackages == 0 {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("No active billing packages found: org=%s, ledger=%s", req.OrganizationID, req.LedgerID))
-
 		return &model.BillingCalculateResponse{
 			Results: []model.BillingCalculationResult{},
 			Summary: model.BillingCalculateSummary{
@@ -179,13 +172,10 @@ func (s *BillingCalculateService) Calculate(
 	// Step 6: Build summary.
 	summary := buildSummary(results)
 
-	logger.Log(ctx, libLog.LevelInfo, "Billing calculation completed",
-		libLog.Int("total_results", summary.TotalResults),
-		libLog.Int("total_volume", summary.TotalVolume),
-		libLog.Int("total_maintenance", summary.TotalMaintenance))
-
 	span.SetAttributes(
 		attribute.Int("app.response.total_results", summary.TotalResults),
+		attribute.Int("app.response.total_volume", summary.TotalVolume),
+		attribute.Int("app.response.total_maintenance", summary.TotalMaintenance),
 	)
 
 	return &model.BillingCalculateResponse{
@@ -242,7 +232,7 @@ func (s *BillingCalculateService) fetchPackagesByType(
 	ctx context.Context,
 	req model.BillingCalculateRequest,
 ) ([]*model.BillingPackage, []*model.BillingPackage, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_calculate.fetch_packages")
 	defer span.End()
@@ -256,7 +246,6 @@ func (s *BillingCalculateService) fetchPackagesByType(
 		pkgs, err := s.billingPackageRepo.FindActiveByType(ctx, req.OrganizationID, req.LedgerID, model.BillingPackageTypeVolume)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to fetch volume packages", err)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error fetching volume packages: org=%s, err=%v", req.OrganizationID, err))
 
 			return nil, nil, err
 		}
@@ -267,7 +256,6 @@ func (s *BillingCalculateService) fetchPackagesByType(
 		pkgs, err := s.billingPackageRepo.FindActiveByType(ctx, req.OrganizationID, req.LedgerID, model.BillingPackageTypeMaintenance)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to fetch maintenance packages", err)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error fetching maintenance packages: org=%s, err=%v", req.OrganizationID, err))
 
 			return nil, nil, err
 		}
@@ -279,7 +267,6 @@ func (s *BillingCalculateService) fetchPackagesByType(
 		volPkgs, errVol := s.billingPackageRepo.FindActiveByType(ctx, req.OrganizationID, req.LedgerID, model.BillingPackageTypeVolume)
 		if errVol != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to fetch volume packages", errVol)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error fetching volume packages: org=%s, err=%v", req.OrganizationID, errVol))
 
 			return nil, nil, errVol
 		}
@@ -287,7 +274,6 @@ func (s *BillingCalculateService) fetchPackagesByType(
 		maintPkgs, errMaint := s.billingPackageRepo.FindActiveByType(ctx, req.OrganizationID, req.LedgerID, model.BillingPackageTypeMaintenance)
 		if errMaint != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to fetch maintenance packages", errMaint)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error fetching maintenance packages: org=%s, err=%v", req.OrganizationID, errMaint))
 
 			return nil, nil, errMaint
 		}
@@ -295,8 +281,6 @@ func (s *BillingCalculateService) fetchPackagesByType(
 		volumePackages = volPkgs
 		maintenancePackages = maintPkgs
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Fetched packages: volume=%d, maintenance=%d", len(volumePackages), len(maintenancePackages)))
 
 	return volumePackages, maintenancePackages, nil
 }
@@ -310,7 +294,7 @@ func (s *BillingCalculateService) calculateVolume(
 	periodStart, periodEnd time.Time,
 	orgUUID, ledgerUUID uuid.UUID,
 ) (*model.BillingCalculationResult, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_calculate.calculate_volume")
 	defer span.End()
@@ -320,8 +304,6 @@ func (s *BillingCalculateService) calculateVolume(
 		attribute.String("app.request.billing_package_label", bp.Label),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Calculating volume billing: packageId=%s, label=%s, period=%s", bp.ID, bp.Label, period))
-
 	// Guard: EventFilter must be present — it is enforced at creation time but a document
 	// stored without this field (e.g. from a schema migration) would panic without this check.
 	if bp.EventFilter == nil {
@@ -329,7 +311,6 @@ func (s *BillingCalculateService) calculateVolume(
 		bizErr := pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingCalculation", errMsg)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing event filter for volume package", bizErr)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Missing event filter: packageId=%s", bp.ID))
 
 		return nil, bizErr
 	}
@@ -349,8 +330,7 @@ func (s *BillingCalculateService) calculateVolume(
 		errMsg := fmt.Sprintf("billing package (id=%s, label=%s): failed to count transactions: %v", bp.ID, bp.Label, err)
 		bizErr := pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingCalculation", errMsg)
 
-		libOpentelemetry.HandleSpanError(span, "Failed to count transactions for volume package", bizErr)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error counting transactions: packageId=%s, err=%v", bp.ID, err))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count transactions for volume package", bizErr)
 
 		return nil, bizErr
 	}
@@ -382,8 +362,7 @@ func (s *BillingCalculateService) calculateVolume(
 			errMsg := fmt.Sprintf("billing package (id=%s, label=%s): tiered calculation failed: %v", bp.ID, bp.Label, errTier)
 			bizErr := pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingCalculation", errMsg)
 
-			libOpentelemetry.HandleSpanError(span, "Tiered calculation failed", bizErr)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Tiered calculation error: packageId=%s, err=%v", bp.ID, errTier))
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Tiered calculation failed", bizErr)
 
 			return nil, bizErr
 		}
@@ -393,7 +372,7 @@ func (s *BillingCalculateService) calculateVolume(
 			errMsg := fmt.Sprintf("billing package (id=%s, label=%s): fixed pricing requires at least one tier", bp.ID, bp.Label)
 			bizErr := pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingCalculation", errMsg)
 
-			libOpentelemetry.HandleSpanError(span, "Fixed pricing with no tiers", bizErr)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Fixed pricing with no tiers", bizErr)
 
 			return nil, bizErr
 		}
@@ -406,7 +385,6 @@ func (s *BillingCalculateService) calculateVolume(
 		bizErr := pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingCalculation", errMsg)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Unknown pricing model", bizErr)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Unknown pricing model: packageId=%s, model=%s", bp.ID, pricingModel))
 
 		return nil, bizErr
 	}
@@ -421,19 +399,12 @@ func (s *BillingCalculateService) calculateVolume(
 		netAmount = grossAmount.Sub(discount.DiscountAmount)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Volume calculation result",
-		libLog.String("billing_package_id", bp.ID),
-		libLog.Any("total_events", totalEvents),
-		libLog.Any("billable_events", billableEvents))
+	span.SetAttributes(attribute.Int64("app.response.billable_events", billableEvents))
 
 	// Step 5: If net amount is zero (e.g. free quota covered all events), return result
 	// with empty payload {} to signal "processed but nothing to submit to Midaz".
 	if netAmount.IsZero() {
-		logger.Log(ctx, libLog.LevelInfo, "Volume billing net amount is zero, skipping payload generation",
-			libLog.String("billing_package_id", bp.ID),
-			libLog.Any("total_events", totalEvents),
-			libLog.Any("billable_events", billableEvents),
-			libLog.Bool("net_amount_is_zero", true))
+		span.SetAttributes(attribute.Bool("app.response.net_amount_is_zero", true))
 
 		return &model.BillingCalculationResult{
 			BillingPackageID:    bp.ID,
@@ -454,7 +425,7 @@ func (s *BillingCalculateService) calculateVolume(
 		errMsg := fmt.Sprintf("billing package (id=%s, label=%s): volume payload builder returned nil", bp.ID, bp.Label)
 		bizErr := pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingCalculation", errMsg)
 
-		libOpentelemetry.HandleSpanError(span, "Volume payload builder returned nil", bizErr)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Volume payload builder returned nil", bizErr)
 
 		return nil, bizErr
 	}
@@ -485,7 +456,7 @@ func (s *BillingCalculateService) calculateMaintenance(
 	period string,
 	orgUUID, ledgerUUID uuid.UUID,
 ) (*model.BillingCalculationResult, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_calculate.calculate_maintenance")
 	defer span.End()
@@ -495,15 +466,12 @@ func (s *BillingCalculateService) calculateMaintenance(
 		attribute.String("app.request.billing_package_label", bp.Label),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Calculating maintenance billing: packageId=%s, label=%s, period=%s", bp.ID, bp.Label, period))
-
 	// Step 1: Resolve accounts.
 	if bp.AccountTarget == nil {
 		errMsg := fmt.Sprintf("billing package (id=%s, label=%s): missing account target", bp.ID, bp.Label)
 		bizErr := pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingCalculation", errMsg)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing account target for maintenance package", bizErr)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Missing account target: packageId=%s", bp.ID))
 
 		return nil, bizErr
 	}
@@ -513,8 +481,7 @@ func (s *BillingCalculateService) calculateMaintenance(
 		errMsg := fmt.Sprintf("billing package (id=%s, label=%s): failed to resolve accounts: %v", bp.ID, bp.Label, err)
 		bizErr := pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingCalculation", errMsg)
 
-		libOpentelemetry.HandleSpanError(span, "Failed to resolve accounts for maintenance package", bizErr)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error resolving accounts: packageId=%s, err=%v", bp.ID, err))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to resolve accounts for maintenance package", bizErr)
 
 		return nil, bizErr
 	}
@@ -524,8 +491,6 @@ func (s *BillingCalculateService) calculateMaintenance(
 	// Guard: skip payload generation when no accounts are resolved to avoid
 	// degenerate transactions (send.value=0, from=[]) that Midaz would reject.
 	if len(accounts) == 0 {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("No active accounts resolved for maintenance package: packageId=%s, skipping payload generation", bp.ID))
-
 		return &model.BillingCalculationResult{
 			BillingPackageID:    bp.ID,
 			BillingPackageLabel: bp.Label,
@@ -548,10 +513,6 @@ func (s *BillingCalculateService) calculateMaintenance(
 
 	netAmount := feeAmount.Mul(decimal.NewFromInt(int64(len(accounts))))
 
-	logger.Log(ctx, libLog.LevelInfo, "Maintenance calculation result",
-		libLog.String("billing_package_id", bp.ID),
-		libLog.Int("account_count", len(accounts)))
-
 	// Step 3: Build transaction payload using the rounded feeAmount so that
 	// each per-account from-entry and send.value reflect the asset precision.
 	bpForPayload := *bp
@@ -562,7 +523,7 @@ func (s *BillingCalculateService) calculateMaintenance(
 		errMsg := fmt.Sprintf("billing package (id=%s, label=%s): maintenance payload builder returned nil", bp.ID, bp.Label)
 		bizErr := pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingCalculation", errMsg)
 
-		libOpentelemetry.HandleSpanError(span, "Maintenance payload builder returned nil", bizErr)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Maintenance payload builder returned nil", bizErr)
 
 		return nil, bizErr
 	}

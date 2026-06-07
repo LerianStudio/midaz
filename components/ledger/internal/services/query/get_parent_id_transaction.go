@@ -6,9 +6,8 @@ package query
 
 import (
 	"context"
-	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -19,18 +18,16 @@ import (
 )
 
 func (uc *UseCase) GetParentByTransactionID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*transaction.Transaction, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_parent_by_transaction_id")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Trying to get transaction")
 
 	tran, err := uc.TransactionRepo.FindByParentID(ctx, organizationID, ledgerID, parentID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get parent transaction on repo by id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting parent transaction: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting parent transaction", libLog.Err(err))
 
 		return nil, err
 	}
@@ -40,7 +37,7 @@ func (uc *UseCase) GetParentByTransactionID(ctx context.Context, organizationID,
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb account", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb account: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb account", libLog.Err(err))
 
 			return nil, err
 		}

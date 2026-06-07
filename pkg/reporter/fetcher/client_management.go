@@ -68,7 +68,7 @@ func (c *FetcherClient) ListConnections(ctx context.Context) ([]ConnectionRespon
 	}
 
 	span.SetAttributes(attribute.Int("fetcher.connections.count", len(result.Connections)))
-	logger.Log(ctx, log.LevelInfo, "Listed connections from Fetcher API",
+	logger.Log(ctx, log.LevelDebug, "Listed connections from Fetcher API",
 		log.Int("count", len(result.Connections)))
 
 	return result.Connections, nil
@@ -120,7 +120,7 @@ func (c *FetcherClient) GetConnectionSchema(ctx context.Context, connectionID st
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Retrieved schema for connection",
+	logger.Log(ctx, log.LevelDebug, "Retrieved schema for connection",
 		log.String("connection_id", connectionID),
 		log.Int("table_count", len(result.Tables)))
 
@@ -239,7 +239,7 @@ func (c *FetcherClient) ValidateSchema(ctx context.Context, mappedFields map[str
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Validated schema via Fetcher API",
+	logger.Log(ctx, log.LevelDebug, "Validated schema via Fetcher API",
 		log.Int("datasource_count", len(mappedFields)),
 		log.String("status", result.Status),
 		log.Int("error_count", len(result.Errors)))

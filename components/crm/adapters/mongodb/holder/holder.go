@@ -8,10 +8,25 @@ import (
 	"time"
 
 	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
+
+// recordSpanError records err onto the span using the class-appropriate helper:
+// business/4xx errors keep the span status UNSET via HandleSpanBusinessErrorEvent,
+// technical/5xx errors flip it red via HandleSpanError (telemetry rule T5).
+func recordSpanError(span trace.Span, message string, err error) {
+	if pkg.IsBusinessError(err) {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
+		return
+	}
+
+	libOpentelemetry.HandleSpanError(span, message, err)
+}
 
 type MongoDBModel struct {
 	ID            *uuid.UUID                 `bson:"_id,omitempty"`

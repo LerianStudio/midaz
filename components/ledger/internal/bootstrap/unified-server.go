@@ -6,7 +6,6 @@ package bootstrap
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
@@ -138,7 +137,7 @@ func NewUnifiedServer(
 // Run implements mbootstrap.Runnable interface.
 // Starts the unified HTTP server with graceful shutdown support.
 func (s *UnifiedServer) Run(l *libCommons.Launcher) error {
-	s.logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Starting Unified HTTP Server on %s", s.serverAddress))
+	s.logger.Log(context.Background(), libLog.LevelInfo, "Starting Unified HTTP Server", libLog.String("server_address", s.serverAddress))
 
 	// Create server manager with graceful shutdown.
 	// The OnListen hook (registered in NewUnifiedServer) will call SetServerReady()

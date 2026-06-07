@@ -74,18 +74,13 @@ func (e *RuleEvaluator) Evaluate(ctx context.Context, rule *model.Rule, req *mod
 
 	logger = logging.WithTrace(ctx, logger)
 
-	logger.With(
-		libLog.String("rule.id", rule.ID.String()),
-		libLog.String("rule.name", rule.Name),
-	).Log(ctx, libLog.LevelInfo, "Evaluating rule expression")
-
 	// Check if rule scopes match transaction scope before evaluating expression
 	txScope := req.ToTransactionScope()
 	if !model.RuleScopesMatch(rule.Scopes, txScope) {
 		logger.With(
 			libLog.String("rule.id", rule.ID.String()),
 			libLog.String("rule.name", rule.Name),
-		).Log(ctx, libLog.LevelInfo, "Rule scopes do not match transaction - skipping evaluation")
+		).Log(ctx, libLog.LevelDebug, "Rule scopes do not match transaction - skipping evaluation")
 
 		return false, nil
 	}
@@ -158,7 +153,7 @@ func (e *RuleEvaluator) Evaluate(ctx context.Context, rule *model.Rule, req *mod
 		libLog.String("rule.id", rule.ID.String()),
 		libLog.String("rule.name", rule.Name),
 		libLog.Bool("matched", matched),
-	).Log(ctx, libLog.LevelInfo, "Rule expression evaluated")
+	).Log(ctx, libLog.LevelDebug, "Rule expression evaluated")
 
 	return matched, nil
 }

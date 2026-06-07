@@ -46,7 +46,7 @@ func (pm *PackageMongoDBRepository) Create(ctx context.Context, p *Package, orga
 		return nil, err
 	}
 
-	ctx, spanInsert := tracer.Start(ctx, "repository.package.create.insert")
+	_, spanInsert := tracer.Start(ctx, "repository.package.create.insert")
 	defer spanInsert.End()
 
 	spanInsert.SetAttributes(attributes...)

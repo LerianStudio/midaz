@@ -84,7 +84,7 @@ func (rh *ReportHandler) CreateReport(p any, c *fiber.Ctx) error {
 		return netHTTP.BadRequest(c, "invalid request body")
 	}
 
-	rh.service.Logger.Log(ctx, log.LevelInfo, "Request to create report",
+	rh.service.Logger.Log(ctx, log.LevelDebug, "Request to create report",
 		log.String("template_id", payload.TemplateID),
 		log.Int("filter_datasource_count", len(payload.Filters)),
 	)
@@ -106,7 +106,7 @@ func (rh *ReportHandler) CreateReport(p any, c *fiber.Ctx) error {
 		return netHTTP.WithError(c, err)
 	}
 
-	rh.service.Logger.Log(ctx, log.LevelInfo, "Successfully created report",
+	rh.service.Logger.Log(ctx, log.LevelDebug, "Successfully created report",
 		log.String("report_id", reportOut.ID.String()),
 	)
 
@@ -147,7 +147,7 @@ func (rh *ReportHandler) GetDownloadReport(c *fiber.Ctx) error {
 		return netHTTP.WithError(c, pkg.ValidateBusinessError(cnErr.ErrInvalidPathParameter, "", "id"))
 	}
 
-	rh.service.Logger.Log(ctx, log.LevelInfo, "Initiating download of report", log.String("report_id", id.String()))
+	rh.service.Logger.Log(ctx, log.LevelDebug, "Initiating download of report", log.String("report_id", id.String()))
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -169,7 +169,7 @@ func (rh *ReportHandler) GetDownloadReport(c *fiber.Ctx) error {
 
 	c.Set("Content-Type", contentType)
 	c.Set("Content-Disposition", "attachment; filename=\""+fileName+"\"")
-	rh.service.Logger.Log(ctx, log.LevelInfo, "Successfully downloaded report", log.String("report_id", id.String()))
+	rh.service.Logger.Log(ctx, log.LevelDebug, "Successfully downloaded report", log.String("report_id", id.String()))
 
 	return c.SendStream(bytes.NewReader(fileBytes))
 }
@@ -202,7 +202,7 @@ func (rh *ReportHandler) GetReport(c *fiber.Ctx) error {
 		return netHTTP.WithError(c, pkg.ValidateBusinessError(cnErr.ErrInvalidPathParameter, "", "id"))
 	}
 
-	rh.service.Logger.Log(ctx, log.LevelInfo, "Initiating get report", log.String("report_id", id.String()))
+	rh.service.Logger.Log(ctx, log.LevelDebug, "Initiating get report", log.String("report_id", id.String()))
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -271,7 +271,7 @@ func (rh *ReportHandler) GetAllReports(c *fiber.Ctx) error {
 		Page:  headerParams.Page,
 	}
 
-	rh.service.Logger.Log(ctx, log.LevelInfo, "Initiating retrieval all reports")
+	rh.service.Logger.Log(ctx, log.LevelDebug, "Initiating retrieval all reports")
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -295,7 +295,7 @@ func (rh *ReportHandler) GetAllReports(c *fiber.Ctx) error {
 		return netHTTP.WithError(c, err)
 	}
 
-	rh.service.Logger.Log(ctx, log.LevelInfo, "Successfully retrieved all reports")
+	rh.service.Logger.Log(ctx, log.LevelDebug, "Successfully retrieved all reports")
 
 	pagination.SetItems(reports)
 	pagination.SetTotal(len(reports))

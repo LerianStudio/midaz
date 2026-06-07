@@ -11,8 +11,8 @@ import (
 	"syscall"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/lib-observability/metrics"
 	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"
+	"github.com/LerianStudio/lib-observability/metrics"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 

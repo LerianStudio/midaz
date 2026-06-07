@@ -91,11 +91,6 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 		attribute.String("app.request.operation", "activate"),
 	)
 
-	logger.With(
-		libLog.String("operation", "service.rule.activate"),
-		libLog.String("rule.id", ruleID.String()),
-	).Log(ctx, libLog.LevelInfo, "Activating rule")
-
 	rule, err := s.repository.GetByID(ctx, ruleID)
 	if err != nil {
 		if errors.Is(err, constant.ErrRuleNotFound) {
@@ -146,7 +141,7 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 		logger.With(
 			libLog.String("operation", "service.rule.activate"),
 			libLog.String("rule.id", ruleID.String()),
-		).Log(ctx, libLog.LevelInfo, "Rule already active (idempotent no-op)")
+		).Log(ctx, libLog.LevelDebug, "Rule already active (idempotent no-op)")
 
 		return rule, nil
 	}
@@ -154,7 +149,7 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 	logger.With(
 		libLog.String("operation", "service.rule.activate"),
 		libLog.String("rule.id", ruleID.String()),
-	).Log(ctx, libLog.LevelInfo, "Validating expression for rule")
+	).Log(ctx, libLog.LevelDebug, "Validating expression for rule")
 
 	// Compile the expression BEFORE opening the transaction: compilation is a
 	// pure, CPU-bound operation with no database side-effects, so holding row
@@ -273,11 +268,6 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 
 		return nil, fmt.Errorf("failed to activate rule: %w", txErr)
 	}
-
-	logger.With(
-		libLog.String("operation", "service.rule.activate"),
-		libLog.String("rule.id", rule.ID.String()),
-	).Log(ctx, libLog.LevelInfo, "Rule activated successfully")
 
 	// POST-COMMIT: update the in-memory rule cache. Reached only when the
 	// transaction above committed successfully. The RuleCacheWriter interface

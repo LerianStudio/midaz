@@ -6,17 +6,14 @@ package services
 
 import (
 	"context"
-	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID string, holderID, aliasID, relatedPartyID uuid.UUID) error {
-	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.delete_related_party")
 	defer span.End()
@@ -29,17 +26,12 @@ func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID st
 		attribute.String("app.request.related_party_id", relatedPartyID.String()),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to delete related party: %v from alias: %v", relatedPartyID.String(), aliasID.String()))
-
 	err := uc.InstrumentRepo.DeleteRelatedParty(ctx, organizationID, holderID, aliasID, relatedPartyID)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to delete related party", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete related party: %v", err))
+		recordSpanError(span, "Failed to delete related party", err)
 
 		return err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully deleted related party: %v from alias: %v", relatedPartyID.String(), aliasID.String()))
 
 	return nil
 }

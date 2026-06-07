@@ -7,11 +7,10 @@ package command
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -27,10 +26,11 @@ import (
 )
 
 func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations []*operation.Operation, organizationID, ledgerID, transactionID uuid.UUID) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	if !isAuditLogEnabled() {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Audit logging not enabled. AUDIT_LOG_ENABLED='%s'", os.Getenv("AUDIT_LOG_ENABLED")))
+		logger.Log(ctx, libLog.LevelDebug, "Audit logging not enabled",
+			libLog.String("audit_log_enabled", os.Getenv("AUDIT_LOG_ENABLED")))
 		return
 	}
 
@@ -45,7 +45,7 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 		marshal, err := json.Marshal(oLog)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(spanLogTransaction, "Failed to marshal operation to JSON string", err)
-			logger.Log(ctxLogTransaction, libLog.LevelError, fmt.Sprintf("Failed to marshal operation to JSON string: %v", err))
+			logger.Log(ctxLogTransaction, libLog.LevelError, "Failed to marshal operation to JSON string", libLog.Err(err))
 
 			return
 		}
@@ -77,7 +77,7 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 		message,
 	); err != nil {
 		libOpentelemetry.HandleSpanError(spanLogTransaction, "Failed to send message", err)
-		logger.Log(ctxLogTransaction, libLog.LevelError, fmt.Sprintf("Failed to send message: %v", err))
+		logger.Log(ctxLogTransaction, libLog.LevelError, "Failed to send message", libLog.Err(err))
 
 		return
 	}

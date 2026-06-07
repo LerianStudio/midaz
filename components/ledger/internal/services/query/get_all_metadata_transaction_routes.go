@@ -7,10 +7,9 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -24,12 +23,10 @@ import (
 )
 
 func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_transaction_routes")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Retrieving transaction routes by metadata")
 
 	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityTransactionRoute, filter)
 	if err != nil || metadata == nil {
@@ -37,7 +34,7 @@ func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organiza
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction routes on repo by metadata", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting transaction routes on repo by metadata: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Error getting transaction routes on repo by metadata", libLog.Err(err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -50,14 +47,14 @@ func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organiza
 
 	allTransactionRoutes, cur, err := uc.TransactionRouteRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting transaction routes on repo: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting transaction routes on repo", libLog.Err(err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, constant.EntityTransactionRoute)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction routes on repo", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting transaction routes on repo: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Error getting transaction routes on repo", libLog.Err(err))
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
@@ -80,7 +77,7 @@ func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organiza
 		if err := uc.enrichTransactionRoutesWithOperationRoutes(ctx, filteredTransactionRoutes); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to enrich transaction routes with operation routes", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to enrich transaction routes with operation routes: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to enrich transaction routes with operation routes", libLog.Err(err))
 
 			return nil, libHTTP.CursorPagination{}, err
 		}

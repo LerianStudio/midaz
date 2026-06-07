@@ -8,7 +8,7 @@ import (
 	"context"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
@@ -17,7 +17,7 @@ import (
 // CreateOnboardingMetadata persists the given metadata in MongoDB for the specified entity.
 // If metadata is nil, no document is created and (nil, nil) is returned.
 func (uc *UseCase) CreateOnboardingMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_metadata")
 	defer span.End()

@@ -124,7 +124,7 @@ func (uc *UseCase) UpdateDeadlineByID(ctx context.Context, id uuid.UUID, input *
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.deadline_id", id.String()),
 	)
-	uc.Logger.Log(ctx, log.LevelInfo, "Updating deadline", log.String("id", id.String()))
+	uc.Logger.Log(ctx, log.LevelDebug, "Updating deadline", log.String("id", id.String()))
 
 	// Fetch current deadline to validate merged state
 	current, err := uc.DeadlineRepo.FindByID(ctx, id)
@@ -226,7 +226,7 @@ func (uc *UseCase) UpdateDeadlineByID(ctx context.Context, id uuid.UUID, input *
 		return nil, err
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Successfully updated deadline", log.String("id", id.String()))
+	uc.Logger.Log(ctx, log.LevelDebug, "Successfully updated deadline", log.String("id", id.String()))
 
 	return updated, nil
 }

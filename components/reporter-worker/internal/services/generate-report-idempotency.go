@@ -30,7 +30,7 @@ func (uc *UseCase) shouldSkipProcessing(ctx context.Context, reportID uuid.UUID)
 	reportStatus, err := uc.checkReportStatus(ctx, reportID)
 	if err == nil {
 		if reportStatus == constant.FinishedStatus {
-			uc.Logger.Log(ctx, log.LevelInfo, "Report is already finished, skipping reprocessing",
+			uc.Logger.Log(ctx, log.LevelDebug, "Report is already finished, skipping reprocessing",
 				log.String("report_id", reportID.String()))
 
 			return true

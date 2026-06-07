@@ -32,7 +32,7 @@ func (ds *ExternalDataSource) GetDatabaseSchema(ctx context.Context, schemas []s
 	defer span.End()
 
 	span.SetAttributes(attribute.String("app.request.request_id", reqID))
-	logger.Log(ctx, log.LevelInfo, "Retrieving database schema information", log.Any("schemas", schemas))
+	logger.Log(ctx, log.LevelDebug, "Retrieving database schema information", log.Any("schemas", schemas))
 
 	schemaCtx, cancel := context.WithTimeout(ctx, constant.SchemaDiscoveryTimeout)
 	defer cancel()
@@ -52,7 +52,7 @@ func (ds *ExternalDataSource) GetDatabaseSchema(ctx context.Context, schemas []s
 		return nil, err
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Retrieved schema", log.Int("table_count", len(result)), log.Int("schema_count", len(schemas)))
+	logger.Log(ctx, log.LevelDebug, "Retrieved schema", log.Int("table_count", len(result)), log.Int("schema_count", len(schemas)))
 
 	return result, nil
 }

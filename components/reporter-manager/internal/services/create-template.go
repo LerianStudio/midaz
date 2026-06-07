@@ -57,7 +57,7 @@ func (uc *UseCase) CreateTemplate(ctx context.Context, templateFile, outFormat, 
 		attribute.Bool("app.request.has_description", description != ""),
 		attribute.Int("app.request.template_size_bytes", len(templateFile)),
 	)
-	uc.Logger.Log(ctx, log.LevelInfo, "Creating template",
+	uc.Logger.Log(ctx, log.LevelDebug, "Creating template",
 		log.String("output_format", outFormat),
 		log.Bool("has_description", description != ""),
 		log.Int("template_size_bytes", len(templateFile)),
@@ -112,7 +112,7 @@ func (uc *UseCase) prepareTemplateCreation(ctx context.Context, span trace.Span,
 	}
 
 	mappedFields := templateUtils.MappedFieldsOfTemplate(templateFile)
-	uc.Logger.Log(ctx, log.LevelInfo, "Mapped Fields extracted from template", log.Any("mapped_fields", mappedFields))
+	uc.Logger.Log(ctx, log.LevelDebug, "Mapped Fields extracted from template", log.Any("mapped_fields", mappedFields))
 
 	var midazOrgID string
 
@@ -123,7 +123,7 @@ func (uc *UseCase) prepareTemplateCreation(ctx context.Context, span trace.Span,
 	}
 
 	transformedMappedFields := TransformMappedFieldsForStorage(mappedFields, midazOrgID)
-	uc.Logger.Log(ctx, log.LevelInfo, "Transformed Mapped Fields for storage", log.Any("transformed_mapped_fields", transformedMappedFields))
+	uc.Logger.Log(ctx, log.LevelDebug, "Transformed Mapped Fields for storage", log.Any("transformed_mapped_fields", transformedMappedFields))
 
 	return transformedMappedFields, mappedFields, nil
 }
@@ -227,7 +227,7 @@ func (uc *UseCase) checkTemplateIdempotency(ctx context.Context, templateFile, o
 	}
 
 	span.SetAttributes(attribute.String("app.idempotency.key_prefix", idempotencyKey[:min(len(idempotencyKey), 30)]+"..."))
-	uc.Logger.Log(ctx, log.LevelInfo, "Checking idempotency")
+	uc.Logger.Log(ctx, log.LevelDebug, "Checking idempotency")
 
 	acquired, setNXErr := uc.RedisRepo.SetNX(ctx, idempotencyKey, "processing", constant.IdempotencyTTL)
 	if setNXErr != nil {
@@ -267,7 +267,7 @@ func (uc *UseCase) buildTemplateIdempotencyKey(ctx context.Context, templateFile
 	// Check for client-provided idempotency key from context
 	if clientKey, ok := ctx.Value(constant.IdempotencyKeyCtx).(string); ok && clientKey != "" {
 		key := constant.IdempotencyKeyPrefix + ":template:" + clientKey
-		uc.Logger.Log(ctx, log.LevelInfo, "Using client-provided template idempotency key", log.String("key", key))
+		uc.Logger.Log(ctx, log.LevelDebug, "Using client-provided template idempotency key", log.String("key", key))
 
 		return key, nil
 	}
@@ -288,7 +288,7 @@ func (uc *UseCase) buildTemplateIdempotencyKey(ctx context.Context, templateFile
 
 	hash := commons.HashSHA256(string(data))
 	key := constant.IdempotencyKeyPrefix + ":template:" + hash
-	uc.Logger.Log(ctx, log.LevelInfo, "Computed template idempotency key from request body hash", log.String("key", key))
+	uc.Logger.Log(ctx, log.LevelDebug, "Computed template idempotency key from request body hash", log.String("key", key))
 
 	return key, nil
 }
@@ -304,7 +304,7 @@ func (uc *UseCase) handleDuplicateTemplateRequest(ctx context.Context, idempoten
 	defer childSpan.End()
 
 	childSpan.SetAttributes(attribute.String("app.request.request_id", reqId))
-	uc.Logger.Log(ctx, log.LevelInfo, "Duplicate template request detected", log.String("idempotency_key", idempotencyKey))
+	uc.Logger.Log(ctx, log.LevelDebug, "Duplicate template request detected", log.String("idempotency_key", idempotencyKey))
 
 	cachedResponse, getErr := uc.RedisRepo.Get(ctx, idempotencyKey)
 	if getErr != nil {
@@ -344,7 +344,7 @@ func (uc *UseCase) handleDuplicateTemplateRequest(ctx context.Context, idempoten
 		*replayedPtr = true
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Returning cached idempotent template response", log.String("key", idempotencyKey))
+	uc.Logger.Log(ctx, log.LevelDebug, "Returning cached idempotent template response", log.String("key", idempotencyKey))
 
 	return &cachedTemplate, nil
 }

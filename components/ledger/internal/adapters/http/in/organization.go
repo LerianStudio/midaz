@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -47,7 +47,7 @@ type OrganizationHandler struct {
 func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_organization")
 	defer span.End()
@@ -58,15 +58,13 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 
 	organization, err := handler.Command.CreateOrganization(ctx, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization on command", err)
+		handleSpanByErrorClass(span, "Failed to create organization on command", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to create organization", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
 
 	span.SetAttributes(attribute.String("app.organization.id", organization.ID))
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully created organization with ID: ", libLog.String("id", organization.ID))
 
 	return http.Created(c, organization)
 }
@@ -92,7 +90,7 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_organization")
 	defer span.End()
@@ -108,7 +106,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 
 	organization, err := handler.Command.UpdateOrganizationByID(ctx, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization on command", err)
+		handleSpanByErrorClass(span, "Failed to update organization on command", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to update organization", libLog.Err(err))
 
 		return http.WithError(c, err)
@@ -135,7 +133,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_organization_by_id")
 	defer span.End()
@@ -145,18 +143,12 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Organization with ID: %s", id.String()))
-
 	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve organization on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve organization on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Organization with ID: %s", id.String()))
 
 	return http.OK(c, organizations)
 }
@@ -188,7 +180,7 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_organizations")
 	defer span.End()
@@ -196,8 +188,6 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -231,25 +221,17 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 			return http.WithError(c, err)
 		}
 
-		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Organizations by metadata")
-
 		organizations, err := handler.Query.GetAllMetadataOrganizations(ctx, *headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all organizations by metadata", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Organizations, Error: %s", err.Error()))
-
 			return http.WithError(c, err)
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Organizations by metadata")
 
 		pagination.SetItems(organizations)
 
 		return http.OK(c, pagination)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Organizations ")
 
 	headerParams.Metadata = &bson.M{}
 
@@ -257,12 +239,8 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all organizations", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Organizations, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Organizations")
 
 	pagination.SetItems(organizations)
 
@@ -287,7 +265,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_organization_by_id")
 	defer span.End()
@@ -297,27 +275,19 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Organization with ID: %s", id.String()))
-
 	if os.Getenv("ENV_NAME") == "production" {
 		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, constant.EntityOrganization)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove organization in production environment", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove Organization with ID: %s in production", id.String()))
-
 		return http.WithError(c, err)
 	}
 
 	if err := handler.Command.DeleteOrganizationByID(ctx, id); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove organization on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to remove Organization with ID: %s, Error: %s", id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to remove organization on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Organization with ID: %s", id.String()))
 
 	return http.NoContent(c)
 }
@@ -338,23 +308,17 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_organizations")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Initiating count of all organizations")
 
 	count, err := handler.Query.CountOrganizations(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count organizations", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to count organizations, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully counted organizations: %d", count))
 
 	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")

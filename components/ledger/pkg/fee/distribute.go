@@ -5,8 +5,6 @@
 package fee
 
 import (
-	"context"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -33,12 +31,6 @@ func applyDeductibleAndReferenceAmountRules(logger libLog.Logger, feeIndex int, 
 ) error {
 	originalRespToSize := len(resp.To)
 
-	// logCtx carries the request-scoped context for trace-log correlation when available.
-	logCtx := context.Background()
-	if segCtx != nil {
-		logCtx = segCtx.Ctx
-	}
-
 	if !feeModel.GetIsDeductibleFrom() {
 		// Check if ALL source (From) accounts are exempt before applying non-deductible fee.
 		allFromExempt, err := allAccountsExempt(resp.From, waivedAccounts, segmentIDs, segCtx)
@@ -47,8 +39,6 @@ func applyDeductibleAndReferenceAmountRules(logger libLog.Logger, feeIndex int, 
 		}
 
 		if allFromExempt {
-			logger.Log(logCtx, libLog.LevelInfo, fmt.Sprintf("Non-deductible fee (feeIndex=%d, label=%s) skipped: all source accounts are exempt from fees", feeIndex, feeModel.FeeLabel))
-
 			setFeeExemptionMetadata(f, "all_source_accounts_exempt")
 
 			// Also check destination — if both sides are exempt, the combined reason is set.
@@ -84,8 +74,6 @@ func applyDeductibleAndReferenceAmountRules(logger libLog.Logger, feeIndex int, 
 		}
 
 		if allFromExempt {
-			logger.Log(logCtx, libLog.LevelInfo, fmt.Sprintf("Deductible fee (feeIndex=%d, label=%s) skipped: all source accounts are exempt from fees", feeIndex, feeModel.FeeLabel))
-
 			setFeeExemptionMetadata(f, "all_source_accounts_exempt")
 
 			// Also check destination — if both sides are exempt, the combined reason is set.
@@ -117,8 +105,6 @@ func applyDeductibleAndReferenceAmountRules(logger libLog.Logger, feeIndex int, 
 		}
 
 		if allToExempt {
-			logger.Log(logCtx, libLog.LevelInfo, fmt.Sprintf("Deductible fee (feeIndex=%d, label=%s): all destination accounts are exempt, no deduction applied", feeIndex, feeModel.FeeLabel))
-
 			setFeeExemptionMetadata(f, "all_destination_accounts_exempt")
 		}
 	}

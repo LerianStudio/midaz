@@ -33,7 +33,7 @@ func (uc *UseCase) CreateDeadline(ctx context.Context, input *deadline.CreateDea
 		attribute.String("app.request.deadline_name", input.Name),
 		attribute.String("app.request.deadline_type", input.Type),
 	)
-	uc.Logger.Log(ctx, log.LevelInfo, "Creating deadline",
+	uc.Logger.Log(ctx, log.LevelDebug, "Creating deadline",
 		log.String("deadline_name", input.Name),
 		log.String("deadline_type", input.Type),
 	)
@@ -119,7 +119,7 @@ func (uc *UseCase) CreateDeadline(ctx context.Context, input *deadline.CreateDea
 		return nil, err
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Successfully created deadline", log.String("id", result.ID.String()))
+	uc.Logger.Log(ctx, log.LevelDebug, "Successfully created deadline", log.String("id", result.ID.String()))
 
 	return result, nil
 }

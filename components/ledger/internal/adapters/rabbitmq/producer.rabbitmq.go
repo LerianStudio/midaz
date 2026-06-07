@@ -12,8 +12,7 @@ import (
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
-	libObs "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -73,10 +72,10 @@ func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
 
 // ProducerDefault sends a message to a RabbitMQ queue for further processing.
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
-	logger.Log(ctx, libLog.LevelInfo, "Init sent message", libLog.String("exchange", exchange), libLog.String("key", key))
-
+	// Rebind ctx: the publish span's trace context is injected into the message
+	// headers below so the consumer can continue the trace.
 	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
 	defer spanProducer.End()
 
@@ -87,7 +86,6 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
 
 	if err := prmq.conn.EnsureChannel(); err != nil {
-		logger.Log(ctx, libLog.LevelError, "Failed to ensure channel", libLog.Err(err))
 		libOpentelemetry.HandleSpanError(spanProducer, "Failed to ensure channel", err)
 
 		return nil, err
@@ -99,7 +97,6 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	ch := prmq.conn.ChannelSnapshot()
 	if ch == nil {
 		err := fmt.Errorf("rabbitmq channel unavailable after ensure")
-		logger.Log(ctx, libLog.LevelError, "Channel snapshot returned nil", libLog.Err(err))
 		libOpentelemetry.HandleSpanError(spanProducer, "Channel snapshot returned nil", err)
 
 		return nil, err
@@ -118,13 +115,10 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		},
 	)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Failed to publish message", libLog.String("exchange", exchange), libLog.String("key", key), libLog.Err(err))
 		libOpentelemetry.HandleSpanError(spanProducer, "Failed to publish message", err)
 
 		return nil, err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Message sent successfully", libLog.String("exchange", exchange), libLog.String("key", key))
 
 	return nil, nil
 }
@@ -132,10 +126,10 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 // ProducerDefaultWithContext sends a message to RabbitMQ with context-aware timeout.
 // Uses EnsureChannelWithContext to respect context deadline for connection attempts.
 func (prmq *ProducerRabbitMQRepository) ProducerDefaultWithContext(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
-	logger.Log(ctx, libLog.LevelInfo, "Init sent message with context", libLog.String("exchange", exchange), libLog.String("key", key))
-
+	// Rebind ctx: the publish span's trace context is injected into the message
+	// headers below so the consumer can continue the trace.
 	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message_with_context")
 	defer spanProducer.End()
 
@@ -146,7 +140,6 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefaultWithContext(ctx context.C
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
 
 	if err := prmq.conn.EnsureChannelContext(ctx); err != nil {
-		logger.Log(ctx, libLog.LevelError, "Failed to ensure channel with context", libLog.Err(err))
 		libOpentelemetry.HandleSpanError(spanProducer, "Failed to ensure channel with context", err)
 
 		return nil, err
@@ -158,7 +151,6 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefaultWithContext(ctx context.C
 	ch := prmq.conn.ChannelSnapshot()
 	if ch == nil {
 		err := fmt.Errorf("rabbitmq channel unavailable after ensure")
-		logger.Log(ctx, libLog.LevelError, "Channel snapshot returned nil", libLog.Err(err))
 		libOpentelemetry.HandleSpanError(spanProducer, "Channel snapshot returned nil", err)
 
 		return nil, err
@@ -177,13 +169,10 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefaultWithContext(ctx context.C
 		},
 	)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Failed to publish message", libLog.String("exchange", exchange), libLog.String("key", key), libLog.Err(err))
 		libOpentelemetry.HandleSpanError(spanProducer, "Failed to publish message", err)
 
 		return nil, err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Message sent successfully with context", libLog.String("exchange", exchange), libLog.String("key", key))
 
 	return nil, nil
 }

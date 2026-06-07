@@ -98,7 +98,7 @@ func (mh *MetricsHandler) GetMetrics(c *fiber.Ctx) error {
 	ctx, span := mh.service.Tracer.Start(ctx, "handler.metrics.get")
 	defer span.End()
 
-	mh.service.Logger.Log(ctx, log.LevelInfo, "Request to get metrics")
+	mh.service.Logger.Log(ctx, log.LevelDebug, "Request to get metrics")
 
 	periodDays, err := parseErrorPeriodDays(c)
 	if err != nil {
@@ -176,7 +176,7 @@ func (mh *MetricsHandler) GetMetrics(c *fiber.Ctx) error {
 	}
 
 	reqID := ctxutil.HeaderIDFromContext(ctx)
-	mh.service.Logger.Log(ctx, log.LevelInfo, "Successfully retrieved metrics",
+	mh.service.Logger.Log(ctx, log.LevelDebug, "Successfully retrieved metrics",
 		log.String("request_id", reqID),
 		log.Any("templates", templateCount),
 		log.Any("reports", reportCount),

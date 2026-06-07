@@ -17,7 +17,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -56,7 +55,7 @@ type BillingCalculateHandler struct {
 func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.calculate_billing")
 	defer span.End()
@@ -80,11 +79,6 @@ func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) er
 		attribute.String("app.request.type", payload.Type),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, "Request to calculate billing",
-		libLog.String("ledger_id", payload.LedgerID),
-		libLog.String("period", payload.Period),
-		libLog.String("type", payload.Type))
-
 	if errValidation := validateBillingCalculateRequest(payload); errValidation != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Billing calculate request validation failed", errValidation)
 
@@ -101,9 +95,6 @@ func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) er
 	if result == nil {
 		return http.WithError(c, fmt.Errorf("service returned nil result without error"))
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Billing calculation completed",
-		libLog.Int("total_results", result.Summary.TotalResults))
 
 	return commonsHttp.Respond(c, fiber.StatusOK, result)
 }

@@ -53,7 +53,7 @@ func (uc *UseCase) ProcessFetcherNotification(ctx context.Context, body []byte) 
 		attribute.String("app.request.fetcher_status", notification.Status),
 	)
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Processing Fetcher notification",
+	uc.Logger.Log(ctx, log.LevelDebug, "Processing Fetcher notification",
 		log.String("job_id", notification.JobID),
 		log.String("status", notification.Status))
 
@@ -108,7 +108,7 @@ func (uc *UseCase) ProcessFetcherNotification(ctx context.Context, body []byte) 
 	}
 
 	if !claimed {
-		uc.Logger.Log(ctx, log.LevelInfo, "Notification already claimed by another worker, skipping (idempotent)",
+		uc.Logger.Log(ctx, log.LevelDebug, "Notification already claimed by another worker, skipping (idempotent)",
 			log.String("job_id", notification.JobID),
 			log.String("current_status", mapping.Status))
 
@@ -158,7 +158,7 @@ func (uc *UseCase) handleCompletedNotification(
 		return fmt.Errorf("update extraction mapping status for job %s: %w", notification.JobID, err)
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Extraction mapping updated to completed",
+	uc.Logger.Log(ctx, log.LevelDebug, "Extraction mapping updated to completed",
 		log.String("job_id", notification.JobID),
 		log.String("report_id", mapping.ReportID))
 
@@ -272,7 +272,7 @@ func (uc *UseCase) handleCompletedNotification(
 		return err
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Report generation resumed and completed after Fetcher extraction",
+	uc.Logger.Log(ctx, log.LevelDebug, "Report generation resumed and completed after Fetcher extraction",
 		log.String("job_id", notification.JobID),
 		log.String("report_id", mapping.ReportID))
 
@@ -323,7 +323,7 @@ func (uc *UseCase) handleFailedNotification(
 		return errUpdate
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Report marked as failed due to extraction failure",
+	uc.Logger.Log(ctx, log.LevelDebug, "Report marked as failed due to extraction failure",
 		log.String("job_id", notification.JobID),
 		log.String("report_id", mapping.ReportID),
 		log.String("error", notification.GetErrorMessage()))

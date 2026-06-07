@@ -138,7 +138,7 @@ func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 		libLog.String("transaction_id", request.TransactionID.String()),
 		libLog.Bool("denied", result.Denied),
 		libLog.Int("reservations", len(result.ReservationIDs)),
-	).Log(ctx, libLog.LevelInfo, "Reservation processed")
+	).Log(ctx, libLog.LevelDebug, "Reservation processed")
 
 	return pkgHTTP.Created(c, ReserveResponse{
 		TransactionID:  request.TransactionID,
@@ -256,7 +256,7 @@ func (h *ReservationHandler) terminateByTransaction(
 		libLog.String("transaction_id", transactionID.String()),
 		libLog.String("status", terminalStatus),
 		libLog.Int("flipped", flipped),
-	).Log(ctx, libLog.LevelInfo, "Reservations transitioned by transaction")
+	).Log(ctx, libLog.LevelDebug, "Reservations transitioned by transaction")
 
 	return pkgHTTP.OK(c, TransactionActionResponse{
 		TransactionID: transactionID,
@@ -299,7 +299,7 @@ func (h *ReservationHandler) terminate(
 		libLog.String("operation", operation),
 		libLog.String("reservation_id", reservationID.String()),
 		libLog.String("status", terminalStatus),
-	).Log(ctx, libLog.LevelInfo, "Reservation transition processed")
+	).Log(ctx, libLog.LevelDebug, "Reservation transition processed")
 
 	return pkgHTTP.OK(c, ReservationActionResponse{
 		ReservationID: reservationID,

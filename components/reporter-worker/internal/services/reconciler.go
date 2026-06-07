@@ -206,7 +206,7 @@ func (r *Reconciler) reconcileMultiTenant(ctx context.Context, parentSpan trace.
 
 	span.SetAttributes(attribute.Int("app.reconciler.tenant_count", len(tenants)))
 
-	r.logger.Log(ctx, log.LevelInfo, "Reconciler: iterating tenants",
+	r.logger.Log(ctx, log.LevelDebug, "Reconciler: iterating tenants",
 		log.Int("tenant_count", len(tenants)))
 
 	for _, tenant := range tenants {
@@ -267,7 +267,7 @@ func (r *Reconciler) reconcileForContext(ctx context.Context, parentSpan trace.S
 		attribute.Int("app.reconciler.stale_total_count", len(staleMappings)),
 	)
 
-	r.logger.Log(ctx, log.LevelInfo, "Found stale extraction mappings",
+	r.logger.Log(ctx, log.LevelDebug, "Found stale extraction mappings",
 		log.Int("pending", len(stalePending)),
 		log.Int("processing", len(staleProcessing)))
 
@@ -287,7 +287,7 @@ func (r *Reconciler) reconcileMapping(ctx context.Context, mapping *datasource.E
 		attribute.String("app.request.report_id", mapping.ReportID),
 	)
 
-	r.logger.Log(ctx, log.LevelInfo, "Reconciling stale extraction mapping",
+	r.logger.Log(ctx, log.LevelDebug, "Reconciling stale extraction mapping",
 		log.String("job_id", mapping.JobID),
 		log.String("report_id", mapping.ReportID),
 		log.String("created_at", mapping.CreatedAt.Format(time.RFC3339)))
@@ -340,7 +340,7 @@ func (r *Reconciler) reconcileMapping(ctx context.Context, mapping *datasource.E
 				libOtel.HandleSpanError(span, "Failed to update report status for timeout", errUpdate)
 			}
 		} else {
-			r.logger.Log(ctx, log.LevelInfo, "Fetcher reports job still pending, skipping",
+			r.logger.Log(ctx, log.LevelDebug, "Fetcher reports job still pending, skipping",
 				log.String("job_id", mapping.JobID))
 		}
 	}

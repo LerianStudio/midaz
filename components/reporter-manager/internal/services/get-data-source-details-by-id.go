@@ -81,11 +81,11 @@ func (uc *UseCase) GetDataSourceDetailsByID(ctx context.Context, dataSourceID st
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.data_source_id", dataSourceID),
 	)
-	uc.Logger.Log(ctx, log.LevelInfo, "Retrieving data source details", log.String("data_source_id", dataSourceID))
+	uc.Logger.Log(ctx, log.LevelDebug, "Retrieving data source details", log.String("data_source_id", dataSourceID))
 
 	cacheKey := constant.DataSourceDetailsKeyPrefix + ":" + dataSourceID
 	if cached, ok := uc.getDataSourceDetailsFromCache(ctx, cacheKey); ok {
-		uc.Logger.Log(ctx, log.LevelInfo, "Cache hit for data source details", log.String("data_source_id", dataSourceID))
+		uc.Logger.Log(ctx, log.LevelDebug, "Cache hit for data source details", log.String("data_source_id", dataSourceID))
 		return cached, nil
 	}
 
@@ -104,7 +104,7 @@ func (uc *UseCase) getDataSourceDetailsByIDFromProvider(ctx context.Context, dat
 
 	span.SetAttributes(attribute.String("app.request.data_source_id", dataSourceID))
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Retrieving data source schema via DataSourceProvider",
+	uc.Logger.Log(ctx, log.LevelDebug, "Retrieving data source schema via DataSourceProvider",
 		log.String("data_source_id", dataSourceID))
 
 	schema, err := uc.DataSourceProvider.GetDataSourceSchema(ctx, dataSourceID)
@@ -289,12 +289,12 @@ func (uc *UseCase) ensureDataSourceConnected(ctx context.Context, logger log.Log
 	switch dataSource.DatabaseType {
 	case pkg.PostgreSQLType:
 		if !dataSource.Initialized || !dataSource.DatabaseConfig.Connected {
-			logger.Log(ctx, log.LevelInfo, "Connecting to PostgreSQL datasource on-demand...", log.String("data_source_id", dataSourceID))
+			logger.Log(ctx, log.LevelDebug, "Connecting to PostgreSQL datasource on-demand...", log.String("data_source_id", dataSourceID))
 			return uc.ExternalDataSources.ConnectDataSource(ctx, dataSourceID, dataSource, logger)
 		}
 	case pkg.MongoDBType:
 		if !dataSource.Initialized {
-			logger.Log(ctx, log.LevelInfo, "Connecting to MongoDB datasource on-demand...", log.String("data_source_id", dataSourceID))
+			logger.Log(ctx, log.LevelDebug, "Connecting to MongoDB datasource on-demand...", log.String("data_source_id", dataSourceID))
 			return uc.ExternalDataSources.ConnectDataSource(ctx, dataSourceID, dataSource, logger)
 		}
 	}
@@ -321,7 +321,7 @@ func (uc *UseCase) getDataSourceDetailsOfMongoDBDatabase(ctx context.Context, lo
 
 	// If MidazOrganizationID is configured (e.g., for plugin_crm), fetch only collections for that organization
 	if dataSource.MidazOrganizationID != "" {
-		logger.Log(ctx, log.LevelInfo, "Fetching schema for Midaz organization",
+		logger.Log(ctx, log.LevelDebug, "Fetching schema for Midaz organization",
 			log.String("organization_id", dataSource.MidazOrganizationID),
 			log.String("data_source_id", dataSourceID),
 		)

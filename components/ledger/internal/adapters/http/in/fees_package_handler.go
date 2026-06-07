@@ -6,7 +6,6 @@ package in
 
 import (
 	"context"
-	"fmt"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
@@ -69,7 +68,7 @@ func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_package")
 	defer span.End()
@@ -85,7 +84,6 @@ func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 	)
 
 	payload := p.(*model.CreatePackageInput)
-	logger.Log(ctx, libLog.LevelInfo, "Request to create a pack")
 
 	if !commons.IsNilOrEmpty(payload.SegmentID) {
 		segmentID, errParseUUID = uuid.Parse(*payload.SegmentID)
@@ -123,12 +121,10 @@ func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 
 	packOut, err := handler.Service.CreatePackage(ctx, payload, organizationID, ledgerID, segmentID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create pack on command", err)
+		handleSpanByErrorClass(span, "Failed to create pack on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully created pack", libLog.String("package_id", packOut.ID.String()))
 
 	return commonsHttp.Respond(c, fiber.StatusCreated, packOut)
 }
@@ -197,12 +193,10 @@ func (handler *PackageHandler) GetAllPackages(c *fiber.Ctx) error {
 
 	packs, err := handler.Service.GetAllPackages(ctx, *headerParams, organizationID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Packages on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve all Packages on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Packages")
 
 	pagination.SetItems(packs)
 	pagination.SetTotal(len(packs))
@@ -252,14 +246,12 @@ func (handler *PackageHandler) GetPackageByID(c *fiber.Ctx) error {
 
 	packModel, err := handler.Service.GetPackageByID(ctx, id, organizationID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve package on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve package on query", err)
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to retrieve Package", libLog.String("package_id", id.String()))
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Package with ID: %s", id.String()))
 
 	return commonsHttp.Respond(c, fiber.StatusOK, packModel)
 }
@@ -285,7 +277,7 @@ func (handler *PackageHandler) GetPackageByID(c *fiber.Ctx) error {
 func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_package")
 	defer span.End()
@@ -307,7 +299,6 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 	)
 
 	payload := p.(*model.UpdatePackageInput)
-	logger.Log(ctx, libLog.LevelInfo, "Request to update a package", libLog.String("package_id", id.String()))
 
 	if payload.Fee != nil {
 		errValidateInput := payload.ValidateFees()
@@ -344,12 +335,10 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 
 	packUpdated, err := handler.Service.GetPackageByID(ctx, id, organizationID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve package on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve package on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Package with ID: %s", id))
 
 	return commonsHttp.Respond(c, fiber.StatusOK, packUpdated)
 }
@@ -400,8 +389,6 @@ func (handler *PackageHandler) DeletePackageByID(c *fiber.Ctx) error {
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Package with ID: %s", id.String()))
 
 	return commonsHttp.RespondStatus(c, fiber.StatusNoContent)
 }

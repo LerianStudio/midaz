@@ -253,7 +253,7 @@ func (w *ReservationReaperWorker) runReapCycle(ctx context.Context) {
 	logger.With(
 		libLog.String("operation", "worker.reservation_reaper.run_cycle"),
 		libLog.Int("released_count", released),
-	).Log(ctx, libLog.LevelInfo, "Reap cycle completed successfully")
+	).Log(ctx, libLog.LevelDebug, "Reap cycle completed successfully")
 }
 
 // RunOnce executes a single reap sweep: find the expired RESERVED reservations,
@@ -320,7 +320,7 @@ func (w *ReservationReaperWorker) RunOnce(ctx context.Context) (int, error) {
 		libLog.String("operation", "worker.reservation_reaper.run_once"),
 		libLog.String("now", now.Format(time.RFC3339)),
 		libLog.Int("released_count", released),
-	).Log(ctx, libLog.LevelInfo, "Released expired reservations")
+	).Log(ctx, libLog.LevelDebug, "Released expired reservations")
 
 	return released, nil
 }

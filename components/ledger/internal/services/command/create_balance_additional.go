@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -99,7 +97,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 	if existingBalance != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Additional balance already exists", nil)
-		logger.Log(ctx, libLog.LevelInfo, "Additional balance already exists", libLog.String("key", cbi.Key))
+		logger.Log(ctx, libLog.LevelWarn, "Additional balance already exists", libLog.String("key", cbi.Key))
 
 		return nil, pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, constant.EntityBalance, cbi.Key)
 	}
@@ -148,10 +146,10 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		// Migration 032 adds a unique balance key index. If another pod wins the
 		// race after the precheck, return the same business error as the precheck.
 		if isBalanceKeyUniqueViolation(err) {
-			berr := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), strings.ToLower(cbi.Key))
+			berr := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, constant.EntityBalance, strings.ToLower(cbi.Key))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Additional balance already exists", berr)
 
-			logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Additional balance already exists: %v", berr))
+			logger.Log(ctx, libLog.LevelWarn, "Additional balance already exists", libLog.String("key", strings.ToLower(cbi.Key)))
 
 			return nil, berr
 		}

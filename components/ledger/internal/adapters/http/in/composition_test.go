@@ -203,20 +203,20 @@ func TestCompositionHandler_CreateHolderAccount_PayloadAssertion(t *testing.T) {
 	handler := &CompositionHandler{Service: composition.NewService(stubAccountCreator{}, stubInstrumentCreator{})}
 
 	holderID := uuid.New()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
 
 	app := fiber.New()
-	app.Post("/v1/holders/:id/accounts",
-		func(c *fiber.Ctx) error {
-			c.Locals("id", holderID)
-			return c.Next()
-		},
+	app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts",
+		http.ParseUUIDPathParameters("holder"),
 		func(c *fiber.Ctx) error {
 			// Wrong payload type forces the type-assertion guard.
 			return handler.CreateHolderAccount(&mmodel.CreateAccountInput{}, c)
 		},
 	)
 
-	req := httptest.NewRequest("POST", "/v1/holders/"+holderID.String()+"/accounts", nil)
+	req := httptest.NewRequest("POST",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/holders/"+holderID.String()+"/accounts", nil)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req)

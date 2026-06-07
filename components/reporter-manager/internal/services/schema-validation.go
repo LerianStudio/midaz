@@ -51,7 +51,7 @@ func (uc *UseCase) ValidateSchemaViaProvider(ctx context.Context, mappedFields m
 		attribute.Int("app.datasource.count", len(mappedFields)),
 	)
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Validating mapped fields via DataSourceProvider",
+	uc.Logger.Log(ctx, log.LevelDebug, "Validating mapped fields via DataSourceProvider",
 		log.Int("datasource_count", len(mappedFields)),
 	)
 

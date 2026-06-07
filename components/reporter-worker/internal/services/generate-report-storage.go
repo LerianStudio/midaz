@@ -51,7 +51,7 @@ func (uc *UseCase) saveReport(ctx context.Context, message GenerateReportMessage
 	}
 
 	if uc.ReportTTL != "" {
-		uc.Logger.Log(ctx, log.LevelInfo, "Saving report with TTL", log.String("ttl", uc.ReportTTL))
+		uc.Logger.Log(ctx, log.LevelDebug, "Saving report with TTL", log.String("ttl", uc.ReportTTL))
 	}
 
 	return nil

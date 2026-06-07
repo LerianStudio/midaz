@@ -126,14 +126,6 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(err, constant.EntityValidationRequest))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.validations.validate"),
-		libLog.String("request.id", request.RequestID.String()),
-		libLog.Any("request.amount", request.Amount),
-		libLog.String("request.currency", request.Currency),
-		libLog.String("request.transaction_type", string(request.TransactionType)),
-	).Log(ctx, libLog.LevelInfo, "Processing validation request")
-
 	span.SetAttributes(
 		attribute.String("app.request.request_id", request.RequestID.String()),
 		attribute.String("app.request.transaction_type", string(request.TransactionType)),
@@ -152,7 +144,7 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 		libLog.String("decision", string(result.Response.Decision)),
 		libLog.Any("processing_time_ms", result.Response.ProcessingTimeMs),
 		libLog.Bool("is_duplicate", result.IsDuplicate),
-	).Log(ctx, libLog.LevelInfo, "Validation completed")
+	).Log(ctx, libLog.LevelDebug, "Validation completed")
 
 	// Return HTTP 201 for new requests, HTTP 200 for duplicate (idempotent) requests (DD-9)
 	if result.IsDuplicate {

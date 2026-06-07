@@ -9,8 +9,7 @@ import (
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -25,7 +24,7 @@ import (
 // the already-provisioned holder is re-fetched and returned, so re-running the
 // provisioning path is a no-op.
 func (uc *UseCase) CreateHolderWithID(ctx context.Context, organizationID string, id uuid.UUID, chi *mmodel.CreateHolderInput) (*mmodel.Holder, error) {
-	logger, tracer, reqID, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqID, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.create_holder_with_id")
 	defer span.End()
@@ -37,7 +36,7 @@ func (uc *UseCase) CreateHolderWithID(ctx context.Context, organizationID string
 	)
 
 	if err := ctx.Err(); err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Context cancelled before holder provisioning", err)
+		libOpentelemetry.HandleSpanError(span, "Context cancelled before holder provisioning", err)
 
 		return nil, err
 	}
@@ -68,8 +67,7 @@ func (uc *UseCase) CreateHolderWithID(ctx context.Context, organizationID string
 		if mongo.IsDuplicateKeyError(err) {
 			existing, findErr := uc.HolderRepo.Find(ctx, organizationID, id, false)
 			if findErr != nil {
-				libOpenTelemetry.HandleSpanError(span, "Failed to re-fetch existing holder after duplicate key", findErr)
-				logger.Log(ctx, libLog.LevelError, "Failed to re-fetch existing holder after duplicate key", libLog.Err(findErr))
+				recordSpanError(span, "Failed to re-fetch existing holder after duplicate key", findErr)
 
 				return nil, findErr
 			}
@@ -77,8 +75,7 @@ func (uc *UseCase) CreateHolderWithID(ctx context.Context, organizationID string
 			return existing, nil
 		}
 
-		libOpenTelemetry.HandleSpanError(span, "Failed to create holder with id", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create holder with id", libLog.Err(err))
+		recordSpanError(span, "Failed to create holder with id", err)
 
 		return nil, err
 	}

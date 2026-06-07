@@ -22,6 +22,7 @@ const (
 	EntityInstrument            = "Instrument"
 	EntityLedger                = "Ledger"
 	EntityLimit                 = "Limit"
+	EntityMetadataIndex         = "MetadataIndex"
 	EntityOperation             = "Operation"
 	EntityOperationRoute        = "OperationRoute"
 	EntityOrganization          = "Organization"

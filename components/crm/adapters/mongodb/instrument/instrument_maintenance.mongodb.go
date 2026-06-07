@@ -6,13 +6,11 @@ package instrument
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
@@ -24,7 +22,7 @@ import (
 
 // DeleteRelatedParty removes a related party from an alias by ID (hard delete)
 func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizationID string, holderID, aliasID, relatedPartyID uuid.UUID) error {
-	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.delete_related_party")
 	defer span.End()
@@ -41,7 +39,7 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 
 	db, err := am.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 		return err
 	}
 
@@ -67,19 +65,23 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 
 	result, err := coll.UpdateOne(ctx, filter, update)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to delete related party", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to delete related party", err)
 		return err
 	}
 
 	if result.MatchedCount == 0 {
-		return pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
+		businessErr := pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Alias not found", businessErr)
+
+		return businessErr
 	}
 
 	if result.ModifiedCount == 0 {
-		return pkg.ValidateBusinessError(cn.ErrRelatedPartyNotFound, cn.EntityRelatedParty)
-	}
+		businessErr := pkg.ValidateBusinessError(cn.ErrRelatedPartyNotFound, cn.EntityRelatedParty)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Related party not found", businessErr)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Deleted related party with id %s from alias %s", relatedPartyID.String(), aliasID.String()))
+		return businessErr
+	}
 
 	return nil
 }

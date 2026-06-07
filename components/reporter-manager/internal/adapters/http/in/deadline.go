@@ -62,7 +62,7 @@ func (dh *DeadlineHandler) CreateDeadline(p any, c *fiber.Ctx) error {
 	defer span.End()
 
 	span.SetAttributes(attribute.String("app.request.request_id", reqId))
-	dh.service.Logger.Log(ctx, log.LevelInfo, "Request to create deadline")
+	dh.service.Logger.Log(ctx, log.LevelDebug, "Request to create deadline")
 
 	input, ok := p.(*deadline.CreateDeadlineInput)
 	if !ok {
@@ -80,7 +80,7 @@ func (dh *DeadlineHandler) CreateDeadline(p any, c *fiber.Ctx) error {
 		return netHTTP.WithError(c, err)
 	}
 
-	dh.service.Logger.Log(ctx, log.LevelInfo, "Successfully created deadline", log.String("deadline_id", result.ID.String()))
+	dh.service.Logger.Log(ctx, log.LevelDebug, "Successfully created deadline", log.String("deadline_id", result.ID.String()))
 
 	return commonsHttp.Respond(c, fiber.StatusCreated, result)
 }
@@ -118,7 +118,7 @@ func (dh *DeadlineHandler) GetAllDeadlines(c *fiber.Ctx) error {
 
 	pagination := model.Pagination{Limit: headerParams.Limit, Page: headerParams.Page}
 
-	dh.service.Logger.Log(ctx, log.LevelInfo, "Initiating retrieval of all deadlines")
+	dh.service.Logger.Log(ctx, log.LevelDebug, "Initiating retrieval of all deadlines")
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.Int("app.request.limit", headerParams.Limit),
@@ -138,7 +138,7 @@ func (dh *DeadlineHandler) GetAllDeadlines(c *fiber.Ctx) error {
 		return netHTTP.WithError(c, err)
 	}
 
-	dh.service.Logger.Log(ctx, log.LevelInfo, "Successfully retrieved all deadlines")
+	dh.service.Logger.Log(ctx, log.LevelDebug, "Successfully retrieved all deadlines")
 	pagination.SetItems(deadlines)
 	pagination.SetTotal(int(total))
 
@@ -174,7 +174,7 @@ func (dh *DeadlineHandler) UpdateDeadlineByID(p any, c *fiber.Ctx) error {
 		return netHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "id"))
 	}
 
-	dh.service.Logger.Log(ctx, log.LevelInfo, "Initiating deadline update", log.String("deadline_id", id.String()))
+	dh.service.Logger.Log(ctx, log.LevelDebug, "Initiating deadline update", log.String("deadline_id", id.String()))
 	span.SetAttributes(attribute.String("app.request.request_id", reqId), attribute.String("app.request.deadline_id", id.String()))
 
 	input, ok := p.(*deadline.UpdateDeadlineInput)
@@ -195,7 +195,7 @@ func (dh *DeadlineHandler) UpdateDeadlineByID(p any, c *fiber.Ctx) error {
 		return netHTTP.WithError(c, errUpdate)
 	}
 
-	dh.service.Logger.Log(ctx, log.LevelInfo, "Successfully updated deadline", log.String("deadline_id", id.String()))
+	dh.service.Logger.Log(ctx, log.LevelDebug, "Successfully updated deadline", log.String("deadline_id", id.String()))
 
 	return commonsHttp.Respond(c, fiber.StatusOK, result)
 }
@@ -226,7 +226,7 @@ func (dh *DeadlineHandler) DeleteDeadlineByID(c *fiber.Ctx) error {
 		return netHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "id"))
 	}
 
-	dh.service.Logger.Log(ctx, log.LevelInfo, "Initiating removal of deadline", log.String("deadline_id", id.String()))
+	dh.service.Logger.Log(ctx, log.LevelDebug, "Initiating removal of deadline", log.String("deadline_id", id.String()))
 	span.SetAttributes(attribute.String("app.request.request_id", reqId), attribute.String("app.request.deadline_id", id.String()))
 
 	if err := dh.service.DeleteDeadlineByID(ctx, id); err != nil {
@@ -241,7 +241,7 @@ func (dh *DeadlineHandler) DeleteDeadlineByID(c *fiber.Ctx) error {
 		return netHTTP.WithError(c, err)
 	}
 
-	dh.service.Logger.Log(ctx, log.LevelInfo, "Successfully removed deadline", log.String("deadline_id", id.String()))
+	dh.service.Logger.Log(ctx, log.LevelDebug, "Successfully removed deadline", log.String("deadline_id", id.String()))
 
 	return commonsHttp.RespondStatus(c, fiber.StatusNoContent)
 }
@@ -275,7 +275,7 @@ func (dh *DeadlineHandler) DeliverDeadline(p any, c *fiber.Ctx) error {
 		return netHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "id"))
 	}
 
-	dh.service.Logger.Log(ctx, log.LevelInfo, "Initiating deadline delivery", log.String("deadline_id", id.String()))
+	dh.service.Logger.Log(ctx, log.LevelDebug, "Initiating deadline delivery", log.String("deadline_id", id.String()))
 	span.SetAttributes(attribute.String("app.request.request_id", reqId), attribute.String("app.request.deadline_id", id.String()))
 
 	input, ok := p.(*deadline.DeliverDeadlineInput)
@@ -296,7 +296,7 @@ func (dh *DeadlineHandler) DeliverDeadline(p any, c *fiber.Ctx) error {
 		return netHTTP.WithError(c, errDeliver)
 	}
 
-	dh.service.Logger.Log(ctx, log.LevelInfo, "Successfully delivered deadline", log.String("deadline_id", id.String()))
+	dh.service.Logger.Log(ctx, log.LevelDebug, "Successfully delivered deadline", log.String("deadline_id", id.String()))
 
 	return commonsHttp.Respond(c, fiber.StatusOK, result)
 }

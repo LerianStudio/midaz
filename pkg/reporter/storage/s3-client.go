@@ -188,7 +188,7 @@ func (client *S3Client) UploadWithTTL(ctx context.Context, key string, reader io
 	}
 
 	if logger != nil {
-		logger.Log(ctx, log.LevelInfo, "Uploaded object", log.String("key", key), log.String("bucket", client.bucket))
+		logger.Log(ctx, log.LevelDebug, "Uploaded object", log.String("key", key), log.String("bucket", client.bucket))
 	}
 
 	return key, nil
@@ -267,7 +267,7 @@ func (client *S3Client) Delete(ctx context.Context, key string) error {
 	}
 
 	if logger != nil {
-		logger.Log(ctx, log.LevelInfo, "Deleted object", log.String("key", key), log.String("bucket", client.bucket))
+		logger.Log(ctx, log.LevelDebug, "Deleted object", log.String("key", key), log.String("bucket", client.bucket))
 	}
 
 	return nil

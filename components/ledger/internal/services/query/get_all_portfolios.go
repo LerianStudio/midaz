@@ -7,10 +7,8 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -24,19 +22,17 @@ import (
 )
 
 func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Portfolio, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_portfolio")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, "Retrieving portfolios")
-
 	portfolios, err := uc.PortfolioRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting portfolios on repo: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting portfolios on repo", libLog.Err(err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, constant.EntityPortfolio)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get portfolios on repo", err)
 
@@ -59,9 +55,9 @@ func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID
 		portfolioIDs[i] = p.ID
 	}
 
-	metadata, err := uc.OnboardingMetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), portfolioIDs)
+	metadata, err := uc.OnboardingMetadataRepo.FindByEntityIDs(ctx, constant.EntityPortfolio, portfolioIDs)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, constant.EntityPortfolio)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo", err)
 

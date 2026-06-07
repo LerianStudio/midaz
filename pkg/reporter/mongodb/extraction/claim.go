@@ -51,7 +51,7 @@ func (r *ExtractionMappingMongoDBRepository) AtomicClaimPending(ctx context.Cont
 		},
 	}
 
-	ctx, spanUpdate := tracer.Start(ctx, "repository.extraction_mapping.atomic_claim_pending_exec")
+	_, spanUpdate := tracer.Start(ctx, "repository.extraction_mapping.atomic_claim_pending_exec")
 	defer spanUpdate.End()
 
 	spanUpdate.SetAttributes(

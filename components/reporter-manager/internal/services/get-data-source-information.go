@@ -44,7 +44,7 @@ func (uc *UseCase) getDataSourceInformationFromProvider(ctx context.Context) []*
 	ctx, span := uc.Tracer.Start(ctx, "service.data_source.get_information_provider")
 	defer span.End()
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Listing data sources via DataSourceProvider")
+	uc.Logger.Log(ctx, log.LevelDebug, "Listing data sources via DataSourceProvider")
 
 	infos, err := uc.DataSourceProvider.ListDataSources(ctx)
 	if err != nil {
@@ -77,7 +77,7 @@ func (uc *UseCase) getDataSourceInformationLegacy(ctx context.Context) []*model.
 	span := trace.SpanFromContext(ctx)
 	span.SetAttributes(attribute.Int("app.request.external_data_sources.count", len(allDataSources)))
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Getting data source information (legacy path)", log.Int("datasource_count", len(allDataSources)))
+	uc.Logger.Log(ctx, log.LevelDebug, "Getting data source information (legacy path)", log.Int("datasource_count", len(allDataSources)))
 
 	result := make([]*model.DataSourceInformation, 0)
 
@@ -114,7 +114,7 @@ func (uc *UseCase) getDataSourceInformationLegacy(ctx context.Context) []*model.
 		if dataSourceInformation != nil && strings.TrimSpace(dataSourceInformation.Id) != "" {
 			// Add note for plugin_crm about field filtering
 			if key == pluginCRMDataSourceID {
-				uc.Logger.Log(ctx, log.LevelInfo, "Note: plugin_crm data source filters out encrypted fields and only shows non-encrypted fields and search fields for security")
+				uc.Logger.Log(ctx, log.LevelDebug, "Note: plugin_crm data source filters out encrypted fields and only shows non-encrypted fields and search fields for security")
 			}
 
 			result = append(result, dataSourceInformation)

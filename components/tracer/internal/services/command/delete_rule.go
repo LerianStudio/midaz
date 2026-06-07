@@ -75,11 +75,6 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) error
 		attribute.String("app.request.operation", "delete"),
 	)
 
-	logger.With(
-		libLog.String("operation", "service.rule.delete"),
-		libLog.String("rule.id", ruleID.String()),
-	).Log(ctx, libLog.LevelInfo, "Deleting rule")
-
 	rule, err := s.repository.GetByID(ctx, ruleID)
 	if err != nil {
 		if errors.Is(err, constant.ErrRuleNotFound) {
@@ -119,7 +114,7 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) error
 		logger.With(
 			libLog.String("operation", "service.rule.delete"),
 			libLog.String("rule.id", ruleID.String()),
-		).Log(ctx, libLog.LevelInfo, "Rule already deleted (idempotent no-op)")
+		).Log(ctx, libLog.LevelDebug, "Rule already deleted (idempotent no-op)")
 
 		return nil
 	}
@@ -204,11 +199,6 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) error
 
 		return fmt.Errorf("failed to delete rule: %w", txErr)
 	}
-
-	logger.With(
-		libLog.String("operation", "service.rule.delete"),
-		libLog.String("rule.id", ruleID.String()),
-	).Log(ctx, libLog.LevelInfo, "Rule deleted successfully")
 
 	return nil
 }

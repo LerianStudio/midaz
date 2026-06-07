@@ -107,14 +107,6 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 	// Apply defaults after validation
 	input.SetDefaults()
 
-	logger.With(
-		libLog.String("operation", "handler.audit_event.list"),
-		libLog.Any("list.limit", input.Limit),
-		libLog.String("list.cursor", input.Cursor),
-		libLog.String("list.sort_by", input.SortBy),
-		libLog.String("list.sort_order", input.SortOrder),
-	).Log(ctx, libLog.LevelInfo, "Listing audit events")
-
 	// Convert to service filters
 	filters, err := toAuditEventFilters(&input)
 	if err != nil {
@@ -139,7 +131,7 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 		libLog.String("operation", "handler.audit_event.list"),
 		libLog.Int("list.count", len(response.AuditEvents)),
 		libLog.Bool("list.has_more", response.HasMore),
-	).Log(ctx, libLog.LevelInfo, "Audit events listed")
+	).Log(ctx, libLog.LevelDebug, "Audit events listed")
 
 	return http.OK(c, response)
 }
@@ -178,11 +170,6 @@ func (h *AuditEventHandler) GetAuditEvent(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityAuditEvent, "id"))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.audit_event.get"),
-		libLog.String("audit_event.id", eventID.String()),
-	).Log(ctx, libLog.LevelInfo, "Getting audit event")
-
 	result, err := h.service.GetAuditEvent(ctx, eventID)
 	if err != nil {
 		return handleAuditEventServiceError(c, span, err)
@@ -192,7 +179,7 @@ func (h *AuditEventHandler) GetAuditEvent(c *fiber.Ctx) error {
 		libLog.String("operation", "handler.audit_event.get"),
 		libLog.String("audit_event.id", result.EventID.String()),
 		libLog.Any("audit_event.type", result.EventType),
-	).Log(ctx, libLog.LevelInfo, "Audit event retrieved")
+	).Log(ctx, libLog.LevelDebug, "Audit event retrieved")
 
 	return http.OK(c, result)
 }
@@ -231,11 +218,6 @@ func (h *AuditEventHandler) VerifyHashChain(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityAuditEvent, "id"))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.audit_event.verify_chain"),
-		libLog.String("event_id", eventID.String()),
-	).Log(ctx, libLog.LevelInfo, "Verifying hash chain")
-
 	result, err := h.service.VerifyHashChain(ctx, eventID)
 	if err != nil {
 		return handleAuditEventServiceError(c, span, err)
@@ -245,7 +227,7 @@ func (h *AuditEventHandler) VerifyHashChain(c *fiber.Ctx) error {
 		libLog.String("operation", "handler.audit_event.verify_chain"),
 		libLog.Bool("is_valid", result.IsValid),
 		libLog.Any("total_checked", result.TotalChecked),
-	).Log(ctx, libLog.LevelInfo, "Hash chain verification completed")
+	).Log(ctx, libLog.LevelDebug, "Hash chain verification completed")
 
 	return http.OK(c, result)
 }

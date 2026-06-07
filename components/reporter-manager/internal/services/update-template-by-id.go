@@ -45,7 +45,7 @@ func (uc *UseCase) UpdateTemplateByID(ctx context.Context, outputFormat, descrip
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.template_id", id.String()),
 	)
-	uc.Logger.Log(ctx, log.LevelInfo, "Updating template")
+	uc.Logger.Log(ctx, log.LevelDebug, "Updating template")
 
 	if errUTF8 := pkg.ValidateUTF8Field("description", description); errUTF8 != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid UTF-8 in description", errUTF8)
@@ -277,7 +277,7 @@ func (uc *UseCase) processTemplateFile(ctx context.Context, fileHeader *multipar
 	}
 
 	mappedFields := templateUtils.MappedFieldsOfTemplate(templateFile)
-	uc.Logger.Log(ctx, log.LevelInfo, "Mapped Fields is valid to continue", log.Any("mapped_fields", mappedFields))
+	uc.Logger.Log(ctx, log.LevelDebug, "Mapped Fields is valid to continue", log.Any("mapped_fields", mappedFields))
 
 	return templateFile, mappedFields, nil
 }

@@ -6,21 +6,18 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"go.opentelemetry.io/otel/attribute"
-
-	// CreateHolder inserts a holder data in the repository
-	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
+// CreateHolder inserts a holder data in the repository.
 func (uc *UseCase) CreateHolder(ctx context.Context, organizationID string, chi *mmodel.CreateHolderInput) (*mmodel.Holder, error) {
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.create_holder")
 	defer span.End()
@@ -32,8 +29,7 @@ func (uc *UseCase) CreateHolder(ctx context.Context, organizationID string, chi 
 
 	holderID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to generate holder id", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate holder id: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to generate holder id", err)
 
 		return nil, err
 	}
@@ -55,9 +51,7 @@ func (uc *UseCase) CreateHolder(ctx context.Context, organizationID string, chi 
 
 	createdHolder, err := uc.HolderRepo.Create(ctx, organizationID, holder)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to create holder", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create holder: %v", err))
+		recordSpanError(span, "Failed to create holder", err)
 
 		return nil, err
 	}

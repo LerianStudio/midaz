@@ -209,7 +209,7 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 			libLog.String("operation", "service.validation.orchestrate"),
 			libLog.Any("request.id", req.RequestID),
 			libLog.Any("existing.validation.id", existingValidation.ID),
-		).Log(ctx, libLog.LevelInfo, "Duplicate request detected - returning cached response")
+		).Log(ctx, libLog.LevelDebug, "Duplicate request detected - returning cached response")
 
 		span.AddEvent("duplicate_request_detected")
 
@@ -224,13 +224,6 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 
 	// Generate validationId for audit record (used in both response and persistence)
 	validationID := uuid.New()
-
-	logger.With(
-		libLog.String("operation", "service.validation.orchestrate"),
-		libLog.Any("validation.id", validationID),
-		libLog.Any("request.id", req.RequestID),
-		libLog.Any("transaction.type", req.TransactionType),
-	).Log(ctx, libLog.LevelInfo, "Starting validation")
 
 	// Build response
 	response := model.NewValidationResponse(validationID, req.RequestID, model.DecisionAllow, evaluatedAt)
@@ -353,12 +346,6 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 		tx = nil // Prevent defer from rolling back after successful commit
 	}
 
-	logger.With(
-		libLog.String("operation", "service.validation.orchestrate"),
-		libLog.Any("request.id", req.RequestID),
-		libLog.Any("decision", response.Decision),
-	).Log(ctx, libLog.LevelInfo, "Validation completed")
-
 	return &ValidateResult{
 		Response:    response,
 		IsDuplicate: false,
@@ -474,12 +461,6 @@ func (s *ValidationService) finalizeDenyByRule(ctx context.Context, req *model.V
 
 	s.persistAuditEvent(ctx, req, resp, logger)
 
-	logger.With(
-		libLog.String("operation", "service.validation.orchestrate"),
-		libLog.Any("request.id", req.RequestID),
-		libLog.String("decision", "DENY"),
-	).Log(ctx, libLog.LevelInfo, "Validation completed (by rule)")
-
 	return &ValidateResult{
 		Response:    resp,
 		IsDuplicate: false,
@@ -538,12 +519,6 @@ func (s *ValidationService) rollbackAndPersist(ctx context.Context, tx pgdb.Tx, 
 
 	s.persistAuditEvent(ctx, req, resp, logger)
 
-	logger.With(
-		libLog.String("operation", "service.validation.orchestrate"),
-		libLog.Any("request.id", req.RequestID),
-		libLog.Any("decision", resp.Decision),
-	).Log(ctx, libLog.LevelInfo, "Validation completed")
-
 	return nil
 }
 
@@ -557,7 +532,7 @@ func (s *ValidationService) handleConcurrentDuplicate(ctx context.Context, err e
 	logger.With(
 		libLog.String("operation", "service.validation.orchestrate"),
 		libLog.Any("request.id", req.RequestID),
-	).Log(ctx, libLog.LevelInfo, "Concurrent duplicate detected - fetching cached response")
+	).Log(ctx, libLog.LevelDebug, "Concurrent duplicate detected - fetching cached response")
 
 	existing, findErr := s.transactionValidationQueryRepo.FindByRequestID(ctx, req.RequestID)
 	if findErr != nil {

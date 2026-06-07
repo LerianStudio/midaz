@@ -7,7 +7,6 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/signal"
 	"strings"
@@ -200,14 +199,14 @@ func (r *RedisQueueConsumer) executeMultiTenantCycle(ctx context.Context) {
 
 	tenantIDs := r.tenantCache.TenantIDs()
 	if len(tenantIDs) == 0 {
-		r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer: no tenants in cache, skipping cycle")
+		r.Logger.Log(ctx, libLog.LevelDebug, "RedisQueueConsumer: no tenants in cache, skipping cycle")
 
 		return
 	}
 
 	for _, tenantID := range tenantIDs {
 		if ctx.Err() != nil {
-			r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer: context cancelled, stopping tenant iteration")
+			r.Logger.Log(ctx, libLog.LevelDebug, "RedisQueueConsumer: context cancelled, stopping tenant iteration")
 
 			return
 		}
@@ -216,14 +215,14 @@ func (r *RedisQueueConsumer) executeMultiTenantCycle(ctx context.Context) {
 
 		conn, err := r.pgManager.GetConnection(tenantCtx, tenantID)
 		if err != nil {
-			r.Logger.Log(ctx, libLog.LevelError, fmt.Sprintf("RedisQueueConsumer: failed to get PG connection for tenant %s: %v", tenantID, err))
+			r.Logger.Log(ctx, libLog.LevelError, "RedisQueueConsumer: failed to get PG connection for tenant", libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 			continue
 		}
 
 		db, err := conn.GetDB()
 		if err != nil {
-			r.Logger.Log(ctx, libLog.LevelError, fmt.Sprintf("RedisQueueConsumer: failed to get DB for tenant %s: %v", tenantID, err))
+			r.Logger.Log(ctx, libLog.LevelError, "RedisQueueConsumer: failed to get DB for tenant", libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 			continue
 		}
@@ -245,22 +244,22 @@ func (r *RedisQueueConsumer) acquireCycleLock(ctx context.Context) (bool, func()
 
 	success, err := r.TransactionHandler.Command.TransactionRedisRepo.SetNX(ctx, cycleLockKey, podID, CycleLockTTL)
 	if err != nil {
-		r.Logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to acquire backup consumer cycle lock: %v", err))
+		r.Logger.Log(ctx, libLog.LevelWarn, "Failed to acquire backup consumer cycle lock", libLog.Err(err))
 
 		return false, nil
 	}
 
 	if !success {
-		r.Logger.Log(ctx, libLog.LevelInfo, "Another pod holds the backup consumer lock, skipping cycle")
+		r.Logger.Log(ctx, libLog.LevelDebug, "Another pod holds the backup consumer lock, skipping cycle")
 
 		return false, nil
 	}
 
-	r.Logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Cycle lock acquired by pod %s", podID))
+	r.Logger.Log(ctx, libLog.LevelDebug, "Cycle lock acquired", libLog.String("pod_id", podID))
 
 	release := func() {
 		if delErr := r.TransactionHandler.Command.TransactionRedisRepo.Del(ctx, cycleLockKey); delErr != nil {
-			r.Logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to release backup consumer cycle lock: %v", delErr))
+			r.Logger.Log(ctx, libLog.LevelWarn, "Failed to release backup consumer cycle lock", libLog.Err(delErr))
 		}
 	}
 
@@ -284,15 +283,15 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	ctx, span := tracer.Start(ctx, "redis.consumer.read_messages_from_queue")
 	defer span.End()
 
-	r.Logger.Log(ctx, libLog.LevelInfo, "Init cron to read messages from redis...")
+	r.Logger.Log(ctx, libLog.LevelDebug, "Init cron to read messages from redis...")
 
 	messages, err := r.TransactionHandler.Command.TransactionRedisRepo.ReadAllMessagesFromQueue(ctx)
 	if err != nil {
-		r.Logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Err to read messages from redis: %v", err))
+		r.Logger.Log(ctx, libLog.LevelError, "Failed to read messages from redis", libLog.Err(err))
 		return
 	}
 
-	r.Logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Total of read %d messages from queue", len(messages)))
+	r.Logger.Log(ctx, libLog.LevelDebug, "Read messages from queue", libLog.Int("message_count", len(messages)))
 
 	// Emit queue-depth and oldest-age gauges once per cycle (best-effort,
 	// nil-factory safe). Computed from the records already in hand so no extra
@@ -321,7 +320,7 @@ Outer:
 			// Unmarshal failure: the payload did not parse, so the org/ledger/tx
 			// IDs must come from the field key. The raw string is the financial
 			// copy to quarantine.
-			r.Logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error unmarshalling message from Redis (key: %s): %v", key, err))
+			r.Logger.Log(ctx, libLog.LevelWarn, "Error unmarshalling message from Redis", libLog.String("key", key), libLog.Err(err))
 
 			orgID, ledgerID, txID, parsed := parsePoisonKeyIDs(key)
 			if !parsed {
@@ -348,7 +347,7 @@ Outer:
 		go func(key, rawPayload string, m mmodel.TransactionRedisQueue) {
 			defer func() {
 				if rec := recover(); rec != nil {
-					r.Logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Panic recovered while processing message (key: %s): %v. Message will remain in queue.", key, rec))
+					r.Logger.Log(ctx, libLog.LevelWarn, "Panic recovered while processing message; message will remain in queue", libLog.String("key", key), libLog.Any("recover", rec))
 				}
 
 				<-sem
@@ -361,8 +360,8 @@ Outer:
 
 	wg.Wait()
 
-	r.Logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Total of messagens under %d minute(s) : %d", MessageTimeOfLife, totalMessagesLessThanOneHour))
-	r.Logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Finished processing total of %d eligible messages", len(messages)-totalMessagesLessThanOneHour))
+	r.Logger.Log(ctx, libLog.LevelDebug, "Messages under time-of-life threshold", libLog.Int("threshold_minutes", MessageTimeOfLife), libLog.Int("message_count", totalMessagesLessThanOneHour))
+	r.Logger.Log(ctx, libLog.LevelDebug, "Finished processing eligible messages", libLog.Int("eligible_count", len(messages)-totalMessagesLessThanOneHour))
 }
 
 // processMessage handles a single Redis backup queue message: rebuilds balances
@@ -396,7 +395,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	}
 
 	if m.Validate == nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Message (key: %s) has nil Validate field. Routing to quarantine flow.", key))
+		logger.Log(ctx, libLog.LevelWarn, "Message has nil Validate field; routing to quarantine flow", libLog.String("key", key))
 
 		r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID, m.TransactionID, []byte(rawPayload), "nil_validate")
 
@@ -454,7 +453,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			})
 		}
 
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Using %d AFTER balances from backup for direct persistence", len(balancesAfter)))
+		logger.Log(ctx, libLog.LevelDebug, "Using AFTER balances from backup for direct persistence", libLog.Int("balance_count", len(balancesAfter)))
 	}
 
 	var parentTransactionID *string
@@ -489,7 +488,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			operations = append(operations, operation.OperationFromRedis(r))
 		}
 
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Using %d materialized operations from backup", len(operations)))
+		logger.Log(ctx, libLog.LevelDebug, "Using materialized operations from backup", libLog.Int("operation_count", len(operations)))
 	} else {
 		var fromTo []mtransaction.FromTo
 
@@ -520,19 +519,19 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			if !libCommons.IsNilOrEmpty(m.Validate.TransactionRouteID) {
 				trID, parseErr = uuid.Parse(*m.Validate.TransactionRouteID)
 				if parseErr != nil {
-					logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to parse TransactionRouteID %s: %v", *m.Validate.TransactionRouteID, parseErr))
+					logger.Log(ctx, libLog.LevelDebug, "Failed to parse TransactionRouteID", libLog.String("transaction_route_id", *m.Validate.TransactionRouteID), libLog.Err(parseErr))
 				}
 			} else if m.Validate.TransactionRoute != "" {
 				trID, parseErr = uuid.Parse(m.Validate.TransactionRoute)
 				if parseErr != nil {
-					logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to parse TransactionRoute UUID %s: %v", m.Validate.TransactionRoute, parseErr))
+					logger.Log(ctx, libLog.LevelDebug, "Failed to parse TransactionRoute UUID", libLog.String("transaction_route", m.Validate.TransactionRoute), libLog.Err(parseErr))
 				}
 			}
 
 			if parseErr == nil && trID != uuid.Nil {
 				cache, cacheErr := r.TransactionHandler.Query.GetOrCreateTransactionRouteCache(msgCtxWithSpan, m.OrganizationID, m.LedgerID, trID)
 				if cacheErr != nil {
-					logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to get route cache for org=%s ledger=%s route=%s: %v", m.OrganizationID, m.LedgerID, trID, cacheErr))
+					logger.Log(ctx, libLog.LevelDebug, "Failed to get route cache", libLog.String("route_id", trID.String()), libLog.Err(cacheErr))
 				} else {
 					routeCache = &cache
 				}
@@ -574,7 +573,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 		if buildErr != nil {
 			libOpentelemetry.HandleSpanError(msgSpan, "Failed to validate balances", buildErr)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate balance: %v", buildErr.Error()))
+			logger.Log(ctx, libLog.LevelError, "Failed to validate balance", libLog.Err(buildErr))
 
 			return
 		}
@@ -591,12 +590,12 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	); err != nil {
 		libOpentelemetry.HandleSpanError(msgSpan, "Failed sending message to queue", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed sending message: %s to queue: %v", key, err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed sending message to queue", libLog.String("key", key), libLog.Err(err))
 
 		return
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction message processed: %s", key))
+	logger.Log(ctx, libLog.LevelDebug, "Transaction message processed", libLog.String("key", key))
 
 	// Success: a previously-failing record has now replayed. Clear its attempts
 	// counter so it does not accrue toward the quarantine threshold. The backup

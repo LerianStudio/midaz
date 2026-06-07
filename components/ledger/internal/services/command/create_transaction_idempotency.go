@@ -47,8 +47,6 @@ func (uc *UseCase) CreateOrCheckTransactionIdempotency(ctx context.Context, orga
 	ctx, span := tracer.Start(ctx, "command.create_idempotency_key")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, "Trying to create or check idempotency key in redis")
-
 	if key == "" {
 		key = hash
 	}
@@ -74,7 +72,7 @@ func (uc *UseCase) CreateOrCheckTransactionIdempotency(ctx context.Context, orga
 		}
 
 		if !libCommons.IsNilOrEmpty(&value) {
-			logger.Log(ctx, libLog.LevelInfo, "Found cached value for idempotency key lookup")
+			logger.Log(ctx, libLog.LevelDebug, "Found cached value for idempotency key lookup")
 
 			replay := &transaction.Transaction{}
 			if err := json.Unmarshal([]byte(value), replay); err != nil {
@@ -104,8 +102,6 @@ func (uc *UseCase) SetTransactionIdempotencyValue(ctx context.Context, organizat
 
 	ctx, span := tracer.Start(ctx, "command.set_value_idempotency_key")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Trying to set value on idempotency key in redis")
 
 	if key == "" {
 		key = hash

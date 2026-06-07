@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -78,7 +78,7 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 	ctx context.Context,
 	payloads []transaction.TransactionProcessingPayload,
 ) (*BulkResult, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_bulk_transaction_operations_async")
 	defer span.End()
@@ -100,17 +100,17 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 		if p.Version == "" && p.Transaction != nil && p.Validate != nil && p.Transaction.Status.Code != constant.NOTED {
 			orgID, ledgerID, err := uc.extractOrgLedgerIDs(*p)
 			if err != nil {
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Legacy payload: failed to extract IDs: %v", err))
+				logger.Log(ctx, libLog.LevelWarn, "Legacy payload: failed to extract IDs", libLog.Err(err))
 
 				continue
 			}
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(
-				"Legacy payload detected (no Version field) for transaction %s, calling UpdateBalances",
-				p.Transaction.ID))
+			logger.Log(ctx, libLog.LevelWarn, "Legacy payload detected (no Version field), calling UpdateBalances",
+				libLog.String("transaction_id", p.Transaction.ID))
 
 			if err := uc.UpdateBalances(ctx, orgID, ledgerID, *p.Validate, p.Balances, p.BalancesAfter); err != nil {
-				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances for legacy payload %s: %v", p.Transaction.ID, err))
+				logger.Log(ctx, libLog.LevelError, "Failed to update balances for legacy payload",
+					libLog.String("transaction_id", p.Transaction.ID), libLog.Err(err))
 			}
 		}
 	}
@@ -122,7 +122,7 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 	// If bulk fails, fallback to individual processing
 	if err := uc.performBulkInsertAndUpdate(ctx, logger, toInsert, toUpdate, result); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Bulk insert/update failed, falling back", err)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Bulk insert/update failed, using fallback: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Bulk insert/update failed, using fallback", libLog.Err(err))
 
 		return uc.fallbackToIndividualProcessing(ctx, logger, payloads, result)
 	}
@@ -312,7 +312,7 @@ func (uc *UseCase) atomicBulkInsert(
 	defer func() {
 		if !committed {
 			if rbErr := dbTx.Rollback(); rbErr != nil {
-				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to rollback transaction: %v", rbErr))
+				logger.Log(ctx, libLog.LevelError, "Failed to rollback transaction", libLog.Err(rbErr))
 			}
 		}
 	}()
@@ -366,10 +366,10 @@ func (uc *UseCase) bulkInsertTransactionsTx(
 		result.InsertedTransactionIDs[id] = struct{}{}
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
-		"Bulk inserted transactions (tx): attempted=%d, inserted=%d, ignored=%d",
-		result.TransactionsAttempted, result.TransactionsInserted, result.TransactionsIgnored,
-	))
+	logger.Log(ctx, libLog.LevelDebug, "Bulk inserted transactions (tx)",
+		libLog.Int("attempted", int(result.TransactionsAttempted)),
+		libLog.Int("inserted", int(result.TransactionsInserted)),
+		libLog.Int("ignored", int(result.TransactionsIgnored)))
 
 	return nil
 }
@@ -402,10 +402,10 @@ func (uc *UseCase) bulkInsertOperationsTx(
 	result.OperationsInserted = insertResult.Inserted
 	result.OperationsIgnored = insertResult.Ignored
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
-		"Bulk inserted operations (tx): attempted=%d, inserted=%d, ignored=%d",
-		result.OperationsAttempted, result.OperationsInserted, result.OperationsIgnored,
-	))
+	logger.Log(ctx, libLog.LevelDebug, "Bulk inserted operations (tx)",
+		libLog.Int("attempted", int(result.OperationsAttempted)),
+		libLog.Int("inserted", int(result.OperationsInserted)),
+		libLog.Int("ignored", int(result.OperationsIgnored)))
 
 	return nil
 }
@@ -441,10 +441,10 @@ func (uc *UseCase) bulkUpdateTransactionStatus(
 
 	result.TransactionsUpdated = updateResult.Updated
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
-		"Bulk updated transactions: attempted=%d, updated=%d, unchanged=%d",
-		result.TransactionsUpdateAttempted, updateResult.Updated, updateResult.Unchanged,
-	))
+	logger.Log(ctx, libLog.LevelDebug, "Bulk updated transactions",
+		libLog.Int("attempted", int(result.TransactionsUpdateAttempted)),
+		libLog.Int("updated", int(updateResult.Updated)),
+		libLog.Int("unchanged", int(updateResult.Unchanged)))
 
 	return nil
 }
@@ -464,9 +464,8 @@ func (uc *UseCase) individualUpdateTransactionStatus(
 	for _, tx := range transactions {
 		_, err := uc.UpdateTransactionStatus(ctx, tx)
 		if err != nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(
-				"Failed to update transaction %s status: %v", tx.ID, err,
-			))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to update transaction status",
+				libLog.String("transaction_id", tx.ID), libLog.Err(err))
 
 			failureCount++
 
@@ -478,10 +477,10 @@ func (uc *UseCase) individualUpdateTransactionStatus(
 
 	result.TransactionsUpdated = updated
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
-		"Individual updated transactions: attempted=%d, updated=%d, failed=%d",
-		result.TransactionsUpdateAttempted, updated, failureCount,
-	))
+	logger.Log(ctx, libLog.LevelDebug, "Individual updated transactions",
+		libLog.Int("attempted", int(result.TransactionsUpdateAttempted)),
+		libLog.Int("updated", int(updated)),
+		libLog.Int("failed", int(failureCount)))
 
 	if failureCount > 0 {
 		return fmt.Errorf("failed to update %d of %d transactions", failureCount, len(transactions))
@@ -540,8 +539,8 @@ func (uc *UseCase) processMetadataAndEvents(
 		// If insertedTxIDs is empty, process all (fallback or status-update scenarios)
 		if len(insertedTxIDs) > 0 {
 			if _, wasInserted := insertedTxIDs[tx.ID]; !wasInserted {
-				logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf(
-					"Skipping events for duplicate transaction %s", tx.ID))
+				logger.Log(ctx, libLog.LevelDebug, "Skipping events for duplicate transaction",
+					libLog.String("transaction_id", tx.ID))
 
 				continue
 			}
@@ -593,7 +592,7 @@ func (uc *UseCase) fallbackToIndividualProcessing(
 ) (*BulkResult, error) {
 	result.FallbackUsed = true
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Using fallback processing for %d payloads", len(payloads)))
+	logger.Log(ctx, libLog.LevelWarn, "Using fallback processing for payloads", libLog.Int("payload_count", len(payloads)))
 
 	var successCount int64
 
@@ -606,7 +605,8 @@ func (uc *UseCase) fallbackToIndividualProcessing(
 
 		queueData, err := uc.buildQueueDataFromPayload(payload)
 		if err != nil {
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Fallback: failed to build queue data for payload %d: %v", i, err))
+			logger.Log(ctx, libLog.LevelError, "Fallback: failed to build queue data for payload",
+				libLog.Int("payload_index", i), libLog.Err(err))
 
 			lastErr = err
 
@@ -618,14 +618,13 @@ func (uc *UseCase) fallbackToIndividualProcessing(
 			// Check for duplicate - treat as success
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-				logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Payload %d is duplicate, treating as success", i))
-
 				successCount++
 
 				continue
 			}
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Fallback processing failed for payload %d: %v", i, err))
+			logger.Log(ctx, libLog.LevelError, "Fallback processing failed for payload",
+				libLog.Int("payload_index", i), libLog.Err(err))
 
 			lastErr = err
 
@@ -637,10 +636,9 @@ func (uc *UseCase) fallbackToIndividualProcessing(
 
 	result.FallbackCount = successCount
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
-		"Fallback processing complete: %d/%d succeeded",
-		successCount, len(payloads),
-	))
+	logger.Log(ctx, libLog.LevelDebug, "Fallback processing complete",
+		libLog.Int("succeeded", int(successCount)),
+		libLog.Int("total", len(payloads)))
 
 	// Return error if any payload failed (partial failure)
 	if successCount != int64(len(payloads)) && lastErr != nil {

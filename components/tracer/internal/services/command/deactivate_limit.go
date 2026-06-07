@@ -91,11 +91,6 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mo
 		attribute.String("app.request.operation", "deactivate"),
 	)
 
-	logger.With(
-		libLog.String("operation", "service.limit.deactivate"),
-		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Deactivating limit")
-
 	limit, err := c.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, constant.ErrLimitNotFound) {
@@ -134,7 +129,7 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mo
 		logger.With(
 			libLog.String("operation", "service.limit.deactivate"),
 			libLog.String("limit.id", id.String()),
-		).Log(ctx, libLog.LevelInfo, "Limit already inactive (idempotent no-op)")
+		).Log(ctx, libLog.LevelDebug, "Limit already inactive (idempotent no-op)")
 
 		return limit, nil
 	}
@@ -202,12 +197,6 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mo
 	if txErr != nil {
 		return nil, fmt.Errorf("failed to deactivate limit: %w", txErr)
 	}
-
-	logger.With(
-		libLog.String("operation", "service.limit.deactivate"),
-		libLog.String("limit.id", id.String()),
-		libLog.String("limit.status", string(limit.Status)),
-	).Log(ctx, libLog.LevelInfo, "Limit deactivated successfully")
 
 	return limit, nil
 }

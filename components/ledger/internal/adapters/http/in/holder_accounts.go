@@ -10,9 +10,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -55,7 +55,7 @@ type HolderAccountsHandler struct {
 func (handler *HolderAccountsHandler) GetAccountsByHolder(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_accounts_by_holder")
 	defer span.End()
@@ -67,7 +67,7 @@ func (handler *HolderAccountsHandler) GetAccountsByHolder(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to validate query parameters", err)
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate query parameters", libLog.Err(err))
 
@@ -92,7 +92,7 @@ func (handler *HolderAccountsHandler) GetAccountsByHolder(c *fiber.Ctx) error {
 
 	accounts, err := handler.Reader.ListAccountsByHolder(ctx, organizationID.String(), holderID, *headerParams)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to list accounts by holder", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to list accounts by holder", err)
 
 		logger.Log(ctx, libLog.LevelError, "Failed to list accounts by holder", libLog.Err(err))
 

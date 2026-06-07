@@ -7,10 +7,9 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -25,12 +24,10 @@ import (
 )
 
 func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_operation_routes")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Retrieving operation routes")
 
 	operationRoutes, cur, err := uc.OperationRouteRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
@@ -39,14 +36,14 @@ func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID, le
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation routes on repo", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting operation routes on repo: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Error getting operation routes on repo", libLog.Err(err))
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation routes on repo", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting operation routes on repo: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting operation routes on repo", libLog.Err(err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -63,7 +60,7 @@ func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID, le
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb operation route", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting metadata on mongodb operation route: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Error getting metadata on mongodb operation route", libLog.Err(err))
 
 			return nil, libHTTP.CursorPagination{}, err
 		}

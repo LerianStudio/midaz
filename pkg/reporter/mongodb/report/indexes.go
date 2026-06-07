@@ -37,7 +37,7 @@ func (rm *ReportMongoDBRepository) EnsureIndexes(ctx context.Context) error {
 		attribute.String("app.request.request_id", reqID),
 		attribute.String("app.request.collection", constant.MongoCollectionReport),
 	)
-	logger.Log(ctx, log.LevelInfo, "Creating indexes for collection", log.String("collection", constant.MongoCollectionReport))
+	logger.Log(ctx, log.LevelDebug, "Creating indexes for collection", log.String("collection", constant.MongoCollectionReport))
 
 	coll, err := rm.getCollection(ctx)
 	if err != nil {
@@ -111,13 +111,13 @@ func (rm *ReportMongoDBRepository) EnsureIndexes(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, constant.MongoIndexCreateTimeout)
 	defer cancel()
 
-	logger.Log(ctx, log.LevelInfo, "Attempting to create indexes for collection", log.Int("index_count", len(indexes)), log.String("collection", constant.MongoCollectionReport))
+	logger.Log(ctx, log.LevelDebug, "Attempting to create indexes for collection", log.Int("index_count", len(indexes)), log.String("collection", constant.MongoCollectionReport))
 
 	indexNames, err := coll.Indexes().CreateMany(ctx, indexes)
 	if err != nil {
 		// Check if error is due to indexes already existing
 		if libMongo.IsIndexAlreadyExistsError(err) {
-			logger.Log(ctx, log.LevelInfo, "Indexes already exist (detected during creation)", log.String("collection", constant.MongoCollectionReport))
+			logger.Log(ctx, log.LevelDebug, "Indexes already exist (detected during creation)", log.String("collection", constant.MongoCollectionReport))
 			return nil
 		}
 
@@ -127,7 +127,7 @@ func (rm *ReportMongoDBRepository) EnsureIndexes(ctx context.Context) error {
 		return err
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Successfully created indexes for collection", log.Int("index_count", len(indexNames)), log.String("collection", constant.MongoCollectionReport), log.Any("index_names", indexNames))
+	logger.Log(ctx, log.LevelDebug, "Successfully created indexes for collection", log.Int("index_count", len(indexNames)), log.String("collection", constant.MongoCollectionReport), log.Any("index_names", indexNames))
 
 	return nil
 }
@@ -165,7 +165,7 @@ func (rm *ReportMongoDBRepository) DropIndexes(ctx context.Context) error {
 		return err
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Successfully dropped all custom indexes for collection", log.String("collection", constant.MongoCollectionReport))
+	logger.Log(ctx, log.LevelDebug, "Successfully dropped all custom indexes for collection", log.String("collection", constant.MongoCollectionReport))
 
 	return nil
 }

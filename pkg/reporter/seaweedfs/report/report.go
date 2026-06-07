@@ -77,7 +77,7 @@ func (repo *StorageRepository) Put(ctx context.Context, objectName string, conte
 		return err
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Putting report to storage", log.String("key", key))
+	logger.Log(ctx, log.LevelDebug, "Putting report to storage", log.String("key", key))
 
 	_, err = repo.storage.UploadWithTTL(ctx, key, bytes.NewReader(data), contentType, ttl)
 	if err != nil {
@@ -118,7 +118,7 @@ func (repo *StorageRepository) Get(ctx context.Context, objectName string) ([]by
 		return nil, err
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Getting report from storage", log.String("key", key))
+	logger.Log(ctx, log.LevelDebug, "Getting report from storage", log.String("key", key))
 
 	reader, err := repo.storage.Download(ctx, key)
 	if err != nil {

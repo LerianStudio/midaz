@@ -6,20 +6,18 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, uai *mmodel.UpdateInstrumentInput, fieldsToRemove []string) (*mmodel.Instrument, error) {
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.update_instrument")
 	defer span.End()
@@ -31,13 +29,10 @@ func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID stri
 		attribute.String("app.request.instrument_id", id.String()),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update alias: %v", id.String()))
-
 	if len(uai.RelatedParties) > 0 {
 		err := uc.ValidateRelatedParties(ctx, uai.RelatedParties)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(span, "Failed to validate related parties", err)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate related parties: %v", err))
+			recordSpanError(span, "Failed to validate related parties", err)
 
 			return nil, err
 		}
@@ -58,8 +53,7 @@ func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID stri
 	if len(uai.RelatedParties) > 0 {
 		existingAlias, err := uc.InstrumentRepo.Find(ctx, organizationID, holderID, id, false)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(span, "Failed to fetch existing alias for related parties append", err)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to fetch existing alias: %v", err))
+			recordSpanError(span, "Failed to fetch existing alias for related parties append", err)
 
 			return nil, err
 		}
@@ -74,8 +68,7 @@ func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID stri
 		for _, rp := range uai.RelatedParties {
 			rpID, rpErr := libCommons.GenerateUUIDv7()
 			if rpErr != nil {
-				libOpenTelemetry.HandleSpanError(span, "Failed to generate related party id", rpErr)
-				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate related party id: %v", rpErr))
+				libOpentelemetry.HandleSpanError(span, "Failed to generate related party id", rpErr)
 
 				return nil, rpErr
 			}
@@ -94,8 +87,7 @@ func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID stri
 	if uai.BankingDetails != nil && uai.BankingDetails.ClosingDate != nil {
 		err := uc.validateInstrumentClosingDate(ctx, organizationID, holderID, id, uai.BankingDetails.ClosingDate)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(span, "Failed to validate alias closing date", err)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate alias closing date: %v", err))
+			recordSpanError(span, "Failed to validate alias closing date", err)
 
 			return nil, err
 		}
@@ -103,8 +95,7 @@ func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID stri
 
 	updatedAlias, err := uc.InstrumentRepo.Update(ctx, organizationID, holderID, id, alias, fieldsToRemove)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to update alias", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update alias: %v", err))
+		recordSpanError(span, "Failed to update alias", err)
 
 		return nil, err
 	}

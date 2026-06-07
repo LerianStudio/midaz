@@ -94,11 +94,6 @@ func (e *CompleteEvaluator) EvaluateAll(
 		return nil, ErrNilRequest
 	}
 
-	logger.With(
-		libLog.String("operation", "service.rules.evaluate_all"),
-		libLog.Int("rules.total_count", len(rules)),
-	).Log(ctx, libLog.LevelInfo, "Evaluating all rules")
-
 	// 3. Initialize collector with pre-allocated slices for better performance
 	// EvaluatedRuleIDs will contain all rules, others estimated at ~25% match rate
 	rulesCount := len(rules)
@@ -192,7 +187,7 @@ func (e *CompleteEvaluator) EvaluateAll(
 		libLog.Int("rules.deny_count", len(collector.DenyRuleIDs)),
 		libLog.Int("rules.allow_count", len(collector.AllowRuleIDs)),
 		libLog.Int("rules.review_count", len(collector.ReviewRuleIDs)),
-	).Log(ctx, libLog.LevelInfo, "All rules evaluated successfully")
+	).Log(ctx, libLog.LevelDebug, "All rules evaluated successfully")
 
 	// 6. Return collector
 	return collector, nil

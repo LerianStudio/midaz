@@ -7,12 +7,10 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	feeUtils "github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
@@ -28,12 +26,8 @@ import (
 func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEstimate, organizationID uuid.UUID) (*model.FeeCalculate, error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
-	logger.Log(ctx, libLog.LevelInfo, "Trying to estimate fee according a specific package")
-
 	// Defensive nil check for the main input parameter
 	if cf == nil {
-		logger.Log(ctx, libLog.LevelError, "Invalid input: FeeEstimate is nil")
-
 		return nil, pkg.ValidationError{
 			Code:    constant.ErrInvalidRequestBody.Error(),
 			Title:   "Invalid Request Body",
@@ -57,19 +51,17 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 	// Validate the existence of a package
 	packModel, err := uc.packageRepo.FindByID(ctx, cf.PackageID, organizationID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to find package by organizationID and package", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error to find package by organizationID %v and package %v, Error: %v", organizationID, cf.PackageID, err))
-
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)
+			bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Package not found", bizErr)
+
+			return nil, bizErr
 		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to find package by organizationID and package", err)
 
 		return nil, err
 	}
-
-	// Init process to make the calculation for a fee about a transaction
-	logger.Log(ctx, libLog.LevelInfo, "Init the calculation estimate for a transaction")
 
 	feeModel := &model.FeeCalculate{
 		LedgerID:    cf.LedgerID,
@@ -80,8 +72,6 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 	if errValidationSend != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send struct", errValidationSend)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("error to validate the send struct, Err: %v", errValidationSend))
-
 		return nil, pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "FeeEstimate", "transaction send source and distribute are invalid")
 	}
 
@@ -89,11 +79,9 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 	validationResultFromSize := len(validationResult.From)
 
 	if !feeModel.Transaction.Send.Value.GreaterThanOrEqual(packModel.MinimumAmount) || !feeModel.Transaction.Send.Value.LessThanOrEqual(packModel.MaximumAmount) {
-		logMsg := "Transaction value is not between minimum and maximum amount package."
+		const outOfRangeMsg = "Transaction value is not between minimum and maximum amount package."
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, logMsg, errors.New(strings.ToLower(logMsg)))
-
-		logger.Log(ctx, libLog.LevelInfo, logMsg)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, outOfRangeMsg, errors.New(strings.ToLower(outOfRangeMsg)))
 
 		return feeModel, nil
 	}
@@ -109,14 +97,11 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 	if errCalculateFee != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to calculate fee", errCalculateFee)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error calculating fee: %v", errCalculateFee))
-
 		return nil, errCalculateFee
 	}
 
 	if len(validationResult.From) == validationResultFromSize &&
 		len(validationResult.To) == validationResultToSize {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("No fee is applied for this transaction %v", validationResult))
 		return feeModel, nil
 	}
 

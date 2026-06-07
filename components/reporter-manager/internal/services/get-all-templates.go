@@ -30,7 +30,7 @@ func (uc *UseCase) GetAllTemplates(ctx context.Context, filters http.QueryHeader
 		attribute.Bool("app.request.has_metadata", filters.Metadata != nil),
 	)
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Retrieving templates",
+	uc.Logger.Log(ctx, log.LevelDebug, "Retrieving templates",
 		log.Int("page", filters.Page),
 		log.Int("limit", filters.Limit),
 		log.Bool("has_metadata", filters.Metadata != nil),

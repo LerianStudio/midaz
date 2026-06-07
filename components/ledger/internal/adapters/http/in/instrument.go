@@ -5,8 +5,6 @@
 package in
 
 import (
-	"fmt"
-
 	"github.com/LerianStudio/midaz/v4/components/crm/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -16,7 +14,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -45,7 +43,7 @@ type InstrumentHandler struct {
 func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_instrument")
 	defer span.End()
@@ -73,9 +71,7 @@ func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
 
 	out, err := handler.Service.CreateInstrument(ctx, organizationID.String(), holderID, payload)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to create alias", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create alias: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to create alias", err)
 
 		return http.WithError(c, err)
 	}
@@ -102,7 +98,7 @@ func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
 func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_instrument_by_id")
 	defer span.End()
@@ -132,13 +128,9 @@ func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
 		attribute.Bool("app.request.include_deleted", includeDeleted),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Alias with ID: %s", id.String()))
-
 	alias, err := handler.Service.GetInstrumentByID(ctx, organizationID.String(), holderID, id, includeDeleted)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to retrieve alias", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Alias with ID: %s from Holder %s, Error: %s", id.String(), holderID.String(), err.Error()))
+		libOpentelemetry.HandleSpanError(span, "Failed to retrieve alias", err)
 
 		return http.WithError(c, err)
 	}
@@ -193,7 +185,7 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 
 	fieldsToRemove, ok := c.Locals("patchRemove").([]string)
 	if !ok {
-		libOpenTelemetry.HandleSpanError(span, "Failed to get fields to remove", cn.ErrInternalServer)
+		libOpentelemetry.HandleSpanError(span, "Failed to get fields to remove", cn.ErrInternalServer)
 
 		logger.Log(ctx, libLog.LevelError, "Failed to get fields to remove")
 
@@ -208,13 +200,9 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 		attribute.Int("app.request.fields_to_remove_count", len(fieldsToRemove)),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update alias %s from holder %s", id.String(), holderID.String()))
-
 	alias, err := handler.Service.UpdateInstrumentByID(ctx, organizationID.String(), holderID, id, payload, fieldsToRemove)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to update alias", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update alias %s from holder %s, Error: %s", id.String(), holderID.String(), err.Error()))
+		libOpentelemetry.HandleSpanError(span, "Failed to update alias", err)
 
 		return http.WithError(c, err)
 	}
@@ -240,7 +228,7 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.remove_instrument_by_id")
 	defer span.End()
@@ -270,13 +258,9 @@ func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 		attribute.Bool("app.request.hard_delete", hardDelete),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of alias with ID: %s", id.String()))
-
 	err = handler.Service.DeleteInstrumentByID(ctx, organizationID.String(), holderID, id, hardDelete)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to delete alias", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete alias with ID: %s, Error: %s", id.String(), err.Error()))
+		libOpentelemetry.HandleSpanError(span, "Failed to delete alias", err)
 
 		return http.WithError(c, err)
 	}
@@ -315,16 +299,14 @@ func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_instruments")
 	defer span.End()
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to validate query parameters", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
+		libOpentelemetry.HandleSpanError(span, "Failed to validate query parameters", err)
 
 		return http.WithError(c, err)
 	}
@@ -333,9 +315,7 @@ func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 	if !libCommons.IsNilOrEmpty(headerParams.HolderID) {
 		holderID, err = uuid.Parse(*headerParams.HolderID)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(span, "Failed to parse holder ID", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to parse holder ID, Error: %s", err.Error()))
+			libOpentelemetry.HandleSpanError(span, "Failed to parse holder ID", err)
 
 			return http.WithError(c, err)
 		}
@@ -370,9 +350,7 @@ func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 
 	aliases, err := handler.Service.GetAllInstruments(ctx, organizationID.String(), holderID, *headerParams, includeDeleted)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to get all aliases", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get all aliases, Error: %v", err.Error()))
+		libOpentelemetry.HandleSpanError(span, "Failed to get all aliases", err)
 
 		return http.WithError(c, err)
 	}
@@ -400,7 +378,7 @@ func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 func (handler *InstrumentHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_related_party")
 	defer span.End()
@@ -433,13 +411,9 @@ func (handler *InstrumentHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 		attribute.String("app.request.related_party_id", relatedPartyID.String()),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of related party with ID: %s from alias: %s", relatedPartyID.String(), aliasID.String()))
-
 	err = handler.Service.DeleteRelatedPartyByID(ctx, organizationID.String(), holderID, aliasID, relatedPartyID)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to delete related party", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete related party with ID: %s, Error: %s", relatedPartyID.String(), err.Error()))
+		libOpentelemetry.HandleSpanError(span, "Failed to delete related party", err)
 
 		return http.WithError(c, err)
 	}

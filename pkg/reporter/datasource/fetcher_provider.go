@@ -90,7 +90,7 @@ func (fp *FetcherProvider) ListDataSources(ctx context.Context) ([]DataSourceInf
 		})
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Listed data sources from Fetcher API",
+	logger.Log(ctx, log.LevelDebug, "Listed data sources from Fetcher API",
 		log.Int("count", len(result)))
 
 	return result, nil
@@ -128,7 +128,7 @@ func (fp *FetcherProvider) GetDataSourceSchema(ctx context.Context, dataSourceID
 
 	schema := mapConnectionSchemaToDataSourceSchema(schemaResp)
 
-	logger.Log(ctx, log.LevelInfo, "Retrieved schema from Fetcher API",
+	logger.Log(ctx, log.LevelDebug, "Retrieved schema from Fetcher API",
 		log.String("data_source_id", dataSourceID),
 		log.Int("table_count", len(schema.Tables)))
 
@@ -209,7 +209,7 @@ func (fp *FetcherProvider) ValidateSchema(ctx context.Context, dataSourceID stri
 		}
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Validated schema via Fetcher API",
+	logger.Log(ctx, log.LevelDebug, "Validated schema via Fetcher API",
 		log.String("data_source_id", dataSourceID),
 		log.Bool("valid", result.Valid),
 		log.Int("error_count", len(resp.Errors)))
@@ -241,7 +241,7 @@ func (fp *FetcherProvider) HealthCheck(ctx context.Context) (map[string]bool, er
 
 	span.SetAttributes(attribute.Int("app.datasource.health_count", len(result)))
 
-	logger.Log(ctx, log.LevelInfo, "Health check completed via Fetcher API",
+	logger.Log(ctx, log.LevelDebug, "Health check completed via Fetcher API",
 		log.Int("connection_count", len(result)))
 
 	return result, nil

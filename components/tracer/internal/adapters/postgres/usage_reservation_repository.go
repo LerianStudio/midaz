@@ -141,7 +141,7 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		libLog.String("operation", "repository.usage_reservation.reserve"),
 		libLog.String("reservation_id", reservation.ID.String()),
 		libLog.String("limit_id", reservation.LimitID.String()),
-	).Log(ctx, libLog.LevelInfo, "Reserved usage")
+	).Log(ctx, libLog.LevelDebug, "Reserved usage")
 
 	return nil
 }
@@ -209,7 +209,7 @@ func (r *UsageReservationRepository) ConfirmWithTx(ctx context.Context, db pgdb.
 	logger.With(
 		libLog.String("operation", "repository.usage_reservation.confirm"),
 		libLog.String("reservation_id", reservationID.String()),
-	).Log(ctx, libLog.LevelInfo, "Confirmed reservation")
+	).Log(ctx, libLog.LevelDebug, "Confirmed reservation")
 
 	return nil
 }
@@ -281,7 +281,7 @@ func (r *UsageReservationRepository) ReleaseWithTx(ctx context.Context, db pgdb.
 		libLog.String("operation", "repository.usage_reservation.release"),
 		libLog.String("reservation_id", reservationID.String()),
 		libLog.String("status", string(status)),
-	).Log(ctx, libLog.LevelInfo, "Released reservation")
+	).Log(ctx, libLog.LevelDebug, "Released reservation")
 
 	return nil
 }
@@ -329,7 +329,7 @@ func (r *UsageReservationRepository) ConfirmByTransactionWithTx(ctx context.Cont
 		libLog.String("operation", "repository.usage_reservation.confirm_by_transaction"),
 		libLog.String("transaction_id", transactionID.String()),
 		libLog.Int("flipped", len(reservations)),
-	).Log(ctx, libLog.LevelInfo, "Confirmed reservations by transaction")
+	).Log(ctx, libLog.LevelDebug, "Confirmed reservations by transaction")
 
 	return reservations, nil
 }
@@ -381,7 +381,7 @@ func (r *UsageReservationRepository) ReleaseByTransactionWithTx(ctx context.Cont
 		libLog.String("transaction_id", transactionID.String()),
 		libLog.String("status", string(status)),
 		libLog.Int("flipped", len(reservations)),
-	).Log(ctx, libLog.LevelInfo, "Released reservations by transaction")
+	).Log(ctx, libLog.LevelDebug, "Released reservations by transaction")
 
 	return reservations, nil
 }

@@ -6,7 +6,6 @@ package command
 
 import (
 	"context"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
@@ -20,8 +19,6 @@ func (uc *UseCase) UpdateTransactionMetadata(ctx context.Context, entityName, en
 	ctx, span := tracer.Start(ctx, "command.update_metadata")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update metadata for %s: %v", entityName, entityID))
-
 	metadataToUpdate := metadata
 
 	if metadataToUpdate != nil {
@@ -29,7 +26,7 @@ func (uc *UseCase) UpdateTransactionMetadata(ctx context.Context, entityName, en
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb", libLog.Err(err))
 
 			return nil, err
 		}

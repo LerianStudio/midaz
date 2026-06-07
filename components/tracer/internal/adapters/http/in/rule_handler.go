@@ -87,11 +87,6 @@ func (h *Handler) CreateRule(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.rule.create"),
-		libLog.String("rule.name", input.Name),
-	).Log(ctx, libLog.LevelInfo, "Creating rule")
-
 	// Convert HTTP input to service input
 	serviceInput := toServiceInput(&input)
 
@@ -103,7 +98,7 @@ func (h *Handler) CreateRule(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.rule.create"),
 		libLog.String("rule.id", result.ID.String()),
-	).Log(ctx, libLog.LevelInfo, "Rule created")
+	).Log(ctx, libLog.LevelDebug, "Rule created")
 
 	return http.Created(c, result)
 }
@@ -161,11 +156,6 @@ func (h *Handler) UpdateRule(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, constant.EntityRule))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.rule.update"),
-		libLog.String("rule.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Updating rule")
-
 	// Convert HTTP input to service input
 	serviceInput := toUpdateServiceInput(&input)
 
@@ -177,7 +167,7 @@ func (h *Handler) UpdateRule(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.rule.update"),
 		libLog.String("rule.id", result.ID.String()),
-	).Log(ctx, libLog.LevelInfo, "Rule updated")
+	).Log(ctx, libLog.LevelDebug, "Rule updated")
 
 	return http.OK(c, result)
 }
@@ -216,11 +206,6 @@ func (h *Handler) GetRule(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id"))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.rule.get"),
-		libLog.String("rule.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Getting rule")
-
 	result, err := h.service.GetRule(ctx, id)
 	if err != nil {
 		return handleServiceError(c, span, err)
@@ -230,7 +215,7 @@ func (h *Handler) GetRule(c *fiber.Ctx) error {
 		libLog.String("operation", "handler.rule.get"),
 		libLog.String("rule.id", result.ID.String()),
 		libLog.String("rule.name", result.Name),
-	).Log(ctx, libLog.LevelInfo, "Rule retrieved")
+	).Log(ctx, libLog.LevelDebug, "Rule retrieved")
 
 	return http.OK(c, result)
 }
@@ -289,14 +274,6 @@ func (h *Handler) ListRules(c *fiber.Ctx) error {
 	// Apply defaults after validation passes (for non-specified optional fields)
 	input.SetDefaults()
 
-	logger.With(
-		libLog.String("operation", "handler.rule.list"),
-		libLog.Any("list.limit", input.Limit),
-		libLog.String("list.cursor", input.Cursor),
-		libLog.String("list.sort_by", input.SortBy),
-		libLog.String("list.sort_order", input.SortOrder),
-	).Log(ctx, libLog.LevelInfo, "Listing rules")
-
 	// Convert to service filter
 	filter := toListFilter(&input)
 
@@ -312,7 +289,7 @@ func (h *Handler) ListRules(c *fiber.Ctx) error {
 		libLog.String("operation", "handler.rule.list"),
 		libLog.Int("list.count", len(response.Rules)),
 		libLog.Bool("list.has_more", response.HasMore),
-	).Log(ctx, libLog.LevelInfo, "Rules listed")
+	).Log(ctx, libLog.LevelDebug, "Rules listed")
 
 	return http.OK(c, response)
 }
@@ -350,11 +327,6 @@ func (h *Handler) ActivateRule(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id"))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.rule.activate"),
-		libLog.String("rule.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Activating rule")
-
 	rule, err := h.service.ActivateRule(ctx, id)
 	if err != nil {
 		return handleLifecycleError(c, span, err)
@@ -363,7 +335,7 @@ func (h *Handler) ActivateRule(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.rule.activate"),
 		libLog.String("rule.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Rule activated")
+	).Log(ctx, libLog.LevelDebug, "Rule activated")
 
 	return http.OK(c, rule)
 }
@@ -401,11 +373,6 @@ func (h *Handler) DeactivateRule(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id"))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.rule.deactivate"),
-		libLog.String("rule.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Deactivating rule")
-
 	rule, err := h.service.DeactivateRule(ctx, id)
 	if err != nil {
 		return handleLifecycleError(c, span, err)
@@ -414,7 +381,7 @@ func (h *Handler) DeactivateRule(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.rule.deactivate"),
 		libLog.String("rule.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Rule deactivated")
+	).Log(ctx, libLog.LevelDebug, "Rule deactivated")
 
 	return http.OK(c, rule)
 }
@@ -452,11 +419,6 @@ func (h *Handler) DraftRule(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id"))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.rule.draft"),
-		libLog.String("rule.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Transitioning rule to draft")
-
 	rule, err := h.service.DraftRule(ctx, id)
 	if err != nil {
 		return handleLifecycleError(c, span, err)
@@ -465,7 +427,7 @@ func (h *Handler) DraftRule(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.rule.draft"),
 		libLog.String("rule.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Rule transitioned to draft")
+	).Log(ctx, libLog.LevelDebug, "Rule transitioned to draft")
 
 	return http.OK(c, rule)
 }
@@ -503,11 +465,6 @@ func (h *Handler) DeleteRule(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id"))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.rule.delete"),
-		libLog.String("rule.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Deleting rule")
-
 	if err := h.service.DeleteRule(ctx, id); err != nil {
 		return handleLifecycleError(c, span, err)
 	}
@@ -515,7 +472,7 @@ func (h *Handler) DeleteRule(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.rule.delete"),
 		libLog.String("rule.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Rule deleted")
+	).Log(ctx, libLog.LevelDebug, "Rule deleted")
 
 	return http.NoContent(c)
 }

@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
@@ -27,7 +27,7 @@ import (
 )
 
 func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate mtransaction.Responses, balances []*mmodel.Balance, balancesAfter []*mmodel.Balance) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances_new")
 	defer spanUpdateBalances.End()
@@ -135,12 +135,10 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 //  3. Auto-creates the system-managed "overdraft" balance on a false→true
 //     transition (idempotent — existing overdraft balances are reused).
 func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, update mmodel.UpdateBalance) (*mmodel.Balance, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.update_balance")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Updating balance")
 
 	// Always load the current balance so the scope guard can fire
 	// regardless of which fields the payload contains (Settings,

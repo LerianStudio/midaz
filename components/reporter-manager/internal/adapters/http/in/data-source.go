@@ -59,11 +59,11 @@ func (ds *DataSourceHandler) GetDataSourceInformation(c *fiber.Ctx) error {
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 	)
-	ds.service.Logger.Log(ctx, log.LevelInfo, "Initiating retrieval data source information")
+	ds.service.Logger.Log(ctx, log.LevelDebug, "Initiating retrieval data source information")
 
 	dataSourceInfo := ds.service.GetDataSourceInformation(ctx)
 
-	ds.service.Logger.Log(ctx, log.LevelInfo, "Successfully get all data source information.")
+	ds.service.Logger.Log(ctx, log.LevelDebug, "Successfully get all data source information.")
 
 	return commonsHttp.Respond(c, fiber.StatusOK, dataSourceInfo)
 }
@@ -96,7 +96,7 @@ func (ds *DataSourceHandler) GetDataSourceInformationByID(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "dataSourceId"))
 	}
 
-	ds.service.Logger.Log(ctx, log.LevelInfo, "Initiating retrieval data source information", log.String("data_source_id", dataSourceID))
+	ds.service.Logger.Log(ctx, log.LevelDebug, "Initiating retrieval data source information", log.String("data_source_id", dataSourceID))
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -116,7 +116,7 @@ func (ds *DataSourceHandler) GetDataSourceInformationByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	ds.service.Logger.Log(ctx, log.LevelInfo, "Successfully retrieved all data source information")
+	ds.service.Logger.Log(ctx, log.LevelDebug, "Successfully retrieved all data source information")
 
 	return commonsHttp.Respond(c, fiber.StatusOK, dataSourceInfo)
 }

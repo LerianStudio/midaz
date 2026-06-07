@@ -158,7 +158,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 		libLog.String("limit_id", limitID.String()),
 		libLog.String("scope_key", scopeKey),
 		libLog.String("period_key", periodKey),
-	).Log(ctx, libLog.LevelInfo, "Getting or creating usage counter with lock")
+	).Log(ctx, libLog.LevelDebug, "Getting or creating usage counter with lock")
 
 	// Try to get existing counter with FOR UPDATE lock
 	selectQuery := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
@@ -183,7 +183,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 			libLog.String("operation", "repository.usage_counter.get_or_create_for_update"),
 			libLog.String("counter_id", counter.ID.String()),
 			libLog.Any("current_usage", counter.CurrentUsage),
-		).Log(ctx, libLog.LevelInfo, "Found existing usage counter")
+		).Log(ctx, libLog.LevelDebug, "Found existing usage counter")
 
 		return counter, nil
 	}
@@ -257,7 +257,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 			libLog.String("operation", "repository.usage_counter.get_or_create_for_update"),
 			libLog.String("counter_id", counter.ID.String()),
 			libLog.String("note", "found after concurrent insert"),
-		).Log(ctx, libLog.LevelInfo, "Found usage counter after retry")
+		).Log(ctx, libLog.LevelDebug, "Found usage counter after retry")
 
 		return counter, nil
 	}
@@ -285,7 +285,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 	logger.With(
 		libLog.String("operation", "repository.usage_counter.get_or_create_for_update"),
 		libLog.String("counter_id", counter.ID.String()),
-	).Log(ctx, libLog.LevelInfo, "Created new usage counter")
+	).Log(ctx, libLog.LevelDebug, "Created new usage counter")
 
 	return counter, nil
 }
@@ -348,7 +348,7 @@ func (r *UsageCounterRepository) IncrementAtomic(ctx context.Context, counterID 
 		libLog.String("operation", "repository.usage_counter.increment_atomic"),
 		libLog.String("counter_id", counterID.String()),
 		libLog.String("amount", amount.String()),
-	).Log(ctx, libLog.LevelInfo, "Incremented usage counter")
+	).Log(ctx, libLog.LevelDebug, "Incremented usage counter")
 
 	return nil
 }
@@ -420,7 +420,7 @@ func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
 			libLog.String("amount", amount.String()),
 			libLog.String("max_amount", maxAmount.String()),
 			libLog.String("limit_id", limitID.String()),
-		).Log(ctx, libLog.LevelInfo, "Amount exceeds maxAmount (pre-check)")
+		).Log(ctx, libLog.LevelDebug, "Amount exceeds maxAmount (pre-check)")
 		libOtel.HandleSpanBusinessErrorEvent(span, "Amount exceeds limit (pre-check)", constant.ErrUsageCounterExceedsLimit)
 
 		return decimal.Zero, constant.ErrUsageCounterExceedsLimit
@@ -471,7 +471,7 @@ func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
 			libLog.String("current_usage", currentUsage.String()),
 			libLog.String("amount", amount.String()),
 			libLog.String("max_amount", maxAmount.String()),
-		).Log(ctx, libLog.LevelInfo, "Limit exceeded (WHERE guard)")
+		).Log(ctx, libLog.LevelDebug, "Limit exceeded (WHERE guard)")
 		libOtel.HandleSpanBusinessErrorEvent(span, "Limit exceeded", constant.ErrUsageCounterExceedsLimit)
 
 		return currentUsage, constant.ErrUsageCounterExceedsLimit
@@ -484,7 +484,7 @@ func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
 		libLog.String("scope_key", scopeKey),
 		libLog.String("period_key", periodKey),
 		libLog.String("new_usage", currentUsage.String()),
-	).Log(ctx, libLog.LevelInfo, "Upsert and increment completed")
+	).Log(ctx, libLog.LevelDebug, "Upsert and increment completed")
 
 	return currentUsage, nil
 }
@@ -546,7 +546,7 @@ func (r *UsageCounterRepository) UpsertAndReserveAtomic(
 			libLog.String("amount", amount.String()),
 			libLog.String("max_amount", maxAmount.String()),
 			libLog.String("limit_id", limitID.String()),
-		).Log(ctx, libLog.LevelInfo, "Reserve amount exceeds maxAmount (pre-check)")
+		).Log(ctx, libLog.LevelDebug, "Reserve amount exceeds maxAmount (pre-check)")
 		libOtel.HandleSpanBusinessErrorEvent(span, "Reserve amount exceeds limit (pre-check)", constant.ErrUsageCounterExceedsLimit)
 
 		return decimal.Zero, constant.ErrUsageCounterExceedsLimit
@@ -592,7 +592,7 @@ func (r *UsageCounterRepository) UpsertAndReserveAtomic(
 			libLog.String("reserved_usage", reservedUsage.String()),
 			libLog.String("amount", amount.String()),
 			libLog.String("max_amount", maxAmount.String()),
-		).Log(ctx, libLog.LevelInfo, "Limit exceeded (reserve WHERE guard)")
+		).Log(ctx, libLog.LevelDebug, "Limit exceeded (reserve WHERE guard)")
 		libOtel.HandleSpanBusinessErrorEvent(span, "Limit exceeded", constant.ErrUsageCounterExceedsLimit)
 
 		return reservedUsage, constant.ErrUsageCounterExceedsLimit
@@ -604,7 +604,7 @@ func (r *UsageCounterRepository) UpsertAndReserveAtomic(
 		libLog.String("scope_key", scopeKey),
 		libLog.String("period_key", periodKey),
 		libLog.String("new_reserved_usage", reservedUsage.String()),
-	).Log(ctx, libLog.LevelInfo, "Upsert and reserve completed")
+	).Log(ctx, libLog.LevelDebug, "Upsert and reserve completed")
 
 	return reservedUsage, nil
 }
@@ -639,7 +639,7 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 	logger.With(
 		libLog.String("operation", "repository.usage_counter.get_by_limit_id"),
 		libLog.String("limit_id", limitID.String()),
-	).Log(ctx, libLog.LevelInfo, "Getting usage counters by limit ID")
+	).Log(ctx, libLog.LevelDebug, "Getting usage counters by limit ID")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -669,7 +669,7 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 		libLog.String("operation", "repository.usage_counter.get_by_limit_id"),
 		libLog.String("limit_id", limitID.String()),
 		libLog.Int("count", len(counters)),
-	).Log(ctx, libLog.LevelInfo, "Retrieved usage counters")
+	).Log(ctx, libLog.LevelDebug, "Retrieved usage counters")
 
 	return counters, nil
 }
@@ -727,7 +727,7 @@ func (r *UsageCounterRepository) getUsageForLimitsInternal(
 		libLog.Int("limit_ids_count", len(limitIDs)),
 		libLog.String("scope_key", scopeKey),
 		libLog.String("period_key", periodKey),
-	).Log(ctx, libLog.LevelInfo, "Getting usage for limits")
+	).Log(ctx, libLog.LevelDebug, "Getting usage for limits")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -759,7 +759,7 @@ func (r *UsageCounterRepository) getUsageForLimitsInternal(
 	logger.With(
 		libLog.String("operation", operationName),
 		libLog.Int("found_count", len(result)),
-	).Log(ctx, libLog.LevelInfo, "Retrieved usage for limits")
+	).Log(ctx, libLog.LevelDebug, "Retrieved usage for limits")
 
 	return result, nil
 }
@@ -840,7 +840,7 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, now 
 		libLog.String("operation", "repository.usage_counter.delete_expired_counters_by_expires_at"),
 		libLog.String("now", now.Format(time.RFC3339)),
 		libLog.Int("batch_size", r.deleteBatchSize),
-	).Log(ctx, libLog.LevelInfo, "Deleting expired usage counters by expires_at in batches")
+	).Log(ctx, libLog.LevelDebug, "Deleting expired usage counters by expires_at in batches")
 
 	var totalDeleted int64
 
@@ -851,7 +851,7 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, now 
 				libLog.String("operation", "repository.usage_counter.delete_expired_counters_by_expires_at"),
 				libLog.Any("total_deleted", totalDeleted),
 				libLog.String("reason", err.Error()),
-			).Log(ctx, libLog.LevelInfo, "Stopping batch deletion due to context cancellation")
+			).Log(ctx, libLog.LevelDebug, "Stopping batch deletion due to context cancellation")
 			libOtel.HandleSpanError(span, "Context cancelled during batch deletion", err)
 
 			return totalDeleted, fmt.Errorf("context cancelled during batch deletion: %w", err)
@@ -902,7 +902,7 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, now 
 	logger.With(
 		libLog.String("operation", "repository.usage_counter.delete_expired_counters_by_expires_at"),
 		libLog.Any("deleted_count", totalDeleted),
-	).Log(ctx, libLog.LevelInfo, "Deleted expired usage counters by expires_at")
+	).Log(ctx, libLog.LevelDebug, "Deleted expired usage counters by expires_at")
 
 	return totalDeleted, nil
 }

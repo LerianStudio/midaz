@@ -10,7 +10,7 @@ import (
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -116,8 +116,10 @@ func (p *MultiTenantProducerRepository) Close() error {
 
 // publish is the shared implementation for ProducerDefault and ProducerDefaultWithContext.
 func (p *MultiTenantProducerRepository) publish(ctx context.Context, exchange, key string, message []byte, spanName string) (*string, error) {
-	logger, tracer, reqID, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, reqID, _ := libObservability.NewTrackingFromContext(ctx)
 
+	// Rebind ctx: the publish span's trace context is injected into the message
+	// headers below so the consumer can continue the trace.
 	ctx, span := tracer.Start(ctx, spanName)
 	defer span.End()
 
@@ -129,11 +131,8 @@ func (p *MultiTenantProducerRepository) publish(ctx context.Context, exchange, k
 		return nil, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Publishing message", libLog.String("exchange", exchange), libLog.String("key", key), libLog.String("tenant_id", tenantID))
-
 	ch, err := p.channelProvider.GetChannel(ctx, tenantID)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Failed to get channel for tenant", libLog.String("tenant_id", tenantID), libLog.Err(err))
 		libOpentelemetry.HandleSpanError(span, "Failed to get channel", err)
 
 		return nil, fmt.Errorf("failed to get channel for tenant %s: %w", tenantID, err)
@@ -162,13 +161,10 @@ func (p *MultiTenantProducerRepository) publish(ctx context.Context, exchange, k
 		Body:         message,
 	})
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Failed to publish message", libLog.String("exchange", exchange), libLog.String("key", key), libLog.String("tenant_id", tenantID), libLog.Err(err))
 		libOpentelemetry.HandleSpanError(span, "Failed to publish message", err)
 
 		return nil, err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Message sent successfully", libLog.String("exchange", exchange), libLog.String("key", key), libLog.String("tenant_id", tenantID))
 
 	return nil, nil
 }

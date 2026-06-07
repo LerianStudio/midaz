@@ -26,7 +26,7 @@ func (ds *ExternalDataSource) Query(ctx context.Context, collection string, fiel
 	logger := ds.connection.Logger
 	tracer := ctxutil.NewTracerFromContext(ctx)
 	reqID := ctxutil.HeaderIDFromContext(ctx)
-	logger.Log(ctx, log.LevelInfo, "Querying MongoDB collection",
+	logger.Log(ctx, log.LevelDebug, "Querying MongoDB collection",
 		log.String("collection", collection),
 		log.Int("field_count", len(fields)),
 		log.Int("filter_count", len(filter)),
@@ -117,7 +117,7 @@ func (ds *ExternalDataSource) QueryWithAdvancedFilters(ctx context.Context, coll
 	logger := ds.connection.Logger
 	tracer := ctxutil.NewTracerFromContext(ctx)
 	reqID := ctxutil.HeaderIDFromContext(ctx)
-	logger.Log(ctx, log.LevelInfo, "Querying collection with advanced filters", log.String("collection", collection), log.Any("fields", fields))
+	logger.Log(ctx, log.LevelDebug, "Querying collection with advanced filters", log.String("collection", collection), log.Any("fields", fields))
 
 	ctx, span := tracer.Start(ctx, "repository.datasource.query_with_advanced_filters")
 	defer span.End()

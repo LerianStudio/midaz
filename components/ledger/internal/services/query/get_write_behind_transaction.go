@@ -6,9 +6,8 @@ package query
 
 import (
 	"context"
-	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
@@ -22,19 +21,16 @@ import (
 )
 
 func (uc *UseCase) GetWriteBehindTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_write_behind_transaction")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Looking up transaction in write-behind cache")
 
 	key := utils.WriteBehindTransactionKey(organizationID, ledgerID, transactionID.String())
 
 	data, err := uc.TransactionRedisRepo.GetBytes(ctx, key)
 	if err != nil {
 		libOpentelemetry.HandleSpanEvent(span, "Transaction not found in write-behind cache")
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction not found in write-behind cache: %s", key))
 
 		return nil, err
 	}
@@ -43,12 +39,10 @@ func (uc *UseCase) GetWriteBehindTransaction(ctx context.Context, organizationID
 
 	if err := msgpack.Unmarshal(data, &tran); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to unmarshal transaction from write-behind cache", err)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to unmarshal transaction from write-behind cache: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to unmarshal transaction from write-behind cache", libLog.Err(err))
 
 		return nil, err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction found in write-behind cache: %s", key))
 
 	return &tran, nil
 }

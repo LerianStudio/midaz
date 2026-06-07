@@ -25,11 +25,11 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
@@ -746,7 +746,9 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	require.NoError(t, err, "failed to initialize telemetry")
 
 	// Create consumer routes (used by newTestMultiQueueConsumer during test execution)
-	infra.consumerRoutes = rabbitmq.NewConsumerRoutes(infra.consumerRabbitMQConn, 1, 1, logger, telemetry)
+	consumerRoutes, err := rabbitmq.NewConsumerRoutes(infra.consumerRabbitMQConn, 1, 1, logger, telemetry)
+	require.NoError(t, err, "failed to create consumer routes")
+	infra.consumerRoutes = consumerRoutes
 
 	return infra
 }

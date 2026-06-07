@@ -1228,9 +1228,10 @@ func TestIndividualUpdateTransactionStatus_PartialFailure(t *testing.T) {
 	}
 
 	logger := libLog.NewMockLogger(ctrl)
-	// Expect warning logs for 2 failed updates + info log for summary
-	logger.EXPECT().Log(gomock.Any(), libLog.LevelWarn, gomock.Any()).Times(2)
-	logger.EXPECT().Log(gomock.Any(), libLog.LevelInfo, gomock.Any()).Times(1)
+	// Expect warning logs for 2 failed updates (msg + transaction_id field + err field)
+	// and a debug summary log (msg + 3 count fields).
+	logger.EXPECT().Log(gomock.Any(), libLog.LevelWarn, gomock.Any(), gomock.Any(), gomock.Any()).Times(2)
+	logger.EXPECT().Log(gomock.Any(), libLog.LevelDebug, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 
 	err := uc.individualUpdateTransactionStatus(context.Background(), logger, transactions, result)
 

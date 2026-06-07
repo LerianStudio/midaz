@@ -28,7 +28,7 @@ func (uc *UseCase) DeleteTemplateByID(ctx context.Context, id uuid.UUID, hardDel
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.template_id", id.String()),
 	)
-	uc.Logger.Log(ctx, log.LevelInfo, "Remove template", log.String("id", id.String()))
+	uc.Logger.Log(ctx, log.LevelDebug, "Remove template", log.String("id", id.String()))
 
 	// Cascade-delete linked deadlines BEFORE removing the template so that a
 	// failure here leaves the system in a consistent state: the template still
@@ -46,7 +46,7 @@ func (uc *UseCase) DeleteTemplateByID(ctx context.Context, id uuid.UUID, hardDel
 			return err
 		}
 
-		uc.Logger.Log(ctx, log.LevelInfo, "Cascade deleted deadlines for template",
+		uc.Logger.Log(ctx, log.LevelDebug, "Cascade deleted deadlines for template",
 			log.String("template_id", id.String()),
 			log.Any("deadlines_deleted", deleted))
 	}

@@ -6,9 +6,8 @@ package query
 
 import (
 	"context"
-	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -19,18 +18,16 @@ import (
 )
 
 func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID) (*operation.Operation, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_operation_by_id")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Trying to get operation")
 
 	o, err := uc.OperationRepo.Find(ctx, organizationID, ledgerID, transactionID, operationID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get operation on repo by id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting operation: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting operation", libLog.Err(err))
 
 		return nil, err
 	}
@@ -40,7 +37,7 @@ func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerI
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb operation", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb operation: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb operation", libLog.Err(err))
 
 			return nil, err
 		}

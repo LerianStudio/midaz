@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
@@ -48,7 +48,7 @@ type ProcessBalanceOperationsInput struct {
 // Returns the before/after balance snapshots for operation building and
 // PostgreSQL persistence.
 func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBalanceOperationsInput) (*mmodel.BalanceAtomicResult, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.process_balance_operations")
 	defer span.End()

@@ -6,18 +6,15 @@ package services
 
 import (
 	"context"
-	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 // DeleteInstrumentByID removes an instrument by its ID and holder ID.
 func (uc *UseCase) DeleteInstrumentByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, hardDelete bool) error {
-	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.delete_instrument_by_id")
 	defer span.End()
@@ -29,12 +26,9 @@ func (uc *UseCase) DeleteInstrumentByID(ctx context.Context, organizationID stri
 		attribute.String("app.request.instrument_id", id.String()),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Delete alias by id %v", id))
-
 	err := uc.InstrumentRepo.Delete(ctx, organizationID, holderID, id, hardDelete)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to delete alias by id: %v", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete alias by id: %v", err))
+		recordSpanError(span, "Failed to delete alias by id", err)
 
 		return err
 	}

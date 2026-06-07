@@ -79,7 +79,7 @@ func (repo *StorageRepository) Get(ctx context.Context, objectName string) ([]by
 		return nil, fmt.Errorf("storage key validation failed for template: %w", err)
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Getting template from storage",
+	logger.Log(ctx, log.LevelDebug, "Getting template from storage",
 		log.String("object_name", objectName),
 		log.String("resolved_s3_key", key),
 	)
@@ -148,7 +148,7 @@ func (repo *StorageRepository) Put(ctx context.Context, objectName string, conte
 	}
 
 	// Log with objectName (not the tenant-prefixed key) to avoid leaking tenant IDs in logs.
-	logger.Log(ctx, log.LevelInfo, "Putting template to storage", log.String("object_name", objectName))
+	logger.Log(ctx, log.LevelDebug, "Putting template to storage", log.String("object_name", objectName))
 
 	_, err = repo.storage.Upload(ctx, key, bytes.NewReader(data), contentType)
 	if err != nil {

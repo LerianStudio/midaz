@@ -8,7 +8,7 @@ import (
 	"context"
 	"errors"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -79,7 +79,7 @@ func logError(ctx context.Context, c *fiber.Ctx, err error) {
 		ctx = context.Background()
 	}
 
-	logger := libObs.NewLoggerFromContext(ctx)
+	logger := libObservability.NewLoggerFromContext(ctx)
 	logger.Log(ctx, libLog.LevelError,
 		"handler error",
 		libLog.String("method", c.Method()),

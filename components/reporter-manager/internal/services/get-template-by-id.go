@@ -31,12 +31,10 @@ func (uc *UseCase) GetTemplateByID(ctx context.Context, id uuid.UUID) (*template
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.template_id", id.String()),
 	)
-	uc.Logger.Log(ctx, log.LevelInfo, "Retrieving template", log.String("id", id.String()))
+	uc.Logger.Log(ctx, log.LevelDebug, "Retrieving template", log.String("id", id.String()))
 
 	templateModel, err := uc.TemplateRepo.FindByID(ctx, id)
 	if err != nil {
-		uc.Logger.Log(ctx, log.LevelError, "Error getting template on repo by id", log.Err(err))
-
 		if nf := (pkg.EntityNotFoundError{}); errors.As(err, &nf) {
 			errNotFound := pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, "", constant.MongoCollectionTemplate)
 

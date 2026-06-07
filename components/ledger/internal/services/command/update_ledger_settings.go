@@ -6,9 +6,8 @@ package command
 
 import (
 	"context"
-	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -24,7 +23,7 @@ import (
 // Returns the merged settings after the update.
 // Returns an error if the ledger does not exist or if validation fails.
 func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_ledger_settings")
 	defer span.End()
@@ -34,11 +33,9 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 		attribute.String("ledger_id", ledgerID.String()),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Updating settings for ledger: %s", ledgerID.String()))
-
 	// Validate input settings against schema before any DB operations
 	if err := mmodel.ValidateSettings(settings); err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Settings validation failed: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Settings validation failed", libLog.Err(err))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Settings validation failed", err)
 
@@ -53,7 +50,7 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 			return mmodel.DeepMergeSettings(existing, settings), nil
 		})
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating ledger settings atomically: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error updating ledger settings atomically", libLog.Err(err))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger settings", err)
 
@@ -68,8 +65,6 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 	// Invalidate cache after successful write
 	uc.invalidateSettingsCache(ctx, organizationID, ledgerID)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated settings for ledger: %s", ledgerID.String()))
-
 	return updatedSettings, nil
 }
 
@@ -81,7 +76,7 @@ func (uc *UseCase) invalidateSettingsCache(ctx context.Context, organizationID, 
 		return
 	}
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.invalidate_settings_cache")
 	defer span.End()
@@ -90,6 +85,6 @@ func (uc *UseCase) invalidateSettingsCache(ctx context.Context, organizationID, 
 	if err := uc.OnboardingRedisRepo.Del(ctx, cacheKey); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to invalidate ledger settings cache", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to invalidate ledger settings cache: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to invalidate ledger settings cache", libLog.Err(err))
 	}
 }

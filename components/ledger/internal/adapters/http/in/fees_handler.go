@@ -13,7 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -53,7 +52,7 @@ type FeeHandler struct {
 func (handler *FeeHandler) EstimateFeeCalculation(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.fee_estimate_calculation")
 	defer span.End()
@@ -75,8 +74,6 @@ func (handler *FeeHandler) EstimateFeeCalculation(p any, c *fiber.Ctx) error {
 		attribute.String("app.request.ledger_id", payload.LedgerID.String()),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, "Request to create a fee estimate")
-
 	feeCalculate, errCreateFee := handler.Service.EstimateFeeCalculation(ctx, payload, organizationID)
 	if errCreateFee != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to estimate fee calculation", errCreateFee)
@@ -90,8 +87,6 @@ func (handler *FeeHandler) EstimateFeeCalculation(p any, c *fiber.Ctx) error {
 			FeesApplied: nil,
 		})
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully estimated fee")
 
 	// 200 OK is intentional: this is a compute/RPC-style endpoint that performs
 	// a calculation without creating a persistent resource.

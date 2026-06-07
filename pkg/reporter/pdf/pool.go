@@ -131,7 +131,7 @@ func (wp *WorkerPool) getChromeOptions() []chromedp.ExecAllocatorOption {
 // processTask handles a single PDF generation task.
 func (wp *WorkerPool) processTask(allocCtx context.Context, task Task) {
 	htmlSizeKB := float64(len(task.HTML)) / cn.PDFBytesPerKB
-	wp.logger.Log(allocCtx, log.LevelInfo, "Starting PDF generation for task", log.String("filename", task.Filename), log.Any("html_size_kb", htmlSizeKB), log.Any("timeout", wp.timeout))
+	wp.logger.Log(allocCtx, log.LevelDebug, "Starting PDF generation for task", log.String("filename", task.Filename), log.Any("html_size_kb", htmlSizeKB), log.Any("timeout", wp.timeout))
 
 	if len(task.HTML) > cn.PDFLargeHTMLThreshold {
 		wp.logger.Log(allocCtx, log.LevelWarn, "Large HTML detected. Consider increasing PDF_TIMEOUT_SECONDS if timeouts occur", log.Any("html_size_kb", htmlSizeKB))
@@ -164,7 +164,7 @@ func (wp *WorkerPool) processTask(allocCtx context.Context, task Task) {
 //  3. URL blocklist: network.SetBlockedURLs as a fallback layer for
 //     sub-resource requests.
 func (wp *WorkerPool) generatePDF(ctx context.Context, html string) ([]byte, error) {
-	wp.logger.Log(ctx, log.LevelInfo, "Generating PDF via about:blank origin (sandboxed)")
+	wp.logger.Log(ctx, log.LevelDebug, "Generating PDF via about:blank origin (sandboxed)")
 
 	var pdfBuf []byte
 
@@ -280,7 +280,7 @@ func (wp *WorkerPool) processPDFResult(pdfBuf []byte, filename string, err error
 		return err
 	}
 
-	wp.logger.Log(context.Background(), log.LevelInfo, "PDF generated successfully", log.Int("bytes", len(pdfBuf)), log.String("filename", filename))
+	wp.logger.Log(context.Background(), log.LevelDebug, "PDF generated successfully", log.Int("bytes", len(pdfBuf)), log.String("filename", filename))
 
 	return nil
 }

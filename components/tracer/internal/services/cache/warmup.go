@@ -45,7 +45,7 @@ func WarmUp(ctx context.Context, c *RuleCache, repo RuleSyncRepository, compiler
 
 	logger.With(
 		libLog.String("operation", "cache.warmup"),
-	).Log(ctx, libLog.LevelInfo, "Starting rule cache warm-up")
+	).Log(ctx, libLog.LevelDebug, "Starting rule cache warm-up")
 
 	rules, err := repo.GetAllActiveRules(ctx)
 	if err != nil {
@@ -96,7 +96,7 @@ func WarmUp(ctx context.Context, c *RuleCache, repo RuleSyncRepository, compiler
 		libLog.Int("rules.cached", len(cachedRules)),
 		libLog.Int("rules.skipped", len(rules)-len(cachedRules)),
 		libLog.Any("duration_ms", duration.Milliseconds()),
-	).Log(ctx, libLog.LevelInfo, "Rule cache warm-up completed")
+	).Log(ctx, libLog.LevelDebug, "Rule cache warm-up completed")
 
 	return len(cachedRules), duration, nil
 }

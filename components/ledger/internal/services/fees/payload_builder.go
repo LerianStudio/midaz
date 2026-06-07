@@ -11,7 +11,6 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
@@ -30,15 +29,10 @@ func BuildVolumePayload(
 	netAmount decimal.Decimal,
 	discount *model.DiscountDetail,
 ) *transaction.Transaction {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "service.payload_builder.build_volume_payload")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Building volume payload",
-		libLog.String("billing_package_id", bp.ID),
-		libLog.String("period", period),
-		libLog.Any("total_events", totalEvents))
 
 	asset := ""
 	if bp.AssetCode != nil {
@@ -127,8 +121,6 @@ func BuildVolumePayload(
 		},
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Volume payload built successfully: packageId=%s, code=%s", bp.ID, tx.Code))
-
 	return tx
 }
 
@@ -141,13 +133,10 @@ func BuildMaintenancePayload(
 	period string,
 	accounts []feeshared.Account,
 ) *transaction.Transaction {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "service.payload_builder.build_maintenance_payload")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Building maintenance payload: packageId=%s, period=%s, accounts=%d",
-		bp.ID, period, len(accounts)))
 
 	asset := ""
 	if bp.AssetCode != nil {
@@ -227,14 +216,7 @@ func BuildMaintenancePayload(
 	if !totalValue.Equal(fromSum) {
 		mismatchErr := errors.New("maintenance payload amount mismatch: send.value != sum(from)")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Maintenance payload amount mismatch", mismatchErr)
-		logger.Log(ctx, libLog.LevelError, "Maintenance payload amount mismatch",
-			libLog.String("billing_package_id", bp.ID),
-			libLog.Bool("amounts_match", false))
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Maintenance payload built successfully",
-		libLog.String("billing_package_id", bp.ID),
-		libLog.String("code", tx.Code))
 
 	return tx
 }

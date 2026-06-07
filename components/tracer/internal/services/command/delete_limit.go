@@ -92,11 +92,6 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) error {
 		attribute.String("app.request.operation", "delete"),
 	)
 
-	logger.With(
-		libLog.String("operation", "service.limit.delete"),
-		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Deleting limit")
-
 	limit, err := c.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, constant.ErrLimitNotFound) {
@@ -135,7 +130,7 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) error {
 		logger.With(
 			libLog.String("operation", "service.limit.delete"),
 			libLog.String("limit.id", id.String()),
-		).Log(ctx, libLog.LevelInfo, "Limit already deleted (idempotent no-op)")
+		).Log(ctx, libLog.LevelDebug, "Limit already deleted (idempotent no-op)")
 
 		return nil
 	}
@@ -204,12 +199,6 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) error {
 	if txErr != nil {
 		return fmt.Errorf("failed to delete limit: %w", txErr)
 	}
-
-	logger.With(
-		libLog.String("operation", "service.limit.delete"),
-		libLog.String("limit.id", id.String()),
-		libLog.String("limit.status", string(limit.Status)),
-	).Log(ctx, libLog.LevelInfo, "Limit deleted successfully")
 
 	return nil
 }

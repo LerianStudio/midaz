@@ -301,8 +301,8 @@ func TestParseLedgerSettings(t *testing.T) {
 			name: "wrong type for tracer fields uses tracer defaults",
 			input: map[string]any{
 				"tracer": map[string]any{
-					"mode":        123,
-					"timeoutMs":   "not a number",
+					"mode":      123,
+					"timeoutMs": "not a number",
 				},
 			},
 			expected: DefaultLedgerSettings(),

@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -51,7 +51,7 @@ type OperationRouteHandler struct {
 func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, metricFactory := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_operation_route")
 	defer span.End()
@@ -136,7 +136,7 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_operation_route_by_id")
 	defer span.End()
@@ -158,7 +158,7 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 
 	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve operation route on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve operation route on query", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to retrieve operation route", libLog.Err(err), libLog.String("operation_route_id", id.String()))
 
 		return http.WithError(c, err)
@@ -191,7 +191,7 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_operation_route")
 	defer span.End()
@@ -275,12 +275,10 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 
 	operationRoute, err := handler.Command.UpdateOperationRoute(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Operation Route on command", err)
+		handleSpanByErrorClass(span, "Failed to update Operation Route on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully updated operation route", libLog.String("operation_route_id", id.String()))
 
 	if payload.Account != nil {
 		if err := handler.Command.ReloadOperationRouteCache(ctx, organizationID, ledgerID, id); err != nil {
@@ -311,7 +309,7 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_operation_route_by_id")
 	defer span.End()
@@ -332,13 +330,11 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 	}
 
 	if err := handler.Command.DeleteOperationRouteByID(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete operation route on command", err)
+		handleSpanByErrorClass(span, "Failed to delete operation route on command", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to delete operation route", libLog.Err(err), libLog.String("operation_route_id", id.String()))
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully deleted operation route", libLog.String("operation_route_id", id.String()))
 
 	return http.NoContent(c)
 }
@@ -368,7 +364,7 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_operation_routes")
 	defer span.End()
@@ -419,7 +415,7 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 
 	operationRoutes, cur, err := handler.Query.GetAllOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all operation routes on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve all operation routes on query", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to retrieve all operation routes", libLog.Err(err))
 
 		return http.WithError(c, err)
@@ -434,7 +430,7 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 // validateAccountRule validates account rule configuration for operation routes.
 // It ensures proper pairing of ruleType and validIf, and validates data types based on rule type.
 func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, account *mmodel.AccountRule) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_account_rule")
 	defer span.End()
@@ -450,8 +446,6 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account rule type provided but validIf is missing", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Account rule type provided but validIf is missing, Error: %s", err.Error()))
-
 		return err
 	}
 
@@ -459,8 +453,6 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityOperationRoute, "account.ruleType")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account validIf provided but rule type is missing", err)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Account validIf provided but rule type is missing, Error: %s", err.Error()))
 
 		return err
 	}
@@ -472,8 +464,6 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, constant.EntityOperationRoute)
 
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf type for alias rule", err)
-
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid ValidIf type for alias rule, Error: %s", err.Error()))
 
 				return err
 			}
@@ -487,8 +477,6 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 
 						libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf array element type", err)
 
-						logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid ValidIf array element type, Error: %s", err.Error()))
-
 						return err
 					}
 				}
@@ -497,16 +485,12 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf type for account_type rule", err)
 
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid ValidIf type for account_type rule, Error: %s", err.Error()))
-
 				return err
 			}
 		default:
 			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleType, constant.EntityOperationRoute)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account rule type", err)
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid account rule type, Error: %s", err.Error()))
 
 			return err
 		}
@@ -520,7 +504,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 // Note: This function validates STRUCTURE only. Field REQUIREMENTS (which fields are mandatory
 // based on direction+scenario) are validated by validateAccountingRulesMatrix.
 func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Context, entries *mmodel.AccountingEntries) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_accounting_entries")
 	defer span.End()
@@ -563,8 +547,6 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting entry missing both debit and credit", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s missing both debit and credit, Error: %s", action.name, err.Error()))
-
 			return err
 		}
 
@@ -605,8 +587,6 @@ func (handler *OperationRouteHandler) validateRubricStructure(
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric code is empty", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s %s code is empty, Error: %s", actionName, side, err.Error()))
-
 		return err
 	}
 
@@ -616,8 +596,6 @@ func (handler *OperationRouteHandler) validateRubricStructure(
 		err := pkg.ValidateBusinessError(errCode, entityName, fieldPath)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric description is empty", err)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s %s description is empty, Error: %s", actionName, side, err.Error()))
 
 		return err
 	}
@@ -739,7 +717,7 @@ func (handler *OperationRouteHandler) validateAccountingRulesMatrix(
 	operationType string,
 	entries *mmodel.AccountingEntries,
 ) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_accounting_rules_matrix")
 	defer span.End()
@@ -783,7 +761,7 @@ func (handler *OperationRouteHandler) validateDirectionScenarioMatrix(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_direction_scenario_matrix")
 	defer span.End()
@@ -823,7 +801,6 @@ func (handler *OperationRouteHandler) validateDirectionScenarioMatrix(
 				)
 
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, fmt.Sprintf("%s not allowed for destination", scenario.name), err)
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("%s scenario not allowed for destination direction", scenario.name))
 
 				return err
 			}
@@ -862,7 +839,7 @@ func (handler *OperationRouteHandler) validateReserveGroupAtomicity(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_reserve_group_atomicity")
 	defer span.End()
@@ -896,7 +873,6 @@ func (handler *OperationRouteHandler) validateReserveGroupAtomicity(
 			)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reserve group incomplete", err)
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Reserve group incomplete: missing %v", missing))
 
 			return err
 		}
@@ -925,7 +901,7 @@ func (handler *OperationRouteHandler) validateDirectMandatory(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_direct_mandatory")
 	defer span.End()
@@ -966,7 +942,7 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_entry_field_requirements")
 	defer span.End()
@@ -997,8 +973,6 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 
 		// Check debit requirement
 		if req.debitRequired && action.entry.Debit == nil {
-			fieldPath := fmt.Sprintf("accountingEntries.%s.debit", action.name)
-
 			err := pkg.ValidateBusinessError(
 				constant.ErrAccountingEntryFieldRequired,
 				entityName,
@@ -1006,15 +980,12 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 			)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, fmt.Sprintf("Debit required for %s/%s", operationType, action.name), err)
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Missing required field %s, Error: %s", fieldPath, err.Error()))
 
 			return err
 		}
 
 		// Check credit requirement
 		if req.creditRequired && action.entry.Credit == nil {
-			fieldPath := fmt.Sprintf("accountingEntries.%s.credit", action.name)
-
 			err := pkg.ValidateBusinessError(
 				constant.ErrAccountingEntryFieldRequired,
 				entityName,
@@ -1022,7 +993,6 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 			)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, fmt.Sprintf("Credit required for %s/%s", operationType, action.name), err)
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Missing required field %s, Error: %s", fieldPath, err.Error()))
 
 			return err
 		}

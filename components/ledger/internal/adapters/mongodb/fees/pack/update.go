@@ -16,7 +16,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -45,7 +44,7 @@ func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organization
 	coll := db.Collection(strings.ToLower(feeconstant.PackageCollection))
 	opts := options.UpdateOne().SetUpsert(false)
 
-	ctx, spanUpdate := tracer.Start(ctx, "repository.package.update.update_one")
+	_, spanUpdate := tracer.Start(ctx, "repository.package.update.update_one")
 	defer spanUpdate.End()
 
 	spanUpdate.SetAttributes(attributes...)
@@ -57,11 +56,13 @@ func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organization
 	}
 
 	if result.MatchedCount == 0 {
-		libOpentelemetry.HandleSpanError(spanUpdate, "No document matched for update", mongo.ErrNoDocuments)
-		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", feeconstant.PackageCollection)
+		bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", feeconstant.PackageCollection)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdate, "No document matched for update", bizErr)
+
+		return bizErr
 	}
 
-	ctx, spanUpdateEnable := tracer.Start(ctx, "repository.package.update.enable")
+	_, spanUpdateEnable := tracer.Start(ctx, "repository.package.update.enable")
 	defer spanUpdateEnable.End()
 
 	spanUpdateEnable.SetAttributes(attributes...)

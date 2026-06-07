@@ -47,11 +47,6 @@ func (q *GetLimitQuery) Execute(ctx context.Context, id uuid.UUID) (*model.Limit
 		return nil, err
 	}
 
-	logger.With(
-		libLog.String("operation", "service.limit.get"),
-		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Getting limit")
-
 	span.SetAttributes(attribute.String("app.request.limit_id", id.String()))
 
 	// Retrieve from repository
@@ -75,13 +70,6 @@ func (q *GetLimitQuery) Execute(ctx context.Context, id uuid.UUID) (*model.Limit
 
 		return nil, err
 	}
-
-	logger.With(
-		libLog.String("operation", "service.limit.get"),
-		libLog.String("limit.id", limit.ID.String()),
-		libLog.String("limit.name", limit.Name),
-		libLog.String("limit.status", string(limit.Status)),
-	).Log(ctx, libLog.LevelInfo, "Limit retrieved successfully")
 
 	return limit, nil
 }

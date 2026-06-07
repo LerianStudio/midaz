@@ -8,8 +8,8 @@ import (
 	"context"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -19,7 +19,7 @@ import (
 
 // FindAll get all holders that match the query filter
 func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string, query http.QueryHeader, includeDeleted bool) ([]*mmodel.Holder, error) {
-	_, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_all_holders")
 	defer span.End()
@@ -34,7 +34,7 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 	db, err := hm.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	skip := int64(query.Page*query.Limit - query.Limit)
 	opts := options.Find().SetLimit(limit).SetSkip(skip).SetSort(bson.D{{Key: "_id", Value: 1}})
 
-	ctx, spanFind := tracer.Start(ctx, "mongodb.find_all_holders.find")
+	_, spanFind := tracer.Start(ctx, "mongodb.find_all_holders.find")
 	defer spanFind.End()
 
 	spanFind.SetAttributes(attributes...)
@@ -61,20 +61,20 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 	filter, err := hm.buildHolderFilter(query, includeDeleted)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanFind, "Invalid metadata value", err)
+		recordSpanError(spanFind, "Invalid metadata value", err)
 		return nil, err
 	}
 
 	cursor, err := coll.Find(ctx, filter, opts)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanFind, "Failed to find holder", err)
+		libOpentelemetry.HandleSpanError(spanFind, "Failed to find holder", err)
 
 		return nil, err
 	}
 
 	defer func() {
 		if closeErr := cursor.Close(ctx); closeErr != nil {
-			libOpenTelemetry.HandleSpanError(span, "Failed to close cursor", closeErr)
+			libOpentelemetry.HandleSpanError(span, "Failed to close cursor", closeErr)
 		}
 	}()
 
@@ -83,7 +83,7 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	for cursor.Next(ctx) {
 		var holder MongoDBModel
 		if err := cursor.Decode(&holder); err != nil {
-			libOpenTelemetry.HandleSpanError(span, "Failed to decode holder", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to decode holder", err)
 
 			return nil, err
 		}
@@ -92,7 +92,7 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	}
 
 	if err := cursor.Err(); err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to iterate holders", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate holders", err)
 
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	for i, holder := range holders {
 		results[i], err = holder.ToEntity(hm.DataSecurity)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
 			return nil, err
 		}

@@ -46,7 +46,7 @@ func (r *BillingPackageMongoDBRepository) Create(ctx context.Context, bp *model.
 	record := &BillingPackageMongoDBModel{}
 	record.FromEntity(bp)
 
-	ctx, spanInsert := tracer.Start(ctx, "repository.billing_package.create.insert")
+	_, spanInsert := tracer.Start(ctx, "repository.billing_package.create.insert")
 	defer spanInsert.End()
 
 	spanInsert.SetAttributes(attributes...)

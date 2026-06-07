@@ -133,7 +133,7 @@ func (dr *DeadlineMongoDBRepository) FindByID(ctx context.Context, id uuid.UUID)
 
 	var record *DeadlineMongoDBModel
 
-	ctx, spanFindOne := tracer.Start(ctx, "repository.deadline.find_by_id_exec")
+	_, spanFindOne := tracer.Start(ctx, "repository.deadline.find_by_id_exec")
 
 	spanFindOne.SetAttributes(attributes...)
 
@@ -209,7 +209,7 @@ func (dr *DeadlineMongoDBRepository) FindList(ctx context.Context, filters http.
 	skip := int64(filters.Page*filters.Limit - filters.Limit)
 	opts := options.Find().SetLimit(limit).SetSkip(skip)
 
-	ctx, spanFind := tracer.Start(ctx, "repository.deadline.find_list_exec")
+	_, spanFind := tracer.Start(ctx, "repository.deadline.find_list_exec")
 
 	spanFind.SetAttributes(attributes...)
 
@@ -293,7 +293,7 @@ func (dr *DeadlineMongoDBRepository) Count(ctx context.Context, filters http.Que
 		queryFilter["due_date"] = dueDateFilter
 	}
 
-	ctx, spanCount := tracer.Start(ctx, "repository.deadline.count_exec")
+	_, spanCount := tracer.Start(ctx, "repository.deadline.count_exec")
 	spanCount.SetAttributes(
 		attribute.String("app.request.request_id", reqID),
 	)
@@ -331,7 +331,7 @@ func (dr *DeadlineMongoDBRepository) Create(ctx context.Context, record *Deadlin
 		return nil, err
 	}
 
-	ctx, spanInsert := tracer.Start(ctx, "repository.deadline.create_exec")
+	_, spanInsert := tracer.Start(ctx, "repository.deadline.create_exec")
 
 	spanInsert.SetAttributes(attributes...)
 
@@ -370,7 +370,7 @@ func (dr *DeadlineMongoDBRepository) Update(ctx context.Context, id uuid.UUID, u
 
 	opts := options.UpdateOne().SetUpsert(false)
 
-	ctx, spanUpdate := tracer.Start(ctx, "repository.deadline.update_exec")
+	_, spanUpdate := tracer.Start(ctx, "repository.deadline.update_exec")
 
 	spanUpdate.SetAttributes(attributes...)
 
@@ -415,7 +415,7 @@ func (dr *DeadlineMongoDBRepository) Delete(ctx context.Context, id uuid.UUID) e
 		return err
 	}
 
-	ctx, spanDelete := tracer.Start(ctx, "repository.deadline.delete_exec")
+	_, spanDelete := tracer.Start(ctx, "repository.deadline.delete_exec")
 
 	spanDelete.SetAttributes(attributes...)
 
@@ -443,7 +443,7 @@ func (dr *DeadlineMongoDBRepository) Delete(ctx context.Context, id uuid.UUID) e
 
 	spanDelete.End()
 
-	logger.Log(ctx, log.LevelInfo, fmt.Sprint("Deleted a deadline with id: ", id.String()))
+	logger.Log(ctx, log.LevelDebug, "Deleted a deadline", log.String("deadline_id", id.String()))
 
 	return nil
 }
@@ -490,7 +490,7 @@ func (dr *DeadlineMongoDBRepository) DeleteByTemplateID(ctx context.Context, tem
 	}
 
 	span.SetAttributes(attribute.Int64("app.request.deadlines_deleted", result.ModifiedCount))
-	logger.Log(ctx, log.LevelInfo, "Soft-deleted deadlines by template_id",
+	logger.Log(ctx, log.LevelDebug, "Soft-deleted deadlines by template_id",
 		log.String("template_id", templateID.String()),
 		log.Any("count", result.ModifiedCount),
 	)
@@ -535,7 +535,7 @@ func (dl *DeadlineMongoDBRepository) FindActiveNotifiable(ctx context.Context) (
 		SetSort(bson.D{{Key: "due_date", Value: 1}}).
 		SetLimit(maxNotifiableFetch)
 
-	ctx, spanExec := tracer.Start(ctx, "repository.deadline.find_active_notifiable_exec")
+	_, spanExec := tracer.Start(ctx, "repository.deadline.find_active_notifiable_exec")
 
 	cursor, err := coll.Find(ctx, filter, opts)
 	if err != nil {

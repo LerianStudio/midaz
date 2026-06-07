@@ -93,11 +93,6 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 		attribute.String("app.request.operation", "draft"),
 	)
 
-	logger.With(
-		libLog.String("operation", opDraftLimit),
-		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Transitioning limit to draft")
-
 	limit, err := c.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, constant.ErrLimitNotFound) {
@@ -136,7 +131,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 		logger.With(
 			libLog.String("operation", opDraftLimit),
 			libLog.String("limit.id", id.String()),
-		).Log(ctx, libLog.LevelInfo, "Limit already in draft (idempotent no-op)")
+		).Log(ctx, libLog.LevelDebug, "Limit already in draft (idempotent no-op)")
 
 		return limit, nil
 	}
@@ -204,12 +199,6 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	if txErr != nil {
 		return nil, fmt.Errorf("failed to transition limit to draft: %w", txErr)
 	}
-
-	logger.With(
-		libLog.String("operation", opDraftLimit),
-		libLog.String("limit.id", id.String()),
-		libLog.String("limit.status", string(limit.Status)),
-	).Log(ctx, libLog.LevelInfo, "Limit transitioned to draft successfully")
 
 	return limit, nil
 }

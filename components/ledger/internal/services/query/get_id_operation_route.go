@@ -7,9 +7,8 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -23,23 +22,21 @@ import (
 )
 
 func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.OperationRoute, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_operation_route_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieving operation route for id: %s", id))
-
 	operationRoute, err := uc.OperationRouteRepo.FindByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting operation route on repo by id: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting operation route on repo by id", libLog.Err(err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation route on repo by id", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting operation route on repo by id: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Error getting operation route on repo by id", libLog.Err(err))
 
 			return nil, err
 		}
@@ -54,7 +51,7 @@ func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, le
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb operation route", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb operation route: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb operation route", libLog.Err(err))
 
 			return nil, err
 		}
@@ -63,8 +60,6 @@ func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, le
 			operationRoute.Metadata = metadata.Data
 		}
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved operation route for id: %s", id))
 
 	return operationRoute, nil
 }

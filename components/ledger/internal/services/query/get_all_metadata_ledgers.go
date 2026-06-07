@@ -7,9 +7,8 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -22,14 +21,12 @@ import (
 
 // GetAllMetadataLedgers fetches all ledgers from the repository.
 func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Ledger, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_ledgers")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, "Retrieving ledgers")
-
-	metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), filter)
+	metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, constant.EntityLedger, filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get metadata on repo", err)
 		logger.Log(ctx, libLog.LevelError, "Error getting metadata on repo")
@@ -38,7 +35,7 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 	}
 
 	if len(metadata) == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, constant.EntityLedger)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No metadata found", err)
 
@@ -60,7 +57,7 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 	ledgers, err := uc.LedgerRepo.FindAll(ctx, organizationID, filter)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, constant.EntityLedger)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get ledgers on repo", err)
 

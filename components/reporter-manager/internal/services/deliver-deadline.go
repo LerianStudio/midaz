@@ -42,7 +42,7 @@ func (uc *UseCase) DeliverDeadline(ctx context.Context, id uuid.UUID, input *dea
 	}
 
 	span.SetAttributes(attribute.Bool("app.request.delivered", *input.Delivered))
-	uc.Logger.Log(ctx, log.LevelInfo, "Delivering deadline",
+	uc.Logger.Log(ctx, log.LevelDebug, "Delivering deadline",
 		log.String("id", id.String()),
 		log.Bool("delivered", *input.Delivered),
 	)
@@ -89,7 +89,7 @@ func (uc *UseCase) DeliverDeadline(ctx context.Context, id uuid.UUID, input *dea
 		return nil, err
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Deadline delivery status updated", log.String("id", id.String()))
+	uc.Logger.Log(ctx, log.LevelDebug, "Deadline delivery status updated", log.String("id", id.String()))
 
 	return updated, nil
 }

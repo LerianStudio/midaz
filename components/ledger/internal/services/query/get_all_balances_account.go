@@ -7,10 +7,9 @@ package query
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -24,7 +23,7 @@ import (
 )
 
 func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_balances_by_account_id")
 	defer span.End()
@@ -33,7 +32,7 @@ func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances on repo", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balances on repo: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting balances on repo", libLog.Err(err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -54,7 +53,7 @@ func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance cache values on redis", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get balance cache values on redis: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to get balance cache values on redis", libLog.Err(err))
 	}
 
 	for i := range balance {
@@ -62,7 +61,7 @@ func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID
 			cachedBalance := mmodel.BalanceRedis{}
 
 			if err := json.Unmarshal([]byte(data), &cachedBalance); err != nil {
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error unmarshalling balance cache value: %v", err))
+				logger.Log(ctx, libLog.LevelWarn, "Error unmarshalling balance cache value", libLog.Err(err))
 
 				continue
 			}

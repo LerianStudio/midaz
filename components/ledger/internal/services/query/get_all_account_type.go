@@ -7,10 +7,9 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -24,12 +23,10 @@ import (
 
 // GetAllAccountType fetches all account types from the repository.
 func (uc *UseCase) GetAllAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.AccountType, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_account_type")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Retrieving account types")
 
 	accountTypes, cur, err := uc.AccountTypeRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
@@ -45,7 +42,7 @@ func (uc *UseCase) GetAllAccountType(ctx context.Context, organizationID, ledger
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get account types on repo", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting account types on repo: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting account types on repo", libLog.Err(err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}

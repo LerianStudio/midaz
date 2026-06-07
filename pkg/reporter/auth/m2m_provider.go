@@ -406,7 +406,7 @@ func (p *M2MCredentialProvider) getCredential(ctx context.Context, tenantID stri
 		p.storeInL2(ctx, tenantID, cred)
 	}
 
-	p.logger.Log(ctx, log.LevelInfo, "M2M credential refreshed from Secrets Manager",
+	p.logger.Log(ctx, log.LevelDebug, "M2M credential refreshed from Secrets Manager",
 		log.String("tenant_id", tenantID),
 		log.String("target_service", p.targetService),
 		log.String("cache_layer", "sm"),
@@ -523,7 +523,7 @@ func (p *M2MCredentialProvider) InvalidateCredentials(ctx context.Context, tenan
 	// (even if L2 failed, L1 is gone). The trigger label provides attribution.
 	p.metrics.Invalidations.Add(ctx, 1, p.invalidationMetricAttrs(tenantID, trigger))
 
-	p.logger.Log(ctx, log.LevelInfo, "M2M credential invalidated",
+	p.logger.Log(ctx, log.LevelDebug, "M2M credential invalidated",
 		log.String("tenant_id", tenantID),
 		log.String("target_service", p.targetService),
 		log.String("trigger", trigger),

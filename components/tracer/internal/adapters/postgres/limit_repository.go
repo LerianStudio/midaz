@@ -122,7 +122,7 @@ func (r *LimitRepository) createInternal(ctx context.Context, db pgdb.DB, lmt *m
 		libLog.String("operation", "repository.limit.create"),
 		libLog.String("limit.id", lmt.ID.String()),
 		libLog.String("limit.name", lmt.Name),
-	).Log(ctx, libLog.LevelInfo, "Creating limit")
+	).Log(ctx, libLog.LevelDebug, "Creating limit")
 
 	_, err = db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -169,7 +169,7 @@ func (r *LimitRepository) GetByID(ctx context.Context, limitID uuid.UUID) (*mode
 	logger.With(
 		libLog.String("operation", "repository.limit.get_by_id"),
 		libLog.String("limit.id", limitID.String()),
-	).Log(ctx, libLog.LevelInfo, "Getting limit by ID")
+	).Log(ctx, libLog.LevelDebug, "Getting limit by ID")
 
 	lmt, err := r.scanLimit(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
@@ -255,7 +255,7 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 		libLog.String("operation", "repository.limit.list"),
 		libLog.Int("filter.limit", filters.Limit),
 		libLog.Bool("filter.has_cursor", filters.Cursor != ""),
-	).Log(ctx, libLog.LevelInfo, "Listing limits")
+	).Log(ctx, libLog.LevelDebug, "Listing limits")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -312,7 +312,7 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 		libLog.String("operation", "repository.limit.list"),
 		libLog.Int("result.count", len(limits)),
 		libLog.Bool("result.has_more", hasMore),
-	).Log(ctx, libLog.LevelInfo, "Listed limits")
+	).Log(ctx, libLog.LevelDebug, "Listed limits")
 
 	return result, nil
 }
@@ -391,7 +391,7 @@ func (r *LimitRepository) updateInternal(ctx context.Context, db pgdb.DB, lmt *m
 	logger.With(
 		libLog.String("operation", "repository.limit.update"),
 		libLog.String("limit.id", lmt.ID.String()),
-	).Log(ctx, libLog.LevelInfo, "Updating limit")
+	).Log(ctx, libLog.LevelDebug, "Updating limit")
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -487,7 +487,7 @@ func (r *LimitRepository) updateStatusInternal(ctx context.Context, db pgdb.DB, 
 		libLog.String("operation", "repository.limit.update_status"),
 		libLog.String("limit.id", limitID.String()),
 		libLog.String("status", string(status)),
-	).Log(ctx, libLog.LevelInfo, "Updating limit status")
+	).Log(ctx, libLog.LevelDebug, "Updating limit status")
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {

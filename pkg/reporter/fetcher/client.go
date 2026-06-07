@@ -373,7 +373,7 @@ func (c *FetcherClient) doWithAuthRetry(ctx context.Context, req *http.Request) 
 	if retryResp.StatusCode >= 200 && retryResp.StatusCode < 300 {
 		outcome = "success"
 
-		logger.Log(retryCtx, log.LevelInfo, "Fetcher auth retry succeeded with fresh token",
+		logger.Log(retryCtx, log.LevelDebug, "Fetcher auth retry succeeded with fresh token",
 			log.String("endpoint", endpoint),
 			log.String("tenant_id", tenantID),
 			log.Int("attempt", 2),

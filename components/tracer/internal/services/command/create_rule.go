@@ -151,12 +151,6 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 	// Normalize name for storage and uniqueness check
 	normalizedName := NormalizeName(input.Name)
 
-	logger.With(
-		libLog.String("operation", "service.rule.create"),
-		libLog.String("rule.name", input.Name),
-		libLog.String("rule.name_normalized", normalizedName),
-	).Log(ctx, libLog.LevelInfo, "Creating rule")
-
 	// 1. Validate CEL expression syntax
 	_, err := c.cel.Compile(ctx, input.Expression)
 	if err != nil {
@@ -258,12 +252,6 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 
 		return nil, fmt.Errorf("failed to create rule: %w", txErr)
 	}
-
-	logger.With(
-		libLog.String("operation", "service.rule.create"),
-		libLog.String("rule.id", result.ID.String()),
-		libLog.String("rule.name", result.Name),
-	).Log(ctx, libLog.LevelInfo, "Rule created successfully")
 
 	return result, nil
 }

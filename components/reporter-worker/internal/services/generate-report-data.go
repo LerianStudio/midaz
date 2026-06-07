@@ -153,7 +153,7 @@ func (uc *UseCase) queryDatabase(
 	defer dbSpan.End()
 
 	dbSpan.SetAttributes(attribute.String("app.request.request_id", reqId))
-	uc.Logger.Log(ctx, log.LevelInfo, "Querying database", log.String("database", databaseName))
+	uc.Logger.Log(ctx, log.LevelDebug, "Querying database", log.String("database", databaseName))
 
 	dataSource, exists := uc.ExternalDataSources.Get(databaseName)
 	if !exists {
@@ -238,7 +238,7 @@ func (uc *UseCase) queryPostgresDatabase(
 		configuredSchemas = []string{"public"}
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Querying database with schemas",
+	uc.Logger.Log(ctx, log.LevelDebug, "Querying database with schemas",
 		log.String("database", databaseName), log.Any("schemas", configuredSchemas))
 
 	// Execute schema query with circuit breaker protection
@@ -303,7 +303,7 @@ func (uc *UseCase) queryPostgresDatabase(
 			return err
 		}
 
-		uc.Logger.Log(ctx, log.LevelInfo, "Resolved schema for table",
+		uc.Logger.Log(ctx, log.LevelDebug, "Resolved schema for table",
 			log.String("schema", schemaName), log.String("table", tableName), log.String("database", databaseName))
 
 		// Execute query with circuit breaker protection
@@ -330,11 +330,11 @@ func (uc *UseCase) queryPostgresDatabase(
 		}
 
 		if len(tableFilters) > 0 {
-			uc.Logger.Log(ctx, log.LevelInfo, "Successfully queried table with advanced filters",
+			uc.Logger.Log(ctx, log.LevelDebug, "Successfully queried table with advanced filters",
 				log.String("schema", schemaName), log.String("table", tableName),
 				log.String("circuit_breaker_state", uc.CircuitBreakerManager.GetState(databaseName)))
 		} else {
-			uc.Logger.Log(ctx, log.LevelInfo, "Successfully queried table",
+			uc.Logger.Log(ctx, log.LevelDebug, "Successfully queried table",
 				log.String("schema", schemaName), log.String("table", tableName),
 				log.String("circuit_breaker_state", uc.CircuitBreakerManager.GetState(databaseName)))
 		}
@@ -473,7 +473,7 @@ func (uc *UseCase) processPluginCRMCollection(
 	for _, physColl := range matchingCollections {
 		orgID := strings.TrimPrefix(physColl, prefix)
 
-		uc.Logger.Log(ctx, log.LevelInfo, "Querying plugin_crm org-scoped collection",
+		uc.Logger.Log(ctx, log.LevelDebug, "Querying plugin_crm org-scoped collection",
 			log.String("physical", physColl),
 			log.String("logical", collection),
 			log.String("organization_id", orgID),
@@ -497,7 +497,7 @@ func (uc *UseCase) processPluginCRMCollection(
 
 	span.SetAttributes(attribute.Int("app.request.plugin_crm.total_records", len(allResults)))
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Merged plugin_crm results",
+	uc.Logger.Log(ctx, log.LevelDebug, "Merged plugin_crm results",
 		log.String("collection", collection),
 		log.Int("total_records", len(allResults)),
 	)
@@ -602,11 +602,11 @@ func (uc *UseCase) queryMongoCollectionWithFilters(
 	}
 
 	if len(collectionFilters) > 0 {
-		uc.Logger.Log(ctx, log.LevelInfo, "Successfully queried collection with advanced filters",
+		uc.Logger.Log(ctx, log.LevelDebug, "Successfully queried collection with advanced filters",
 			log.String("collection", collection),
 			log.String("circuit_breaker_state", uc.CircuitBreakerManager.GetState(databaseName)))
 	} else {
-		uc.Logger.Log(ctx, log.LevelInfo, "Successfully queried collection",
+		uc.Logger.Log(ctx, log.LevelDebug, "Successfully queried collection",
 			log.String("collection", collection),
 			log.String("circuit_breaker_state", uc.CircuitBreakerManager.GetState(databaseName)))
 	}
@@ -731,7 +731,7 @@ func (uc *UseCase) transformPluginCRMAdvancedFilters(filter map[string]model.Fil
 			}
 
 			transformedFilter[searchField] = transformedCondition
-			uc.Logger.Log(context.Background(), log.LevelInfo, "Transformed advanced filter",
+			uc.Logger.Log(context.Background(), log.LevelDebug, "Transformed advanced filter",
 				log.String("from", fieldName), log.String("to", searchField))
 		} else {
 			// Keep non-mapped fields as-is

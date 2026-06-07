@@ -6,26 +6,23 @@ package pack
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 // SoftDelete a package entity into mongodb.
 func (pm *PackageMongoDBRepository) SoftDelete(ctx context.Context, id, organizationID uuid.UUID) error {
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.package.delete")
 	defer span.End()
@@ -47,7 +44,7 @@ func (pm *PackageMongoDBRepository) SoftDelete(ctx context.Context, id, organiza
 
 	coll := db.Collection(strings.ToLower(feeconstant.PackageCollection))
 
-	ctx, spanDelete := tracer.Start(ctx, "repository.package.delete.delete_one")
+	_, spanDelete := tracer.Start(ctx, "repository.package.delete.delete_one")
 	defer spanDelete.End()
 
 	spanDelete.SetAttributes(attributes...)
@@ -67,11 +64,11 @@ func (pm *PackageMongoDBRepository) SoftDelete(ctx context.Context, id, organiza
 	}
 
 	if deleted.MatchedCount == 0 {
-		libOpentelemetry.HandleSpanError(spanDelete, "No package found to delete", mongo.ErrNoDocuments)
-		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", feeconstant.PackageCollection)
-	}
+		bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", feeconstant.PackageCollection)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanDelete, "No package found to delete", bizErr)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Return from delete one: %v", deleted))
+		return bizErr
+	}
 
 	return nil
 }

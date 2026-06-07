@@ -77,11 +77,6 @@ func (s *DraftRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*mode
 		attribute.String("app.request.operation", "draft"),
 	)
 
-	logger.With(
-		libLog.String("operation", "service.rule.draft"),
-		libLog.String("rule.id", ruleID.String()),
-	).Log(ctx, libLog.LevelInfo, "Transitioning rule to draft")
-
 	rule, err := s.repository.GetByID(ctx, ruleID)
 	if err != nil {
 		if errors.Is(err, constant.ErrRuleNotFound) {
@@ -121,7 +116,7 @@ func (s *DraftRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*mode
 		logger.With(
 			libLog.String("operation", "service.rule.draft"),
 			libLog.String("rule.id", ruleID.String()),
-		).Log(ctx, libLog.LevelInfo, "Rule already in draft (idempotent no-op)")
+		).Log(ctx, libLog.LevelDebug, "Rule already in draft (idempotent no-op)")
 
 		return rule, nil
 	}
@@ -224,11 +219,6 @@ func (s *DraftRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*mode
 
 		return nil, fmt.Errorf("failed to transition rule to draft: %w", txErr)
 	}
-
-	logger.With(
-		libLog.String("operation", "service.rule.draft"),
-		libLog.String("rule.id", rule.ID.String()),
-	).Log(ctx, libLog.LevelInfo, "Rule transitioned to draft successfully")
 
 	return rule, nil
 }

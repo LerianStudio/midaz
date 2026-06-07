@@ -91,11 +91,6 @@ func (c *ActivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mode
 		attribute.String("app.request.operation", "activate"),
 	)
 
-	logger.With(
-		libLog.String("operation", "service.limit.activate"),
-		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Activating limit")
-
 	limit, err := c.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, constant.ErrLimitNotFound) {
@@ -134,7 +129,7 @@ func (c *ActivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mode
 		logger.With(
 			libLog.String("operation", "service.limit.activate"),
 			libLog.String("limit.id", id.String()),
-		).Log(ctx, libLog.LevelInfo, "Limit already active (idempotent no-op)")
+		).Log(ctx, libLog.LevelDebug, "Limit already active (idempotent no-op)")
 
 		return limit, nil
 	}
@@ -202,12 +197,6 @@ func (c *ActivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mode
 	if txErr != nil {
 		return nil, fmt.Errorf("failed to activate limit: %w", txErr)
 	}
-
-	logger.With(
-		libLog.String("operation", "service.limit.activate"),
-		libLog.String("limit.id", id.String()),
-		libLog.String("limit.status", string(limit.Status)),
-	).Log(ctx, libLog.LevelInfo, "Limit activated successfully")
 
 	return limit, nil
 }

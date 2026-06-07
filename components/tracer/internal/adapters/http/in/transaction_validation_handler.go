@@ -83,11 +83,6 @@ func (h *TransactionValidationHandler) GetTransactionValidation(c *fiber.Ctx) er
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityTransactionValidation, "id"))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.transaction-validation.get"),
-		libLog.String("transaction_validation.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Getting transaction validation record")
-
 	result, err := h.service.GetTransactionValidation(ctx, id)
 	if err != nil {
 		return handleTransactionValidationServiceError(c, span, err)
@@ -97,7 +92,7 @@ func (h *TransactionValidationHandler) GetTransactionValidation(c *fiber.Ctx) er
 		libLog.String("operation", "handler.transaction-validation.get"),
 		libLog.String("transaction_validation.id", result.ID.String()),
 		libLog.String("transaction_validation.decision", string(result.Decision)),
-	).Log(ctx, libLog.LevelInfo, "Transaction validation record retrieved")
+	).Log(ctx, libLog.LevelDebug, "Transaction validation record retrieved")
 
 	return http.OK(c, result)
 }
@@ -157,14 +152,6 @@ func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) 
 	// Apply defaults after validation
 	input.SetDefaults()
 
-	logger.With(
-		libLog.String("operation", "handler.transaction-validation.list"),
-		libLog.Any("list.limit", input.Limit),
-		libLog.String("list.cursor", input.Cursor),
-		libLog.String("list.sort_by", input.SortBy),
-		libLog.String("list.sort_order", input.SortOrder),
-	).Log(ctx, libLog.LevelInfo, "Listing transaction validation records")
-
 	// Convert to service filter
 	filters, err := ToTransactionValidationFilters(&input)
 	if err != nil {
@@ -185,7 +172,7 @@ func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) 
 		libLog.String("operation", "handler.transaction-validation.list"),
 		libLog.Int("list.count", len(response.TransactionValidations)),
 		libLog.Bool("list.has_more", response.HasMore),
-	).Log(ctx, libLog.LevelInfo, "Transaction validation records listed")
+	).Log(ctx, libLog.LevelDebug, "Transaction validation records listed")
 
 	return http.OK(c, response)
 }

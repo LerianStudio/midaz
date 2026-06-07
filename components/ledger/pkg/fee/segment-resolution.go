@@ -12,7 +12,6 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/google/uuid"
@@ -84,42 +83,31 @@ func isAccountExemptWithSegments(
 		return false, nil
 	}
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "fee.segment_resolution.check_account_segment")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Resolving segment for account: alias=%s", account))
-
 	accountDetails, err := resolver.GetAccountByAlias(ctx, organizationID, ledgerID, account)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to resolve account segment for exemption check", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Segment resolution failed for account %s: %v", account, err))
 
 		return false, fmt.Errorf("segment resolution failed for account %s: %w", account, err)
 	}
 
 	if accountDetails == nil {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Account details not found for alias=%s — treating as non-exempt", account))
-
 		return false, nil
 	}
 
 	if accountDetails.SegmentID == nil {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Account alias=%s has no segmentID — treating as non-exempt", account))
-
 		return false, nil
 	}
 
 	for _, segID := range segmentIDs {
 		if *accountDetails.SegmentID == segID {
-			logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Account alias=%s is exempt via segmentID=%s", account, segID))
-
 			return true, nil
 		}
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Account alias=%s segmentID=%s does not match any waived segment — not exempt", account, *accountDetails.SegmentID))
 
 	return false, nil
 }

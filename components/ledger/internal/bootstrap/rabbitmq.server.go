@@ -13,8 +13,8 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/lib-observability/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -77,7 +77,7 @@ func handlerBTO(ctx context.Context, body []byte, useCase *command.UseCase) erro
 		return err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Processing message from balance_retry_queue_fifo")
+	logger.Log(ctx, libLog.LevelDebug, "Processing message from balance_retry_queue_fifo")
 
 	var message mmodel.Queue
 
@@ -85,18 +85,16 @@ func handlerBTO(ctx context.Context, body []byte, useCase *command.UseCase) erro
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Error unmarshalling message JSON", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error unmarshalling balance message JSON: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error unmarshalling balance message JSON", libLog.Err(err))
 
 		return err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction message consumed: %s", message.QueueData[0].ID))
 
 	err = useCase.CreateBalanceTransactionOperationsAsync(ctx, message)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Error creating transaction", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating transaction: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error creating transaction", libLog.Err(err))
 
 		return err
 	}
@@ -126,7 +124,7 @@ func handlerBTOBulk(ctx context.Context, messages []amqp.Delivery, useCase *comm
 
 	startTime := time.Now()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Processing bulk of %d messages from balance_queue", len(messages)))
+	logger.Log(ctx, libLog.LevelDebug, "Processing bulk from balance_queue", libLog.Int("message_count", len(messages)))
 
 	// Extract payloads from all messages
 	payloads := make([]transaction.TransactionProcessingPayload, 0, len(messages))
@@ -136,7 +134,7 @@ func handlerBTOBulk(ctx context.Context, messages []amqp.Delivery, useCase *comm
 
 		if err := msgpack.Unmarshal(msg.Body, &queueMsg); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Error unmarshalling message in bulk", err)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error unmarshalling message %d in bulk: %v", i, err))
+			logger.Log(ctx, libLog.LevelError, "Error unmarshalling message in bulk", libLog.Int("message_index", i), libLog.Err(err))
 
 			// Return error to trigger fallback processing
 			return nil, fmt.Errorf("failed to unmarshal message %d: %w", i, err)
@@ -144,7 +142,7 @@ func handlerBTOBulk(ctx context.Context, messages []amqp.Delivery, useCase *comm
 
 		// Extract payload from queue data
 		if len(queueMsg.QueueData) == 0 {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Message %d has empty QueueData, skipping", i))
+			logger.Log(ctx, libLog.LevelWarn, "Message has empty QueueData, skipping", libLog.Int("message_index", i))
 
 			continue
 		}
@@ -152,7 +150,7 @@ func handlerBTOBulk(ctx context.Context, messages []amqp.Delivery, useCase *comm
 		var payload transaction.TransactionProcessingPayload
 		if err := msgpack.Unmarshal(queueMsg.QueueData[0].Value, &payload); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Error unmarshalling payload in bulk", err)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error unmarshalling payload %d in bulk: %v", i, err))
+			logger.Log(ctx, libLog.LevelError, "Error unmarshalling payload in bulk", libLog.Int("payload_index", i), libLog.Err(err))
 
 			// Return error to trigger fallback processing
 			return nil, fmt.Errorf("failed to unmarshal payload %d: %w", i, err)
@@ -168,13 +166,13 @@ func handlerBTOBulk(ctx context.Context, messages []amqp.Delivery, useCase *comm
 		return nil, nil
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Processing %d payloads in bulk", len(payloads)))
+	logger.Log(ctx, libLog.LevelDebug, "Processing payloads in bulk", libLog.Int("payload_count", len(payloads)))
 
 	// Call bulk processing
 	result, err := useCase.CreateBulkTransactionOperationsAsync(ctx, payloads)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Bulk transaction processing failed", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Bulk transaction processing failed: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Bulk transaction processing failed", libLog.Err(err))
 
 		// Return error to trigger fallback processing
 		return nil, err
@@ -189,7 +187,8 @@ func handlerBTOBulk(ctx context.Context, messages []amqp.Delivery, useCase *comm
 		recordBulkOTelMetrics(ctx, metricsFactory, result, payloads, duration)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Bulk processing completed successfully for %d payloads", len(payloads)),
+	logger.Log(ctx, libLog.LevelDebug, "Bulk processing completed successfully",
+		libLog.Int("payload_count", len(payloads)),
 		libLog.Any("transactions_attempted", result.TransactionsAttempted),
 		libLog.Any("transactions_inserted", result.TransactionsInserted),
 		libLog.Any("transactions_ignored", result.TransactionsIgnored),

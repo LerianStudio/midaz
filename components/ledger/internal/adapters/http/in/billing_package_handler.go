@@ -59,7 +59,7 @@ type BillingPackageHandler struct {
 func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_billing_package")
 	defer span.End()
@@ -76,7 +76,6 @@ func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) 
 
 	payload := p.(*model.BillingPackage)
 	payload.OrganizationID = organizationID.String()
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create billing package: type=%s", payload.Type))
 
 	span.SetAttributes(
 		attribute.String("app.request.payload.type", payload.Type),
@@ -96,8 +95,6 @@ func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) 
 	if result == nil {
 		return http.WithError(c, fmt.Errorf("service returned nil result without error"))
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully created billing package: %v", result.ID))
 
 	return commonsHttp.Respond(c, fiber.StatusCreated, result)
 }
@@ -123,7 +120,7 @@ func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) 
 func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_billing_packages")
 	defer span.End()
@@ -187,8 +184,6 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 		return http.WithError(c, errGet)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved all billing packages: count=%d, total=%d", len(results), total))
-
 	pagination := model.Pagination{
 		Limit: limit,
 		Page:  page,
@@ -249,8 +244,6 @@ func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error 
 		return http.WithError(c, errGet)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved BillingPackage with ID: %s", id.String()))
-
 	return commonsHttp.Respond(c, fiber.StatusOK, result)
 }
 
@@ -276,7 +269,7 @@ func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error 
 func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_billing_package")
 	defer span.End()
@@ -298,7 +291,6 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 	)
 
 	payload := p.(*model.BillingPackageUpdate)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update billing package: id=%s, fields=%d", id.String(), len(payload.ToMap())))
 
 	span.SetAttributes(
 		attribute.Bool("app.request.payload.has_label", payload.Label != nil),
@@ -326,8 +318,6 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 
 		return http.WithError(c, errUpdate)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated BillingPackage with ID: %s", id.String()))
 
 	return commonsHttp.Respond(c, fiber.StatusOK, result)
 }
@@ -378,8 +368,6 @@ func (handler *BillingPackageHandler) DeleteBillingPackage(c *fiber.Ctx) error {
 
 		return http.WithError(c, errDelete)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed BillingPackage with ID: %s", id.String()))
 
 	return commonsHttp.RespondStatus(c, fiber.StatusNoContent)
 }

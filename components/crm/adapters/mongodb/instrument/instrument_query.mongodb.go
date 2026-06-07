@@ -10,7 +10,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/google/uuid"
@@ -37,7 +37,7 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 	db, err := am.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	skip := int64(query.Page*query.Limit - query.Limit)
 	opts := options.Find().SetLimit(limit).SetSkip(skip).SetSort(bson.D{{Key: "_id", Value: 1}})
 
-	ctx, spanFind := tracer.Start(ctx, "mongodb.find_all_alias.find")
+	_, spanFind := tracer.Start(ctx, "mongodb.find_all_alias.find")
 	defer spanFind.End()
 
 	spanFind.SetAttributes(attributes...)
@@ -67,20 +67,20 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 	filter, err := am.buildAliasFilter(query, holderID, includeDeleted)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanFind, "Invalid metadata value", err)
+		recordSpanError(spanFind, "Invalid metadata value", err)
 		return nil, err
 	}
 
 	cursor, err := coll.Find(ctx, filter, opts)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanFind, "Failed to find aliases", err)
+		libOpentelemetry.HandleSpanError(spanFind, "Failed to find aliases", err)
 
 		return nil, err
 	}
 
 	defer func() {
 		if closeErr := cursor.Close(ctx); closeErr != nil {
-			libOpenTelemetry.HandleSpanError(span, "Failed to close cursor", closeErr)
+			libOpentelemetry.HandleSpanError(span, "Failed to close cursor", closeErr)
 		}
 	}()
 
@@ -89,7 +89,7 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	for cursor.Next(ctx) {
 		var holder MongoDBModel
 		if err := cursor.Decode(&holder); err != nil {
-			libOpenTelemetry.HandleSpanError(span, "Failed to decode aliases", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to decode aliases", err)
 
 			return nil, err
 		}
@@ -98,7 +98,7 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	}
 
 	if err := cursor.Err(); err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to iterate aliases", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate aliases", err)
 
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	for i, alias := range aliases {
 		results[i], err = alias.ToEntity(am.DataSecurity)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
 
 			return nil, err
 		}
@@ -203,14 +203,14 @@ func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, h
 
 	db, err := am.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return 0, err
 	}
 
 	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
-	ctx, spanCount := tracer.Start(ctx, "mongodb.find_all_alias.find")
+	_, spanCount := tracer.Start(ctx, "mongodb.find_all_alias.find")
 	defer spanCount.End()
 
 	spanCount.SetAttributes(attributes...)
@@ -222,7 +222,7 @@ func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, h
 
 	count, err := coll.CountDocuments(ctx, filter)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanCount, "Failed to count aliases by holder", err)
+		libOpentelemetry.HandleSpanError(spanCount, "Failed to count aliases by holder", err)
 
 		return 0, err
 	}

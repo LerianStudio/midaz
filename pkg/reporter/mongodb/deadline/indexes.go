@@ -39,7 +39,7 @@ func (dr *DeadlineMongoDBRepository) EnsureIndexes(ctx context.Context) error {
 		attribute.String("app.request.request_id", reqID),
 		attribute.String("app.request.collection", constant.MongoCollectionDeadline),
 	)
-	logger.Log(ctx, log.LevelInfo, "Creating indexes for collection", log.String("collection", constant.MongoCollectionDeadline))
+	logger.Log(ctx, log.LevelDebug, "Creating indexes for collection", log.String("collection", constant.MongoCollectionDeadline))
 
 	db, err := dr.connection.GetDB(ctx)
 	if err != nil {
@@ -63,7 +63,7 @@ func (dr *DeadlineMongoDBRepository) EnsureIndexes(ctx context.Context) error {
 				log.Err(errDrop))
 		}
 	} else {
-		logger.Log(ctx, log.LevelInfo, "Dropped legacy deadline unique index",
+		logger.Log(ctx, log.LevelDebug, "Dropped legacy deadline unique index",
 			log.String("index", "idx_deadline_unique_name_type_duedate_freq"))
 	}
 
@@ -147,17 +147,17 @@ func (dr *DeadlineMongoDBRepository) EnsureIndexes(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, constant.MongoIndexCreateTimeout)
 	defer cancel()
 
-	logger.Log(ctx, log.LevelInfo, "Attempting to create indexes for collection", log.Int("index_count", len(indexes)), log.String("collection", constant.MongoCollectionDeadline))
+	logger.Log(ctx, log.LevelDebug, "Attempting to create indexes for collection", log.Int("index_count", len(indexes)), log.String("collection", constant.MongoCollectionDeadline))
 
 	indexNames, err := coll.Indexes().CreateMany(ctx, indexes)
 	if err != nil {
 		if strings.Contains(err.Error(), "already exists") {
-			logger.Log(ctx, log.LevelInfo, "Indexes already exist (detected during creation)", log.String("collection", constant.MongoCollectionDeadline))
+			logger.Log(ctx, log.LevelDebug, "Indexes already exist (detected during creation)", log.String("collection", constant.MongoCollectionDeadline))
 			return nil
 		}
 
 		if isIndexOptionsConflict(err) {
-			logger.Log(ctx, log.LevelInfo, "Index definition drift detected, dropping conflicting indexes and recreating", log.String("collection", constant.MongoCollectionDeadline))
+			logger.Log(ctx, log.LevelDebug, "Index definition drift detected, dropping conflicting indexes and recreating", log.String("collection", constant.MongoCollectionDeadline))
 
 			if errRecreate := recreateIndexes(ctx, coll, indexes, logger); errRecreate != nil {
 				libOpentelemetry.HandleSpanError(span, "Failed to recreate indexes after conflict", errRecreate)
@@ -184,7 +184,7 @@ func (dr *DeadlineMongoDBRepository) EnsureIndexes(ctx context.Context) error {
 				return errRetry
 			}
 
-			logger.Log(ctx, log.LevelInfo, "Indexes created after deduplication", log.String("collection", constant.MongoCollectionDeadline))
+			logger.Log(ctx, log.LevelDebug, "Indexes created after deduplication", log.String("collection", constant.MongoCollectionDeadline))
 
 			return nil
 		}
@@ -195,7 +195,7 @@ func (dr *DeadlineMongoDBRepository) EnsureIndexes(ctx context.Context) error {
 		return err
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Successfully created indexes for collection", log.Int("index_count", len(indexNames)), log.String("collection", constant.MongoCollectionDeadline), log.Any("index_names", indexNames))
+	logger.Log(ctx, log.LevelDebug, "Successfully created indexes for collection", log.Int("index_count", len(indexNames)), log.String("collection", constant.MongoCollectionDeadline), log.Any("index_names", indexNames))
 
 	return nil
 }
@@ -218,7 +218,7 @@ func recreateIndexes(ctx context.Context, coll *mongo.Collection, indexes []mong
 		}
 
 		// Only this specific index conflicted — drop and recreate it
-		logger.Log(ctx, log.LevelInfo, "Dropping conflicting index for recreation", log.String("index", *name))
+		logger.Log(ctx, log.LevelDebug, "Dropping conflicting index for recreation", log.String("index", *name))
 
 		dropCtx, dropCancel := context.WithTimeout(ctx, constant.MongoIndexDropTimeout)
 
@@ -235,7 +235,7 @@ func recreateIndexes(ctx context.Context, coll *mongo.Collection, indexes []mong
 			return fmt.Errorf("failed to recreate index %q: %w", *name, err)
 		}
 
-		logger.Log(ctx, log.LevelInfo, "Successfully recreated index", log.String("index", *name))
+		logger.Log(ctx, log.LevelDebug, "Successfully recreated index", log.String("index", *name))
 	}
 
 	return nil
@@ -324,7 +324,7 @@ func deduplicateDeadlines(ctx context.Context, coll *mongo.Collection, logger lo
 		return fmt.Errorf("cursor error while deduplicating: %w", err)
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Deadline deduplication complete",
+	logger.Log(ctx, log.LevelDebug, "Deadline deduplication complete",
 		log.Any("soft_deleted_count", totalRemoved))
 
 	return nil
@@ -375,7 +375,7 @@ func dropLegacyTemplateScopedUniqueIndex(ctx context.Context, coll *mongo.Collec
 			return fmt.Errorf("drop legacy %q: %w", indexName, dropErr)
 		}
 
-		logger.Log(ctx, log.LevelInfo,
+		logger.Log(ctx, log.LevelDebug,
 			"Dropped legacy template-scoped unique index for DocumentDB-compatible recreation",
 			log.String("index", indexName))
 

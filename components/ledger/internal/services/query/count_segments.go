@@ -7,9 +7,8 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -20,33 +19,29 @@ import (
 
 // CountSegments returns the number of segments for the specified organization and ledger.
 func (uc *UseCase) CountSegments(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.count_segments")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Counting segments for organization %s and ledger %s", organizationID, ledgerID))
 
 	count, err := uc.SegmentRepo.Count(ctx, organizationID, ledgerID)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, constant.EntitySegment)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("No segments found for organization: %s", organizationID.String()))
+			logger.Log(ctx, libLog.LevelWarn, "No segments found for organization")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count segments on repo", err)
 
 			return 0, err
 		}
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error counting segments on repo: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error counting segments on repo", libLog.Err(err))
 
 		libOpentelemetry.HandleSpanError(span, "Failed to count segments on repo", err)
 
 		return 0, err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Found %d segments for organization %s and ledger %s", count, organizationID, ledgerID))
 
 	return count, nil
 }

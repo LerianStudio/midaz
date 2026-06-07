@@ -85,8 +85,6 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 		feeAsset = defaultCurrency
 	}
 
-	logger.Log(context.TODO(), libLog.LevelInfo, "Trying to calculate a fee")
-
 	originalTransactionValue := f.Transaction.Send.Value
 
 	fees := make([]model.Fee, 0, len(p.Fees))
@@ -111,7 +109,6 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 	// Resolve segment-based waivedAccounts: split into direct aliases and segment UUIDs.
 	directAliases, segmentIDs, resolveErr := resolveSegmentWaivedAccounts(waivedAccounts)
 	if resolveErr != nil {
-		logger.Log(context.TODO(), libLog.LevelError, fmt.Sprintf("Invalid waivedAccounts configuration: %v", resolveErr))
 		return resolveErr
 	}
 
@@ -126,16 +123,10 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 
 		switch fee.CalculationModel.ApplicationRule {
 		case feeconstant.AppRuleMaxBetweenTypes:
-			logger.Log(context.TODO(), libLog.LevelInfo, fmt.Sprintf("Calculating fee with app rule maxBetweenTypes (feeIndex=%d)", feeIndex))
-
 			result, err = calculateMaxBetweenTypesFee(fee, valueToCalculate, feeAsset)
 		case feeconstant.AppRuleFlatFee:
-			logger.Log(context.TODO(), libLog.LevelInfo, fmt.Sprintf("Calculating fee with app rule flatFee (feeIndex=%d)", feeIndex))
-
 			result, err = calculateFlatFee(fee, feeAsset)
 		case feeconstant.AppRulePercentual:
-			logger.Log(context.TODO(), libLog.LevelInfo, fmt.Sprintf("Calculating fee with app rule percentual (feeIndex=%d)", feeIndex))
-
 			result, err = calculatePercentualFee(fee, valueToCalculate, feeAsset)
 		default:
 			return pkg.ValidateBusinessError(constant.ErrApplicationRule, "", fmt.Sprintf("unknown application rule: %s", fee.CalculationModel.ApplicationRule))
@@ -151,12 +142,9 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 		// fee total exactly without any asset-scale rounding.
 
 		if err := applyDeductibleAndReferenceAmountRules(logger, feeIndex, directAliasesPtr, segmentIDs, segCtx, fee, resp, result, f); err != nil {
-			logger.Log(context.TODO(), libLog.LevelError, fmt.Sprintf("Fee distribution failed due to segment resolution error: %v", err))
 			return err
 		}
 	}
-
-	logger.Log(context.TODO(), libLog.LevelInfo, "Fee calculated successfully")
 
 	f.Transaction.Send.Source.From = updatedAmountsFromFee(resp.From)
 	f.Transaction.Send.Distribute.To = updatedAmountsFromFee(resp.To)

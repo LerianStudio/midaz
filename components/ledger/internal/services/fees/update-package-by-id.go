@@ -7,7 +7,6 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
@@ -43,8 +42,6 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uui
 		attribute.String("app.request.package_id", id.String()),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, "Trying to update package", libLog.String("package_id", id.String()))
-
 	setOperationFields, unsetOperationFields, errUpdateFields := uc.buildUpdateFields(ctx, logger, id, organizationID, up)
 	if errUpdateFields != nil {
 		return errUpdateFields
@@ -61,13 +58,14 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uui
 
 	err := uc.packageRepo.Update(ctx, id, organizationID, &updateFields)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to update organization on repo by id", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating package on repo by id: %v", err))
-
 		if errors.Is(err, ErrDatabaseItemNotFound) {
-			return pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)
+			bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Package not found for update", bizErr)
+
+			return bizErr
 		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to update package on repo by id", err)
 
 		return err
 	}

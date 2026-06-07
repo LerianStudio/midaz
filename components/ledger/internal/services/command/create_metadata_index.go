@@ -6,10 +6,9 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -20,18 +19,16 @@ import (
 )
 
 func (uc *UseCase) CreateMetadataIndex(ctx context.Context, entityName string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_metadata_index")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initializing the create metadata index operation: entityName=%s, input=%v", entityName, input))
 
 	existingIndexes, err := uc.TransactionMetadataRepo.FindAllIndexes(ctx, entityName)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check existing indexes", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to check existing indexes: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to check existing indexes", libLog.Err(err))
 
 		return nil, err
 	}
@@ -41,7 +38,7 @@ func (uc *UseCase) CreateMetadataIndex(ctx context.Context, entityName string, i
 		if idx.MetadataKey == input.MetadataKey {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Metadata index already exists", nil)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Metadata index already exists for key: %s", input.MetadataKey))
+			logger.Log(ctx, libLog.LevelWarn, "Metadata index already exists", libLog.String("metadata_key", input.MetadataKey))
 
 			return nil, pkg.ValidateBusinessError(constant.ErrMetadataIndexAlreadyExists, "MetadataIndex", strings.ToLower(input.MetadataKey))
 		}
@@ -51,7 +48,7 @@ func (uc *UseCase) CreateMetadataIndex(ctx context.Context, entityName string, i
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create metadata index", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create metadata index: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create metadata index", libLog.Err(err))
 
 		return nil, err
 	}

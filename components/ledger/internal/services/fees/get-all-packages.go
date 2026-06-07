@@ -9,7 +9,6 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
@@ -19,7 +18,7 @@ import (
 
 // GetAllPackages fetch all Packages from the repository
 func (uc *UseCase) GetAllPackages(ctx context.Context, filters http.QueryHeader, organizationID uuid.UUID) ([]*pack.Package, error) {
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.get_all_packages")
 	defer span.End()
@@ -28,8 +27,6 @@ func (uc *UseCase) GetAllPackages(ctx context.Context, filters http.QueryHeader,
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 	)
-
-	logger.Log(ctx, libLog.LevelInfo, "Retrieving packages")
 
 	filters.OrganizationID = organizationID
 

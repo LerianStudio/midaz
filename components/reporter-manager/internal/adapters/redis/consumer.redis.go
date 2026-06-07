@@ -69,7 +69,7 @@ func (rc *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 		return err
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Redis Set", log.String("key", key), log.Any("ttl", ttl))
+	logger.Log(ctx, log.LevelDebug, "Redis Set", log.String("key", key), log.Any("ttl", ttl))
 
 	err = rds.Set(ctx, tenantKey, value, ttl).Err()
 	if err != nil {
@@ -209,7 +209,7 @@ func (rc *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 		return err
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Redis Del completed", log.String("key", key), log.Any("deleted_count", val))
+	logger.Log(ctx, log.LevelDebug, "Redis Del completed", log.String("key", key), log.Any("deleted_count", val))
 
 	return nil
 }

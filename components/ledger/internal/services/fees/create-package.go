@@ -6,11 +6,9 @@ package services
 
 import (
 	"context"
-	"fmt"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
@@ -25,8 +23,6 @@ import (
 // CreatePackage creates a new pack persists data in the repository.
 func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageInput, organizationID, ledgerID, segmentID uuid.UUID) (*pack.Package, error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	logger.Log(ctx, libLog.LevelInfo, "Trying to create a pack")
 
 	ctx, span := tracer.Start(ctx, "service.create_package")
 	defer span.End()
@@ -84,19 +80,14 @@ func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageIn
 
 	resultPackModel, err := uc.packageRepo.Create(ctx, packModel, organizationID)
 	if err != nil {
-		spanMsg := "Failed to create package on repo"
-
 		if mongo.IsDuplicateKeyError(err) {
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating a pack, Error: %v", err))
+			bizErr := pkg.ValidateBusinessError(constant.ErrDuplicatePackage, constant.EntityPackage)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Duplicate package on create", bizErr)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, spanMsg, err)
-
-			return nil, pkg.ValidateBusinessError(constant.ErrDuplicatePackage, constant.EntityPackage)
+			return nil, bizErr
 		}
 
-		libOpentelemetry.HandleSpanError(span, spanMsg, err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating a pack, Error: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to create package on repo", err)
 
 		return nil, err
 	}

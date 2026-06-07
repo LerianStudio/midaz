@@ -6,9 +6,8 @@ package query
 
 import (
 	"context"
-	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -19,18 +18,16 @@ import (
 )
 
 func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_transaction_by_id")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Trying to get transaction")
 
 	tran, err := uc.TransactionRepo.Find(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get transaction on repo by id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting transaction: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting transaction", libLog.Err(err))
 
 		return nil, err
 	}
@@ -40,7 +37,7 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb account", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb account: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb account", libLog.Err(err))
 
 			return nil, err
 		}
@@ -55,18 +52,16 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 
 // GetTransactionWithOperationsByID gets data in the repository.
 func (uc *UseCase) GetTransactionWithOperationsByID(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_transaction_and_operations_by_id")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Trying to get transaction")
 
 	tran, err := uc.TransactionRepo.FindWithOperations(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction on repo by id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting transaction: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting transaction", libLog.Err(err))
 
 		return nil, err
 	}
@@ -76,7 +71,7 @@ func (uc *UseCase) GetTransactionWithOperationsByID(ctx context.Context, organiz
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb account", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb account: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb account", libLog.Err(err))
 
 			return nil, err
 		}

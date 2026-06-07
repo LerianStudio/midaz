@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
@@ -36,8 +34,6 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	ctx, span := tracer.Start(ctx, "command.create_asset")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create asset organizationID=%s ledgerID=%s code=%s", organizationID.String(), ledgerID.String(), cii.Code))
-
 	var status mmodel.Status
 	if cii.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cii.Status.Code) {
 		status = mmodel.Status{
@@ -50,7 +46,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	status.Description = cii.Status.Description
 
 	if err := utils.ValidateType(cii.Type); err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidType, reflect.TypeOf(mmodel.Asset{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrInvalidType, constant.EntityAsset)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate asset type", err)
 
@@ -63,7 +59,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	if cii.Type == "currency" {
 		if err := utils.ValidateCurrency(cii.Code); err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrCurrencyCodeStandardCompliance, reflect.TypeOf(mmodel.Asset{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrCurrencyCodeStandardCompliance, constant.EntityAsset)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate asset currency", err)
 
@@ -75,7 +71,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find asset by name or code", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating asset: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error creating asset", libLog.Err(err))
 
 		return nil, err
 	}
@@ -95,18 +91,18 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating asset: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error creating asset", libLog.Err(err))
 
 		return nil, err
 	}
 
 	uc.emitAssetCreatedEvent(ctx, span, logger, inst)
 
-	metadata, err := uc.CreateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), inst.ID, cii.Metadata)
+	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityAsset, inst.ID, cii.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset metadata", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating asset metadata: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error creating asset metadata", libLog.Err(err))
 
 		return nil, err
 	}
@@ -120,14 +116,12 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve asset external account", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error retrieving asset external account: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error retrieving asset external account", libLog.Err(err))
 
 		return nil, err
 	}
 
 	if len(account) == 0 {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Creating external account for asset: %s", cii.Code))
-
 		externalAccountID, err := libCommons.GenerateUUIDv7()
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to generate external account ID", err)
@@ -160,12 +154,10 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset external account", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating asset external account: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Error creating asset external account", libLog.Err(err))
 
 			return nil, err
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("External account created for asset %s with alias %s", cii.Code, aAlias))
 
 		balanceInput := mmodel.CreateBalanceInput{
 			RequestID:      requestID,
@@ -184,7 +176,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create default balance", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create default balance: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to create default balance", libLog.Err(err))
 
 			var (
 				unauthorized pkg.UnauthorizedError
@@ -195,10 +187,9 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 				return nil, err
 			}
 
-			return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, constant.EntityAccount)
 		}
 
-		logger.Log(ctx, libLog.LevelInfo, "External account default balance created")
 	}
 
 	return inst, nil
@@ -206,23 +197,21 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 // validateAssetCode checks the provided asset code and maps validation errors to business errors.
 func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.validate_asset_code")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Validating asset code: %s", code))
-
 	if err := utils.ValidateCode(code); err != nil {
 		switch err.Error() {
 		case constant.ErrInvalidCodeFormat.Error():
-			mapped := pkg.ValidateBusinessError(constant.ErrInvalidCodeFormat, reflect.TypeOf(mmodel.Asset{}).Name())
+			mapped := pkg.ValidateBusinessError(constant.ErrInvalidCodeFormat, constant.EntityAsset)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate asset code", mapped)
 
 			return mapped
 		case constant.ErrCodeUppercaseRequirement.Error():
-			mapped := pkg.ValidateBusinessError(constant.ErrCodeUppercaseRequirement, reflect.TypeOf(mmodel.Asset{}).Name())
+			mapped := pkg.ValidateBusinessError(constant.ErrCodeUppercaseRequirement, constant.EntityAsset)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate asset code", mapped)
 

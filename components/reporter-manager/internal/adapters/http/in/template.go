@@ -77,7 +77,7 @@ func (th *TemplateHandler) CreateTemplate(c *fiber.Ctx) error {
 	ctx = context.WithValue(ctx, constant.IdempotencyReplayedCtx, &replayed)
 	c.SetUserContext(ctx)
 
-	th.service.Logger.Log(ctx, log.LevelInfo, "Request to create template")
+	th.service.Logger.Log(ctx, log.LevelDebug, "Request to create template")
 
 	outputFormat := c.FormValue("outputFormat")
 	description := c.FormValue("description")
@@ -131,7 +131,7 @@ func (th *TemplateHandler) CreateTemplate(c *fiber.Ctx) error {
 		return netHTTP.WithError(c, err)
 	}
 
-	th.service.Logger.Log(ctx, log.LevelInfo, "Successfully created template", log.String("template_id", templateOut.ID.String()))
+	th.service.Logger.Log(ctx, log.LevelDebug, "Successfully created template", log.String("template_id", templateOut.ID.String()))
 
 	if replayed {
 		c.Set(libConstants.IdempotencyReplayed, "true")
@@ -170,7 +170,7 @@ func (th *TemplateHandler) GetTemplateByID(c *fiber.Ctx) error {
 		return netHTTP.WithError(c, pkgErr.ValidateBusinessError(cnErr.ErrInvalidPathParameter, "", "id"))
 	}
 
-	th.service.Logger.Log(ctx, log.LevelInfo, "Initiating get template", log.String("template_id", id.String()))
+	th.service.Logger.Log(ctx, log.LevelDebug, "Initiating get template", log.String("template_id", id.String()))
 	span.SetAttributes(attribute.String("app.request.request_id", reqId), attribute.String("app.request.template_id", id.String()))
 
 	templateModel, err := th.service.GetTemplateByID(ctx, id)
@@ -186,7 +186,7 @@ func (th *TemplateHandler) GetTemplateByID(c *fiber.Ctx) error {
 		return netHTTP.WithError(c, err)
 	}
 
-	th.service.Logger.Log(ctx, log.LevelInfo, "Successfully retrieved template", log.String("template_id", id.String()))
+	th.service.Logger.Log(ctx, log.LevelDebug, "Successfully retrieved template", log.String("template_id", id.String()))
 
 	return commonsHttp.Respond(c, fiber.StatusOK, templateModel)
 }
@@ -223,7 +223,7 @@ func (th *TemplateHandler) GetAllTemplates(c *fiber.Ctx) error {
 
 	pagination := model.Pagination{Limit: headerParams.Limit, Page: headerParams.Page}
 
-	th.service.Logger.Log(ctx, log.LevelInfo, "Initiating retrieval all templates")
+	th.service.Logger.Log(ctx, log.LevelDebug, "Initiating retrieval all templates")
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.Int("app.request.limit", headerParams.Limit),
@@ -255,7 +255,7 @@ func (th *TemplateHandler) GetAllTemplates(c *fiber.Ctx) error {
 		return netHTTP.WithError(c, err)
 	}
 
-	th.service.Logger.Log(ctx, log.LevelInfo, "Successfully retrieved all templates")
+	th.service.Logger.Log(ctx, log.LevelDebug, "Successfully retrieved all templates")
 	pagination.SetItems(templates)
 	pagination.SetTotal(int(total))
 
@@ -293,7 +293,7 @@ func (th *TemplateHandler) UpdateTemplateByID(c *fiber.Ctx) error {
 		return netHTTP.WithError(c, pkgErr.ValidateBusinessError(cnErr.ErrInvalidPathParameter, "", "id"))
 	}
 
-	th.service.Logger.Log(ctx, log.LevelInfo, "Initiating update of template", log.String("template_id", id.String()))
+	th.service.Logger.Log(ctx, log.LevelDebug, "Initiating update of template", log.String("template_id", id.String()))
 
 	outputFormat := c.FormValue("outputFormat")
 	description := c.FormValue("description")
@@ -327,7 +327,7 @@ func (th *TemplateHandler) UpdateTemplateByID(c *fiber.Ctx) error {
 		return netHTTP.WithError(c, errUpdate)
 	}
 
-	th.service.Logger.Log(ctx, log.LevelInfo, "Successfully updated template", log.String("template_id", id.String()))
+	th.service.Logger.Log(ctx, log.LevelDebug, "Successfully updated template", log.String("template_id", id.String()))
 
 	response := newTemplateResponse(templateUpdated, warnings)
 
@@ -360,7 +360,7 @@ func (th *TemplateHandler) DeleteTemplateByID(c *fiber.Ctx) error {
 		return netHTTP.WithError(c, pkgErr.ValidateBusinessError(cnErr.ErrInvalidPathParameter, "", "id"))
 	}
 
-	th.service.Logger.Log(ctx, log.LevelInfo, "Initiating removal of template", log.String("template_id", id.String()))
+	th.service.Logger.Log(ctx, log.LevelDebug, "Initiating removal of template", log.String("template_id", id.String()))
 	span.SetAttributes(attribute.String("app.request.request_id", reqId), attribute.String("app.request.template_id", id.String()))
 
 	if err := th.service.DeleteTemplateByID(ctx, id, false); err != nil {
@@ -375,7 +375,7 @@ func (th *TemplateHandler) DeleteTemplateByID(c *fiber.Ctx) error {
 		return netHTTP.WithError(c, err)
 	}
 
-	th.service.Logger.Log(ctx, log.LevelInfo, "Successfully removed template", log.String("template_id", id.String()))
+	th.service.Logger.Log(ctx, log.LevelDebug, "Successfully removed template", log.String("template_id", id.String()))
 
 	return commonsHttp.RespondStatus(c, fiber.StatusNoContent)
 }

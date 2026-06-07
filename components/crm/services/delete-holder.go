@@ -6,21 +6,17 @@ package services
 
 import (
 	"context"
-	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
-
-	// DeleteHolderByID delete a holder by its ID
-	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
+// DeleteHolderByID deletes a holder by its ID.
 func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, id uuid.UUID, hardDelete bool) error {
-	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.delete_holder_by_id")
 	defer span.End()
@@ -31,12 +27,9 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 		attribute.String("app.request.holder_id", id.String()),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Delete holder by id %v", id))
-
 	count, err := uc.InstrumentRepo.Count(ctx, organizationID, id)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to check linked aliases for holder: %v", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to check linked aliases for holder: %v", err))
+		recordSpanError(span, "Failed to check linked aliases for holder", err)
 
 		return err
 	}
@@ -47,8 +40,7 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 
 	err = uc.HolderRepo.Delete(ctx, organizationID, id, hardDelete)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to delete holder by id: %v", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete holder by id: %v", err))
+		recordSpanError(span, "Failed to delete holder by id", err)
 
 		return err
 	}

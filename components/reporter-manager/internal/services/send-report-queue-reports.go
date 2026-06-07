@@ -47,7 +47,7 @@ func (uc *UseCase) SendReportQueueReports(ctx context.Context, reportMessage mod
 		return err
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Report sent to generate report queue successfully",
+	uc.Logger.Log(ctx, log.LevelDebug, "Report sent to generate report queue successfully",
 		log.String("report_id", reportMessage.ReportID.String()),
 		log.String("template_id", reportMessage.TemplateID.String()),
 	)

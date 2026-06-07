@@ -31,7 +31,7 @@ func (uc *UseCase) downloadExtractedData(ctx context.Context, dataPath string) (
 		return nil, pkg.FailedPreconditionError{Code: constant.ErrCodeStorageNotConfigured.Error(), Title: "Storage Not Configured", Message: "fetcher data storage client is not configured"}
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Downloading extracted data from Fetcher storage",
+	uc.Logger.Log(ctx, log.LevelDebug, "Downloading extracted data from Fetcher storage",
 		log.String("path", dataPath))
 
 	data, err := uc.FetcherDataStorage.DownloadFile(ctx, dataPath)
@@ -40,7 +40,7 @@ func (uc *UseCase) downloadExtractedData(ctx context.Context, dataPath string) (
 		return nil, fmt.Errorf("download extracted data from %s: %w", dataPath, err)
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Downloaded extracted data",
+	uc.Logger.Log(ctx, log.LevelDebug, "Downloaded extracted data",
 		log.String("path", dataPath), log.Int("size_bytes", len(data)))
 
 	return data, nil
@@ -53,7 +53,7 @@ func (uc *UseCase) decryptExtractedData(ctx context.Context, rawData []byte) ([]
 	defer span.End()
 
 	if len(uc.StorageDecryptKey) == 0 {
-		uc.Logger.Log(ctx, log.LevelInfo, "Storage decryption key not configured, skipping decryption")
+		uc.Logger.Log(ctx, log.LevelDebug, "Storage decryption key not configured, skipping decryption")
 		return rawData, nil
 	}
 
@@ -63,7 +63,7 @@ func (uc *UseCase) decryptExtractedData(ctx context.Context, rawData []byte) ([]
 		return nil, err
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Decrypted extracted data",
+	uc.Logger.Log(ctx, log.LevelDebug, "Decrypted extracted data",
 		log.Int("encrypted_size", len(rawData)),
 		log.Int("decrypted_size", len(decrypted)))
 
@@ -84,7 +84,7 @@ func (uc *UseCase) verifyHMACOrReject(ctx context.Context, data []byte, received
 
 	// Posture (c): no signing key configured — verification is disabled.
 	if len(uc.ExternalHMACKey) == 0 {
-		uc.Logger.Log(ctx, log.LevelInfo, "External HMAC key not configured, skipping verification")
+		uc.Logger.Log(ctx, log.LevelDebug, "External HMAC key not configured, skipping verification")
 		span.SetAttributes(attribute.String("app.hmac.result", "skipped_no_key"))
 
 		return nil
@@ -115,7 +115,7 @@ func (uc *UseCase) verifyHMACOrReject(ctx context.Context, data []byte, received
 		}
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "HMAC verification: match",
+	uc.Logger.Log(ctx, log.LevelDebug, "HMAC verification: match",
 		log.Int("data_size", len(data)))
 	span.SetAttributes(attribute.String("app.hmac.result", "match"))
 

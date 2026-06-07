@@ -7,7 +7,7 @@ package command
 import (
 	"context"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -45,7 +45,7 @@ type SyncBalancesBatchResult struct {
 //
 //nolint:gocognit,gocyclo // Will be refactored into smaller helpers; tracked separately.
 func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []redisTransaction.SyncKey) (*SyncBalancesBatchResult, error) {
-	logger, tracer, _, metricFactory := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.sync_balances_batch")
 	defer span.End()
@@ -142,7 +142,7 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	// Early return: all keys were orphaned or unparseable, no valid balances to persist.
 	if len(deduplicated) == 0 {
 		if len(orphanedKeys) > 0 {
-			logger.Log(ctx, libLog.LevelInfo, "No valid balances to sync, cleaning up orphaned keys",
+			logger.Log(ctx, libLog.LevelDebug, "No valid balances to sync, cleaning up orphaned keys",
 				libLog.Int("orphaned", len(orphanedKeys)))
 
 			removed, cleanupErr := uc.TransactionRedisRepo.RemoveBalanceSyncKeysBatch(ctx, orphanedKeys)
@@ -164,7 +164,7 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 
 			result.KeysRemoved = removed
 		} else {
-			logger.Log(ctx, libLog.LevelInfo, "No balances to sync after aggregation")
+			logger.Log(ctx, libLog.LevelDebug, "No balances to sync after aggregation")
 		}
 
 		return result, nil
@@ -203,7 +203,7 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 				logger.Log(ctx, libLog.LevelWarn, "Failed to remove orphaned keys after DB error", libLog.Err(cleanupErr))
 			} else {
 				result.KeysRemoved = removed
-				logger.Log(ctx, libLog.LevelInfo, "Cleaned up orphaned keys despite DB error",
+				logger.Log(ctx, libLog.LevelDebug, "Cleaned up orphaned keys despite DB error",
 					libLog.Int("removed", int(removed)))
 			}
 		}
@@ -232,7 +232,7 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 
 	result.KeysRemoved = removed
 
-	logger.Log(ctx, libLog.LevelInfo, "SyncBalancesBatch completed",
+	logger.Log(ctx, libLog.LevelDebug, "SyncBalancesBatch completed",
 		libLog.Int("processed", result.KeysProcessed),
 		libLog.Int("aggregated", result.BalancesAggregated),
 		libLog.Int("synced", int(result.BalancesSynced)),

@@ -44,7 +44,7 @@ func (r *Reconciler) handleReconcileCompleted(
 		return
 	}
 
-	r.logger.Log(ctx, log.LevelInfo, "Reconciler: extraction mapping updated to completed",
+	r.logger.Log(ctx, log.LevelDebug, "Reconciler: extraction mapping updated to completed",
 		log.String("job_id", mapping.JobID),
 		log.String("report_id", mapping.ReportID))
 
@@ -215,7 +215,7 @@ func (r *Reconciler) handleReconcileFailed(
 		return
 	}
 
-	r.logger.Log(ctx, log.LevelInfo, "Reconciler: report marked as failed due to extraction failure",
+	r.logger.Log(ctx, log.LevelDebug, "Reconciler: report marked as failed due to extraction failure",
 		log.String("job_id", mapping.JobID),
 		log.String("report_id", mapping.ReportID),
 		log.String("error", jobResp.Error))

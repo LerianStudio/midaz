@@ -90,11 +90,6 @@ func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.limit.create"),
-		libLog.String("limit.name", input.Name),
-	).Log(ctx, libLog.LevelInfo, "Creating limit")
-
 	// Convert HTTP input to service input
 	serviceInput := ToCreateLimitServiceInput(&input)
 
@@ -106,7 +101,7 @@ func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.limit.create"),
 		libLog.String("limit.id", result.ID.String()),
-	).Log(ctx, libLog.LevelInfo, "Limit created")
+	).Log(ctx, libLog.LevelDebug, "Limit created")
 
 	return http.Created(c, result)
 }
@@ -146,11 +141,6 @@ func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.limit.get"),
-		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Getting limit")
-
 	result, err := h.service.GetLimit(ctx, id)
 	if err != nil {
 		return handleLimitServiceError(c, span, err)
@@ -160,7 +150,7 @@ func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
 		libLog.String("operation", "handler.limit.get"),
 		libLog.String("limit.id", result.ID.String()),
 		libLog.String("limit.name", result.Name),
-	).Log(ctx, libLog.LevelInfo, "Limit retrieved")
+	).Log(ctx, libLog.LevelDebug, "Limit retrieved")
 
 	return http.OK(c, result)
 }
@@ -220,15 +210,6 @@ func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
 	// Apply defaults after validation
 	input.SetDefaults()
 
-	logger.With(
-		libLog.String("operation", "handler.limit.list"),
-		libLog.Any("list.limit", input.Limit),
-		libLog.String("list.cursor", input.Cursor),
-		libLog.Any("list.name", input.Name),
-		libLog.String("list.sort_by", input.SortBy),
-		libLog.String("list.sort_order", input.SortOrder),
-	).Log(ctx, libLog.LevelInfo, "Listing limits")
-
 	// Convert to service filter
 	filter := ToListLimitsFilter(&input)
 
@@ -244,7 +225,7 @@ func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
 		libLog.String("operation", "handler.limit.list"),
 		libLog.Int("list.count", len(response.Limits)),
 		libLog.Bool("list.has_more", response.HasMore),
-	).Log(ctx, libLog.LevelInfo, "Limits listed")
+	).Log(ctx, libLog.LevelDebug, "Limits listed")
 
 	return http.OK(c, response)
 }
@@ -322,11 +303,6 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, constant.EntityLimit))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.limit.update"),
-		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Updating limit")
-
 	// Convert HTTP input to service input
 	serviceInput := ToUpdateLimitServiceInput(&input)
 
@@ -338,7 +314,7 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.limit.update"),
 		libLog.String("limit.id", result.ID.String()),
-	).Log(ctx, libLog.LevelInfo, "Limit updated")
+	).Log(ctx, libLog.LevelDebug, "Limit updated")
 
 	return http.OK(c, result)
 }
@@ -377,11 +353,6 @@ func (h *LimitHandler) ActivateLimit(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.limit.activate"),
-		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Activating limit")
-
 	limit, err := h.service.ActivateLimit(ctx, id)
 	if err != nil {
 		return handleLimitServiceError(c, span, err)
@@ -390,7 +361,7 @@ func (h *LimitHandler) ActivateLimit(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.limit.activate"),
 		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Limit activated")
+	).Log(ctx, libLog.LevelDebug, "Limit activated")
 
 	return http.OK(c, limit)
 }
@@ -429,11 +400,6 @@ func (h *LimitHandler) DeactivateLimit(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.limit.deactivate"),
-		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Deactivating limit")
-
 	limit, err := h.service.DeactivateLimit(ctx, id)
 	if err != nil {
 		return handleLimitServiceError(c, span, err)
@@ -442,7 +408,7 @@ func (h *LimitHandler) DeactivateLimit(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.limit.deactivate"),
 		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Limit deactivated")
+	).Log(ctx, libLog.LevelDebug, "Limit deactivated")
 
 	return http.OK(c, limit)
 }
@@ -481,11 +447,6 @@ func (h *LimitHandler) DraftLimit(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.limit.draft"),
-		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Transitioning limit to draft")
-
 	limit, err := h.service.DraftLimit(ctx, id)
 	if err != nil {
 		return handleLimitServiceError(c, span, err)
@@ -494,7 +455,7 @@ func (h *LimitHandler) DraftLimit(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.limit.draft"),
 		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Limit transitioned to draft")
+	).Log(ctx, libLog.LevelDebug, "Limit transitioned to draft")
 
 	return http.OK(c, limit)
 }
@@ -533,11 +494,6 @@ func (h *LimitHandler) DeleteLimit(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.limit.delete"),
-		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Deleting limit")
-
 	if err := h.service.DeleteLimit(ctx, id); err != nil {
 		return handleLimitServiceError(c, span, err)
 	}
@@ -545,7 +501,7 @@ func (h *LimitHandler) DeleteLimit(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.limit.delete"),
 		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Limit deleted")
+	).Log(ctx, libLog.LevelDebug, "Limit deleted")
 
 	return http.NoContent(c)
 }
@@ -584,11 +540,6 @@ func (h *LimitHandler) GetLimitUsage(c *fiber.Ctx) error {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
 	}
 
-	logger.With(
-		libLog.String("operation", "handler.limit.get_usage"),
-		libLog.String("limit.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Getting limit usage")
-
 	snapshot, err := h.service.GetLimitUsage(ctx, id)
 	if err != nil {
 		return handleLimitServiceError(c, span, err)
@@ -599,7 +550,7 @@ func (h *LimitHandler) GetLimitUsage(c *fiber.Ctx) error {
 		libLog.String("limit.id", id.String()),
 		libLog.Any("current_usage", snapshot.CurrentUsage),
 		libLog.Any("utilization_percent", snapshot.UtilizationPercent),
-	).Log(ctx, libLog.LevelInfo, "Limit usage retrieved")
+	).Log(ctx, libLog.LevelDebug, "Limit usage retrieved")
 
 	return http.OK(c, snapshot)
 }

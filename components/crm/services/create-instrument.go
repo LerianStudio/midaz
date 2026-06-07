@@ -6,20 +6,18 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, holderID uuid.UUID, cai *mmodel.CreateInstrumentInput) (*mmodel.Instrument, error) {
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.create_instrument")
 	defer span.End()
@@ -32,8 +30,7 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 
 	aliasID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to generate alias id", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate alias id: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to generate alias id", err)
 
 		return nil, err
 	}
@@ -69,8 +66,7 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 
 	if len(cai.RelatedParties) > 0 {
 		if err := uc.ValidateRelatedParties(ctx, cai.RelatedParties); err != nil {
-			libOpenTelemetry.HandleSpanError(span, "Failed to validate related parties", err)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate related parties: %v", err))
+			recordSpanError(span, "Failed to validate related parties", err)
 
 			return nil, err
 		}
@@ -78,8 +74,7 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 		for _, rp := range cai.RelatedParties {
 			rpID, rpErr := libCommons.GenerateUUIDv7()
 			if rpErr != nil {
-				libOpenTelemetry.HandleSpanError(span, "Failed to generate related party id", rpErr)
-				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate related party id: %v", rpErr))
+				libOpentelemetry.HandleSpanError(span, "Failed to generate related party id", rpErr)
 
 				return nil, rpErr
 			}
@@ -92,8 +87,7 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 
 	holder, err := uc.GetHolderByID(ctx, organizationID, holderID, false)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to get holder by id", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get holder by id %v", holderID.String()))
+		recordSpanError(span, "Failed to get holder by id", err)
 
 		return nil, err
 	}
@@ -103,8 +97,7 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 
 	createdAlias, err := uc.InstrumentRepo.Create(ctx, organizationID, alias)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to create alias", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create alias: %v", err))
+		recordSpanError(span, "Failed to create alias", err)
 
 		return nil, err
 	}

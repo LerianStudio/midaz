@@ -93,7 +93,7 @@ func (nh *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 	ctx, span := nh.service.Tracer.Start(ctx, "handler.notification.get")
 	defer span.End()
 
-	nh.service.Logger.Log(ctx, log.LevelInfo, "Request to get deadline notifications")
+	nh.service.Logger.Log(ctx, log.LevelDebug, "Request to get deadline notifications")
 
 	limit, err := parseNotificationLimit(c)
 	if err != nil {
@@ -120,7 +120,7 @@ func (nh *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 	}
 
 	reqID := ctxutil.HeaderIDFromContext(ctx)
-	nh.service.Logger.Log(ctx, log.LevelInfo, "Successfully retrieved notifications",
+	nh.service.Logger.Log(ctx, log.LevelDebug, "Successfully retrieved notifications",
 		log.String("request_id", reqID),
 		log.Any("total", len(items)),
 	)

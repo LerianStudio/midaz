@@ -60,9 +60,9 @@ func overdraftTransactionFixture() *transaction.Transaction {
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		Operations: []*operation.Operation{
-			mkOp(constant.DirectionDebit, 100, 100),  // drawn: debit on companion increases usage
-			mkOp(constant.DirectionCredit, 30, 70),   // repaid: credit, after still non-zero
-			mkOp(constant.DirectionCredit, 70, 0),    // cleared: credit, after reaches zero
+			mkOp(constant.DirectionDebit, 100, 100), // drawn: debit on companion increases usage
+			mkOp(constant.DirectionCredit, 30, 70),  // repaid: credit, after still non-zero
+			mkOp(constant.DirectionCredit, 70, 0),   // cleared: credit, after reaches zero
 		},
 	}
 }

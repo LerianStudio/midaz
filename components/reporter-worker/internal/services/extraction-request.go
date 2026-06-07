@@ -48,7 +48,7 @@ func (uc *UseCase) requestFetcherExtraction(
 		attribute.String("app.request.template_id", message.TemplateID.String()),
 	)
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Dispatching extraction to Fetcher (dual-mode)",
+	uc.Logger.Log(ctx, log.LevelDebug, "Dispatching extraction to Fetcher (dual-mode)",
 		log.String("report_id", message.ReportID.String()),
 		log.String("template_id", message.TemplateID.String()))
 
@@ -68,7 +68,7 @@ func (uc *UseCase) requestFetcherExtraction(
 		return uc.handleErrorWithUpdate(ctx, message.ReportID, span, "Error updating report to PendingExtraction", err)
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Report moved to PendingExtraction, awaiting Fetcher completion",
+	uc.Logger.Log(ctx, log.LevelDebug, "Report moved to PendingExtraction, awaiting Fetcher completion",
 		log.String("report_id", message.ReportID.String()))
 
 	return nil
@@ -115,7 +115,7 @@ func (uc *UseCase) dispatchExtraction(
 		},
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Creating extraction job via Fetcher",
+	uc.Logger.Log(ctx, log.LevelDebug, "Creating extraction job via Fetcher",
 		log.String("report_id", message.ReportID.String()),
 		log.Int("datasource_count", len(message.DataQueries)))
 
@@ -147,7 +147,7 @@ func (uc *UseCase) dispatchExtraction(
 		return fmt.Errorf("failed to save extraction mapping for job %s: %w", resp.JobID, err)
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Extraction mapping saved",
+	uc.Logger.Log(ctx, log.LevelDebug, "Extraction mapping saved",
 		log.String("job_id", resp.JobID),
 		log.String("report_id", message.ReportID.String()))
 

@@ -50,7 +50,7 @@ func (h *NotificationConsumerHandler) Handle(ctx context.Context, body []byte) e
 
 	span.SetAttributes(attribute.String("app.request.request_id", reqID))
 
-	h.logger.Log(ctx, log.LevelInfo, "Received Fetcher notification message")
+	h.logger.Log(ctx, log.LevelDebug, "Received Fetcher notification message")
 
 	err := h.handler.ProcessFetcherNotification(ctx, body)
 	if err != nil {

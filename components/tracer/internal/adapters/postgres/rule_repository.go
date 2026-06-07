@@ -122,7 +122,7 @@ func (r *Repository) createInternal(ctx context.Context, db pgdb.DB, rule *model
 		libLog.String("operation", "repository.rule.create"),
 		libLog.String("rule.id", rule.ID.String()),
 		libLog.String("rule.name", rule.Name),
-	).Log(ctx, libLog.LevelInfo, "Creating rule")
+	).Log(ctx, libLog.LevelDebug, "Creating rule")
 
 	_, err = db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -169,7 +169,7 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*model.Rule, er
 	logger.With(
 		libLog.String("operation", "repository.rule.get_by_id"),
 		libLog.String("rule.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Getting rule by ID")
+	).Log(ctx, libLog.LevelDebug, "Getting rule by ID")
 
 	rule, err := r.scanRule(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
@@ -216,7 +216,7 @@ func (r *Repository) GetByName(ctx context.Context, name string) (*model.Rule, e
 	logger.With(
 		libLog.String("operation", "repository.rule.get_by_name"),
 		libLog.String("rule.name", name),
-	).Log(ctx, libLog.LevelInfo, "Getting rule by name")
+	).Log(ctx, libLog.LevelDebug, "Getting rule by name")
 
 	rule, err := r.scanRule(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
@@ -268,7 +268,7 @@ func (r *Repository) ListByStatus(ctx context.Context, status *model.RuleStatus)
 
 	logger.With(
 		libLog.String("operation", "repository.rule.list_by_status"),
-	).Log(ctx, libLog.LevelInfo, "Listing rules by status")
+	).Log(ctx, libLog.LevelDebug, "Listing rules by status")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -297,7 +297,7 @@ func (r *Repository) ListByStatus(ctx context.Context, status *model.RuleStatus)
 	logger.With(
 		libLog.String("operation", "repository.rule.list_by_status"),
 		libLog.Int("list.count", len(rules)),
-	).Log(ctx, libLog.LevelInfo, "Listed rules")
+	).Log(ctx, libLog.LevelDebug, "Listed rules")
 
 	return rules, nil
 }
@@ -388,7 +388,7 @@ func (r *Repository) updateInternal(ctx context.Context, db pgdb.DB, rule *model
 	logger.With(
 		libLog.String("operation", "repository.rule.update"),
 		libLog.String("rule.id", rule.ID.String()),
-	).Log(ctx, libLog.LevelInfo, "Updating rule")
+	).Log(ctx, libLog.LevelDebug, "Updating rule")
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -469,7 +469,7 @@ func (r *Repository) deleteInternal(ctx context.Context, db pgdb.DB, id uuid.UUI
 	logger.With(
 		libLog.String("operation", "repository.rule.delete"),
 		libLog.String("rule.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Deleting rule")
+	).Log(ctx, libLog.LevelDebug, "Deleting rule")
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -567,7 +567,7 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 		libLog.String("operation", "repository.rule.list_with_filter"),
 		libLog.Int("list.limit", filter.Limit),
 		libLog.String("list.cursor", filter.Cursor),
-	).Log(ctx, libLog.LevelInfo, "Listing rules with filter")
+	).Log(ctx, libLog.LevelDebug, "Listing rules with filter")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -631,7 +631,7 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 		libLog.String("operation", "repository.rule.list_with_filter"),
 		libLog.Int("list.count", len(rules)),
 		libLog.Bool("list.has_more", hasMore),
-	).Log(ctx, libLog.LevelInfo, "Listed rules")
+	).Log(ctx, libLog.LevelDebug, "Listed rules")
 
 	return result, nil
 }
@@ -802,7 +802,7 @@ func (r *Repository) ListActiveByScopes(ctx context.Context, scopes []model.Scop
 	logger.With(
 		libLog.String("operation", "repository.rule.list_active_by_scopes"),
 		libLog.Int("scope.filter_count", len(scopes)),
-	).Log(ctx, libLog.LevelInfo, "Listing active rules by scopes")
+	).Log(ctx, libLog.LevelDebug, "Listing active rules by scopes")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -831,7 +831,7 @@ func (r *Repository) ListActiveByScopes(ctx context.Context, scopes []model.Scop
 	logger.With(
 		libLog.String("operation", "repository.rule.list_active_by_scopes"),
 		libLog.Int("list.count", len(rules)),
-	).Log(ctx, libLog.LevelInfo, "Found active rules matching scopes")
+	).Log(ctx, libLog.LevelDebug, "Found active rules matching scopes")
 
 	return rules, nil
 }
@@ -992,7 +992,7 @@ func (r *Repository) UpdateStatus(ctx context.Context, id uuid.UUID, status mode
 		libLog.String("operation", "repository.rule.update_status"),
 		libLog.String("rule.id", id.String()),
 		libLog.String("rule.status", string(status)),
-	).Log(ctx, libLog.LevelInfo, "Updating rule status")
+	).Log(ctx, libLog.LevelDebug, "Updating rule status")
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {

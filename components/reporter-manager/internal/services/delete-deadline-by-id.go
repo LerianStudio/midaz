@@ -27,7 +27,7 @@ func (uc *UseCase) DeleteDeadlineByID(ctx context.Context, id uuid.UUID) error {
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.deadline_id", id.String()),
 	)
-	uc.Logger.Log(ctx, log.LevelInfo, "Remove deadline", log.String("id", id.String()))
+	uc.Logger.Log(ctx, log.LevelDebug, "Remove deadline", log.String("id", id.String()))
 
 	if err := uc.DeadlineRepo.Delete(ctx, id); err != nil {
 		if pkgErr.IsBusinessError(err) {

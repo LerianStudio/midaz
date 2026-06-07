@@ -74,7 +74,7 @@ func (q *ListTransactionValidationsQuery) Execute(ctx context.Context, filters *
 		return nil, fmt.Errorf("%w: %w", constant.ErrInvalidTransactionValidationFilters, err)
 	}
 
-	// Log the filters AFTER SetDefaults() so we log the actual values being used
+	// Log the applied filters (post-defaults) for troubleshooting.
 	logger.With(
 		libLog.String("operation", "service.transaction-validation.list"),
 		libLog.Int("filters.limit", filters.Limit),
@@ -83,7 +83,7 @@ func (q *ListTransactionValidationsQuery) Execute(ctx context.Context, filters *
 		libLog.String("filters.sort_order", filters.SortOrder),
 		libLog.String("filters.start_date", formatTimeOrNotSet(filters.StartDate)),
 		libLog.String("filters.end_date", formatTimeOrNotSet(filters.EndDate)),
-	).Log(ctx, libLog.LevelInfo, "Listing transaction validation records")
+	).Log(ctx, libLog.LevelDebug, "Listing transaction validation records")
 
 	// Get transaction validation records with cursor-based pagination
 	result, err := q.repo.List(ctx, filters)
@@ -101,7 +101,7 @@ func (q *ListTransactionValidationsQuery) Execute(ctx context.Context, filters *
 		libLog.String("operation", "service.transaction-validation.list"),
 		libLog.Int("list.count", len(result.TransactionValidations)),
 		libLog.Bool("list.has_more", result.HasMore),
-	).Log(ctx, libLog.LevelInfo, "Transaction validation records listed")
+	).Log(ctx, libLog.LevelDebug, "Transaction validation records listed")
 
 	return result, nil
 }

@@ -9,8 +9,7 @@ import (
 	"strings"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -51,7 +50,7 @@ var validTransactionStatuses = map[string]bool{
 func (handler *TransactionHandler) CountTransactionsByFilters(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_transactions_by_filters")
 	defer span.End()
@@ -70,29 +69,15 @@ func (handler *TransactionHandler) CountTransactionsByFilters(c *fiber.Ctx) erro
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid query parameters", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid query parameters: %v", err))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
-		"Counting transactions for organization %s and ledger %s with filters: route=%s, status=%s",
-		organizationID, ledgerID, filter.Route, filter.Status,
-	))
 
 	count, err := handler.Query.CountTransactionsByFilters(ctx, organizationID, ledgerID, filter)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count transactions by filters", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error counting transactions: %v", err))
+		handleSpanByErrorClass(span, "Failed to count transactions by filters", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
-		"Successfully counted transactions for organization %s and ledger %s: %d",
-		organizationID, ledgerID, count,
-	))
 
 	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")

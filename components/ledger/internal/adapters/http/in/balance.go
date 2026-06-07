@@ -5,8 +5,6 @@
 package in
 
 import (
-	"fmt"
-
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -52,7 +50,7 @@ type BalanceHandler struct {
 func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_balances")
 	defer span.End()
@@ -71,8 +69,6 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
 
@@ -85,20 +81,14 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 		EndDate:   headerParams.EndDate,
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Balances")
-
 	headerParams.Metadata = &bson.M{}
 
 	balances, cur, err := handler.Query.GetAllBalances(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Balances", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Balances, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Balances")
 
 	pagination.SetItems(balances)
 	pagination.SetCursor(cur.Next, cur.Prev)
@@ -132,7 +122,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_balances_by_account_id")
 	defer span.End()
@@ -156,8 +146,6 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
 
@@ -170,20 +158,14 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 		EndDate:   headerParams.EndDate,
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Balances by account id")
-
 	headerParams.Metadata = &bson.M{}
 
 	balances, cur, err := handler.Query.GetAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Balances by account id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Balances by account id, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Balances by account id")
 
 	pagination.SetItems(balances)
 	pagination.SetCursor(cur.Next, cur.Prev)
@@ -211,7 +193,7 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_balance_by_id")
 	defer span.End()
@@ -231,18 +213,12 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of balance by id")
-
 	op, err := handler.Query.GetBalanceByID(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve balance by id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve balance by id, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved balance by id")
 
 	return http.OK(c, op)
 }
@@ -268,7 +244,7 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_balance_by_id")
 	defer span.End()
@@ -288,18 +264,12 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating delete balance by id")
-
 	err = handler.Command.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete balance by id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete balance by id, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully delete balance by id")
 
 	return http.NoContent(c)
 }
@@ -347,8 +317,6 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Balance with Organization ID: %s, Ledger ID: %s, and ID: %s", organizationID.String(), ledgerID.String(), balanceID.String()))
-
 	payload := p.(*mmodel.UpdateBalance)
 	logSafePayload(ctx, logger, "Request to update a Balance", payload)
 
@@ -356,14 +324,10 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 
 	balance, err := handler.Command.Update(ctx, organizationID, ledgerID, balanceID, *payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Balance on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Balance with ID: %s, Error: %s", balanceID, err.Error()))
+		handleSpanByErrorClass(span, "Failed to update Balance on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Balance with Organization ID: %s, Ledger ID: %s, and ID: %s", organizationID, ledgerID, balanceID))
 
 	return http.OK(c, balance)
 }
@@ -388,7 +352,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_balances_by_alias")
 	defer span.End()
@@ -405,18 +369,12 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 
 	alias := c.Params("alias")
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of balances by alias")
-
 	balances, err := handler.Query.GetAllBalancesByAlias(ctx, organizationID, ledgerID, alias)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve balances by alias", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve balances by alias, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved balances by alias")
 
 	if len(balances) == 0 {
 		balances = []*mmodel.Balance{}
@@ -448,7 +406,7 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_balances_external_by_code")
 	defer span.End()
@@ -466,18 +424,12 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 	code := c.Params("code")
 	alias := cn.DefaultExternalAccountAliasPrefix + code
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of balances by code")
-
 	balances, err := handler.Query.GetAllBalancesByAlias(ctx, organizationID, ledgerID, alias)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve balances by code", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve balances by code, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved balances by code")
 
 	if len(balances) == 0 {
 		balances = []*mmodel.Balance{}
@@ -539,14 +491,10 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 
 	balance, err := handler.Command.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create additional balance on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create additional balance, Error: %s", err.Error()))
+		handleSpanByErrorClass(span, "Failed to create additional balance on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully created additional balance")
 
 	return http.Created(c, balance)
 }
@@ -581,7 +529,6 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get organization_id from path", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get organization_id from path: %v", err))
 
 		return http.WithError(c, err)
 	}
@@ -589,7 +536,6 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get ledger_id from path", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get ledger_id from path: %v", err))
 
 		return http.WithError(c, err)
 	}
@@ -597,7 +543,6 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	balanceID, err := http.GetUUIDFromLocals(c, "balance_id")
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get balance_id from path", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balance_id from path: %v", err))
 
 		return http.WithError(c, err)
 	}
@@ -616,7 +561,6 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	if err != nil {
 		validationErr := pkg.ValidateBusinessError(cn.ErrInvalidDatetimeFormat, "Balance", "date", "yyyy-mm-dd hh:mm:ss")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid date format", validationErr)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid date format: %s", dateStr))
 
 		return http.WithError(c, validationErr)
 	}
@@ -625,22 +569,16 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	if !hasTime {
 		validationErr := pkg.ValidateBusinessError(cn.ErrInvalidDatetimeFormat, "Balance", "date", "yyyy-mm-dd hh:mm:ss")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Time component is required", validationErr)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Missing time component in date: %s", dateStr))
 
 		return http.WithError(c, validationErr)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of balance %s at date %s", balanceID, date.Format("2006-01-02 15:04:05")))
-
 	balance, err := handler.Query.GetBalanceAtTimestamp(ctx, organizationID, ledgerID, balanceID, date)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to retrieve balance at date", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve balance at date, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved balance %s at date %s", balanceID, date.Format("2006-01-02 15:04:05")))
 
 	// Convert to history response (without permission flags)
 	return http.OK(c, balance.ToHistoryResponse())
@@ -676,7 +614,6 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get organization_id from path", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get organization_id from path: %v", err))
 
 		return http.WithError(c, err)
 	}
@@ -684,7 +621,6 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get ledger_id from path", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get ledger_id from path: %v", err))
 
 		return http.WithError(c, err)
 	}
@@ -692,7 +628,6 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 	accountID, err := http.GetUUIDFromLocals(c, "account_id")
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get account_id from path", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get account_id from path: %v", err))
 
 		return http.WithError(c, err)
 	}
@@ -711,7 +646,6 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 	if err != nil {
 		validationErr := pkg.ValidateBusinessError(cn.ErrInvalidDatetimeFormat, "Balance", "date", "yyyy-mm-dd hh:mm:ss")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid date format", validationErr)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid date format: %s", dateStr))
 
 		return http.WithError(c, validationErr)
 	}
@@ -720,17 +654,13 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 	if !hasTime {
 		validationErr := pkg.ValidateBusinessError(cn.ErrInvalidDatetimeFormat, "Balance", "date", "yyyy-mm-dd hh:mm:ss")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Time component is required", validationErr)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Missing time component in date: %s", dateStr))
 
 		return http.WithError(c, validationErr)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of balances for account %s at date %s", accountID, date.Format("2006-01-02 15:04:05")))
-
 	balances, err := handler.Query.GetAccountBalancesAtTimestamp(ctx, organizationID, ledgerID, accountID, date)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to retrieve account balances at date", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve account balances at date, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -740,12 +670,9 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 		// No balances existed at that time
 		err := pkg.ValidateBusinessError(cn.ErrNoBalanceDataAtTimestamp, date.Format("2006-01-02 15:04:05"))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No balance data available for the specified timestamp", err)
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("No balances found for account %s at timestamp %s", accountID, date.Format("2006-01-02 15:04:05")))
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved %d balances for account %s at date %s", len(balances), accountID, date.Format("2006-01-02 15:04:05")))
 
 	// Convert to history responses (without permission flags)
 	historyBalances := make([]*mmodel.BalanceHistory, len(balances))

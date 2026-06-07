@@ -35,7 +35,7 @@ func (r *ExtractionMappingMongoDBRepository) EnsureIndexes(ctx context.Context) 
 		attribute.String("app.request.collection", constant.MongoCollectionExtractionMapping),
 	)
 
-	logger.Log(ctx, log.LevelInfo, "Creating indexes for collection",
+	logger.Log(ctx, log.LevelDebug, "Creating indexes for collection",
 		log.String("collection", constant.MongoCollectionExtractionMapping))
 
 	coll, err := r.getCollection(ctx)
@@ -73,7 +73,7 @@ func (r *ExtractionMappingMongoDBRepository) EnsureIndexes(ctx context.Context) 
 	ctx, cancel := context.WithTimeout(ctx, constant.MongoIndexCreateTimeout)
 	defer cancel()
 
-	logger.Log(ctx, log.LevelInfo, "Attempting to create indexes for collection",
+	logger.Log(ctx, log.LevelDebug, "Attempting to create indexes for collection",
 		log.Int("index_count", len(indexes)),
 		log.String("collection", constant.MongoCollectionExtractionMapping))
 
@@ -81,7 +81,7 @@ func (r *ExtractionMappingMongoDBRepository) EnsureIndexes(ctx context.Context) 
 	if err != nil {
 		if strings.Contains(err.Error(), "IndexOptionsConflict") ||
 			strings.Contains(err.Error(), "already exists") {
-			logger.Log(ctx, log.LevelInfo, "Indexes already exist (detected during creation)",
+			logger.Log(ctx, log.LevelDebug, "Indexes already exist (detected during creation)",
 				log.String("collection", constant.MongoCollectionExtractionMapping))
 
 			return nil
@@ -95,7 +95,7 @@ func (r *ExtractionMappingMongoDBRepository) EnsureIndexes(ctx context.Context) 
 		return err
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Successfully created indexes for collection",
+	logger.Log(ctx, log.LevelDebug, "Successfully created indexes for collection",
 		log.Int("index_count", len(indexNames)),
 		log.String("collection", constant.MongoCollectionExtractionMapping),
 		log.Any("index_names", indexNames))

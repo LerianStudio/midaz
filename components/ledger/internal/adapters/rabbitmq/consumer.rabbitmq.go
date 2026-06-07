@@ -251,7 +251,7 @@ func (cr *ConsumerRoutes) logAndSleep(ctx context.Context, errMsg, retryMsg, que
 	cr.Log(ctx, libLog.LevelError, errMsg, libLog.String("queue", queueName), libLog.Err(err))
 
 	sleepDuration := utils.FullJitter(*backoff)
-	cr.Log(ctx, libLog.LevelInfo, retryMsg, libLog.String("queue", queueName), libLog.Any("sleepDuration", sleepDuration))
+	cr.Log(ctx, libLog.LevelWarn, retryMsg, libLog.String("queue", queueName), libLog.Any("sleepDuration", sleepDuration))
 	time.Sleep(sleepDuration)
 
 	*backoff = utils.NextBackoff(*backoff)
@@ -318,6 +318,8 @@ func (cr *ConsumerRoutes) startWorker(channelCtx context.Context, workerID int, 
 		ctx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctx, msg.Headers)
 
 		logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+		// Rebind ctx: this per-message span is the parent of the downstream handler and
+		// retry-manager spans, which must nest under it.
 		ctx, spanConsumer := tracer.Start(ctx, "rabbitmq.consumer.process_message")
 
 		ctx = libObservability.ContextWithSpanAttributes(ctx, attribute.String("app.request.request_id", reqId))
@@ -467,7 +469,7 @@ func (cr *ConsumerRoutes) processBulkFlush(
 		attribute.String("bulk.queue", queue),
 	)
 
-	logger.Log(bulkCtx, libLog.LevelInfo, "Processing bulk",
+	logger.Log(bulkCtx, libLog.LevelDebug, "Processing bulk",
 		libLog.String("queue", queue),
 		libLog.Int("message_count", len(deliveries)),
 	)
@@ -491,7 +493,7 @@ func (cr *ConsumerRoutes) processBulkFlush(
 	duration := time.Since(startTime)
 	span.SetAttributes(attribute.Float64("bulk.duration_ms", float64(duration.Milliseconds())))
 
-	logger.Log(bulkCtx, libLog.LevelInfo, "Bulk processing completed",
+	logger.Log(bulkCtx, libLog.LevelDebug, "Bulk processing completed",
 		libLog.String("queue", queue),
 		libLog.Int("message_count", len(deliveries)),
 		libLog.Any("duration", duration),
@@ -609,7 +611,7 @@ func (cr *ConsumerRoutes) processFallback(
 ) {
 	logger := cr.Logger
 
-	logger.Log(ctx, libLog.LevelInfo, "Starting fallback processing",
+	logger.Log(ctx, libLog.LevelDebug, "Starting fallback processing",
 		libLog.String("queue", queue),
 		libLog.Int("message_count", len(deliveries)),
 	)
@@ -618,7 +620,7 @@ func (cr *ConsumerRoutes) processFallback(
 		cr.processIndividualMessage(ctx, queue, delivery, individualHandler)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Fallback processing completed",
+	logger.Log(ctx, libLog.LevelDebug, "Fallback processing completed",
 		libLog.String("queue", queue),
 		libLog.Int("message_count", len(deliveries)),
 	)

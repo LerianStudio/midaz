@@ -275,7 +275,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 		libLog.String("operation", "adapter.cel.compile"),
 		libLog.String("expression.hash", safePrefix(hash, 8)),
 		libLog.Any("compile.time_ms", compileTimeMs),
-	).Log(ctx, libLog.LevelInfo, "CEL expression compiled")
+	).Log(ctx, libLog.LevelDebug, "CEL expression compiled")
 
 	return compiled, nil
 }

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
@@ -95,11 +95,11 @@ type OverdraftEventPayload struct {
 // independent — a lib-streaming Emit error does not prevent the rabbit
 // publish, and vice versa.
 func (uc *UseCase) SendOverdraftEvents(ctx context.Context, tran *transaction.Transaction) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	if !isOverdraftEventEnabled() {
-		logger.Log(ctx, libLog.LevelInfo, "Overdraft events not enabled",
-			libLog.String("RABBITMQ_OVERDRAFT_EVENTS_ENABLED", os.Getenv("RABBITMQ_OVERDRAFT_EVENTS_ENABLED")))
+		logger.Log(ctx, libLog.LevelDebug, "Overdraft events not enabled",
+			libLog.String("rabbitmq_overdraft_events_enabled", os.Getenv("RABBITMQ_OVERDRAFT_EVENTS_ENABLED")))
 
 		return
 	}
@@ -152,10 +152,6 @@ func (uc *UseCase) SendOverdraftEvents(ctx context.Context, tran *transaction.Tr
 		key.WriteString(".")
 		key.WriteString(ep.action)
 
-		logger.Log(ctx, libLog.LevelInfo, "Sending overdraft event",
-			libLog.String("key", key.String()),
-			libLog.String("action", ep.action))
-
 		if _, err := uc.RabbitMQRepo.ProducerDefault(
 			ctxSend,
 			exchange,
@@ -203,7 +199,9 @@ func buildOverdraftEvents(tran *transaction.Transaction) []overdraftEventItem {
 		return nil
 	}
 
-	//nolint:prealloc // must stay nil when no overdraft ops match (callers and tests rely on nil); overdraft companions are rare, so preallocating len(Operations) wastes more than it saves
+	// Must stay nil when no overdraft ops match (callers and tests rely on nil);
+	// overdraft companions are rare, so preallocating len(Operations) wastes more
+	// than it saves.
 	var items []overdraftEventItem
 
 	for _, op := range tran.Operations {

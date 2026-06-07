@@ -185,7 +185,7 @@ func (hc *HealthChecker) performHealthChecks() {
 	metrics := hc.metrics
 
 	hc.mu.RUnlock()
-	hc.logger.Log(context.Background(), log.LevelInfo, "Performing health checks on all datasources...")
+	hc.logger.Log(context.Background(), log.LevelDebug, "Performing health checks on all datasources...")
 
 	unavailableCount := 0
 	reconnectedCount := 0
@@ -202,7 +202,7 @@ func (hc *HealthChecker) performHealthChecks() {
 		if needsHeal {
 			unavailableCount++
 
-			hc.logger.Log(context.Background(), log.LevelInfo, "Attempting to heal datasource", log.String("datasource", name), log.String("status", ds.Status))
+			hc.logger.Log(context.Background(), log.LevelDebug, "Attempting to heal datasource", log.String("datasource", name), log.String("status", ds.Status))
 
 			reconnectAttempted = true
 			reconnectErr = hc.reestablishConnection(name, &ds)
@@ -262,7 +262,7 @@ func (hc *HealthChecker) performHealthChecks() {
 				reconnectedCount++
 
 				hc.circuitBreakerManager.Reset(name)
-				hc.logger.Log(context.Background(), log.LevelInfo, "Datasource reconnected successfully - circuit breaker reset", log.String("datasource", name))
+				hc.logger.Log(context.Background(), log.LevelDebug, "Datasource reconnected successfully - circuit breaker reset", log.String("datasource", name))
 			}
 
 			// Persist updated datasource state so health/readiness sees current state.
@@ -306,7 +306,7 @@ func (hc *HealthChecker) performHealthChecks() {
 	}
 
 	if unavailableCount > 0 {
-		hc.logger.Log(context.Background(), log.LevelInfo, "Health check complete", log.Int("needed_healing", unavailableCount), log.Int("reconnected", reconnectedCount))
+		hc.logger.Log(context.Background(), log.LevelDebug, "Health check complete", log.Int("needed_healing", unavailableCount), log.Int("reconnected", reconnectedCount))
 	} else {
 		hc.logger.Log(context.Background(), log.LevelDebug, "All datasources healthy")
 	}
@@ -373,7 +373,7 @@ func (hc *HealthChecker) reestablishConnection(name string, ds *DataSource) erro
 	ctx, cancel := context.WithTimeout(context.Background(), constant.HealthCheckTimeout)
 	defer cancel()
 
-	hc.logger.Log(ctx, log.LevelInfo, "Attempting reconnection to datasource", log.String("datasource", name))
+	hc.logger.Log(ctx, log.LevelDebug, "Attempting reconnection to datasource", log.String("datasource", name))
 
 	// Create a temporary map for ConnectToDataSource
 	tempMap := make(map[string]DataSource)

@@ -6,12 +6,11 @@ package query
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 
 	// GetAssetRateByExternalID gets data in the repository.
@@ -19,28 +18,26 @@ import (
 )
 
 func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID, ledgerID, externalID uuid.UUID) (*assetrate.AssetRate, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_asset_rate_by_external_id")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to get asset rate by external id: %s", externalID.String()))
 
 	assetRate, err := uc.AssetRateRepo.FindByExternalID(ctx, organizationID, ledgerID, externalID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get asset rate by external id on repository", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting asset rate: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting asset rate", libLog.Err(err))
 
 		return nil, err
 	}
 
 	if assetRate != nil {
-		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), assetRate.ID)
+		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityAssetRate, assetRate.ID)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb asset rate", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb asset rate: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb asset rate", libLog.Err(err))
 
 			return nil, err
 		}

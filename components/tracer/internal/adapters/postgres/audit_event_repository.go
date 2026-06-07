@@ -156,7 +156,7 @@ func (r *AuditEventRepository) insertInternal(
 		libLog.String("operation", operationName),
 		libLog.String("event.id", event.EventID.String()),
 		libLog.String("event.type", string(event.EventType)),
-	).Log(ctx, libLog.LevelInfo, "Inserting audit event record")
+	).Log(ctx, libLog.LevelDebug, "Inserting audit event record")
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -207,7 +207,7 @@ func (r *AuditEventRepository) GetByID(ctx context.Context, eventID uuid.UUID) (
 	logger.With(
 		libLog.String("operation", "repository.audit_event.get_by_event_id"),
 		libLog.String("event.id", eventID.String()),
-	).Log(ctx, libLog.LevelInfo, "Getting audit event by event ID")
+	).Log(ctx, libLog.LevelDebug, "Getting audit event by event ID")
 
 	event, err := r.scanEvent(db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
@@ -283,7 +283,7 @@ func (r *AuditEventRepository) List(ctx context.Context, filters *model.AuditEve
 	logger.With(
 		libLog.String("operation", "repository.audit_event.list"),
 		libLog.Int("filter.limit", filters.Limit),
-	).Log(ctx, libLog.LevelInfo, "Listing audit events")
+	).Log(ctx, libLog.LevelDebug, "Listing audit events")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -383,7 +383,7 @@ func (r *AuditEventRepository) VerifyHashChain(ctx context.Context, eventID uuid
 		libLog.String("event.id", eventID.String()),
 		libLog.Bool("is_valid", isValid),
 		libLog.Any("total_checked", totalChecked),
-	).Log(ctx, libLog.LevelInfo, "Hash chain verification completed")
+	).Log(ctx, libLog.LevelDebug, "Hash chain verification completed")
 
 	result := &model.HashChainVerificationResult{
 		IsValid:      isValid,

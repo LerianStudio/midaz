@@ -6,9 +6,8 @@ package query
 
 import (
 	"context"
-	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -24,7 +23,7 @@ import (
 //   - populated []OperationRoute when links exist
 //   - empty []OperationRoute{} (not nil) when no links exist
 func (uc *UseCase) enrichTransactionRoutesWithOperationRoutes(ctx context.Context, transactionRoutes []*mmodel.TransactionRoute) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.enrich_transaction_routes_with_operation_routes")
 	defer span.End()
@@ -44,7 +43,7 @@ func (uc *UseCase) enrichTransactionRoutesWithOperationRoutes(ctx context.Contex
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to fetch operation route IDs from junction table", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to fetch operation route IDs from junction table: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to fetch operation route IDs from junction table", libLog.Err(err))
 
 		return err
 	}
@@ -75,7 +74,7 @@ func (uc *UseCase) enrichTransactionRoutesWithOperationRoutes(ctx context.Contex
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to batch fetch operation routes", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to batch fetch operation routes: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to batch fetch operation routes", libLog.Err(err))
 
 			return err
 		}
@@ -105,7 +104,8 @@ func (uc *UseCase) enrichTransactionRoutesWithOperationRoutes(ctx context.Contex
 		tr.OperationRoutes = routes
 	}
 
-	logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Enriched %d transaction routes with operation routes", len(transactionRoutes)))
+	logger.Log(ctx, libLog.LevelDebug, "Enriched transaction routes with operation routes",
+		libLog.Int("count", len(transactionRoutes)))
 
 	return nil
 }

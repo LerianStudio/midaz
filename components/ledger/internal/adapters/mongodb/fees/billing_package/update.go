@@ -15,7 +15,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -45,7 +44,7 @@ func (r *BillingPackageMongoDBRepository) Update(ctx context.Context, id string,
 	coll := db.Collection(strings.ToLower(feeconstant.BillingPackageCollection))
 	opts := options.UpdateOne().SetUpsert(false)
 
-	ctx, spanUpdate := tracer.Start(ctx, "repository.billing_package.update.update_one")
+	_, spanUpdate := tracer.Start(ctx, "repository.billing_package.update.update_one")
 	defer spanUpdate.End()
 
 	spanUpdate.SetAttributes(attributes...)
@@ -64,9 +63,10 @@ func (r *BillingPackageMongoDBRepository) Update(ctx context.Context, id string,
 	}
 
 	if result.MatchedCount == 0 {
-		libOpentelemetry.HandleSpanError(spanUpdate, "No document matched for update", mongo.ErrNoDocuments)
+		bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "BillingPackage", feeconstant.BillingPackageCollection)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdate, "No document matched for update", bizErr)
 
-		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "BillingPackage", feeconstant.BillingPackageCollection)
+		return bizErr
 	}
 
 	return nil

@@ -86,14 +86,6 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 		return nil, err
 	}
 
-	logger.With(
-		libLog.String("operation", "service.limit.list"),
-		libLog.Int("filter.limit", filter.Limit),
-		libLog.Bool("filter.has_cursor", filter.Cursor != ""),
-		libLog.String("filter.sort_by", filter.SortBy),
-		libLog.String("filter.sort_order", filter.SortOrder),
-	).Log(ctx, libLog.LevelInfo, "Listing limits")
-
 	// Check context cancellation before repository call
 	if ctx.Err() != nil {
 		libOpentelemetry.HandleSpanError(span, "Context cancelled", ctx.Err())
@@ -137,7 +129,7 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 		libLog.String("operation", "service.limit.list"),
 		libLog.Int("result.count", len(result.Limits)),
 		libLog.Bool("result.has_more", result.HasMore),
-	).Log(ctx, libLog.LevelInfo, "Limits listed successfully")
+	).Log(ctx, libLog.LevelDebug, "Limits listed successfully")
 
 	return result, nil
 }

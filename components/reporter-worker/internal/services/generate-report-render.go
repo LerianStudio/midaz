@@ -48,7 +48,7 @@ func (uc *UseCase) loadTemplate(ctx context.Context, message GenerateReportMessa
 		return nil, err
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Template loaded successfully", log.Int("size_bytes", len(fileBytes)))
+	uc.Logger.Log(ctx, log.LevelDebug, "Template loaded successfully", log.Int("size_bytes", len(fileBytes)))
 
 	return fileBytes, nil
 }
@@ -98,7 +98,7 @@ func (uc *UseCase) convertToPDFIfNeeded(ctx context.Context, message GenerateRep
 	defer spanPDF.End()
 
 	spanPDF.SetAttributes(attribute.String("app.request.request_id", reqId))
-	uc.Logger.Log(ctx, log.LevelInfo, "Converting HTML to PDF for report",
+	uc.Logger.Log(ctx, log.LevelDebug, "Converting HTML to PDF for report",
 		log.String("report_id", message.ReportID.String()), log.Int("html_size_bytes", len(htmlOutput)))
 
 	pdfBytes, err := uc.convertHTMLToPDF(ctx, htmlOutput)
@@ -116,7 +116,7 @@ func (uc *UseCase) convertToPDFIfNeeded(ctx context.Context, message GenerateRep
 		return "", err
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "PDF generated successfully", log.Int("pdf_size_bytes", len(pdfBytes)))
+	uc.Logger.Log(ctx, log.LevelDebug, "PDF generated successfully", log.Int("pdf_size_bytes", len(pdfBytes)))
 
 	return string(pdfBytes), nil
 }

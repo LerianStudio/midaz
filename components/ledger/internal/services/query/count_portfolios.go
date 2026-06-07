@@ -7,15 +7,12 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 
 	// CountPortfolios returns the number of portfolios for the specified organization and ledger.
@@ -23,21 +20,19 @@ import (
 )
 
 func (uc *UseCase) CountPortfolios(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.count_portfolios")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Counting portfolios for organization %s and ledger %s", organizationID, ledgerID))
-
 	count, err := uc.PortfolioRepo.Count(ctx, organizationID, ledgerID)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error counting portfolios on repo: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error counting portfolios on repo", libLog.Err(err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, constant.EntityPortfolio)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("No portfolios found for organization: %s", organizationID.String()))
+			logger.Log(ctx, libLog.LevelWarn, "No portfolios found for organization")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count portfolios on repo", err)
 
@@ -48,8 +43,6 @@ func (uc *UseCase) CountPortfolios(ctx context.Context, organizationID, ledgerID
 
 		return 0, err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Found %d portfolios for organization %s and ledger %s", count, organizationID, ledgerID))
 
 	return count, nil
 }

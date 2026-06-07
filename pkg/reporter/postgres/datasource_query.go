@@ -37,7 +37,7 @@ func (ds *ExternalDataSource) Query(ctx context.Context, schema []TableSchema, s
 	)
 
 	qualifiedTable := qualifyTableName(schemaName, table)
-	logger.Log(ctx, log.LevelInfo, "Querying PostgreSQL table",
+	logger.Log(ctx, log.LevelDebug, "Querying PostgreSQL table",
 		log.String("table", qualifiedTable),
 		log.Int("field_count", len(fields)),
 		log.Int("filter_count", len(filter)),
@@ -58,7 +58,7 @@ func (ds *ExternalDataSource) Query(ctx context.Context, schema []TableSchema, s
 		return nil, fmt.Errorf("error generating SQL: %w", err)
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Executing PostgreSQL query",
+	logger.Log(ctx, log.LevelDebug, "Executing PostgreSQL query",
 		log.String("table", qualifiedTable),
 		log.Int("arg_count", len(args)),
 	)

@@ -203,7 +203,7 @@ func (w *UsageCleanupWorker) runCleanupCycle(ctx context.Context) {
 
 	logger.With(
 		libLog.String("operation", "worker.usage_cleanup.run_cycle"),
-	).Log(ctx, libLog.LevelInfo, "Running usage counter cleanup cycle")
+	).Log(ctx, libLog.LevelDebug, "Running usage counter cleanup cycle")
 
 	deleted, err := w.RunOnce(ctx)
 	if err != nil {
@@ -219,7 +219,7 @@ func (w *UsageCleanupWorker) runCleanupCycle(ctx context.Context) {
 	logger.With(
 		libLog.String("operation", "worker.usage_cleanup.run_cycle"),
 		libLog.Any("deleted_count", deleted),
-	).Log(ctx, libLog.LevelInfo, "Cleanup cycle completed successfully")
+	).Log(ctx, libLog.LevelDebug, "Cleanup cycle completed successfully")
 }
 
 // RunOnce executes a single cleanup operation.
@@ -244,7 +244,7 @@ func (w *UsageCleanupWorker) RunOnce(ctx context.Context) (int64, error) {
 	logger.With(
 		libLog.String("operation", "worker.usage_cleanup.run_once"),
 		libLog.String("now", now.Format(time.RFC3339)),
-	).Log(ctx, libLog.LevelInfo, "Deleting expired usage counters by expires_at")
+	).Log(ctx, libLog.LevelDebug, "Deleting expired usage counters by expires_at")
 
 	deleted, err := w.repo.DeleteExpiredCounters(ctx, now)
 	if err != nil {
@@ -256,7 +256,7 @@ func (w *UsageCleanupWorker) RunOnce(ctx context.Context) (int64, error) {
 	logger.With(
 		libLog.String("operation", "worker.usage_cleanup.run_once"),
 		libLog.Any("deleted_count", deleted),
-	).Log(ctx, libLog.LevelInfo, "Deleted expired usage counters")
+	).Log(ctx, libLog.LevelDebug, "Deleted expired usage counters")
 
 	return deleted, nil
 }

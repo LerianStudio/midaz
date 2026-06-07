@@ -51,11 +51,6 @@ func (q *GetTransactionValidationQuery) Execute(ctx context.Context, validationI
 		return nil, constant.ErrInvalidPathParameter
 	}
 
-	logger.With(
-		libLog.String("operation", "service.transaction-validation.get"),
-		libLog.String("validation.id", validationID.String()),
-	).Log(ctx, libLog.LevelInfo, "Getting transaction validation record")
-
 	validation, err := q.repo.GetByID(ctx, validationID)
 	if err != nil {
 		if errors.Is(err, constant.ErrTransactionValidationNotFound) {
@@ -67,12 +62,6 @@ func (q *GetTransactionValidationQuery) Execute(ctx context.Context, validationI
 
 		return nil, err
 	}
-
-	logger.With(
-		libLog.String("operation", "service.transaction-validation.get"),
-		libLog.String("validation.id", validation.ID.String()),
-		libLog.String("validation.decision", string(validation.Decision)),
-	).Log(ctx, libLog.LevelInfo, "Transaction validation record retrieved")
 
 	return validation, nil
 }

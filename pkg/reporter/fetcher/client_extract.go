@@ -147,7 +147,7 @@ func (c *FetcherClient) CreateExtractionJob(ctx context.Context, jobReq CreateEx
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Created extraction job",
+	logger.Log(ctx, log.LevelDebug, "Created extraction job",
 		log.String("job_id", result.JobID))
 
 	return &result, nil
@@ -200,7 +200,7 @@ func (c *FetcherClient) GetExtractionJobStatus(ctx context.Context, jobID string
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Retrieved extraction job status",
+	logger.Log(ctx, log.LevelDebug, "Retrieved extraction job status",
 		log.String("job_id", jobID),
 		log.String("status", result.Status))
 

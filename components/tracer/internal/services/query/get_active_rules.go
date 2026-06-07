@@ -71,11 +71,6 @@ func (q *GetActiveRulesQuery) Execute(ctx context.Context, txScope *model.Scope)
 
 	logger = logging.WithTrace(ctx, logger)
 
-	logger.With(
-		libLog.String("operation", "service.rules.get_active"),
-		libLog.Bool("scope.provided", txScope != nil),
-	).Log(ctx, libLog.LevelInfo, "Getting active rules")
-
 	rules, err := q.repo.GetActiveRules(ctx, txScope)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get active rules", err)
@@ -93,7 +88,7 @@ func (q *GetActiveRulesQuery) Execute(ctx context.Context, txScope *model.Scope)
 	logger.With(
 		libLog.String("operation", "service.rules.get_active"),
 		libLog.Int("rules.count", len(rules)),
-	).Log(ctx, libLog.LevelInfo, "Active rules retrieved successfully")
+	).Log(ctx, libLog.LevelDebug, "Active rules retrieved successfully")
 
 	// Normalize nil to empty slice for consistent behavior
 	if rules == nil {

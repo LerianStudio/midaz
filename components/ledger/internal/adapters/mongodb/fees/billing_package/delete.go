@@ -6,25 +6,22 @@ package billing_package
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 // SoftDelete performs a soft delete on a billing package entity in MongoDB.
 func (r *BillingPackageMongoDBRepository) SoftDelete(ctx context.Context, id string, organizationID string) error {
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.billing_package.delete")
 	defer span.End()
@@ -46,7 +43,7 @@ func (r *BillingPackageMongoDBRepository) SoftDelete(ctx context.Context, id str
 
 	coll := db.Collection(strings.ToLower(feeconstant.BillingPackageCollection))
 
-	ctx, spanDelete := tracer.Start(ctx, "repository.billing_package.delete.update_one")
+	_, spanDelete := tracer.Start(ctx, "repository.billing_package.delete.update_one")
 	defer spanDelete.End()
 
 	spanDelete.SetAttributes(attributes...)
@@ -68,12 +65,11 @@ func (r *BillingPackageMongoDBRepository) SoftDelete(ctx context.Context, id str
 	}
 
 	if deleted.MatchedCount == 0 {
-		libOpentelemetry.HandleSpanError(spanDelete, "No billing package found to delete", mongo.ErrNoDocuments)
+		bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "BillingPackage", feeconstant.BillingPackageCollection)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanDelete, "No billing package found to delete", bizErr)
 
-		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "BillingPackage", feeconstant.BillingPackageCollection)
+		return bizErr
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Soft deleted billing package: id=%s, org=%s", id, organizationID))
 
 	return nil
 }

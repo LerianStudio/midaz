@@ -100,11 +100,6 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 
 	logger = logging.WithTrace(ctx, logger)
 
-	logger.With(
-		libLog.String("operation", "service.rules.evaluate"),
-		libLog.String("request.id", req.RequestID.String()),
-	).Log(ctx, libLog.LevelInfo, "Starting rule evaluation")
-
 	// Extract transaction scope for database-level filtering
 	txScope := req.ToTransactionScope()
 
@@ -174,15 +169,6 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 		attribute.Int("app.response.matched_count", len(result.MatchedRuleIDs)),
 		attribute.Int("app.response.evaluated_count", len(result.EvaluatedRuleIDs)),
 	)
-
-	logger.With(
-		libLog.String("operation", "service.rules.evaluate"),
-		libLog.String("decision", result.Decision.String()),
-		libLog.Int("rules.matched_count", len(result.MatchedRuleIDs)),
-		libLog.Int("rules.evaluated_count", len(result.EvaluatedRuleIDs)),
-		libLog.Int("rules.total_loaded", originalCount),
-		libLog.Bool("rules.truncated", truncated),
-	).Log(ctx, libLog.LevelInfo, "Evaluation complete")
 
 	return result.WithTruncationInfo(originalCount, truncated), nil
 }

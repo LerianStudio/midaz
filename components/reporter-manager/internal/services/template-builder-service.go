@@ -19,7 +19,7 @@ func (uc *UseCase) ValidateBlocks(ctx context.Context, input *template_builder.V
 	ctx, span := uc.Tracer.Start(ctx, "service.template_builder.validate_blocks")
 	defer span.End()
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Validating template blocks")
+	uc.Logger.Log(ctx, log.LevelDebug, "Validating template blocks")
 
 	if input == nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Nil input for block validation", errors.New("input must not be nil"))
@@ -35,9 +35,9 @@ func (uc *UseCase) ValidateBlocks(ctx context.Context, input *template_builder.V
 	resp := template_builder.ValidateBlocks(input.Blocks)
 
 	if resp.Valid {
-		uc.Logger.Log(ctx, log.LevelInfo, "Template blocks validation passed")
+		uc.Logger.Log(ctx, log.LevelDebug, "Template blocks validation passed")
 	} else {
-		uc.Logger.Log(ctx, log.LevelInfo, "Template blocks validation failed",
+		uc.Logger.Log(ctx, log.LevelDebug, "Template blocks validation failed",
 			log.Int("error_count", len(resp.Errors)))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Block validation failed", errors.New("validation errors found"))
 	}
@@ -51,7 +51,7 @@ func (uc *UseCase) GenerateCode(ctx context.Context, input *template_builder.Gen
 	ctx, span := uc.Tracer.Start(ctx, "service.template_builder.generate_code")
 	defer span.End()
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Generating Pongo2 code from template blocks")
+	uc.Logger.Log(ctx, log.LevelDebug, "Generating Pongo2 code from template blocks")
 
 	if input == nil {
 		err := errors.New("input must not be nil")
@@ -70,7 +70,7 @@ func (uc *UseCase) GenerateCode(ctx context.Context, input *template_builder.Gen
 
 	mappedFields := template_builder.ExtractMappedFields(input.Blocks)
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Successfully generated code",
+	uc.Logger.Log(ctx, log.LevelDebug, "Successfully generated code",
 		log.Int("mapped_field_datasources", len(mappedFields)))
 
 	return &template_builder.GenerateCodeResponse{

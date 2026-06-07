@@ -31,12 +31,10 @@ func (uc *UseCase) GetReportByID(ctx context.Context, id uuid.UUID) (*report.Rep
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.report_id", id.String()),
 	)
-	uc.Logger.Log(ctx, log.LevelInfo, "Retrieving report", log.String("id", id.String()))
+	uc.Logger.Log(ctx, log.LevelDebug, "Retrieving report", log.String("id", id.String()))
 
 	reportModel, err := uc.ReportRepo.FindByID(ctx, id)
 	if err != nil {
-		uc.Logger.Log(ctx, log.LevelError, "Error getting report on repo by id", log.Err(err))
-
 		if nf := (pkg.EntityNotFoundError{}); errors.As(err, &nf) {
 			errNotFound := pkg.ValidateBusinessError(cnErr.ErrEntityNotFound, "", constant.MongoCollectionReport)
 

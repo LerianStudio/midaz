@@ -65,12 +65,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	}
 
 	payload := i.(*mmodel.CreateAccountInput)
-	portfolioID := payload.PortfolioID
 	logSafePayload(ctx, logger, "Request to create an account", payload)
-
-	if !libCommons.IsNilOrEmpty(portfolioID) {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of Account with Portfolio ID: %s", *portfolioID))
-	}
 
 	ctx, span := tracer.Start(ctx, "handler.create_account")
 	defer span.End()
@@ -81,7 +76,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 
 	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, payload, token)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create Account on command", err)
+		handleSpanByErrorClass(span, "Failed to create Account on command", err)
 
 		return http.WithError(c, err)
 	}
@@ -93,8 +88,6 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to record account created metric", err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully created Account")
 
 	return http.Created(c, account)
 }
@@ -158,7 +151,6 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -186,50 +178,34 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	if !libCommons.IsNilOrEmpty(&headerParams.PortfolioID) {
 		parsedID := uuid.MustParse(headerParams.PortfolioID)
 		portfolioID = &parsedID
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Search of all Accounts with Portfolio ID: %s", portfolioID))
 	}
 
 	if !libCommons.IsNilOrEmpty(&headerParams.SegmentID) {
 		parsedID := uuid.MustParse(headerParams.SegmentID)
 		segmentID = &parsedID
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Search of all Accounts with Segment ID: %s", segmentID))
 	}
 
 	if headerParams.Metadata != nil {
-		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Accounts by metadata")
-
 		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, portfolioID, segmentID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Accounts on query", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Accounts, Error: %s", err.Error()))
+			handleSpanByErrorClass(span, "Failed to retrieve all Accounts on query", err)
 
 			return http.WithError(c, err)
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Accounts by metadata")
 
 		pagination.SetItems(accounts)
 
 		return http.OK(c, pagination)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Accounts ")
-
 	headerParams.Metadata = &bson.M{}
 
 	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, segmentID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Accounts on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Accounts, Error: %s", err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve all Accounts on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Accounts")
 
 	pagination.SetItems(accounts)
 
@@ -256,7 +232,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_id")
 	defer span.End()
@@ -276,18 +252,12 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Account with Account ID: %s", id.String()))
-
 	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Account on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Account with Account ID: %s, Error: %s", id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve Account on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Account with Account ID: %s", id.String()))
 
 	return http.OK(c, account)
 }
@@ -312,7 +282,7 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_external_by_code")
 	defer span.End()
@@ -331,18 +301,12 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 
 	alias := constant.DefaultExternalAccountAliasPrefix + code
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Account with Account Alias: %s", alias))
-
 	account, err := handler.Query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Account on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve Account on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Account with Account Alias: %s", alias))
 
 	return http.OK(c, account)
 }
@@ -367,7 +331,7 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_alias")
 	defer span.End()
@@ -384,18 +348,12 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 
 	alias := c.Params("alias")
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Account with Account Alias: %s", alias))
-
 	account, err := handler.Query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Account on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve Account on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Account with Account Alias: %s", alias))
 
 	return http.OK(c, account)
 }
@@ -444,31 +402,23 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Account with ID: %s", id.String()))
-
 	payload := i.(*mmodel.UpdateAccountInput)
-	logSafePayload(ctx, logger, fmt.Sprintf("Request to update account with ID: %s", id.String()), payload)
+	logSafePayload(ctx, logger, "Request to update account", payload)
 
 	recordSafePayloadAttributes(span, payload)
 
 	if _, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Account on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to update Account on command", err)
 
 		return http.WithError(c, err)
 	}
 
 	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Account on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Account with ID: %s, Error: %s", id, err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve Account on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Account with ID: %s", id.String()))
 
 	return http.OK(c, account)
 }
@@ -493,7 +443,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_account_by_id")
 	defer span.End()
@@ -515,17 +465,11 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 
 	token := c.Get("Authorization")
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Account with ID: %s", id.String()))
-
 	if err := handler.Command.DeleteAccountByID(ctx, organizationID, ledgerID, nil, id, token); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove Account on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to remove Account with ID: %s, Error: %s", id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to remove Account on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Account with ID: %s", id.String()))
 
 	return http.NoContent(c)
 }
@@ -548,7 +492,7 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_accounts")
 	defer span.End()
@@ -563,18 +507,12 @@ func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Counting accounts for organization %s and ledger %s", organizationID, ledgerID))
-
 	count, err := handler.Query.CountAccounts(ctx, organizationID, ledgerID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count accounts", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error counting accounts: %v", err))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully counted accounts for organization %s and ledger %s: %d", organizationID, ledgerID, count))
 
 	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")

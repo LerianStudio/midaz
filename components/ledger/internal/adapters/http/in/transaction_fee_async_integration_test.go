@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
+	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 
 	mongoonb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	mongotxn "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
@@ -182,7 +182,8 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 		time.Sleep(500 * time.Millisecond)
 	})
 
-	routes := rabbitmq.NewConsumerRoutes(consumerConn, 1, 1, logger, telemetry)
+	routes, err := rabbitmq.NewConsumerRoutes(consumerConn, 1, 1, logger, telemetry)
+	require.NoError(t, err, "failed to create consumer routes")
 	consumer := &asyncFeeConsumer{routes: routes, useCase: commandUC}
 	routes.Register(os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"), consumer.handle)
 

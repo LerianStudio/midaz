@@ -31,7 +31,7 @@ func (ds *ExternalDataSource) GetDatabaseSchema(ctx context.Context) ([]Collecti
 	defer span.End()
 
 	span.SetAttributes(attribute.String("app.request.request_id", reqID))
-	logger.Log(ctx, log.LevelInfo, "Retrieving MongoDB schema information using hybrid approach")
+	logger.Log(ctx, log.LevelDebug, "Retrieving MongoDB schema information using hybrid approach")
 
 	schemaCtx, cancel := context.WithTimeout(ctx, constant.SchemaDiscoveryTimeout)
 	defer cancel()
@@ -59,7 +59,7 @@ func (ds *ExternalDataSource) GetDatabaseSchema(ctx context.Context) ([]Collecti
 	schema := make([]CollectionSchema, 0, len(collections))
 	for _, collName := range collections {
 		coll := database.Collection(collName)
-		logger.Log(ctx, log.LevelInfo, "Analyzing collection", log.String("collection", collName))
+		logger.Log(ctx, log.LevelDebug, "Analyzing collection", log.String("collection", collName))
 
 		allFields, err := ds.discoverCollectionFields(schemaCtx, coll)
 		if err != nil {
@@ -89,11 +89,11 @@ func (ds *ExternalDataSource) GetDatabaseSchema(ctx context.Context) ([]Collecti
 			collSchema.Fields = append(collSchema.Fields, FieldInformation{Name: fieldName, DataType: dataType})
 		}
 
-		logger.Log(ctx, log.LevelInfo, "Discovered fields in collection", log.Int("field_count", len(collSchema.Fields)), log.String("collection", collName))
+		logger.Log(ctx, log.LevelDebug, "Discovered fields in collection", log.Int("field_count", len(collSchema.Fields)), log.String("collection", collName))
 		schema = append(schema, collSchema)
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Retrieved schema for collections", log.Int("collection_count", len(schema)))
+	logger.Log(ctx, log.LevelDebug, "Retrieved schema for collections", log.Int("collection_count", len(schema)))
 
 	return schema, nil
 }
@@ -111,7 +111,7 @@ func (ds *ExternalDataSource) GetDatabaseSchemaForOrganization(ctx context.Conte
 		attribute.String("app.request.request_id", reqID),
 		attribute.String("app.request.organization_id", organizationID),
 	)
-	logger.Log(ctx, log.LevelInfo, "Retrieving MongoDB schema for organization", log.String("organization_id", organizationID))
+	logger.Log(ctx, log.LevelDebug, "Retrieving MongoDB schema for organization", log.String("organization_id", organizationID))
 
 	schemaCtx, cancel := context.WithTimeout(ctx, constant.SchemaDiscoveryTimeout)
 	defer cancel()
@@ -137,12 +137,12 @@ func (ds *ExternalDataSource) GetDatabaseSchemaForOrganization(ctx context.Conte
 		return nil, err
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Found collections for organization", log.Int("collection_count", len(collections)), log.String("organization_id", organizationID))
+	logger.Log(ctx, log.LevelDebug, "Found collections for organization", log.Int("collection_count", len(collections)), log.String("organization_id", organizationID))
 
 	schema := make([]CollectionSchema, 0, len(collections))
 	for _, collName := range collections {
 		coll := database.Collection(collName)
-		logger.Log(ctx, log.LevelInfo, "Analyzing collection", log.String("collection", collName))
+		logger.Log(ctx, log.LevelDebug, "Analyzing collection", log.String("collection", collName))
 
 		allFields, err := ds.discoverCollectionFields(schemaCtx, coll)
 		if err != nil {
@@ -172,11 +172,11 @@ func (ds *ExternalDataSource) GetDatabaseSchemaForOrganization(ctx context.Conte
 			collSchema.Fields = append(collSchema.Fields, FieldInformation{Name: fieldName, DataType: dataType})
 		}
 
-		logger.Log(ctx, log.LevelInfo, "Discovered fields in collection", log.Int("field_count", len(collSchema.Fields)), log.String("collection", collName))
+		logger.Log(ctx, log.LevelDebug, "Discovered fields in collection", log.Int("field_count", len(collSchema.Fields)), log.String("collection", collName))
 		schema = append(schema, collSchema)
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Retrieved schema for collections for organization", log.Int("collection_count", len(schema)), log.String("organization_id", organizationID))
+	logger.Log(ctx, log.LevelDebug, "Retrieved schema for collections for organization", log.Int("collection_count", len(schema)), log.String("organization_id", organizationID))
 
 	return schema, nil
 }
@@ -192,7 +192,7 @@ func (ds *ExternalDataSource) GetDatabaseSchemaForPluginCRM(ctx context.Context)
 	defer span.End()
 
 	span.SetAttributes(attribute.String("app.request.request_id", reqID))
-	logger.Log(ctx, log.LevelInfo, "Discovering plugin_crm schema via prefix-based collection grouping")
+	logger.Log(ctx, log.LevelDebug, "Discovering plugin_crm schema via prefix-based collection grouping")
 
 	schemaCtx, cancel := context.WithTimeout(ctx, constant.SchemaDiscoveryTimeout)
 	defer cancel()
@@ -219,7 +219,7 @@ func (ds *ExternalDataSource) GetDatabaseSchemaForPluginCRM(ctx context.Context)
 
 	logicalGroups := groupCollectionsByPrefix(allCollections)
 
-	logger.Log(ctx, log.LevelInfo, "Grouped plugin_crm collections by prefix",
+	logger.Log(ctx, log.LevelDebug, "Grouped plugin_crm collections by prefix",
 		log.Int("logical_groups", len(logicalGroups)),
 		log.Int("total_physical", len(allCollections)),
 	)
@@ -246,7 +246,7 @@ func (ds *ExternalDataSource) GetDatabaseSchemaForPluginCRM(ctx context.Context)
 			collSchema.Fields = append(collSchema.Fields, FieldInformation{Name: fieldName, DataType: dataType})
 		}
 
-		logger.Log(ctx, log.LevelInfo, "Union schema for logical collection",
+		logger.Log(ctx, log.LevelDebug, "Union schema for logical collection",
 			log.String("logical_name", logicalName),
 			log.Int("field_count", len(collSchema.Fields)),
 			log.Int("orgs_sampled", len(physicalCollections)),

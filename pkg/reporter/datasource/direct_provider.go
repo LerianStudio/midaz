@@ -83,7 +83,7 @@ func (dp *DirectProvider) ensureConnected(ctx context.Context, dataSourceID stri
 		return ds, nil
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Connecting to datasource on-demand",
+	logger.Log(ctx, log.LevelDebug, "Connecting to datasource on-demand",
 		log.String("data_source_id", dataSourceID),
 		log.String("database_type", ds.DatabaseType))
 
@@ -107,7 +107,7 @@ func (dp *DirectProvider) ensureConnected(ctx context.Context, dataSourceID stri
 		return ds, err
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Datasource connected on-demand successfully",
+	logger.Log(ctx, log.LevelDebug, "Datasource connected on-demand successfully",
 		log.String("data_source_id", dataSourceID))
 
 	return updated, nil
@@ -125,7 +125,7 @@ func (dp *DirectProvider) ListDataSources(ctx context.Context) ([]DataSourceInfo
 	allDS := dp.safeDatasources.GetAll()
 	span.SetAttributes(attribute.Int("app.datasource.count", len(allDS)))
 
-	logger.Log(ctx, log.LevelInfo, "Listing datasources via DirectProvider",
+	logger.Log(ctx, log.LevelDebug, "Listing datasources via DirectProvider",
 		log.Int("datasource_count", len(allDS)))
 
 	result := make([]DataSourceInfo, 0, len(allDS))
@@ -171,7 +171,7 @@ func (dp *DirectProvider) GetDataSourceSchema(ctx context.Context, dataSourceID 
 		return nil, fmt.Errorf("%w: %w", ErrDataSourceNotFound, pkgErr.ValidateBusinessError(constant.ErrMissingDataSource, "", dataSourceID))
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Retrieving schema via DirectProvider",
+	logger.Log(ctx, log.LevelDebug, "Retrieving schema via DirectProvider",
 		log.String("data_source_id", dataSourceID),
 		log.String("database_type", ds.DatabaseType))
 

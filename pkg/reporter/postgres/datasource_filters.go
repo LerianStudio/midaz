@@ -34,7 +34,7 @@ func (ds *ExternalDataSource) ValidateTableAndFields(ctx context.Context, schema
 		attribute.Int("app.request.requested_fields_count", len(requestedFields)),
 	)
 
-	logger.Log(ctx, log.LevelInfo, "Validating table and fields", log.String("table", tableName), log.Any("fields", requestedFields))
+	logger.Log(ctx, log.LevelDebug, "Validating table and fields", log.String("table", tableName), log.Any("fields", requestedFields))
 
 	var (
 		tableFound   bool
@@ -94,7 +94,7 @@ func (ds *ExternalDataSource) ValidateTableAndFields(ctx context.Context, schema
 		return nil, fmt.Errorf("no valid fields specified for table '%s'", tableName)
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Successfully validated table and fields", log.String("table", tableName), log.Any("fields", validFields))
+	logger.Log(ctx, log.LevelDebug, "Successfully validated table and fields", log.String("table", tableName), log.Any("fields", validFields))
 
 	return validFields, nil
 }
@@ -160,7 +160,7 @@ func (ds *ExternalDataSource) QueryWithAdvancedFilters(ctx context.Context, sche
 	)
 
 	qualifiedTable := qualifyTableName(schemaName, table)
-	logger.Log(ctx, log.LevelInfo, "Querying table with advanced filters", log.String("table", qualifiedTable), log.Any("fields", fields))
+	logger.Log(ctx, log.LevelDebug, "Querying table with advanced filters", log.String("table", qualifiedTable), log.Any("fields", fields))
 
 	queriedFields, err := ds.ValidateTableAndFields(ctx, schemaName, table, fields, schema)
 	if err != nil {
@@ -182,7 +182,7 @@ func (ds *ExternalDataSource) QueryWithAdvancedFilters(ctx context.Context, sche
 		return nil, fmt.Errorf("error generating SQL: %w", err)
 	}
 
-	logger.Log(ctx, log.LevelInfo, "Executing PostgreSQL advanced-filter query",
+	logger.Log(ctx, log.LevelDebug, "Executing PostgreSQL advanced-filter query",
 		log.String("table", qualifyTableName(schemaName, table)),
 		log.Int("field_count", len(fields)),
 		log.Int("filter_count", len(filter)),

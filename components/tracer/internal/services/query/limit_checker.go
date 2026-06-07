@@ -178,7 +178,7 @@ func (s *LimitCheckerService) checkLimitsInternal(
 		logger.With(
 			libLog.String("operation", operationName),
 			libLog.String("currency", input.Currency),
-		).Log(ctx, libLog.LevelInfo, "No active limits found for criteria")
+		).Log(ctx, libLog.LevelDebug, "No active limits found for criteria")
 
 		output := model.NewCheckLimitsOutput(true, serverNow)
 
@@ -188,7 +188,7 @@ func (s *LimitCheckerService) checkLimitsInternal(
 	logger.With(
 		libLog.String("operation", operationName),
 		libLog.Int("applicable_limits_count", len(limits)),
-	).Log(ctx, libLog.LevelInfo, "Found applicable limits")
+	).Log(ctx, libLog.LevelDebug, "Found applicable limits")
 
 	// Build transaction scope once for all limits
 	txScope := buildTransactionScope(input)
@@ -230,12 +230,12 @@ func (s *LimitCheckerService) checkLimitsInternal(
 			libLog.String("operation", operationName),
 			libLog.Any("exceeded_limit_ids", exceededLimitIDs),
 			libLog.Int("exceeded_count", len(exceededLimitIDs)),
-		).Log(ctx, libLog.LevelInfo, "Limits exceeded")
+		).Log(ctx, libLog.LevelDebug, "Limits exceeded")
 	} else {
 		logger.With(
 			libLog.String("operation", operationName),
 			libLog.Int("checked_count", len(usageDetails)),
-		).Log(ctx, libLog.LevelInfo, "All limits passed")
+		).Log(ctx, libLog.LevelDebug, "All limits passed")
 	}
 
 	return output, nil
@@ -447,7 +447,7 @@ func (s *LimitCheckerService) processLimitAtomic(
 			libLog.String("max_amount", limit.MaxAmount.String()),
 			libLog.String("transaction_amount", input.Amount.String()),
 			libLog.Bool("exceeded", true),
-		).Log(ctx, libLog.LevelInfo, "Limit exceeded (atomic check)")
+		).Log(ctx, libLog.LevelDebug, "Limit exceeded (atomic check)")
 
 		return detail, true, nil
 	}
@@ -540,7 +540,7 @@ func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, input *mo
 		libLog.Int("limits_for_currency", len(allLimits)),
 		libLog.Int("applicable_limits", len(applicable)),
 		libLog.String("currency", input.Currency),
-	).Log(ctx, libLog.LevelInfo, "Filtered applicable limits")
+	).Log(ctx, libLog.LevelDebug, "Filtered applicable limits")
 
 	return applicable, nil
 }

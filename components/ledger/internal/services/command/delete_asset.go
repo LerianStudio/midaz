@@ -7,11 +7,9 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
@@ -27,19 +25,17 @@ import (
 
 // DeleteAssetByID deletes an asset from the repository by IDs.
 func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_asset_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Remove asset for id: %s", id))
-
 	asset, err := uc.AssetRepo.Find(ctx, organizationID, ledgerID, id)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, constant.EntityAsset)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Asset ID not found: %s", id.String()))
+			logger.Log(ctx, libLog.LevelWarn, "Asset ID not found", libLog.String("asset_id", id.String()))
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get asset on repo by id", err)
 
@@ -77,9 +73,9 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 
 	if err := uc.AssetRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, constant.EntityAsset)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Asset ID not found: %s", id.String()))
+			logger.Log(ctx, libLog.LevelWarn, "Asset ID not found", libLog.String("asset_id", id.String()))
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete asset on repo by id", err)
 

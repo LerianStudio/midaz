@@ -128,14 +128,6 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 	normalizedInput.Name = strings.TrimSpace(normalizedInput.Name)
 	normalizedInput.Currency = strings.ToUpper(strings.TrimSpace(normalizedInput.Currency))
 
-	logger.With(
-		libLog.String("operation", "service.limit.create"),
-		libLog.String("limit.name", normalizedInput.Name),
-		libLog.String("limit.type", string(normalizedInput.LimitType)),
-		libLog.Any("limit.amount", normalizedInput.MaxAmount),
-		libLog.String("limit.currency", normalizedInput.Currency),
-	).Log(ctx, libLog.LevelInfo, "Creating limit")
-
 	span.SetAttributes(
 		attribute.String("app.request.limit_name", normalizedInput.Name),
 		attribute.String("app.request.limit_type", string(normalizedInput.LimitType)),
@@ -317,13 +309,6 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 
 		return nil, fmt.Errorf("failed to create limit: %w", txErr)
 	}
-
-	logger.With(
-		libLog.String("operation", "service.limit.create"),
-		libLog.String("limit.id", limit.ID.String()),
-		libLog.String("limit.name", limit.Name),
-		libLog.String("limit.status", string(limit.Status)),
-	).Log(ctx, libLog.LevelInfo, "Limit created successfully")
 
 	return limit, nil
 }

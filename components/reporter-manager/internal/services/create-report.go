@@ -50,7 +50,7 @@ func (uc *UseCase) CreateReport(ctx context.Context, reportInput *model.CreateRe
 		attribute.Int("app.request.filter_datasource_count", len(reportInput.Filters)),
 	)
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Creating report",
+	uc.Logger.Log(ctx, log.LevelDebug, "Creating report",
 		log.String("template_id", reportInput.TemplateID),
 		log.Int("filter_datasource_count", len(reportInput.Filters)),
 	)
@@ -170,7 +170,7 @@ func (uc *UseCase) sendReportMessage(ctx context.Context, span trace.Span, resul
 		MappedFields: mappedFields,
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Sending report to reports queue...")
+	uc.Logger.Log(ctx, log.LevelDebug, "Sending report to reports queue...")
 
 	if err := uc.SendReportQueueReports(ctx, reportMessage); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to send report to queue", err)
@@ -218,7 +218,7 @@ func (uc *UseCase) checkReportIdempotency(ctx context.Context, reportInput *mode
 	}
 
 	span.SetAttributes(attribute.String("app.idempotency.key", idempotencyKey))
-	uc.Logger.Log(ctx, log.LevelInfo, "Checking idempotency", log.String("key", idempotencyKey))
+	uc.Logger.Log(ctx, log.LevelDebug, "Checking idempotency", log.String("key", idempotencyKey))
 
 	acquired, setNXErr := uc.RedisRepo.SetNX(ctx, idempotencyKey, "processing", constant.IdempotencyTTL)
 	if setNXErr != nil {
@@ -268,7 +268,7 @@ func (uc *UseCase) buildIdempotencyKey(ctx context.Context, reportInput *model.C
 	// Check for client-provided idempotency key from context
 	if clientKey, ok := ctx.Value(constant.IdempotencyKeyCtx).(string); ok && clientKey != "" {
 		key := constant.IdempotencyKeyPrefix + ":" + clientKey
-		uc.Logger.Log(ctx, log.LevelInfo, "Using client-provided idempotency key", log.String("key", key))
+		uc.Logger.Log(ctx, log.LevelDebug, "Using client-provided idempotency key", log.String("key", key))
 
 		return key, nil
 	}
@@ -283,7 +283,7 @@ func (uc *UseCase) buildIdempotencyKey(ctx context.Context, reportInput *model.C
 
 	hash := commons.HashSHA256(string(data))
 	key := constant.IdempotencyKeyPrefix + ":" + hash
-	uc.Logger.Log(ctx, log.LevelInfo, "Computed idempotency key from request body hash", log.String("key", key))
+	uc.Logger.Log(ctx, log.LevelDebug, "Computed idempotency key from request body hash", log.String("key", key))
 
 	return key, nil
 }
@@ -299,7 +299,7 @@ func (uc *UseCase) handleDuplicateRequest(ctx context.Context, idempotencyKey st
 	defer childSpan.End()
 
 	childSpan.SetAttributes(attribute.String("app.request.request_id", reqId))
-	uc.Logger.Log(ctx, log.LevelInfo, "Duplicate request detected", log.String("idempotency_key", idempotencyKey))
+	uc.Logger.Log(ctx, log.LevelDebug, "Duplicate request detected", log.String("idempotency_key", idempotencyKey))
 
 	cachedResponse, getErr := uc.RedisRepo.Get(ctx, idempotencyKey)
 	if getErr != nil {
@@ -339,7 +339,7 @@ func (uc *UseCase) handleDuplicateRequest(ctx context.Context, idempotencyKey st
 		*replayedPtr = true
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Returning cached idempotent response", log.String("key", idempotencyKey))
+	uc.Logger.Log(ctx, log.LevelDebug, "Returning cached idempotent response", log.String("key", idempotencyKey))
 
 	return &cachedReport, nil
 }

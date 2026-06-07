@@ -17,11 +17,11 @@ func (uc *UseCase) GetBlocksConfig(ctx context.Context) *pongo.BlocksConfigRespo
 	ctx, span := uc.Tracer.Start(ctx, "service.template_builder.get_blocks_config")
 	defer span.End()
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Retrieving block definitions for template builder")
+	uc.Logger.Log(ctx, log.LevelDebug, "Retrieving block definitions for template builder")
 
 	blocks := pongo.GetBlockDefinitions()
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Successfully retrieved block definitions",
+	uc.Logger.Log(ctx, log.LevelDebug, "Successfully retrieved block definitions",
 		log.Int("block_count", len(blocks)))
 
 	return &pongo.BlocksConfigResponse{
@@ -34,11 +34,11 @@ func (uc *UseCase) GetFiltersConfig(ctx context.Context) *pongo.FiltersResponse 
 	ctx, span := uc.Tracer.Start(ctx, "service.template_builder.get_filters_config")
 	defer span.End()
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Retrieving filter definitions for template builder")
+	uc.Logger.Log(ctx, log.LevelDebug, "Retrieving filter definitions for template builder")
 
 	filters := pongo.GetFilterDefinitions()
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Successfully retrieved filter definitions",
+	uc.Logger.Log(ctx, log.LevelDebug, "Successfully retrieved filter definitions",
 		log.Int("filter_count", len(filters)))
 
 	return &pongo.FiltersResponse{

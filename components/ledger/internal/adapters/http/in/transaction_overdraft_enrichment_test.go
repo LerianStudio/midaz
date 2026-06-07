@@ -610,8 +610,10 @@ func TestEnrichOverdraftOperations_RefundCappedAtOverdraftUsed(t *testing.T) {
 // the handler continue.
 func TestRejectInternalScopeBalances_AllowsTransactionalBalances(t *testing.T) {
 	transactional := []*mmodel.Balance{
-		{Alias: "@alice", Key: constant.DefaultBalanceKey,
-			Settings: &mmodel.BalanceSettings{BalanceScope: mmodel.BalanceScopeTransactional}},
+		{
+			Alias: "@alice", Key: constant.DefaultBalanceKey,
+			Settings: &mmodel.BalanceSettings{BalanceScope: mmodel.BalanceScopeTransactional},
+		},
 		{Alias: "@bob", Key: constant.DefaultBalanceKey},
 		// nil balance entries can appear after failed lookups — the guard
 		// must tolerate them without panicking or false-positiving.

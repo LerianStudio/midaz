@@ -58,11 +58,11 @@ func (h *TemplateBuilderHandler) GetBlocksConfig(c *fiber.Ctx) error {
 		attribute.String("app.request.request_id", reqId),
 	)
 
-	h.service.Logger.Log(ctx, log.LevelInfo, "Request to get block definitions")
+	h.service.Logger.Log(ctx, log.LevelDebug, "Request to get block definitions")
 
 	result := h.service.GetBlocksConfig(ctx)
 
-	h.service.Logger.Log(ctx, log.LevelInfo, "Successfully retrieved block definitions")
+	h.service.Logger.Log(ctx, log.LevelDebug, "Successfully retrieved block definitions")
 
 	return commonsHttp.Respond(c, fiber.StatusOK, result)
 }
@@ -90,11 +90,11 @@ func (h *TemplateBuilderHandler) GetFiltersConfig(c *fiber.Ctx) error {
 		attribute.String("app.request.request_id", reqId),
 	)
 
-	h.service.Logger.Log(ctx, log.LevelInfo, "Request to get filter definitions")
+	h.service.Logger.Log(ctx, log.LevelDebug, "Request to get filter definitions")
 
 	result := h.service.GetFiltersConfig(ctx)
 
-	h.service.Logger.Log(ctx, log.LevelInfo, "Successfully retrieved filter definitions")
+	h.service.Logger.Log(ctx, log.LevelDebug, "Successfully retrieved filter definitions")
 
 	return commonsHttp.Respond(c, fiber.StatusOK, result)
 }
@@ -127,7 +127,7 @@ func (h *TemplateBuilderHandler) GenerateCode(c *fiber.Ctx) error {
 		attribute.String("app.request.request_id", reqId),
 	)
 
-	h.service.Logger.Log(ctx, log.LevelInfo, "Request to generate code from template blocks")
+	h.service.Logger.Log(ctx, log.LevelDebug, "Request to generate code from template blocks")
 
 	var input template_builder.GenerateCodeInput
 	if err := c.BodyParser(&input); err != nil {
@@ -151,7 +151,7 @@ func (h *TemplateBuilderHandler) GenerateCode(c *fiber.Ctx) error {
 		return pkgHTTP.BadRequest(c, err)
 	}
 
-	h.service.Logger.Log(ctx, log.LevelInfo, "Successfully generated code from template blocks")
+	h.service.Logger.Log(ctx, log.LevelDebug, "Successfully generated code from template blocks")
 
 	return commonsHttp.Respond(c, fiber.StatusOK, result)
 }
@@ -184,7 +184,7 @@ func (h *TemplateBuilderHandler) ValidateBlocks(c *fiber.Ctx) error {
 		attribute.String("app.request.request_id", reqId),
 	)
 
-	h.service.Logger.Log(ctx, log.LevelInfo, "Request to validate template blocks")
+	h.service.Logger.Log(ctx, log.LevelDebug, "Request to validate template blocks")
 
 	var input template_builder.ValidateBlocksInput
 	if err := c.BodyParser(&input); err != nil {
@@ -207,7 +207,7 @@ func (h *TemplateBuilderHandler) ValidateBlocks(c *fiber.Ctx) error {
 
 	result := h.service.ValidateBlocks(ctx, &input)
 
-	h.service.Logger.Log(ctx, log.LevelInfo, "Block validation completed",
+	h.service.Logger.Log(ctx, log.LevelDebug, "Block validation completed",
 		log.Bool("valid", result.Valid),
 		log.Int("error_count", len(result.Errors)))
 

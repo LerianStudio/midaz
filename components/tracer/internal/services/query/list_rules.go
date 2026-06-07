@@ -68,14 +68,6 @@ func (q *ListRulesQuery) Execute(ctx context.Context, filter *model.ListRulesFil
 		normalizedFilter.SortOrder = strings.ToUpper(normalizedFilter.SortOrder)
 	}
 
-	logger.With(
-		libLog.String("operation", "service.rule.list"),
-		libLog.Int("list.limit", normalizedFilter.Limit),
-		libLog.String("list.cursor", normalizedFilter.Cursor),
-		libLog.String("list.sort_by", normalizedFilter.SortBy),
-		libLog.String("list.sort_order", normalizedFilter.SortOrder),
-	).Log(ctx, libLog.LevelInfo, "Listing rules")
-
 	result, err := q.repo.List(ctx, &normalizedFilter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to list rules", err)
@@ -91,7 +83,7 @@ func (q *ListRulesQuery) Execute(ctx context.Context, filter *model.ListRulesFil
 		libLog.String("operation", "service.rule.list"),
 		libLog.Int("list.count", len(result.Rules)),
 		libLog.Bool("list.has_more", result.HasMore),
-	).Log(ctx, libLog.LevelInfo, "Rules listed")
+	).Log(ctx, libLog.LevelDebug, "Rules listed")
 
 	return result, nil
 }

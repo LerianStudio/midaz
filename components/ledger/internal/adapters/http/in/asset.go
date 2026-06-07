@@ -7,8 +7,7 @@ package in
 import (
 	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
@@ -48,7 +47,7 @@ type AssetHandler struct {
 func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_asset")
 	defer span.End()
@@ -63,9 +62,6 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating creation of Asset with organization ID: %s", organizationID.String()))
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating creation of Asset with ledger ID: %s", ledgerID.String()))
-
 	payload := a.(*mmodel.CreateAssetInput)
 	logSafePayload(ctx, logger, "Request to create an asset", payload)
 
@@ -75,14 +71,10 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 
 	asset, err := handler.Command.CreateAsset(ctx, organizationID, ledgerID, payload, token)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create Asset on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error to created Asset: %s", err.Error()))
+		handleSpanByErrorClass(span, "Failed to create Asset on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully created Asset")
 
 	return http.Created(c, asset)
 }
@@ -113,7 +105,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_assets")
 	defer span.End()
@@ -128,14 +120,9 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Assets with organization ID: %s", organizationID.String()))
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Assets with ledger ID: %s", ledgerID.String()))
-
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -151,38 +138,27 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	}
 
 	if headerParams.Metadata != nil {
-		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Assets by metadata")
 
 		assets, err := handler.Query.GetAllMetadataAssets(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Assets on query", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Assets, Error: %s", err.Error()))
+			handleSpanByErrorClass(span, "Failed to retrieve all Assets on query", err)
 
 			return http.WithError(c, err)
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Assets by metadata")
 
 		pagination.SetItems(assets)
 
 		return http.OK(c, pagination)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Assets")
-
 	headerParams.Metadata = &bson.M{}
 
 	assets, err := handler.Query.GetAllAssets(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Assets on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Assets, Error: %s", err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve all Assets on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Assets")
 
 	pagination.SetItems(assets)
 
@@ -209,7 +185,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_asset_by_id")
 	defer span.End()
@@ -229,18 +205,12 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String()))
-
 	asset, err := handler.Query.GetAssetByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Asset on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve Asset on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String()))
 
 	return http.OK(c, asset)
 }
@@ -269,7 +239,7 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_asset")
 	defer span.End()
@@ -289,23 +259,17 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String()))
-
 	payload := a.(*mmodel.UpdateAssetInput)
-	logSafePayload(ctx, logger, fmt.Sprintf("Request to update asset with ID: %s", id.String()), payload)
+	logSafePayload(ctx, logger, "Request to update asset", payload)
 
 	recordSafePayloadAttributes(span, payload)
 
 	asset, err := handler.Command.UpdateAssetByID(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Asset on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Asset with ID: %s, Error: %s", id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to update Asset on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String()))
 
 	return http.OK(c, asset)
 }
@@ -330,7 +294,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_asset_by_id")
 	defer span.End()
@@ -350,17 +314,11 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String()))
-
 	if err := handler.Command.DeleteAssetByID(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove Asset on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to remove Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to remove Asset on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String()))
 
 	return http.NoContent(c)
 }
@@ -383,7 +341,7 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 func (handler *AssetHandler) CountAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_assets")
 	defer span.End()
@@ -398,18 +356,12 @@ func (handler *AssetHandler) CountAssets(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating count of all assets for organization: %s, ledger: %s", organizationID, ledgerID))
-
 	count, err := handler.Query.CountAssets(ctx, organizationID, ledgerID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count assets", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to count assets, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully counted assets for organization %s, ledger %s: %d", organizationID, ledgerID, count))
 
 	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")

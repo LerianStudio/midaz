@@ -11,11 +11,9 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -40,17 +38,10 @@ func NewGetRuleQuery(repo RuleRepository) *GetRuleQuery {
 
 // Execute retrieves a rule by ID.
 func (q *GetRuleQuery) Execute(ctx context.Context, id uuid.UUID) (*model.Rule, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // only tracer is needed from tracking context
 
 	ctx, span := tracer.Start(ctx, "service.rule.get")
 	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	logger.With(
-		libLog.String("operation", "service.rule.get"),
-		libLog.String("rule.id", id.String()),
-	).Log(ctx, libLog.LevelInfo, "Getting rule")
 
 	rule, err := q.repo.GetByID(ctx, id)
 	if err != nil {
@@ -63,12 +54,6 @@ func (q *GetRuleQuery) Execute(ctx context.Context, id uuid.UUID) (*model.Rule, 
 
 		return nil, err
 	}
-
-	logger.With(
-		libLog.String("operation", "service.rule.get"),
-		libLog.String("rule.id", rule.ID.String()),
-		libLog.String("rule.name", rule.Name),
-	).Log(ctx, libLog.LevelInfo, "Rule retrieved")
 
 	return rule, nil
 }

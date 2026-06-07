@@ -6,7 +6,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
@@ -36,10 +35,6 @@ func (uc *UseCase) ValidatePackageMaxAndMinAmountRange(ctx context.Context, logg
 	packs, err := uc.packageRepo.FindList(ctx, filterPackage)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to find package list", err)
-
-		if logger != nil {
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error to find package list for organizationId %v and ledgerID %v, Error: %v", organizationID, ledgerID, err))
-		}
 
 		return err
 	}

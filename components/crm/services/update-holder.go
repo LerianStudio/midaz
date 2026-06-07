@@ -6,19 +6,17 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
+// UpdateHolderByID updates a holder by its ID.
 func (uc *UseCase) UpdateHolderByID(ctx context.Context, organizationID string, id uuid.UUID, uhi *mmodel.UpdateHolderInput, fieldsToRemove []string) (*mmodel.Holder, error) {
-	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.update_holder")
 	defer span.End()
@@ -28,8 +26,6 @@ func (uc *UseCase) UpdateHolderByID(ctx context.Context, organizationID string, 
 		attribute.String("app.request.organization_id", organizationID),
 		attribute.String("app.request.holder_id", id.String()),
 	)
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update holder: %v", id.String()))
 
 	holder := &mmodel.Holder{
 		ExternalID:    uhi.ExternalID,
@@ -44,9 +40,7 @@ func (uc *UseCase) UpdateHolderByID(ctx context.Context, organizationID string, 
 
 	updatedHolder, err := uc.HolderRepo.Update(ctx, organizationID, id, holder, fieldsToRemove)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to update holder", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update holder: %v", err))
+		recordSpanError(span, "Failed to update holder", err)
 
 		return nil, err
 	}

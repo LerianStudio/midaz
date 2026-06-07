@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
@@ -66,10 +66,11 @@ const (
 // at create_bulk_transaction_operations_async.go:555 which only does
 // fresh inserts) pass TransactionLifecyclePhaseCreated explicitly.
 func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.Transaction, phase string) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	if !isTransactionEventEnabled() {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction event not enabled. RABBITMQ_TRANSACTION_EVENTS_ENABLED='%s'", os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")))
+		logger.Log(ctx, libLog.LevelDebug, "Transaction event not enabled",
+			libLog.String("rabbitmq_transaction_events_enabled", os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")))
 		return
 	}
 
@@ -80,7 +81,7 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanTransactionEvents, "Failed to marshal transaction to JSON string", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to marshal transaction to JSON string: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to marshal transaction to JSON string", libLog.Err(err))
 	}
 
 	event := mmodel.Event{
@@ -102,8 +103,6 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 	key.WriteString(".")
 	key.WriteString(tran.Status.Code)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Sending transaction events to key: %s", key.String()))
-
 	message, err := json.Marshal(event)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanTransactionEvents, "Failed to marshal exchange message struct", err)
@@ -119,7 +118,7 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 	); err != nil {
 		libOpentelemetry.HandleSpanError(spanTransactionEvents, "Failed to send transaction events to exchange", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to send message: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to send message", libLog.Err(err))
 	}
 
 	// lib-streaming emission runs alongside the rabbit publish during
@@ -223,7 +222,7 @@ func (uc *UseCase) emitTransactionLifecycleEvent(ctx context.Context, span trace
 				return events.NewTransactionCanceled(src).ToEmitRequestCanceled(tenantID, time.Now())
 			}
 		default:
-			logger.Log(ctx, libLog.LevelInfo, "Skipping transaction lifecycle emit; updated phase with non-terminal status",
+			logger.Log(ctx, libLog.LevelDebug, "Skipping transaction lifecycle emit; updated phase with non-terminal status",
 				libLog.String("status", tran.Status.Code),
 				libLog.String("phase", phase))
 

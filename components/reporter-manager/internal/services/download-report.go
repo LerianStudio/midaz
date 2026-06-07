@@ -32,7 +32,7 @@ func (uc *UseCase) DownloadReport(ctx context.Context, id uuid.UUID) ([]byte, st
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.report_id", id.String()),
 	)
-	uc.Logger.Log(ctx, log.LevelInfo, "Downloading report", log.String("id", id.String()))
+	uc.Logger.Log(ctx, log.LevelDebug, "Downloading report", log.String("id", id.String()))
 
 	// Fetch the report
 	reportModel, err := uc.GetReportByID(ctx, id)
@@ -94,7 +94,7 @@ func (uc *UseCase) DownloadReport(ctx context.Context, id uuid.UUID) ([]byte, st
 		return nil, "", "", errFile
 	}
 
-	uc.Logger.Log(ctx, log.LevelInfo, "Downloaded report file from storage",
+	uc.Logger.Log(ctx, log.LevelDebug, "Downloaded report file from storage",
 		log.String("object_name", objectName),
 		log.Int("size_bytes", len(fileBytes)),
 	)

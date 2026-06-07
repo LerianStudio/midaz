@@ -6,7 +6,6 @@ package billing_package
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
@@ -63,12 +62,12 @@ func NewBillingPackageMongoDBRepository(mc *mmongoDB.MongoConnection, logger lib
 	ctx := context.Background()
 
 	if _, err := r.connection.GetDB(ctx); err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to connect mongo, Err: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to connect mongo", libLog.Err(err))
 		return nil, err
 	}
 
 	if err := EnsureIndexes(ctx, mc); err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to ensure mongo indexes for billing_package, Err: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to ensure mongo indexes for billing_package", libLog.Err(err))
 		return nil, err
 	}
 

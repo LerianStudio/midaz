@@ -15,8 +15,8 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/instrument"
 	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/instrument"
 	crmservices "github.com/LerianStudio/midaz/v4/components/crm/services"
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -27,11 +27,11 @@ import (
 // ledger binary. connection and cipher are nil/zero-meaningful only in
 // single-tenant mode; mongoManager is non-nil only in multi-tenant mode.
 type crmComponents struct {
-	connection    *libMongo.Client  // nil in multi-tenant mode
-	cipher        *libCrypto.Crypto // holder/alias PII encryption (R7)
-	holderHandler *httpin.HolderHandler
-	instrumentHandler  *httpin.InstrumentHandler
-	mongoManager  *tmmongo.Manager // nil in single-tenant mode; exposed for middleware/eviction wiring
+	connection        *libMongo.Client  // nil in multi-tenant mode
+	cipher            *libCrypto.Crypto // holder/alias PII encryption (R7)
+	holderHandler     *httpin.HolderHandler
+	instrumentHandler *httpin.InstrumentHandler
+	mongoManager      *tmmongo.Manager // nil in single-tenant mode; exposed for middleware/eviction wiring
 }
 
 // initCRM initializes the CRM holder/alias slice of the unified binary.
@@ -87,10 +87,10 @@ func initCRMMultiTenant(opts *Options, cfg *Config, logger libLog.Logger, cipher
 	holderHandler, instrumentHandler := buildCRMHandlers(holderRepo, aliasRepo)
 
 	return &crmComponents{
-		cipher:        cipher,
-		holderHandler: holderHandler,
-		instrumentHandler:  instrumentHandler,
-		mongoManager:  mongoMgr,
+		cipher:            cipher,
+		holderHandler:     holderHandler,
+		instrumentHandler: instrumentHandler,
+		mongoManager:      mongoMgr,
 	}, nil
 }
 
@@ -131,10 +131,10 @@ func initCRMSingleTenant(cfg *Config, logger libLog.Logger, cipher *libCrypto.Cr
 	holderHandler, instrumentHandler := buildCRMHandlers(holderRepo, aliasRepo)
 
 	return &crmComponents{
-		connection:    mongoConnection,
-		cipher:        cipher,
-		holderHandler: holderHandler,
-		instrumentHandler:  instrumentHandler,
+		connection:        mongoConnection,
+		cipher:            cipher,
+		holderHandler:     holderHandler,
+		instrumentHandler: instrumentHandler,
 	}, nil
 }
 
@@ -195,8 +195,8 @@ func buildCRMRepositories(connection *libMongo.Client, cipher *libCrypto.Crypto)
 // buildCRMHandlers assembles the CRM use cases and HTTP handlers.
 func buildCRMHandlers(holderRepo *holder.MongoDBRepository, aliasRepo *instrument.MongoDBRepository) (*httpin.HolderHandler, *httpin.InstrumentHandler) {
 	useCases := &crmservices.UseCase{
-		HolderRepo: holderRepo,
-		InstrumentRepo:  aliasRepo,
+		HolderRepo:     holderRepo,
+		InstrumentRepo: aliasRepo,
 	}
 
 	return &httpin.HolderHandler{Service: useCases}, &httpin.InstrumentHandler{Service: useCases}

@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
@@ -148,7 +148,7 @@ func NewInMemorySyncAggregator() *InMemorySyncAggregator {
 // Space complexity: O(m) where m is number of unique composite keys
 func (a *InMemorySyncAggregator) Aggregate(ctx context.Context, balances []*AggregatedBalance) []*AggregatedBalance {
 	//nolint:dogsled // standard pattern used throughout codebase
-	_, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "balance_sync.aggregate")
 	defer span.End()

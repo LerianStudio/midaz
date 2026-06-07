@@ -45,7 +45,7 @@ func (r *BillingPackageMongoDBRepository) FindByID(ctx context.Context, id strin
 
 	var record BillingPackageMongoDBModel
 
-	ctx, spanFindOne := tracer.Start(ctx, "repository.billing_package.find_by_id.find_one")
+	_, spanFindOne := tracer.Start(ctx, "repository.billing_package.find_by_id.find_one")
 	defer spanFindOne.End()
 
 	spanFindOne.SetAttributes(attributes...)
@@ -58,7 +58,7 @@ func (r *BillingPackageMongoDBRepository) FindByID(ctx context.Context, id strin
 
 	if err = coll.FindOne(ctx, filter).Decode(&record); err != nil {
 		if err == mongo.ErrNoDocuments {
-			libOpentelemetry.HandleSpanError(spanFindOne, "Billing package not found", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanFindOne, "Billing package not found", err)
 
 			return nil, err
 		}
@@ -118,7 +118,7 @@ func (r *BillingPackageMongoDBRepository) FindAll(ctx context.Context, organizat
 	}
 
 	// Count total documents
-	ctx, spanCount := tracer.Start(ctx, "repository.billing_package.find_all.count")
+	_, spanCount := tracer.Start(ctx, "repository.billing_package.find_all.count")
 
 	spanCount.SetAttributes(attributes...)
 
@@ -148,7 +148,7 @@ func (r *BillingPackageMongoDBRepository) FindAll(ctx context.Context, organizat
 		SetSkip(skip).
 		SetSort(bson.D{{Key: "created_at", Value: -1}})
 
-	ctx, spanFind := tracer.Start(ctx, "repository.billing_package.find_all.find")
+	_, spanFind := tracer.Start(ctx, "repository.billing_package.find_all.find")
 
 	spanFind.SetAttributes(attributes...)
 
@@ -230,7 +230,7 @@ func (r *BillingPackageMongoDBRepository) FindMatchingPackages(ctx context.Conte
 		"deleted_at":                     bson.M{"$eq": nil},
 	}
 
-	ctx, spanFind := tracer.Start(ctx, "repository.billing_package.find_matching_packages.find")
+	_, spanFind := tracer.Start(ctx, "repository.billing_package.find_matching_packages.find")
 
 	spanFind.SetAttributes(attributes...)
 
@@ -312,7 +312,7 @@ func (r *BillingPackageMongoDBRepository) FindActiveByType(ctx context.Context, 
 		"deleted_at":      bson.M{"$eq": nil},
 	}
 
-	ctx, spanFind := tracer.Start(ctx, "repository.billing_package.find_active_by_type.find")
+	_, spanFind := tracer.Start(ctx, "repository.billing_package.find_active_by_type.find")
 
 	spanFind.SetAttributes(attributes...)
 

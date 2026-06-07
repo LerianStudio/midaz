@@ -125,7 +125,7 @@ func (s *LimitCheckerService) ResolveReservations(ctx context.Context, input *mo
 		libLog.String("operation", "service.reservation.resolve"),
 		libLog.Int("applicable_limits", len(limits)),
 		libLog.Int("reservation_specs", len(specs)),
-	).Log(ctx, libLog.LevelInfo, "Resolved reservation specs")
+	).Log(ctx, libLog.LevelDebug, "Resolved reservation specs")
 
 	return specs, false, nil
 }
