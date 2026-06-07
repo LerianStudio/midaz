@@ -141,7 +141,7 @@ Single methodology, non-test `.go`, excluding mocks/generated. Slice globs:
 
 | # | Finding | Sev | Evidence |
 |---|---|---|---|
-| F21 | Redis consumer poison records skipped-not-deleted — re-attempted every cycle forever, unbounded queue growth, no counter/DLQ/alert | **P1** | `redis.consumer.go:285-293,350,454-456,521-527,536-543` |
+| F21 | Redis consumer poison records skipped-not-deleted — re-attempted every cycle forever, no retry counter/alert. **Remediation reframed by D5-v2 (2026-06-07): these records are the ONLY durable copy of authorized transactions (the backup hash is the async WAL) — delete-only would destroy the financial record. Correct fix: after N failed cycles, persist to a Postgres quarantine table + Error log + alert metrics; HDel only after quarantine confirmed.** | **P1** | `redis.consumer.go:285-293,350,454-456,521-527,536-543`; durability chain: `balance_atomic_operation.lua` (~:220 atomic seed), `create_balance_transaction_operations_async.go:159,334` (post-persist delete), Valkey AOF everysec + noeviction (`infra/docker-compose.yml:55-56`) |
 | F22 | Ledger probe traffic generates spans+metrics on every k8s probe (`WithTelemetry` exclusion unused); tracer filters correctly | P2 | `unified-server.go` middleware block; lib `middleware/telemetry.go:86-97` |
 | F23 | balance-sync silently skips a tenant's full cycle on per-tenant PG failure — no metric/alert, invisible to readyz | P2 | `balance_sync.worker.go:313-315,321-324` |
 | — | reporter-worker readyz metric name drift (`readyz_check_status` vs `_total`) | P3 | reporter-worker health server vs ledger/tracer readyz metrics |

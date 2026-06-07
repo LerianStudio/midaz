@@ -91,7 +91,7 @@ Resolved with the owner at the Phase 1 checkpoint (2026-06-07). Governing contex
 | D2 | 400→422/409 re-typing of business-rule violations | Forks now, mainline deferred | **Everything now** — forks in the D1 migration AND mainline ledger's ~82 ValidationError sites re-typed in Phase 3 (new Epic 3.6); v4 is the comms window |
 | D3 | Envelope convergence | Converge | **Converge** — one `{code,title,message}` envelope everywhere |
 | D4 | Tracer bespoke Prometheus families vs MetricsFactory | Bless tracer, Factory for new only | **Migrate tracer to MetricsFactory** — no sanctioned exception; allowlist discipline (`recorder.go:32-49`) survives as the cardinality model; greenfield = no dashboards to preserve (new Epic 5.6) |
-| D5 | Transaction-consumer DLQ topology + retry budget | Reporter pattern, maxRetries 3 | **Deferred to Phase 4 elaboration** — Epic 4.2 blocked on this; topology decided against the codebase as it exists post-Phase 3 |
+| D5 | Transaction-consumer DLQ topology + retry budget | Reporter pattern, maxRetries 3 | **RESOLVED 2026-06-07 (v2, post durability analysis): two-layer design.** (1) RabbitMQ `transaction.dlx`/`transaction.dlq` mirroring reporter (TTL 7d, max-len 10k, `transaction.dlq.key`), classifier + exponential backoff + maxRetries 3 — role is FLOW-CONTROL/DIAGNOSTIC only, never the durable store. (2) The financial safety layer is the Redis backup consumer: poison records in `backup_queue:{transactions}` after N failed cycles → persisted to a Postgres QUARANTINE table + Error log + metrics (backup-queue depth, oldest-entry age); `HDel` only after quarantine persistence confirmed. Rationale: the Redis backup hash is the durable WAL of authorized transactions (seeded ATOMICALLY with authorization inside `balance_atomic_operation.lua`; no TTL; noeviction; AOF everysec; deleted only post-Postgres-persist at `create_balance_transaction_operations_async.go:159→334`) — a RabbitMQ DLQ TTL can never lose the last copy, but silently skipping a poison backup record forever WOULD. F21's remediation is hereby reframed: NEVER delete-only a poison backup record — quarantine-then-delete. |
 | D6 | Domain-metrics scope | Middleware sufficient, opt-in | **Mandate domain metrics on all business operations** (new Epic 5.7) |
 | D7 | reporter HMAC soft-fail + partial-result posture | Keep as carve-outs | **HMAC hard-fail** (invalid signature → reject + dead-letter; security born enforcing) **+ partial-result explicit** (PARTIAL report status + per-section classified `error_code` per E9) — new Epic 4.5 |
 
@@ -698,7 +698,7 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 **Goal:** ledger transaction consumer classifies permanent-vs-transient, dead-letters permanents, bounded-retries transients; blanket `Nack(requeue=true)` gone from all three sites; DLX/DLQ provisioned in infra topology per D5.
 **Scope:** `components/ledger/internal/adapters/rabbitmq/consumer.rabbitmq.go`, `components/infra/rabbitmq/etc/definitions.json`.
-**Dependencies:** Epic 4.1; **D5 deliberately deferred to this phase's elaboration** — topology + retry budget decided against the post-Phase-3 codebase (reporter pattern maxRetries-3 remains the working hypothesis).
+**Dependencies:** Epic 4.1; **D5 RESOLVED (v2)** — see Decision Points: DLQ is flow-control/diagnostic only (reporter topology, TTL 7d acceptable because the Redis backup hash holds the durable copy), maxRetries 3.
 **Done when:** integration test feeds a poison message (nil-Transaction payload) and observes DLQ delivery within the retry budget — no hot loop.
 
 ### Epic 4.3: Panic disposition (F13)
@@ -708,12 +708,12 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 **Dependencies:** Task 1.1.3 inventory; independent of 4.1/4.2.
 **Done when:** class-(a) list empty; constructor failure path returns error and bootstrap handles it.
 
-### Epic 4.4: Redis/balance-sync posture (G4)
+### Epic 4.4: Redis backup-consumer quarantine + balance-sync posture (G4, F21 reframed, D5-v2 layer 2)
 
-**Goal:** the Redis consumer and balance-sync worker conform to the trace-propagation and error-posture rules; whether the DLQ standard extends to the Redis path is decided from Task 1.1.2 findings.
-**Scope:** `components/ledger/internal/bootstrap/redis.consumer.go`, `balance_sync.worker.go`.
-**Dependencies:** Task 1.1.2 findings; Phase 1 rules 10–11.
-**Done when:** both loops carry trace context per the standard; error posture documented or remediated per findings.
+**Goal:** the financial safety layer of D5-v2 — the Redis backup consumer never silently strands an authorized transaction: poison records in `backup_queue:{transactions}` get a per-record retry counter; after N failed cycles the raw record is persisted to a Postgres quarantine table (+ Error log + alert metric), and only then HDel'd. Backup-queue depth and oldest-entry age become metrics. Balance-sync per-tenant skip (F23) gains a skip counter metric. Both loops conform to trace-propagation rules (T10).
+**Scope:** `components/ledger/internal/bootstrap/redis.consumer.go`, `balance_sync.worker.go`, new quarantine table migration + repository, metrics wiring.
+**Dependencies:** D5-v2 outcome (Decision Points); Phase 1 rules T10–T11. CONSTRAINT: a poison backup record is the ONLY durable copy of an authorized transaction — quarantine-then-delete, never delete-only, never skip-silently-forever.
+**Done when:** induced poison record lands in the quarantine table within N cycles with an alertable metric; queue-depth/age metrics exposed; F23 skip counter live; trace posture per standard.
 
 ### Epic 4.5: Reporter posture hardening (D7 outcome) `[added at Phase 1 checkpoint]`
 
