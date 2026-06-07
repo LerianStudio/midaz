@@ -70,37 +70,56 @@ func (uc *UseCase) decryptExtractedData(ctx context.Context, rawData []byte) ([]
 	return decrypted, nil
 }
 
-// auditHMAC verifies the HMAC signature of extracted data for integrity auditing.
-// Gap 11 (D6): Log-only in MVP -- logs match/mismatch but does NOT reject on mismatch.
-func (uc *UseCase) auditHMAC(ctx context.Context, data []byte, receivedHMAC string) {
-	ctx, span := uc.Tracer.Start(ctx, "service.notification.audit_hmac")
+// verifyHMACOrReject verifies the HMAC signature of extracted data and enforces
+// integrity per D7 (security born enforcing). It returns a typed UnauthorizedError
+// (business-typed, hence non-retryable by the worker retry guard) when the message
+// must be rejected. Postures:
+//
+//	(a) key configured, signature present, verification fails -> REJECT (tamper/wrong key).
+//	(b) signature absent but key configured -> REJECT (a producer that should sign didn't).
+//	(c) key NOT configured -> skip verification, log Info (deployments without HMAC stay functional).
+func (uc *UseCase) verifyHMACOrReject(ctx context.Context, data []byte, receivedHMAC string) error {
+	ctx, span := uc.Tracer.Start(ctx, "service.notification.verify_hmac")
 	defer span.End()
 
-	if receivedHMAC == "" {
-		uc.Logger.Log(ctx, log.LevelInfo, "No HMAC signature in notification, skipping verification")
-		span.SetAttributes(attribute.String("app.hmac.result", "skipped"))
-
-		return
-	}
-
+	// Posture (c): no signing key configured — verification is disabled.
 	if len(uc.ExternalHMACKey) == 0 {
-		uc.Logger.Log(ctx, log.LevelWarn, "External HMAC key not configured, cannot verify HMAC")
+		uc.Logger.Log(ctx, log.LevelInfo, "External HMAC key not configured, skipping verification")
 		span.SetAttributes(attribute.String("app.hmac.result", "skipped_no_key"))
 
-		return
+		return nil
 	}
 
-	match := verifyHMAC(data, receivedHMAC, uc.ExternalHMACKey)
+	// Posture (b): a key is configured but the producer did not sign the payload.
+	if receivedHMAC == "" {
+		uc.Logger.Log(ctx, log.LevelWarn, "Missing HMAC signature while signing key is configured, rejecting")
+		span.SetAttributes(attribute.String("app.hmac.result", "missing_signature"))
 
-	if match {
-		uc.Logger.Log(ctx, log.LevelInfo, "HMAC verification: match",
-			log.Int("data_size", len(data)))
-		span.SetAttributes(attribute.String("app.hmac.result", "match"))
-	} else {
-		uc.Logger.Log(ctx, log.LevelWarn, "HMAC verification: mismatch (log-only per D6, not rejecting)",
+		return pkg.UnauthorizedError{
+			Code:    constant.ErrCodeInvalidMessageSignature.Error(),
+			Title:   "Invalid Message Signature",
+			Message: "extracted data is missing an HMAC signature while a signing key is configured",
+		}
+	}
+
+	// Posture (a): signature present but verification fails (tampered data or wrong key).
+	if !verifyHMAC(data, receivedHMAC, uc.ExternalHMACKey) {
+		uc.Logger.Log(ctx, log.LevelWarn, "HMAC verification failed, rejecting",
 			log.Int("data_size", len(data)))
 		span.SetAttributes(attribute.String("app.hmac.result", "mismatch"))
+
+		return pkg.UnauthorizedError{
+			Code:    constant.ErrCodeInvalidMessageSignature.Error(),
+			Title:   "Invalid Message Signature",
+			Message: "HMAC verification of extracted data failed",
+		}
 	}
+
+	uc.Logger.Log(ctx, log.LevelInfo, "HMAC verification: match",
+		log.Int("data_size", len(data)))
+	span.SetAttributes(attribute.String("app.hmac.result", "match"))
+
+	return nil
 }
 
 // parseExtractedData unmarshals decrypted JSON data into the result map structure

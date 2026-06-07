@@ -462,7 +462,8 @@ func TestMetadataValidation_KeyMaxLength(t *testing.T) {
 		},
 	}
 
-	v, _ := newValidator()
+	v, _, err := newValidator()
+	require.NoError(t, err)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -537,7 +538,8 @@ func TestMetadataValidation_ValueMaxLength(t *testing.T) {
 		},
 	}
 
-	v, _ := newValidator()
+	v, _, err := newValidator()
+	require.NoError(t, err)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -592,7 +594,8 @@ func TestMetadataValidation_NestedValues(t *testing.T) {
 		},
 	}
 
-	v, _ := newValidator()
+	v, _, err := newValidator()
+	require.NoError(t, err)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -638,7 +641,8 @@ func TestMetadataValidation_Combined(t *testing.T) {
 		},
 	}
 
-	v, _ := newValidator()
+	v, _, err := newValidator()
+	require.NoError(t, err)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

@@ -10,6 +10,9 @@ import (
 	"errors"
 	"testing"
 
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -115,22 +118,9 @@ func TestDecryptExtractedData_InvalidCiphertext(t *testing.T) {
 	assert.Contains(t, err.Error(), "base64 decode encrypted data")
 }
 
-func TestAuditHMAC_EmptyReceivedHMAC_Skips(t *testing.T) {
-	t.Parallel()
-
-	uc := &UseCase{
-		Logger:          log.NewNop(),
-		Tracer:          noop.NewTracerProvider().Tracer("test"),
-		ExternalHMACKey: []byte("some-key"),
-	}
-
-	// Should not panic and should skip verification
-	require.NotPanics(t, func() {
-		uc.auditHMAC(context.Background(), []byte("data"), "")
-	})
-}
-
-func TestAuditHMAC_NoKey_Skips(t *testing.T) {
+// D7 posture (c): key NOT configured -> skip verification, return nil (deployments
+// without HMAC stay functional).
+func TestVerifyHMACOrReject_NoKey_Skips(t *testing.T) {
 	t.Parallel()
 
 	uc := &UseCase{
@@ -139,12 +129,11 @@ func TestAuditHMAC_NoKey_Skips(t *testing.T) {
 		ExternalHMACKey: nil,
 	}
 
-	require.NotPanics(t, func() {
-		uc.auditHMAC(context.Background(), []byte("data"), "some-hmac")
-	})
+	err := uc.verifyHMACOrReject(context.Background(), []byte("data"), "some-hmac")
+	require.NoError(t, err, "no key configured must skip verification and proceed")
 }
 
-func TestAuditHMAC_EmptyKey_Skips(t *testing.T) {
+func TestVerifyHMACOrReject_EmptyKey_Skips(t *testing.T) {
 	t.Parallel()
 
 	uc := &UseCase{
@@ -153,23 +142,66 @@ func TestAuditHMAC_EmptyKey_Skips(t *testing.T) {
 		ExternalHMACKey: []byte{},
 	}
 
-	require.NotPanics(t, func() {
-		uc.auditHMAC(context.Background(), []byte("data"), "some-hmac")
-	})
+	err := uc.verifyHMACOrReject(context.Background(), []byte("data"), "some-hmac")
+	require.NoError(t, err, "empty key configured must skip verification and proceed")
 }
 
-func TestAuditHMAC_WithKeyAndHMAC_DoesNotPanic(t *testing.T) {
+// D7 posture (b): signature ABSENT but key CONFIGURED -> REJECT (a producer that
+// should sign didn't).
+func TestVerifyHMACOrReject_KeyConfiguredSignatureAbsent_Rejects(t *testing.T) {
 	t.Parallel()
 
 	uc := &UseCase{
 		Logger:          log.NewNop(),
 		Tracer:          noop.NewTracerProvider().Tracer("test"),
-		ExternalHMACKey: []byte("test-hmac-key-for-verification"),
+		ExternalHMACKey: []byte("test-hmac-secret-key"),
 	}
 
-	require.NotPanics(t, func() {
-		uc.auditHMAC(context.Background(), []byte("test data"), "invalid-hmac-value")
-	})
+	err := uc.verifyHMACOrReject(context.Background(), []byte("data"), "")
+	require.Error(t, err, "key configured but signature absent must reject")
+	assert.True(t, pkg.IsBusinessError(err), "rejection must be a business-typed (non-retryable) error")
+
+	var unauthorized pkg.UnauthorizedError
+	require.ErrorAs(t, err, &unauthorized)
+	assert.Equal(t, constant.ErrCodeInvalidMessageSignature.Error(), unauthorized.Code)
+}
+
+// D7 posture (a): mismatch (key configured, signature present, verification fails)
+// -> REJECT with a permanent (non-retryable) error.
+func TestVerifyHMACOrReject_Mismatch_Rejects(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{
+		Logger:          log.NewNop(),
+		Tracer:          noop.NewTracerProvider().Tracer("test"),
+		ExternalHMACKey: []byte("test-hmac-secret-key"),
+	}
+
+	err := uc.verifyHMACOrReject(context.Background(), []byte("test data"), "deadbeefdeadbeef")
+	require.Error(t, err, "key configured, signature present but invalid must reject")
+	assert.True(t, pkg.IsBusinessError(err), "rejection must be a business-typed (non-retryable) error")
+
+	var unauthorized pkg.UnauthorizedError
+	require.ErrorAs(t, err, &unauthorized)
+	assert.Equal(t, constant.ErrCodeInvalidMessageSignature.Error(), unauthorized.Code)
+}
+
+// Valid signature with key configured -> proceed.
+func TestVerifyHMACOrReject_ValidSignature_Proceeds(t *testing.T) {
+	t.Parallel()
+
+	key := []byte("test-hmac-secret-key")
+	data := []byte(`{"accounts":[{"id":1}]}`)
+	validHMAC := computeHMACForTest(t, data, key)
+
+	uc := &UseCase{
+		Logger:          log.NewNop(),
+		Tracer:          noop.NewTracerProvider().Tracer("test"),
+		ExternalHMACKey: key,
+	}
+
+	err := uc.verifyHMACOrReject(context.Background(), data, validHMAC)
+	require.NoError(t, err, "valid signature with key configured must proceed")
 }
 
 func TestParseExtractedData_ValidJSON(t *testing.T) {

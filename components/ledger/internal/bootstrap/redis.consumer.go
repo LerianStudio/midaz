@@ -10,26 +10,30 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libObservability "github.com/LerianStudio/lib-observability"
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-observability/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	postgreTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionquarantine"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -37,11 +41,20 @@ const (
 	MessageTimeOfLife = 30
 	MaxWorkers        = 100
 	CycleLockTTL      = 1800 // 30 minutes in seconds — matches CronTimeToRun
+
+	// QuarantineThreshold is the number of consecutive consumer cycles a poison
+	// record may fail before it is moved to the durable Postgres quarantine
+	// table. Below this threshold the record is left in Redis to be retried on
+	// the next cycle (a poison record is the only durable copy of an authorized
+	// transaction, so it is never deleted or skipped silently forever).
+	QuarantineThreshold = 3
 )
 
 type RedisQueueConsumer struct {
 	Logger             libLog.Logger
 	TransactionHandler in.TransactionHandler
+	quarantineRepo     transactionquarantine.Repository
+	metricsFactory     *metrics.MetricsFactory
 	multiTenantEnabled bool
 	tenantCache        *tenantcache.TenantCache
 	pgManager          *tmpostgres.Manager
@@ -53,6 +66,23 @@ func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) 
 		Logger:             logger,
 		TransactionHandler: handler,
 	}
+}
+
+// WithQuarantineRepository sets the durable quarantine repository used to
+// persist poison records before they are removed from Redis. It returns the
+// receiver for fluent wiring at bootstrap.
+func (r *RedisQueueConsumer) WithQuarantineRepository(repo transactionquarantine.Repository) *RedisQueueConsumer {
+	r.quarantineRepo = repo
+
+	return r
+}
+
+// WithMetricsFactory sets the metrics factory used to emit backup-queue
+// observability metrics each cycle. A nil factory disables metric emission.
+func (r *RedisQueueConsumer) WithMetricsFactory(factory *metrics.MetricsFactory) *RedisQueueConsumer {
+	r.metricsFactory = factory
+
+	return r
 }
 
 // NewRedisQueueConsumerMultiTenant creates a RedisQueueConsumer with multi-tenant fields populated.
@@ -264,6 +294,11 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 
 	r.Logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Total of read %d messages from queue", len(messages)))
 
+	// Emit queue-depth and oldest-age gauges once per cycle (best-effort,
+	// nil-factory safe). Computed from the records already in hand so no extra
+	// Redis round-trip is needed.
+	r.emitQueueGauges(ctx, messages)
+
 	if len(messages) == 0 {
 		return
 	}
@@ -283,7 +318,21 @@ Outer:
 
 		var transaction mmodel.TransactionRedisQueue
 		if err := json.Unmarshal([]byte(message), &transaction); err != nil {
-			r.Logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error unmarshalling message from Redis: %v", err))
+			// Unmarshal failure: the payload did not parse, so the org/ledger/tx
+			// IDs must come from the field key. The raw string is the financial
+			// copy to quarantine.
+			r.Logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error unmarshalling message from Redis (key: %s): %v", key, err))
+
+			orgID, ledgerID, txID, parsed := parsePoisonKeyIDs(key)
+			if !parsed {
+				r.Logger.Log(ctx, libLog.LevelError, "Unparseable backup record with unparseable key; cannot quarantine, left in backup queue",
+					libLog.String("redis_key", key))
+
+				continue
+			}
+
+			r.quarantinePoisonRecord(ctx, span, r.Logger, key, orgID, ledgerID, txID, []byte(message), "unmarshal_failure")
+
 			continue
 		}
 
@@ -296,7 +345,7 @@ Outer:
 
 		wg.Add(1)
 
-		go func(key string, m mmodel.TransactionRedisQueue) {
+		go func(key, rawPayload string, m mmodel.TransactionRedisQueue) {
 			defer func() {
 				if rec := recover(); rec != nil {
 					r.Logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Panic recovered while processing message (key: %s): %v. Message will remain in queue.", key, rec))
@@ -306,8 +355,8 @@ Outer:
 				wg.Done()
 			}()
 
-			r.processMessage(ctx, key, m)
-		}(key, transaction)
+			r.processMessage(ctx, key, rawPayload, m)
+		}(key, message, transaction)
 	}
 
 	wg.Wait()
@@ -322,7 +371,7 @@ Outer:
 // only the leader pod reaches this method.
 //
 //nolint:gocognit,gocyclo // Will be refactored into smaller helpers; tracked separately.
-func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m mmodel.TransactionRedisQueue) {
+func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload string, m mmodel.TransactionRedisQueue) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
 
 	msgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -347,7 +396,9 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 	}
 
 	if m.Validate == nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Message (key: %s) has nil Validate field, skipping. Message will remain in queue.", key))
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Message (key: %s) has nil Validate field. Routing to quarantine flow.", key))
+
+		r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID, m.TransactionID, []byte(rawPayload), "nil_validate")
 
 		return
 	}
@@ -451,7 +502,9 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 
 		ledgerSettings, err := r.TransactionHandler.Query.GetParsedLedgerSettings(msgCtxWithSpan, m.OrganizationID, m.LedgerID)
 		if err != nil {
-			logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to get ledger settings, aborting backup consumer message", libLog.String("transactionId", m.TransactionID.String()), libLog.Err(err))
+			logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to get ledger settings for backup consumer message. Routing to quarantine flow.", libLog.String("transactionId", m.TransactionID.String()), libLog.Err(err))
+
+			r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID, m.TransactionID, []byte(rawPayload), "ledger_settings_fetch_failure")
 
 			return
 		}
@@ -544,4 +597,212 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction message processed: %s", key))
+
+	// Success: a previously-failing record has now replayed. Clear its attempts
+	// counter so it does not accrue toward the quarantine threshold. The backup
+	// record itself is removed downstream by the async write path after the
+	// confirmed Postgres persist (RemoveTransactionFromRedisQueueIfStatus).
+	r.clearBackupAttempt(msgCtxWithSpan, logger, key)
+}
+
+// quarantinePoisonRecord enforces THE INVARIANT for poison backup records: a
+// poison record (the only durable copy of an authorized transaction) is never
+// deleted from Redis without prior confirmed persistence to the Postgres
+// quarantine table, and never skipped silently forever.
+//
+// Flow per poison classification:
+//  1. Increment the per-record attempts counter (parallel attempts hash).
+//  2. Below QuarantineThreshold: leave the record in Redis to retry next cycle.
+//  3. At/above the threshold: Insert into the durable quarantine table FIRST.
+//     - On Insert failure: leave BOTH the record and the attempts counter in
+//     place so the next cycle retries — never delete on a failed persist.
+//     - On Insert success: remove the record (HDel) then the attempts counter
+//     (HDel). Order is load-bearing: the durable copy must exist before the
+//     Redis copy is deleted.
+//
+// The payload (raw financial copy) is never logged or attached to a span (T9).
+func (r *RedisQueueConsumer) quarantinePoisonRecord(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	key string,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	payload []byte,
+	failureReason string,
+) {
+	if r.quarantineRepo == nil {
+		// No quarantine sink wired: leave the record in Redis untouched so the
+		// invariant (never delete without confirmed persistence) holds. This is
+		// a misconfiguration, surfaced loudly.
+		logger.Log(ctx, libLog.LevelError, "Quarantine repository not configured; poison record left in backup queue",
+			libLog.String("redis_key", key), libLog.String("failure_reason", failureReason))
+
+		return
+	}
+
+	attempts, err := r.TransactionHandler.Command.TransactionRedisRepo.IncrementBackupAttempt(ctx, key)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to increment backup attempt", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to increment backup attempt; record left in backup queue",
+			libLog.String("redis_key", key), libLog.Err(err))
+
+		return
+	}
+
+	if attempts < QuarantineThreshold {
+		logger.Log(ctx, libLog.LevelWarn, "Poison backup record failed; will retry next cycle",
+			libLog.String("redis_key", key),
+			libLog.String("failure_reason", failureReason),
+			libLog.Int("attempts", int(attempts)))
+
+		return
+	}
+
+	record := &transactionquarantine.QuarantineRecord{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		TransactionID:  transactionID,
+		RedisKey:       key,
+		Payload:        payload,
+		FailureReason:  failureReason,
+		Attempts:       int(attempts),
+		FirstFailedAt:  time.Now(),
+		QuarantinedAt:  time.Now(),
+	}
+
+	if err := r.quarantineRepo.Insert(ctx, record); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to quarantine poison backup record", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to quarantine poison backup record; record left in backup queue for retry",
+			libLog.String("redis_key", key),
+			libLog.String("failure_reason", failureReason),
+			libLog.Int("attempts", int(attempts)),
+			libLog.Err(err))
+
+		return
+	}
+
+	// Persistence confirmed. Now (and only now) remove the Redis copy, then the
+	// attempts counter.
+	if err := r.TransactionHandler.Command.TransactionRedisRepo.RemoveMessageFromQueue(ctx, key); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to remove quarantined record from backup queue", err)
+		logger.Log(ctx, libLog.LevelError, "Quarantined record persisted but failed to remove from backup queue",
+			libLog.String("redis_key", key), libLog.Err(err))
+
+		return
+	}
+
+	r.clearBackupAttempt(ctx, logger, key)
+
+	r.emitQuarantineMetric(ctx, logger)
+
+	logger.Log(ctx, libLog.LevelError, "Poison backup record quarantined and removed from backup queue",
+		libLog.String("redis_key", key),
+		libLog.String("failure_reason", failureReason),
+		libLog.Int("attempts", int(attempts)))
+}
+
+// clearBackupAttempt removes the per-record attempts counter, logging at Warn on
+// failure (best-effort cleanup; a stale counter only delays re-accrual).
+func (r *RedisQueueConsumer) clearBackupAttempt(ctx context.Context, logger libLog.Logger, key string) {
+	if err := r.TransactionHandler.Command.TransactionRedisRepo.ClearBackupAttempt(ctx, key); err != nil {
+		logger.Log(ctx, libLog.LevelWarn, "Failed to clear backup attempt counter",
+			libLog.String("redis_key", key), libLog.Err(err))
+	}
+}
+
+// parsePoisonKeyIDs extracts the organization, ledger, and transaction UUIDs
+// from a backup-queue field key. The key format is produced by
+// utils.TransactionInternalKey: "transaction:{transactions}:<org>:<ledger>:<tx>".
+// It scans colon-separated segments and returns the first three that parse as
+// UUIDs, in order. Used on the unmarshal-failure path where the payload itself
+// did not parse, so the IDs must come from the key.
+func parsePoisonKeyIDs(key string) (organizationID, ledgerID, transactionID uuid.UUID, ok bool) {
+	var found []uuid.UUID
+
+	for _, seg := range strings.Split(key, ":") {
+		if u, err := uuid.Parse(seg); err == nil {
+			found = append(found, u)
+			if len(found) == 3 {
+				break
+			}
+		}
+	}
+
+	if len(found) < 3 {
+		return uuid.Nil, uuid.Nil, uuid.Nil, false
+	}
+
+	return found[0], found[1], found[2], true
+}
+
+// emitQueueGauges sets the backup-queue depth and oldest-age gauges from the
+// records already read this cycle. Best-effort: a nil factory or a metric emit
+// error never affects processing (emit errors logged at Debug per T11).
+func (r *RedisQueueConsumer) emitQueueGauges(ctx context.Context, messages map[string]string) {
+	if r.metricsFactory == nil {
+		return
+	}
+
+	depth := int64(len(messages))
+
+	depthGauge, err := r.metricsFactory.Gauge(utils.RedisBackupQueueDepth)
+	if err != nil {
+		r.Logger.Log(ctx, libLog.LevelDebug, "Failed to create backup queue depth gauge", libLog.Err(err))
+	} else if setErr := depthGauge.Set(ctx, depth); setErr != nil {
+		r.Logger.Log(ctx, libLog.LevelDebug, "Failed to set backup queue depth gauge", libLog.Err(setErr))
+	}
+
+	// Oldest age: now - oldest record TTL, derived from the parsed records.
+	// Records that fail to parse are ignored for the age computation.
+	var oldestTTL time.Time
+
+	for _, message := range messages {
+		var tx mmodel.TransactionRedisQueue
+		if err := json.Unmarshal([]byte(message), &tx); err != nil {
+			continue
+		}
+
+		if oldestTTL.IsZero() || tx.TTL.Before(oldestTTL) {
+			oldestTTL = tx.TTL
+		}
+	}
+
+	if oldestTTL.IsZero() {
+		return
+	}
+
+	ageSeconds := int64(time.Since(oldestTTL).Seconds())
+	if ageSeconds < 0 {
+		ageSeconds = 0
+	}
+
+	ageGauge, err := r.metricsFactory.Gauge(utils.RedisBackupQueueOldestAgeSeconds)
+	if err != nil {
+		r.Logger.Log(ctx, libLog.LevelDebug, "Failed to create backup queue oldest-age gauge", libLog.Err(err))
+
+		return
+	}
+
+	if setErr := ageGauge.Set(ctx, ageSeconds); setErr != nil {
+		r.Logger.Log(ctx, libLog.LevelDebug, "Failed to set backup queue oldest-age gauge", libLog.Err(setErr))
+	}
+}
+
+// emitQuarantineMetric increments the quarantine counter. Best-effort: a nil
+// factory or emit error never affects the quarantine flow (emit errors at Debug).
+func (r *RedisQueueConsumer) emitQuarantineMetric(ctx context.Context, logger libLog.Logger) {
+	if r.metricsFactory == nil {
+		return
+	}
+
+	counter, err := r.metricsFactory.Counter(utils.RedisBackupQuarantineTotal)
+	if err != nil {
+		logger.Log(ctx, libLog.LevelDebug, "Failed to create backup quarantine counter", libLog.Err(err))
+
+		return
+	}
+
+	if addErr := counter.AddOne(ctx); addErr != nil {
+		logger.Log(ctx, libLog.LevelDebug, "Failed to emit backup quarantine counter", libLog.Err(addErr))
+	}
 }

@@ -10,7 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 	mongodb2 "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
 	postgres2 "github.com/LerianStudio/midaz/v4/pkg/reporter/postgres"
@@ -47,9 +49,108 @@ func TestUseCase_QueryExternalData_NoDataSources(t *testing.T) {
 
 	result := make(map[string]map[string][]map[string]any)
 
-	err := useCase.queryExternalData(context.Background(), message, result)
+	failures, err := useCase.queryExternalData(context.Background(), message, result)
 	require.NoError(t, err)
+	assert.Empty(t, failures, "expected no section failures")
 	assert.Empty(t, result, "expected empty result")
+}
+
+// TestUseCase_QueryExternalData_PartialCollectsFailures asserts that a failure in
+// one database section does NOT abort the loop: succeeded sections populate result
+// and failed sections surface as classified sectionFailure entries (E9 canonical
+// codes), enabling the PARTIAL report status.
+func TestUseCase_QueryExternalData_PartialCollectsFailures(t *testing.T) {
+	t.Parallel()
+
+	logger, _, _, _ := libObservability.NewTrackingFromContext(context.Background())
+	cbManager := pkg.NewCircuitBreakerManager(logger)
+
+	// "good_db" is unsupported-type here only to exercise the failure path
+	// deterministically without a live datasource; "missing_db" is absent.
+	useCase := &UseCase{
+		Logger: log.NewNop(), Tracer: noop.NewTracerProvider().Tracer("test"),
+		ExternalDataSources: pkg.NewSafeDataSources(map[string]pkg.DataSource{
+			"unsupported_db": {Initialized: true, DatabaseType: "unsupported_type"},
+		}),
+		CircuitBreakerManager: cbManager,
+	}
+
+	message := GenerateReportMessage{
+		TemplateID:   uuid.New(),
+		ReportID:     uuid.New(),
+		OutputFormat: "txt",
+		DataQueries: map[string]map[string][]string{
+			"unsupported_db": {"table": {"field"}},
+			"missing_db":     {"table": {"field"}},
+		},
+	}
+
+	result := make(map[string]map[string][]map[string]any)
+
+	failures, err := useCase.queryExternalData(context.Background(), message, result)
+	require.NoError(t, err, "per-section failures must not return a fatal error")
+	require.Len(t, failures, 2, "both sections failed and must be collected, not aborted on first")
+
+	codes := map[string]string{}
+	for _, f := range failures {
+		codes[f.database] = f.errorCode
+	}
+
+	assert.Equal(t, cnErr.ErrCodeUnsupportedDatabaseType.Error(), codes["unsupported_db"])
+	assert.Equal(t, cnErr.ErrCodeDataSourceNotFound.Error(), codes["missing_db"])
+}
+
+// TestDecideReportStatus drives the all-ok / all-failed / mixed classification and
+// the per-section error_code metadata channel (E9).
+func TestDecideReportStatus(t *testing.T) {
+	t.Parallel()
+
+	t.Run("all sections ok -> Finished", func(t *testing.T) {
+		t.Parallel()
+		status, metadata := decideReportStatus(2, nil)
+		assert.Equal(t, constant.FinishedStatus, status)
+		assert.Nil(t, metadata)
+	})
+
+	t.Run("all sections failed -> Error", func(t *testing.T) {
+		t.Parallel()
+		failures := []sectionFailure{
+			{database: "a", errorCode: cnErr.ErrCodeDataSourceNotFound.Error()},
+			{database: "b", errorCode: cnErr.ErrCodeUnsupportedDatabaseType.Error()},
+		}
+		status, metadata := decideReportStatus(2, failures)
+		assert.Equal(t, constant.ErrorStatus, status)
+		require.NotNil(t, metadata)
+		sections, ok := metadata["sections"].(map[string]any)
+		require.True(t, ok, "metadata must carry per-section codes")
+		assert.Equal(t, cnErr.ErrCodeDataSourceNotFound.Error(), sectionCode(t, sections["a"]))
+		assert.Equal(t, cnErr.ErrCodeUnsupportedDatabaseType.Error(), sectionCode(t, sections["b"]))
+	})
+
+	t.Run("mixed -> Partial with per-section error_code", func(t *testing.T) {
+		t.Parallel()
+		failures := []sectionFailure{
+			{database: "b", errorCode: cnErr.ErrCodeDataSourceNotFound.Error()},
+		}
+		status, metadata := decideReportStatus(2, failures)
+		assert.Equal(t, constant.PartialStatus, status)
+		require.NotNil(t, metadata)
+		sections, ok := metadata["sections"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, cnErr.ErrCodeDataSourceNotFound.Error(), sectionCode(t, sections["b"]))
+		assert.NotContains(t, sections, "a", "succeeded sections must not appear as failures")
+	})
+}
+
+// sectionCode extracts the error_code from a per-section metadata entry.
+func sectionCode(t *testing.T, entry any) string {
+	t.Helper()
+	m, ok := entry.(map[string]any)
+	require.True(t, ok, "section entry must be a map")
+	code, ok := m["error_code"].(string)
+	require.True(t, ok, "section entry must carry error_code")
+
+	return code
 }
 
 func TestUseCase_QueryDatabase(t *testing.T) {

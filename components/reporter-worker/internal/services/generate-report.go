@@ -78,7 +78,8 @@ func (uc *UseCase) GenerateReport(ctx context.Context, body []byte) error {
 
 	result := make(map[string]map[string][]map[string]any)
 
-	if err := uc.generateReportData(ctx, message, result, &span, message.ReportID); err != nil {
+	failures, err := uc.generateReportData(ctx, message, result, &span, message.ReportID)
+	if err != nil {
 		// In Fetcher mode, requestFetcherExtraction returns nil (report is now async).
 		// An error here means something went wrong with the extraction dispatch itself.
 		return err
@@ -88,6 +89,13 @@ func (uc *UseCase) GenerateReport(ctx context.Context, body []byte) error {
 	// The report generation continues asynchronously when Fetcher notifies back (T9).
 	if uc.isFetcherMode() {
 		return nil
+	}
+
+	status, statusMetadata := decideReportStatus(len(message.DataQueries), failures)
+
+	// All sections failed: persist Error without producing a rendered artifact.
+	if status == constant.ErrorStatus {
+		return uc.finalizeReportStatus(ctx, message.ReportID, status, statusMetadata, &span)
 	}
 
 	renderedOutput, err := uc.renderTemplate(ctx, templateBytes, result, message, &span)
@@ -104,11 +112,8 @@ func (uc *UseCase) GenerateReport(ctx context.Context, body []byte) error {
 		return uc.handleErrorWithUpdate(ctx, message.ReportID, &span, "Error saving report", err)
 	}
 
-	if err := uc.markReportAsFinished(ctx, message.ReportID, &span); err != nil {
-		return err
-	}
-
-	return nil
+	// Finished (all ok) or Partial (some sections failed) — persist the terminal status.
+	return uc.finalizeReportStatus(ctx, message.ReportID, status, statusMetadata, &span)
 }
 
 // parseMessage parses the RabbitMQ message body into GenerateReportMessage struct.
@@ -137,7 +142,13 @@ func (uc *UseCase) parseMessage(ctx context.Context, body []byte, span *trace.Sp
 
 // markReportAsFinished updates report status to finished.
 func (uc *UseCase) markReportAsFinished(ctx context.Context, reportID uuid.UUID, span *trace.Span) error {
-	err := uc.ReportDataRepo.UpdateReportStatusById(ctx, constant.FinishedStatus, reportID, time.Now(), nil)
+	return uc.finalizeReportStatus(ctx, reportID, constant.FinishedStatus, nil, span)
+}
+
+// finalizeReportStatus persists the terminal report status (Finished, Partial, or
+// Error) together with optional metadata (per-section error codes for Partial/Error).
+func (uc *UseCase) finalizeReportStatus(ctx context.Context, reportID uuid.UUID, status string, metadata map[string]any, span *trace.Span) error {
+	err := uc.ReportDataRepo.UpdateReportStatusById(ctx, status, reportID, time.Now(), metadata)
 	if err != nil {
 		if errUpdate := uc.updateReportWithErrors(ctx, reportID, err); errUpdate != nil {
 			libOtel.HandleSpanError(*span, "Error to update report status with error.", errUpdate)

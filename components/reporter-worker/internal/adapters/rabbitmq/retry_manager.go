@@ -11,7 +11,9 @@ import (
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
-	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/reporter/rabbitmq"
+	pkgReporterRabbitmq "github.com/LerianStudio/midaz/v4/pkg/reporter/rabbitmq"
+
+	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/rabbitmq"
 
 	"github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	"github.com/LerianStudio/lib-observability/log"
@@ -21,10 +23,10 @@ import (
 )
 
 // ConsumerRetryManager encapsulates retry logic for failed consumer messages.
-// It composes error classification, backoff calculation, and channel selection
-// to determine whether a message should be retried or sent to DLQ.
+// It supplies the reporter's classifier and tenant-aware republish hook to the
+// generic pkg/rabbitmq retry engine, which owns the classify/backoff/Ack flow.
 type ConsumerRetryManager struct {
-	classifier      pkgRabbitmq.ErrorClassifier
+	classifier      pkgReporterRabbitmq.ErrorClassifier
 	backoff         *pkg.BackoffCalculator
 	conn            *rabbitmq.RabbitMQConnection     // single-tenant channel
 	rabbitMQManager RabbitMQManagerConsumerInterface // multi-tenant channel (nil in ST)
@@ -36,7 +38,7 @@ type ConsumerRetryManager struct {
 
 // NewConsumerRetryManager creates a new retry manager with the given dependencies.
 func NewConsumerRetryManager(
-	classifier pkgRabbitmq.ErrorClassifier,
+	classifier pkgReporterRabbitmq.ErrorClassifier,
 	backoff *pkg.BackoffCalculator,
 	conn *rabbitmq.RabbitMQConnection,
 	rabbitMQManager RabbitMQManagerConsumerInterface,
@@ -56,73 +58,25 @@ func NewConsumerRetryManager(
 }
 
 // HandleFailure determines whether a failed message should be retried or sent to DLQ.
-// Non-retryable errors go immediately to DLQ. Retryable errors are republished
-// with exponential backoff up to maxRetries attempts.
+// It delegates to the generic retry engine, wiring the reporter's tenant-aware
+// republish path in as the engine's republish hook.
 func (rm *ConsumerRetryManager) HandleFailure(ctx context.Context, workerID int, queue string, message amqp091.Delivery, err error, retryCount int, span trace.Span) {
-	if !rm.classifier.IsRetryable(err) {
-		rm.logger.Log(ctx, log.LevelInfo, "Non-retryable error, sending to DLQ",
-			log.Int("worker_id", workerID),
-			log.String("queue", queue),
-			log.Err(err),
-		)
-		libOtel.HandleSpanBusinessErrorEvent(span, "Non-retryable business error, routing to DLQ", err)
-		rm.nackToDLQ(ctx, workerID, queue, message)
+	engine := pkgRabbitmq.NewRetryManager(pkgRabbitmq.Config{
+		Classifier: rm.classifier,
+		Backoff:    rm.backoff.Calculate,
+		Republish:  rm.republish,
+		MaxRetries: rm.maxRetries,
+		SleepFunc:  rm.sleepFunc,
+		Logger:     rm.logger,
+	})
 
-		return
-	}
-
-	if retryCount >= rm.maxRetries {
-		rm.logger.Log(ctx, log.LevelError, "Max retries exceeded, sending to DLQ",
-			log.Int("worker_id", workerID),
-			log.Int("max_retries", rm.maxRetries),
-			log.String("queue", queue),
-			log.Err(err),
-		)
-		libOtel.HandleSpanError(span, "Max retries exceeded, routing to DLQ", err)
-		rm.nackToDLQ(ctx, workerID, queue, message)
-
-		return
-	}
-
-	backoff := rm.backoff.Calculate(retryCount)
-
-	rm.logger.Log(ctx, log.LevelInfo, "Retryable error before republish",
-		log.Int("worker_id", workerID),
-		log.String("queue", queue),
-		log.Int("attempt", retryCount+1),
-		log.Int("max_retries", rm.maxRetries),
-		log.Any("backoff", backoff),
-		log.Err(err),
-	)
-
-	rm.sleepFunc(backoff)
-
-	failureReason := rm.classifier.ClassifyFailureReason(err)
-	retryHeaders := pkgRabbitmq.BuildRetryHeaders(message.Headers, retryCount, failureReason)
-
-	publishErr := rm.republish(ctx, workerID, queue, message, retryHeaders, span)
-	if publishErr != nil {
-		return // republish already handled nack+logging
-	}
-
-	if ackErr := message.Ack(false); ackErr != nil {
-		rm.logger.Log(ctx, log.LevelError, "Ack failed after republish; message may be redelivered",
-			log.Int("worker_id", workerID),
-			log.String("queue", queue),
-			log.Err(ackErr),
-		)
-	}
-
-	rm.logger.Log(ctx, log.LevelInfo, "Message republished for retry",
-		log.Int("worker_id", workerID),
-		log.Int("attempt", retryCount+1),
-		log.Int("max_retries", rm.maxRetries),
-		log.String("queue", queue),
-	)
+	engine.HandleFailure(ctx, workerID, queue, message, err, retryCount, span)
 }
 
 // republish sends the message back to the exchange with updated headers.
 // Uses tenant-specific channel in multi-tenant mode, static channel otherwise.
+// On failure it has already nacked the message to the DLQ and recorded the span,
+// so the engine leaves the delivery unacked.
 func (rm *ConsumerRetryManager) republish(ctx context.Context, workerID int, queue string, message amqp091.Delivery, headers amqp091.Table, span trace.Span) error {
 	publishing := amqp091.Publishing{
 		ContentType:  message.ContentType,
@@ -140,7 +94,7 @@ func (rm *ConsumerRetryManager) republish(ctx context.Context, workerID int, que
 
 // republishMultiTenant republishes the message via tenant-specific vhost channel.
 func (rm *ConsumerRetryManager) republishMultiTenant(ctx context.Context, workerID int, queue string, message amqp091.Delivery, publishing amqp091.Publishing, span trace.Span) error {
-	tenantID := pkgRabbitmq.TenantIDFromHeaders(message.Headers)
+	tenantID := pkgReporterRabbitmq.TenantIDFromHeaders(message.Headers)
 	if tenantID == "" {
 		rm.logger.Log(ctx, log.LevelError, "No tenant ID in message headers, cannot republish to correct vhost; sending to DLQ",
 			log.Int("worker_id", workerID),
@@ -203,13 +157,7 @@ func (rm *ConsumerRetryManager) republishSingleTenant(ctx context.Context, worke
 
 // nackToDLQ sends a message to the dead-letter queue via Nack without requeue.
 func (rm *ConsumerRetryManager) nackToDLQ(ctx context.Context, workerID int, queue string, message amqp091.Delivery) {
-	if nackErr := message.Nack(false, false); nackErr != nil {
-		rm.logger.Log(ctx, log.LevelError, "Nack failed",
-			log.Int("worker_id", workerID),
-			log.String("queue", queue),
-			log.Err(nackErr),
-		)
-	}
+	pkgRabbitmq.NackToDLQ(ctx, rm.logger, workerID, queue, message)
 }
 
 // logPublishFailure logs republish failure and records it in the OTel span.

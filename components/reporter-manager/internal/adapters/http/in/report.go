@@ -232,7 +232,7 @@ func (rh *ReportHandler) GetReport(c *fiber.Ctx) error {
 //	@Tags			Reports
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			status			query		string	false	"Report status"	Enums(Processing, Finished, Error, PendingExtraction)
+//	@Param			status			query		string	false	"Report status"	Enums(Processing, Finished, Error, PendingExtraction, Partial)
 //	@Param			template_id		query		string	false	"Template UUID (also accepts templateId)"	format(uuid)
 //	@Param			created_at		query		string	false	"Created at date, YYYY-MM-DD (also accepts createdAt)"	format(date)
 //	@Param			start_date		query		string	false	"Filter window start, YYYY-MM-DD"	format(date)

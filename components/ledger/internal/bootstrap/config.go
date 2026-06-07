@@ -30,9 +30,9 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
-	tracerclient "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	tracerclient "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/composition"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
@@ -971,8 +971,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		redisConsumer = NewRedisQueueConsumer(logger, *transactionHandler)
 	}
 
+	// The quarantine repository is the durable sink for poison backup records;
+	// the metrics factory powers the backup-queue observability gauges/counter.
+	redisConsumer.
+		WithQuarantineRepository(txnPG.quarantineRepo).
+		WithMetricsFactory(metricsFactory)
+
 	// BalanceSyncWorker: multi-tenant or single-tenant
 	balanceSyncWorker := initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
+	balanceSyncWorker.WithMetricsFactory(metricsFactory)
 
 	// Legacy drainer: drains pre-v3.6.2 ZSET entries (balance-sync key with seconds/microsecond scores).
 	// Uses relaxed timing (longer flush timeout, longer idle wait) since it only drains a finite backlog.

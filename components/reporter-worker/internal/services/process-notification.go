@@ -234,8 +234,11 @@ func (uc *UseCase) handleCompletedNotification(
 		return uc.handleErrorWithUpdate(ctx, reportID, &span, "Error decrypting extracted data", err)
 	}
 
-	// Gap 11: HMAC audit (log-only per D6)
-	uc.auditHMAC(ctx, decryptedData, notification.GetHMAC())
+	// HMAC integrity enforcement (D7): reject on mismatch or missing-but-required signature.
+	if err := uc.verifyHMACOrReject(ctx, decryptedData, notification.GetHMAC()); err != nil {
+		libOtel.HandleSpanBusinessErrorEvent(span, "HMAC verification rejected extracted data", err)
+		return uc.handleErrorWithUpdate(ctx, reportID, &span, "HMAC verification failed", err)
+	}
 
 	// Parse decrypted JSON into result map
 	result, err := parseExtractedData(decryptedData)

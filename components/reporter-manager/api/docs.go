@@ -634,7 +634,8 @@ const docTemplate = `{
                             "Processing",
                             "Finished",
                             "Error",
-                            "PendingExtraction"
+                            "PendingExtraction",
+                            "Partial"
                         ],
                         "type": "string",
                         "description": "Report status",

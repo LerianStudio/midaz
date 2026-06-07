@@ -6,8 +6,8 @@ package rabbitmq
 
 import (
 	"context"
-	"maps"
 
+	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/rabbitmq"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
@@ -16,63 +16,21 @@ import (
 )
 
 // GetRetryCount reads the retry count from RabbitMQ message headers.
-// Returns 0 if the header is missing or cannot be parsed, ensuring safe default
-// behavior for messages that have not been retried yet.
-//
-// RabbitMQ headers can store values as different numeric types depending on
-// the publisher and serialization. All common variants are handled safely.
+// Thin re-export of the generic pkg/rabbitmq helper; retained for reporter call sites.
 func GetRetryCount(headers amqp.Table) int {
-	if headers == nil {
-		return 0
-	}
-
-	val, exists := headers[constant.RetryCountHeader]
-	if !exists {
-		return 0
-	}
-
-	switch v := val.(type) {
-	case int:
-		if v < 0 {
-			return 0
-		}
-
-		return v
-	case int32:
-		if v < 0 {
-			return 0
-		}
-
-		return int(v)
-	case int64:
-		if v < 0 {
-			return 0
-		}
-
-		return int(v)
-	case float64:
-		if v < 0 {
-			return 0
-		}
-
-		return int(v)
-	default:
-		return 0
-	}
+	return pkgRabbitmq.RetryCountFromHeaders(headers)
 }
 
 // BuildRetryHeaders creates a new header table for a retry republish.
-// It copies all original headers, then overwrites the retry count (incremented)
-// and failure reason. This ensures tracing headers (e.g., traceparent)
-// and request IDs survive across retries.
+// Thin re-export of the generic pkg/rabbitmq helper; retained for reporter call sites.
 func BuildRetryHeaders(original amqp.Table, currentRetryCount int, failureReason string) amqp.Table {
-	headers := make(amqp.Table, len(original)+2)
-	maps.Copy(headers, original) // safe with nil source (no-op)
+	return pkgRabbitmq.BuildRetryHeaders(original, currentRetryCount, failureReason)
+}
 
-	headers[constant.RetryCountHeader] = currentRetryCount + 1
-	headers[constant.RetryFailureReasonHeader] = failureReason
-
-	return headers
+// TenantIDFromHeaders extracts the tenant ID string from AMQP headers without
+// modifying context. Thin re-export of the generic pkg/rabbitmq helper.
+func TenantIDFromHeaders(headers amqp.Table) string {
+	return pkgRabbitmq.TenantIDFromHeaders(headers)
 }
 
 // NewProducerHeaders constructs the base AMQP header table for a new message.
@@ -108,16 +66,4 @@ func ExtractTenantID(ctx context.Context, headers amqp.Table) context.Context {
 	}
 
 	return ctx
-}
-
-// TenantIDFromHeaders extracts the tenant ID string from AMQP headers
-// without modifying context. Returns empty string if not present.
-func TenantIDFromHeaders(headers amqp.Table) string {
-	if headers == nil {
-		return ""
-	}
-
-	tenantID, _ := headers[constant.HeaderXTenantID].(string)
-
-	return tenantID
 }

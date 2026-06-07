@@ -236,22 +236,26 @@ func (uc *UseCase) isFetcherMode() bool {
 }
 
 // generateReportData orchestrates data retrieval using either Fetcher mode or direct mode.
-// This is the dual-mode dispatch entry point called from GenerateReport.
+// This is the dual-mode dispatch entry point called from GenerateReport. It returns
+// the per-section failures collected during direct-mode querying so the caller can
+// classify the terminal report status (Finished / Partial / Error). In Fetcher mode
+// it returns no failures (status is resolved asynchronously on notification).
 func (uc *UseCase) generateReportData(
 	ctx context.Context,
 	message GenerateReportMessage,
 	result map[string]map[string][]map[string]any,
 	span *trace.Span,
 	reportID uuid.UUID,
-) error {
+) ([]sectionFailure, error) {
 	if uc.isFetcherMode() {
-		return uc.requestFetcherExtraction(ctx, message, span)
+		return nil, uc.requestFetcherExtraction(ctx, message, span)
 	}
 
 	// Direct mode: query external datasources directly (legacy path)
-	if err := uc.queryExternalData(ctx, message, result); err != nil {
-		return uc.handleErrorWithUpdate(ctx, reportID, span, "Error querying external data", err)
+	failures, err := uc.queryExternalData(ctx, message, result)
+	if err != nil {
+		return nil, uc.handleErrorWithUpdate(ctx, reportID, span, "Error querying external data", err)
 	}
 
-	return nil
+	return failures, nil
 }

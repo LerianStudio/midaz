@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -28,8 +29,21 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// queryExternalData retrieves data from external data sources specified in the message and populates the result map.
-func (uc *UseCase) queryExternalData(ctx context.Context, message GenerateReportMessage, result map[string]map[string][]map[string]any) error {
+// sectionFailure records a per-database (section) data-retrieval failure with its
+// canonical error code (E9). Used to classify a report as PARTIAL when only some
+// sections fail.
+type sectionFailure struct {
+	database  string
+	errorCode string
+}
+
+// queryExternalData retrieves data from external data sources specified in the
+// message and populates the result map. Per-section (per-database) failures are
+// accumulated and returned rather than aborting the whole report: a section that
+// fails is skipped, succeeded sections still populate result. The returned error
+// is reserved for fatal conditions (e.g. context cancellation); a non-nil slice of
+// sectionFailure indicates sections that could not be retrieved.
+func (uc *UseCase) queryExternalData(ctx context.Context, message GenerateReportMessage, result map[string]map[string][]map[string]any) ([]sectionFailure, error) {
 	reqId := ctxutil.HeaderIDFromContext(ctx)
 
 	ctx, span := uc.Tracer.Start(ctx, "service.report.query_external_data")
@@ -37,13 +51,92 @@ func (uc *UseCase) queryExternalData(ctx context.Context, message GenerateReport
 
 	span.SetAttributes(attribute.String("app.request.request_id", reqId))
 
+	var failures []sectionFailure
+
 	for databaseName, tables := range message.DataQueries {
+		if err := ctx.Err(); err != nil {
+			return failures, err
+		}
+
 		if err := uc.queryDatabase(ctx, databaseName, tables, message.Filters, result); err != nil {
-			return err
+			uc.Logger.Log(ctx, log.LevelWarn, "Data section failed, recording for partial classification",
+				log.String("database", databaseName), log.Err(err))
+
+			failures = append(failures, sectionFailure{
+				database:  databaseName,
+				errorCode: classifyReporterErrorCode(err),
+			})
+
+			// Drop any partial map seeded for this section so it is not rendered.
+			delete(result, databaseName)
 		}
 	}
 
-	return nil
+	span.SetAttributes(attribute.Int("app.report.failed_section_count", len(failures)))
+
+	return failures, nil
+}
+
+// classifyReporterErrorCode extracts the canonical numeric error code carried by a
+// typed reporter error (E9: classified code, never raw text). It falls back to the
+// generic internal-server code when the error is untyped.
+func classifyReporterErrorCode(err error) string {
+	var (
+		validationErr   pkgErr.ValidationError
+		preconditionErr pkgErr.FailedPreconditionError
+		notFoundErr     pkgErr.EntityNotFoundError
+		unauthorizedErr pkgErr.UnauthorizedError
+		internalErr     pkgErr.InternalServerError
+	)
+
+	switch {
+	case errors.As(err, &validationErr):
+		return validationErr.Code
+	case errors.As(err, &preconditionErr):
+		return preconditionErr.Code
+	case errors.As(err, &notFoundErr):
+		return notFoundErr.Code
+	case errors.As(err, &unauthorizedErr):
+		return unauthorizedErr.Code
+	case errors.As(err, &internalErr):
+		return internalErr.Code
+	default:
+		return cnErr.ErrInternalServer.Error()
+	}
+}
+
+// decideReportStatus classifies the terminal report status from the number of
+// attempted sections and the accumulated per-section failures:
+//
+//	all sections ok -> FinishedStatus (no failure metadata)
+//	all sections failed -> ErrorStatus (with per-section codes)
+//	mixed -> PartialStatus (with per-section codes for the failed sections)
+//
+// When failures exist, the returned metadata carries a "sections" map keyed by
+// database name, each value an {"error_code": <canonical>} entry (E9).
+func decideReportStatus(attempted int, failures []sectionFailure) (string, map[string]any) {
+	if len(failures) == 0 {
+		return constant.FinishedStatus, nil
+	}
+
+	sections := make(map[string]any, len(failures))
+	for _, f := range failures {
+		sections[f.database] = map[string]any{"error_code": f.errorCode}
+	}
+
+	metadata := map[string]any{"sections": sections}
+
+	if len(failures) >= attempted {
+		metadata["error"] = "All report data sections failed"
+		metadata["error_code"] = cnErr.ErrExtractionJobFailed.Error()
+
+		return constant.ErrorStatus, metadata
+	}
+
+	metadata["error"] = "Some report data sections failed"
+	metadata["error_code"] = cnErr.ErrExtractionJobFailed.Error()
+
+	return constant.PartialStatus, metadata
 }
 
 // queryDatabase handles data retrieval for a specific database

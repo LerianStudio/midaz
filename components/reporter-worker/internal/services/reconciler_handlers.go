@@ -120,7 +120,16 @@ func (r *Reconciler) handleReconcileCompleted(
 		return
 	}
 
-	r.useCase.auditHMAC(ctx, decryptedData, dataHMAC)
+	// HMAC integrity enforcement (D7): reject reconciled data on mismatch or
+	// missing-but-required signature, marking the report as errored.
+	if err := r.useCase.verifyHMACOrReject(ctx, decryptedData, dataHMAC); err != nil {
+		if updateErr := r.useCase.handleErrorWithUpdate(ctx, reportID, &span, "Reconciler: HMAC verification failed", err); updateErr != nil {
+			r.logger.Log(ctx, log.LevelError, "Reconciler: failed to update report status after HMAC rejection",
+				log.String("job_id", mapping.JobID), log.Err(updateErr))
+		}
+
+		return
+	}
 
 	result, err := parseExtractedData(decryptedData)
 	if err != nil {

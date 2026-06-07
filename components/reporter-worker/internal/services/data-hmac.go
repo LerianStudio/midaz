@@ -11,12 +11,8 @@ import (
 )
 
 // verifyHMAC computes HMAC-SHA256 over data using the provided key and compares
-// it to receivedHMAC. Returns true if the signatures match, false otherwise.
-//
-// Per D6 decision this is log-only in MVP: the caller logs match/mismatch but
-// does NOT reject messages on mismatch. The metric
-// reporter_hmac_verification_total{result="match|mismatch"} is emitted by the
-// caller for observability.
+// it to receivedHMAC in constant time. Returns true if the signatures match,
+// false otherwise. Callers enforce the result (see verifyHMACOrReject, D7).
 func verifyHMAC(data []byte, receivedHMAC string, hmacKey []byte) bool {
 	if len(data) == 0 || receivedHMAC == "" || len(hmacKey) == 0 {
 		return false

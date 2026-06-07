@@ -480,6 +480,7 @@ paths:
           - Finished
           - Error
           - PendingExtraction
+          - Partial
           type: string
       - description: Template UUID (also accepts templateId)
         in: query

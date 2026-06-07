@@ -1021,6 +1021,7 @@ paths:
         - Finished
         - Error
         - PendingExtraction
+        - Partial
         in: query
         name: status
         type: string

@@ -182,7 +182,10 @@ func ValidateStruct(s any) error {
 		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
 	}
 
-	v, trans := newValidator()
+	v, trans, err := newValidator()
+	if err != nil {
+		return err
+	}
 
 	k := reflect.ValueOf(s).Kind()
 	if k == reflect.Pointer {
@@ -194,7 +197,7 @@ func ValidateStruct(s any) error {
 		return nil
 	}
 
-	err := v.Struct(s)
+	err = v.Struct(s)
 	if err != nil {
 		for _, fieldError := range err.(validator.ValidationErrors) {
 			switch fieldError.Tag() {
@@ -250,7 +253,7 @@ func ParseUUIDPathParameters(entityName string) fiber.Handler {
 }
 
 //nolint:ireturn
-func newValidator() (*validator.Validate, ut.Translator) {
+func newValidator() (*validator.Validate, ut.Translator, error) {
 	locale := en.New()
 	uni := ut.New(locale, locale)
 
@@ -259,7 +262,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	v := validator.New()
 
 	if err := en2.RegisterDefaultTranslations(v, trans); err != nil {
-		panic(err)
+		return nil, nil, fmt.Errorf("register validator translations: %w", err)
 	}
 
 	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
@@ -386,7 +389,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 		return t
 	})
 
-	return v, trans
+	return v, trans, nil
 }
 
 // validateMetadataNestedValues checks if there are nested metadata structures

@@ -367,6 +367,11 @@ var (
 	ErrCodeCorruptEncryptedData       = errors.New("0307")
 	ErrCodeAESGCMDecryptionFailed     = errors.New("0308")
 	ErrCodeInvalidFetcherResponse     = errors.New("0309")
+	// ErrCodeInvalidMessageSignature is carried by an UnauthorizedError when HMAC
+	// verification of extracted data fails (mismatch) or a configured signing key
+	// expects a signature that is absent. Auth-class (401), business-typed so the
+	// worker retry guard treats it as permanent and dead-letters the message.
+	ErrCodeInvalidMessageSignature = errors.New("0310")
 )
 
 // Tracer platform codes (migrated from TRC-xxxx; see docs/plans/2026-06-07-error-code-migration.md).

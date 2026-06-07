@@ -112,7 +112,7 @@ func TestUseCase_GenerateReportData_DualModeDispatch(t *testing.T) {
 			}
 			result := make(map[string]map[string][]map[string]any)
 
-			err := uc.generateReportData(context.Background(), message, result, &span, reportID)
+			_, err := uc.generateReportData(context.Background(), message, result, &span, reportID)
 			if tt.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)

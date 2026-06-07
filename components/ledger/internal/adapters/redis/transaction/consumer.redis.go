@@ -41,6 +41,12 @@ var removeBalanceSyncKeysBatchScript string
 
 const TransactionBackupQueue = "backup_queue:{transactions}"
 
+// TransactionBackupAttemptsQueue is the parallel hash tracking how many consumer
+// cycles have failed to replay each backup record. Field keys match those of
+// TransactionBackupQueue. The shared {transactions} hash tag co-locates both
+// keys in the same Redis Cluster slot so HDel pairs stay atomic-friendly.
+const TransactionBackupAttemptsQueue = TransactionBackupQueue + ":attempts"
+
 // maxRedisBatchSize limits the number of items sent in a single Redis operation
 // to prevent oversized payloads. Operations with more items are split into chunks.
 const maxRedisBatchSize = 1000
@@ -95,6 +101,18 @@ type RedisRepository interface {
 	ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error)
 	// RemoveMessageFromQueue removes a specific message from the backup queue by key.
 	RemoveMessageFromQueue(ctx context.Context, key string) error
+	// IncrementBackupAttempt atomically increments the failure counter for a backup
+	// record in the parallel attempts hash and returns the new count. Returns the
+	// new value and nil on success. Used by the backup consumer to track how many
+	// cycles a poison record has failed before quarantining it.
+	IncrementBackupAttempt(ctx context.Context, key string) (int64, error)
+	// ClearBackupAttempt removes the failure counter field for a backup record from
+	// the parallel attempts hash. Called after a record is successfully replayed or
+	// after it has been durably quarantined, to keep the attempts hash bounded.
+	ClearBackupAttempt(ctx context.Context, key string) error
+	// CountBackupQueue returns the number of records currently in the backup queue
+	// (HLEN). Used by the consumer to emit the queue-depth gauge each cycle.
+	CountBackupQueue(ctx context.Context) (int64, error)
 	// GetBalanceSyncKeys claims due balance keys from the ZSET schedule using a Lua script.
 	// Each claimed key gets a distributed lock (SET NX EX) to prevent concurrent processing.
 	// Returns the claimed keys with their scores for conditional removal later.
@@ -1131,6 +1149,122 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	logger.Log(ctx, libLog.LevelDebug, "Message removed from Redis queue", libLog.String("key", key))
 
 	return nil
+}
+
+// IncrementBackupAttempt atomically increments the per-record failure counter in
+// the parallel attempts hash and returns the new count.
+func (rr *RedisConsumerRepository) IncrementBackupAttempt(ctx context.Context, key string) (int64, error) {
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.increment_backup_attempt")
+	defer span.End()
+
+	prefixedQueue, err := tenantKeyFromContextOrError(ctx, TransactionBackupAttemptsQueue)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace attempts queue key", err)
+
+		return 0, err
+	}
+
+	key, err = tenantKeyFromContextOrError(ctx, key)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
+
+		return 0, err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
+
+		return 0, err
+	}
+
+	count, err := rds.HIncrBy(ctx, prefixedQueue, key, 1).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to increment backup attempt", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to increment backup attempt", libLog.Err(err))
+
+		return 0, err
+	}
+
+	return count, nil
+}
+
+// ClearBackupAttempt removes the per-record failure counter field from the
+// parallel attempts hash.
+func (rr *RedisConsumerRepository) ClearBackupAttempt(ctx context.Context, key string) error {
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.clear_backup_attempt")
+	defer span.End()
+
+	prefixedQueue, err := tenantKeyFromContextOrError(ctx, TransactionBackupAttemptsQueue)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace attempts queue key", err)
+
+		return err
+	}
+
+	key, err = tenantKeyFromContextOrError(ctx, key)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
+
+		return err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
+
+		return err
+	}
+
+	if err := rds.HDel(ctx, prefixedQueue, key).Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to clear backup attempt", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to clear backup attempt", libLog.Err(err))
+
+		return err
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Backup attempt counter cleared", libLog.String("key", key))
+
+	return nil
+}
+
+// CountBackupQueue returns the number of records currently in the backup queue (HLEN).
+func (rr *RedisConsumerRepository) CountBackupQueue(ctx context.Context) (int64, error) {
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.count_backup_queue")
+	defer span.End()
+
+	prefixedQueue, err := tenantKeyFromContextOrError(ctx, TransactionBackupQueue)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace backup queue key", err)
+
+		return 0, err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
+
+		return 0, err
+	}
+
+	count, err := rds.HLen(ctx, prefixedQueue).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to count backup queue", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to count backup queue", libLog.Err(err))
+
+		return 0, err
+	}
+
+	return count, nil
 }
 
 // GetBalanceSyncKeys returns due scheduled balance keys limited by 'limit'.

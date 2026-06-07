@@ -10,6 +10,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/rabbitmq"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 )
@@ -23,20 +24,24 @@ var permanentReporterCodes = map[string]struct{}{
 }
 
 // ErrorClassifier classifies errors for retry eligibility in RabbitMQ message processing.
-// Implementations determine whether a failed message should be retried or sent to DLQ.
+// It extends the generic pkg/rabbitmq classifier with the reporter-specific
+// permanent-tenant-error check the consumer consults directly.
 type ErrorClassifier interface {
-	// IsRetryable returns true if the error is transient and the message should be retried.
-	IsRetryable(err error) bool
+	pkgRabbitmq.ErrorClassifier
 	// IsPermanentTenantError returns true if the error indicates a permanent tenant issue.
 	IsPermanentTenantError(err error) bool
-	// ClassifyFailureReason returns a machine-readable failure reason string for headers.
-	ClassifyFailureReason(err error) string
 }
 
 // DefaultErrorClassifier is the standard error classifier for the reporter service.
 // It classifies business/domain errors, permanent reporter codes, and permanent
-// tenant-manager errors as non-retryable. All other errors are retryable.
-type DefaultErrorClassifier struct{}
+// tenant-manager errors as non-retryable, delegating the residual decision to the
+// generic pkg/rabbitmq classifier. All other errors are retryable.
+type DefaultErrorClassifier struct {
+	base pkgRabbitmq.DefaultClassifier
+}
+
+// Compile-time interface satisfaction check.
+var _ ErrorClassifier = (*DefaultErrorClassifier)(nil)
 
 // NewDefaultErrorClassifier creates a new DefaultErrorClassifier.
 func NewDefaultErrorClassifier() *DefaultErrorClassifier {
@@ -44,19 +49,20 @@ func NewDefaultErrorClassifier() *DefaultErrorClassifier {
 }
 
 // IsRetryable classifies an error as retryable or non-retryable.
-// Business/domain errors and permanent reporter codes are non-retryable because
-// retrying will not change the outcome. Network, timeout, and unknown errors are
-// retryable as transient failures may resolve on subsequent attempts.
+// Context cancellation, permanent reporter codes, and permanent tenant-manager
+// errors are non-retryable because retrying will not change the outcome; the
+// residual decision (business errors vs. network/unknown) is delegated to the
+// generic classifier.
+//
+// Note: the reporter treats context.Canceled / context.DeadlineExceeded as
+// non-retryable (worker shutdown / consumer-side deadline), which is stricter
+// than the generic classifier's transient posture — so it is checked here.
 func (c *DefaultErrorClassifier) IsRetryable(err error) bool {
 	if err == nil {
 		return false
 	}
 
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return false
-	}
-
-	if isNonRetryableDomainError(err) {
 		return false
 	}
 
@@ -68,7 +74,14 @@ func (c *DefaultErrorClassifier) IsRetryable(err error) bool {
 		return false
 	}
 
-	return true
+	// FailedPreconditionError is permanent for the reporter but is not part of the
+	// generic business-error set, so it is checked here before delegating.
+	var preconditionErr pkg.FailedPreconditionError
+	if errors.As(err, &preconditionErr) {
+		return false
+	}
+
+	return c.base.IsRetryable(err)
 }
 
 // IsPermanentTenantError classifies tenant-manager errors as permanent or transient.
@@ -122,58 +135,10 @@ func (c *DefaultErrorClassifier) ClassifyFailureReason(err error) string {
 	}
 }
 
-// isNonRetryableDomainError checks for known non-retryable error types
-// from the reporter application domain.
-func isNonRetryableDomainError(err error) bool {
-	var validationErr pkg.ValidationError
-	if errors.As(err, &validationErr) {
-		return true
-	}
-
-	var notFoundErr pkg.EntityNotFoundError
-	if errors.As(err, &notFoundErr) {
-		return true
-	}
-
-	var knownFieldsErr pkg.ValidationKnownFieldsError
-	if errors.As(err, &knownFieldsErr) {
-		return true
-	}
-
-	var unknownFieldsErr pkg.ValidationUnknownFieldsError
-	if errors.As(err, &unknownFieldsErr) {
-		return true
-	}
-
-	var unprocessableErr pkg.UnprocessableOperationError
-	if errors.As(err, &unprocessableErr) {
-		return true
-	}
-
-	var conflictErr pkg.EntityConflictError
-	if errors.As(err, &conflictErr) {
-		return true
-	}
-
-	var forbiddenErr pkg.ForbiddenError
-	if errors.As(err, &forbiddenErr) {
-		return true
-	}
-
-	var unauthorizedErr pkg.UnauthorizedError
-	if errors.As(err, &unauthorizedErr) {
-		return true
-	}
-
-	var preconditionErr pkg.FailedPreconditionError
-
-	return errors.As(err, &preconditionErr)
-}
-
 // isPermanentReporterCode reports whether err carries a canonical reporter code
 // that maps to a 5xx typed error yet is permanent (won't succeed on retry).
-// These are not part of the business-error set, so isNonRetryableDomainError
-// does not catch them; they are matched by their Code field.
+// These are not part of the business-error set, so the generic classifier does
+// not catch them; they are matched by their Code field.
 func isPermanentReporterCode(err error) bool {
 	var internalErr pkg.InternalServerError
 	if errors.As(err, &internalErr) {
