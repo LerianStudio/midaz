@@ -18,7 +18,7 @@
 |-------|-----------|-------|--------|
 | 1 | Audit gaps closed; unified standard authored; decision memo resolved with owner | 1.1, 1.2 | **Complete** |
 | 2 | Zero financial values / PII / raw payloads on any telemetry signal or client-surfaced error | 2.1, 2.2, 2.3 | **Complete** |
-| 3 | One error platform: forks deleted, canonical boundary hardened, one envelope, status table enforced (D2) | 3.1–3.6 | Epic-level |
+| 3 | One error platform: forks deleted, canonical boundary hardened, one envelope, status table enforced (D2) | 3.1–3.6 | Detailed |
 | 4 | Async error resilience: transaction consumer can't hot-loop; panic inventory dispositioned; reporter posture hardened (D7) | 4.1–4.5 | Epic-level |
 | 5 | Hygiene sweep + metrics normalization: structured logging, span topology, level discipline, helper-by-class, one metrics stack (D4), domain metrics (D6) | 5.1–5.7 | Epic-level |
 | 6 | Enforcement: lint gates + contract tests in CI; docs synced | 6.1–6.3 | Epic-level |
@@ -409,51 +409,277 @@ Same per-rule anatomy as Task 1.2.1 (statement/rationale/canonical/enforcement).
 
 ---
 
-## Phase 3: Error platform consolidation
+## Phase 3: Error platform consolidation — **Detailed**
 
-**Milestone:** `feeshared`, `pkg/reporter` error stack, and `tracer/pkg` error stack are deleted; every handler in the binary + both services flows through canonical `pkg/errors.go` + hardened `pkg/net/http.WithError`; one envelope everywhere. Shaped by D1–D3 outcomes.
+**Milestone:** `feeshared`, `pkg/reporter` error stack, and `tracer/pkg` error stack are deleted; every handler flows through canonical `pkg/errors.go` + hardened `pkg/net/http.WithError`; one envelope everywhere; all prefixed code families retired to the canonical numeric registry (D1); business-rule violations 422/409 including mainline (D2). Elaborated 2026-06-07 against fresh fork inventories: feeshared 72 FEE- sentinels / 62 importer files; reporter 42 TPL- + 21 REP-; **tracer 73 TRC- sentinels** incl. operator-facing readyz codes, 25+ inline `"TRC-…"` literals, and TWO ValidateBusinessError variants in simultaneous use (fork's + libCommons'). LegacyErrorBoundary confirmed DEAD (zero call sites). Canonical registry tops out at code `0178`.
+
+**Sequencing:** 3.1 → 3.2.1/3.2.2 (registry) → {3.2.3-4, 3.3, 3.4 in parallel — they only consume the registry} → 3.5 → 3.6.
 
 ### Epic 3.1: Harden the canonical boundary (F15, F11)
 
-**Goal:** `WithError` resolves via `errors.As`; `GetUUIDFromLocals` returns a typed pkg error; `FailedPreconditionError`/`HTTPError` explicitly mapped or removed; bare-sentinel passes (CRM `cn.ErrInternalServer`) eliminated.
-**Scope:** `pkg/net/http/errors.go`, `pkg/net/http/httputils.go:563-575`, CRM handler bare-sentinel sites.
-**Dependencies:** Phase 1 standard. Must land FIRST in this phase — fork deletion re-points onto it.
-**Done when:** table-driven test proves wrapped business errors map to their typed status; existing error-contract tests green.
+**Goal:** `WithError` resolves via `errors.As` on every arm; `FailedPreconditionError`/`HTTPError` explicitly mapped; `GetUUIDFromLocals` returns typed 400 (today: raw sentinel → 500); bare-sentinel passes eliminated.
+**Scope:** `pkg/net/http/{errors,httputils}.go`, 8 ledger CRM-handler sites.
+**Dependencies:** none in-phase; lands FIRST.
+**Done when:** table-driven test proves wrapped typed errors resolve to their status; path-param failure returns 400/0065 not 500.
 
-### Epic 3.2: Delete the feeshared fork (F4, F16-fork-scope)
+#### Task 3.1.1: `WithError` errors.As rewrite + explicit FailedPrecondition/HTTPError arms
 
-**Goal:** `feeshared/errors.go`, `feeshared/constant/errors.go`, `feeshared/nethttp` gone; fee handlers single-import canonical `http.WithError`; FEE codes migrated/relocated per D1; business-rule errors re-typed 422/409 per D2; fees Entity constants added.
-**Scope:** `components/ledger/pkg/feeshared/**`, fee/billing handlers, `pkg/constant/{errors,entity}.go`; contract test per D1 (CRM template).
-**Dependencies:** Epic 3.1; D1/D2 outcomes.
-**Done when:** zero imports of feeshared error packages; fee error contract locked by test; swagger/postman regenerated if envelope changed (D3).
+- [ ] Done
+
+**Context:** `pkg/net/http/errors.go:16-67` — bare type switch; only `pkg.ResponseError` (`:41`) uses errors.As. `FailedPreconditionError` (constructed by `ValidateBusinessError` for `ErrPermissionEnforcement`/`ErrJWKFetch`, `pkg/errors.go:668-673`) and `HTTPError` (`pkg/errors.go:139-150`) hit the default arm → 500. The feeshared/reporter clones (`feeshared/nethttp/errors.go:62-118`, `pkg/reporter/net/http/errors.go:60-118`) already use errors.As on all arms — they are the shape model.
+
+**Implementation vision:** Test-first: table-driven test in `pkg/net/http/errors_test.go` covering every typed arm unwrapped AND wrapped (`fmt.Errorf("ctx: %w", typedErr)`), plus the two unmapped types; capture RED for the wrapped cases. Rewrite the switch as sequential `errors.As` checks in the fork-clone shape. Explicit arms: `FailedPreconditionError` → 500 (current wire behavior, now deliberate — both constructors are infra-class), `HTTPError` → 500. Keep `libCommons.Response` arm semantics intact.
+
+**Files:** Modify `pkg/net/http/errors.go`, `errors_test.go`.
+
+**Verification:** new table test RED→GREEN; `go test ./pkg/net/http/...` green.
+
+**Done when:** wrapped business errors map to typed statuses; default arm reachable only by genuinely unknown errors.
+
+#### Task 3.1.2: `GetUUIDFromLocals` returns a typed 400
+
+- [ ] Done
+
+**Context:** `pkg/net/http/httputils.go:563-575` returns raw `constant.ErrInvalidPathParameter` → WithError default → **500 today** for what is a 400-class failure (F11 live wrong-status).
+
+**Implementation vision:** Test-first (handler-level: a route whose local is missing must return 400 with code 0065). Return `pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, <entity from key>)` — check ValidateBusinessError maps 0065 to ValidationError; if the entity arg is awkward at this layer, construct the typed `pkg.ValidationError` directly with code 0065.
+
+**Files:** Modify `pkg/net/http/httputils.go` + test.
+
+**Verification:** RED→GREEN; sweep callers (`rg -l 'GetUUIDFromLocals'`) compile and their tests stay green.
+
+**Done when:** missing/mistyped path-param local renders 400/0065.
+
+#### Task 3.1.3: Eliminate bare-sentinel WithError passes (8 sites)
+
+- [ ] Done
+
+**Context:** `components/ledger/internal/adapters/http/in/instrument.go:54,190,199` and `holder.go:51,168,177` pass raw `cn.ErrInternalServer` to WithError (works by accident via default arm; violates E2/E4 — sentinel, not typed).
+
+**Implementation vision:** Replace with `pkg.ValidateInternalError(err, <entity>)` (the canonical internal-error constructor WithError maps deliberately). No wire change (still 500).
+
+**Files:** `holder.go`, `instrument.go`.
+
+**Verification:** `rg -n 'WithError\(c, cn\.Err|WithError\(c, constant\.Err'` zero hits; http/in tests green.
+
+**Done when:** zero bare-sentinel WithError args in ledger/crm handlers.
+
+### Epic 3.2: Canonical registry unification + feeshared deletion (F4, D1, D2, D3)
+
+**Goal:** ONE mapping exercise retires all four prefixed families into the numeric registry (new codes from `0179`); then feeshared's error platform is deleted and fee surfaces flow through canonical.
+**Scope:** `pkg/constant/{errors,entity}.go`, `pkg/errors.go`, `docs/plans/` mapping artifact, `components/ledger/pkg/feeshared/**`, 62 fee importer files.
+**Dependencies:** Epic 3.1.
+**Done when:** registry uniqueness test green; zero feeshared error imports; fee contract test locks the new codes.
+
+#### Task 3.2.1: Author the four-family mapping table
+
+- [ ] Done
+
+**Context:** D1 = break ALL. FEE-0001..0072 (gaps; semantic overlaps with canonical: ErrInvalidPathParameter≈0065, ErrInvalidQueryParameter, ErrEntityNotFound, ErrInternalServer, pagination/date codes...), TPL-0001..0062 + REP-0060..0080, TRC-0001..0378 (73 codes, categorized ranges incl. readyz TRC-0328..0342 and HTTP-code consts `constant.CodeBadRequest="TRC-0003"` etc.). Canonical highest = 0178. D2: each mapped code gets a status class — business-rule violations → 422 (`UnprocessableOperationError`), conflicts → 409, syntactic → 400, not-found → 404.
+
+**Implementation vision:** Produce `docs/plans/2026-06-07-error-code-migration.md`: one table per family with columns `old code | old sentinel name | disposition (reuse <canonical code> / new <0179+>) | status class | entity`. Reuse an existing canonical code ONLY on exact semantic match (same meaning, same class); otherwise allocate sequentially. Allocate contiguous blocks per family (fees from 0179, reporter next, tracer next) so the registry stays readable. Readyz/operator codes (TRC-0328..0342, TRC-0281...) map to new numeric codes — greenfield, no compatibility shim. Entity constants: list new `Entity*` for fees (Package, BillingPackage, FeeCalculation...), tracer (Rule, Limit, Reservation, AuditEvent, TransactionValidation...), reporter (Template, Report, Deadline, DataSource...).
+
+**Files:** Create `docs/plans/2026-06-07-error-code-migration.md`.
+
+**Verification:** every old code appears exactly once; no new code collides (script-check in the doc); spot-review 10 rows.
+
+**Done when:** table reviewed and committed; 3.2.2 implements it verbatim.
+
+#### Task 3.2.2: Implement the unified registry
+
+- [ ] Done
+
+**Context:** mapping table from 3.2.1. `pkg/errors.go` `ValidateBusinessError` errorMap must gain an arm per new code with the table's status class; `pkg/constant/entity.go` gains the new entities.
+
+**Implementation vision:** Add all new sentinels to `pkg/constant/errors.go` (grouped, commented per family origin); errorMap arms typed per class (422 = UnprocessableOperationError etc.); entity constants. Registry uniqueness contract test (E14): a test in `pkg/constant` asserting no duplicate code strings across the whole file and no `(FEE|TRC|TPL|REP)-` prefixed codes remain. Migrations in 3.2.3/3.3/3.4 must NOT touch these shared files again (conflict-free parallelism).
+
+**Files:** Modify `pkg/constant/errors.go`, `pkg/constant/entity.go`, `pkg/errors.go`; create uniqueness test.
+
+**Verification:** uniqueness test green; `go build ./...`.
+
+**Done when:** registry complete; shared-file freeze for parallel migrations declared.
+
+#### Task 3.2.3: Migrate fee surfaces and delete the feeshared error platform
+
+- [ ] Done
+
+**Context:** 62 non-test importers. Error surface to delete: `feeshared/errors.go`, `feeshared/constant/errors.go`, `feeshared/nethttp/**` (WithError clone + httputils/body_parser/body_validator clones — handlers migrate to `pkg/net/http` equivalents). SURVIVES: `feeshared/model/**`, `bsondecimal`, `resolver`, non-error constants (mongo collections etc.). Fee `ValidationError` json-tag drift dies with the fork (D3 — envelope fix is automatic).
+
+**Implementation vision:** Mechanical per the mapping table: `feeshared.ValidateBusinessError(fsconstant.ErrX, ...)` → `pkg.ValidateBusinessError(constant.ErrY, constant.EntityZ)`; `feesharednethttp.WithError` → `pkg/net/http.WithError`; typed-struct references → pkg types. Delete the dead files; fix imports. `pkg/fee` engine error returns re-pointed the same way.
+
+**Files:** ~62 fee files + deletions under `components/ledger/pkg/feeshared/`.
+
+**Verification:** `rg -l 'feeshared/nethttp|feeshared/constant/errors|feeshared\.Validate|feeshared\.EntityNotFound|feeshared\.ValidationError'` → zero non-test hits (model/bsondecimal imports remain fine); `go build ./...`; fee unit+handler tests green.
+
+**Done when:** fork error platform deleted; build green.
+
+#### Task 3.2.4: Fee error contract test + artifact regen
+
+- [ ] Done
+
+**Context:** CRM template `components/ledger/internal/adapters/http/in/crm_error_contract_test.go` (`TestErrorContract_CanonicalCodes:56`). Fee routes' swagger/postman embed FEE- codes in examples; envelope shape changed (json tags restored).
+
+**Implementation vision:** Table-driven contract test locking fee code→status→title→message for the migrated codes (sample the high-traffic ones: duplicate package, package range, calculate-fee failures, billing codes). Regenerate swagger + postman artifacts atomically (same PR discipline as the fees route break — `TestContractSpecMatchesRoutes` must stay green).
+
+**Files:** create fee contract test; regenerate `api/` artifacts + postman.
+
+**Verification:** contract test green; `TestContractSpecMatchesRoutes` green.
+
+**Done when:** fee wire contract locked.
 
 ### Epic 3.3: Delete the reporter fork; fix the live not-found 500 (F4, F10)
 
-**Goal:** `pkg/reporter/errors.go` + `constant/errors.go` + `net/http` writers deleted onto canonical; the three mongo not-found conventions unified at the adapter boundary; `update-template-by-id.go` 404s correctly; `IsBusinessError` predicate preserved (it moves to `pkg/` — Phase 5 consumers depend on it, define the new home here).
-**Scope:** `pkg/reporter/**`, reporter-manager/worker handlers and services; TPL-/REP- relocation per D1.
-**Dependencies:** Epic 3.1; D1 outcome.
-**Done when:** zero fork imports; not-found template update returns 404 (test); classifier (`error_classifier.go`) re-pointed at canonical types.
+**Goal:** reporter on canonical platform; `IsBusinessError` relocated to `pkg/errors.go` as `pkg.IsBusinessError`; mongo not-found conventions unified; live 500 fixed.
+**Scope:** `pkg/reporter/{errors.go,constant/errors.go,net/http/**}`, reporter-manager/worker services+handlers, `error_classifier.go`.
+**Dependencies:** Task 3.2.2 (registry).
+**Done when:** zero fork imports; missing-template update returns 404 (test); classifier on canonical types.
+
+#### Task 3.3.1: Migrate reporter to canonical + relocate IsBusinessError
+
+- [ ] Done
+
+**Context:** ~50 importer files (manager 20+, worker 15+). `pkg/reporter/net/http/errors.go:18-57` `IsBusinessError` is the canonical predicate model — it MUST survive as `pkg.IsBusinessError` (in `pkg/errors.go`, beside the types it inspects; Phase 5 Epic 5.4 consumes it). TPL-/REP- per mapping table.
+
+**Implementation vision:** Add `IsBusinessError` to `pkg/errors.go` (errors.As over the 8 business types) + unit test FIRST (it's new shared production code). Then mechanical migration: reporter ValidateBusinessError/typed refs/WithError → canonical; delete `pkg/reporter/errors.go`, `pkg/reporter/constant/errors.go` (keep non-error constants — split file if mixed), `pkg/reporter/net/http` error writers (keep Respond/http-utils if non-error). Re-point `error_classifier.go:42-163` typed checks at pkg types; the `strings.Contains(err.Error(), "TPL-")` supplementary path (E6 violation) re-keyed to the new numeric codes via typed inspection — or deleted if the typed path now covers it.
+
+**Files:** ~50 reporter files + deletions.
+
+**Verification:** `rg -l 'pkg/reporter/constant"|reporter\.ValidateBusinessError|pkgReporter\.Validate'` zero non-test; build + reporter test trees green; IsBusinessError unit test RED→GREEN.
+
+**Done when:** fork gone; predicate lives in pkg.
+
+#### Task 3.3.2: Unify mongo not-found conventions; fix the live 500
+
+- [ ] Done
+
+**Context:** Three coexisting conventions in `pkg/reporter/mongodb`: raw `mongo.ErrNoDocuments` return (`template.mongodb.go:132-133` FindByID), mapped `ValidateBusinessError(ErrEntityNotFound...)`, bare sentinel return (`report.mongodb.go` update). Live bug: `update-template-by-id.go:213-218` propagates raw ErrNoDocuments → 500.
+
+**Implementation vision:** Test-first: manager-level test asserting PATCH on missing template → 404 (capture RED = current 500). Standardize per E5: adapters map driver not-found → typed `pkg.EntityNotFoundError` (via ValidateBusinessError with the right entity) at the repository boundary — all three collections (template, report, deadline), all read/update/delete paths. Callers that branched on raw ErrNoDocuments re-pointed to `errors.As`/`Is` on the typed error.
+
+**Files:** `pkg/reporter/mongodb/{template,report,deadline}/*.mongodb.go`, `update-template-by-id.go`, affected services.
+
+**Verification:** RED→GREEN on the 404 test; `rg -n 'ErrNoDocuments' pkg/reporter components/reporter-*` shows only adapter-boundary mappings.
+
+**Done when:** one convention; 404 on missing template update.
 
 ### Epic 3.4: Delete the tracer fork (F4, F14)
 
-**Goal:** tracer's `pkg/errors.go`, `pkg/constant/errors.go`, dead `pkg/net/http` mapper deleted; handlers route through canonical WithError; TRC- codes relocated per D1, referenced by constant identifier (no `"TRC-0003"` literals); dual ValidateBusinessError resolved to one; envelope carriers collapsed per D3.
-**Scope:** `components/tracer/pkg/**`, `components/tracer/internal/adapters/http/in/**`.
-**Dependencies:** Epic 3.1; D1/D3 outcomes.
-**Done when:** zero fork imports; readyz TRC- codes still emitted (operator contract per D1); handler mapping is table-driven through the canonical boundary.
+**Goal:** tracer on canonical platform: one ValidateBusinessError, canonical WithError + envelope, numeric codes per mapping table, zero `"TRC-` literals, dead mapper + response-helper clones deleted.
+**Scope:** `components/tracer/pkg/{errors.go,constant/errors.go,net/http/**}`, all 6 handler files, command/query services, readyz.
+**Dependencies:** Task 3.2.2 (registry).
+**Done when:** zero fork imports; `rg '"TRC-'` zero non-test hits; tracer contract test locks the new codes.
+
+#### Task 3.4.1: Migrate tracer services + collapse ValidateBusinessError variants
+
+- [ ] Done
+
+**Context:** Fork variant at `tracer/pkg/errors.go:294` (used by `with_body.go:361-530`); libCommons variant used at 18 command sites (`activate_limit.go:158` et al.). Canonical target: `pkg.ValidateBusinessError` only.
+
+**Implementation vision:** Per mapping table, re-point every sentinel reference to `constant.Err*` and both ValidateBusinessError call shapes to `pkg.ValidateBusinessError(constant.ErrX, constant.EntityY)`. The fork's typed structs → pkg types.
+
+**Files:** tracer services/command+query, pkg/model validators, with_body users.
+
+**Verification:** `rg -n 'libCommons\.ValidateBusinessError|tracerpkg\.Validate' components/tracer` zero; build green.
+
+**Done when:** one factory repo-wide.
+
+#### Task 3.4.2: Migrate tracer handlers to the canonical boundary + envelope
+
+- [ ] Done
+
+**Context:** Handlers hand-roll mapping via `pkgHTTP.BadRequestWithMessage/NotFound/Conflict/...` (`tracer/pkg/net/http/response.go`) with 25+ inline `"TRC-` literals; `validation_handler.go:178-199` has a 17-entry error→response map; dead central mapper at `tracer/pkg/net/http/errors.go` (zero callers). Canonical envelope comes free with `pkg/net/http.WithError`.
+
+**Implementation vision:** Handlers return typed canonical errors and delegate rendering to `http.WithError` (the Phase-2 generic messages survive as the typed errors' messages). The validation_handler timeout/cancel special statuses (504/503) map via typed errors WithError already understands — if it lacks 504-class arms, extend WithError deliberately (one arm, tested) rather than keeping a side-renderer. Delete `tracer/pkg/net/http/{errors.go,response.go}` once handlers no longer import them; with_body/httputils clones migrate to `pkg/net/http` equivalents. Readyz error strings switch to the new numeric codes (`readyz.go:243-398`).
+
+**Files:** 6 handler files, readyz.go, deletions under tracer/pkg/net/http.
+
+**Verification:** `rg -n '"TRC-' components/tracer --glob '!*_test.go'` zero; handler + readyz tests green (update expected codes).
+
+**Done when:** one envelope, no literals, dead code gone.
+
+#### Task 3.4.3: Tracer error contract test
+
+- [ ] Done
+
+**Context:** CRM template as in 3.2.4; tracer's wire surface = rule/limit/validation/audit/reservation endpoints + readyz codes.
+
+**Implementation vision:** Table-driven lock on the migrated high-traffic codes (validation input errors, rule lifecycle, limit CRUD, readyz codes) — code→status→title.
+
+**Files:** create tracer contract test under `components/tracer/internal/adapters/http/in/`.
+
+**Verification:** contract test green; deliberate drift (edit one expected code) fails it.
+
+**Done when:** tracer wire contract locked.
 
 ### Epic 3.5: One envelope + typed classification (F12, F18)
 
-**Goal:** `LegacyErrorBoundary`'s `{"error":text}` retired (raw `fiber.Error` sources converted to typed errors, incl. `MarkTrustedAuthAssertion`); CRM duplicate-key disambiguation switches to typed `mongo.WriteException` index-name inspection **preserving** the `create-holder-with-id.go:62-78` idempotency contract.
-**Scope:** `components/ledger/internal/adapters/http/in/errors.go`, `pkg/net/http/protected_routes.go`, `components/crm/adapters/mongodb/{holder,instrument}/`.
-**Dependencies:** Epics 3.1–3.2 (envelope decisions settled).
-**Done when:** no route can emit `{"error":text}` (test via panic/raw-fiber-error injection); CRM idempotent-create integration tests green with the typed mechanism.
+**Goal:** dead LegacyErrorBoundary deleted; fiber-level errors render the canonical envelope; CRM duplicate-key classification typed (index-name inspection) preserving idempotent-create.
+**Scope:** `components/ledger/internal/adapters/http/in/errors.go` (delete), the unified server fiber ErrorHandler, `components/crm/adapters/mongodb/{holder,instrument}/`.
+**Dependencies:** Epics 3.1–3.2.
+**Done when:** fiber.Error sources (auth 401s, router 404/405) render `{code,title,message}`; CRM idempotent-create tests green on the typed mechanism.
+
+#### Task 3.5.1: Delete LegacyErrorBoundary; canonical envelope for fiber.Errors
+
+- [ ] Done
+
+**Context:** `LegacyErrorBoundary`/`legacyFiberErrorHandler` (`http/in/errors.go`) has ZERO call sites — dead code (Phase 2 patched its leak; now it dies). Real fiber.Error producers: `MarkTrustedAuthAssertion` (`pkg/net/http/protected_routes.go:48-58`, three 401s) and Fiber's own router/body-limit errors — today rendered by Fiber's default handler (`{"message":...}` shape), NOT the canonical envelope.
+
+**Implementation vision:** Delete the dead boundary + its test. Wire a fiber `ErrorHandler` on the unified server app config translating `*fiber.Error` → canonical envelope (code = a registry code per class: 401→unauthorized code, 404→route-not-found, 405, 413; default 500) — test via hitting a nonexistent route and asserting envelope keys. Check tracer/reporter-manager fiber apps for the same gap; wire identically.
+
+**Files:** delete `http/in/errors.go` (+test), modify unified-server fiber config (+ tracer/reporter-manager configs), add envelope test.
+
+**Verification:** RED (current `{"message":...}`) → GREEN (`{code,title,message}`) on a 404 route hit; auth 401 envelope asserted.
+
+**Done when:** no surface can emit a non-canonical envelope.
+
+#### Task 3.5.2: CRM duplicate-key via WriteException index-name inspection
+
+- [ ] Done
+
+**Context:** `holder.mongodb.go:144-148` (`strings.Contains(err.Error(), "document")` → ErrDocumentAssociationError; unique index on `search.document`), `instrument.mongodb.go:146-150` (`"account_id"` → ErrAccountAlreadyAssociated; unique index `account_id`; also `ledger_id+account_id` and `_id+holder_id` uniques). Idempotency contract: `create-holder-with-id.go:62-78` relies on raw `_id` collisions remaining classifiable AFTER the named-index branches.
+
+**Implementation vision:** Test-first against the idempotency contract (existing integration tests + a unit test on the classifier helper). Extract a small helper (in the crm mongodb package) `classifyDuplicateKey(err) (indexName string, ok bool)` using `errors.As` → `mongo.WriteException`/`mongo.BulkWriteException`, reading `WriteError.Message`?? NO — read the index name from the write error's `Details`/message via the driver's structured fields: prefer `we.WriteErrors[i].Details` lookup; if driver version only exposes the index in the message, isolate that parsing in ONE helper with a unit test pinning driver behavior (documented as the single sanctioned string-touch). Branch on index name: `search.document*` → ErrDocumentAssociationError; `account_id*`/`ledger_id_account_id*` → ErrAccountAlreadyAssociated; `_id_` → raw duplicate (idempotency path preserved).
+
+**Files:** `holder.mongodb.go`, `instrument.mongodb.go`, new classifier helper + unit test.
+
+**Verification:** classifier unit test (synthetic WriteExceptions per index) green; `create-holder-with-id` tests green; `rg 'strings\.Contains\(err\.Error' components/crm` zero.
+
+**Done when:** typed classification; idempotency intact.
 
 ### Epic 3.6: Mainline status re-typing (D2 outcome) `[added at Phase 1 checkpoint]`
 
-**Goal:** mainline ledger business-rule violations re-typed per the E3 status table — the ~82 `ValidationError`-400 registrations that are semantic rule violations (e.g. `ErrTransactionValueMismatch`) become 422/409; syntactic-input errors stay 400.
-**Scope:** `pkg/errors.go` registrations, error-contract tests, swagger/postman regeneration, v4 migration notes (changelog entry per re-typed code).
-**Dependencies:** Epic 3.1 (boundary hardened); elaboration classifies each of the 82 sites semantic-vs-syntactic — blind mass re-typing is forbidden.
-**Done when:** every business-rule code maps per the table; contract tests lock the new statuses; migration notes list every code whose status changed.
+**Goal:** mainline business-rule violations re-typed per E3 — semantic rule violations leave 400 for 422/409; syntactic stays 400.
+**Scope:** `pkg/errors.go` errorMap arms, contract tests, swagger regen, migration notes.
+**Dependencies:** Epic 3.1; AFTER 3.2-3.5 land (same shared files).
+**Done when:** every re-typed code locked by contract test; migration notes list each change.
+
+#### Task 3.6.1: Classify the 82 ValidationError registrations
+
+- [ ] Done
+
+**Context:** `pkg/errors.go` errorMap: 82 codes typed ValidationError-400 vs 31 Unprocessable-422. E3 table: semantic business-rule → 422, conflict/duplicate → 409, malformed/syntactic input → 400.
+
+**Implementation vision:** Produce a classification table (appendix to the 3.2.1 migration doc): per code — keep-400 (syntactic: bad format, missing field, invalid UUID/date/pagination) / move-422 (business rule: value mismatch, balance rules, route validation, state rules) / move-409 (duplicates living as ValidationError, if any). Borderlines get one-line rationale. Review gate: I sanity-check the table before 3.6.2 executes.
+
+**Files:** extend `docs/plans/2026-06-07-error-code-migration.md`.
+
+**Verification:** 82 rows, each dispositioned with rationale.
+
+**Done when:** table complete and reviewed.
+
+#### Task 3.6.2: Execute the re-typing + lock + migration notes
+
+- [ ] Done
+
+**Context:** table from 3.6.1.
+
+**Implementation vision:** Flip errorMap arms per table; update every test asserting the old statuses (expect a large but mechanical test sweep — handler tests assert 400 on business failures today); extend the mainline error contract test to lock the new statuses; regenerate swagger; write v4 migration notes listing every code whose status changed (old→new).
+
+**Files:** `pkg/errors.go`, affected handler/service tests, contract tests, `api/` artifacts, migration notes doc.
+
+**Verification:** full unit suite green; contract test locks; migration notes row count == flipped codes count.
+
+**Done when:** wire statuses match E3; documented.
 
 ---
 
