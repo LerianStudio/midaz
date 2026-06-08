@@ -237,6 +237,7 @@ func (s *provisioningService) handleExistingKeyset(ctx context.Context, req Prov
 }
 
 // createAndSaveRegistry creates a registry record and saves it.
+// Idempotent: if registry already exists (concurrent provisioning race), returns existing result.
 func (s *provisioningService) createAndSaveRegistry(ctx context.Context, req ProvisionInput, kekPath string, aeadKeyID, macKeyID uint32) (ProvisionResult, error) {
 	// Create registry record in active status
 	registry, err := mmodel.NewOrganizationRegistryRecord(req.TenantID, req.OrganizationID, req.Actor, req.Reason)
@@ -246,8 +247,9 @@ func (s *provisioningService) createAndSaveRegistry(ctx context.Context, req Pro
 
 	// Save registry record
 	if err := s.registryRepo.Save(ctx, registry); err != nil {
+		// Idempotent: if registry already exists (concurrent provisioning), return existing result
 		if errors.Is(err, constant.ErrRegistryAlreadyExists) || errors.Is(err, mmodel.ErrRegistryAlreadyExists) {
-			return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrRegistryAlreadyExists, EntityOrganizationEncryption)
+			return s.getExistingProvisionResult(ctx, req.OrganizationID)
 		}
 
 		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)

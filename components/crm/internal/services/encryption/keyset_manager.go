@@ -25,9 +25,10 @@ type KeysetUnwrapper interface {
 
 // CachedPrimitives holds the unwrapped AEAD and MAC primitives for an organization.
 type CachedPrimitives struct {
-	AEAD      *tink.AEADPrimitive
-	MAC       *tink.MACPrimitive
-	ExpiresAt time.Time
+	AEAD         *tink.AEADPrimitive
+	MAC          *tink.MACPrimitive
+	PrimaryKeyID uint32
+	ExpiresAt    time.Time
 }
 
 // IsExpired returns true if the cached primitives have expired.
@@ -121,15 +122,18 @@ func (km *KeysetManager) getOrgLock(cacheKey string) *sync.Mutex {
 // Returns cached primitives if available and not expired.
 // Otherwise, fetches from repository, unwraps via KMS, caches, and returns.
 //
+// Returns the primary AEAD key ID for envelope marker formatting, eliminating the need
+// for callers to make a separate database call to retrieve keyset info.
+//
 // Uses per-tenant-organization mutexes to deduplicate concurrent requests for the same
 // tenant-organization, preventing cache stampede while allowing concurrent fetches for
 // different tenant-organizations.
 //
 // Cache keys are scoped by tenant ID to prevent cross-tenant cache collisions.
-func (km *KeysetManager) GetPrimitives(ctx context.Context, organizationID string) (*tink.AEADPrimitive, *tink.MACPrimitive, error) {
+func (km *KeysetManager) GetPrimitives(ctx context.Context, organizationID string) (*tink.AEADPrimitive, *tink.MACPrimitive, uint32, error) {
 	// Check context before any work
 	if err := ctx.Err(); err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 
 	// Extract tenant ID for cache key scoping
@@ -142,7 +146,7 @@ func (km *KeysetManager) GetPrimitives(ctx context.Context, organizationID strin
 	km.mu.RUnlock()
 
 	if ok && !cached.IsExpired() {
-		return cached.AEAD, cached.MAC, nil
+		return cached.AEAD, cached.MAC, cached.PrimaryKeyID, nil
 	}
 
 	// Cache miss or expired - acquire per-tenant-organization lock
@@ -156,16 +160,16 @@ func (km *KeysetManager) GetPrimitives(ctx context.Context, organizationID strin
 	km.mu.RUnlock()
 
 	if ok && !cached.IsExpired() {
-		return cached.AEAD, cached.MAC, nil
+		return cached.AEAD, cached.MAC, cached.PrimaryKeyID, nil
 	}
 
 	// Fetch and cache while holding org lock
 	primitives, err := km.fetchAndCache(ctx, cacheKey, organizationID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 
-	return primitives.AEAD, primitives.MAC, nil
+	return primitives.AEAD, primitives.MAC, primitives.PrimaryKeyID, nil
 }
 
 // fetchAndCache fetches keyset from repository, unwraps via KMS, and caches the primitives.
@@ -242,9 +246,10 @@ func (km *KeysetManager) fetchAndCache(ctx context.Context, cacheKey, organizati
 
 	// Build cached primitives
 	cached := &CachedPrimitives{
-		AEAD:      aeadPrimitive,
-		MAC:       macPrimitive,
-		ExpiresAt: time.Now().Add(km.cacheTTL),
+		AEAD:         aeadPrimitive,
+		MAC:          macPrimitive,
+		PrimaryKeyID: keyset.KeysetInfo.PrimaryKeyID,
+		ExpiresAt:    time.Now().Add(km.cacheTTL),
 	}
 
 	// Cache the primitives with write lock using tenant-scoped key

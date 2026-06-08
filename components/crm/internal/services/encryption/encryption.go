@@ -248,21 +248,10 @@ func (s *encryptionService) Encrypt(ctx context.Context, fieldCtx FieldContext, 
 
 // encryptEnvelope performs envelope encryption using Tink AEAD.
 func (s *encryptionService) encryptEnvelope(ctx context.Context, fieldCtx FieldContext, plaintext string) (string, error) {
-	// Get AEAD primitive
-	aead, _, err := s.keysetManager.GetPrimitives(ctx, fieldCtx.OrganizationID)
+	// Get AEAD primitive and primary key ID (cached together to avoid redundant DB calls)
+	aead, _, primaryKeyID, err := s.keysetManager.GetPrimitives(ctx, fieldCtx.OrganizationID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get AEAD primitive: %w", err)
-	}
-
-	// Get keyset info for primary key ID
-	keyset, err := s.keysetRepo.Get(ctx, fieldCtx.OrganizationID)
-	if err != nil {
-		return "", fmt.Errorf("failed to get keyset info: %w", err)
-	}
-
-	// Guard against nil keyset (repository returned nil without error)
-	if keyset == nil {
-		return "", fmt.Errorf("failed to get keyset info: %w", constant.ErrKeysetNotFound)
 	}
 
 	// Encrypt with canonical AAD
@@ -274,7 +263,7 @@ func (s *encryptionService) encryptEnvelope(ctx context.Context, fieldCtx FieldC
 	}
 
 	// Format with envelope marker
-	marked := FormatEnvelopeMarker(keyset.KeysetInfo.PrimaryKeyID, ciphertext)
+	marked := FormatEnvelopeMarker(primaryKeyID, ciphertext)
 
 	return marked, nil
 }
@@ -349,8 +338,8 @@ func (s *encryptionService) Decrypt(ctx context.Context, fieldCtx FieldContext, 
 // decryptEnvelope performs envelope decryption using Tink AEAD.
 // Returns ErrEnvelopeDecryptFailed on failure - NO fallback to legacy.
 func (s *encryptionService) decryptEnvelope(ctx context.Context, fieldCtx FieldContext, marker EnvelopeMarker) (string, error) {
-	// Get AEAD primitive
-	aead, _, err := s.keysetManager.GetPrimitives(ctx, fieldCtx.OrganizationID)
+	// Get AEAD primitive (ignoring primaryKeyID as we use the marker's key ID for decryption)
+	aead, _, _, err := s.keysetManager.GetPrimitives(ctx, fieldCtx.OrganizationID)
 	if err != nil {
 		return "", fmt.Errorf("%w: failed to get AEAD primitive: %v", ErrEnvelopeDecryptFailed, err)
 	}
@@ -452,8 +441,8 @@ func (s *encryptionService) GenerateSearchToken(ctx context.Context, searchCtx S
 
 // generateSearchTokenEnvelope generates a MAC-based search token using Tink.
 func (s *encryptionService) generateSearchTokenEnvelope(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, error) {
-	// Get MAC primitive
-	_, mac, err := s.keysetManager.GetPrimitives(ctx, searchCtx.OrganizationID)
+	// Get MAC primitive (ignoring primaryKeyID as it's not needed for MAC)
+	_, mac, _, err := s.keysetManager.GetPrimitives(ctx, searchCtx.OrganizationID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get MAC primitive: %w", err)
 	}

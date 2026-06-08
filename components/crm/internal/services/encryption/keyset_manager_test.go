@@ -127,7 +127,7 @@ func TestKeysetManager_GetPrimitives_CacheMiss_Success(t *testing.T) {
 
 	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
 
-	aead, mac, err := manager.GetPrimitives(context.Background(), "org-123")
+	aead, mac, _, err := manager.GetPrimitives(context.Background(), "org-123")
 	if err != nil {
 		t.Fatalf("GetPrimitives() error = %v", err)
 	}
@@ -171,13 +171,13 @@ func TestKeysetManager_GetPrimitives_CacheHit_ReturnsCached(t *testing.T) {
 	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
 
 	// First call - cache miss
-	aead1, mac1, err := manager.GetPrimitives(context.Background(), "org-456")
+	aead1, mac1, _, err := manager.GetPrimitives(context.Background(), "org-456")
 	if err != nil {
 		t.Fatalf("GetPrimitives() first call error = %v", err)
 	}
 
 	// Second call - should be cache hit
-	aead2, mac2, err := manager.GetPrimitives(context.Background(), "org-456")
+	aead2, mac2, _, err := manager.GetPrimitives(context.Background(), "org-456")
 	if err != nil {
 		t.Fatalf("GetPrimitives() second call error = %v", err)
 	}
@@ -228,7 +228,7 @@ func TestKeysetManager_GetPrimitives_CacheExpired_Refetches(t *testing.T) {
 	manager := NewKeysetManager(reader, unwrapper, nil, config)
 
 	// First call - cache miss
-	_, _, err := manager.GetPrimitives(context.Background(), "org-789")
+	_, _, _, err := manager.GetPrimitives(context.Background(), "org-789")
 	if err != nil {
 		t.Fatalf("GetPrimitives() first call error = %v", err)
 	}
@@ -237,7 +237,7 @@ func TestKeysetManager_GetPrimitives_CacheExpired_Refetches(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 
 	// Second call - cache expired, should refetch
-	_, _, err = manager.GetPrimitives(context.Background(), "org-789")
+	_, _, _, err = manager.GetPrimitives(context.Background(), "org-789")
 	if err != nil {
 		t.Fatalf("GetPrimitives() second call error = %v", err)
 	}
@@ -265,7 +265,7 @@ func TestKeysetManager_GetPrimitives_KeysetNotFound_Error(t *testing.T) {
 
 	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
 
-	_, _, err := manager.GetPrimitives(context.Background(), "org-not-found")
+	_, _, _, err := manager.GetPrimitives(context.Background(), "org-not-found")
 	if err == nil {
 		t.Fatal("GetPrimitives() expected error, got nil")
 	}
@@ -299,7 +299,7 @@ func TestKeysetManager_GetPrimitives_UnwrapError_Propagated(t *testing.T) {
 
 	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
 
-	_, _, err := manager.GetPrimitives(context.Background(), "org-unwrap-fail")
+	_, _, _, err := manager.GetPrimitives(context.Background(), "org-unwrap-fail")
 	if err == nil {
 		t.Fatal("GetPrimitives() expected error, got nil")
 	}
@@ -329,7 +329,7 @@ func TestKeysetManager_GetPrimitives_ParseError_Propagated(t *testing.T) {
 
 	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
 
-	_, _, err := manager.GetPrimitives(context.Background(), "org-parse-fail")
+	_, _, _, err := manager.GetPrimitives(context.Background(), "org-parse-fail")
 	if err == nil {
 		t.Fatal("GetPrimitives() expected error for invalid keyset, got nil")
 	}
@@ -368,7 +368,7 @@ func TestKeysetManager_GetPrimitives_ConcurrentAccess_Safe(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			aead, mac, err := manager.GetPrimitives(context.Background(), "org-concurrent")
+			aead, mac, _, err := manager.GetPrimitives(context.Background(), "org-concurrent")
 			if err != nil {
 				errChan <- err
 				return
@@ -407,7 +407,7 @@ func TestKeysetManager_GetPrimitives_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, _, err := manager.GetPrimitives(ctx, "org-ctx-cancel")
+	_, _, _, err := manager.GetPrimitives(ctx, "org-ctx-cancel")
 	if err == nil {
 		t.Fatal("GetPrimitives() expected error for cancelled context, got nil")
 	}
@@ -439,7 +439,7 @@ func TestKeysetManager_InvalidateCache_RemovesEntry(t *testing.T) {
 	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
 
 	// First call - cache miss
-	_, _, err := manager.GetPrimitives(context.Background(), "org-invalidate")
+	_, _, _, err := manager.GetPrimitives(context.Background(), "org-invalidate")
 	if err != nil {
 		t.Fatalf("GetPrimitives() first call error = %v", err)
 	}
@@ -448,7 +448,7 @@ func TestKeysetManager_InvalidateCache_RemovesEntry(t *testing.T) {
 	manager.InvalidateCache("org-invalidate")
 
 	// Second call - should refetch after invalidation
-	_, _, err = manager.GetPrimitives(context.Background(), "org-invalidate")
+	_, _, _, err = manager.GetPrimitives(context.Background(), "org-invalidate")
 	if err != nil {
 		t.Fatalf("GetPrimitives() second call error = %v", err)
 	}
@@ -481,7 +481,7 @@ func TestKeysetManager_ClearCache_RemovesAllEntries(t *testing.T) {
 	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
 
 	// First call - cache miss
-	_, _, err := manager.GetPrimitives(context.Background(), "org-clear")
+	_, _, _, err := manager.GetPrimitives(context.Background(), "org-clear")
 	if err != nil {
 		t.Fatalf("GetPrimitives() first call error = %v", err)
 	}
@@ -490,7 +490,7 @@ func TestKeysetManager_ClearCache_RemovesAllEntries(t *testing.T) {
 	manager.ClearCache()
 
 	// Second call - should refetch after clear
-	_, _, err = manager.GetPrimitives(context.Background(), "org-clear")
+	_, _, _, err = manager.GetPrimitives(context.Background(), "org-clear")
 	if err != nil {
 		t.Fatalf("GetPrimitives() second call error = %v", err)
 	}
@@ -585,7 +585,7 @@ func TestKeysetManager_GetPrimitives_MultipleOrganizations(t *testing.T) {
 		WrappedHMACKeyset: "wrapped-mac",
 	}
 
-	aead1, mac1, err := manager.GetPrimitives(context.Background(), "org-1")
+	aead1, mac1, _, err := manager.GetPrimitives(context.Background(), "org-1")
 	if err != nil {
 		t.Fatalf("GetPrimitives(org-1) error = %v", err)
 	}
@@ -598,7 +598,7 @@ func TestKeysetManager_GetPrimitives_MultipleOrganizations(t *testing.T) {
 		WrappedHMACKeyset: "wrapped-mac",
 	}
 
-	aead2, mac2, err := manager.GetPrimitives(context.Background(), "org-2")
+	aead2, mac2, _, err := manager.GetPrimitives(context.Background(), "org-2")
 	if err != nil {
 		t.Fatalf("GetPrimitives(org-2) error = %v", err)
 	}
@@ -704,7 +704,7 @@ func TestKeysetManager_GetPrimitives_PerOrgMutex_DeduplicatesConcurrentFetches(t
 			// Wait for start signal to ensure concurrent execution
 			<-start
 
-			aead, mac, err := manager.GetPrimitives(context.Background(), "org-dedup")
+			aead, mac, _, err := manager.GetPrimitives(context.Background(), "org-dedup")
 			if err != nil {
 				errChan <- err
 				return
@@ -769,7 +769,7 @@ func TestKeysetManager_GetPrimitives_NilKeyset_ReturnsError(t *testing.T) {
 
 	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
 
-	_, _, err := manager.GetPrimitives(context.Background(), "org-nil-keyset")
+	_, _, _, err := manager.GetPrimitives(context.Background(), "org-nil-keyset")
 	if err == nil {
 		t.Fatal("GetPrimitives() expected error for nil keyset, got nil")
 	}
@@ -933,7 +933,7 @@ func TestKeysetManager_GetPrimitives_AutoProvisionOnNotFound(t *testing.T) {
 	// Context with tenant ID (required for auto-provisioning)
 	ctx := tmcore.ContextWithTenantID(context.Background(), "test-tenant")
 
-	aead, mac, err := manager.GetPrimitives(ctx, "org-auto-prov")
+	aead, mac, _, err := manager.GetPrimitives(ctx, "org-auto-prov")
 	if err != nil {
 		t.Fatalf("GetPrimitives() error = %v", err)
 	}
@@ -980,7 +980,7 @@ func TestKeysetManager_GetPrimitives_NoAutoProvisionWhenKeysetExists(t *testing.
 
 	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig())
 
-	aead, mac, err := manager.GetPrimitives(context.Background(), "org-existing")
+	aead, mac, _, err := manager.GetPrimitives(context.Background(), "org-existing")
 	if err != nil {
 		t.Fatalf("GetPrimitives() error = %v", err)
 	}
@@ -1019,7 +1019,7 @@ func TestKeysetManager_GetPrimitives_AutoProvisionFails(t *testing.T) {
 	// Context with tenant ID (required for auto-provisioning)
 	ctx := tmcore.ContextWithTenantID(context.Background(), "test-tenant")
 
-	_, _, err := manager.GetPrimitives(ctx, "org-prov-fail")
+	_, _, _, err := manager.GetPrimitives(ctx, "org-prov-fail")
 	if err == nil {
 		t.Fatal("GetPrimitives() expected error, got nil")
 	}
@@ -1051,7 +1051,7 @@ func TestKeysetManager_GetPrimitives_NoProvisionerConfigured(t *testing.T) {
 	// No provisioner configured (nil)
 	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
 
-	_, _, err := manager.GetPrimitives(context.Background(), "org-no-prov")
+	_, _, _, err := manager.GetPrimitives(context.Background(), "org-no-prov")
 	if err == nil {
 		t.Fatal("GetPrimitives() expected error, got nil")
 	}
@@ -1084,7 +1084,7 @@ func TestKeysetManager_GetPrimitives_NilKeysetAfterProvision(t *testing.T) {
 	// Context with tenant ID (required for auto-provisioning)
 	ctx := tmcore.ContextWithTenantID(context.Background(), "test-tenant")
 
-	_, _, err := manager.GetPrimitives(ctx, "org-nil-after")
+	_, _, _, err := manager.GetPrimitives(ctx, "org-nil-after")
 	if err == nil {
 		t.Fatal("GetPrimitives() expected error for nil keyset after provisioning, got nil")
 	}
@@ -1127,7 +1127,7 @@ func TestKeysetManager_autoProvision_UsesTenantFromContext(t *testing.T) {
 	// Create context with tenant ID using tmcore
 	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-from-context")
 
-	_, _, err := manager.GetPrimitives(ctx, "org-tenant-ctx")
+	_, _, _, err := manager.GetPrimitives(ctx, "org-tenant-ctx")
 	if err != nil {
 		t.Fatalf("GetPrimitives() error = %v", err)
 	}
@@ -1193,7 +1193,7 @@ func TestKeysetManager_autoProvision_DefaultsTenantWhenMissing(t *testing.T) {
 	// Context WITHOUT tenant ID - should default to "default"
 	ctx := context.Background()
 
-	_, _, err := manager.GetPrimitives(ctx, "org-no-tenant")
+	_, _, _, err := manager.GetPrimitives(ctx, "org-no-tenant")
 	if err != nil {
 		t.Fatalf("GetPrimitives() unexpected error: %v", err)
 	}
@@ -1253,7 +1253,7 @@ func TestKeysetManager_GetPrimitives_TenantIsolation_CacheKeysScopedByTenant(t *
 	ctxTenantB := tmcore.ContextWithTenantID(context.Background(), "tenant-beta")
 
 	// First call from tenant A - should fetch from repo
-	aeadA, macA, err := manager.GetPrimitives(ctxTenantA, "same-org-id")
+	aeadA, macA, _, err := manager.GetPrimitives(ctxTenantA, "same-org-id")
 	if err != nil {
 		t.Fatalf("GetPrimitives(tenant-alpha) error = %v", err)
 	}
@@ -1263,7 +1263,7 @@ func TestKeysetManager_GetPrimitives_TenantIsolation_CacheKeysScopedByTenant(t *
 	readerMu.Unlock()
 
 	// First call from tenant B - should fetch from repo (different cache key)
-	aeadB, macB, err := manager.GetPrimitives(ctxTenantB, "same-org-id")
+	aeadB, macB, _, err := manager.GetPrimitives(ctxTenantB, "same-org-id")
 	if err != nil {
 		t.Fatalf("GetPrimitives(tenant-beta) error = %v", err)
 	}
@@ -1274,7 +1274,7 @@ func TestKeysetManager_GetPrimitives_TenantIsolation_CacheKeysScopedByTenant(t *
 	}
 
 	// Second call from tenant A - should use cache
-	aeadA2, macA2, err := manager.GetPrimitives(ctxTenantA, "same-org-id")
+	aeadA2, macA2, _, err := manager.GetPrimitives(ctxTenantA, "same-org-id")
 	if err != nil {
 		t.Fatalf("GetPrimitives(tenant-alpha, second call) error = %v", err)
 	}
@@ -1327,12 +1327,12 @@ func TestKeysetManager_InvalidateCacheForTenant_OnlyAffectsSpecificTenant(t *tes
 	ctxTenantB := tmcore.ContextWithTenantID(context.Background(), "tenant-two")
 
 	// Populate cache for both tenants
-	aeadA1, _, err := manager.GetPrimitives(ctxTenantA, "shared-org")
+	aeadA1, _, _, err := manager.GetPrimitives(ctxTenantA, "shared-org")
 	if err != nil {
 		t.Fatalf("GetPrimitives(tenant-one) error = %v", err)
 	}
 
-	aeadB1, _, err := manager.GetPrimitives(ctxTenantB, "shared-org")
+	aeadB1, _, _, err := manager.GetPrimitives(ctxTenantB, "shared-org")
 	if err != nil {
 		t.Fatalf("GetPrimitives(tenant-two) error = %v", err)
 	}
@@ -1346,7 +1346,7 @@ func TestKeysetManager_InvalidateCacheForTenant_OnlyAffectsSpecificTenant(t *tes
 	manager.InvalidateCacheForTenant("tenant-one", "shared-org")
 
 	// Tenant A should refetch (cache was invalidated)
-	aeadA2, _, err := manager.GetPrimitives(ctxTenantA, "shared-org")
+	aeadA2, _, _, err := manager.GetPrimitives(ctxTenantA, "shared-org")
 	if err != nil {
 		t.Fatalf("GetPrimitives(tenant-one, after invalidation) error = %v", err)
 	}
@@ -1362,7 +1362,7 @@ func TestKeysetManager_InvalidateCacheForTenant_OnlyAffectsSpecificTenant(t *tes
 	}
 
 	// Tenant B should still use cache (not invalidated)
-	aeadB2, _, err := manager.GetPrimitives(ctxTenantB, "shared-org")
+	aeadB2, _, _, err := manager.GetPrimitives(ctxTenantB, "shared-org")
 	if err != nil {
 		t.Fatalf("GetPrimitives(tenant-two) error = %v", err)
 	}
@@ -1425,7 +1425,7 @@ func TestKeysetManager_GetPrimitives_AutoProvision_RegistryProperties(t *testing
 	// Context with tenant ID (required for auto-provisioning)
 	ctx := tmcore.ContextWithTenantID(context.Background(), "test-tenant")
 
-	aead, mac, err := manager.GetPrimitives(ctx, "org-registry-test")
+	aead, mac, _, err := manager.GetPrimitives(ctx, "org-registry-test")
 	if err != nil {
 		t.Fatalf("GetPrimitives() error = %v", err)
 	}
