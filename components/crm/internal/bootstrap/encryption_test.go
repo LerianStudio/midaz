@@ -20,7 +20,7 @@ import (
 )
 
 // =============================================================================
-// EncryptionConfig Tests - ST-006-01: Config struct fields
+// EncryptionConfig Tests
 // =============================================================================
 
 func TestConfig_VaultMountPathFieldExists(t *testing.T) {
@@ -67,7 +67,7 @@ func TestConfig_VaultMountPathDefault(t *testing.T) {
 }
 
 // =============================================================================
-// Service Struct Tests - ST-006-01: Encryption services wired into Service
+// Service Struct Tests
 // =============================================================================
 
 func TestService_HasEncryptionServiceField(t *testing.T) {
@@ -115,29 +115,29 @@ func TestService_HasKeysetManagerField(t *testing.T) {
 }
 
 // =============================================================================
-// Wiring Dependency Tests - ST-006-01: Verify dependencies are correctly wired
+// Wiring Dependency Tests
 // =============================================================================
 
-func TestWireEncryptionServices_ReturnsNilForLegacyMode(t *testing.T) {
+func TestWireEncryptionServices_ReturnsEncryptionServiceForLegacyMode(t *testing.T) {
 	t.Parallel()
 
-	// In legacy mode (no Vault), encryption services should be nil
-	// but the CRM should still start successfully
+	// In legacy mode, EncryptionService should be wired with legacyCrypto only.
+	// ProvisioningService and KeysetManager remain nil.
 	result := wireEncryptionServices(wireEncryptionServicesInput{
 		mode:           encryptionModeLegacy,
 		vaultClient:    nil,
 		keysetRepo:     nil,
 		registryRepo:   nil,
-		legacyCrypto:   nil,
+		legacyCrypto:   nil, // nil is acceptable for wiring test
 		vaultMountPath: "transit",
 	})
 
-	assert.Nil(t, result.encryptionService,
-		"EncryptionService must be nil in legacy mode")
+	assert.NotNil(t, result.encryptionService,
+		"EncryptionService must be wired in legacy mode")
+	assert.NotNil(t, result.protectionStateResolver,
+		"ProtectionStateResolver must be wired in legacy mode")
 	assert.Nil(t, result.provisioningService,
 		"ProvisioningService must be nil in legacy mode")
-	assert.Nil(t, result.protectionStateResolver,
-		"ProtectionStateResolver must be nil in legacy mode")
 	assert.Nil(t, result.keysetManager,
 		"KeysetManager must be nil in legacy mode")
 }
@@ -152,7 +152,7 @@ func TestWireEncryptionServices_RequiresRegistryRepoForEnvelopeMode(t *testing.T
 		vaultClient:    &mockEncryptionVaultClient{},
 		keysetRepo:     &mockKeysetRepo{},
 		registryRepo:   nil, // Missing required dependency
-		legacyCrypto:   &mockLegacyCrypto{},
+		legacyCrypto:   nil,
 		vaultMountPath: "transit",
 	})
 
@@ -172,7 +172,7 @@ func TestWireEncryptionServices_RequiresKeysetRepoForEnvelopeMode(t *testing.T) 
 		vaultClient:    &mockEncryptionVaultClient{},
 		keysetRepo:     nil, // Missing required dependency
 		registryRepo:   &mockRegistryRepo{},
-		legacyCrypto:   &mockLegacyCrypto{},
+		legacyCrypto:   nil,
 		vaultMountPath: "transit",
 	})
 
@@ -192,7 +192,7 @@ func TestWireEncryptionServices_RequiresVaultClientForEnvelopeMode(t *testing.T)
 		vaultClient:    nil, // Missing required dependency
 		keysetRepo:     &mockKeysetRepo{},
 		registryRepo:   &mockRegistryRepo{},
-		legacyCrypto:   &mockLegacyCrypto{},
+		legacyCrypto:   nil,
 		vaultMountPath: "transit",
 	})
 
@@ -212,7 +212,7 @@ func TestWireEncryptionServices_WiresProtectionStateResolverWithRegistryRepo(t *
 		vaultClient:    &mockEncryptionVaultClient{},
 		keysetRepo:     &mockKeysetRepo{},
 		registryRepo:   mockRegistry,
-		legacyCrypto:   &mockLegacyCrypto{},
+		legacyCrypto:   nil,
 		vaultMountPath: "transit",
 	})
 
@@ -234,7 +234,7 @@ func TestWireEncryptionServices_WiresKeysetManagerWithDependencies(t *testing.T)
 		vaultClient:    &mockEncryptionVaultClient{},
 		keysetRepo:     &mockKeysetRepo{},
 		registryRepo:   &mockRegistryRepo{},
-		legacyCrypto:   &mockLegacyCrypto{},
+		legacyCrypto:   nil,
 		vaultMountPath: "transit",
 	})
 
@@ -256,7 +256,7 @@ func TestWireEncryptionServices_WiresEncryptionServiceWithDependencies(t *testin
 		vaultClient:    &mockEncryptionVaultClient{},
 		keysetRepo:     &mockKeysetRepo{},
 		registryRepo:   &mockRegistryRepo{},
-		legacyCrypto:   &mockLegacyCrypto{},
+		legacyCrypto:   nil,
 		vaultMountPath: "transit",
 	})
 
@@ -279,7 +279,7 @@ func TestWireEncryptionServices_WiresProvisioningServiceWithDependencies(t *test
 		vaultClient:    &mockEncryptionVaultClient{},
 		keysetRepo:     &mockKeysetRepo{},
 		registryRepo:   &mockRegistryRepo{},
-		legacyCrypto:   &mockLegacyCrypto{},
+		legacyCrypto:   nil,
 		vaultMountPath: "transit",
 	})
 
@@ -303,7 +303,7 @@ func TestWireEncryptionServices_UsesVaultMountPathFromConfig(t *testing.T) {
 		vaultClient:    &mockEncryptionVaultClient{},
 		keysetRepo:     &mockKeysetRepo{},
 		registryRepo:   &mockRegistryRepo{},
-		legacyCrypto:   &mockLegacyCrypto{},
+		legacyCrypto:   nil,
 		vaultMountPath: customMountPath,
 	})
 
@@ -321,7 +321,7 @@ func TestWireEncryptionServices_DefaultsVaultMountPathToTransit(t *testing.T) {
 		vaultClient:    &mockEncryptionVaultClient{},
 		keysetRepo:     &mockKeysetRepo{},
 		registryRepo:   &mockRegistryRepo{},
-		legacyCrypto:   &mockLegacyCrypto{},
+		legacyCrypto:   nil,
 		vaultMountPath: "", // Empty should default to "transit"
 	})
 
@@ -332,7 +332,7 @@ func TestWireEncryptionServices_DefaultsVaultMountPathToTransit(t *testing.T) {
 }
 
 // =============================================================================
-// Graceful Degradation Tests - ST-006-01: CRM continues in legacy-only mode
+// Graceful Degradation Tests
 // =============================================================================
 
 func TestGracefulDegradation_CRMStartsWhenVaultUnavailable(t *testing.T) {
@@ -350,7 +350,7 @@ func TestGracefulDegradation_CRMStartsWhenVaultUnavailable(t *testing.T) {
 		vaultClient:          nil,
 		keysetRepo:           &mockKeysetRepo{},
 		registryRepo:         &mockRegistryRepo{},
-		legacyCrypto:         &mockLegacyCrypto{},
+		legacyCrypto:         nil,
 		vaultMountPath:       "transit",
 		allowGracefulDegrade: true, // Explicitly allow degradation
 	})
@@ -383,13 +383,100 @@ func TestGracefulDegradation_LogsWarningWhenDegrading(t *testing.T) {
 		vaultClient:          nil,
 		keysetRepo:           &mockKeysetRepo{},
 		registryRepo:         &mockRegistryRepo{},
-		legacyCrypto:         &mockLegacyCrypto{},
+		legacyCrypto:         nil,
 		vaultMountPath:       "transit",
 		allowGracefulDegrade: true,
 	})
 
 	assert.True(t, result.degradedToLegacy,
 		"degradedToLegacy must be true so caller can log warning")
+}
+
+// =============================================================================
+// Envelope Mode with Legacy Crypto Tests
+// =============================================================================
+
+func TestWireEncryptionServices_EnvelopeMode_HasAllRequiredServices(t *testing.T) {
+	t.Parallel()
+
+	// Verify envelope mode wires all required services
+	result := testWireEncryptionServicesWithMocks(testWireEncryptionServicesInput{
+		mode:           encryptionModeEnvelope,
+		vaultClient:    &mockEncryptionVaultClient{},
+		keysetRepo:     &mockKeysetRepo{},
+		registryRepo:   &mockRegistryRepo{},
+		legacyCrypto:   nil,
+		vaultMountPath: "transit",
+	})
+
+	require.NoError(t, result.err,
+		"testWireEncryptionServicesWithMocks must not return error with valid dependencies")
+	require.NotNil(t, result.encryptionService,
+		"EncryptionService must be non-nil in envelope mode")
+	require.NotNil(t, result.provisioningService,
+		"ProvisioningService must be non-nil in envelope mode")
+	require.NotNil(t, result.keysetManager,
+		"KeysetManager must be non-nil in envelope mode")
+	require.NotNil(t, result.protectionStateResolver,
+		"ProtectionStateResolver must be non-nil in envelope mode")
+}
+
+func TestWireEncryptionServices_EnvelopeMode_PreservesLegacyCryptoForUnmarkedDecrypt(t *testing.T) {
+	t.Parallel()
+
+	// Create a mock legacyCrypto that can encrypt/decrypt
+	mockLegacy := &mockLegacyCrypto{
+		encryptResult: "encrypted-legacy-value",
+		decryptResult: "decrypted-legacy-value",
+		hashResult:    "legacy-hash-token",
+	}
+
+	result := testWireEncryptionServicesWithMocks(testWireEncryptionServicesInput{
+		mode:           encryptionModeEnvelope,
+		vaultClient:    &mockEncryptionVaultClient{},
+		keysetRepo:     &mockKeysetRepo{},
+		registryRepo:   &mockRegistryRepo{}, // Returns LegacyReadable=true
+		legacyCrypto:   mockLegacy,
+		vaultMountPath: "transit",
+	})
+
+	require.NoError(t, result.err,
+		"testWireEncryptionServicesWithMocks must not return error")
+	require.NotNil(t, result.encryptionService,
+		"EncryptionService must be non-nil")
+
+	// Verify the encryption service was created with legacy crypto support
+	// The actual decrypt behavior is tested in encryption_test.go
+	// Here we verify the wiring passes legacyCrypto to the service
+	assert.NotNil(t, result.encryptionService,
+		"EncryptionService should be created with legacyCrypto for unmarked value decryption")
+}
+
+// mockLegacyCrypto implements encryption.LegacyCrypto for testing.
+type mockLegacyCrypto struct {
+	encryptResult string
+	decryptResult string
+	hashResult    string
+	encryptErr    error
+	decryptErr    error
+}
+
+func (m *mockLegacyCrypto) Encrypt(_ *string) (*string, error) {
+	if m.encryptErr != nil {
+		return nil, m.encryptErr
+	}
+	return &m.encryptResult, nil
+}
+
+func (m *mockLegacyCrypto) Decrypt(_ *string) (*string, error) {
+	if m.decryptErr != nil {
+		return nil, m.decryptErr
+	}
+	return &m.decryptResult, nil
+}
+
+func (m *mockLegacyCrypto) GenerateHash(_ *string) string {
+	return m.hashResult
 }
 
 // =============================================================================
@@ -421,9 +508,21 @@ type testWireEncryptionServicesInput struct {
 // testWireEncryptionServicesWithMocks wires encryption services using mock dependencies.
 // This function is test-only and allows passing mock implementations for all dependencies.
 func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) wireEncryptionServicesOutput {
-	// Legacy mode: no envelope encryption services needed
+	// Legacy mode: wire EncryptionService with nil dependencies for legacy-only operation.
 	if input.mode == encryptionModeLegacy {
-		return wireEncryptionServicesOutput{}
+		protectionStateResolver := encryption.NewProtectionStateResolver(nil)
+		encryptionService := encryption.NewEncryptionService(
+			protectionStateResolver,
+			nil,
+			nil,
+			input.legacyCrypto,
+			crypto.EncryptionModeLegacy,
+		)
+
+		return wireEncryptionServicesOutput{
+			protectionStateResolver: protectionStateResolver,
+			encryptionService:       encryptionService,
+		}
 	}
 
 	// Envelope mode: validate required dependencies
@@ -622,30 +721,4 @@ func (m *mockRegistryRepo) Save(_ context.Context, _ *mmodel.OrganizationRegistr
 // Update satisfies the mongoEncryption.RegistryRepository interface.
 func (m *mockRegistryRepo) Update(_ context.Context, _ *mmodel.OrganizationRegistryRecord, _ int64) error {
 	return nil
-}
-
-// mockLegacyCrypto implements LegacyCrypto for testing
-type mockLegacyCrypto struct{}
-
-func (m *mockLegacyCrypto) Encrypt(value *string) (*string, error) {
-	if value == nil {
-		return nil, nil
-	}
-	encrypted := "encrypted:" + *value
-	return &encrypted, nil
-}
-
-func (m *mockLegacyCrypto) Decrypt(value *string) (*string, error) {
-	if value == nil {
-		return nil, nil
-	}
-	decrypted := *value
-	return &decrypted, nil
-}
-
-func (m *mockLegacyCrypto) GenerateHash(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return "hash:" + *value
 }

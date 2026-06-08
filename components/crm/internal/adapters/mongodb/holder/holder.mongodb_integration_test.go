@@ -34,10 +34,14 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult) *M
 	t.Helper()
 
 	conn := mongotestutil.CreateConnection(t, container.URI, container.DBName)
+
+	// Use FieldEncryptorAdapter wrapping EncryptionService with lib-commons crypto
+	// This matches KMS_VENDOR=none production behavior
 	crypto := testutils.SetupCrypto(t)
 
-	// Use LegacyFieldEncryptor for integration tests
-	fe := encryption.NewLegacyFieldEncryptor(crypto)
+	resolver := encryption.NewProtectionStateResolver(nil)
+	svc := encryption.NewEncryptionService(resolver, nil, nil, crypto)
+	fe := encryption.NewFieldEncryptorAdapter(svc)
 
 	repo, err := NewMongoDBRepository(conn, fe)
 	require.NoError(t, err)

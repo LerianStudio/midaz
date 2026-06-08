@@ -59,8 +59,16 @@ func NewProtectionStateResolver(registryRepo mongoEncryption.RegistryRepository)
 //   - Repository returns an unexpected error
 //   - Reader is nil
 func (r *ProtectionStateResolver) Resolve(ctx context.Context, organizationID string) (ProtectionState, error) {
+	// Nil registry repository indicates KMS_VENDOR=none (legacy-only mode).
+	// Return legacy readable state to allow legacy encryption without envelope.
 	if r.registryRepo == nil {
-		return ProtectionState{}, fmt.Errorf("registry repository is not configured")
+		return ProtectionState{
+			Mode:                 crypto.EncryptionModeLegacy,
+			CanReadLegacy:        true,
+			CurrentKeysetVersion: 0,
+			OrganizationID:       organizationID,
+			TenantID:             "",
+		}, nil
 	}
 
 	record, err := r.registryRepo.Get(ctx, organizationID)

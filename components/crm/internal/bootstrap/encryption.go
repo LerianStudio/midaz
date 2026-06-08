@@ -59,9 +59,24 @@ type wireEncryptionServicesOutput struct {
 //
 // For testing with mock dependencies, use testWireEncryptionServicesWithMocks in encryption_test.go.
 func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionServicesOutput {
-	// Legacy mode: no envelope encryption services needed
+	// Legacy mode: wire EncryptionService with nil dependencies for legacy-only operation.
+	// ProtectionStateResolver with nil registryRepo returns legacy readable state.
+	// KeysetManager is nil since no envelope encryption is available.
+	// Uses lib-commons crypto directly (no Tink).
 	if strings.EqualFold(input.mode, "legacy") {
-		return wireEncryptionServicesOutput{}
+		protectionStateResolver := encryption.NewProtectionStateResolver(nil)
+		encryptionService := encryption.NewEncryptionService(
+			protectionStateResolver,
+			nil,                // No keyset manager in legacy mode
+			nil,                // No keyset repo in legacy mode
+			input.legacyCrypto, // lib-commons crypto for legacy encryption
+			crypto.EncryptionModeLegacy,
+		)
+
+		return wireEncryptionServicesOutput{
+			protectionStateResolver: protectionStateResolver,
+			encryptionService:       encryptionService,
+		}
 	}
 
 	// Envelope mode: validate required dependencies
@@ -125,6 +140,7 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 	// Wire EncryptionService with all dependencies
 	// Pass EncryptionModeEnvelope as globalMode to enable lazy provisioning
 	// via KeysetManager for all organizations, regardless of their registry state
+	// Uses Tink-backed LegacyKeyMaterial (passed as LegacyCrypto) for reading legacy data during migration
 	encryptionService := encryption.NewEncryptionService(
 		protectionStateResolver,
 		keysetManager,

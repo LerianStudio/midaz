@@ -150,15 +150,31 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, err
 	}
 
-	dataSecurity := &libCrypto.Crypto{
-		HashSecretKey:    cfg.HashSecretKey,
-		EncryptSecretKey: cfg.EncryptSecretKey,
-		Logger:           logger,
-	}
+	// Create legacy crypto based on KMS mode:
+	// - KMS_VENDOR=none (legacy): use lib-commons crypto directly (no Tink)
+	// - KMS_VENDOR=hashicorp-vault (envelope): use Tink-backed LegacyKeyMaterial for reading legacy data
+	var legacyCrypto encryption.LegacyCrypto
 
-	err = dataSecurity.InitializeCipher()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize cipher: %w", err)
+	if kms.Mode.IsEnvelope() {
+		// Envelope mode: use Tink for both new encryption and legacy reading
+		legacyKeys, err := encryption.NewLegacyKeyMaterial(cfg.EncryptSecretKey, cfg.HashSecretKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize legacy key material: %w", err)
+		}
+
+		legacyCrypto = legacyKeys
+	} else {
+		// Legacy mode: use lib-commons crypto directly (no Tink involved)
+		crypto := &libCrypto.Crypto{
+			HashSecretKey:    cfg.HashSecretKey,
+			EncryptSecretKey: cfg.EncryptSecretKey,
+			Logger:           logger,
+		}
+		if err := crypto.InitializeCipher(); err != nil {
+			return nil, fmt.Errorf("failed to initialize legacy crypto cipher: %w", err)
+		}
+
+		legacyCrypto = crypto
 	}
 
 	// Initialize encryption repositories for envelope mode only.
@@ -182,13 +198,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Wire encryption services (ProtectionStateResolver, KeysetManager, EncryptionService, ProvisioningService).
-	// In legacy mode, all services are nil. In envelope mode, services are wired with real dependencies.
+	// In legacy mode, EncryptionService uses lib-commons crypto.
+	// In envelope mode, services are wired with Tink and Vault dependencies.
 	encryptionResult := wireEncryptionServices(wireEncryptionServicesInput{
 		mode:                 kms.Mode.String(),
 		vaultClient:          kms.VaultClient,
 		keysetRepo:           keysetRepo,
 		registryRepo:         registryRepo,
-		legacyCrypto:         dataSecurity,
+		legacyCrypto:         legacyCrypto,
 		vaultMountPath:       cfg.VaultMountPath,
 		allowGracefulDegrade: false, // Fail hard if envelope mode requested but dependencies unavailable
 	})
@@ -200,20 +217,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger.Log(context.Background(), libLog.LevelWarn, "Envelope encryption unavailable; degraded to legacy-only mode")
 	}
 
-	// Create FieldEncryptor based on encryption mode.
-	// In envelope mode, use FieldEncryptorAdapter wrapping the EncryptionService.
-	// In legacy mode (or degraded), use LegacyFieldEncryptor wrapping the Crypto.
-	var fieldEncryptor encryption.FieldEncryptor
+	// Create FieldEncryptor using FieldEncryptorAdapter wrapping EncryptionService.
+	// EncryptionService is always available (legacy or envelope mode).
+	fieldEncryptor := encryption.NewFieldEncryptorAdapter(encryptionResult.encryptionService)
 
-	if encryptionResult.encryptionService != nil {
-		fieldEncryptor = encryption.NewFieldEncryptorAdapter(encryptionResult.encryptionService)
-
-		logger.Log(context.Background(), libLog.LevelInfo, "Using envelope encryption mode for field encryption")
-	} else {
-		fieldEncryptor = encryption.NewLegacyFieldEncryptor(dataSecurity)
-
-		logger.Log(context.Background(), libLog.LevelInfo, "Using legacy encryption mode for field encryption")
-	}
+	logger.Log(context.Background(), libLog.LevelInfo, "Encryption service initialized",
+		libLog.String("mode", kms.Mode.String()))
 
 	holderMongoDBRepository, err := holder.NewMongoDBRepository(mongoConnection, fieldEncryptor)
 	if err != nil {

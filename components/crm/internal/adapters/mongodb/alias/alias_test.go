@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
@@ -18,13 +17,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// setupTestFieldEncryptor creates a FieldEncryptor using legacy crypto for testing.
+// setupTestFieldEncryptor creates a FieldEncryptorAdapter wrapping an EncryptionService
+// with lib-commons crypto for testing. This matches production KMS_VENDOR=none behavior.
 func setupTestFieldEncryptor(t *testing.T) encryption.FieldEncryptor {
 	t.Helper()
 
+	// Use lib-commons crypto directly, matching KMS_VENDOR=none production path
 	crypto := testutils.SetupCrypto(t)
 
-	return encryption.NewLegacyFieldEncryptor(crypto)
+	resolver := encryption.NewProtectionStateResolver(nil)
+	svc := encryption.NewEncryptionService(resolver, nil, nil, crypto)
+
+	return encryption.NewFieldEncryptorAdapter(svc)
 }
 
 // testEncryptionContext returns a standard encryption context for tests.
@@ -570,29 +574,59 @@ func TestMongoDBModel_ToEntity_InvalidOptionalCiphertextReturnsError(t *testing.
 	ctx := context.Background()
 	aliasID := uuid.New()
 
-	// Manually build a model with valid encrypted document but invalid banking details ciphertext
-	crypto := testutils.SetupCrypto(t)
-	encryptedDoc := mustEncrypt(t, crypto, "12345678901")
+	// Encrypt a valid document using the FieldEncryptor
+	encryptionCtx := testEncryptionContext(aliasID)
+	fieldCtx := encryption.FieldContext{
+		TenantID:       encryptionCtx.TenantID,
+		OrganizationID: encryptionCtx.OrganizationID,
+		RecordID:       encryptionCtx.RecordID,
+		FieldName:      "document",
+	}
+	encryptedDoc, err := fe.EncryptField(ctx, fieldCtx, "12345678901")
+	require.NoError(t, err)
 
+	// Build a model with valid encrypted document but invalid banking details ciphertext
 	model := &MongoDBModel{
 		ID:       &aliasID,
-		Document: encryptedDoc,
+		Document: &encryptedDoc,
 		BankingDetails: &BankingMongoDBModel{
 			Account: testutils.Ptr("not-a-valid-ciphertext"),
 		},
 	}
 
-	encryptionCtx := testEncryptionContext(aliasID)
-	_, err := model.ToEntity(ctx, fe, encryptionCtx)
+	_, err = model.ToEntity(ctx, fe, encryptionCtx)
 	require.Error(t, err)
+}
+
+// failingFieldEncryptor is a mock that fails on encryption to test error paths.
+type failingFieldEncryptor struct {
+	failOnEncrypt bool
+	failOnDecrypt bool
+}
+
+func (f *failingFieldEncryptor) EncryptField(_ context.Context, _ encryption.FieldContext, _ string) (string, error) {
+	if f.failOnEncrypt {
+		return "", assert.AnError
+	}
+	return "encrypted", nil
+}
+
+func (f *failingFieldEncryptor) DecryptField(_ context.Context, _ encryption.FieldContext, _ string) (string, error) {
+	if f.failOnDecrypt {
+		return "", assert.AnError
+	}
+	return "decrypted", nil
+}
+
+func (f *failingFieldEncryptor) GenerateSearchToken(_ context.Context, _ encryption.SearchTokenContext, _ string) (string, error) {
+	return "token", nil
 }
 
 func TestMongoDBModel_FromEntity_EncryptOptionalFailureReturnsError(t *testing.T) {
 	t.Parallel()
 
-	// Use uninitialized crypto to trigger encryption failure
-	uninitializedCrypto := &libCrypto.Crypto{}
-	fe := encryption.NewLegacyFieldEncryptor(uninitializedCrypto)
+	// Use mock that returns errors to test encryption failure path
+	fe := &failingFieldEncryptor{failOnEncrypt: true}
 	ctx := context.Background()
 	aliasID := uuid.New()
 	now := time.Now().UTC().Truncate(time.Second)
@@ -615,18 +649,6 @@ func TestMongoDBModel_FromEntity_EncryptOptionalFailureReturnsError(t *testing.T
 	var model MongoDBModel
 	err := model.FromEntity(ctx, alias, fe, encryptionCtx)
 	require.Error(t, err)
-}
-
-func mustEncrypt(t *testing.T, crypto interface {
-	Encrypt(*string) (*string, error)
-}, value string,
-) *string {
-	t.Helper()
-
-	encrypted, err := crypto.Encrypt(testutils.Ptr(value))
-	require.NoError(t, err)
-
-	return encrypted
 }
 
 // ---------------------------------------------------------------------------

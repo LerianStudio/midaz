@@ -211,14 +211,26 @@ func TestNewProtectionStateResolver(t *testing.T) {
 	}
 }
 
-func TestProtectionStateResolver_Resolve_NilReader(t *testing.T) {
+func TestProtectionStateResolver_Resolve_NilRegistryRepoReturnsLegacyReadable(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewProtectionStateResolver(nil)
-	_, err := resolver.Resolve(context.Background(), "org-123")
+	state, err := resolver.Resolve(context.Background(), "org-123")
+	if err != nil {
+		t.Errorf("Resolve() with nil registry repo unexpected error = %v", err)
+		return
+	}
 
-	if err == nil {
-		t.Error("Resolve() with nil reader expected error, got nil")
+	if state.Mode != crypto.EncryptionModeLegacy {
+		t.Errorf("Resolve() Mode = %v, want %v", state.Mode, crypto.EncryptionModeLegacy)
+	}
+
+	if !state.CanReadLegacy {
+		t.Error("Resolve() CanReadLegacy = false, want true")
+	}
+
+	if state.OrganizationID != "org-123" {
+		t.Errorf("Resolve() OrganizationID = %q, want %q", state.OrganizationID, "org-123")
 	}
 }
 
