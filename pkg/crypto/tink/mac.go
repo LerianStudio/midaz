@@ -199,16 +199,6 @@ func (m *MACMultiPrimitive) ComputeSearchTokenCandidates(data []byte) ([]string,
 	return tokens, nil
 }
 
-// GetEnabledKeyIDs returns the key IDs of all enabled keys in the primitive.
-// The returned slice is a copy to prevent external mutation of internal state.
-// Key IDs are ordered by keyset entry order (same order used by ComputeSearchTokenCandidates).
-func (m *MACMultiPrimitive) GetEnabledKeyIDs() []uint32 {
-	result := make([]uint32, len(m.keyIDs))
-	copy(result, m.keyIDs)
-
-	return result
-}
-
 // createSingleKeyHandle creates a keyset handle containing only the specified key entry.
 func createSingleKeyHandle(entry *keyset.Entry) (*keyset.Handle, error) {
 	manager := keyset.NewManager()

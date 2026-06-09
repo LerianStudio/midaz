@@ -128,8 +128,12 @@ func (m *LegacyKeyMaterial) GenerateHash(value *string) string {
 // Core operations (used by repositories):
 //   - Encrypt: encrypts plaintext for storage
 //   - Decrypt: decrypts ciphertext for retrieval
-//   - GenerateSearchToken: creates deterministic token for encrypted field search (primary key only)
-//   - GenerateSearchTokenCandidates: creates tokens for all enabled keys (for key rotation queries)
+//   - GenerateSearchToken: creates deterministic token for encrypted field search (primary key only).
+//     Used on WRITE PATH for indexing — intentionally single-key so new records are always
+//     indexed with the current primary key.
+//   - GenerateSearchTokenCandidates: creates tokens for all enabled keys.
+//     Used on READ PATH for queries — returns tokens for all enabled keys so searches match
+//     records indexed with any key version during rotation windows.
 //
 // Inspection operations (for admin tooling and diagnostics):
 //   - MustUseEnvelope: checks if organization requires envelope encryption
@@ -138,7 +142,9 @@ func (m *LegacyKeyMaterial) GenerateHash(value *string) string {
 type EncryptionService interface {
 	Encrypt(ctx context.Context, fieldCtx FieldContext, plaintext string) (string, error)
 	Decrypt(ctx context.Context, fieldCtx FieldContext, ciphertext string) (string, error)
+	// GenerateSearchToken creates a single search token using the primary key (WRITE PATH - indexing).
 	GenerateSearchToken(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, error)
+	// GenerateSearchTokenCandidates creates tokens for all enabled keys (READ PATH - queries).
 	GenerateSearchTokenCandidates(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) ([]string, error)
 	MustUseEnvelope(ctx context.Context, organizationID string) (bool, error)
 	GetProtectionState(ctx context.Context, organizationID string) (ProtectionState, error)
