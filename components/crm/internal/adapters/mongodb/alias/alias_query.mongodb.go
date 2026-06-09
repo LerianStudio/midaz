@@ -171,60 +171,61 @@ func (am *MongoDBRepository) appendBasicFilters(filter bson.D, query http.QueryH
 }
 
 // appendEncryptedFilters adds encrypted field search filters to the filter.
+// Uses $in operator with token candidates to support key rotation during searches.
 func (am *MongoDBRepository) appendEncryptedFilters(ctx context.Context, filter bson.D, query http.QueryHeader, searchCtx encryption.SearchTokenContext) (bson.D, error) {
 	if !libCommons.IsNilOrEmpty(query.Document) {
 		searchCtx.FieldName = "document"
 
-		hash, err := am.FieldEncryptor.GenerateSearchToken(ctx, searchCtx, *query.Document)
+		tokens, err := am.FieldEncryptor.GenerateSearchTokenCandidates(ctx, searchCtx, *query.Document)
 		if err != nil {
 			return nil, err
 		}
 
-		filter = append(filter, bson.E{Key: "search.document", Value: hash})
+		filter = append(filter, bson.E{Key: "search.document", Value: bson.M{"$in": tokens}})
 	}
 
 	if !libCommons.IsNilOrEmpty(query.BankingDetailsAccount) {
 		searchCtx.FieldName = "banking_details.account"
 
-		hash, err := am.FieldEncryptor.GenerateSearchToken(ctx, searchCtx, *query.BankingDetailsAccount)
+		tokens, err := am.FieldEncryptor.GenerateSearchTokenCandidates(ctx, searchCtx, *query.BankingDetailsAccount)
 		if err != nil {
 			return nil, err
 		}
 
-		filter = append(filter, bson.E{Key: "search.banking_details_account", Value: hash})
+		filter = append(filter, bson.E{Key: "search.banking_details_account", Value: bson.M{"$in": tokens}})
 	}
 
 	if !libCommons.IsNilOrEmpty(query.BankingDetailsIban) {
 		searchCtx.FieldName = "banking_details.iban"
 
-		hash, err := am.FieldEncryptor.GenerateSearchToken(ctx, searchCtx, *query.BankingDetailsIban)
+		tokens, err := am.FieldEncryptor.GenerateSearchTokenCandidates(ctx, searchCtx, *query.BankingDetailsIban)
 		if err != nil {
 			return nil, err
 		}
 
-		filter = append(filter, bson.E{Key: "search.banking_details_iban", Value: hash})
+		filter = append(filter, bson.E{Key: "search.banking_details_iban", Value: bson.M{"$in": tokens}})
 	}
 
 	if !libCommons.IsNilOrEmpty(query.RegulatoryFieldsParticipantDocument) {
 		searchCtx.FieldName = "regulatory_fields.participant_document"
 
-		hash, err := am.FieldEncryptor.GenerateSearchToken(ctx, searchCtx, *query.RegulatoryFieldsParticipantDocument)
+		tokens, err := am.FieldEncryptor.GenerateSearchTokenCandidates(ctx, searchCtx, *query.RegulatoryFieldsParticipantDocument)
 		if err != nil {
 			return nil, err
 		}
 
-		filter = append(filter, bson.E{Key: "search.regulatory_fields_participant_document", Value: hash})
+		filter = append(filter, bson.E{Key: "search.regulatory_fields_participant_document", Value: bson.M{"$in": tokens}})
 	}
 
 	if !libCommons.IsNilOrEmpty(query.RelatedPartyDocument) {
 		searchCtx.FieldName = "related_parties.document"
 
-		hash, err := am.FieldEncryptor.GenerateSearchToken(ctx, searchCtx, *query.RelatedPartyDocument)
+		tokens, err := am.FieldEncryptor.GenerateSearchTokenCandidates(ctx, searchCtx, *query.RelatedPartyDocument)
 		if err != nil {
 			return nil, err
 		}
 
-		filter = append(filter, bson.E{Key: "search.related_party_documents", Value: hash})
+		filter = append(filter, bson.E{Key: "search.related_party_documents", Value: bson.M{"$in": tokens}})
 	}
 
 	return filter, nil

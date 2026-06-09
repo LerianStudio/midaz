@@ -332,10 +332,8 @@ func validTestKeyset() *mmodel.OrganizationKeyset {
 				{KeyID: 1, Status: "ENABLED", Type: "HMAC_SHA256", IsPrimary: true},
 			},
 		},
-		LegacyKeyImported:     false,
-		LegacyHMACKeyImported: false,
-		Revision:              1,
-		CreatedAt:             now,
+		Revision:  1,
+		CreatedAt: now,
 	}
 }
 

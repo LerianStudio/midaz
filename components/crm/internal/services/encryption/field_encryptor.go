@@ -43,6 +43,10 @@ type FieldEncryptor interface {
 	// GenerateSearchToken generates a deterministic search token for a normalized value.
 	// Search tokens enable encrypted field searching without exposing plaintext.
 	GenerateSearchToken(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, error)
+
+	// GenerateSearchTokenCandidates generates search tokens using all enabled keys for key rotation support.
+	// Returns tokens from all enabled HMAC keys to support searching records indexed with any key version.
+	GenerateSearchTokenCandidates(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) ([]string, error)
 }
 
 // fieldEncryptorAdapter implements FieldEncryptor using EncryptionService.
@@ -73,4 +77,9 @@ func (a *fieldEncryptorAdapter) DecryptField(ctx context.Context, fieldCtx Field
 // GenerateSearchToken generates a deterministic search token for a normalized value.
 func (a *fieldEncryptorAdapter) GenerateSearchToken(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, error) {
 	return a.encryptionService.GenerateSearchToken(ctx, searchCtx, normalizedValue)
+}
+
+// GenerateSearchTokenCandidates generates search tokens using all enabled keys.
+func (a *fieldEncryptorAdapter) GenerateSearchTokenCandidates(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) ([]string, error) {
+	return a.encryptionService.GenerateSearchTokenCandidates(ctx, searchCtx, normalizedValue)
 }

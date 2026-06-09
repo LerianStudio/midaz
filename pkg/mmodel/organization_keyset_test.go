@@ -117,17 +117,15 @@ func TestOrganizationKeyset_SafeView(t *testing.T) {
 
 	now := time.Now().UTC()
 	keyset := OrganizationKeyset{
-		TenantID:              "tenant-a",
-		OrganizationID:        "org-a",
-		KEKPath:               "transit/keys/test",
-		WrappedKeyset:         "vault:v1:secret-dek-material",
-		WrappedHMACKeyset:     "vault:v1:secret-hmac-material",
-		KeysetInfo:            KeysetInfo{PrimaryKeyID: 1},
-		HMACKeysetInfo:        KeysetInfo{PrimaryKeyID: 2},
-		LegacyKeyImported:     true,
-		LegacyHMACKeyImported: true,
-		Revision:              5,
-		CreatedAt:             now,
+		TenantID:          "tenant-a",
+		OrganizationID:    "org-a",
+		KEKPath:           "transit/keys/test",
+		WrappedKeyset:     "vault:v1:secret-dek-material",
+		WrappedHMACKeyset: "vault:v1:secret-hmac-material",
+		KeysetInfo:        KeysetInfo{PrimaryKeyID: 1},
+		HMACKeysetInfo:    KeysetInfo{PrimaryKeyID: 2},
+		Revision:          5,
+		CreatedAt:         now,
 	}
 
 	safe := keyset.SafeView()
@@ -142,8 +140,6 @@ func TestOrganizationKeyset_SafeView(t *testing.T) {
 	assert.Equal(t, keyset.KEKPath, safe.KEKPath)
 	assert.Equal(t, keyset.KeysetInfo, safe.KeysetInfo)
 	assert.Equal(t, keyset.HMACKeysetInfo, safe.HMACKeysetInfo)
-	assert.Equal(t, keyset.LegacyKeyImported, safe.LegacyKeyImported)
-	assert.Equal(t, keyset.LegacyHMACKeyImported, safe.LegacyHMACKeyImported)
 	assert.Equal(t, keyset.Revision, safe.Revision)
 	assert.Equal(t, keyset.CreatedAt, safe.CreatedAt)
 }

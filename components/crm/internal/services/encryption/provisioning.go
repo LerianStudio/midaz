@@ -183,7 +183,6 @@ func (s *provisioningService) Provision(ctx context.Context, req ProvisionInput)
 		KEKPath:           kekPath,
 		WrappedKeyset:     aeadBundle.Wrapped.WrappedData,
 		KeysetInfo:        convertKeysetInfo(aeadBundle.Wrapped.Info),
-		LegacyKeyImported: false,
 		WrappedHMACKeyset: macBundle.Wrapped.WrappedData,
 		HMACKeysetInfo:    convertKeysetInfo(macBundle.Wrapped.Info),
 		Revision:          1,

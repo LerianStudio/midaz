@@ -27,6 +27,7 @@ type KeysetUnwrapper interface {
 type CachedPrimitives struct {
 	AEAD         *tink.AEADPrimitive
 	MAC          *tink.MACPrimitive
+	MultiKeyMAC  *tink.MACMultiPrimitive
 	PrimaryKeyID uint32
 	ExpiresAt    time.Time
 }
@@ -118,22 +119,25 @@ func (km *KeysetManager) getOrgLock(cacheKey string) *sync.Mutex {
 	return lock
 }
 
-// GetPrimitives retrieves the AEAD and MAC primitives for an organization.
+// GetPrimitives retrieves the AEAD, MAC, and MACMulti primitives for an organization.
 // Returns cached primitives if available and not expired.
 // Otherwise, fetches from repository, unwraps via KMS, caches, and returns.
 //
-// Returns the primary AEAD key ID for envelope marker formatting, eliminating the need
-// for callers to make a separate database call to retrieve keyset info.
+// Returns:
+//   - AEAD primitive for encryption/decryption
+//   - MAC primitive for search token generation (primary key only)
+//   - MACMulti primitive for search token generation across all keys (for key rotation)
+//   - Primary AEAD key ID for envelope marker formatting
 //
 // Uses per-tenant-organization mutexes to deduplicate concurrent requests for the same
 // tenant-organization, preventing cache stampede while allowing concurrent fetches for
 // different tenant-organizations.
 //
 // Cache keys are scoped by tenant ID to prevent cross-tenant cache collisions.
-func (km *KeysetManager) GetPrimitives(ctx context.Context, organizationID string) (*tink.AEADPrimitive, *tink.MACPrimitive, uint32, error) {
+func (km *KeysetManager) GetPrimitives(ctx context.Context, organizationID string) (*tink.AEADPrimitive, *tink.MACPrimitive, *tink.MACMultiPrimitive, uint32, error) {
 	// Check context before any work
 	if err := ctx.Err(); err != nil {
-		return nil, nil, 0, err
+		return nil, nil, nil, 0, err
 	}
 
 	// Extract tenant ID for cache key scoping
@@ -146,7 +150,7 @@ func (km *KeysetManager) GetPrimitives(ctx context.Context, organizationID strin
 	km.mu.RUnlock()
 
 	if ok && !cached.IsExpired() {
-		return cached.AEAD, cached.MAC, cached.PrimaryKeyID, nil
+		return cached.AEAD, cached.MAC, cached.MultiKeyMAC, cached.PrimaryKeyID, nil
 	}
 
 	// Cache miss or expired - acquire per-tenant-organization lock
@@ -160,16 +164,16 @@ func (km *KeysetManager) GetPrimitives(ctx context.Context, organizationID strin
 	km.mu.RUnlock()
 
 	if ok && !cached.IsExpired() {
-		return cached.AEAD, cached.MAC, cached.PrimaryKeyID, nil
+		return cached.AEAD, cached.MAC, cached.MultiKeyMAC, cached.PrimaryKeyID, nil
 	}
 
 	// Fetch and cache while holding org lock
 	primitives, err := km.fetchAndCache(ctx, cacheKey, organizationID)
 	if err != nil {
-		return nil, nil, 0, err
+		return nil, nil, nil, 0, err
 	}
 
-	return primitives.AEAD, primitives.MAC, primitives.PrimaryKeyID, nil
+	return primitives.AEAD, primitives.MAC, primitives.MultiKeyMAC, primitives.PrimaryKeyID, nil
 }
 
 // fetchAndCache fetches keyset from repository, unwraps via KMS, and caches the primitives.
@@ -238,16 +242,29 @@ func (km *KeysetManager) fetchAndCache(ctx context.Context, cacheKey, organizati
 		return nil, fmt.Errorf("failed to unwrap MAC keyset: %w", err)
 	}
 
-	// Parse MAC keyset into primitive
-	macPrimitive, err := tink.ParseMACKeyset(macBytes)
+	// Deserialize MAC keyset to get handle for creating both primitives
+	macHandle, err := tink.DeserializeMACKeyset(macBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse MAC keyset: %w", err)
+		return nil, fmt.Errorf("failed to deserialize MAC keyset: %w", err)
+	}
+
+	// Create MAC primitive from handle
+	macPrimitive, err := tink.NewMACPrimitive(macHandle)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create MAC primitive: %w", err)
+	}
+
+	// Create multi-key MAC primitive for search operations (strict mode: error fails the operation)
+	multiKeyMAC, err := tink.NewMACMultiPrimitive(macHandle)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create multi-key MAC primitive: %w", err)
 	}
 
 	// Build cached primitives
 	cached := &CachedPrimitives{
 		AEAD:         aeadPrimitive,
 		MAC:          macPrimitive,
+		MultiKeyMAC:  multiKeyMAC,
 		PrimaryKeyID: keyset.KeysetInfo.PrimaryKeyID,
 		ExpiresAt:    time.Now().Add(km.cacheTTL),
 	}

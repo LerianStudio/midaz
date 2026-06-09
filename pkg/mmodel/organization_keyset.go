@@ -22,18 +22,16 @@ var (
 // OrganizationKeyset stores wrapped keyset metadata for an organization.
 // Wrapped keysets are encrypted by a KEK in the KMS provider.
 type OrganizationKeyset struct {
-	TenantID              string
-	OrganizationID        string
-	KEKPath               string
-	WrappedKeyset         string
-	KeysetInfo            KeysetInfo
-	LegacyKeyImported     bool
-	WrappedHMACKeyset     string
-	HMACKeysetInfo        KeysetInfo
-	LegacyHMACKeyImported bool
-	Revision              int64
-	CreatedAt             time.Time
-	RotatedAt             *time.Time
+	TenantID          string
+	OrganizationID    string
+	KEKPath           string
+	WrappedKeyset     string
+	KeysetInfo        KeysetInfo
+	WrappedHMACKeyset string
+	HMACKeysetInfo    KeysetInfo
+	Revision          int64
+	CreatedAt         time.Time
+	RotatedAt         *time.Time
 }
 
 // KeysetInfo contains metadata about a Tink keyset without exposing key material.
@@ -79,17 +77,15 @@ func (k *OrganizationKeyset) Validate() error {
 // SafeView returns a copy with wrapped keysets redacted for logging/API responses.
 func (k *OrganizationKeyset) SafeView() OrganizationKeyset {
 	return OrganizationKeyset{
-		TenantID:              k.TenantID,
-		OrganizationID:        k.OrganizationID,
-		KEKPath:               k.KEKPath,
-		WrappedKeyset:         "[REDACTED]",
-		KeysetInfo:            k.KeysetInfo,
-		LegacyKeyImported:     k.LegacyKeyImported,
-		WrappedHMACKeyset:     "[REDACTED]",
-		HMACKeysetInfo:        k.HMACKeysetInfo,
-		LegacyHMACKeyImported: k.LegacyHMACKeyImported,
-		Revision:              k.Revision,
-		CreatedAt:             k.CreatedAt,
-		RotatedAt:             k.RotatedAt,
+		TenantID:          k.TenantID,
+		OrganizationID:    k.OrganizationID,
+		KEKPath:           k.KEKPath,
+		WrappedKeyset:     "[REDACTED]",
+		KeysetInfo:        k.KeysetInfo,
+		WrappedHMACKeyset: "[REDACTED]",
+		HMACKeysetInfo:    k.HMACKeysetInfo,
+		Revision:          k.Revision,
+		CreatedAt:         k.CreatedAt,
+		RotatedAt:         k.RotatedAt,
 	}
 }
