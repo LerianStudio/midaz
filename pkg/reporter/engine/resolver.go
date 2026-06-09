@@ -19,14 +19,20 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 )
 
-// sqlQuerier is the minimal read surface a PostgreSQL connection must expose for
+// SQLQuerier is the minimal read surface a PostgreSQL connection must expose for
 // streaming extraction. Both the single-tenant *sql.DB and the multi-tenant
 // dbresolver.DB (lib-commons tenant-manager) satisfy it, so the connector code
-// never depends on which provenance resolved the handle.
-type sqlQuerier interface {
+// never depends on which provenance resolved the handle. It is exported so a
+// host PostgresManager declared in another package (the worker bootstrap) can
+// name it in its GetDB signature.
+type SQLQuerier interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 	PingContext(ctx context.Context) error
 }
+
+// sqlQuerier is the package-internal alias for SQLQuerier, kept so the connector
+// and resolver code (and their tests) read unchanged.
+type sqlQuerier = SQLQuerier
 
 // Compile-time check: the stdlib *sql.DB satisfies sqlQuerier.
 var _ sqlQuerier = (*sql.DB)(nil)
@@ -51,8 +57,8 @@ type mongoHandle struct {
 // the dependency onto the lib-commons machinery the rest of midaz uses.
 type PostgresManager interface {
 	// GetDB returns the resolved dbresolver.DB for the tenant. The returned
-	// value satisfies sqlQuerier.
-	GetDB(ctx context.Context, tenantID string) (sqlQuerier, error)
+	// value satisfies SQLQuerier.
+	GetDB(ctx context.Context, tenantID string) (SQLQuerier, error)
 }
 
 // MongoManager is the multi-tenant MongoDB resolution seam, satisfied by
@@ -82,12 +88,13 @@ type TenantResolver interface {
 	IsMultiTenant() bool
 }
 
-// singleTenantDatasources is the read surface this package needs from the
+// SingleTenantDatasources is the read surface this package needs from the
 // reporter's SafeDataSources: resolve a configured datasource by its config
 // name and connect it on demand. It is satisfied by an adapter over
 // pkg/reporter.SafeDataSources, declared in the worker bootstrap, so this
-// package does not import the bootstrap-heavy datasource map directly.
-type singleTenantDatasources interface {
+// package does not import the bootstrap-heavy datasource map directly. It is
+// exported so the bootstrap adapter and NewSingleTenantResolver can name it.
+type SingleTenantDatasources interface {
 	// ResolvePostgres returns the connected *sql.DB and configured schema list
 	// for the named datasource. It returns an error when the datasource is
 	// missing, of the wrong type, or unavailable.
@@ -97,6 +104,10 @@ type singleTenantDatasources interface {
 	// wrong type, or unavailable.
 	ResolveMongo(ctx context.Context, configName string) (*libCommonsMongo.Database, error)
 }
+
+// singleTenantDatasources is the package-internal alias for
+// SingleTenantDatasources, kept so the resolver and its tests read unchanged.
+type singleTenantDatasources = SingleTenantDatasources
 
 // singleTenantResolver resolves to the stable, env-configured datasource pools.
 // It ignores tenant identity entirely: in single-tenant mode (formerly
@@ -172,6 +183,14 @@ func (r *multiTenantResolver) ResolvePostgres(ctx context.Context, tenantID, con
 	db, err := r.pg.GetDB(ctx, tenantID)
 	if err != nil {
 		return postgresHandle{}, NewEngineUnavailableError("failed to resolve tenant PostgreSQL connection", err)
+	}
+
+	// Mirror the single-tenant guard: a manager that returns a nil connection
+	// without an error would otherwise be stored in the sqlQuerier interface
+	// field and nil-deref on the first Ping/Query inside the breaker, past the
+	// factory's handle.db == nil check. Catch it at the seam boundary instead.
+	if db == nil {
+		return postgresHandle{}, NewEngineUnavailableError("tenant PostgreSQL resolver returned a nil connection", nil)
 	}
 
 	return postgresHandle{db: db, schemas: r.schemas(configName)}, nil

@@ -114,6 +114,15 @@ type Config struct {
 	MultiTenantServiceAPIKey            string `env:"MULTI_TENANT_SERVICE_API_KEY"`
 	MultiTenantCacheTTLSec              int    `env:"MULTI_TENANT_CACHE_TTL_SEC" default:"120"`
 	MultiTenantAllowInsecureHTTP        bool   `env:"MULTI_TENANT_ALLOW_INSECURE_HTTP" default:"false"`
+	// Embedded extraction engine limits. A zero value for any field falls back
+	// to the engine's DefaultLimits for that field, so the engine never runs
+	// unbounded even if these are unset.
+	EngineMaxDatasources         int   `env:"ENGINE_MAX_DATASOURCES" default:"10"`
+	EngineMaxTablesPerDatasource int   `env:"ENGINE_MAX_TABLES_PER_DATASOURCE" default:"50"`
+	EngineMaxFieldsPerTable      int   `env:"ENGINE_MAX_FIELDS_PER_TABLE" default:"200"`
+	EngineMaxConcurrency         int   `env:"ENGINE_MAX_CONCURRENCY" default:"4"`
+	EngineTimeoutSec             int   `env:"ENGINE_TIMEOUT_SEC" default:"300"`
+	EngineMaxResultBytes         int64 `env:"ENGINE_MAX_RESULT_BYTES" default:"104857600"`
 }
 
 // InitWorker initializes and configures the application's dependencies and returns the Service instance.
@@ -138,7 +147,7 @@ func InitWorker() (_ *Service, err error) {
 
 	logWorkerMode(cfg, logger)
 
-	tmClient, tenantMongoManager, err := initMultiTenantManagers(cfg, logger)
+	tmClient, tenantMongoManager, tenantPostgresManager, err := initMultiTenantManagers(cfg, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +160,9 @@ func InitWorker() (_ *Service, err error) {
 		}
 	}()
 
-	deps, err := initWorkerDependencies(cfg, logger, cleanups)
+	appendWorkerTenantPostgresCleanup(logger, tenantPostgresManager, cleanups)
+
+	deps, err := initWorkerDependencies(cfg, logger, tenantMongoManager, tenantPostgresManager, cleanups)
 	if err != nil {
 		return nil, err
 	}

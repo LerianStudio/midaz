@@ -86,6 +86,26 @@ MT path. The in-process engine unifies them — one tenant-aware path, `FETCHER_
 gate dies. Treat the tenant-aware connector adapter (Phase 1) as the critical path; spike
 it first.
 
+### Confirmed scope decisions (2026-06-09)
+
+- **MT-postgres is REQUIRED, not deferred.** Production reports DO extract from
+  multi-tenant PostgreSQL, so the Phase 2 fail-closed stub (`failClosedPostgresManager`)
+  is not acceptable for cutover — it would break those reports when the HTTP path is
+  deleted. Phase 2 is amended to wire the real `lib-commons tenant-manager/postgres.Manager`
+  (`GetDB(ctx, tenantID) → dbresolver.DB`, which satisfies `engine.SQLQuerier`) as a thin
+  `engine.PostgresManager` adapter, mirroring how `tmmongo.Manager` is already wired in
+  `config_multitenant.go`. Isolation invariant: a tenant request resolves ONLY that
+  tenant's per-tenant pool; on `GetDB` error the request fails closed — never a fallback
+  to the single-tenant pool or another tenant's DB.
+- **plugin_crm parity is IN SCOPE for Phase 3.** plugin_crm reports route through this
+  worker, so the engine path must preserve plugin_crm-specific behavior the generic engine
+  does not reproduce: org-collection fan-out over `holders_*` physical collections with
+  `organization_id` injection, field decryption (`CryptoEncryptSecretKeyPluginCRM`), and
+  the hash-based advanced-filter transform (`document` → `search.document` via
+  `CryptoHashSecretKeyPluginCRM`) — implemented as a pre-filter transform + post-extraction
+  transform stage (Phase 3, P3-T06a). Without this, plugin_crm reports silently lose
+  decryption/filtering vs the HTTP path.
+
 ## Deletions (after migration)
 
 - `pkg/reporter/fetcher/` — entire HTTP client (`client.go`, `client_management.go`,

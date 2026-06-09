@@ -16,23 +16,32 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
+	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
 	tmrabbitmq "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/rabbitmq"
 	clog "github.com/LerianStudio/lib-observability/log"
 )
 
-// initMultiTenantManagers creates the Tenant Manager client and MongoDB manager when multi-tenant mode is enabled.
-func initMultiTenantManagers(cfg *Config, logger clog.Logger) (*tmclient.Client, *tmmongo.Manager, error) {
+// initMultiTenantManagers creates the Tenant Manager client plus the per-tenant
+// MongoDB and PostgreSQL managers when multi-tenant mode is enabled. Both
+// managers share one tmClient and the same MultiTenant* pool/idle knobs, so a
+// tenant resolves the SAME credentials and pool ceiling regardless of backend.
+//
+// The PostgreSQL manager backs the embedded engine's multi-tenant PostgreSQL
+// extraction (database-per-tenant). Production reports DO extract from
+// multi-tenant PostgreSQL, so a real per-tenant pool is required — there is no
+// fail-closed stub and no fallback to a shared single-tenant pool.
+func initMultiTenantManagers(cfg *Config, logger clog.Logger) (*tmclient.Client, *tmmongo.Manager, *tmpostgres.Manager, error) {
 	if !cfg.MultiTenantEnabled {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	if cfg.MultiTenantURL == "" {
-		return nil, nil, fmt.Errorf("MULTI_TENANT_URL is required when MULTI_TENANT_ENABLED=true")
+		return nil, nil, nil, fmt.Errorf("MULTI_TENANT_URL is required when MULTI_TENANT_ENABLED=true")
 	}
 
 	tmClient, err := newTenantManagerClient(cfg, logger)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize tenant manager client: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to initialize tenant manager client: %w", err)
 	}
 
 	tenantMongoManager := tmmongo.NewManager(
@@ -45,7 +54,17 @@ func initMultiTenantManagers(cfg *Config, logger clog.Logger) (*tmclient.Client,
 	)
 	logger.Log(context.Background(), clog.LevelInfo, "Worker: tenant MongoDB manager initialized")
 
-	return tmClient, tenantMongoManager, nil
+	tenantPostgresManager := tmpostgres.NewManager(
+		tmClient,
+		pkgConstant.ApplicationName,
+		tmpostgres.WithModule(pkgConstant.ModuleWorker),
+		tmpostgres.WithLogger(logger),
+		tmpostgres.WithMaxTenantPools(cfg.MultiTenantMaxTenantPools),
+		tmpostgres.WithIdleTimeout(time.Duration(cfg.MultiTenantIdleTimeoutSec)*time.Second),
+	)
+	logger.Log(context.Background(), clog.LevelInfo, "Worker: tenant PostgreSQL manager initialized")
+
+	return tmClient, tenantMongoManager, tenantPostgresManager, nil
 }
 
 // initTenantManagerClient creates a Tenant Manager HTTP client with circuit breaker.

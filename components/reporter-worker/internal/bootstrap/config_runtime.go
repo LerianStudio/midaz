@@ -32,6 +32,7 @@ import (
 	libRabbitMQ "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
+	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
 	clog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/metrics"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
@@ -62,7 +63,7 @@ type workerDependencies struct {
 // initWorkerDependencies creates all shared infrastructure (telemetry, storage,
 // MongoDB, datasources, PDF pool, health checker) and wires them into a UseCase
 // service. Resources are registered in the CleanupManager for graceful shutdown.
-func initWorkerDependencies(cfg *Config, logger clog.Logger, cleanups *CleanupManager) (*workerDependencies, error) {
+func initWorkerDependencies(cfg *Config, logger clog.Logger, tenantMongoManager *tmmongo.Manager, tenantPostgresManager *tmpostgres.Manager, cleanups *CleanupManager) (*workerDependencies, error) {
 	telemetry, err := initWorkerTelemetry(cfg, logger, cleanups)
 	if err != nil {
 		return nil, err
@@ -182,25 +183,27 @@ func initWorkerDependencies(cfg *Config, logger clog.Logger, cleanups *CleanupMa
 	}
 
 	// Derive storage decryption and HMAC keys from APP_ENC_KEY using HKDF.
-	// These derived keys are compatible with the Fetcher's encryption.
-	if cfg.AppEncKey != "" {
-		masterKey, mkErr := pkgCrypto.DecodeMasterKey(cfg.AppEncKey)
-		if mkErr != nil {
-			return nil, fmt.Errorf("failed to decode APP_ENC_KEY: %w", mkErr)
-		}
-
-		keyDeriver, kdErr := pkgCrypto.NewHKDFKeyDeriver(masterKey)
-		if kdErr != nil {
-			return nil, fmt.Errorf("failed to initialize key deriver: %w", kdErr)
-		}
-
-		service.StorageDecryptKey = keyDeriver.GetStorageEncryptKey()
-		service.ExternalHMACKey = keyDeriver.GetExternalHMACKey()
-
-		logger.Log(ctx, clog.LevelInfo, "HKDF key derivation initialized from APP_ENC_KEY")
+	if err = deriveWorkerStorageKeys(ctx, cfg, logger, service); err != nil {
+		return nil, err
 	}
 
 	logger.Log(ctx, clog.LevelInfo, "Reports will be stored permanently (no TTL - use S3 bucket lifecycle policies for expiration)")
+
+	// Construct the embedded extraction engine and wire it onto the UseCase.
+	// engine.New validates its required ports at construction and returns an
+	// *EngineError on a nil/typed-nil registry, so a wiring miss is a HARD
+	// bootstrap abort here rather than a deferred nil-pointer panic at the first
+	// extraction. In Phase 2 the engine is constructed but NOT yet driven by the
+	// generate-report job handler — Phase 3 swaps the handler. The optional
+	// Redis-backed SchemaCache is wired later in the per-mode service init where
+	// the reconciler Redis repository exists; here it is omitted (schema is
+	// discovered fresh).
+	engine, err := initWorkerEngine(cfg, logger, tracer, externalDataSources, circuitBreakerManager, tenantMongoManager, tenantPostgresManager, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	service.Engine = engine
 
 	healthChecker.Start()
 	appendWorkerHealthCleanup(logger, healthChecker, cleanups)
@@ -217,6 +220,32 @@ func initWorkerDependencies(cfg *Config, logger clog.Logger, cleanups *CleanupMa
 		storageClient:   storageClient,
 		readyzMetrics:   readyzMetrics,
 	}, nil
+}
+
+// deriveWorkerStorageKeys derives the storage-decryption and external-HMAC keys
+// from APP_ENC_KEY via HKDF and stores them on the service. The derived keys are
+// compatible with the Fetcher's encryption. A missing APP_ENC_KEY is a no-op.
+func deriveWorkerStorageKeys(ctx context.Context, cfg *Config, logger clog.Logger, service *services.UseCase) error {
+	if cfg.AppEncKey == "" {
+		return nil
+	}
+
+	masterKey, mkErr := pkgCrypto.DecodeMasterKey(cfg.AppEncKey)
+	if mkErr != nil {
+		return fmt.Errorf("failed to decode APP_ENC_KEY: %w", mkErr)
+	}
+
+	keyDeriver, kdErr := pkgCrypto.NewHKDFKeyDeriver(masterKey)
+	if kdErr != nil {
+		return fmt.Errorf("failed to initialize key deriver: %w", kdErr)
+	}
+
+	service.StorageDecryptKey = keyDeriver.GetStorageEncryptKey()
+	service.ExternalHMACKey = keyDeriver.GetExternalHMACKey()
+
+	logger.Log(ctx, clog.LevelInfo, "HKDF key derivation initialized from APP_ENC_KEY")
+
+	return nil
 }
 
 // workerMetricsFactory returns the lib-observability MetricsFactory carried by
@@ -286,6 +315,21 @@ func appendWorkerPDFCleanup(_ clog.Logger, pdfPool *pdf.WorkerPool, cleanups *Cl
 func appendWorkerHealthCleanup(_ clog.Logger, healthChecker *pkg.HealthChecker, cleanups *CleanupManager) {
 	cleanups.Register("stopping health checker", func() {
 		healthChecker.Stop()
+	})
+}
+
+// appendWorkerTenantPostgresCleanup registers a shutdown hook that drains the
+// per-tenant PostgreSQL connection pools held by the lib-commons tenant manager.
+// A nil manager (single-tenant mode) is a no-op.
+func appendWorkerTenantPostgresCleanup(logger clog.Logger, tenantPostgresManager *tmpostgres.Manager, cleanups *CleanupManager) {
+	if tenantPostgresManager == nil {
+		return
+	}
+
+	cleanups.Register("closing tenant PostgreSQL manager", func() {
+		if closeErr := tenantPostgresManager.Close(context.Background()); closeErr != nil {
+			logger.Log(context.Background(), clog.LevelError, "Failed to close tenant PostgreSQL manager", clog.Err(closeErr))
+		}
 	})
 }
 

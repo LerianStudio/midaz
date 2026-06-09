@@ -122,6 +122,22 @@ func TestMultiTenantResolver_WrapsManagerErrorAsUnavailable(t *testing.T) {
 	assert.Equal(t, fetcher.CategoryUnavailable, engineErr.Category)
 }
 
+func TestMultiTenantResolver_NilConnectionWithoutErrorMapsToUnavailable(t *testing.T) {
+	t.Parallel()
+
+	// fakePGManager with a nil db and nil err reproduces a manager that returns
+	// a nil connection without signalling an error. The resolver must classify
+	// it as CategoryUnavailable rather than store the nil handle and nil-deref
+	// at the first Ping/Query.
+	pg := &fakePGManager{}
+	r := NewMultiTenantResolver(pg, &fakeMongoManager{}, nil)
+
+	_, err := r.ResolvePostgres(context.Background(), "tenant-x", "ledger")
+	var engineErr *fetcher.EngineError
+	require.ErrorAs(t, err, &engineErr)
+	assert.Equal(t, fetcher.CategoryUnavailable, engineErr.Category)
+}
+
 func TestSingleTenantResolver_IgnoresTenantID(t *testing.T) {
 	t.Parallel()
 

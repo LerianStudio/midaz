@@ -15,6 +15,7 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // Repository defines an interface for querying data from MongoDB collections.
@@ -101,6 +102,24 @@ func (ds *ExternalDataSource) Ping(ctx context.Context) error {
 	}
 
 	return ds.connection.DB.Ping(ctx, nil)
+}
+
+// GetDatabase returns the *mongo.Database for this datasource, reusing the
+// pooled client established at construction. The embedded extraction engine's
+// single-tenant resolver uses it to hand the connector a live, host-owned
+// database handle rather than opening a second client. It returns an error when
+// the connection is not initialized.
+func (ds *ExternalDataSource) GetDatabase(ctx context.Context) (*mongo.Database, error) {
+	if ds == nil || ds.connection == nil {
+		return nil, fmt.Errorf("mongodb connection not initialized")
+	}
+
+	client, err := ds.connection.GetDB(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.Database(ds.Database), nil
 }
 
 // CloseConnection closes the connection with MongoDB.

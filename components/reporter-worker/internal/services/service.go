@@ -11,6 +11,8 @@ import (
 	"github.com/LerianStudio/lib-observability/metrics"
 	"go.opentelemetry.io/otel/trace"
 
+	fetcherengine "github.com/LerianStudio/fetcher/pkg/engine"
+
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/fetcher"
 	extractionRepo "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/extraction"
@@ -91,6 +93,13 @@ type UseCase struct {
 	// FetcherDataStorage provides access to the Fetcher's object storage (S3)
 	// for downloading extracted data files in the notification flow.
 	FetcherDataStorage FetcherDataDownloader
+
+	// Engine is the embedded in-process extraction engine
+	// (github.com/LerianStudio/fetcher/pkg/engine). It is constructed and wired
+	// at bootstrap (config_engine.go) but is NOT yet driven by the generate-report
+	// job handler — Phase 3 swaps the handler to call PlanExtraction /
+	// ExecuteExtraction. A nil Engine means embedded extraction is not configured.
+	Engine *fetcherengine.Engine
 }
 
 // FetcherDataDownloader abstracts downloading extracted data from Fetcher's storage.
