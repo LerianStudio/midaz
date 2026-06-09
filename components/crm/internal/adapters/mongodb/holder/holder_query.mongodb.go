@@ -134,19 +134,20 @@ func (hm *MongoDBRepository) buildHolderFilter(ctx context.Context, organization
 	}
 
 	if query.Document != nil && *query.Document != "" {
-		// Use FieldEncryptor to generate search token for document lookup
+		// Use FieldEncryptor to generate search tokens for all enabled keys
 		searchCtx := encryption.SearchTokenContext{
 			TenantID:       encryption.ExtractTenantID(ctx),
 			OrganizationID: organizationID,
 			FieldName:      "document",
 		}
 
-		documentToken, err := hm.FieldEncryptor.GenerateSearchToken(ctx, searchCtx, *query.Document)
+		documentTokens, err := hm.FieldEncryptor.GenerateSearchTokenCandidates(ctx, searchCtx, *query.Document)
 		if err != nil {
 			return nil, err
 		}
 
-		filter = append(filter, bson.E{Key: "search.document", Value: documentToken})
+		// Use $in operator to match any token (supports key rotation)
+		filter = append(filter, bson.E{Key: "search.document", Value: bson.M{"$in": documentTokens}})
 	}
 
 	if query.Metadata != nil {

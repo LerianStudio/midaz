@@ -622,6 +622,10 @@ func (f *failingFieldEncryptor) GenerateSearchToken(_ context.Context, _ encrypt
 	return "token", nil
 }
 
+func (f *failingFieldEncryptor) GenerateSearchTokenCandidates(_ context.Context, _ encryption.SearchTokenContext, _ string) ([]string, error) {
+	return []string{"token1", "token2"}, nil
+}
+
 func TestMongoDBModel_FromEntity_EncryptOptionalFailureReturnsError(t *testing.T) {
 	t.Parallel()
 

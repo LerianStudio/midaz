@@ -128,7 +128,8 @@ func (m *LegacyKeyMaterial) GenerateHash(value *string) string {
 // Core operations (used by repositories):
 //   - Encrypt: encrypts plaintext for storage
 //   - Decrypt: decrypts ciphertext for retrieval
-//   - GenerateSearchToken: creates deterministic tokens for encrypted field search
+//   - GenerateSearchToken: creates deterministic token for encrypted field search (primary key only)
+//   - GenerateSearchTokenCandidates: creates tokens for all enabled keys (for key rotation queries)
 //
 // Inspection operations (for admin tooling and diagnostics):
 //   - MustUseEnvelope: checks if organization requires envelope encryption
@@ -138,6 +139,7 @@ type EncryptionService interface {
 	Encrypt(ctx context.Context, fieldCtx FieldContext, plaintext string) (string, error)
 	Decrypt(ctx context.Context, fieldCtx FieldContext, ciphertext string) (string, error)
 	GenerateSearchToken(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, error)
+	GenerateSearchTokenCandidates(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) ([]string, error)
 	MustUseEnvelope(ctx context.Context, organizationID string) (bool, error)
 	GetProtectionState(ctx context.Context, organizationID string) (ProtectionState, error)
 	GetKeysetInfo(ctx context.Context, organizationID string) (*mmodel.KeysetInfo, error)
@@ -249,7 +251,7 @@ func (s *encryptionService) Encrypt(ctx context.Context, fieldCtx FieldContext, 
 // encryptEnvelope performs envelope encryption using Tink AEAD.
 func (s *encryptionService) encryptEnvelope(ctx context.Context, fieldCtx FieldContext, plaintext string) (string, error) {
 	// Get AEAD primitive and primary key ID (cached together to avoid redundant DB calls)
-	aead, _, primaryKeyID, err := s.keysetManager.GetPrimitives(ctx, fieldCtx.OrganizationID)
+	aead, _, _, primaryKeyID, err := s.keysetManager.GetPrimitives(ctx, fieldCtx.OrganizationID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get AEAD primitive: %w", err)
 	}
@@ -338,8 +340,8 @@ func (s *encryptionService) Decrypt(ctx context.Context, fieldCtx FieldContext, 
 // decryptEnvelope performs envelope decryption using Tink AEAD.
 // Returns ErrEnvelopeDecryptFailed on failure - NO fallback to legacy.
 func (s *encryptionService) decryptEnvelope(ctx context.Context, fieldCtx FieldContext, marker EnvelopeMarker) (string, error) {
-	// Get AEAD primitive (ignoring primaryKeyID as we use the marker's key ID for decryption)
-	aead, _, _, err := s.keysetManager.GetPrimitives(ctx, fieldCtx.OrganizationID)
+	// Get AEAD primitive (ignoring other return values as we use the marker's key ID for decryption)
+	aead, _, _, _, err := s.keysetManager.GetPrimitives(ctx, fieldCtx.OrganizationID) //nolint:dogsled // GetPrimitives returns 5 values; only AEAD needed for decryption
 	if err != nil {
 		return "", fmt.Errorf("%w: failed to get AEAD primitive: %v", ErrEnvelopeDecryptFailed, err)
 	}
@@ -441,8 +443,8 @@ func (s *encryptionService) GenerateSearchToken(ctx context.Context, searchCtx S
 
 // generateSearchTokenEnvelope generates a MAC-based search token using Tink.
 func (s *encryptionService) generateSearchTokenEnvelope(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, error) {
-	// Get MAC primitive (ignoring primaryKeyID as it's not needed for MAC)
-	_, mac, _, err := s.keysetManager.GetPrimitives(ctx, searchCtx.OrganizationID)
+	// Get MAC primitive (ignoring other return values as only MAC is needed for search tokens)
+	_, mac, _, _, err := s.keysetManager.GetPrimitives(ctx, searchCtx.OrganizationID) //nolint:dogsled // GetPrimitives returns 5 values; only MAC needed for search tokens
 	if err != nil {
 		return "", fmt.Errorf("failed to get MAC primitive: %w", err)
 	}
@@ -465,6 +467,82 @@ func (s *encryptionService) generateSearchTokenLegacy(normalizedValue string) st
 	}
 
 	return s.legacyCrypto.GenerateHash(&normalizedValue)
+}
+
+// GenerateSearchTokenCandidates generates search tokens using all enabled keys in the keyset.
+// Used for querying encrypted fields when key rotation is active - queries match records
+// indexed with any enabled key version.
+//
+// When encryptionMode is EncryptionModeEnvelope:
+//   - Always uses envelope MAC generation regardless of per-org registry state
+//   - Triggers lazy provisioning via KeysetManager.GetPrimitives() for non-provisioned orgs
+//   - Returns tokens from all enabled HMAC keys in the keyset
+//
+// When encryptionMode is EncryptionModeLegacy (or unset):
+//   - Routes based on per-organization protection state
+//
+// For envelope mode:
+//   - Gets MACMulti primitive from KeysetManager
+//   - Computes HMACs of canonical input using all enabled keys
+//   - Returns base64-encoded tokens ordered by key ID
+//
+// For legacy mode:
+//   - Returns a single-element slice containing the legacy hash token
+func (s *encryptionService) GenerateSearchTokenCandidates(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) ([]string, error) {
+	// Check context before any work
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	// Validate search context
+	if err := searchCtx.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrSearchContextInvalid, err)
+	}
+
+	// Encryption mode envelope: always use envelope MAC (triggers lazy provisioning)
+	if s.encryptionMode == crypto.EncryptionModeEnvelope {
+		return s.generateSearchTokenCandidatesEnvelope(ctx, searchCtx, normalizedValue)
+	}
+
+	// Legacy encryption mode: resolve protection state per organization
+	state, err := s.stateResolver.Resolve(ctx, searchCtx.OrganizationID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve protection state: %w", err)
+	}
+
+	// Route based on per-org mode
+	if state.MustUseEnvelope() {
+		return s.generateSearchTokenCandidatesEnvelope(ctx, searchCtx, normalizedValue)
+	}
+
+	return s.generateSearchTokenCandidatesLegacy(normalizedValue), nil
+}
+
+// generateSearchTokenCandidatesEnvelope generates MAC-based search tokens using Tink MACMultiPrimitive.
+// Returns tokens from all enabled HMAC keys for key rotation support.
+func (s *encryptionService) generateSearchTokenCandidatesEnvelope(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) ([]string, error) {
+	// Get MultiKeyMAC primitive (strict mode: error if construction fails)
+	_, _, multiKeyMAC, _, err := s.keysetManager.GetPrimitives(ctx, searchCtx.OrganizationID) //nolint:dogsled // GetPrimitives returns 5 values; only MultiKeyMAC needed for search token candidates
+	if err != nil {
+		return nil, fmt.Errorf("failed to get MultiKeyMAC primitive: %w", err)
+	}
+
+	// Compute MAC of canonical input using all enabled keys
+	canonicalInput := searchCtx.CanonicalInput(normalizedValue)
+
+	tokens, err := multiKeyMAC.ComputeSearchTokenCandidates(canonicalInput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute search token candidates: %w", err)
+	}
+
+	return tokens, nil
+}
+
+// generateSearchTokenCandidatesLegacy generates a single hash-based search token for legacy mode.
+// Returns a single-element slice containing the legacy hash token.
+func (s *encryptionService) generateSearchTokenCandidatesLegacy(normalizedValue string) []string {
+	token := s.generateSearchTokenLegacy(normalizedValue)
+	return []string{token}
 }
 
 // MustUseEnvelope returns true if the organization must use envelope encryption.

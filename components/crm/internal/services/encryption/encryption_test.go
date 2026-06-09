@@ -1558,3 +1558,352 @@ func TestService_GenerateSearchToken_GlobalModeEnvelope_TriggersLazyProvisioning
 	// Verify: Provisioner was called (lazy provisioning triggered)
 	assert.True(t, mockProvisioner.provisionCalled, "lazy provisioning MUST be triggered for non-provisioned org when globalMode is envelope")
 }
+
+// ---------------------------------------------------------------------------
+// GenerateSearchTokenCandidates Tests (T-2.1.1)
+// ---------------------------------------------------------------------------
+
+func TestService_GenerateSearchTokenCandidates_EnvelopeMode(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	state := ProtectionState{
+		Mode:                 crypto.EncryptionModeEnvelope,
+		CanReadLegacy:        false,
+		CurrentKeysetVersion: 1,
+		OrganizationID:       "org-123",
+		TenantID:             "tenant-abc",
+	}
+
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-123",
+		FieldName:      "document",
+	}
+
+	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, "ABC123")
+	require.NoError(t, err)
+	assert.NotEmpty(t, tokens, "tokens slice MUST NOT be empty")
+
+	// For a single-key keyset, we should get at least one token
+	assert.GreaterOrEqual(t, len(tokens), 1, "MUST return at least one token for envelope mode")
+
+	// All tokens should be non-empty base64-encoded strings
+	for i, token := range tokens {
+		assert.NotEmpty(t, token, "token at index %d MUST NOT be empty", i)
+	}
+}
+
+func TestService_GenerateSearchTokenCandidates_LegacyMode(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	legacyKeys := newTestLegacyKeyMaterial(t)
+
+	// Create service with empty registry (no record = legacy mode)
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{},
+	}
+	stateResolver := NewProtectionStateResolver(registryRepo)
+
+	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-legacy",
+		OrganizationID: "org-legacy",
+		FieldName:      "document",
+	}
+
+	normalizedValue := "ABC123"
+	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, normalizedValue)
+	require.NoError(t, err)
+
+	// Legacy mode MUST return exactly one token
+	require.Len(t, tokens, 1, "legacy mode MUST return exactly one token")
+
+	// Token MUST match the legacy hash
+	expectedToken := legacyKeys.GenerateHash(&normalizedValue)
+	assert.Equal(t, expectedToken, tokens[0], "legacy token MUST match GenerateHash output")
+}
+
+func TestService_GenerateSearchTokenCandidates_InvalidContext(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	state := ProtectionState{
+		Mode:                 crypto.EncryptionModeEnvelope,
+		CanReadLegacy:        false,
+		CurrentKeysetVersion: 1,
+		OrganizationID:       "org-123",
+		TenantID:             "tenant-abc",
+	}
+
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
+
+	tests := []struct {
+		name      string
+		searchCtx SearchTokenContext
+	}{
+		{
+			name: "empty tenant ID",
+			searchCtx: SearchTokenContext{
+				TenantID:       "",
+				OrganizationID: "org-123",
+				FieldName:      "document",
+			},
+		},
+		{
+			name: "empty organization ID",
+			searchCtx: SearchTokenContext{
+				TenantID:       "tenant-abc",
+				OrganizationID: "",
+				FieldName:      "document",
+			},
+		},
+		{
+			name: "empty field name",
+			searchCtx: SearchTokenContext{
+				TenantID:       "tenant-abc",
+				OrganizationID: "org-123",
+				FieldName:      "",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := svc.GenerateSearchTokenCandidates(ctx, tt.searchCtx, "value")
+			require.Error(t, err)
+			assert.ErrorIs(t, err, ErrSearchContextInvalid)
+		})
+	}
+}
+
+func TestService_GenerateSearchTokenCandidates_ContextCanceled(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	state := ProtectionState{
+		Mode:                 crypto.EncryptionModeEnvelope,
+		CanReadLegacy:        false,
+		CurrentKeysetVersion: 1,
+		OrganizationID:       "org-123",
+		TenantID:             "tenant-abc",
+	}
+
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-123",
+		FieldName:      "document",
+	}
+
+	_, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, "value")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestService_GenerateSearchTokenCandidates_Deterministic(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	state := ProtectionState{
+		Mode:                 crypto.EncryptionModeEnvelope,
+		CanReadLegacy:        false,
+		CurrentKeysetVersion: 1,
+		OrganizationID:       "org-123",
+		TenantID:             "tenant-abc",
+	}
+
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-123",
+		FieldName:      "document",
+	}
+
+	// Generate tokens twice with same input
+	tokens1, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, "ABC123")
+	require.NoError(t, err)
+
+	tokens2, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, "ABC123")
+	require.NoError(t, err)
+
+	// Token slices MUST be identical
+	require.Equal(t, len(tokens1), len(tokens2), "token counts MUST be identical")
+
+	for i := range tokens1 {
+		assert.Equal(t, tokens1[i], tokens2[i], "token at index %d MUST be identical", i)
+	}
+}
+
+func TestService_GenerateSearchTokenCandidates_DifferentInputs(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	state := ProtectionState{
+		Mode:                 crypto.EncryptionModeEnvelope,
+		CanReadLegacy:        false,
+		CurrentKeysetVersion: 1,
+		OrganizationID:       "org-123",
+		TenantID:             "tenant-abc",
+	}
+
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-123",
+		FieldName:      "document",
+	}
+
+	tokens1, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, "ABC123")
+	require.NoError(t, err)
+
+	tokens2, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, "XYZ789")
+	require.NoError(t, err)
+
+	// Tokens for different inputs MUST be different
+	require.Equal(t, len(tokens1), len(tokens2), "token counts MUST be equal")
+
+	for i := range tokens1 {
+		assert.NotEqual(t, tokens1[i], tokens2[i], "tokens at index %d MUST differ for different inputs", i)
+	}
+}
+
+func TestService_GenerateSearchTokenCandidates_GlobalModeEnvelope(t *testing.T) {
+	t.Parallel()
+
+	// Create context with tenant ID for auto-provisioning
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-abc")
+
+	// Setup: Organization with NO registry record (ProtectionStateResolver returns legacy mode)
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{},
+	}
+	stateResolver := NewProtectionStateResolver(registryRepo)
+
+	// Setup: KeysetManager with lazy provisioning enabled
+	aeadBytes, macBytes, aeadKeyID, _ := generateServiceTestKeysets(t)
+
+	provisionedKeyset := &mmodel.OrganizationKeyset{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-new",
+		KEKPath:        "transit/keys/crm/org-new",
+		WrappedKeyset:  "wrapped-aead",
+		KeysetInfo: mmodel.KeysetInfo{
+			PrimaryKeyID: aeadKeyID,
+		},
+		WrappedHMACKeyset: "wrapped-hmac",
+		HMACKeysetInfo: mmodel.KeysetInfo{
+			PrimaryKeyID: aeadKeyID,
+		},
+	}
+
+	// KeysetRepo starts empty, provisioner will populate it
+	keysetRepo := &serviceTestKeysetRepoWithProvisioning{
+		keysets:           map[string]*mmodel.OrganizationKeyset{},
+		provisionedKeyset: provisionedKeyset,
+	}
+
+	unwrapper := &serviceTestKeysetUnwrapper{
+		aeadKeyset: aeadBytes,
+		macKeyset:  macBytes,
+	}
+
+	mockProvisioner := &mockProvisioningService{
+		provisionedKeyset: provisionedKeyset,
+		keysetRepo:        keysetRepo,
+	}
+
+	keysetManager := NewKeysetManager(keysetRepo, unwrapper, mockProvisioner, DefaultKeysetManagerConfig())
+
+	legacyKeys := newTestLegacyKeyMaterial(t)
+
+	// Use globalMode = EncryptionModeEnvelope to trigger envelope path
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys, crypto.EncryptionModeEnvelope)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-new",
+		FieldName:      "document",
+	}
+
+	normalizedValue := "ABC123"
+
+	// Execute: GenerateSearchTokenCandidates with global envelope mode
+	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, normalizedValue)
+	require.NoError(t, err)
+
+	// Verify: Tokens slice is not empty
+	assert.NotEmpty(t, tokens, "tokens slice MUST NOT be empty")
+
+	// Verify: Provisioner was called (lazy provisioning triggered)
+	assert.True(t, mockProvisioner.provisionCalled, "lazy provisioning MUST be triggered")
+}
+
+func TestService_GenerateSearchTokenCandidates_StateResolverError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	registryRepo := &serviceTestRegistryRepo{
+		err: errors.New("registry error"),
+	}
+	stateResolver := NewProtectionStateResolver(registryRepo)
+
+	svc := NewEncryptionService(stateResolver, nil, nil, nil)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-123",
+		FieldName:      "document",
+	}
+
+	_, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, "value")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to resolve protection state")
+}
+
+func TestService_GenerateSearchTokenCandidates_NilLegacyKeyMaterial(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Empty registry = legacy mode (no record found)
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{},
+	}
+	stateResolver := NewProtectionStateResolver(registryRepo)
+
+	// Service with nil legacy key material
+	svc := NewEncryptionService(stateResolver, nil, nil, nil)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-legacy",
+		OrganizationID: "org-legacy",
+		FieldName:      "document",
+	}
+
+	// Should return empty slice when legacy key material is nil
+	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, "value")
+	require.NoError(t, err)
+
+	// Legacy mode with nil crypto returns single empty string
+	require.Len(t, tokens, 1)
+	assert.Empty(t, tokens[0], "token MUST be empty when legacy crypto is nil")
+}

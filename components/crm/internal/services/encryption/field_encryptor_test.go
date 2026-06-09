@@ -6,6 +6,7 @@ package encryption
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -429,12 +430,182 @@ func TestFieldEncryptor_SearchTokenContextBinding(t *testing.T) {
 	assert.Equal(t, expectedInput, capturedSearchCtx.CanonicalInput(normalizedValue))
 }
 
+// TestFieldEncryptor_GenerateSearchTokenCandidates verifies GenerateSearchTokenCandidates
+// method exists and properly delegates to EncryptionService.
+func TestFieldEncryptor_GenerateSearchTokenCandidates(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		tenantID        string
+		organizationID  string
+		fieldName       string
+		normalizedValue string
+		mockTokens      []string
+		mockErr         error
+		wantTokens      []string
+		wantErr         bool
+	}{
+		{
+			name:            "returns multiple tokens for key rotation support",
+			tenantID:        "tenant-001",
+			organizationID:  uuid.New().String(),
+			fieldName:       "document",
+			normalizedValue: "12345678900",
+			mockTokens:      []string{"token_key1", "token_key2", "token_key3"},
+			mockErr:         nil,
+			wantTokens:      []string{"token_key1", "token_key2", "token_key3"},
+			wantErr:         false,
+		},
+		{
+			name:            "returns single token when only one key enabled",
+			tenantID:        "tenant-001",
+			organizationID:  uuid.New().String(),
+			fieldName:       "tax_id",
+			normalizedValue: "98765432100",
+			mockTokens:      []string{"single_token"},
+			mockErr:         nil,
+			wantTokens:      []string{"single_token"},
+			wantErr:         false,
+		},
+		{
+			name:            "propagates error from EncryptionService",
+			tenantID:        "tenant-001",
+			organizationID:  uuid.New().String(),
+			fieldName:       "document",
+			normalizedValue: "12345678900",
+			mockTokens:      nil,
+			mockErr:         errors.New("MAC primitive construction failed"),
+			wantTokens:      nil,
+			wantErr:         true,
+		},
+		{
+			name:            "returns error when tenant_id is empty",
+			tenantID:        "",
+			organizationID:  uuid.New().String(),
+			fieldName:       "document",
+			normalizedValue: "12345678900",
+			mockTokens:      nil,
+			mockErr:         nil,
+			wantTokens:      nil,
+			wantErr:         true,
+		},
+		{
+			name:            "returns error when organization_id is empty",
+			tenantID:        "tenant-001",
+			organizationID:  "",
+			fieldName:       "document",
+			normalizedValue: "12345678900",
+			mockTokens:      nil,
+			mockErr:         nil,
+			wantTokens:      nil,
+			wantErr:         true,
+		},
+		{
+			name:            "returns error when field_name is empty",
+			tenantID:        "tenant-001",
+			organizationID:  uuid.New().String(),
+			fieldName:       "",
+			normalizedValue: "12345678900",
+			mockTokens:      nil,
+			mockErr:         nil,
+			wantTokens:      nil,
+			wantErr:         true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+
+			// Create mock encryption service
+			mockSvc := &mockEncryptionService{
+				generateSearchTokenCandidatesFunc: func(_ context.Context, searchCtx SearchTokenContext, _ string) ([]string, error) {
+					if err := searchCtx.Validate(); err != nil {
+						return nil, err
+					}
+					if tc.mockErr != nil {
+						return nil, tc.mockErr
+					}
+					return tc.mockTokens, nil
+				},
+			}
+
+			// Create the adapter
+			adapter := NewFieldEncryptorAdapter(mockSvc)
+
+			// Build SearchTokenContext (note: no RecordID)
+			searchCtx := SearchTokenContext{
+				TenantID:       tc.tenantID,
+				OrganizationID: tc.organizationID,
+				FieldName:      tc.fieldName,
+			}
+
+			// Call GenerateSearchTokenCandidates
+			result, err := adapter.GenerateSearchTokenCandidates(ctx, searchCtx, tc.normalizedValue)
+
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.wantTokens, result)
+			}
+		})
+	}
+}
+
+// TestFieldEncryptor_GenerateSearchTokenCandidates_ContextBinding verifies that
+// SearchTokenContext is properly passed through to EncryptionService.
+func TestFieldEncryptor_GenerateSearchTokenCandidates_ContextBinding(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	tenantID := "test-tenant"
+	organizationID := uuid.New().String()
+	fieldName := "document"
+	normalizedValue := "12345678900"
+
+	var capturedSearchCtx SearchTokenContext
+	var capturedNormalizedValue string
+
+	mockSvc := &mockEncryptionService{
+		generateSearchTokenCandidatesFunc: func(_ context.Context, searchCtx SearchTokenContext, normValue string) ([]string, error) {
+			capturedSearchCtx = searchCtx
+			capturedNormalizedValue = normValue
+			return []string{"token1", "token2"}, nil
+		},
+	}
+
+	adapter := NewFieldEncryptorAdapter(mockSvc)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       tenantID,
+		OrganizationID: organizationID,
+		FieldName:      fieldName,
+	}
+
+	tokens, err := adapter.GenerateSearchTokenCandidates(ctx, searchCtx, normalizedValue)
+	require.NoError(t, err)
+	assert.Len(t, tokens, 2)
+
+	// Verify context fields are properly passed through
+	assert.Equal(t, tenantID, capturedSearchCtx.TenantID)
+	assert.Equal(t, organizationID, capturedSearchCtx.OrganizationID)
+	assert.Equal(t, fieldName, capturedSearchCtx.FieldName)
+	assert.Equal(t, normalizedValue, capturedNormalizedValue)
+}
+
 // mockEncryptionService is a test mock for EncryptionService.
 // This mock is defined here to test the FieldEncryptor adapter.
 type mockEncryptionService struct {
-	encryptFunc             func(ctx context.Context, fieldCtx FieldContext, plaintext string) (string, error)
-	decryptFunc             func(ctx context.Context, fieldCtx FieldContext, ciphertext string) (string, error)
-	generateSearchTokenFunc func(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, error)
+	encryptFunc                       func(ctx context.Context, fieldCtx FieldContext, plaintext string) (string, error)
+	decryptFunc                       func(ctx context.Context, fieldCtx FieldContext, ciphertext string) (string, error)
+	generateSearchTokenFunc           func(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, error)
+	generateSearchTokenCandidatesFunc func(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) ([]string, error)
 }
 
 func (m *mockEncryptionService) Encrypt(ctx context.Context, fieldCtx FieldContext, plaintext string) (string, error) {
@@ -456,6 +627,13 @@ func (m *mockEncryptionService) GenerateSearchToken(ctx context.Context, searchC
 		return m.generateSearchTokenFunc(ctx, searchCtx, normalizedValue)
 	}
 	return "", nil
+}
+
+func (m *mockEncryptionService) GenerateSearchTokenCandidates(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) ([]string, error) {
+	if m.generateSearchTokenCandidatesFunc != nil {
+		return m.generateSearchTokenCandidatesFunc(ctx, searchCtx, normalizedValue)
+	}
+	return nil, nil
 }
 
 func (m *mockEncryptionService) MustUseEnvelope(_ context.Context, _ string) (bool, error) {

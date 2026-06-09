@@ -12,18 +12,16 @@ import (
 
 // KeysetMongoDBModel is the MongoDB representation of OrganizationKeyset.
 type KeysetMongoDBModel struct {
-	TenantID              string          `bson:"tenant_id,omitempty"`
-	OrganizationID        string          `bson:"organization_id"`
-	KEKPath               string          `bson:"kek_path"`
-	WrappedKeyset         string          `bson:"wrapped_keyset"`
-	KeysetInfo            KeysetInfoModel `bson:"keyset_info"`
-	LegacyKeyImported     bool            `bson:"legacy_key_imported"`
-	WrappedHMACKeyset     string          `bson:"wrapped_hmac_keyset,omitempty"`
-	HMACKeysetInfo        KeysetInfoModel `bson:"hmac_keyset_info,omitempty"`
-	LegacyHMACKeyImported bool            `bson:"legacy_hmac_key_imported"`
-	Revision              int64           `bson:"revision"`
-	CreatedAt             time.Time       `bson:"created_at"`
-	RotatedAt             *time.Time      `bson:"rotated_at,omitempty"`
+	TenantID          string          `bson:"tenant_id,omitempty"`
+	OrganizationID    string          `bson:"organization_id"`
+	KEKPath           string          `bson:"kek_path"`
+	WrappedKeyset     string          `bson:"wrapped_keyset"`
+	KeysetInfo        KeysetInfoModel `bson:"keyset_info"`
+	WrappedHMACKeyset string          `bson:"wrapped_hmac_keyset,omitempty"`
+	HMACKeysetInfo    KeysetInfoModel `bson:"hmac_keyset_info,omitempty"`
+	Revision          int64           `bson:"revision"`
+	CreatedAt         time.Time       `bson:"created_at"`
+	RotatedAt         *time.Time      `bson:"rotated_at,omitempty"`
 }
 
 // KeysetInfoModel is the MongoDB representation of KeysetInfo.
@@ -47,18 +45,16 @@ func KeysetFromEntity(k *mmodel.OrganizationKeyset) *KeysetMongoDBModel {
 	}
 
 	return &KeysetMongoDBModel{
-		TenantID:              k.TenantID,
-		OrganizationID:        k.OrganizationID,
-		KEKPath:               k.KEKPath,
-		WrappedKeyset:         k.WrappedKeyset,
-		KeysetInfo:            keysetInfoFromEntity(k.KeysetInfo),
-		LegacyKeyImported:     k.LegacyKeyImported,
-		WrappedHMACKeyset:     k.WrappedHMACKeyset,
-		HMACKeysetInfo:        keysetInfoFromEntity(k.HMACKeysetInfo),
-		LegacyHMACKeyImported: k.LegacyHMACKeyImported,
-		Revision:              k.Revision,
-		CreatedAt:             k.CreatedAt,
-		RotatedAt:             k.RotatedAt,
+		TenantID:          k.TenantID,
+		OrganizationID:    k.OrganizationID,
+		KEKPath:           k.KEKPath,
+		WrappedKeyset:     k.WrappedKeyset,
+		KeysetInfo:        keysetInfoFromEntity(k.KeysetInfo),
+		WrappedHMACKeyset: k.WrappedHMACKeyset,
+		HMACKeysetInfo:    keysetInfoFromEntity(k.HMACKeysetInfo),
+		Revision:          k.Revision,
+		CreatedAt:         k.CreatedAt,
+		RotatedAt:         k.RotatedAt,
 	}
 }
 
@@ -69,18 +65,16 @@ func (m *KeysetMongoDBModel) ToEntity() *mmodel.OrganizationKeyset {
 	}
 
 	return &mmodel.OrganizationKeyset{
-		TenantID:              m.TenantID,
-		OrganizationID:        m.OrganizationID,
-		KEKPath:               m.KEKPath,
-		WrappedKeyset:         m.WrappedKeyset,
-		KeysetInfo:            m.KeysetInfo.toEntity(),
-		LegacyKeyImported:     m.LegacyKeyImported,
-		WrappedHMACKeyset:     m.WrappedHMACKeyset,
-		HMACKeysetInfo:        m.HMACKeysetInfo.toEntity(),
-		LegacyHMACKeyImported: m.LegacyHMACKeyImported,
-		Revision:              m.Revision,
-		CreatedAt:             m.CreatedAt,
-		RotatedAt:             m.RotatedAt,
+		TenantID:          m.TenantID,
+		OrganizationID:    m.OrganizationID,
+		KEKPath:           m.KEKPath,
+		WrappedKeyset:     m.WrappedKeyset,
+		KeysetInfo:        m.KeysetInfo.toEntity(),
+		WrappedHMACKeyset: m.WrappedHMACKeyset,
+		HMACKeysetInfo:    m.HMACKeysetInfo.toEntity(),
+		Revision:          m.Revision,
+		CreatedAt:         m.CreatedAt,
+		RotatedAt:         m.RotatedAt,
 	}
 }
 

@@ -31,13 +31,11 @@ func TestKeysetFromEntity(t *testing.T) {
 				{KeyID: 2, Status: "ENABLED", Type: "AES256_GCM", IsPrimary: true},
 			},
 		},
-		LegacyKeyImported:     true,
-		WrappedHMACKeyset:     "vault:v1:encrypted-hmac",
-		HMACKeysetInfo:        mmodel.KeysetInfo{PrimaryKeyID: 1},
-		LegacyHMACKeyImported: true,
-		Revision:              5,
-		CreatedAt:             now,
-		RotatedAt:             &rotatedAt,
+		WrappedHMACKeyset: "vault:v1:encrypted-hmac",
+		HMACKeysetInfo:    mmodel.KeysetInfo{PrimaryKeyID: 1},
+		Revision:          5,
+		CreatedAt:         now,
+		RotatedAt:         &rotatedAt,
 	}
 
 	model := KeysetFromEntity(entity)
@@ -49,9 +47,7 @@ func TestKeysetFromEntity(t *testing.T) {
 	assert.Equal(t, entity.WrappedKeyset, model.WrappedKeyset)
 	assert.Equal(t, entity.KeysetInfo.PrimaryKeyID, model.KeysetInfo.PrimaryKeyID)
 	assert.Len(t, model.KeysetInfo.Keys, 2)
-	assert.Equal(t, entity.LegacyKeyImported, model.LegacyKeyImported)
 	assert.Equal(t, entity.WrappedHMACKeyset, model.WrappedHMACKeyset)
-	assert.Equal(t, entity.LegacyHMACKeyImported, model.LegacyHMACKeyImported)
 	assert.Equal(t, entity.Revision, model.Revision)
 	assert.Equal(t, entity.CreatedAt, model.CreatedAt)
 	assert.Equal(t, entity.RotatedAt, model.RotatedAt)
@@ -83,13 +79,11 @@ func TestKeysetMongoDBModel_ToEntity(t *testing.T) {
 				{KeyID: 2, Status: "ENABLED", Type: "AES256_GCM", IsPrimary: true},
 			},
 		},
-		LegacyKeyImported:     true,
-		WrappedHMACKeyset:     "vault:v1:encrypted-hmac",
-		HMACKeysetInfo:        KeysetInfoModel{PrimaryKeyID: 1},
-		LegacyHMACKeyImported: true,
-		Revision:              5,
-		CreatedAt:             now,
-		RotatedAt:             &rotatedAt,
+		WrappedHMACKeyset: "vault:v1:encrypted-hmac",
+		HMACKeysetInfo:    KeysetInfoModel{PrimaryKeyID: 1},
+		Revision:          5,
+		CreatedAt:         now,
+		RotatedAt:         &rotatedAt,
 	}
 
 	entity := model.ToEntity()
@@ -101,9 +95,7 @@ func TestKeysetMongoDBModel_ToEntity(t *testing.T) {
 	assert.Equal(t, model.WrappedKeyset, entity.WrappedKeyset)
 	assert.Equal(t, model.KeysetInfo.PrimaryKeyID, entity.KeysetInfo.PrimaryKeyID)
 	assert.Len(t, entity.KeysetInfo.Keys, 2)
-	assert.Equal(t, model.LegacyKeyImported, entity.LegacyKeyImported)
 	assert.Equal(t, model.WrappedHMACKeyset, entity.WrappedHMACKeyset)
-	assert.Equal(t, model.LegacyHMACKeyImported, entity.LegacyHMACKeyImported)
 	assert.Equal(t, model.Revision, entity.Revision)
 	assert.Equal(t, model.CreatedAt, entity.CreatedAt)
 	assert.Equal(t, model.RotatedAt, entity.RotatedAt)
@@ -136,12 +128,10 @@ func TestKeysetConversion_RoundTrip(t *testing.T) {
 				{KeyID: 2, Status: "ENABLED", Type: "AES256_GCM", IsPrimary: true},
 			},
 		},
-		LegacyKeyImported:     true,
-		WrappedHMACKeyset:     "vault:v1:encrypted-hmac",
-		HMACKeysetInfo:        mmodel.KeysetInfo{PrimaryKeyID: 1},
-		LegacyHMACKeyImported: true,
-		Revision:              5,
-		CreatedAt:             now,
+		WrappedHMACKeyset: "vault:v1:encrypted-hmac",
+		HMACKeysetInfo:    mmodel.KeysetInfo{PrimaryKeyID: 1},
+		Revision:          5,
+		CreatedAt:         now,
 	}
 
 	// Convert to model and back
@@ -154,8 +144,6 @@ func TestKeysetConversion_RoundTrip(t *testing.T) {
 	assert.Equal(t, original.WrappedKeyset, recovered.WrappedKeyset)
 	assert.Equal(t, original.KeysetInfo.PrimaryKeyID, recovered.KeysetInfo.PrimaryKeyID)
 	assert.Equal(t, len(original.KeysetInfo.Keys), len(recovered.KeysetInfo.Keys))
-	assert.Equal(t, original.LegacyKeyImported, recovered.LegacyKeyImported)
 	assert.Equal(t, original.WrappedHMACKeyset, recovered.WrappedHMACKeyset)
-	assert.Equal(t, original.LegacyHMACKeyImported, recovered.LegacyHMACKeyImported)
 	assert.Equal(t, original.Revision, recovered.Revision)
 }

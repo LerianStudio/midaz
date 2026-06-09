@@ -61,10 +61,8 @@ func createValidKeyset(organizationID string) *mmodel.OrganizationKeyset {
 				{KeyID: 1, Status: "ENABLED", Type: "HMAC_SHA256", IsPrimary: true},
 			},
 		},
-		LegacyKeyImported:     false,
-		LegacyHMACKeyImported: false,
-		Revision:              0,
-		CreatedAt:             now,
+		Revision:  0,
+		CreatedAt: now,
 	}
 }
 
@@ -252,8 +250,6 @@ func TestIntegration_KeysetRepo_Get_ReturnsAllFields(t *testing.T) {
 
 	organizationID := "org-fields-" + uuid.New().String()[:8]
 	keyset := createValidKeyset(organizationID)
-	keyset.LegacyKeyImported = true
-	keyset.LegacyHMACKeyImported = true
 
 	err := repo.Save(ctx, keyset)
 	require.NoError(t, err)
@@ -269,8 +265,6 @@ func TestIntegration_KeysetRepo_Get_ReturnsAllFields(t *testing.T) {
 	assert.Equal(t, keyset.KEKPath, result.KEKPath)
 	assert.Equal(t, keyset.WrappedKeyset, result.WrappedKeyset)
 	assert.Equal(t, keyset.WrappedHMACKeyset, result.WrappedHMACKeyset)
-	assert.True(t, result.LegacyKeyImported, "legacy_key_imported should be true")
-	assert.True(t, result.LegacyHMACKeyImported, "legacy_hmac_key_imported should be true")
 	assert.Equal(t, int64(1), result.Revision, "revision should be 1")
 	assert.False(t, result.CreatedAt.IsZero(), "created_at should be set")
 }
@@ -512,8 +506,6 @@ func TestIntegration_KeysetRepo_RoundTrip(t *testing.T) {
 
 	organizationID := "org-roundtrip-" + uuid.New().String()[:8]
 	original := createValidKeyset(organizationID)
-	original.LegacyKeyImported = true
-	original.LegacyHMACKeyImported = true
 
 	// Act - Save and retrieve
 	err := repo.Save(ctx, original)
@@ -531,8 +523,6 @@ func TestIntegration_KeysetRepo_RoundTrip(t *testing.T) {
 	assert.Equal(t, original.WrappedHMACKeyset, result.WrappedHMACKeyset)
 	assert.Equal(t, original.KeysetInfo.PrimaryKeyID, result.KeysetInfo.PrimaryKeyID)
 	assert.Equal(t, original.HMACKeysetInfo.PrimaryKeyID, result.HMACKeysetInfo.PrimaryKeyID)
-	assert.Equal(t, original.LegacyKeyImported, result.LegacyKeyImported)
-	assert.Equal(t, original.LegacyHMACKeyImported, result.LegacyHMACKeyImported)
 	assert.Equal(t, int64(1), result.Revision)
 
 	// Keys array
