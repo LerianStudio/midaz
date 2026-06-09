@@ -1,8 +1,6 @@
 module github.com/LerianStudio/midaz/v4
 
-go 1.26.3
-
-toolchain go1.26.4
+go 1.26.4
 
 require (
 	github.com/LerianStudio/lib-auth/v2 v2.8.0
@@ -100,6 +98,7 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
+	github.com/LerianStudio/fetcher/pkg/engine v1.0.0
 	github.com/LerianStudio/lib-commons/v5 v5.5.0
 	github.com/LerianStudio/lib-observability v1.0.1
 	github.com/LerianStudio/lib-streaming v1.5.1
