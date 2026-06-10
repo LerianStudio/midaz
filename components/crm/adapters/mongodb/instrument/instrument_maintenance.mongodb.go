@@ -21,7 +21,7 @@ import (
 )
 
 // DeleteRelatedParty removes a related party from an alias by ID (hard delete)
-func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizationID string, holderID, aliasID, relatedPartyID uuid.UUID) error {
+func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizationID string, holderID, instrumentID, relatedPartyID uuid.UUID) error {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.delete_related_party")
@@ -31,7 +31,7 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID),
 		attribute.String("app.request.holder_id", holderID.String()),
-		attribute.String("app.request.instrument_id", aliasID.String()),
+		attribute.String("app.request.instrument_id", instrumentID.String()),
 		attribute.String("app.request.related_party_id", relatedPartyID.String()),
 	}
 
@@ -46,7 +46,7 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
 	filter := bson.D{
-		{Key: "_id", Value: aliasID},
+		{Key: "_id", Value: instrumentID},
 		{Key: "holder_id", Value: holderID},
 		{Key: "related_parties._id", Value: relatedPartyID},
 		{Key: "deleted_at", Value: nil},

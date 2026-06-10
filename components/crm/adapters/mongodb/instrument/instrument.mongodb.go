@@ -39,7 +39,7 @@ type Repository interface {
 	Update(ctx context.Context, organizationID string, holderID, id uuid.UUID, input *mmodel.Instrument, fieldsToRemove []string) (*mmodel.Instrument, error)
 	FindAll(ctx context.Context, organizationID string, holderID uuid.UUID, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.Instrument, error)
 	Delete(ctx context.Context, organizationID string, holderID, id uuid.UUID, hardDelete bool) error
-	DeleteRelatedParty(ctx context.Context, organizationID string, holderID, aliasID, relatedPartyID uuid.UUID) error
+	DeleteRelatedParty(ctx context.Context, organizationID string, holderID, instrumentID, relatedPartyID uuid.UUID) error
 	Count(ctx context.Context, organizationID string, holderID uuid.UUID) (int64, error)
 }
 

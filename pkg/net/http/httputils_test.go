@@ -850,19 +850,19 @@ func TestGetUUIDFromLocals_WrongTypeInteger(t *testing.T) {
 func TestGetUUIDFromLocals_DifferentKeys(t *testing.T) {
 	app := fiber.New()
 	holderID := uuid.New()
-	aliasID := uuid.New()
+	instrumentID := uuid.New()
 
 	app.Get("/test", func(c *fiber.Ctx) error {
 		c.Locals("holder_id", holderID)
-		c.Locals("alias_id", aliasID)
+		c.Locals("instrument_id", instrumentID)
 
 		resultHolder, err := GetUUIDFromLocals(c, "holder_id")
 		assert.NoError(t, err)
 		assert.Equal(t, holderID, resultHolder)
 
-		resultAlias, err := GetUUIDFromLocals(c, "alias_id")
+		resultInstrument, err := GetUUIDFromLocals(c, "instrument_id")
 		assert.NoError(t, err)
-		assert.Equal(t, aliasID, resultAlias)
+		assert.Equal(t, instrumentID, resultInstrument)
 
 		return c.SendStatus(fiber.StatusOK)
 	})

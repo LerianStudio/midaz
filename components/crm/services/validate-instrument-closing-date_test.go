@@ -27,7 +27,7 @@ func TestValidateAliasClosingDate(t *testing.T) {
 
 	organizationID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	holderID := uuid.Must(libCommons.GenerateUUIDv7())
-	aliasID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
 	createdAt := time.Now().Add(-24 * time.Hour)
 
 	uc := &UseCase{
@@ -37,32 +37,32 @@ func TestValidateAliasClosingDate(t *testing.T) {
 	testCases := []struct {
 		name          string
 		holderID      uuid.UUID
-		aliasID       uuid.UUID
+		instrumentID  uuid.UUID
 		closingDate   *mmodel.Date
 		mockSetup     func()
 		expectError   bool
 		expectedError error
 	}{
 		{
-			name:        "Success when closing date is nil",
-			holderID:    holderID,
-			aliasID:     aliasID,
-			closingDate: nil,
-			mockSetup:   func() {},
-			expectError: false,
+			name:         "Success when closing date is nil",
+			holderID:     holderID,
+			instrumentID: instrumentID,
+			closingDate:  nil,
+			mockSetup:    func() {},
+			expectError:  false,
 		},
 		{
-			name:     "Error when closing date is before creation date",
-			holderID: holderID,
-			aliasID:  aliasID,
+			name:         "Error when closing date is before creation date",
+			holderID:     holderID,
+			instrumentID: instrumentID,
 			closingDate: func() *mmodel.Date {
 				return &mmodel.Date{Time: time.Now().Add(-48 * time.Hour)}
 			}(),
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					Find(gomock.Any(), organizationID, holderID, aliasID, false).
+					Find(gomock.Any(), organizationID, holderID, instrumentID, false).
 					Return(&mmodel.Instrument{
-						ID:        &aliasID,
+						ID:        &instrumentID,
 						HolderID:  &holderID,
 						CreatedAt: createdAt,
 					}, nil)
@@ -71,17 +71,17 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			expectedError: cn.ErrInstrumentClosingDateBeforeCreation,
 		},
 		{
-			name:     "Success when closing date is after creation date",
-			holderID: holderID,
-			aliasID:  aliasID,
+			name:         "Success when closing date is after creation date",
+			holderID:     holderID,
+			instrumentID: instrumentID,
 			closingDate: func() *mmodel.Date {
 				return &mmodel.Date{Time: time.Now().Add(24 * time.Hour)}
 			}(),
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					Find(gomock.Any(), organizationID, holderID, aliasID, false).
+					Find(gomock.Any(), organizationID, holderID, instrumentID, false).
 					Return(&mmodel.Instrument{
-						ID:        &aliasID,
+						ID:        &instrumentID,
 						HolderID:  &holderID,
 						CreatedAt: createdAt,
 					}, nil)
@@ -89,46 +89,46 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:     "Error when alias not found",
-			holderID: holderID,
-			aliasID:  aliasID,
+			name:         "Error when alias not found",
+			holderID:     holderID,
+			instrumentID: instrumentID,
 			closingDate: func() *mmodel.Date {
 				return &mmodel.Date{Time: time.Now()}
 			}(),
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					Find(gomock.Any(), organizationID, holderID, aliasID, false).
+					Find(gomock.Any(), organizationID, holderID, instrumentID, false).
 					Return(nil, cn.ErrInstrumentNotFound)
 			},
 			expectError:   true,
 			expectedError: cn.ErrInstrumentNotFound,
 		},
 		{
-			name:     "Error when repository returns generic error",
-			holderID: holderID,
-			aliasID:  aliasID,
+			name:         "Error when repository returns generic error",
+			holderID:     holderID,
+			instrumentID: instrumentID,
 			closingDate: func() *mmodel.Date {
 				return &mmodel.Date{Time: time.Now()}
 			}(),
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					Find(gomock.Any(), organizationID, holderID, aliasID, false).
+					Find(gomock.Any(), organizationID, holderID, instrumentID, false).
 					Return(nil, errors.New("database error"))
 			},
 			expectError: true,
 		},
 		{
-			name:     "Success when closing date equals creation date",
-			holderID: holderID,
-			aliasID:  aliasID,
+			name:         "Success when closing date equals creation date",
+			holderID:     holderID,
+			instrumentID: instrumentID,
 			closingDate: func() *mmodel.Date {
 				return &mmodel.Date{Time: createdAt}
 			}(),
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					Find(gomock.Any(), organizationID, holderID, aliasID, false).
+					Find(gomock.Any(), organizationID, holderID, instrumentID, false).
 					Return(&mmodel.Instrument{
-						ID:        &aliasID,
+						ID:        &instrumentID,
 						HolderID:  &holderID,
 						CreatedAt: createdAt,
 					}, nil)
@@ -142,7 +142,7 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			testCase.mockSetup()
 
 			ctx := context.Background()
-			err := uc.validateInstrumentClosingDate(ctx, organizationID, testCase.holderID, testCase.aliasID, testCase.closingDate)
+			err := uc.validateInstrumentClosingDate(ctx, organizationID, testCase.holderID, testCase.instrumentID, testCase.closingDate)
 
 			if testCase.expectError {
 				assert.Error(t, err)

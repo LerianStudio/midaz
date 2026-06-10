@@ -31,7 +31,7 @@ func TestDeleteRelatedPartyByID(t *testing.T) {
 
 	organizationID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	holderID := uuid.Must(libCommons.GenerateUUIDv7())
-	aliasID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
 	relatedPartyID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	errRepoGeneric := errors.New("connection refused")
@@ -40,7 +40,7 @@ func TestDeleteRelatedPartyByID(t *testing.T) {
 		name           string
 		organizationID string
 		holderID       uuid.UUID
-		aliasID        uuid.UUID
+		instrumentID   uuid.UUID
 		relatedPartyID uuid.UUID
 		mockSetup      func()
 		expectedError  error
@@ -50,11 +50,11 @@ func TestDeleteRelatedPartyByID(t *testing.T) {
 			name:           "success_deleting_related_party",
 			organizationID: organizationID,
 			holderID:       holderID,
-			aliasID:        aliasID,
+			instrumentID:   instrumentID,
 			relatedPartyID: relatedPartyID,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					DeleteRelatedParty(gomock.Any(), organizationID, holderID, aliasID, relatedPartyID).
+					DeleteRelatedParty(gomock.Any(), organizationID, holderID, instrumentID, relatedPartyID).
 					Return(nil)
 			},
 			expectedError: nil,
@@ -63,11 +63,11 @@ func TestDeleteRelatedPartyByID(t *testing.T) {
 			name:           "error_alias_not_found",
 			organizationID: organizationID,
 			holderID:       holderID,
-			aliasID:        aliasID,
+			instrumentID:   instrumentID,
 			relatedPartyID: relatedPartyID,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					DeleteRelatedParty(gomock.Any(), organizationID, holderID, aliasID, relatedPartyID).
+					DeleteRelatedParty(gomock.Any(), organizationID, holderID, instrumentID, relatedPartyID).
 					Return(cn.ErrInstrumentNotFound)
 			},
 			expectedError: cn.ErrInstrumentNotFound,
@@ -77,11 +77,11 @@ func TestDeleteRelatedPartyByID(t *testing.T) {
 			name:           "error_related_party_not_found",
 			organizationID: organizationID,
 			holderID:       holderID,
-			aliasID:        aliasID,
+			instrumentID:   instrumentID,
 			relatedPartyID: relatedPartyID,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					DeleteRelatedParty(gomock.Any(), organizationID, holderID, aliasID, relatedPartyID).
+					DeleteRelatedParty(gomock.Any(), organizationID, holderID, instrumentID, relatedPartyID).
 					Return(cn.ErrRelatedPartyNotFound)
 			},
 			expectedError: cn.ErrRelatedPartyNotFound,
@@ -91,11 +91,11 @@ func TestDeleteRelatedPartyByID(t *testing.T) {
 			name:           "error_repository_timeout",
 			organizationID: organizationID,
 			holderID:       holderID,
-			aliasID:        aliasID,
+			instrumentID:   instrumentID,
 			relatedPartyID: relatedPartyID,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					DeleteRelatedParty(gomock.Any(), organizationID, holderID, aliasID, relatedPartyID).
+					DeleteRelatedParty(gomock.Any(), organizationID, holderID, instrumentID, relatedPartyID).
 					Return(context.DeadlineExceeded)
 			},
 			expectedError: context.DeadlineExceeded,
@@ -105,11 +105,11 @@ func TestDeleteRelatedPartyByID(t *testing.T) {
 			name:           "error_repository_generic",
 			organizationID: organizationID,
 			holderID:       holderID,
-			aliasID:        aliasID,
+			instrumentID:   instrumentID,
 			relatedPartyID: relatedPartyID,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					DeleteRelatedParty(gomock.Any(), organizationID, holderID, aliasID, relatedPartyID).
+					DeleteRelatedParty(gomock.Any(), organizationID, holderID, instrumentID, relatedPartyID).
 					Return(errRepoGeneric)
 			},
 			expectedError: errRepoGeneric,
@@ -122,7 +122,7 @@ func TestDeleteRelatedPartyByID(t *testing.T) {
 			tc.mockSetup()
 
 			ctx := context.Background()
-			err := uc.DeleteRelatedPartyByID(ctx, tc.organizationID, tc.holderID, tc.aliasID, tc.relatedPartyID)
+			err := uc.DeleteRelatedPartyByID(ctx, tc.organizationID, tc.holderID, tc.instrumentID, tc.relatedPartyID)
 
 			if tc.expectedError != nil {
 				assert.Error(t, err)

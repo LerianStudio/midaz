@@ -19,7 +19,7 @@ import (
 func TestMongoDBModel_FromEntity(t *testing.T) {
 	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
-	aliasID := uuid.New()
+	instrumentID := uuid.New()
 	holderID := uuid.New()
 
 	tests := []struct {
@@ -30,7 +30,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		{
 			name: "minimal alias",
 			alias: &mmodel.Instrument{
-				ID:        &aliasID,
+				ID:        &instrumentID,
 				Document:  testutils.Ptr("12345678901"),
 				Type:      testutils.Ptr("NATURAL_PERSON"),
 				LedgerID:  testutils.Ptr("ledger-123"),
@@ -43,7 +43,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		{
 			name: "alias with holder",
 			alias: &mmodel.Instrument{
-				ID:        &aliasID,
+				ID:        &instrumentID,
 				Document:  testutils.Ptr("98765432100"),
 				Type:      testutils.Ptr("LEGAL_PERSON"),
 				LedgerID:  testutils.Ptr("ledger-789"),
@@ -57,7 +57,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		{
 			name: "alias with banking details",
 			alias: &mmodel.Instrument{
-				ID:        &aliasID,
+				ID:        &instrumentID,
 				Document:  testutils.Ptr("11122233344"),
 				Type:      testutils.Ptr("NATURAL_PERSON"),
 				LedgerID:  testutils.Ptr("ledger-456"),
@@ -79,7 +79,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		{
 			name: "alias with metadata",
 			alias: &mmodel.Instrument{
-				ID:        &aliasID,
+				ID:        &instrumentID,
 				Document:  testutils.Ptr("55566677788"),
 				Type:      testutils.Ptr("NATURAL_PERSON"),
 				LedgerID:  testutils.Ptr("ledger-meta"),
@@ -96,7 +96,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		{
 			name: "alias with nil metadata initializes empty map",
 			alias: &mmodel.Instrument{
-				ID:        &aliasID,
+				ID:        &instrumentID,
 				Document:  testutils.Ptr("77788899900"),
 				Type:      testutils.Ptr("LEGAL_PERSON"),
 				LedgerID:  testutils.Ptr("ledger-nil"),
@@ -110,7 +110,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		{
 			name: "alias with regulatory fields",
 			alias: &mmodel.Instrument{
-				ID:        &aliasID,
+				ID:        &instrumentID,
 				Document:  testutils.Ptr("99900011122"),
 				Type:      testutils.Ptr("NATURAL_PERSON"),
 				LedgerID:  testutils.Ptr("ledger-part"),
@@ -126,7 +126,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		{
 			name: "alias with related parties",
 			alias: &mmodel.Instrument{
-				ID:        &aliasID,
+				ID:        &instrumentID,
 				Document:  testutils.Ptr("88877766655"),
 				Type:      testutils.Ptr("NATURAL_PERSON"),
 				LedgerID:  testutils.Ptr("ledger-rp"),
@@ -140,7 +140,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 						StartDate: mmodel.Date{Time: now},
 					},
 					{
-						ID:        &aliasID,
+						ID:        &instrumentID,
 						Document:  "55566677788",
 						Name:      "Related Person 2",
 						Role:      "LEGAL_REPRESENTATIVE",
@@ -156,7 +156,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		{
 			name: "alias with closing date",
 			alias: &mmodel.Instrument{
-				ID:        &aliasID,
+				ID:        &instrumentID,
 				Document:  testutils.Ptr("44455566677"),
 				Type:      testutils.Ptr("NATURAL_PERSON"),
 				LedgerID:  testutils.Ptr("ledger-close"),
@@ -172,7 +172,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		{
 			name: "alias with all fields",
 			alias: &mmodel.Instrument{
-				ID:        &aliasID,
+				ID:        &instrumentID,
 				Document:  testutils.Ptr("11111111111"),
 				Type:      testutils.Ptr("LEGAL_PERSON"),
 				LedgerID:  testutils.Ptr("ledger-full"),
@@ -307,13 +307,13 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 func TestMongoDBModel_ToEntity(t *testing.T) {
 	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
-	aliasID := uuid.New()
+	instrumentID := uuid.New()
 	holderID := uuid.New()
 	relatedPartyID := uuid.New()
 
 	// First create a model from an entity, then convert back
 	originalAlias := &mmodel.Instrument{
-		ID:        &aliasID,
+		ID:        &instrumentID,
 		Document:  testutils.Ptr("33344455566"),
 		Type:      testutils.Ptr("NATURAL_PERSON"),
 		LedgerID:  testutils.Ptr("ledger-roundtrip"),
@@ -394,10 +394,10 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 func TestMongoDBModel_ToEntity_NilBankingDetails(t *testing.T) {
 	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
-	aliasID := uuid.New()
+	instrumentID := uuid.New()
 
 	originalAlias := &mmodel.Instrument{
-		ID:             &aliasID,
+		ID:             &instrumentID,
 		Document:       testutils.Ptr("99988877766"),
 		Type:           testutils.Ptr("LEGAL_PERSON"),
 		LedgerID:       testutils.Ptr("ledger-no-bank"),
@@ -421,10 +421,10 @@ func TestMongoDBModel_ToEntity_NilBankingDetails(t *testing.T) {
 func TestMongoDBModel_ToEntity_WithDeletedAt(t *testing.T) {
 	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
-	aliasID := uuid.New()
+	instrumentID := uuid.New()
 
 	originalAlias := &mmodel.Instrument{
-		ID:        &aliasID,
+		ID:        &instrumentID,
 		Document:  testutils.Ptr("66677788899"),
 		Type:      testutils.Ptr("NATURAL_PERSON"),
 		LedgerID:  testutils.Ptr("ledger-deleted"),
@@ -450,10 +450,10 @@ func TestMongoDBModel_ToEntity_NilRegulatoryFieldsAndRelatedParties(t *testing.T
 
 	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
-	aliasID := uuid.New()
+	instrumentID := uuid.New()
 
 	originalAlias := &mmodel.Instrument{
-		ID:               &aliasID,
+		ID:               &instrumentID,
 		Document:         testutils.Ptr("55544433322"),
 		Type:             testutils.Ptr("NATURAL_PERSON"),
 		LedgerID:         testutils.Ptr("ledger-no-extras"),
@@ -481,11 +481,11 @@ func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing
 
 	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
-	aliasID := uuid.New()
+	instrumentID := uuid.New()
 	holderID := uuid.New()
 
 	originalAlias := &mmodel.Instrument{
-		ID:        &aliasID,
+		ID:        &instrumentID,
 		Document:  testutils.Ptr("12312312399"),
 		Type:      testutils.Ptr("NATURAL_PERSON"),
 		LedgerID:  testutils.Ptr("ledger-nil-optionals"),
@@ -529,10 +529,10 @@ func TestMongoDBModel_ToEntity_InvalidOptionalCiphertextReturnsError(t *testing.
 	t.Parallel()
 
 	crypto := testutils.SetupCrypto(t)
-	aliasID := uuid.New()
+	instrumentID := uuid.New()
 
 	model := &MongoDBModel{
-		ID:       &aliasID,
+		ID:       &instrumentID,
 		Document: mustEncrypt(t, crypto, "12345678901"),
 		BankingDetails: &BankingMongoDBModel{
 			Account: testutils.Ptr("not-a-valid-ciphertext"),
@@ -547,11 +547,11 @@ func TestMongoDBModel_FromEntity_EncryptOptionalFailureReturnsError(t *testing.T
 	t.Parallel()
 
 	crypto := &libCrypto.Crypto{}
-	aliasID := uuid.New()
+	instrumentID := uuid.New()
 	now := time.Now().UTC().Truncate(time.Second)
 
 	alias := &mmodel.Instrument{
-		ID:        &aliasID,
+		ID:        &instrumentID,
 		Document:  testutils.Ptr("12345678901"),
 		Type:      testutils.Ptr("NATURAL_PERSON"),
 		LedgerID:  testutils.Ptr("ledger-1"),

@@ -407,7 +407,7 @@ func (handler *InstrumentHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	aliasID, err := http.GetUUIDFromLocals(c, "instrument_id")
+	instrumentID, err := http.GetUUIDFromLocals(c, "instrument_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -426,11 +426,11 @@ func (handler *InstrumentHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.holder_id", holderID.String()),
-		attribute.String("app.request.instrument_id", aliasID.String()),
+		attribute.String("app.request.instrument_id", instrumentID.String()),
 		attribute.String("app.request.related_party_id", relatedPartyID.String()),
 	)
 
-	err = handler.Service.DeleteRelatedPartyByID(ctx, organizationID.String(), holderID, aliasID, relatedPartyID)
+	err = handler.Service.DeleteRelatedPartyByID(ctx, organizationID.String(), holderID, instrumentID, relatedPartyID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to delete related party", err)
 
