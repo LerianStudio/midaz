@@ -76,7 +76,7 @@ func TestMigration000034_UpSQL_CreatesQuarantineTable(t *testing.T) {
 		{name: "ledger_id column", substring: "ledger_id       uuid not null", description: "must add ledger_id column"},
 		{name: "transaction_id column", substring: "transaction_id  uuid not null", description: "must add transaction_id column"},
 		{name: "redis_key is unique", substring: "redis_key       text not null unique", description: "redis_key must be UNIQUE so a record lands exactly once"},
-		{name: "payload is NOT NULL jsonb", substring: "payload         jsonb not null", description: "payload (the financial copy) must be JSONB NOT NULL"},
+		{name: "payload is NOT NULL bytea", substring: "payload         bytea not null", description: "payload (the financial copy) must be opaque BYTEA NOT NULL so non-JSON poison bytes can be stored verbatim"},
 		{name: "failure_reason column", substring: "failure_reason  text", description: "must add failure_reason column"},
 		{name: "attempts column", substring: "attempts        integer not null default 0", description: "must add attempts column"},
 		{name: "first_failed_at column", substring: "first_failed_at timestamp with time zone", description: "must add first_failed_at column"},
