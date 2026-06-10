@@ -25,7 +25,7 @@ import (
 )
 
 // EstimateFeeCalculation estimate a fee applied in transaction according a specific package
-func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEstimate, organizationID uuid.UUID) (_ *model.FeeCalculate, err error) {
+func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEstimate, organizationID uuid.UUID) (_ *model.FeeEstimateResult, err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	// Defensive nil check for the main input parameter
@@ -91,7 +91,9 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, outOfRangeMsg, errors.New(strings.ToLower(outOfRangeMsg)))
 
-		return feeModel, nil
+		result := model.NewFeeEstimateResult(feeModel)
+
+		return &result, nil
 	}
 
 	segCtx := &feeUtils.SegmentContext{
@@ -110,7 +112,9 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 
 	if len(validationResult.From) == validationResultFromSize &&
 		len(validationResult.To) == validationResultToSize {
-		return feeModel, nil
+		result := model.NewFeeEstimateResult(feeModel)
+
+		return &result, nil
 	}
 
 	if feeModel.Transaction.Metadata == nil {
@@ -119,5 +123,7 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 
 	feeModel.Transaction.Metadata["packageAppliedID"] = cf.PackageID.String()
 
-	return feeModel, nil
+	result := model.NewFeeEstimateResult(feeModel)
+
+	return &result, nil
 }

@@ -9011,6 +9011,8 @@ components:
     Amount:
       description: Amount is the struct designed to represent the amount of an operation.
         Contains the value and scale (decimal places) of an operation amount.
+      example:
+        value: 1500.0
       properties:
         value:
           description: |-
@@ -11001,6 +11003,49 @@ components:
     Distribute:
       description: Distribute is the struct designed to represent the distribution
         fields of an operation.
+      example:
+        to:
+        - accountAlias: '@person1'
+          amount:
+            value: 1500.0
+          metadata:
+            key: "{}"
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            from: BRL
+            to: USDe
+            value: 1000.0
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          balanceKey: asset-freeze
+          remaining: remaining
+        - accountAlias: '@person1'
+          amount:
+            value: 1500.0
+          metadata:
+            key: "{}"
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            from: BRL
+            to: USDe
+            value: 1000.0
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          balanceKey: asset-freeze
+          remaining: remaining
+        remaining: remaining
       properties:
         remaining:
           type: string
@@ -11133,27 +11178,133 @@ components:
       - feeLabel
       - isDeductibleFrom
       type: object
-    FeeCalculate:
-      description: FeeCalculate is the input payload to create a fee.
+    FeeAdjustedTransaction:
+      description: FeeAdjustedTransaction is the fee-adjusted transaction returned
+        by the fee-estimate endpoint.
       example:
-        ledgerId: 00000000-0000-0000-0000-000000000000
-        segmentId: 00000000-0000-0000-0000-000000000000
-        transaction: "{}"
+        metadata:
+          key: "{}"
+        code: 00000000-0000-0000-0000-000000000000
+        routeId: 00000000-0000-0000-0000-000000000000
+        pending: false
+        description: Description
+        transactionDate: 2021-01-01T00:00:00Z
+        chartOfAccountsGroupName: FUNDING
+        send:
+          distribute:
+            to:
+            - accountAlias: '@person1'
+              amount:
+                value: 1500.0
+              metadata:
+                key: "{}"
+              route: 00000000-0000-0000-0000-000000000000
+              routeId: 00000000-0000-0000-0000-000000000000
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                from: BRL
+                to: USDe
+                value: 1000.0
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              balanceKey: asset-freeze
+              remaining: remaining
+            - accountAlias: '@person1'
+              amount:
+                value: 1500.0
+              metadata:
+                key: "{}"
+              route: 00000000-0000-0000-0000-000000000000
+              routeId: 00000000-0000-0000-0000-000000000000
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                from: BRL
+                to: USDe
+                value: 1000.0
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              balanceKey: asset-freeze
+              remaining: remaining
+            remaining: remaining
+          source:
+            from:
+            - accountAlias: '@person1'
+              amount:
+                value: 1500.0
+              metadata:
+                key: "{}"
+              route: 00000000-0000-0000-0000-000000000000
+              routeId: 00000000-0000-0000-0000-000000000000
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                from: BRL
+                to: USDe
+                value: 1000.0
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              balanceKey: asset-freeze
+              remaining: remaining
+            - accountAlias: '@person1'
+              amount:
+                value: 1500.0
+              metadata:
+                key: "{}"
+              route: 00000000-0000-0000-0000-000000000000
+              routeId: 00000000-0000-0000-0000-000000000000
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                from: BRL
+                to: USDe
+                value: 1000.0
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              balanceKey: asset-freeze
+              remaining: remaining
+            remaining: remaining
+          asset: BRL
+          value: 1000.0
       properties:
-        ledgerId:
+        chartOfAccountsGroupName:
+          example: FUNDING
+          type: string
+        code:
           example: 00000000-0000-0000-0000-000000000000
           type: string
-        segmentId:
-          example: 00000000-0000-0000-0000-000000000000
+        description:
+          example: Description
           type: string
-        transaction:
-          allOf:
-          - $ref: '#/components/schemas/TransactionInput'
-          description: Full transaction projection; rendered as TransactionInput in
-            the API schema.
+        metadata:
+          additionalProperties:
+            type: object
           type: object
-      required:
-      - ledgerId
+        pending:
+          example: false
+          type: boolean
+        routeId:
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        send:
+          $ref: '#/components/schemas/Send'
+        transactionDate:
+          example: 2021-01-01T00:00:00Z
+          type: string
       type: object
     FeeEstimate:
       description: FeeEstimate is the input payload to create a fee estimate.
@@ -11184,18 +11335,250 @@ components:
         feesApplied:
           ledgerId: 00000000-0000-0000-0000-000000000000
           segmentId: 00000000-0000-0000-0000-000000000000
-          transaction: "{}"
+          transaction:
+            metadata:
+              key: "{}"
+            code: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
+            pending: false
+            description: Description
+            transactionDate: 2021-01-01T00:00:00Z
+            chartOfAccountsGroupName: FUNDING
+            send:
+              distribute:
+                to:
+                - accountAlias: '@person1'
+                  amount:
+                    value: 1500.0
+                  metadata:
+                    key: "{}"
+                  route: 00000000-0000-0000-0000-000000000000
+                  routeId: 00000000-0000-0000-0000-000000000000
+                  rate:
+                    externalId: 00000000-0000-0000-0000-000000000000
+                    from: BRL
+                    to: USDe
+                    value: 1000.0
+                  isFrom: true
+                  chartOfAccounts: "1000"
+                  description: description
+                  share:
+                    percentage: 0
+                    percentageOfPercentage: 6
+                  balanceKey: asset-freeze
+                  remaining: remaining
+                - accountAlias: '@person1'
+                  amount:
+                    value: 1500.0
+                  metadata:
+                    key: "{}"
+                  route: 00000000-0000-0000-0000-000000000000
+                  routeId: 00000000-0000-0000-0000-000000000000
+                  rate:
+                    externalId: 00000000-0000-0000-0000-000000000000
+                    from: BRL
+                    to: USDe
+                    value: 1000.0
+                  isFrom: true
+                  chartOfAccounts: "1000"
+                  description: description
+                  share:
+                    percentage: 0
+                    percentageOfPercentage: 6
+                  balanceKey: asset-freeze
+                  remaining: remaining
+                remaining: remaining
+              source:
+                from:
+                - accountAlias: '@person1'
+                  amount:
+                    value: 1500.0
+                  metadata:
+                    key: "{}"
+                  route: 00000000-0000-0000-0000-000000000000
+                  routeId: 00000000-0000-0000-0000-000000000000
+                  rate:
+                    externalId: 00000000-0000-0000-0000-000000000000
+                    from: BRL
+                    to: USDe
+                    value: 1000.0
+                  isFrom: true
+                  chartOfAccounts: "1000"
+                  description: description
+                  share:
+                    percentage: 0
+                    percentageOfPercentage: 6
+                  balanceKey: asset-freeze
+                  remaining: remaining
+                - accountAlias: '@person1'
+                  amount:
+                    value: 1500.0
+                  metadata:
+                    key: "{}"
+                  route: 00000000-0000-0000-0000-000000000000
+                  routeId: 00000000-0000-0000-0000-000000000000
+                  rate:
+                    externalId: 00000000-0000-0000-0000-000000000000
+                    from: BRL
+                    to: USDe
+                    value: 1000.0
+                  isFrom: true
+                  chartOfAccounts: "1000"
+                  description: description
+                  share:
+                    percentage: 0
+                    percentageOfPercentage: 6
+                  balanceKey: asset-freeze
+                  remaining: remaining
+                remaining: remaining
+              asset: BRL
+              value: 1000.0
         message: Successfully estimated fee.
       properties:
         feesApplied:
-          $ref: '#/components/schemas/FeeCalculate'
+          $ref: '#/components/schemas/FeeEstimateResult'
         message:
           example: Successfully estimated fee.
           type: string
       type: object
+    FeeEstimateResult:
+      description: FeeEstimateResult is the projected fee-estimate result returned
+        by the estimate endpoint.
+      example:
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        segmentId: 00000000-0000-0000-0000-000000000000
+        transaction:
+          metadata:
+            key: "{}"
+          code: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          pending: false
+          description: Description
+          transactionDate: 2021-01-01T00:00:00Z
+          chartOfAccountsGroupName: FUNDING
+          send:
+            distribute:
+              to:
+              - accountAlias: '@person1'
+                amount:
+                  value: 1500.0
+                metadata:
+                  key: "{}"
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              - accountAlias: '@person1'
+                amount:
+                  value: 1500.0
+                metadata:
+                  key: "{}"
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              remaining: remaining
+            source:
+              from:
+              - accountAlias: '@person1'
+                amount:
+                  value: 1500.0
+                metadata:
+                  key: "{}"
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              - accountAlias: '@person1'
+                amount:
+                  value: 1500.0
+                metadata:
+                  key: "{}"
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              remaining: remaining
+            asset: BRL
+            value: 1000.0
+      properties:
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        segmentId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        transaction:
+          $ref: '#/components/schemas/FeeAdjustedTransaction'
+      type: object
     FromTo:
       description: FromTo is the struct designed to represent the from/to fields of
         an operation.
+      example:
+        accountAlias: '@person1'
+        amount:
+          value: 1500.0
+        metadata:
+          key: "{}"
+        route: 00000000-0000-0000-0000-000000000000
+        routeId: 00000000-0000-0000-0000-000000000000
+        rate:
+          externalId: 00000000-0000-0000-0000-000000000000
+          from: BRL
+          to: USDe
+          value: 1000.0
+        isFrom: true
+        chartOfAccounts: "1000"
+        description: description
+        share:
+          percentage: 0
+          percentageOfPercentage: 6
+        balanceKey: asset-freeze
+        remaining: remaining
       properties:
         accountAlias:
           example: '@person1'
@@ -12435,6 +12818,11 @@ components:
     Rate:
       description: Rate is the struct designed to represent the rate fields of an
         operation.
+      example:
+        externalId: 00000000-0000-0000-0000-000000000000
+        from: BRL
+        to: USDe
+        value: 1000.0
       properties:
         externalId:
           example: 00000000-0000-0000-0000-000000000000
@@ -12642,6 +13030,95 @@ components:
     Send:
       description: Send is the struct designed to represent the sending fields of
         an operation.
+      example:
+        distribute:
+          to:
+          - accountAlias: '@person1'
+            amount:
+              value: 1500.0
+            metadata:
+              key: "{}"
+            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              from: BRL
+              to: USDe
+              value: 1000.0
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            balanceKey: asset-freeze
+            remaining: remaining
+          - accountAlias: '@person1'
+            amount:
+              value: 1500.0
+            metadata:
+              key: "{}"
+            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              from: BRL
+              to: USDe
+              value: 1000.0
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            balanceKey: asset-freeze
+            remaining: remaining
+          remaining: remaining
+        source:
+          from:
+          - accountAlias: '@person1'
+            amount:
+              value: 1500.0
+            metadata:
+              key: "{}"
+            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              from: BRL
+              to: USDe
+              value: 1000.0
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            balanceKey: asset-freeze
+            remaining: remaining
+          - accountAlias: '@person1'
+            amount:
+              value: 1500.0
+            metadata:
+              key: "{}"
+            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              from: BRL
+              to: USDe
+              value: 1000.0
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            balanceKey: asset-freeze
+            remaining: remaining
+          remaining: remaining
+        asset: BRL
+        value: 1000.0
       properties:
         asset:
           example: BRL
@@ -12696,6 +13173,9 @@ components:
     Share:
       description: Share is the struct designed to represent the sharing fields of
         an operation.
+      example:
+        percentage: 0
+        percentageOfPercentage: 6
       properties:
         percentage:
           type: integer
@@ -12707,6 +13187,49 @@ components:
     Source:
       description: Source is the struct designed to represent the source fields of
         an operation.
+      example:
+        from:
+        - accountAlias: '@person1'
+          amount:
+            value: 1500.0
+          metadata:
+            key: "{}"
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            from: BRL
+            to: USDe
+            value: 1000.0
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          balanceKey: asset-freeze
+          remaining: remaining
+        - accountAlias: '@person1'
+          amount:
+            value: 1500.0
+          metadata:
+            key: "{}"
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            from: BRL
+            to: USDe
+            value: 1000.0
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          balanceKey: asset-freeze
+          remaining: remaining
+        remaining: remaining
       properties:
         from:
           items:

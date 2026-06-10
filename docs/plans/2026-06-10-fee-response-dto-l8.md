@@ -32,7 +32,7 @@ So the **actual** residual defect is narrow and twofold:
 
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
-| 1 | `POST /estimates` returns a purpose-built `FeeEstimateResult` DTO; `FeeCalculate` no longer appears in the generated spec; engine + engine tests unchanged | 1.1, 1.2 | Detailed |
+| 1 | `POST /estimates` returns a purpose-built `FeeEstimateResult` DTO; `FeeCalculate` no longer appears in the generated spec; engine + engine tests unchanged | 1.1, 1.2 | Complete |
 
 ---
 
@@ -52,11 +52,11 @@ Tasks below assume **Variant A**.
 **Scope:** `components/ledger/pkg/feeshared/model/` (new file or extend `fees.go`).
 **Dependencies:** none
 **Done when:** `FeeEstimateResult` and `FeeAdjustedTransaction` exist with `swagger:model`+`@name`+`@Description`+field examples; a `projectFeeEstimate(*FeeCalculate) FeeEstimateResult` (or method) maps engine output → wire DTO; unit test covers the projection including metadata pass-through and `Route` exclusion.
-**Status:** Pending
+**Status:** Done
 
 #### Task 1.1.1: Define `FeeAdjustedTransaction` + `FeeEstimateResult` and the projection
 
-- [ ] Done
+- [x] Done
 
 **Context:** `FeeCalculate` (`components/ledger/pkg/feeshared/model/fees.go:17-21`) embeds `mtransaction.Transaction` by value and is mutated in place by the engine (`pkg/fee/calculate-fee.go:149-150`, `pkg/fee/distribute.go:67`, metadata at `distribute.go:129-153` and `internal/services/fees/calculate-fee.go:163-171`). It must remain the engine's mutable carrier. The estimate handler currently returns `FeeEstimateResponse{Message, FeesApplied *FeeCalculate}` (`fees.go:28-31`), so the engine type leaks onto the wire as `feesApplied`.
 
@@ -83,11 +83,11 @@ Follow the existing annotation idiom in `fees.go` (which Phase 5 just deepened).
 **Scope:** `components/ledger/internal/services/fees/estimate-fee-calculation.go`, `components/ledger/internal/adapters/http/in/fees_handler.go`, the fee service interface, `components/ledger/api/*` (regen).
 **Dependencies:** Epic 1.1
 **Done when:** the estimate use case returns `*model.FeeEstimateResult` (projected from the internal `FeeCalculate`); `FeeEstimateResponse.FeesApplied` is `*FeeEstimateResult`; `make generate-docs` is green; `feesApplied` in the spec references `FeeEstimateResult`→`FeeAdjustedTransaction` (no `FeeCalculate`, no `Route` on that path); ledger security still 111/111; parity green.
-**Status:** Pending
+**Status:** Done
 
 #### Task 1.2.1: Project at the use-case boundary and update the response wrapper
 
-- [ ] Done
+- [x] Done
 
 **Context:** `EstimateFeeCalculation` use case constructs and returns `*model.FeeCalculate` (`internal/services/fees/estimate-fee-calculation.go:74`); the handler wraps it as `FeeEstimateResponse{FeesApplied: ...}` and responds (`fees_handler.go:91,99`). The service interface that the handler depends on (`fees_handler.go:27`) types the return as `*model.FeeCalculate`.
 
@@ -105,7 +105,7 @@ Follow the existing annotation idiom in `fees.go` (which Phase 5 just deepened).
 
 #### Task 1.2.2: Regenerate specs and verify the wire contract
 
-- [ ] Done
+- [x] Done
 
 **Context:** swagger currently names `FeeCalculate` (`docs.go:12611`) and refs it from `FeeEstimateResponse.FeesApplied` (`docs.go:12667`). After the repoint it must reference `FeeEstimateResult`.
 

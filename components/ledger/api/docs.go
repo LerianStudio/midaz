@@ -12650,28 +12650,41 @@ const docTemplate = `{
                 }
             }
         },
-        "FeeCalculate": {
-            "description": "FeeCalculate is the input payload to create a fee.",
+        "FeeAdjustedTransaction": {
+            "description": "FeeAdjustedTransaction is the fee-adjusted transaction returned by the fee-estimate endpoint.",
             "type": "object",
-            "required": [
-                "ledgerId"
-            ],
             "properties": {
-                "ledgerId": {
+                "chartOfAccountsGroupName": {
+                    "type": "string",
+                    "example": "FUNDING"
+                },
+                "code": {
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
-                "segmentId": {
+                "description": {
                     "type": "string",
+                    "example": "Description"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "pending": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "routeId": {
+                    "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
-                "transaction": {
-                    "description": "Full transaction projection; rendered as TransactionInput in the API schema.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/TransactionInput"
-                        }
-                    ]
+                "send": {
+                    "$ref": "#/definitions/Send"
+                },
+                "transactionDate": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
@@ -12706,11 +12719,28 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "feesApplied": {
-                    "$ref": "#/definitions/FeeCalculate"
+                    "$ref": "#/definitions/FeeEstimateResult"
                 },
                 "message": {
                     "type": "string",
                     "example": "Successfully estimated fee."
+                }
+            }
+        },
+        "FeeEstimateResult": {
+            "description": "FeeEstimateResult is the projected fee-estimate result returned by the estimate endpoint.",
+            "type": "object",
+            "properties": {
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "segmentId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "transaction": {
+                    "$ref": "#/definitions/FeeAdjustedTransaction"
                 }
             }
         },

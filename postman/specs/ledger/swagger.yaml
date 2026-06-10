@@ -2122,22 +2122,34 @@ definitions:
     - feeLabel
     - isDeductibleFrom
     type: object
-  FeeCalculate:
-    description: FeeCalculate is the input payload to create a fee.
+  FeeAdjustedTransaction:
+    description: FeeAdjustedTransaction is the fee-adjusted transaction returned by
+      the fee-estimate endpoint.
     properties:
-      ledgerId:
+      chartOfAccountsGroupName:
+        example: FUNDING
+        type: string
+      code:
         example: 00000000-0000-0000-0000-000000000000
         type: string
-      segmentId:
-        example: 00000000-0000-0000-0000-000000000000
+      description:
+        example: Description
         type: string
-      transaction:
-        allOf:
-        - $ref: '#/definitions/TransactionInput'
-        description: Full transaction projection; rendered as TransactionInput in
-          the API schema.
-    required:
-    - ledgerId
+      metadata:
+        additionalProperties: {}
+        type: object
+      pending:
+        example: false
+        type: boolean
+      routeId:
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      send:
+        $ref: '#/definitions/Send'
+      transactionDate:
+        example: "2021-01-01T00:00:00Z"
+        type: string
     type: object
   FeeEstimate:
     description: FeeEstimate is the input payload to create a fee estimate.
@@ -2161,10 +2173,23 @@ definitions:
     description: FeeEstimateResponse is the response payload for estimate fee
     properties:
       feesApplied:
-        $ref: '#/definitions/FeeCalculate'
+        $ref: '#/definitions/FeeEstimateResult'
       message:
         example: Successfully estimated fee.
         type: string
+    type: object
+  FeeEstimateResult:
+    description: FeeEstimateResult is the projected fee-estimate result returned by
+      the estimate endpoint.
+    properties:
+      ledgerId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      segmentId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      transaction:
+        $ref: '#/definitions/FeeAdjustedTransaction'
     type: object
   FromTo:
     description: FromTo is the struct designed to represent the from/to fields of

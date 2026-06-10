@@ -24,7 +24,7 @@ import (
 // the unified binary the fee calculation itself runs in-process via the
 // transaction seam, so only the dry-run estimate is exposed over HTTP.
 type FeeService interface {
-	EstimateFeeCalculation(ctx context.Context, cf *model.FeeEstimate, organizationID uuid.UUID) (*model.FeeCalculate, error)
+	EstimateFeeCalculation(ctx context.Context, cf *model.FeeEstimate, organizationID uuid.UUID) (*model.FeeEstimateResult, error)
 }
 
 // FeeHandler exposes the fee-estimate (dry-run) endpoint over HTTP.
