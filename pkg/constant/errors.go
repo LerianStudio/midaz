@@ -261,4 +261,6 @@ var (
 	ErrRegistryRevisionConflict     = errors.New("ENC-0006")
 	ErrOrganizationEncryptionFailed = errors.New("ENC-0008")
 	ErrProvisioningFailed           = errors.New("ENC-0010")
+	ErrAuditEventRequired           = errors.New("ENC-0011")
+	ErrAuditWriteFailed             = errors.New("ENC-0012")
 )

@@ -1429,6 +1429,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Provisioning Failed",
 			Message:    "The provisioning operation failed. Please try again later.",
 		},
+		constant.ErrAuditEventRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAuditEventRequired.Error(),
+			Title:      "Missing Fields in Request",
+			Message:    "Your request is missing one or more required fields. Please refer to the documentation to ensure all necessary fields are included in your request.",
+			Err:        constant.ErrAuditEventRequired,
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
