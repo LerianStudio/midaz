@@ -281,7 +281,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Audit events listed successfully",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapters_http_in.ListAuditEventsResponse"
+                            "$ref": "#/definitions/ListAuditEventsResponse"
                         }
                     },
                     "400": {
@@ -338,7 +338,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Audit event retrieved successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEvent"
+                            "$ref": "#/definitions/AuditEvent"
                         }
                     },
                     "400": {
@@ -401,7 +401,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Hash chain verification completed",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.HashChainVerificationResult"
+                            "$ref": "#/definitions/HashChainVerificationResult"
                         }
                     },
                     "400": {
@@ -570,7 +570,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Limits listed successfully",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapters_http_in.ListLimitsResponse"
+                            "$ref": "#/definitions/ListLimitsResponse"
                         }
                     },
                     "400": {
@@ -618,7 +618,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_adapters_http_in.CreateLimitInput"
+                            "$ref": "#/definitions/CreateLimitInput"
                         }
                     }
                 ],
@@ -626,7 +626,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Limit created successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit"
+                            "$ref": "#/definitions/Limit"
                         }
                     },
                     "400": {
@@ -689,7 +689,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Limit retrieved successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit"
+                            "$ref": "#/definitions/Limit"
                         }
                     },
                     "400": {
@@ -809,7 +809,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_adapters_http_in.UpdateLimitInput"
+                            "$ref": "#/definitions/UpdateLimitInput"
                         }
                     }
                 ],
@@ -817,7 +817,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Limit updated successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit"
+                            "$ref": "#/definitions/Limit"
                         }
                     },
                     "400": {
@@ -886,7 +886,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Limit activated successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit"
+                            "$ref": "#/definitions/Limit"
                         }
                     },
                     "400": {
@@ -949,7 +949,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Limit deactivated successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit"
+                            "$ref": "#/definitions/Limit"
                         }
                     },
                     "400": {
@@ -1012,7 +1012,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Limit transitioned to draft successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit"
+                            "$ref": "#/definitions/Limit"
                         }
                     },
                     "400": {
@@ -1075,7 +1075,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Usage snapshot retrieved successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.UsageSnapshot"
+                            "$ref": "#/definitions/UsageSnapshot"
                         }
                     },
                     "400": {
@@ -1131,7 +1131,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_adapters_http_in.ReserveRequest"
+                            "$ref": "#/definitions/ReserveRequest"
                         }
                     }
                 ],
@@ -1139,7 +1139,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Capacity reserved",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapters_http_in.ReserveResponse"
+                            "$ref": "#/definitions/ReserveResponse"
                         }
                     },
                     "400": {
@@ -1205,7 +1205,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Reservations confirmed",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapters_http_in.TransactionActionResponse"
+                            "$ref": "#/definitions/TransactionActionResponse"
                         }
                     },
                     "400": {
@@ -1265,7 +1265,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Reservations released",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapters_http_in.TransactionActionResponse"
+                            "$ref": "#/definitions/TransactionActionResponse"
                         }
                     },
                     "400": {
@@ -1325,7 +1325,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Reservation confirmed",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapters_http_in.ReservationActionResponse"
+                            "$ref": "#/definitions/ReservationActionResponse"
                         }
                     },
                     "400": {
@@ -1391,7 +1391,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Reservation released",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapters_http_in.ReservationActionResponse"
+                            "$ref": "#/definitions/ReservationActionResponse"
                         }
                     },
                     "400": {
@@ -1563,7 +1563,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Rules listed successfully",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapters_http_in.ListRulesResponse"
+                            "$ref": "#/definitions/ListRulesResponse"
                         }
                     },
                     "400": {
@@ -1611,7 +1611,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_adapters_http_in.CreateRuleInput"
+                            "$ref": "#/definitions/CreateRuleInput"
                         }
                     }
                 ],
@@ -1619,7 +1619,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Rule created successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule"
+                            "$ref": "#/definitions/Rule"
                         }
                     },
                     "400": {
@@ -1688,7 +1688,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Rule retrieved successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule"
+                            "$ref": "#/definitions/Rule"
                         }
                     },
                     "400": {
@@ -1814,7 +1814,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_adapters_http_in.UpdateRuleInput"
+                            "$ref": "#/definitions/UpdateRuleInput"
                         }
                     }
                 ],
@@ -1822,7 +1822,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Rule updated successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule"
+                            "$ref": "#/definitions/Rule"
                         }
                     },
                     "400": {
@@ -1897,7 +1897,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Rule activated successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule"
+                            "$ref": "#/definitions/Rule"
                         }
                     },
                     "400": {
@@ -1966,7 +1966,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Rule deactivated successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule"
+                            "$ref": "#/definitions/Rule"
                         }
                     },
                     "400": {
@@ -2035,7 +2035,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Rule transitioned to draft successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule"
+                            "$ref": "#/definitions/Rule"
                         }
                     },
                     "400": {
@@ -2202,7 +2202,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Transaction validations listed successfully",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapters_http_in.ListTransactionValidationsResponse"
+                            "$ref": "#/definitions/ListTransactionValidationsResponse"
                         }
                     },
                     "400": {
@@ -2250,7 +2250,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationRequest"
+                            "$ref": "#/definitions/ValidationRequest"
                         }
                     }
                 ],
@@ -2258,13 +2258,13 @@ const docTemplate = `{
                     "200": {
                         "description": "Duplicate request (idempotent)",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationResponse"
+                            "$ref": "#/definitions/ValidationResponse"
                         }
                     },
                     "201": {
                         "description": "New validation created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationResponse"
+                            "$ref": "#/definitions/ValidationResponse"
                         }
                     },
                     "400": {
@@ -2339,7 +2339,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Transaction validation retrieved successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionValidation"
+                            "$ref": "#/definitions/TransactionValidation"
                         }
                     },
                     "400": {
@@ -2395,6 +2395,284 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "AccountContext": {
+            "type": "object",
+            "properties": {
+                "accountId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "status": {
+                    "type": "string",
+                    "example": "active"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "checking"
+                }
+            }
+        },
+        "Actor": {
+            "type": "object",
+            "properties": {
+                "actorType": {
+                    "type": "string",
+                    "enum": [
+                        "user",
+                        "api_key",
+                        "system"
+                    ],
+                    "example": "user"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "ipAddress": {
+                    "type": "string",
+                    "example": "203.0.113.42"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Jane Doe"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "admin"
+                }
+            }
+        },
+        "AuditEvent": {
+            "description": "Immutable audit record for SOX/GLBA compliance. Each event captures who performed what action on which resource, the outcome, and a full context snapshot. Events are hash-chained to detect tampering; the hash covers all core fields.",
+            "type": "object",
+            "properties": {
+                "action": {
+                    "description": "Action performed\nexample: VALIDATE\nenums: VALIDATE,CREATE,UPDATE,DELETE,ACTIVATE,DEACTIVATE,DRAFT,RESERVE,CONFIRM,RELEASE,EXPIRE,SKIP",
+                    "type": "string",
+                    "enum": [
+                        "VALIDATE",
+                        "CREATE",
+                        "UPDATE",
+                        "DELETE",
+                        "ACTIVATE",
+                        "DEACTIVATE",
+                        "DRAFT",
+                        "RESERVE",
+                        "CONFIRM",
+                        "RELEASE",
+                        "EXPIRE",
+                        "SKIP"
+                    ],
+                    "example": "VALIDATE"
+                },
+                "actor": {
+                    "description": "Actor who performed the action",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Actor"
+                        }
+                    ]
+                },
+                "context": {
+                    "description": "Context (JSONB): for validations: { request: {...}, response: {reason, processingTimeMs, matchedRuleIds, ...} }; for CRUD: { before: {...}, after: {...}, reason: \"...\" }\nNote: accountId, segmentId, portfolioId are in context.request.account (not first-level fields)",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "createdAt": {
+                    "description": "Timestamp when the event occurred\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "eventId": {
+                    "description": "Unique identifier for this audit event\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "eventType": {
+                    "description": "Type of event that occurred\nexample: TRANSACTION_VALIDATED\nenums: TRANSACTION_VALIDATED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED",
+                    "type": "string",
+                    "enum": [
+                        "TRANSACTION_VALIDATED",
+                        "RULE_CREATED",
+                        "RULE_UPDATED",
+                        "RULE_ACTIVATED",
+                        "RULE_DEACTIVATED",
+                        "RULE_DRAFTED",
+                        "RULE_DELETED",
+                        "LIMIT_CREATED",
+                        "LIMIT_UPDATED",
+                        "LIMIT_DELETED",
+                        "LIMIT_ACTIVATED",
+                        "LIMIT_DEACTIVATED",
+                        "LIMIT_DRAFTED",
+                        "RESERVATION_RESERVED",
+                        "RESERVATION_CONFIRMED",
+                        "RESERVATION_RELEASED",
+                        "RESERVATION_EXPIRED",
+                        "RESERVATION_SKIPPED"
+                    ],
+                    "example": "TRANSACTION_VALIDATED"
+                },
+                "hash": {
+                    "description": "SHA-256 hash of this event's fields for tamper detection\nexample: a3f1e2b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2",
+                    "type": "string",
+                    "example": "a3f1e2b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2"
+                },
+                "metadata": {
+                    "description": "Additional metadata such as ticketId or correlationId",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "previousHash": {
+                    "description": "Hash of the preceding event in the chain, empty for the first event\nexample: b4e2f3a5c6d7e8f9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3",
+                    "type": "string",
+                    "example": "b4e2f3a5c6d7e8f9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3"
+                },
+                "resourceId": {
+                    "description": "ID of the resource affected by this event\nexample: 00000000-0000-0000-0000-000000000000",
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "resourceType": {
+                    "description": "Type of resource affected\nexample: transaction\nenums: transaction,rule,limit,reservation",
+                    "type": "string",
+                    "enum": [
+                        "transaction",
+                        "rule",
+                        "limit",
+                        "reservation"
+                    ],
+                    "example": "transaction"
+                },
+                "result": {
+                    "description": "Outcome: ALLOW/DENY/REVIEW for validations; SUCCESS/FAILED for CRUD operations\nexample: ALLOW\nenums: ALLOW,DENY,REVIEW,SUCCESS,FAILED",
+                    "type": "string",
+                    "enum": [
+                        "ALLOW",
+                        "DENY",
+                        "REVIEW",
+                        "SUCCESS",
+                        "FAILED"
+                    ],
+                    "example": "ALLOW"
+                }
+            }
+        },
+        "CreateLimitInput": {
+            "type": "object",
+            "required": [
+                "currency",
+                "limitType",
+                "maxAmount",
+                "name",
+                "scopes"
+            ],
+            "properties": {
+                "activeTimeEnd": {
+                    "type": "string",
+                    "example": "17:00"
+                },
+                "activeTimeStart": {
+                    "type": "string",
+                    "example": "09:00"
+                },
+                "currency": {
+                    "type": "string",
+                    "maxLength": 3,
+                    "minLength": 3,
+                    "example": "USD"
+                },
+                "customEndDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-11-29T00:00:00Z"
+                },
+                "customStartDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-11-27T00:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "limitType": {
+                    "type": "string",
+                    "enum": [
+                        "DAILY",
+                        "MONTHLY",
+                        "PER_TRANSACTION",
+                        "WEEKLY",
+                        "CUSTOM"
+                    ],
+                    "example": "DAILY"
+                },
+                "maxAmount": {
+                    "type": "string",
+                    "example": "1000.00"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
+                },
+                "scopes": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/Scope"
+                    }
+                }
+            }
+        },
+        "CreateRuleInput": {
+            "type": "object",
+            "required": [
+                "action",
+                "expression",
+                "name"
+            ],
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "ALLOW",
+                        "DENY",
+                        "REVIEW"
+                    ],
+                    "example": "DENY"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "expression": {
+                    "type": "string",
+                    "maxLength": 5000,
+                    "minLength": 1
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
+                },
+                "scopes": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                        "$ref": "#/definitions/Scope"
+                    }
+                }
+            }
+        },
         "ErrorResponse": {
             "type": "object",
             "required": [
@@ -2414,6 +2692,312 @@ const docTemplate = `{
                 "title": {
                     "type": "string",
                     "example": "Bad Request"
+                }
+            }
+        },
+        "HashChainVerificationResult": {
+            "type": "object",
+            "properties": {
+                "firstInvalidId": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "isValid": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "message": {
+                    "type": "string",
+                    "example": "hash chain intact"
+                },
+                "totalChecked": {
+                    "type": "integer",
+                    "example": 1000
+                }
+            }
+        },
+        "Limit": {
+            "description": "A transaction spending limit enforced during validation. Limits accumulate usage across a configurable period (DAILY/WEEKLY/MONTHLY/CUSTOM/PER_TRANSACTION) and block or flag transactions that would exceed the configured MaxAmount for the matched currency and scope.",
+            "type": "object",
+            "properties": {
+                "activeTimeEnd": {
+                    "description": "End of the daily time window when the limit is active (HH:MM), null means 24/7",
+                    "type": "string",
+                    "example": "17:00"
+                },
+                "activeTimeStart": {
+                    "description": "Start of the daily time window when the limit is active (HH:MM), null means 24/7",
+                    "type": "string",
+                    "example": "09:00"
+                },
+                "createdAt": {
+                    "description": "Timestamp when the limit was created\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "currency": {
+                    "description": "ISO 4217 currency code this limit applies to\nexample: USD",
+                    "type": "string",
+                    "example": "USD"
+                },
+                "customEndDate": {
+                    "description": "End of custom period (only for CUSTOM limitType)\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-12-31T23:59:59Z"
+                },
+                "customStartDate": {
+                    "description": "Start of custom period (only for CUSTOM limitType)\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "description": "Timestamp when the limit was soft deleted, null if not deleted\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "description": {
+                    "description": "Optional description of the limit's purpose\nexample: Caps daily USD outflows for retail accounts",
+                    "type": "string",
+                    "example": "Caps daily USD outflows for retail accounts"
+                },
+                "limitId": {
+                    "description": "Unique identifier for the limit\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "limitType": {
+                    "description": "Period type for usage accumulation\nenums: DAILY,WEEKLY,MONTHLY,CUSTOM,PER_TRANSACTION",
+                    "type": "string",
+                    "enum": [
+                        "DAILY",
+                        "WEEKLY",
+                        "MONTHLY",
+                        "CUSTOM",
+                        "PER_TRANSACTION"
+                    ],
+                    "example": "DAILY"
+                },
+                "maxAmount": {
+                    "description": "Maximum amount allowed within the period",
+                    "type": "string",
+                    "example": "1000.00"
+                },
+                "name": {
+                    "description": "Human-readable name of the limit\nexample: Daily USD spending cap\nmaxLength: 255",
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "Daily USD spending cap"
+                },
+                "resetAt": {
+                    "description": "Next reset timestamp, null for PER_TRANSACTION limits\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-02T00:00:00Z"
+                },
+                "scopes": {
+                    "description": "Scopes that restrict which transactions this limit applies to",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Scope"
+                    }
+                },
+                "status": {
+                    "description": "Current lifecycle status of the limit\nenums: DRAFT,ACTIVE,INACTIVE,DELETED",
+                    "type": "string",
+                    "enum": [
+                        "DRAFT",
+                        "ACTIVE",
+                        "INACTIVE",
+                        "DELETED"
+                    ],
+                    "example": "ACTIVE"
+                },
+                "updatedAt": {
+                    "description": "Timestamp when the limit was last updated\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "LimitUsageDetail": {
+            "type": "object",
+            "properties": {
+                "attemptedAmount": {
+                    "description": "AttemptedAmount is the transaction amount being validated against this limit.\nMatches the amount from the validation request.",
+                    "type": "string",
+                    "example": "100.00"
+                },
+                "currentUsage": {
+                    "description": "CurrentUsage represents the PROJECTED usage after applying the transaction amount,\nnot the actual persisted counter value. This is calculated as:\n(counter.CurrentUsage + input.Amount) for DAILY/WEEKLY/MONTHLY/CUSTOM limits, or 0 for PER_TRANSACTION.\nWhen Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows\nwhat the usage would have been if the transaction were allowed.",
+                    "type": "string",
+                    "example": "500.00"
+                },
+                "exceeded": {
+                    "type": "boolean"
+                },
+                "limitAmount": {
+                    "type": "string",
+                    "example": "1000.00"
+                },
+                "limitId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "period": {
+                    "description": "Period indicates the type of limit (DAILY, WEEKLY, MONTHLY, CUSTOM, PER_TRANSACTION).",
+                    "type": "string",
+                    "enum": [
+                        "DAILY",
+                        "MONTHLY",
+                        "PER_TRANSACTION",
+                        "WEEKLY",
+                        "CUSTOM"
+                    ],
+                    "example": "DAILY"
+                },
+                "scope": {
+                    "description": "Scope is a human-readable string representation of the limit's scope\n(e.g., \"account:uuid\" or \"segment:uuid\" or \"global\").",
+                    "type": "string",
+                    "example": "account:00000000-0000-0000-0000-000000000000"
+                },
+                "skipReason": {
+                    "description": "SkipReason explains why the limit was skipped (only set when Skipped=true).\nValues: \"outside_time_window\" (outside active hours), \"outside_custom_period\" (outside custom date range).",
+                    "type": "string",
+                    "example": "outside_time_window"
+                },
+                "skipped": {
+                    "description": "Skipped indicates whether this limit was skipped during evaluation (not enforced).\nWhen true, the counter was NOT incremented and Exceeded is always false.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "ListAuditEventsResponse": {
+            "type": "object",
+            "properties": {
+                "auditEvents": {
+                    "type": "array",
+                    "maxItems": 1000,
+                    "items": {
+                        "$ref": "#/definitions/AuditEvent"
+                    }
+                },
+                "hasMore": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "nextCursor": {
+                    "type": "string",
+                    "example": "eyJpZCI6IjAxOTI4In0="
+                }
+            }
+        },
+        "ListLimitsResponse": {
+            "type": "object",
+            "properties": {
+                "hasMore": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "limits": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Limit"
+                    }
+                },
+                "nextCursor": {
+                    "type": "string",
+                    "example": "eyJpZCI6IjAxOTI4In0="
+                }
+            }
+        },
+        "ListRulesResponse": {
+            "type": "object",
+            "properties": {
+                "hasMore": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "nextCursor": {
+                    "type": "string",
+                    "example": "eyJpZCI6IjAxOTI4In0="
+                },
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Rule"
+                    }
+                }
+            }
+        },
+        "ListTransactionValidationsResponse": {
+            "type": "object",
+            "properties": {
+                "hasMore": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "nextCursor": {
+                    "type": "string",
+                    "example": "eyJpZCI6IjAxOTI4In0="
+                },
+                "transactionValidations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ValidationSummary"
+                    }
+                }
+            }
+        },
+        "MerchantContext": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "description": "e.g., ISO 18245 MCC code",
+                    "type": "string",
+                    "example": "5411"
+                },
+                "country": {
+                    "description": "ISO 3166-1 alpha-2 code",
+                    "type": "string",
+                    "example": "US"
+                },
+                "merchantId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Acme Store"
+                }
+            }
+        },
+        "PortfolioContext": {
+            "type": "object",
+            "properties": {
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "type": "string",
+                    "example": "growth"
+                },
+                "portfolioId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 }
             }
         },
@@ -2475,213 +3059,383 @@ const docTemplate = `{
                 }
             }
         },
-        "VersionResponse": {
+        "ReservationActionResponse": {
             "type": "object",
             "properties": {
-                "buildTime": {
+                "reservationId": {
                     "type": "string",
-                    "example": "2025-01-01T00:00:00Z"
+                    "format": "uuid"
                 },
-                "commit": {
+                "status": {
                     "type": "string",
-                    "example": "a1b2c3d"
-                },
-                "dirty": {
+                    "enum": [
+                        "CONFIRMED",
+                        "RELEASED"
+                    ],
+                    "example": "CONFIRMED"
+                }
+            }
+        },
+        "ReserveRequest": {
+            "type": "object",
+            "required": [
+                "transactionId"
+            ],
+            "properties": {
+                "longLived": {
+                    "description": "LongLived selects the reservation lifetime. false (the default, a direct\ntransaction) gets the short reaper-swept TTL; true (a PENDING transaction)\ngets the long-lived TTL so the reservation does not expire under a\nstill-valid pending that has no existing sweep (R18). It is a sibling wire\nfield, NOT part of the embedded ValidationRequest, so the relaxed reserve\nvalidation never sees it.",
                     "type": "boolean",
                     "example": false
                 },
-                "requestDate": {
-                    "type": "string",
-                    "example": "2025-01-01T00:00:00Z"
-                },
-                "version": {
-                    "type": "string",
-                    "example": "1.0.0"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AccountContext": {
-            "type": "object",
-            "properties": {
-                "accountId": {
+                "transactionId": {
+                    "description": "TransactionID is the ledger transaction correlation id. It is the\nidempotency grain for retried reserves and the handle the ledger later\nconfirms or releases. Not a foreign key — the ledger transaction lives in a\ndifferent service.",
                     "type": "string",
                     "format": "uuid"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "status": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Actor": {
+        "ReserveResponse": {
             "type": "object",
             "properties": {
-                "actorType": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ActorType"
+                "denied": {
+                    "type": "boolean",
+                    "example": false
                 },
-                "id": {
-                    "type": "string"
+                "reservationIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
                 },
-                "ipAddress": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "role": {
-                    "type": "string"
+                "transactionId": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ActorType": {
-            "type": "string",
-            "enum": [
-                "user",
-                "api_key",
-                "system"
-            ],
-            "x-enum-varnames": [
-                "ActorTypeUser",
-                "ActorTypeAPIKey",
-                "ActorTypeSystem"
-            ]
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEvent": {
+        "Rule": {
+            "description": "A validation rule containing a CEL expression evaluated against transaction context. Rules are created in DRAFT status, activated to apply enforcement, and produce a Decision (ALLOW/DENY/REVIEW) when matched.",
             "type": "object",
             "properties": {
                 "action": {
-                    "type": "string"
+                    "description": "Decision produced when this rule matches\nenums: ALLOW,DENY,REVIEW",
+                    "type": "string",
+                    "enum": [
+                        "ALLOW",
+                        "DENY",
+                        "REVIEW"
+                    ],
+                    "example": "DENY"
                 },
-                "actor": {
-                    "description": "Actor fields",
+                "activatedAt": {
+                    "description": "Timestamp when the rule was last activated, null if never activated\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "createdAt": {
+                    "description": "Timestamp when the rule was created\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "deactivatedAt": {
+                    "description": "Timestamp when the rule was last deactivated, null if currently active or never deactivated\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "description": "Timestamp when the rule was soft deleted, null if not deleted\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "description": {
+                    "description": "Optional description of the rule's purpose\nexample: Denies transactions over $1000 from checking accounts",
+                    "type": "string",
+                    "example": "Denies transactions over $1000 from checking accounts"
+                },
+                "expression": {
+                    "description": "CEL expression evaluated against transaction context\nexample: transaction.amount \u003e 1000 \u0026\u0026 account.type == 'checking'",
+                    "type": "string",
+                    "example": "transaction.amount \u003e 1000 \u0026\u0026 account.type == 'checking'"
+                },
+                "name": {
+                    "description": "Human-readable name of the rule\nexample: Block high-value checking transactions\nmaxLength: 255",
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "Block high-value checking transactions"
+                },
+                "ruleId": {
+                    "description": "Unique identifier for the rule\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "scopes": {
+                    "description": "Scopes that restrict which transactions this rule applies to",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Scope"
+                    }
+                },
+                "status": {
+                    "description": "Current lifecycle status of the rule\nenums: DRAFT,ACTIVE,INACTIVE,DELETED",
+                    "type": "string",
+                    "enum": [
+                        "DRAFT",
+                        "ACTIVE",
+                        "INACTIVE",
+                        "DELETED"
+                    ],
+                    "example": "ACTIVE"
+                },
+                "updatedAt": {
+                    "description": "Timestamp when the rule was last updated\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "Scope": {
+            "description": "Hierarchical scope that constrains which transactions a rule or limit applies to. At least one field must be set. When multiple fields are set, all must match (AND semantics). Nil fields match any value.",
+            "type": "object",
+            "properties": {
+                "accountId": {
+                    "description": "Account the scope is restricted to (optional)\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "merchantId": {
+                    "description": "Merchant the scope is restricted to (optional)\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "portfolioId": {
+                    "description": "Portfolio the scope is restricted to (optional)\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "segmentId": {
+                    "description": "Segment the scope is restricted to (optional)\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "subType": {
+                    "description": "SubType is normalized to lowercase canonical form; matching is case-insensitive.\nexample: purchase\nmaxLength: 50",
+                    "type": "string",
+                    "maxLength": 50,
+                    "x-normalization": "lowercase",
+                    "example": "purchase"
+                },
+                "transactionType": {
+                    "description": "Transaction type the scope is restricted to (optional)\nexample: CARD",
+                    "type": "string",
+                    "enum": [
+                        "CARD",
+                        "WIRE",
+                        "PIX",
+                        "CRYPTO"
+                    ],
+                    "example": "CARD"
+                }
+            }
+        },
+        "SegmentContext": {
+            "type": "object",
+            "properties": {
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "type": "string",
+                    "example": "retail"
+                },
+                "segmentId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                }
+            }
+        },
+        "TransactionActionResponse": {
+            "type": "object",
+            "properties": {
+                "flipped": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "CONFIRMED",
+                        "RELEASED"
+                    ],
+                    "example": "CONFIRMED"
+                },
+                "transactionId": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "TransactionValidation": {
+            "description": "Persisted record of a completed transaction validation, combining the original request context with the evaluation outcome. Used for compliance auditing, idempotency replay, and historical querying. Embeds EvaluationResult fields (decision, reason, matchedRuleIds, etc.) directly.",
+            "type": "object",
+            "properties": {
+                "account": {
+                    "description": "Account context from the validation request",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Actor"
+                            "$ref": "#/definitions/AccountContext"
                         }
                     ]
                 },
-                "context": {
-                    "description": "Context (JSONB)\nNote: accountId, segmentId, portfolioId are in context.request.account (not first-level fields)\nFor validations: { request: {...}, response: {reason, processingTimeMs, matchedRuleIds, ...} }\nFor CRUD: { before: {...}, after: {...}, reason: \"...\" }",
-                    "type": "object",
-                    "additionalProperties": {}
+                "amount": {
+                    "description": "Transaction amount that was validated",
+                    "type": "string",
+                    "example": "100.00"
                 },
                 "createdAt": {
-                    "description": "When event occurred",
+                    "description": "Timestamp when this validation record was created\nformat: date-time",
                     "type": "string",
-                    "format": "date-time"
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
                 },
-                "eventId": {
-                    "description": "Core fields",
+                "currency": {
+                    "description": "ISO 4217 currency code of the transaction\nexample: USD",
                     "type": "string",
-                    "format": "uuid"
+                    "example": "USD"
                 },
-                "eventType": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEventType"
+                "decision": {
+                    "description": "Final decision produced by rule evaluation\nenums: ALLOW,DENY,REVIEW",
+                    "type": "string",
+                    "enum": [
+                        "ALLOW",
+                        "DENY",
+                        "REVIEW"
+                    ],
+                    "example": "ALLOW"
                 },
-                "hash": {
-                    "type": "string"
+                "evaluatedRuleIds": {
+                    "description": "IDs of all rules evaluated during this request",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "limitUsageDetails": {
+                    "description": "Per-limit usage details captured at validation time",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/LimitUsageDetail"
+                    }
+                },
+                "matchedRuleIds": {
+                    "description": "IDs of rules that matched the transaction scope and CEL expression",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "merchant": {
+                    "description": "Merchant context from the validation request (optional)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/MerchantContext"
+                        }
+                    ]
                 },
                 "metadata": {
-                    "description": "Metadata (JSONB) - additional info like ticketId, correlationId",
+                    "description": "Additional metadata from the validation request",
                     "type": "object",
                     "additionalProperties": {}
                 },
-                "previousHash": {
-                    "type": "string"
+                "portfolio": {
+                    "description": "Portfolio context from the validation request (optional)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/PortfolioContext"
+                        }
+                    ]
                 },
-                "resourceId": {
-                    "description": "Resource fields",
-                    "type": "string"
+                "processingTimeMs": {
+                    "description": "Time taken to evaluate rules and limits in milliseconds\nexample: 12.5",
+                    "type": "number",
+                    "example": 12.5
                 },
-                "resourceType": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ResourceType"
+                "reason": {
+                    "description": "Human-readable explanation of the decision\nexample: Transaction denied by rule 'Block high-value checking transactions'",
+                    "type": "string",
+                    "example": "Transaction denied by rule 'Block high-value checking transactions'"
                 },
-                "result": {
-                    "description": "Unified: ALLOW/DENY/REVIEW for validations, SUCCESS/FAILED for CRUD",
-                    "type": "string"
+                "requestId": {
+                    "description": "Idempotency key from the originating validation request\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "segment": {
+                    "description": "Segment context from the validation request (optional)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/SegmentContext"
+                        }
+                    ]
+                },
+                "subType": {
+                    "description": "SubType is stored in its lowercase canonical form; matching is case-insensitive.\nexample: purchase\nmaxLength: 50",
+                    "type": "string",
+                    "maxLength": 50,
+                    "x-normalization": "lowercase",
+                    "example": "purchase"
+                },
+                "totalRulesLoaded": {
+                    "description": "Total number of active rules loaded for evaluation before any truncation\nexample: 42",
+                    "type": "integer",
+                    "example": 42
+                },
+                "transactionTimestamp": {
+                    "description": "Timestamp of the original transaction\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "transactionType": {
+                    "description": "Type of the transaction that was validated\nexample: CARD",
+                    "type": "string",
+                    "enum": [
+                        "CARD",
+                        "WIRE",
+                        "PIX",
+                        "CRYPTO"
+                    ],
+                    "example": "CARD"
+                },
+                "truncated": {
+                    "description": "True when active rules exceeded MAX_RULES_PER_REQUEST and were truncated\nexample: false",
+                    "type": "boolean",
+                    "example": false
+                },
+                "validationId": {
+                    "description": "Unique identifier for this validation record\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEventType": {
-            "type": "string",
-            "enum": [
-                "TRANSACTION_VALIDATED",
-                "RULE_CREATED",
-                "RULE_UPDATED",
-                "RULE_ACTIVATED",
-                "RULE_DEACTIVATED",
-                "RULE_DRAFTED",
-                "RULE_DELETED",
-                "LIMIT_CREATED",
-                "LIMIT_UPDATED",
-                "LIMIT_DELETED",
-                "LIMIT_ACTIVATED",
-                "LIMIT_DEACTIVATED",
-                "LIMIT_DRAFTED",
-                "RESERVATION_RESERVED",
-                "RESERVATION_CONFIRMED",
-                "RESERVATION_RELEASED",
-                "RESERVATION_EXPIRED",
-                "RESERVATION_SKIPPED"
-            ],
-            "x-enum-varnames": [
-                "AuditEventTransactionValidated",
-                "AuditEventRuleCreated",
-                "AuditEventRuleUpdated",
-                "AuditEventRuleActivated",
-                "AuditEventRuleDeactivated",
-                "AuditEventRuleDrafted",
-                "AuditEventRuleDeleted",
-                "AuditEventLimitCreated",
-                "AuditEventLimitUpdated",
-                "AuditEventLimitDeleted",
-                "AuditEventLimitActivated",
-                "AuditEventLimitDeactivated",
-                "AuditEventLimitDrafted",
-                "AuditEventReservationReserved",
-                "AuditEventReservationConfirmed",
-                "AuditEventReservationReleased",
-                "AuditEventReservationExpired",
-                "AuditEventReservationSkipped"
-            ]
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision": {
-            "type": "string",
-            "enum": [
-                "ALLOW",
-                "DENY",
-                "REVIEW"
-            ],
-            "x-enum-varnames": [
-                "DecisionAllow",
-                "DecisionDeny",
-                "DecisionReview"
-            ]
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.HashChainVerificationResult": {
-            "type": "object",
-            "properties": {
-                "firstInvalidId": {
-                    "type": "integer"
-                },
-                "isValid": {
-                    "type": "boolean"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "totalChecked": {
-                    "type": "integer"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit": {
+        "UpdateLimitInput": {
             "type": "object",
             "properties": {
                 "activeTimeEnd": {
@@ -2692,406 +3446,75 @@ const docTemplate = `{
                     "type": "string",
                     "example": "09:00"
                 },
-                "createdAt": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "currency": {
-                    "type": "string"
-                },
                 "customEndDate": {
                     "type": "string",
-                    "format": "date-time"
+                    "format": "date-time",
+                    "example": "2026-11-29T00:00:00Z"
                 },
                 "customStartDate": {
                     "type": "string",
-                    "format": "date-time"
-                },
-                "deletedAt": {
-                    "type": "string",
-                    "format": "date-time"
+                    "format": "date-time",
+                    "example": "2026-11-27T00:00:00Z"
                 },
                 "description": {
-                    "type": "string"
-                },
-                "limitId": {
                     "type": "string",
-                    "format": "uuid"
-                },
-                "limitType": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitType"
+                    "maxLength": 1000
                 },
                 "maxAmount": {
                     "type": "string",
                     "example": "1000.00"
                 },
                 "name": {
-                    "type": "string"
-                },
-                "resetAt": {
                     "type": "string",
-                    "format": "date-time"
+                    "maxLength": 255,
+                    "minLength": 1
                 },
                 "scopes": {
                     "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
                     "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope"
+                        "$ref": "#/definitions/Scope"
                     }
-                },
-                "status": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitStatus"
-                },
-                "updatedAt": {
-                    "type": "string",
-                    "format": "date-time"
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitStatus": {
-            "type": "string",
-            "enum": [
-                "DRAFT",
-                "ACTIVE",
-                "INACTIVE",
-                "DELETED"
-            ],
-            "x-enum-varnames": [
-                "LimitStatusDraft",
-                "LimitStatusActive",
-                "LimitStatusInactive",
-                "LimitStatusDeleted"
-            ]
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitType": {
-            "type": "string",
-            "enum": [
-                "DAILY",
-                "MONTHLY",
-                "PER_TRANSACTION",
-                "WEEKLY",
-                "CUSTOM"
-            ],
-            "x-enum-varnames": [
-                "LimitTypeDaily",
-                "LimitTypeMonthly",
-                "LimitTypePerTransaction",
-                "LimitTypeWeekly",
-                "LimitTypeCustom"
-            ]
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitUsageDetail": {
-            "type": "object",
-            "properties": {
-                "attemptedAmount": {
-                    "description": "AttemptedAmount is the transaction amount being validated against this limit.\nMatches the amount from the validation request.",
-                    "type": "string",
-                    "example": "100.00"
-                },
-                "currentUsage": {
-                    "description": "CurrentUsage represents the PROJECTED usage after applying the transaction amount,\nnot the actual persisted counter value. This is calculated as:\n(counter.CurrentUsage + input.Amount) for DAILY/WEEKLY/MONTHLY/CUSTOM limits, or 0 for PER_TRANSACTION.\nWhen Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows\nwhat the usage would have been if the transaction were allowed.",
-                    "type": "string",
-                    "example": "500.00"
-                },
-                "exceeded": {
-                    "type": "boolean"
-                },
-                "limitAmount": {
-                    "type": "string",
-                    "example": "1000.00"
-                },
-                "limitId": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "period": {
-                    "description": "Period indicates the type of limit (DAILY, WEEKLY, MONTHLY, CUSTOM, PER_TRANSACTION).",
-                    "type": "string"
-                },
-                "scope": {
-                    "description": "Scope is a human-readable string representation of the limit's scope\n(e.g., \"account:uuid\" or \"segment:uuid\" or \"global\").",
-                    "type": "string"
-                },
-                "skipReason": {
-                    "description": "SkipReason explains why the limit was skipped (only set when Skipped=true).\nValues: \"outside_time_window\" (outside active hours), \"outside_custom_period\" (outside custom date range).",
-                    "type": "string",
-                    "example": "outside_time_window"
-                },
-                "skipped": {
-                    "description": "Skipped indicates whether this limit was skipped during evaluation (not enforced).\nWhen true, the counter was NOT incremented and Exceeded is always false.",
-                    "type": "boolean"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.MerchantContext": {
-            "type": "object",
-            "properties": {
-                "category": {
-                    "description": "e.g., ISO 18245 MCC code",
-                    "type": "string"
-                },
-                "country": {
-                    "description": "ISO 3166-1 alpha-2 code",
-                    "type": "string"
-                },
-                "merchantId": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.PortfolioContext": {
-            "type": "object",
-            "properties": {
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "name": {
-                    "type": "string"
-                },
-                "portfolioId": {
-                    "type": "string",
-                    "format": "uuid"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ResourceType": {
-            "type": "string",
-            "enum": [
-                "transaction",
-                "rule",
-                "limit",
-                "reservation"
-            ],
-            "x-enum-varnames": [
-                "ResourceTypeTransaction",
-                "ResourceTypeRule",
-                "ResourceTypeLimit",
-                "ResourceTypeReservation"
-            ]
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule": {
+        "UpdateRuleInput": {
             "type": "object",
             "properties": {
                 "action": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision"
-                },
-                "activatedAt": {
                     "type": "string",
-                    "format": "date-time"
-                },
-                "createdAt": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "deactivatedAt": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "deletedAt": {
-                    "type": "string",
-                    "format": "date-time"
+                    "enum": [
+                        "ALLOW",
+                        "DENY",
+                        "REVIEW"
+                    ],
+                    "example": "DENY"
                 },
                 "description": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 1000
                 },
                 "expression": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 5000,
+                    "minLength": 1
                 },
                 "name": {
-                    "type": "string"
-                },
-                "ruleId": {
                     "type": "string",
-                    "format": "uuid"
+                    "maxLength": 255,
+                    "minLength": 1
                 },
                 "scopes": {
                     "type": "array",
+                    "maxItems": 100,
                     "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope"
+                        "$ref": "#/definitions/Scope"
                     }
-                },
-                "status": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.RuleStatus"
-                },
-                "updatedAt": {
-                    "type": "string",
-                    "format": "date-time"
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.RuleStatus": {
-            "type": "string",
-            "enum": [
-                "DRAFT",
-                "ACTIVE",
-                "INACTIVE",
-                "DELETED"
-            ],
-            "x-enum-varnames": [
-                "RuleStatusDraft",
-                "RuleStatusActive",
-                "RuleStatusInactive",
-                "RuleStatusDeleted"
-            ]
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope": {
-            "type": "object",
-            "properties": {
-                "accountId": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "merchantId": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "portfolioId": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "segmentId": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "subType": {
-                    "description": "SubType is normalized to lowercase canonical form; matching is case-insensitive.",
-                    "type": "string",
-                    "maxLength": 50,
-                    "x-normalization": "lowercase"
-                },
-                "transactionType": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.SegmentContext": {
-            "type": "object",
-            "properties": {
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "name": {
-                    "type": "string"
-                },
-                "segmentId": {
-                    "type": "string",
-                    "format": "uuid"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType": {
-            "type": "string",
-            "enum": [
-                "CARD",
-                "WIRE",
-                "PIX",
-                "CRYPTO"
-            ],
-            "x-enum-varnames": [
-                "TransactionTypeCard",
-                "TransactionTypeWire",
-                "TransactionTypePix",
-                "TransactionTypeCrypto"
-            ]
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionValidation": {
-            "type": "object",
-            "properties": {
-                "account": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AccountContext"
-                },
-                "amount": {
-                    "type": "string",
-                    "example": "100.00"
-                },
-                "createdAt": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "currency": {
-                    "type": "string"
-                },
-                "decision": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision"
-                },
-                "evaluatedRuleIds": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "format": "uuid"
-                    }
-                },
-                "limitUsageDetails": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitUsageDetail"
-                    }
-                },
-                "matchedRuleIds": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "format": "uuid"
-                    }
-                },
-                "merchant": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.MerchantContext"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "portfolio": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.PortfolioContext"
-                },
-                "processingTimeMs": {
-                    "type": "number"
-                },
-                "reason": {
-                    "type": "string"
-                },
-                "requestId": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "segment": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.SegmentContext"
-                },
-                "subType": {
-                    "description": "SubType is stored in its lowercase canonical form; matching is case-insensitive.",
-                    "type": "string",
-                    "maxLength": 50,
-                    "x-normalization": "lowercase"
-                },
-                "totalRulesLoaded": {
-                    "type": "integer"
-                },
-                "transactionTimestamp": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "transactionType": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType"
-                },
-                "truncated": {
-                    "type": "boolean"
-                },
-                "validationId": {
-                    "type": "string",
-                    "format": "uuid"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.UsageSnapshot": {
+        "UsageSnapshot": {
             "type": "object",
             "properties": {
                 "currentUsage": {
@@ -3126,7 +3549,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationRequest": {
+        "ValidationRequest": {
             "type": "object",
             "required": [
                 "account",
@@ -3138,372 +3561,136 @@ const docTemplate = `{
             ],
             "properties": {
                 "account": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AccountContext"
+                    "$ref": "#/definitions/AccountContext"
                 },
                 "amount": {
                     "type": "string",
                     "example": "100.00"
                 },
                 "currency": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "USD"
                 },
                 "merchant": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.MerchantContext"
+                    "$ref": "#/definitions/MerchantContext"
                 },
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "portfolio": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.PortfolioContext"
+                    "$ref": "#/definitions/PortfolioContext"
                 },
                 "requestId": {
                     "type": "string",
-                    "format": "uuid"
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "segment": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.SegmentContext"
+                    "$ref": "#/definitions/SegmentContext"
                 },
                 "subType": {
                     "description": "SubType is normalized to lowercase canonical form; matching is case-insensitive.",
                     "type": "string",
                     "maxLength": 50,
-                    "x-normalization": "lowercase"
+                    "x-normalization": "lowercase",
+                    "example": "purchase"
                 },
                 "transactionTimestamp": {
                     "type": "string",
-                    "format": "date-time"
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
                 },
                 "transactionType": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType"
+                    "type": "string",
+                    "enum": [
+                        "CARD",
+                        "WIRE",
+                        "PIX",
+                        "CRYPTO"
+                    ],
+                    "example": "CARD"
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationResponse": {
+        "ValidationResponse": {
+            "description": "Response returned after evaluating a transaction against the active rules and limits. Contains the evaluation decision, matched rule identifiers, per-limit usage details, and timing metadata. EvaluationResult fields (decision, reason, matchedRuleIds, evaluatedRuleIds, totalRulesLoaded, truncated) are promoted to the top level via Go embedding.",
             "type": "object",
             "properties": {
-                "evaluatedAt": {
+                "decision": {
+                    "description": "Final decision produced by rule evaluation\nenums: ALLOW,DENY,REVIEW",
                     "type": "string",
-                    "format": "date-time"
+                    "enum": [
+                        "ALLOW",
+                        "DENY",
+                        "REVIEW"
+                    ],
+                    "example": "ALLOW"
                 },
-                "limitUsageDetails": {
+                "evaluatedAt": {
+                    "description": "Timestamp when the evaluation was performed\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "evaluatedRuleIds": {
+                    "description": "IDs of all rules evaluated during this request",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitUsageDetail"
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "limitUsageDetails": {
+                    "description": "Per-limit usage details for every limit checked during this validation",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/LimitUsageDetail"
+                    }
+                },
+                "matchedRuleIds": {
+                    "description": "IDs of rules that matched the transaction scope and CEL expression",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
                     }
                 },
                 "processingTimeMs": {
-                    "type": "number"
+                    "description": "Time taken to evaluate rules and limits in milliseconds\nexample: 12.5",
+                    "type": "number",
+                    "example": 12.5
+                },
+                "reason": {
+                    "description": "Human-readable explanation of the decision\nexample: Transaction denied by rule 'Block high-value checking transactions'",
+                    "type": "string",
+                    "example": "Transaction denied by rule 'Block high-value checking transactions'"
                 },
                 "requestId": {
+                    "description": "Idempotency key echoed from the request\nformat: uuid",
                     "type": "string",
-                    "format": "uuid"
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "totalRulesLoaded": {
+                    "description": "Total number of active rules loaded for evaluation before any truncation\nexample: 42",
+                    "type": "integer",
+                    "example": 42
+                },
+                "truncated": {
+                    "description": "True when active rules exceeded MAX_RULES_PER_REQUEST and were truncated\nexample: false",
+                    "type": "boolean",
+                    "example": false
                 },
                 "validationId": {
+                    "description": "Unique identifier for this validation result\nformat: uuid",
                     "type": "string",
-                    "format": "uuid"
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 }
             }
         },
-        "internal_adapters_http_in.CreateLimitInput": {
-            "type": "object",
-            "required": [
-                "currency",
-                "limitType",
-                "maxAmount",
-                "name",
-                "scopes"
-            ],
-            "properties": {
-                "activeTimeEnd": {
-                    "type": "string",
-                    "example": "17:00"
-                },
-                "activeTimeStart": {
-                    "type": "string",
-                    "example": "09:00"
-                },
-                "currency": {
-                    "type": "string",
-                    "maxLength": 3,
-                    "minLength": 3,
-                    "example": "USD"
-                },
-                "customEndDate": {
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2026-11-29T00:00:00Z"
-                },
-                "customStartDate": {
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2026-11-27T00:00:00Z"
-                },
-                "description": {
-                    "type": "string",
-                    "maxLength": 1000
-                },
-                "limitType": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitType"
-                },
-                "maxAmount": {
-                    "type": "string",
-                    "example": "1000.00"
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "minLength": 1
-                },
-                "scopes": {
-                    "type": "array",
-                    "maxItems": 100,
-                    "minItems": 1,
-                    "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope"
-                    }
-                }
-            }
-        },
-        "internal_adapters_http_in.CreateRuleInput": {
-            "type": "object",
-            "required": [
-                "action",
-                "expression",
-                "name"
-            ],
-            "properties": {
-                "action": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision"
-                },
-                "description": {
-                    "type": "string",
-                    "maxLength": 1000
-                },
-                "expression": {
-                    "type": "string",
-                    "maxLength": 5000,
-                    "minLength": 1
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "minLength": 1
-                },
-                "scopes": {
-                    "type": "array",
-                    "maxItems": 100,
-                    "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope"
-                    }
-                }
-            }
-        },
-        "internal_adapters_http_in.ListAuditEventsResponse": {
-            "type": "object",
-            "properties": {
-                "auditEvents": {
-                    "type": "array",
-                    "maxItems": 1000,
-                    "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEvent"
-                    }
-                },
-                "hasMore": {
-                    "type": "boolean"
-                },
-                "nextCursor": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_adapters_http_in.ListLimitsResponse": {
-            "type": "object",
-            "properties": {
-                "hasMore": {
-                    "type": "boolean"
-                },
-                "limits": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit"
-                    }
-                },
-                "nextCursor": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_adapters_http_in.ListRulesResponse": {
-            "type": "object",
-            "properties": {
-                "hasMore": {
-                    "type": "boolean"
-                },
-                "nextCursor": {
-                    "type": "string"
-                },
-                "rules": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule"
-                    }
-                }
-            }
-        },
-        "internal_adapters_http_in.ListTransactionValidationsResponse": {
-            "type": "object",
-            "properties": {
-                "hasMore": {
-                    "type": "boolean"
-                },
-                "nextCursor": {
-                    "type": "string"
-                },
-                "transactionValidations": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_adapters_http_in.ValidationSummary"
-                    }
-                }
-            }
-        },
-        "internal_adapters_http_in.ReservationActionResponse": {
-            "type": "object",
-            "properties": {
-                "reservationId": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_adapters_http_in.ReserveRequest": {
-            "type": "object",
-            "required": [
-                "transactionId"
-            ],
-            "properties": {
-                "longLived": {
-                    "description": "LongLived selects the reservation lifetime. false (the default, a direct\ntransaction) gets the short reaper-swept TTL; true (a PENDING transaction)\ngets the long-lived TTL so the reservation does not expire under a\nstill-valid pending that has no existing sweep (R18). It is a sibling wire\nfield, NOT part of the embedded ValidationRequest, so the relaxed reserve\nvalidation never sees it.",
-                    "type": "boolean"
-                },
-                "transactionId": {
-                    "description": "TransactionID is the ledger transaction correlation id. It is the\nidempotency grain for retried reserves and the handle the ledger later\nconfirms or releases. Not a foreign key — the ledger transaction lives in a\ndifferent service.",
-                    "type": "string",
-                    "format": "uuid"
-                }
-            }
-        },
-        "internal_adapters_http_in.ReserveResponse": {
-            "type": "object",
-            "properties": {
-                "denied": {
-                    "type": "boolean"
-                },
-                "reservationIds": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "transactionId": {
-                    "type": "string",
-                    "format": "uuid"
-                }
-            }
-        },
-        "internal_adapters_http_in.TransactionActionResponse": {
-            "type": "object",
-            "properties": {
-                "flipped": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "transactionId": {
-                    "type": "string",
-                    "format": "uuid"
-                }
-            }
-        },
-        "internal_adapters_http_in.UpdateLimitInput": {
-            "type": "object",
-            "properties": {
-                "activeTimeEnd": {
-                    "type": "string",
-                    "example": "17:00"
-                },
-                "activeTimeStart": {
-                    "type": "string",
-                    "example": "09:00"
-                },
-                "customEndDate": {
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2026-11-29T00:00:00Z"
-                },
-                "customStartDate": {
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2026-11-27T00:00:00Z"
-                },
-                "description": {
-                    "type": "string",
-                    "maxLength": 1000
-                },
-                "maxAmount": {
-                    "type": "string",
-                    "example": "1000.00"
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "minLength": 1
-                },
-                "scopes": {
-                    "type": "array",
-                    "maxItems": 100,
-                    "minItems": 1,
-                    "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope"
-                    }
-                }
-            }
-        },
-        "internal_adapters_http_in.UpdateRuleInput": {
-            "type": "object",
-            "properties": {
-                "action": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision"
-                },
-                "description": {
-                    "type": "string",
-                    "maxLength": 1000
-                },
-                "expression": {
-                    "type": "string",
-                    "maxLength": 5000,
-                    "minLength": 1
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "minLength": 1
-                },
-                "scopes": {
-                    "type": "array",
-                    "maxItems": 100,
-                    "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope"
-                    }
-                }
-            }
-        },
-        "internal_adapters_http_in.ValidationSummary": {
+        "ValidationSummary": {
             "type": "object",
             "properties": {
                 "accountId": {
@@ -3519,10 +3706,17 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "currency": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "USD"
                 },
                 "decision": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision"
+                    "type": "string",
+                    "enum": [
+                        "ALLOW",
+                        "DENY",
+                        "REVIEW"
+                    ],
+                    "example": "ALLOW"
                 },
                 "exceededLimitIds": {
                     "type": "array",
@@ -3543,21 +3737,55 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "processingTimeMs": {
-                    "type": "number"
+                    "type": "number",
+                    "example": 12.5
                 },
                 "reason": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "All rules passed"
                 },
                 "segmentId": {
                     "type": "string",
                     "format": "uuid"
                 },
                 "transactionType": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType"
+                    "type": "string",
+                    "enum": [
+                        "CARD",
+                        "WIRE",
+                        "PIX",
+                        "CRYPTO"
+                    ],
+                    "example": "CARD"
                 },
                 "validationId": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "VersionResponse": {
+            "type": "object",
+            "properties": {
+                "buildTime": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "commit": {
+                    "type": "string",
+                    "example": "a1b2c3d"
+                },
+                "dirty": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "requestDate": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "version": {
+                    "type": "string",
+                    "example": "1.0.0"
                 }
             }
         }

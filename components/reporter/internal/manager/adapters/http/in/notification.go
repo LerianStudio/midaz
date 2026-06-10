@@ -51,26 +51,43 @@ func NewNotificationHandler(service *services.UseCase) (*NotificationHandler, er
 	return &NotificationHandler{service: service}, nil
 }
 
-// notificationItem represents a single notification in the response.
-type notificationItem struct {
-	ID               string `json:"id"`
-	Name             string `json:"name"`
-	Description      string `json:"description,omitempty"`
-	Type             string `json:"type"`
-	DueDate          string `json:"dueDate"`
-	Frequency        string `json:"frequency"`
-	MonthsOfYear     []int  `json:"monthsOfYear,omitempty"`
-	Color            string `json:"color"`
-	Severity         string `json:"severity"`
-	DaysUntilDue     int    `json:"daysUntilDue"`
-	NotifyDaysBefore int    `json:"notifyDaysBefore"`
-}
+// NotificationItem represents a single notification in the response.
+//
+//	@Description	NotificationItem describes a deadline that has entered its notification window.
+type NotificationItem struct {
+	// ID is the unique identifier of the deadline.
+	ID string `json:"id" example:"00000000-0000-0000-0000-000000000001"`
+	// Name is the human-readable label of the deadline.
+	Name string `json:"name" example:"CADOC 4010"`
+	// Description is an optional longer description of the deadline.
+	Description string `json:"description,omitempty" example:"Monthly regulatory report"`
+	// Type categorises the deadline (e.g. "regulatory", "custom").
+	Type string `json:"type" example:"regulatory"`
+	// DueDate is the ISO-8601 timestamp when the deadline falls due.
+	DueDate string `json:"dueDate" example:"2026-07-31T00:00:00Z"`
+	// Frequency describes how often the deadline recurs (e.g. "monthly", "annual").
+	Frequency string `json:"frequency" example:"monthly"`
+	// MonthsOfYear lists the months (1-12) the deadline applies to, when frequency is not every month.
+	MonthsOfYear []int `json:"monthsOfYear,omitempty" example:"1,6,12"`
+	// Color is the hex colour code used in the UI for this deadline.
+	Color string `json:"color" example:"#ef4444"`
+	// Severity is the urgency level: "overdue", "warning", or "info".
+	Severity string `json:"severity" example:"warning"`
+	// DaysUntilDue is the number of days until (positive) or past (negative) the due date.
+	DaysUntilDue int `json:"daysUntilDue" example:"3"`
+	// NotifyDaysBefore is how many days ahead of the due date this notification window opens.
+	NotifyDaysBefore int `json:"notifyDaysBefore" example:"5"`
+} //	@name	NotificationItem
 
-// notificationResponse represents the JSON response from GET /v1/deadlines/notifications.
-type notificationResponse struct {
-	Items []notificationItem `json:"items"`
-	Total int                `json:"total"`
-}
+// NotificationResponse represents the JSON response from GET /v1/deadlines/notifications.
+//
+//	@Description	NotificationResponse wraps the list of active deadline notifications with a total count.
+type NotificationResponse struct {
+	// Items is the list of deadline notifications within their alert window, sorted by urgency.
+	Items []NotificationItem `json:"items"`
+	// Total is the number of notifications returned.
+	Total int `json:"total" example:"3"`
+} //	@name	NotificationResponse
 
 // GetNotifications returns active deadlines that are within their notification window,
 // sorted by urgency (overdue first, then warning, then info).
@@ -81,7 +98,7 @@ type notificationResponse struct {
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			limit	query		int	false	"Maximum number of notifications (1-100)"	default(10)
-//	@Success		200		{object}	notificationResponse
+//	@Success		200		{object}	NotificationResponse
 //	@Failure		400		{object}	pkg.HTTPError
 //	@Failure		401		{object}	pkg.HTTPError
 //	@Failure		403		{object}	pkg.HTTPError
@@ -125,15 +142,15 @@ func (nh *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		log.Any("total", len(items)),
 	)
 
-	return c.Status(fiber.StatusOK).JSON(notificationResponse{
+	return c.Status(fiber.StatusOK).JSON(NotificationResponse{
 		Items: items,
 		Total: len(items),
 	})
 }
 
 // filterAndBuildNotifications applies the notification window filter and builds response items.
-func filterAndBuildNotifications(deadlines []*deadline.Deadline, now time.Time) []notificationItem {
-	items := make([]notificationItem, 0, len(deadlines))
+func filterAndBuildNotifications(deadlines []*deadline.Deadline, now time.Time) []NotificationItem {
+	items := make([]NotificationItem, 0, len(deadlines))
 
 	for _, d := range deadlines {
 		daysUntilDue := ComputeDaysUntilDue(d.DueDate, now)
@@ -142,7 +159,7 @@ func filterAndBuildNotifications(deadlines []*deadline.Deadline, now time.Time) 
 			continue
 		}
 
-		items = append(items, notificationItem{
+		items = append(items, NotificationItem{
 			ID:               d.ID.String(),
 			Name:             d.Name,
 			Description:      d.Description,
@@ -161,7 +178,7 @@ func filterAndBuildNotifications(deadlines []*deadline.Deadline, now time.Time) 
 }
 
 // sortNotificationsByUrgency sorts notifications: overdue first (most negative), then warning, then info.
-func sortNotificationsByUrgency(items []notificationItem) {
+func sortNotificationsByUrgency(items []NotificationItem) {
 	sort.SliceStable(items, func(i, j int) bool {
 		si := severityOrder(items[i].Severity)
 		sj := severityOrder(items[j].Severity)

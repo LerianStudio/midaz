@@ -77,7 +77,7 @@ type CalculationModel struct {
 //
 //	@Description	Calculation is a struct designed to store the calculation details of a fee from a pack.
 type Calculation struct {
-	Type  string `json:"type" validate:"oneof=percentage flat"`
+	Type  string `json:"type" validate:"oneof=percentage flat" example:"percentage" enums:"percentage,flat"`
 	Value string `json:"value" validate:"required" example:"100.00"`
 } //	@name	Calculation
 

@@ -10,6 +10,8 @@ package model
 //
 //	@Description	Pagination is the struct designed to store the pagination data of an entity list.
 type Pagination struct {
+	// Items holds the page of results. The element type is overridden per-endpoint via the
+	// model.Pagination{items=[]X} generic annotation on each list endpoint.
 	Items any `json:"items"`
 	Page  int `json:"page,omitempty" example:"1"`
 	Limit int `json:"limit" example:"10"`

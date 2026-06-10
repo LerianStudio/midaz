@@ -250,7 +250,7 @@ func (rh *ReportHandler) GetReport(c *fiber.Ctx) error {
 //	@Param			sort_order		query		string	false	"Sort order"	Enums(asc, desc)	default(desc)
 //	@Param			limit			query		int		false	"Page size"	default(10)
 //	@Param			page			query		int		false	"Page number"	default(1)
-//	@Success		200				{object}	model.Pagination{items=[]report.Report,page=int,limit=int,total=int}
+//	@Success		200				{object}	model.Pagination{items=[]report.Report}
 //	@Failure		400				{object}	pkg.HTTPError
 //	@Failure		401				{object}	pkg.HTTPError
 //	@Failure		403				{object}	pkg.HTTPError

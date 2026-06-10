@@ -535,7 +535,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
+              $ref: '#/components/schemas/BillingPackage'
         description: BillingPackage Input
         required: true
       responses:
@@ -543,7 +543,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
+                $ref: '#/components/schemas/BillingPackage'
           description: Successfully created billing package
         "400":
           content:
@@ -667,7 +667,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
+                $ref: '#/components/schemas/BillingPackage'
           description: Successfully retrieved billing package
         "400":
           content:
@@ -728,7 +728,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackageUpdate'
+              $ref: '#/components/schemas/BillingPackageUpdate'
         description: Update BillingPackage Input
         required: true
       responses:
@@ -736,7 +736,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
+                $ref: '#/components/schemas/BillingPackage'
           description: Successfully updated billing package
         "400":
           content:
@@ -793,7 +793,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateRequest'
+              $ref: '#/components/schemas/BillingCalculateRequest'
         description: Billing Calculation Input
         required: true
       responses:
@@ -801,7 +801,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateResponse'
+                $ref: '#/components/schemas/BillingCalculateResponse'
           description: Billing calculation completed successfully
         "400":
           content:
@@ -6383,7 +6383,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/mmodel.LedgerSettings'
+                $ref: '#/components/schemas/LedgerSettings'
           description: Successfully retrieved ledger settings
         "401":
           content:
@@ -6456,7 +6456,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/mmodel.LedgerSettings'
+                $ref: '#/components/schemas/LedgerSettings'
           description: Successfully updated ledger settings
         "400":
           content:
@@ -8731,6 +8731,31 @@ components:
             \ type (e.g. \"@cash_account\"), array for account_type."
           type: object
       type: object
+    AccountTarget:
+      description: "AccountTarget identifies which accounts a maintenance billing\
+        \ package targets. Exactly one of segmentId, portfolioId, or aliases must\
+        \ be set."
+      example:
+        aliases:
+        - account_alpha
+        - account_beta
+        portfolioId: 00000000-0000-0000-0000-000000000000
+        segmentId: 00000000-0000-0000-0000-000000000000
+      properties:
+        aliases:
+          example:
+          - account_alpha
+          - account_beta
+          items:
+            type: string
+          type: array
+        portfolioId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        segmentId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+      type: object
     AccountType:
       description: AccountType object
       example:
@@ -8875,18 +8900,34 @@ components:
       - code
       - description
       type: object
+    AccountingValidation:
+      properties:
+        requireHolder:
+          description: |-
+            RequireHolder enables enforcement that accounts must reference an existing holder.
+            When true, account creation rejects accounts whose resolved holder does not exist.
+            Default: false (permissive - no validation)
+          example: false
+          type: boolean
+        validateAccountType:
+          description: |-
+            ValidateAccountType enables validation of account types during transaction processing.
+            When true, accounts must have types that match the operation route rules.
+            Default: false (permissive - no validation)
+          example: false
+          type: boolean
+        validateRoutes:
+          description: |-
+            ValidateRoutes enables validation of transaction routes during processing.
+            When true, transactions must specify valid route IDs that exist in the ledger.
+            Default: false (permissive - no validation)
+          example: false
+          type: boolean
+      type: object
     Address:
       description: Structured address information following standard postal address
         format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country
         codes). Used for organization physical locations and other address needs.
-      example:
-        country: US
-        zipCode: "10001"
-        city: New York
-        description: Home
-        state: NY
-        line2: Suite 1500
-        line1: 123 Financial Avenue
       properties:
         city:
           description: |-
@@ -8948,45 +8989,28 @@ components:
           type: string
       type: object
     Addresses:
-      description: Addresses object
-      example:
-        additional1:
-          country: US
-          zipCode: "10001"
-          city: New York
-          description: Home
-          state: NY
-          line2: Suite 1500
-          line1: 123 Financial Avenue
-        additional2:
-          country: US
-          zipCode: "10001"
-          city: New York
-          description: Home
-          state: NY
-          line2: Suite 1500
-          line1: 123 Financial Avenue
-        primary:
-          country: US
-          zipCode: "10001"
-          city: New York
-          description: Home
-          state: NY
-          line2: Suite 1500
-          line1: 123 Financial Avenue
+      description: "Physical address collection for a holder, supporting one primary\
+        \ address and up to two additional addresses."
       properties:
         additional1:
-          $ref: '#/components/schemas/Address'
+          allOf:
+          - $ref: '#/components/schemas/Address'
+          description: First supplementary address (e.g. mailing address).
+          type: object
         additional2:
-          $ref: '#/components/schemas/Address'
+          allOf:
+          - $ref: '#/components/schemas/Address'
+          description: Second supplementary address (e.g. branch or alternate location).
+          type: object
         primary:
-          $ref: '#/components/schemas/Address'
+          allOf:
+          - $ref: '#/components/schemas/Address'
+          description: Primary registered address of the holder.
+          type: object
       type: object
     Amount:
       description: Amount is the struct designed to represent the amount of an operation.
         Contains the value and scale (decimal places) of an operation amount.
-      example:
-        value: 1500.0
       properties:
         value:
           description: |-
@@ -9433,6 +9457,274 @@ components:
       type: object
     BankingDetails:
       type: object
+    BillingCalculateRequest:
+      description: BillingCalculateRequest carries the parameters required to trigger
+        a billing calculation for a given ledger and period.
+      example:
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        period: 2026-01
+        type: volume
+      properties:
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        period:
+          description: "YYYY-MM, YYYY-Www, or YYYY-MM-DD format"
+          example: 2026-01
+          type: string
+        type:
+          description: "\"volume\", \"maintenance\", or empty for both"
+          example: volume
+          type: string
+      required:
+      - ledgerId
+      - period
+      type: object
+    BillingCalculateResponse:
+      description: BillingCalculateResponse is the top-level response returned by
+        the billing calculation endpoint.
+      example:
+        summary:
+          totalVolume: 7
+          totalResults: 10
+          totalMaintenance: 3
+          totalNetAmount: "456.78"
+        results:
+        - billingPackageId: 00000000-0000-0000-0000-000000000000
+          billingPackageLabel: Monthly Volume Billing
+          period: 2026-01
+          billingType: volume
+          totalNetAmount: "123.45"
+          totalSkipped: 20
+          transactionPayload: "{}"
+          totalAccounts: 500
+          totalCharged: 480
+        - billingPackageId: 00000000-0000-0000-0000-000000000000
+          billingPackageLabel: Monthly Volume Billing
+          period: 2026-01
+          billingType: volume
+          totalNetAmount: "123.45"
+          totalSkipped: 20
+          transactionPayload: "{}"
+          totalAccounts: 500
+          totalCharged: 480
+      properties:
+        results:
+          items:
+            $ref: '#/components/schemas/BillingCalculationResult'
+          type: array
+        summary:
+          $ref: '#/components/schemas/BillingCalculateSummary'
+      type: object
+    BillingCalculateSummary:
+      description: BillingCalculateSummary aggregates the totals across all billing
+        calculation results for the requested period.
+      example:
+        totalVolume: 7
+        totalResults: 10
+        totalMaintenance: 3
+        totalNetAmount: "456.78"
+      properties:
+        totalMaintenance:
+          example: 3
+          type: integer
+        totalNetAmount:
+          example: "456.78"
+          type: string
+        totalResults:
+          example: 10
+          type: integer
+        totalVolume:
+          example: 7
+          type: integer
+      type: object
+    BillingCalculationResult:
+      description: BillingCalculationResult represents the billing outcome for a single
+        billing package within the requested period.
+      example:
+        billingPackageId: 00000000-0000-0000-0000-000000000000
+        billingPackageLabel: Monthly Volume Billing
+        period: 2026-01
+        billingType: volume
+        totalNetAmount: "123.45"
+        totalSkipped: 20
+        transactionPayload: "{}"
+        totalAccounts: 500
+        totalCharged: 480
+      properties:
+        billingPackageId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        billingPackageLabel:
+          example: Monthly Volume Billing
+          type: string
+        billingType:
+          description: '"volume" or "maintenance"'
+          enum:
+          - volume
+          - maintenance
+          example: volume
+          type: string
+        period:
+          example: 2026-01
+          type: string
+        totalAccounts:
+          example: 500
+          type: integer
+        totalCharged:
+          example: 480
+          type: integer
+        totalNetAmount:
+          example: "123.45"
+          type: string
+        totalSkipped:
+          example: 20
+          type: integer
+        transactionPayload:
+          properties: {}
+          type: object
+      type: object
+    BillingPackage:
+      description: "BillingPackage is the full representation of a billing package,\
+        \ covering both volume and maintenance types."
+      example:
+        pricingModel: tiered
+        accountTarget:
+          aliases:
+          - account_alpha
+          - account_beta
+          portfolioId: 00000000-0000-0000-0000-000000000000
+          segmentId: 00000000-0000-0000-0000-000000000000
+        maintenanceCreditAccount: account_maintenance_credit
+        tiers:
+        - unitPrice: "1.50"
+          minQuantity: 0
+          maxQuantity: 999
+        - unitPrice: "1.50"
+          minQuantity: 0
+          maxQuantity: 999
+        assetCode: BRL
+        debitAccountAlias: account_fees_debit
+        discountTiers:
+        - discountPercentage: "10.00"
+          minQuantity: 1000
+        - discountPercentage: "10.00"
+          minQuantity: 1000
+        eventFilter: "{}"
+        description: Charges per completed transaction route
+        freeQuota: 100
+        creditAccountAlias: account_fees_credit
+        label: Monthly Volume Billing
+        type: volume
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        organizationId: 00000000-0000-0000-0000-000000000000
+        createdAt: 2026-01-01T00:00:00Z
+        feeAmount: "50.00"
+        deletedAt: 2026-06-01T00:00:00Z
+        enable: true
+        id: 00000000-0000-0000-0000-000000000000
+        countMode: perRoute
+        updatedAt: 2026-01-01T00:00:00Z
+      properties:
+        accountTarget:
+          $ref: '#/components/schemas/AccountTarget'
+        assetCode:
+          example: BRL
+          type: string
+        countMode:
+          enum:
+          - perRoute
+          - perAccount
+          example: perRoute
+          type: string
+        createdAt:
+          description: Timestamps.
+          example: 2026-01-01T00:00:00Z
+          type: string
+        creditAccountAlias:
+          example: account_fees_credit
+          type: string
+        debitAccountAlias:
+          example: account_fees_debit
+          type: string
+        deletedAt:
+          example: 2026-06-01T00:00:00Z
+          type: string
+        description:
+          example: Charges per completed transaction route
+          type: string
+        discountTiers:
+          items:
+            $ref: '#/components/schemas/DiscountTier'
+          type: array
+        enable:
+          example: true
+          type: boolean
+        eventFilter:
+          allOf:
+          - $ref: '#/components/schemas/EventFilter'
+          description: Volume-specific fields.
+          type: object
+        feeAmount:
+          description: Maintenance-specific fields.
+          example: "50.00"
+          type: string
+        freeQuota:
+          example: 100
+          type: integer
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        label:
+          example: Monthly Volume Billing
+          type: string
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        maintenanceCreditAccount:
+          example: account_maintenance_credit
+          type: string
+        organizationId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        pricingModel:
+          enum:
+          - tiered
+          - fixed
+          example: tiered
+          type: string
+        tiers:
+          items:
+            $ref: '#/components/schemas/PricingTier'
+          type: array
+        type:
+          enum:
+          - volume
+          - maintenance
+          example: volume
+          type: string
+        updatedAt:
+          example: 2026-01-01T00:00:00Z
+          type: string
+      type: object
+    BillingPackageUpdate:
+      description: BillingPackageUpdate is the request payload for partial updates
+        to a billing package. Only provided fields are applied.
+      example:
+        enable: false
+        description: Updated description for the billing package
+        label: Updated Billing Label
+      properties:
+        description:
+          example: Updated description for the billing package
+          type: string
+        enable:
+          example: false
+          type: boolean
+        label:
+          example: Updated Billing Label
+          type: string
+      type: object
     Calculation:
       description: Calculation is a struct designed to store the calculation details
         of a fee from a pack.
@@ -9444,6 +9736,7 @@ components:
           enum:
           - percentage
           - flat
+          example: percentage
           type: string
         value:
           example: "100.00"
@@ -9475,28 +9768,40 @@ components:
           type: array
       type: object
     Contact:
-      description: Contact object
-      example:
-        secondaryEmail: john.doe@example.com
-        mobilePhone: "+1555555555"
-        otherPhone: "+1555555555"
-        primaryEmail: john.doe@example.com
+      description: "Communication contact details for a holder, including email addresses\
+        \ and phone numbers."
       properties:
         mobilePhone:
-          description: "The mobile phone number of the holder, including country code."
+          description: |-
+            The mobile phone number of the holder, including country code.
+            example: +1555555555
+            maxLength: 32
           example: "+1555555555"
+          maxLength: 32
           type: string
         otherPhone:
-          description: Any additional phone number of the holder.
+          description: |-
+            Any additional phone number of the holder.
+            example: +1555555555
+            maxLength: 32
           example: "+1555555555"
+          maxLength: 32
           type: string
         primaryEmail:
-          description: The primary email address of the holder.
+          description: |-
+            The primary email address of the holder.
+            example: john.doe@example.com
+            maxLength: 256
           example: john.doe@example.com
+          maxLength: 256
           type: string
         secondaryEmail:
-          description: The secondary email address of the holder.
+          description: |-
+            The secondary email address of the holder.
+            example: john.doe@example.com
+            maxLength: 256
           example: john.doe@example.com
+          maxLength: 256
           type: string
       type: object
     CreateAccountInput:
@@ -9842,7 +10147,10 @@ components:
     CreateHolderAccountInput:
       type: object
     CreateHolderRequest:
-      description: CreateHolderRequest payload
+      description: Request payload for creating a new holder. A holder represents
+        an identified party (individual or legal entity) that can own accounts within
+        the ledger system. The type field controls which person-type sub-object is
+        applicable.
       example:
         addresses: "{}"
         metadata:
@@ -9858,53 +10166,77 @@ components:
         addresses:
           allOf:
           - $ref: '#/components/schemas/Addresses'
-          description: Object of addresses.
+          description: |-
+            Physical addresses associated with the holder (primary + up to two additional).
+            required: false
           type: object
         contact:
           allOf:
           - $ref: '#/components/schemas/Contact'
-          description: Object with contact information.
+          description: |-
+            Contact details (email addresses and phone numbers) for the holder.
+            required: false
           type: object
         document:
-          description: The holder's identification document.
+          description: |-
+            National or tax identification document number of the holder.
+            required: true
+            example: 91315026015
+            maxLength: 100
           example: "91315026015"
+          maxLength: 100
           type: string
         externalId:
-          description: Optional field for an external identifier to client correlation
-            purposes.
+          description: |-
+            Optional client-supplied correlation key for idempotency and external system linking.
+            required: false
+            example: G4K7N8M2
+            maxLength: 256
           example: G4K7N8M2
+          maxLength: 256
           type: string
         legalPerson:
           allOf:
           - $ref: '#/components/schemas/LegalPerson'
-          description: Object with legal person information.
+          description: |-
+            Company-specific registration fields; populate only when type is LEGAL_PERSON.
+            required: false
           type: object
         metadata:
           additionalProperties:
             type: object
-          description: "An object containing key-value pairs to add as metadata, where\
-            \ the field name is the key and the field value is the value."
+          description: |-
+            Custom key-value pairs for extending the holder information (flat map, max 100-char keys, max 2000-char values).
+            required: false
+            example: {"source": "onboarding", "region": "us-east"}
           type: object
         name:
           description: |-
-            Holders name.
-            **Notes:** If the person type is LEGAL_PERSON, this must be the full legal name. If the person type is NATURAL_PERSON, this should be the individuals full name.
+            Full legal name of the holder. For LEGAL_PERSON this must be the registered company name.
+            required: true
+            example: John Doe
+            maxLength: 256
           example: John Doe
+          maxLength: 256
           type: string
         naturalPerson:
           allOf:
           - $ref: '#/components/schemas/NaturalPerson'
-          description: Object with natural person information.
+          description: |-
+            Individual-specific biographical fields; populate only when type is NATURAL_PERSON.
+            required: false
           type: object
         type:
           description: |-
-            Type of person.
-            * NATURAL_PERSON - Individual
-            * LEGAL_PERSON - Company
+            Classification of the holder: NATURAL_PERSON for individuals, LEGAL_PERSON for companies.
+            required: true
+            example: NATURAL_PERSON
+            maxLength: 100
           enum:
           - NATURAL_PERSON
           - LEGAL_PERSON
           example: NATURAL_PERSON
+          maxLength: 100
           type: string
       required:
       - document
@@ -9912,7 +10244,9 @@ components:
       - type
       type: object
     CreateInstrumentRequest:
-      description: CreateInstrumentRequest payload
+      description: "Request payload for creating a new instrument that links a holder\
+        \ to a specific ledger account. An instrument captures banking details, regulatory\
+        \ fields, and the related parties authorized on the account."
       example:
         ledgerId: 00000000-0000-0000-0000-000000000000
         accountId: 00000000-0000-0000-0000-000000000000
@@ -9935,31 +10269,49 @@ components:
           startDate: 2025-01-01
       properties:
         accountId:
-          description: Unique identifier of the related account on ledger.
+          description: |-
+            Unique identifier of the ledger account this instrument is linked to (UUID format).
+            required: true
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         bankingDetails:
           allOf:
           - $ref: '#/components/schemas/BankingDetails'
-          description: Object with banking information of the related account.
+          description: |-
+            Banking details for the account linked by this instrument.
+            required: false
           type: object
         ledgerId:
-          description: Unique identifier of the ledger of the related account.
+          description: |-
+            Unique identifier of the ledger that contains the related account (UUID format).
+            required: true
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         metadata:
           additionalProperties:
             type: object
-          description: "An object containing key-value pairs to add as metadata, where\
-            \ the field name is the key and the field value is the value."
+          description: |-
+            Custom key-value pairs for extending the instrument information (flat map, max 100-char keys, max 2000-char values).
+            required: false
+            example: {"product": "checking", "region": "us-east"}
           type: object
         regulatoryFields:
           allOf:
           - $ref: '#/components/schemas/RegulatoryFields'
-          description: Object with regulatory fields.
+          description: |-
+            Regulatory metadata identifying the participant entity.
+            required: false
           type: object
         relatedParties:
-          description: List of related parties to add at creation.
+          description: |-
+            List of related parties to associate at instrument creation.
+            required: false
           items:
             $ref: '#/components/schemas/RelatedParty'
           type: array
@@ -9996,7 +10348,7 @@ components:
           type: string
         settings:
           allOf:
-          - $ref: '#/components/schemas/mmodel.LedgerSettings'
+          - $ref: '#/components/schemas/LedgerSettings'
           description: |-
             Dynamic configuration settings for this ledger. When nil, no settings are persisted (optional).
             example: {"accounting": {"validateAccountType": true}}
@@ -10609,58 +10961,46 @@ components:
       - operationRoutes
       - title
       type: object
+    CursorPagination:
+      properties:
+        items:
+          type: object
+        limit:
+          example: 10
+          type: integer
+        next_cursor:
+          example: eyJpZCI6IjAxOTI...
+          type: string
+        page:
+          example: 1
+          type: integer
+        prev_cursor:
+          example: eyJpZCI6IjAxOTE...
+          type: string
+      type: object
     Date:
       description: "Date in YYYY-MM-DD format (e.g., \"2025-06-15\") or null"
       properties:
         time.Time:
           type: string
       type: object
+    DiscountTier:
+      description: DiscountTier defines a quantity threshold above which a discount
+        percentage applies.
+      example:
+        discountPercentage: "10.00"
+        minQuantity: 1000
+      properties:
+        discountPercentage:
+          example: "10.00"
+          type: string
+        minQuantity:
+          example: 1000
+          type: integer
+      type: object
     Distribute:
       description: Distribute is the struct designed to represent the distribution
         fields of an operation.
-      example:
-        to:
-        - accountAlias: '@person1'
-          amount:
-            value: 1500.0
-          metadata:
-            key: "{}"
-          route: 00000000-0000-0000-0000-000000000000
-          routeId: 00000000-0000-0000-0000-000000000000
-          rate:
-            externalId: 00000000-0000-0000-0000-000000000000
-            from: BRL
-            to: USDe
-            value: 1000.0
-          isFrom: true
-          chartOfAccounts: "1000"
-          description: description
-          share:
-            percentage: 0
-            percentageOfPercentage: 6
-          balanceKey: asset-freeze
-          remaining: remaining
-        - accountAlias: '@person1'
-          amount:
-            value: 1500.0
-          metadata:
-            key: "{}"
-          route: 00000000-0000-0000-0000-000000000000
-          routeId: 00000000-0000-0000-0000-000000000000
-          rate:
-            externalId: 00000000-0000-0000-0000-000000000000
-            from: BRL
-            to: USDe
-            value: 1000.0
-          isFrom: true
-          chartOfAccounts: "1000"
-          description: description
-          share:
-            percentage: 0
-            percentageOfPercentage: 6
-          balanceKey: asset-freeze
-          remaining: remaining
-        remaining: remaining
       properties:
         remaining:
           type: string
@@ -10725,6 +11065,23 @@ components:
           maxLength: 100
           type: string
       type: object
+    EventFilter:
+      description: EventFilter identifies the transaction route and status used to
+        match billing events.
+      properties:
+        status:
+          enum:
+          - CREATED
+          - APPROVED
+          - PENDING
+          - CANCELED
+          - NOTED
+          example: APPROVED
+          type: string
+        transactionRoute:
+          example: payment_route
+          type: string
+      type: object
     Fee:
       description: Fee is the input payload to create a fee of a pack.
       example:
@@ -10781,105 +11138,7 @@ components:
       example:
         ledgerId: 00000000-0000-0000-0000-000000000000
         segmentId: 00000000-0000-0000-0000-000000000000
-        transaction:
-          metadata:
-            key: "{}"
-          code: 00000000-0000-0000-0000-000000000000
-          route: 00000000-0000-0000-0000-000000000000
-          routeId: 00000000-0000-0000-0000-000000000000
-          pending: false
-          description: Description
-          transactionDate: 2021-01-01T00:00:00Z
-          chartOfAccountsGroupName: FUNDING
-          send:
-            distribute:
-              to:
-              - accountAlias: '@person1'
-                amount:
-                  value: 1500.0
-                metadata:
-                  key: "{}"
-                route: 00000000-0000-0000-0000-000000000000
-                routeId: 00000000-0000-0000-0000-000000000000
-                rate:
-                  externalId: 00000000-0000-0000-0000-000000000000
-                  from: BRL
-                  to: USDe
-                  value: 1000.0
-                isFrom: true
-                chartOfAccounts: "1000"
-                description: description
-                share:
-                  percentage: 0
-                  percentageOfPercentage: 6
-                balanceKey: asset-freeze
-                remaining: remaining
-              - accountAlias: '@person1'
-                amount:
-                  value: 1500.0
-                metadata:
-                  key: "{}"
-                route: 00000000-0000-0000-0000-000000000000
-                routeId: 00000000-0000-0000-0000-000000000000
-                rate:
-                  externalId: 00000000-0000-0000-0000-000000000000
-                  from: BRL
-                  to: USDe
-                  value: 1000.0
-                isFrom: true
-                chartOfAccounts: "1000"
-                description: description
-                share:
-                  percentage: 0
-                  percentageOfPercentage: 6
-                balanceKey: asset-freeze
-                remaining: remaining
-              remaining: remaining
-            source:
-              from:
-              - accountAlias: '@person1'
-                amount:
-                  value: 1500.0
-                metadata:
-                  key: "{}"
-                route: 00000000-0000-0000-0000-000000000000
-                routeId: 00000000-0000-0000-0000-000000000000
-                rate:
-                  externalId: 00000000-0000-0000-0000-000000000000
-                  from: BRL
-                  to: USDe
-                  value: 1000.0
-                isFrom: true
-                chartOfAccounts: "1000"
-                description: description
-                share:
-                  percentage: 0
-                  percentageOfPercentage: 6
-                balanceKey: asset-freeze
-                remaining: remaining
-              - accountAlias: '@person1'
-                amount:
-                  value: 1500.0
-                metadata:
-                  key: "{}"
-                route: 00000000-0000-0000-0000-000000000000
-                routeId: 00000000-0000-0000-0000-000000000000
-                rate:
-                  externalId: 00000000-0000-0000-0000-000000000000
-                  from: BRL
-                  to: USDe
-                  value: 1000.0
-                isFrom: true
-                chartOfAccounts: "1000"
-                description: description
-                share:
-                  percentage: 0
-                  percentageOfPercentage: 6
-                balanceKey: asset-freeze
-                remaining: remaining
-              remaining: remaining
-            asset: BRL
-            value: 1000.0
+        transaction: "{}"
       properties:
         ledgerId:
           example: 00000000-0000-0000-0000-000000000000
@@ -10888,7 +11147,11 @@ components:
           example: 00000000-0000-0000-0000-000000000000
           type: string
         transaction:
-          $ref: '#/components/schemas/TransactionInput'
+          allOf:
+          - $ref: '#/components/schemas/TransactionInput'
+          description: Full transaction projection; rendered as TransactionInput in
+            the API schema.
+          type: object
       required:
       - ledgerId
       type: object
@@ -10897,105 +11160,7 @@ components:
       example:
         ledgerId: 00000000-0000-0000-0000-000000000000
         packageId: 00000000-0000-0000-0000-000000000000
-        transaction:
-          metadata:
-            key: "{}"
-          code: 00000000-0000-0000-0000-000000000000
-          route: 00000000-0000-0000-0000-000000000000
-          routeId: 00000000-0000-0000-0000-000000000000
-          pending: false
-          description: Description
-          transactionDate: 2021-01-01T00:00:00Z
-          chartOfAccountsGroupName: FUNDING
-          send:
-            distribute:
-              to:
-              - accountAlias: '@person1'
-                amount:
-                  value: 1500.0
-                metadata:
-                  key: "{}"
-                route: 00000000-0000-0000-0000-000000000000
-                routeId: 00000000-0000-0000-0000-000000000000
-                rate:
-                  externalId: 00000000-0000-0000-0000-000000000000
-                  from: BRL
-                  to: USDe
-                  value: 1000.0
-                isFrom: true
-                chartOfAccounts: "1000"
-                description: description
-                share:
-                  percentage: 0
-                  percentageOfPercentage: 6
-                balanceKey: asset-freeze
-                remaining: remaining
-              - accountAlias: '@person1'
-                amount:
-                  value: 1500.0
-                metadata:
-                  key: "{}"
-                route: 00000000-0000-0000-0000-000000000000
-                routeId: 00000000-0000-0000-0000-000000000000
-                rate:
-                  externalId: 00000000-0000-0000-0000-000000000000
-                  from: BRL
-                  to: USDe
-                  value: 1000.0
-                isFrom: true
-                chartOfAccounts: "1000"
-                description: description
-                share:
-                  percentage: 0
-                  percentageOfPercentage: 6
-                balanceKey: asset-freeze
-                remaining: remaining
-              remaining: remaining
-            source:
-              from:
-              - accountAlias: '@person1'
-                amount:
-                  value: 1500.0
-                metadata:
-                  key: "{}"
-                route: 00000000-0000-0000-0000-000000000000
-                routeId: 00000000-0000-0000-0000-000000000000
-                rate:
-                  externalId: 00000000-0000-0000-0000-000000000000
-                  from: BRL
-                  to: USDe
-                  value: 1000.0
-                isFrom: true
-                chartOfAccounts: "1000"
-                description: description
-                share:
-                  percentage: 0
-                  percentageOfPercentage: 6
-                balanceKey: asset-freeze
-                remaining: remaining
-              - accountAlias: '@person1'
-                amount:
-                  value: 1500.0
-                metadata:
-                  key: "{}"
-                route: 00000000-0000-0000-0000-000000000000
-                routeId: 00000000-0000-0000-0000-000000000000
-                rate:
-                  externalId: 00000000-0000-0000-0000-000000000000
-                  from: BRL
-                  to: USDe
-                  value: 1000.0
-                isFrom: true
-                chartOfAccounts: "1000"
-                description: description
-                share:
-                  percentage: 0
-                  percentageOfPercentage: 6
-                balanceKey: asset-freeze
-                remaining: remaining
-              remaining: remaining
-            asset: BRL
-            value: 1000.0
+        transaction: "{}"
       properties:
         ledgerId:
           example: 00000000-0000-0000-0000-000000000000
@@ -11004,7 +11169,11 @@ components:
           example: 00000000-0000-0000-0000-000000000000
           type: string
         transaction:
-          $ref: '#/components/schemas/TransactionInput'
+          allOf:
+          - $ref: '#/components/schemas/TransactionInput'
+          description: Full transaction projection; rendered as TransactionInput in
+            the API schema.
+          type: object
       required:
       - ledgerId
       - packageId
@@ -11015,105 +11184,7 @@ components:
         feesApplied:
           ledgerId: 00000000-0000-0000-0000-000000000000
           segmentId: 00000000-0000-0000-0000-000000000000
-          transaction:
-            metadata:
-              key: "{}"
-            code: 00000000-0000-0000-0000-000000000000
-            route: 00000000-0000-0000-0000-000000000000
-            routeId: 00000000-0000-0000-0000-000000000000
-            pending: false
-            description: Description
-            transactionDate: 2021-01-01T00:00:00Z
-            chartOfAccountsGroupName: FUNDING
-            send:
-              distribute:
-                to:
-                - accountAlias: '@person1'
-                  amount:
-                    value: 1500.0
-                  metadata:
-                    key: "{}"
-                  route: 00000000-0000-0000-0000-000000000000
-                  routeId: 00000000-0000-0000-0000-000000000000
-                  rate:
-                    externalId: 00000000-0000-0000-0000-000000000000
-                    from: BRL
-                    to: USDe
-                    value: 1000.0
-                  isFrom: true
-                  chartOfAccounts: "1000"
-                  description: description
-                  share:
-                    percentage: 0
-                    percentageOfPercentage: 6
-                  balanceKey: asset-freeze
-                  remaining: remaining
-                - accountAlias: '@person1'
-                  amount:
-                    value: 1500.0
-                  metadata:
-                    key: "{}"
-                  route: 00000000-0000-0000-0000-000000000000
-                  routeId: 00000000-0000-0000-0000-000000000000
-                  rate:
-                    externalId: 00000000-0000-0000-0000-000000000000
-                    from: BRL
-                    to: USDe
-                    value: 1000.0
-                  isFrom: true
-                  chartOfAccounts: "1000"
-                  description: description
-                  share:
-                    percentage: 0
-                    percentageOfPercentage: 6
-                  balanceKey: asset-freeze
-                  remaining: remaining
-                remaining: remaining
-              source:
-                from:
-                - accountAlias: '@person1'
-                  amount:
-                    value: 1500.0
-                  metadata:
-                    key: "{}"
-                  route: 00000000-0000-0000-0000-000000000000
-                  routeId: 00000000-0000-0000-0000-000000000000
-                  rate:
-                    externalId: 00000000-0000-0000-0000-000000000000
-                    from: BRL
-                    to: USDe
-                    value: 1000.0
-                  isFrom: true
-                  chartOfAccounts: "1000"
-                  description: description
-                  share:
-                    percentage: 0
-                    percentageOfPercentage: 6
-                  balanceKey: asset-freeze
-                  remaining: remaining
-                - accountAlias: '@person1'
-                  amount:
-                    value: 1500.0
-                  metadata:
-                    key: "{}"
-                  route: 00000000-0000-0000-0000-000000000000
-                  routeId: 00000000-0000-0000-0000-000000000000
-                  rate:
-                    externalId: 00000000-0000-0000-0000-000000000000
-                    from: BRL
-                    to: USDe
-                    value: 1000.0
-                  isFrom: true
-                  chartOfAccounts: "1000"
-                  description: description
-                  share:
-                    percentage: 0
-                    percentageOfPercentage: 6
-                  balanceKey: asset-freeze
-                  remaining: remaining
-                remaining: remaining
-              asset: BRL
-              value: 1000.0
+          transaction: "{}"
         message: Successfully estimated fee.
       properties:
         feesApplied:
@@ -11125,27 +11196,6 @@ components:
     FromTo:
       description: FromTo is the struct designed to represent the from/to fields of
         an operation.
-      example:
-        accountAlias: '@person1'
-        amount:
-          value: 1500.0
-        metadata:
-          key: "{}"
-        route: 00000000-0000-0000-0000-000000000000
-        routeId: 00000000-0000-0000-0000-000000000000
-        rate:
-          externalId: 00000000-0000-0000-0000-000000000000
-          from: BRL
-          to: USDe
-          value: 1000.0
-        isFrom: true
-        chartOfAccounts: "1000"
-        description: description
-        share:
-          percentage: 0
-          percentageOfPercentage: 6
-        balanceKey: asset-freeze
-        remaining: remaining
       properties:
         accountAlias:
           example: '@person1'
@@ -11223,33 +11273,11 @@ components:
           type: object
       type: object
     HolderResponse:
-      description: HolderResponse payload
+      description: "Complete holder entity returned by create, update, and get operations.\
+        \ Contains all holder fields including system-generated ID, person-type sub-objects,\
+        \ and audit timestamps."
       example:
-        addresses:
-          additional1:
-            country: US
-            zipCode: "10001"
-            city: New York
-            description: Home
-            state: NY
-            line2: Suite 1500
-            line1: 123 Financial Avenue
-          additional2:
-            country: US
-            zipCode: "10001"
-            city: New York
-            description: Home
-            state: NY
-            line2: Suite 1500
-            line1: 123 Financial Avenue
-          primary:
-            country: US
-            zipCode: "10001"
-            city: New York
-            description: Home
-            state: NY
-            line2: Suite 1500
-            line1: 123 Financial Avenue
+        addresses: "{}"
         metadata:
           key: "{}"
         document: "91315026015"
@@ -11257,71 +11285,108 @@ components:
         type: NATURAL_PERSON
         createdAt: 2025-01-01T00:00:00Z
         deletedAt: 2025-01-01T00:00:00Z
-        contact:
-          secondaryEmail: john.doe@example.com
-          mobilePhone: "+1555555555"
-          otherPhone: "+1555555555"
-          primaryEmail: john.doe@example.com
-        legalPerson:
-          foundingDate: 2025-01-01
-          tradeName: Lerian Studio
-          activity: Electronic devices development
-          size: Medium
-          type: Limited Liability
-          representative: "{}"
-          status: Closed
+        contact: "{}"
+        legalPerson: "{}"
         name: John Doe
         id: 00000000-0000-0000-0000-000000000000
-        naturalPerson:
-          fatherName: John Doe
-          socialName: John Doe
-          gender: Male
-          nationality: Brazilian
-          favoriteName: John
-          motherName: Jane Doe
-          birthDate: 1990-01-01
-          civilStatus: Single
-          status: Active
+        naturalPerson: "{}"
         updatedAt: 2025-01-01T00:00:00Z
       properties:
         addresses:
-          $ref: '#/components/schemas/Addresses'
+          allOf:
+          - $ref: '#/components/schemas/Addresses'
+          description: Physical addresses associated with the holder.
+          type: object
         contact:
-          $ref: '#/components/schemas/Contact'
+          allOf:
+          - $ref: '#/components/schemas/Contact'
+          description: Contact details (email and phone) for the holder.
+          type: object
         createdAt:
+          description: |-
+            Timestamp when the holder was created (RFC3339 format).
+            example: 2025-01-01T00:00:00Z
+            format: date-time
           example: 2025-01-01T00:00:00Z
+          format: date-time
           type: string
         deletedAt:
+          description: |-
+            Timestamp when the holder was soft-deleted; null if the holder is active (RFC3339 format).
+            example: null
+            format: date-time
           example: 2025-01-01T00:00:00Z
+          format: date-time
           type: string
         document:
+          description: |-
+            National or tax identification document number of the holder.
+            example: 91315026015
+            maxLength: 100
           example: "91315026015"
+          maxLength: 100
           type: string
         externalId:
+          description: |-
+            Client-supplied external correlation key.
+            example: G4K7N8M2
+            maxLength: 256
           example: G4K7N8M2
+          maxLength: 256
           type: string
         id:
+          description: |-
+            Unique system-generated identifier for the holder (UUID format).
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         legalPerson:
-          $ref: '#/components/schemas/LegalPerson'
+          allOf:
+          - $ref: '#/components/schemas/LegalPerson'
+          description: Company-specific registration fields; present when type is
+            LEGAL_PERSON.
+          type: object
         metadata:
           additionalProperties:
             type: object
+          description: |-
+            Custom key-value pairs for extending the holder information.
+            example: {"source": "onboarding"}
           type: object
         name:
+          description: |-
+            Full legal name of the holder.
+            example: John Doe
+            maxLength: 256
           example: John Doe
+          maxLength: 256
           type: string
         naturalPerson:
-          $ref: '#/components/schemas/NaturalPerson'
+          allOf:
+          - $ref: '#/components/schemas/NaturalPerson'
+          description: Individual-specific biographical fields; present when type
+            is NATURAL_PERSON.
+          type: object
         type:
+          description: |-
+            Classification of the holder: NATURAL_PERSON or LEGAL_PERSON.
+            example: NATURAL_PERSON
+            maxLength: 100
           enum:
           - NATURAL_PERSON
           - LEGAL_PERSON
           example: NATURAL_PERSON
+          maxLength: 100
           type: string
         updatedAt:
+          description: |-
+            Timestamp when the holder was last updated (RFC3339 format).
+            example: 2025-01-01T00:00:00Z
+            format: date-time
           example: 2025-01-01T00:00:00Z
+          format: date-time
           type: string
       type: object
     IndexStats:
@@ -11362,14 +11427,15 @@ components:
           type: string
       type: object
     InstrumentResponse:
-      description: InstrumentResponse payload
+      description: "Complete instrument entity returned by create, update, and get\
+        \ operations. Captures the link between a holder and a ledger account, together\
+        \ with banking details, regulatory fields, related parties, and audit timestamps."
       example:
         metadata:
           key: "{}"
-        regulatoryFields:
-          participantDocument: "12345678912345"
+        regulatoryFields: "{}"
         document: "91315026015"
-        type: LEGAL_PERSON
+        type: NATURAL_PERSON
         holderId: 00000000-0000-0000-0000-000000000000
         ledgerId: 00000000-0000-0000-0000-000000000000
         accountId: 00000000-0000-0000-0000-000000000000
@@ -11393,43 +11459,98 @@ components:
         updatedAt: 2025-01-01T00:00:00Z
       properties:
         accountId:
+          description: |-
+            Unique identifier of the ledger account this instrument is linked to (UUID format).
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         bankingDetails:
+          allOf:
+          - $ref: '#/components/schemas/BankingDetails'
+          description: Banking details for the account linked by this instrument.
           type: object
         createdAt:
+          description: |-
+            Timestamp when the instrument was created (RFC3339 format).
+            example: 2025-01-01T00:00:00Z
+            format: date-time
           example: 2025-01-01T00:00:00Z
+          format: date-time
           type: string
         deletedAt:
+          description: |-
+            Timestamp when the instrument was soft-deleted; null if the instrument is active (RFC3339 format).
+            example: null
+            format: date-time
           example: 2025-01-01T00:00:00Z
+          format: date-time
           type: string
         document:
+          description: |-
+            National or tax identification document of the holder linked to this instrument.
+            example: 91315026015
+            maxLength: 100
           example: "91315026015"
+          maxLength: 100
           type: string
         holderId:
+          description: |-
+            Unique identifier of the holder that owns this instrument (UUID format).
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         id:
+          description: |-
+            Unique system-generated identifier for the instrument (UUID format).
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         ledgerId:
+          description: |-
+            Unique identifier of the ledger that contains the linked account (UUID format).
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         metadata:
           additionalProperties:
             type: object
+          description: |-
+            Custom key-value pairs for extending the instrument information.
+            example: {"product": "checking"}
           type: object
         regulatoryFields:
-          $ref: '#/components/schemas/RegulatoryFields'
+          allOf:
+          - $ref: '#/components/schemas/RegulatoryFields'
+          description: Regulatory metadata identifying the participant entity.
+          type: object
         relatedParties:
+          description: List of parties associated with this instrument and their roles.
           items:
             $ref: '#/components/schemas/RelatedParty'
           type: array
         type:
-          example: LEGAL_PERSON
+          description: |-
+            Holder type (NATURAL_PERSON or LEGAL_PERSON), derived from the associated holder.
+            example: NATURAL_PERSON
+            maxLength: 100
+          example: NATURAL_PERSON
+          maxLength: 100
           type: string
         updatedAt:
+          description: |-
+            Timestamp when the instrument was last updated (RFC3339 format).
+            example: 2025-01-01T00:00:00Z
+            format: date-time
           example: 2025-01-01T00:00:00Z
+          format: date-time
           type: string
       type: object
     Ledger:
@@ -11498,7 +11619,7 @@ components:
           type: string
         settings:
           allOf:
-          - $ref: '#/components/schemas/mmodel.LedgerSettings'
+          - $ref: '#/components/schemas/LedgerSettings'
           description: |-
             Dynamic configuration settings for this ledger
             example: {"accounting": {"validateAccountType": true}}
@@ -11517,46 +11638,78 @@ components:
           format: date-time
           type: string
       type: object
-    LegalPerson:
-      description: LegalPerson is a struct designed to encapsulate response payload
-        data.
+    LedgerSettings:
       example:
-        foundingDate: 2025-01-01
-        tradeName: Lerian Studio
-        activity: Electronic devices development
-        size: Medium
-        type: Limited Liability
-        representative: "{}"
-        status: Closed
+        accounting: "{}"
+        tracer: "{}"
+      properties:
+        accounting:
+          allOf:
+          - $ref: '#/components/schemas/AccountingValidation'
+          description: Accounting contains validation settings for accounting operations.
+          type: object
+        tracer:
+          allOf:
+          - $ref: '#/components/schemas/TracerSettings'
+          description: Tracer contains the per-ledger tracer-integration settings.
+          type: object
+      type: object
+    LegalPerson:
+      description: "Legal entity (company) details for an organizational holder, used\
+        \ in both request and response payloads when the holder type is LEGAL_PERSON."
       properties:
         activity:
-          description: The type of business or activity the company engages in.
+          description: |-
+            The type of business or activity the company engages in.
+            example: Electronic devices development
+            maxLength: 256
           example: Electronic devices development
+          maxLength: 256
           type: string
         foundingDate:
-          description: The date when the company was established.
+          description: |-
+            The date when the company was established (YYYY-MM-DD format).
+            example: 2025-01-01
+            format: date
           example: 2025-01-01
+          format: date
           type: string
         representative:
           allOf:
           - $ref: '#/components/schemas/Representative'
-          description: Object with details of the company's legal representative.
+          description: Details of the company's legal representative.
           type: object
         size:
-          description: The size classification of the company.
+          description: |-
+            The size classification of the company (e.g. Small, Medium, Large).
+            example: Medium
+            maxLength: 100
           example: Medium
+          maxLength: 100
           type: string
         status:
-          description: The current status of the legal entity.
-          example: Closed
+          description: |-
+            The current status of the legal entity.
+            example: Active
+            maxLength: 100
+          example: Active
+          maxLength: 100
           type: string
         tradeName:
-          description: "The registered business name of the company, if applicable."
+          description: |-
+            The registered business name of the company, if applicable.
+            example: Lerian Studio
+            maxLength: 256
           example: Lerian Studio
+          maxLength: 256
           type: string
         type:
-          description: The legal structure of the company.
+          description: |-
+            The legal structure of the company.
+            example: Limited Liability
+            maxLength: 100
           example: Limited Liability
+          maxLength: 100
           type: string
       type: object
     MetadataIndex:
@@ -11597,54 +11750,80 @@ components:
           type: boolean
       type: object
     NaturalPerson:
-      description: NaturalPerson object
-      example:
-        fatherName: John Doe
-        socialName: John Doe
-        gender: Male
-        nationality: Brazilian
-        favoriteName: John
-        motherName: Jane Doe
-        birthDate: 1990-01-01
-        civilStatus: Single
-        status: Active
+      description: "Individual (natural person) biographical and demographic details,\
+        \ used in both request and response payloads when the holder type is NATURAL_PERSON."
       properties:
         birthDate:
-          description: "Person's birth date, formatted as YYYY-MM-DD."
+          description: |-
+            Person's birth date, formatted as YYYY-MM-DD.
+            example: 1990-01-01
+            format: date
           example: 1990-01-01
+          format: date
           type: string
         civilStatus:
-          description: "Person's civil status, for example: \"Single\", \"Married\"\
-            , or \"Divorced\"."
+          description: |-
+            Person's civil status, for example: "Single", "Married", or "Divorced".
+            example: Single
+            maxLength: 100
           example: Single
+          maxLength: 100
           type: string
         fatherName:
-          description: The name of the person's father.
+          description: |-
+            The name of the person's father.
+            example: John Doe
+            maxLength: 256
           example: John Doe
+          maxLength: 256
           type: string
         favoriteName:
-          description: The person's nickname or preferred name.
+          description: |-
+            The person's nickname or preferred name.
+            example: John
+            maxLength: 256
           example: John
+          maxLength: 256
           type: string
         gender:
-          description: Person's gender.
+          description: |-
+            Person's gender.
+            example: Male
+            maxLength: 100
           example: Male
+          maxLength: 100
           type: string
         motherName:
-          description: The name of the person's mother.
+          description: |-
+            The name of the person's mother.
+            example: Jane Doe
+            maxLength: 256
           example: Jane Doe
+          maxLength: 256
           type: string
         nationality:
-          description: "The nationality of the person, for example, \"Brazilian\"."
+          description: |-
+            The nationality of the person, for example, "Brazilian".
+            example: Brazilian
+            maxLength: 100
           example: Brazilian
+          maxLength: 100
           type: string
         socialName:
-          description: "The social name or alternate name used by the person, if applicable."
+          description: |-
+            The social name or alternate name used by the person, if applicable.
+            example: John Doe
+            maxLength: 256
           example: John Doe
+          maxLength: 256
           type: string
         status:
-          description: The current status of the individual.
+          description: |-
+            The current status of the individual.
+            example: Active
+            maxLength: 100
           example: Active
+          maxLength: 100
           type: string
       type: object
     Operation:
@@ -12235,14 +12414,27 @@ components:
           format: date-time
           type: string
       type: object
+    PricingTier:
+      description: PricingTier defines a quantity range and the unit price that applies
+        within it.
+      example:
+        unitPrice: "1.50"
+        minQuantity: 0
+        maxQuantity: 999
+      properties:
+        maxQuantity:
+          example: 999
+          type: integer
+        minQuantity:
+          example: 0
+          type: integer
+        unitPrice:
+          example: "1.50"
+          type: string
+      type: object
     Rate:
       description: Rate is the struct designed to represent the rate fields of an
         operation.
-      example:
-        externalId: 00000000-0000-0000-0000-000000000000
-        from: BRL
-        to: USDe
-        value: 1000.0
       properties:
         externalId:
           example: 00000000-0000-0000-0000-000000000000
@@ -12263,18 +12455,23 @@ components:
       - value
       type: object
     RegulatoryFields:
-      description: RegulatoryFields object
-      example:
-        participantDocument: "12345678912345"
+      description: "Regulatory metadata for an instrument, carrying the participant\
+        \ document that identifies which financial-group entity owns the regulatory\
+        \ relationship."
       properties:
         participantDocument:
-          description: Document of the participant (identifies which financial-group
-            entity owns the relationship)
+          description: |-
+            Document of the participant (identifies which financial-group entity owns the relationship).
+            example: 12345678912345
+            maxLength: 100
           example: "12345678912345"
+          maxLength: 100
           type: string
       type: object
     RelatedParty:
-      description: RelatedParty object
+      description: "A party associated with an instrument, defining the role (PRIMARY_HOLDER,\
+        \ LEGAL_REPRESENTATIVE, or RESPONSIBLE_PARTY) and the time range during which\
+        \ the relationship is active."
       example:
         role: PRIMARY_HOLDER
         endDate: 2026-01-01
@@ -12284,35 +12481,57 @@ components:
         startDate: 2025-01-01
       properties:
         document:
-          description: Document of the related party.
+          description: |-
+            National or tax identification document of the related party.
+            required: true
+            example: 12345678900
+            maxLength: 100
           example: "12345678900"
+          maxLength: 100
           type: string
         endDate:
-          description: End date of the relationship (optional). Accepts both "2025-01-01"
-            and "2025-01-01T00:00:00Z" formats.
+          description: |-
+            End date of the relationship (optional). Accepts both "2025-01-01" and "2025-01-01T00:00:00Z" formats.
+            required: false
+            format: date
           example: 2026-01-01
           format: date
           type: string
         id:
-          description: Unique identifier of the related party.
+          description: |-
+            Unique system-generated identifier of the related party (UUID format).
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         name:
-          description: Name of the related party.
+          description: |-
+            Full legal name of the related party.
+            required: true
+            example: John Smith
+            maxLength: 256
           example: John Smith
+          maxLength: 256
           type: string
         role:
-          description: "Role of the related party (PRIMARY_HOLDER, LEGAL_REPRESENTATIVE,\
-            \ RESPONSIBLE_PARTY)."
+          description: |-
+            Role of the related party in the instrument relationship.
+            required: true
+            example: PRIMARY_HOLDER
+            maxLength: 100
           enum:
           - PRIMARY_HOLDER
           - LEGAL_REPRESENTATIVE
           - RESPONSIBLE_PARTY
           example: PRIMARY_HOLDER
+          maxLength: 100
           type: string
         startDate:
-          description: Start date of the relationship. Accepts both "2025-01-01" and
-            "2025-01-01T00:00:00Z" formats.
+          description: |-
+            Start date of the relationship. Accepts both "2025-01-01" and "2025-01-01T00:00:00Z" formats.
+            required: true
+            format: date
           example: 2025-01-01
           format: date
           type: string
@@ -12323,23 +12542,40 @@ components:
       - startDate
       type: object
     Representative:
-      description: Representative object from LegalPerson
+      description: "Legal representative details for a company-type holder, identifying\
+        \ the individual authorized to act on behalf of the legal entity."
       properties:
         document:
-          description: The document number of the legal representative.
+          description: |-
+            The identification document number of the legal representative.
+            example: 91315026015
+            maxLength: 100
           example: "91315026015"
+          maxLength: 100
           type: string
         email:
-          description: The email address of the legal representative.
+          description: |-
+            The email address of the legal representative.
+            example: john.doe@example.com
+            maxLength: 256
           example: john.doe@example.com
+          maxLength: 256
           type: string
         name:
-          description: The legal representative’s name.
+          description: |-
+            The legal representative's full name.
+            example: John Doe
+            maxLength: 256
           example: John Doe
+          maxLength: 256
           type: string
         role:
-          description: The role of the legal representative within the company.
+          description: |-
+            The role of the legal representative within the company.
+            example: CFO
+            maxLength: 100
           example: CFO
+          maxLength: 100
           type: string
       type: object
     Segment:
@@ -12406,95 +12642,6 @@ components:
     Send:
       description: Send is the struct designed to represent the sending fields of
         an operation.
-      example:
-        distribute:
-          to:
-          - accountAlias: '@person1'
-            amount:
-              value: 1500.0
-            metadata:
-              key: "{}"
-            route: 00000000-0000-0000-0000-000000000000
-            routeId: 00000000-0000-0000-0000-000000000000
-            rate:
-              externalId: 00000000-0000-0000-0000-000000000000
-              from: BRL
-              to: USDe
-              value: 1000.0
-            isFrom: true
-            chartOfAccounts: "1000"
-            description: description
-            share:
-              percentage: 0
-              percentageOfPercentage: 6
-            balanceKey: asset-freeze
-            remaining: remaining
-          - accountAlias: '@person1'
-            amount:
-              value: 1500.0
-            metadata:
-              key: "{}"
-            route: 00000000-0000-0000-0000-000000000000
-            routeId: 00000000-0000-0000-0000-000000000000
-            rate:
-              externalId: 00000000-0000-0000-0000-000000000000
-              from: BRL
-              to: USDe
-              value: 1000.0
-            isFrom: true
-            chartOfAccounts: "1000"
-            description: description
-            share:
-              percentage: 0
-              percentageOfPercentage: 6
-            balanceKey: asset-freeze
-            remaining: remaining
-          remaining: remaining
-        source:
-          from:
-          - accountAlias: '@person1'
-            amount:
-              value: 1500.0
-            metadata:
-              key: "{}"
-            route: 00000000-0000-0000-0000-000000000000
-            routeId: 00000000-0000-0000-0000-000000000000
-            rate:
-              externalId: 00000000-0000-0000-0000-000000000000
-              from: BRL
-              to: USDe
-              value: 1000.0
-            isFrom: true
-            chartOfAccounts: "1000"
-            description: description
-            share:
-              percentage: 0
-              percentageOfPercentage: 6
-            balanceKey: asset-freeze
-            remaining: remaining
-          - accountAlias: '@person1'
-            amount:
-              value: 1500.0
-            metadata:
-              key: "{}"
-            route: 00000000-0000-0000-0000-000000000000
-            routeId: 00000000-0000-0000-0000-000000000000
-            rate:
-              externalId: 00000000-0000-0000-0000-000000000000
-              from: BRL
-              to: USDe
-              value: 1000.0
-            isFrom: true
-            chartOfAccounts: "1000"
-            description: description
-            share:
-              percentage: 0
-              percentageOfPercentage: 6
-            balanceKey: asset-freeze
-            remaining: remaining
-          remaining: remaining
-        asset: BRL
-        value: 1000.0
       properties:
         asset:
           example: BRL
@@ -12549,9 +12696,6 @@ components:
     Share:
       description: Share is the struct designed to represent the sharing fields of
         an operation.
-      example:
-        percentage: 0
-        percentageOfPercentage: 6
       properties:
         percentage:
           type: integer
@@ -12563,49 +12707,6 @@ components:
     Source:
       description: Source is the struct designed to represent the source fields of
         an operation.
-      example:
-        from:
-        - accountAlias: '@person1'
-          amount:
-            value: 1500.0
-          metadata:
-            key: "{}"
-          route: 00000000-0000-0000-0000-000000000000
-          routeId: 00000000-0000-0000-0000-000000000000
-          rate:
-            externalId: 00000000-0000-0000-0000-000000000000
-            from: BRL
-            to: USDe
-            value: 1000.0
-          isFrom: true
-          chartOfAccounts: "1000"
-          description: description
-          share:
-            percentage: 0
-            percentageOfPercentage: 6
-          balanceKey: asset-freeze
-          remaining: remaining
-        - accountAlias: '@person1'
-          amount:
-            value: 1500.0
-          metadata:
-            key: "{}"
-          route: 00000000-0000-0000-0000-000000000000
-          routeId: 00000000-0000-0000-0000-000000000000
-          rate:
-            externalId: 00000000-0000-0000-0000-000000000000
-            from: BRL
-            to: USDe
-            value: 1000.0
-          isFrom: true
-          chartOfAccounts: "1000"
-          description: description
-          share:
-            percentage: 0
-            percentageOfPercentage: 6
-          balanceKey: asset-freeze
-          remaining: remaining
-        remaining: remaining
       properties:
         from:
           items:
@@ -12637,6 +12738,29 @@ components:
           example: Active status
           maxLength: 256
           type: string
+      type: object
+    TracerSettings:
+      properties:
+        failPosture:
+          description: |-
+            FailPosture controls behavior when the tracer is unavailable (timeout/breaker-open).
+            One of: "open" (proceed, record SKIPPED audit), "closed" (reject the transaction).
+            Default: "open".
+          example: open
+          type: string
+        mode:
+          description: |-
+            Mode controls tracer participation in transaction processing.
+            One of: "off" (skip), "advisory" (call but never block), "enforce" (call and gate).
+            Default: "off".
+          example: "off"
+          type: string
+        timeoutMs:
+          description: |-
+            TimeoutMs is the per-call tracer reserve timeout, in milliseconds.
+            Default: 250.
+          example: 250
+          type: integer
       type: object
     Transaction:
       description: "Transaction is a struct designed to store transaction data. Represents\
@@ -12865,105 +12989,6 @@ components:
       type: object
     TransactionInput:
       description: TransactionInput is the request payload for creating a transaction.
-      example:
-        metadata:
-          key: "{}"
-        code: 00000000-0000-0000-0000-000000000000
-        route: 00000000-0000-0000-0000-000000000000
-        routeId: 00000000-0000-0000-0000-000000000000
-        pending: false
-        description: Description
-        transactionDate: 2021-01-01T00:00:00Z
-        chartOfAccountsGroupName: FUNDING
-        send:
-          distribute:
-            to:
-            - accountAlias: '@person1'
-              amount:
-                value: 1500.0
-              metadata:
-                key: "{}"
-              route: 00000000-0000-0000-0000-000000000000
-              routeId: 00000000-0000-0000-0000-000000000000
-              rate:
-                externalId: 00000000-0000-0000-0000-000000000000
-                from: BRL
-                to: USDe
-                value: 1000.0
-              isFrom: true
-              chartOfAccounts: "1000"
-              description: description
-              share:
-                percentage: 0
-                percentageOfPercentage: 6
-              balanceKey: asset-freeze
-              remaining: remaining
-            - accountAlias: '@person1'
-              amount:
-                value: 1500.0
-              metadata:
-                key: "{}"
-              route: 00000000-0000-0000-0000-000000000000
-              routeId: 00000000-0000-0000-0000-000000000000
-              rate:
-                externalId: 00000000-0000-0000-0000-000000000000
-                from: BRL
-                to: USDe
-                value: 1000.0
-              isFrom: true
-              chartOfAccounts: "1000"
-              description: description
-              share:
-                percentage: 0
-                percentageOfPercentage: 6
-              balanceKey: asset-freeze
-              remaining: remaining
-            remaining: remaining
-          source:
-            from:
-            - accountAlias: '@person1'
-              amount:
-                value: 1500.0
-              metadata:
-                key: "{}"
-              route: 00000000-0000-0000-0000-000000000000
-              routeId: 00000000-0000-0000-0000-000000000000
-              rate:
-                externalId: 00000000-0000-0000-0000-000000000000
-                from: BRL
-                to: USDe
-                value: 1000.0
-              isFrom: true
-              chartOfAccounts: "1000"
-              description: description
-              share:
-                percentage: 0
-                percentageOfPercentage: 6
-              balanceKey: asset-freeze
-              remaining: remaining
-            - accountAlias: '@person1'
-              amount:
-                value: 1500.0
-              metadata:
-                key: "{}"
-              route: 00000000-0000-0000-0000-000000000000
-              routeId: 00000000-0000-0000-0000-000000000000
-              rate:
-                externalId: 00000000-0000-0000-0000-000000000000
-                from: BRL
-                to: USDe
-                value: 1000.0
-              isFrom: true
-              chartOfAccounts: "1000"
-              description: description
-              share:
-                percentage: 0
-                percentageOfPercentage: 6
-              balanceKey: asset-freeze
-              remaining: remaining
-            remaining: remaining
-          asset: BRL
-          value: 1000.0
       properties:
         chartOfAccountsGroupName:
           example: FUNDING
@@ -13249,55 +13274,79 @@ components:
           type: object
       type: object
     UpdateHolderRequest:
-      description: UpdateHolderRequest payload
+      description: "Request payload for updating an existing holder. All fields are\
+        \ optional — only provided fields are applied. Omitted fields remain unchanged,\
+        \ enabling partial updates to name, addresses, contact, person details, and\
+        \ metadata."
       example:
         addresses: "{}"
         metadata:
           key: "{}"
         contact: "{}"
         legalPerson: "{}"
-        name: John Doe
+        name: Jonathan Doe
         externalId: G4K7N8M
         naturalPerson: "{}"
       properties:
         addresses:
           allOf:
           - $ref: '#/components/schemas/Addresses'
-          description: Object of addresses.
+          description: |-
+            Updated physical addresses for the holder.
+            required: false
           type: object
         contact:
           allOf:
           - $ref: '#/components/schemas/Contact'
-          description: Object with contact information.
+          description: |-
+            Updated contact details for the holder.
+            required: false
           type: object
         externalId:
-          description: Optional field for an external identifier to client correlation
-            purposes.
+          description: |-
+            Updated client-supplied correlation key.
+            required: false
+            example: G4K7N8M
+            maxLength: 256
           example: G4K7N8M
+          maxLength: 256
           type: string
         legalPerson:
           allOf:
           - $ref: '#/components/schemas/LegalPerson'
-          description: Object with legal person information.
+          description: |-
+            Updated company-specific registration fields.
+            required: false
           type: object
         metadata:
           additionalProperties:
             type: object
-          description: "An object containing key-value pairs to add as metadata, where\
-            \ the field name is the key and the field value is the value."
+          description: |-
+            Updated custom key-value pairs for extending the holder information.
+            required: false
+            example: {"source": "profile-update", "region": "us-west"}
           type: object
         name:
-          description: Holders name.
-          example: John Doe
+          description: |-
+            Updated full legal name of the holder.
+            required: false
+            example: Jonathan Doe
+            maxLength: 256
+          example: Jonathan Doe
+          maxLength: 256
           type: string
         naturalPerson:
           allOf:
           - $ref: '#/components/schemas/NaturalPerson'
-          description: Object with natural person information.
+          description: |-
+            Updated individual-specific biographical fields.
+            required: false
           type: object
       type: object
     UpdateInstrumentRequest:
-      description: UpdateInstrumentRequest payload
+      description: Request payload for updating an existing instrument. All fields
+        are optional — only provided fields are applied. RelatedParties are appended
+        to the existing list; existing entries are not removed.
       example:
         metadata:
           key: "{}"
@@ -13320,21 +13369,29 @@ components:
         bankingDetails:
           allOf:
           - $ref: '#/components/schemas/BankingDetails'
-          description: Object with banking information of the related account.
+          description: |-
+            Updated banking details for the linked account.
+            required: false
           type: object
         metadata:
           additionalProperties:
             type: object
-          description: "An object containing key-value pairs to add as metadata, where\
-            \ the field name is the key and the field value is the value."
+          description: |-
+            Updated custom key-value pairs for extending the instrument information.
+            required: false
+            example: {"product": "savings", "region": "us-west"}
           type: object
         regulatoryFields:
           allOf:
           - $ref: '#/components/schemas/RegulatoryFields'
-          description: Object with regulatory fields.
+          description: |-
+            Updated regulatory metadata identifying the participant entity.
+            required: false
           type: object
         relatedParties:
-          description: List of related parties to add (appends to existing).
+          description: |-
+            Additional related parties to append to the instrument (existing entries are not removed).
+            required: false
           items:
             $ref: '#/components/schemas/RelatedParty'
           type: array
@@ -13685,338 +13742,9 @@ components:
           maxLength: 255
           type: string
       type: object
-    github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.AccountTarget:
-      example:
-        aliases:
-        - aliases
-        - aliases
-        portfolioId: portfolioId
-        segmentId: segmentId
-      properties:
-        aliases:
-          items:
-            type: string
-          type: array
-        portfolioId:
-          type: string
-        segmentId:
-          type: string
-      type: object
-    github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateRequest:
-      properties:
-        ledgerId:
-          type: string
-        period:
-          description: "YYYY-MM, YYYY-Www, or YYYY-MM-DD format"
-          type: string
-        type:
-          description: "\"volume\", \"maintenance\", or empty for both"
-          type: string
-      required:
-      - ledgerId
-      - period
-      type: object
-    github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateResponse:
-      example:
-        summary:
-          totalVolume: 7
-          totalResults: 2
-          totalMaintenance: 5
-          totalNetAmount: "456.78"
-        results:
-        - billingPackageId: billingPackageId
-          billingPackageLabel: billingPackageLabel
-          period: period
-          billingType: billingType
-          totalNetAmount: "123.45"
-          totalSkipped: 1
-          transactionPayload:
-          - 5
-          - 5
-          totalAccounts: 0
-          totalCharged: 6
-        - billingPackageId: billingPackageId
-          billingPackageLabel: billingPackageLabel
-          period: period
-          billingType: billingType
-          totalNetAmount: "123.45"
-          totalSkipped: 1
-          transactionPayload:
-          - 5
-          - 5
-          totalAccounts: 0
-          totalCharged: 6
-      properties:
-        results:
-          items:
-            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculationResult'
-          type: array
-        summary:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateSummary'
-      type: object
-    github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateSummary:
-      example:
-        totalVolume: 7
-        totalResults: 2
-        totalMaintenance: 5
-        totalNetAmount: "456.78"
-      properties:
-        totalMaintenance:
-          type: integer
-        totalNetAmount:
-          example: "456.78"
-          type: string
-        totalResults:
-          type: integer
-        totalVolume:
-          type: integer
-      type: object
-    github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculationResult:
-      example:
-        billingPackageId: billingPackageId
-        billingPackageLabel: billingPackageLabel
-        period: period
-        billingType: billingType
-        totalNetAmount: "123.45"
-        totalSkipped: 1
-        transactionPayload:
-        - 5
-        - 5
-        totalAccounts: 0
-        totalCharged: 6
-      properties:
-        billingPackageId:
-          type: string
-        billingPackageLabel:
-          type: string
-        billingType:
-          description: '"volume" or "maintenance"'
-          type: string
-        period:
-          type: string
-        totalAccounts:
-          type: integer
-        totalCharged:
-          type: integer
-        totalNetAmount:
-          example: "123.45"
-          type: string
-        totalSkipped:
-          type: integer
-        transactionPayload:
-          items:
-            type: integer
-          type: array
-      type: object
-    github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage:
-      example:
-        pricingModel: pricingModel
-        accountTarget:
-          aliases:
-          - aliases
-          - aliases
-          portfolioId: portfolioId
-          segmentId: segmentId
-        maintenanceCreditAccount: maintenanceCreditAccount
-        tiers:
-        - unitPrice: "1.50"
-          minQuantity: 5
-          maxQuantity: 1
-        - unitPrice: "1.50"
-          minQuantity: 5
-          maxQuantity: 1
-        assetCode: assetCode
-        debitAccountAlias: debitAccountAlias
-        discountTiers:
-        - discountPercentage: "10.00"
-          minQuantity: 0
-        - discountPercentage: "10.00"
-          minQuantity: 0
-        eventFilter: "{}"
-        description: description
-        freeQuota: 6
-        creditAccountAlias: creditAccountAlias
-        label: label
-        type: type
-        ledgerId: ledgerId
-        organizationId: organizationId
-        createdAt: createdAt
-        feeAmount: "50.00"
-        deletedAt: deletedAt
-        enable: true
-        id: id
-        countMode: countMode
-        updatedAt: updatedAt
-      properties:
-        accountTarget:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.AccountTarget'
-        assetCode:
-          type: string
-        countMode:
-          type: string
-        createdAt:
-          description: Timestamps.
-          type: string
-        creditAccountAlias:
-          type: string
-        debitAccountAlias:
-          type: string
-        deletedAt:
-          type: string
-        description:
-          type: string
-        discountTiers:
-          items:
-            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.DiscountTier'
-          type: array
-        enable:
-          type: boolean
-        eventFilter:
-          allOf:
-          - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.EventFilter'
-          description: Volume-specific fields.
-          type: object
-        feeAmount:
-          description: Maintenance-specific fields.
-          example: "50.00"
-          type: string
-        freeQuota:
-          type: integer
-        id:
-          type: string
-        label:
-          type: string
-        ledgerId:
-          type: string
-        maintenanceCreditAccount:
-          type: string
-        organizationId:
-          type: string
-        pricingModel:
-          type: string
-        tiers:
-          items:
-            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.PricingTier'
-          type: array
-        type:
-          type: string
-        updatedAt:
-          type: string
-      type: object
-    github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackageUpdate:
-      properties:
-        description:
-          type: string
-        enable:
-          type: boolean
-        label:
-          type: string
-      type: object
-    github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.DiscountTier:
-      example:
-        discountPercentage: "10.00"
-        minQuantity: 0
-      properties:
-        discountPercentage:
-          example: "10.00"
-          type: string
-        minQuantity:
-          type: integer
-      type: object
-    github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.EventFilter:
-      properties:
-        status:
-          type: string
-        transactionRoute:
-          type: string
-      type: object
-    github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.PricingTier:
-      example:
-        unitPrice: "1.50"
-        minQuantity: 5
-        maxQuantity: 1
-      properties:
-        maxQuantity:
-          type: integer
-        minQuantity:
-          type: integer
-        unitPrice:
-          example: "1.50"
-          type: string
-      type: object
-    github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination:
-      properties:
-        items:
-          type: object
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        page:
-          type: integer
-        prev_cursor:
-          type: string
-      type: object
-    mmodel.AccountingValidation:
-      properties:
-        requireHolder:
-          description: |-
-            RequireHolder enables enforcement that accounts must reference an existing holder.
-            When true, account creation rejects accounts whose resolved holder does not exist.
-            Default: false (permissive - no validation)
-          type: boolean
-        validateAccountType:
-          description: |-
-            ValidateAccountType enables validation of account types during transaction processing.
-            When true, accounts must have types that match the operation route rules.
-            Default: false (permissive - no validation)
-          type: boolean
-        validateRoutes:
-          description: |-
-            ValidateRoutes enables validation of transaction routes during processing.
-            When true, transactions must specify valid route IDs that exist in the ledger.
-            Default: false (permissive - no validation)
-          type: boolean
-      type: object
-    mmodel.LedgerSettings:
-      example:
-        accounting: "{}"
-        tracer: "{}"
-      properties:
-        accounting:
-          allOf:
-          - $ref: '#/components/schemas/mmodel.AccountingValidation'
-          description: Accounting contains validation settings for accounting operations.
-          type: object
-        tracer:
-          allOf:
-          - $ref: '#/components/schemas/mmodel.TracerSettings'
-          description: Tracer contains the per-ledger tracer-integration settings.
-          type: object
-      type: object
-    mmodel.TracerSettings:
-      properties:
-        failPosture:
-          description: |-
-            FailPosture controls behavior when the tracer is unavailable (timeout/breaker-open).
-            One of: "open" (proceed, record SKIPPED audit), "closed" (reject the transaction).
-            Default: "open".
-          type: string
-        mode:
-          description: |-
-            Mode controls tracer participation in transaction processing.
-            One of: "off" (skip), "advisory" (call but never block), "enforce" (call and gate).
-            Default: "off".
-          type: string
-        timeoutMs:
-          description: |-
-            TimeoutMs is the per-call tracer reserve timeout, in milliseconds.
-            Default: 250.
-          type: integer
-      type: object
     _v1_organizations_get_200_response:
       allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - $ref: '#/components/schemas/CursorPagination'
       - properties:
           items:
             items:
@@ -14024,10 +13752,10 @@ components:
             type: array
         type: object
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
+        prev_cursor: eyJpZCI6IjAxOTE...
+        next_cursor: eyJpZCI6IjAxOTI...
+        limit: 10
+        page: 1
         items:
         - legalName: Lerian Financial Services Ltd.
           createdAt: 2021-01-01T00:00:00Z
@@ -14059,7 +13787,7 @@ components:
       - properties:
           items:
             items:
-              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage'
+              $ref: '#/components/schemas/BillingPackage'
             type: array
           limit:
             type: integer
@@ -14069,87 +13797,87 @@ components:
             type: integer
         type: object
       example:
-        total: 7
-        limit: 5
-        page: 2
+        total: 1
+        limit: 0
+        page: 6
         items:
-        - pricingModel: pricingModel
+        - pricingModel: tiered
           accountTarget:
             aliases:
-            - aliases
-            - aliases
-            portfolioId: portfolioId
-            segmentId: segmentId
-          maintenanceCreditAccount: maintenanceCreditAccount
+            - account_alpha
+            - account_beta
+            portfolioId: 00000000-0000-0000-0000-000000000000
+            segmentId: 00000000-0000-0000-0000-000000000000
+          maintenanceCreditAccount: account_maintenance_credit
           tiers:
           - unitPrice: "1.50"
-            minQuantity: 5
-            maxQuantity: 1
+            minQuantity: 0
+            maxQuantity: 999
           - unitPrice: "1.50"
-            minQuantity: 5
-            maxQuantity: 1
-          assetCode: assetCode
-          debitAccountAlias: debitAccountAlias
+            minQuantity: 0
+            maxQuantity: 999
+          assetCode: BRL
+          debitAccountAlias: account_fees_debit
           discountTiers:
           - discountPercentage: "10.00"
-            minQuantity: 0
+            minQuantity: 1000
           - discountPercentage: "10.00"
-            minQuantity: 0
+            minQuantity: 1000
           eventFilter: "{}"
-          description: description
-          freeQuota: 6
-          creditAccountAlias: creditAccountAlias
-          label: label
-          type: type
-          ledgerId: ledgerId
-          organizationId: organizationId
-          createdAt: createdAt
+          description: Charges per completed transaction route
+          freeQuota: 100
+          creditAccountAlias: account_fees_credit
+          label: Monthly Volume Billing
+          type: volume
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2026-01-01T00:00:00Z
           feeAmount: "50.00"
-          deletedAt: deletedAt
+          deletedAt: 2026-06-01T00:00:00Z
           enable: true
-          id: id
-          countMode: countMode
-          updatedAt: updatedAt
-        - pricingModel: pricingModel
+          id: 00000000-0000-0000-0000-000000000000
+          countMode: perRoute
+          updatedAt: 2026-01-01T00:00:00Z
+        - pricingModel: tiered
           accountTarget:
             aliases:
-            - aliases
-            - aliases
-            portfolioId: portfolioId
-            segmentId: segmentId
-          maintenanceCreditAccount: maintenanceCreditAccount
+            - account_alpha
+            - account_beta
+            portfolioId: 00000000-0000-0000-0000-000000000000
+            segmentId: 00000000-0000-0000-0000-000000000000
+          maintenanceCreditAccount: account_maintenance_credit
           tiers:
           - unitPrice: "1.50"
-            minQuantity: 5
-            maxQuantity: 1
+            minQuantity: 0
+            maxQuantity: 999
           - unitPrice: "1.50"
-            minQuantity: 5
-            maxQuantity: 1
-          assetCode: assetCode
-          debitAccountAlias: debitAccountAlias
+            minQuantity: 0
+            maxQuantity: 999
+          assetCode: BRL
+          debitAccountAlias: account_fees_debit
           discountTiers:
           - discountPercentage: "10.00"
-            minQuantity: 0
+            minQuantity: 1000
           - discountPercentage: "10.00"
-            minQuantity: 0
+            minQuantity: 1000
           eventFilter: "{}"
-          description: description
-          freeQuota: 6
-          creditAccountAlias: creditAccountAlias
-          label: label
-          type: type
-          ledgerId: ledgerId
-          organizationId: organizationId
-          createdAt: createdAt
+          description: Charges per completed transaction route
+          freeQuota: 100
+          creditAccountAlias: account_fees_credit
+          label: Monthly Volume Billing
+          type: volume
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2026-01-01T00:00:00Z
           feeAmount: "50.00"
-          deletedAt: deletedAt
+          deletedAt: 2026-06-01T00:00:00Z
           enable: true
-          id: id
-          countMode: countMode
-          updatedAt: updatedAt
+          id: 00000000-0000-0000-0000-000000000000
+          countMode: perRoute
+          updatedAt: 2026-01-01T00:00:00Z
     _v1_organizations__organization_id__holders_get_200_response:
       allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - $ref: '#/components/schemas/CursorPagination'
       - properties:
           items:
             items:
@@ -14157,36 +13885,12 @@ components:
             type: array
         type: object
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
+        prev_cursor: eyJpZCI6IjAxOTE...
+        next_cursor: eyJpZCI6IjAxOTI...
+        limit: 10
+        page: 1
         items:
-        - addresses:
-            additional1:
-              country: US
-              zipCode: "10001"
-              city: New York
-              description: Home
-              state: NY
-              line2: Suite 1500
-              line1: 123 Financial Avenue
-            additional2:
-              country: US
-              zipCode: "10001"
-              city: New York
-              description: Home
-              state: NY
-              line2: Suite 1500
-              line1: 123 Financial Avenue
-            primary:
-              country: US
-              zipCode: "10001"
-              city: New York
-              description: Home
-              state: NY
-              line2: Suite 1500
-              line1: 123 Financial Avenue
+        - addresses: "{}"
           metadata:
             key: "{}"
           document: "91315026015"
@@ -14194,57 +13898,13 @@ components:
           type: NATURAL_PERSON
           createdAt: 2025-01-01T00:00:00Z
           deletedAt: 2025-01-01T00:00:00Z
-          contact:
-            secondaryEmail: john.doe@example.com
-            mobilePhone: "+1555555555"
-            otherPhone: "+1555555555"
-            primaryEmail: john.doe@example.com
-          legalPerson:
-            foundingDate: 2025-01-01
-            tradeName: Lerian Studio
-            activity: Electronic devices development
-            size: Medium
-            type: Limited Liability
-            representative: "{}"
-            status: Closed
+          contact: "{}"
+          legalPerson: "{}"
           name: John Doe
           id: 00000000-0000-0000-0000-000000000000
-          naturalPerson:
-            fatherName: John Doe
-            socialName: John Doe
-            gender: Male
-            nationality: Brazilian
-            favoriteName: John
-            motherName: Jane Doe
-            birthDate: 1990-01-01
-            civilStatus: Single
-            status: Active
+          naturalPerson: "{}"
           updatedAt: 2025-01-01T00:00:00Z
-        - addresses:
-            additional1:
-              country: US
-              zipCode: "10001"
-              city: New York
-              description: Home
-              state: NY
-              line2: Suite 1500
-              line1: 123 Financial Avenue
-            additional2:
-              country: US
-              zipCode: "10001"
-              city: New York
-              description: Home
-              state: NY
-              line2: Suite 1500
-              line1: 123 Financial Avenue
-            primary:
-              country: US
-              zipCode: "10001"
-              city: New York
-              description: Home
-              state: NY
-              line2: Suite 1500
-              line1: 123 Financial Avenue
+        - addresses: "{}"
           metadata:
             key: "{}"
           document: "91315026015"
@@ -14252,35 +13912,15 @@ components:
           type: NATURAL_PERSON
           createdAt: 2025-01-01T00:00:00Z
           deletedAt: 2025-01-01T00:00:00Z
-          contact:
-            secondaryEmail: john.doe@example.com
-            mobilePhone: "+1555555555"
-            otherPhone: "+1555555555"
-            primaryEmail: john.doe@example.com
-          legalPerson:
-            foundingDate: 2025-01-01
-            tradeName: Lerian Studio
-            activity: Electronic devices development
-            size: Medium
-            type: Limited Liability
-            representative: "{}"
-            status: Closed
+          contact: "{}"
+          legalPerson: "{}"
           name: John Doe
           id: 00000000-0000-0000-0000-000000000000
-          naturalPerson:
-            fatherName: John Doe
-            socialName: John Doe
-            gender: Male
-            nationality: Brazilian
-            favoriteName: John
-            motherName: Jane Doe
-            birthDate: 1990-01-01
-            civilStatus: Single
-            status: Active
+          naturalPerson: "{}"
           updatedAt: 2025-01-01T00:00:00Z
     _v1_organizations__organization_id__holders__id__accounts_get_200_response:
       allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - $ref: '#/components/schemas/CursorPagination'
       - properties:
           items:
             items:
@@ -14288,10 +13928,10 @@ components:
             type: array
         type: object
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
+        prev_cursor: eyJpZCI6IjAxOTE...
+        next_cursor: eyJpZCI6IjAxOTI...
+        limit: 10
+        page: 1
         items:
         - metadata:
             key: "{}"
@@ -14333,7 +13973,7 @@ components:
           updatedAt: 2021-01-01T00:00:00Z
     _v1_organizations__organization_id__instruments_get_200_response:
       allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - $ref: '#/components/schemas/CursorPagination'
       - properties:
           items:
             items:
@@ -14341,17 +13981,16 @@ components:
             type: array
         type: object
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
+        prev_cursor: eyJpZCI6IjAxOTE...
+        next_cursor: eyJpZCI6IjAxOTI...
+        limit: 10
+        page: 1
         items:
         - metadata:
             key: "{}"
-          regulatoryFields:
-            participantDocument: "12345678912345"
+          regulatoryFields: "{}"
           document: "91315026015"
-          type: LEGAL_PERSON
+          type: NATURAL_PERSON
           holderId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
           accountId: 00000000-0000-0000-0000-000000000000
@@ -14375,10 +14014,9 @@ components:
           updatedAt: 2025-01-01T00:00:00Z
         - metadata:
             key: "{}"
-          regulatoryFields:
-            participantDocument: "12345678912345"
+          regulatoryFields: "{}"
           document: "91315026015"
-          type: LEGAL_PERSON
+          type: NATURAL_PERSON
           holderId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
           accountId: 00000000-0000-0000-0000-000000000000
@@ -14402,7 +14040,7 @@ components:
           updatedAt: 2025-01-01T00:00:00Z
     _v1_organizations__organization_id__ledgers_get_200_response:
       allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - $ref: '#/components/schemas/CursorPagination'
       - properties:
           items:
             items:
@@ -14410,10 +14048,10 @@ components:
             type: array
         type: object
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
+        prev_cursor: eyJpZCI6IjAxOTE...
+        next_cursor: eyJpZCI6IjAxOTI...
+        limit: 10
+        page: 1
         items:
         - organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
@@ -14437,7 +14075,7 @@ components:
           updatedAt: 2021-01-01T00:00:00Z
     _v1_organizations__organization_id__ledgers__ledger_id__account_types_get_200_response:
       allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - $ref: '#/components/schemas/CursorPagination'
       - properties:
           items:
             items:
@@ -14445,10 +14083,10 @@ components:
             type: array
         type: object
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
+        prev_cursor: eyJpZCI6IjAxOTE...
+        next_cursor: eyJpZCI6IjAxOTI...
+        limit: 10
+        page: 1
         items:
         - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -14476,7 +14114,7 @@ components:
           updatedAt: 2021-01-01T00:00:00Z
     _v1_organizations__organization_id__ledgers__ledger_id__accounts_alias__alias__balances_get_200_response:
       allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - $ref: '#/components/schemas/CursorPagination'
       - properties:
           items:
             items:
@@ -14484,10 +14122,10 @@ components:
             type: array
         type: object
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
+        prev_cursor: eyJpZCI6IjAxOTE...
+        next_cursor: eyJpZCI6IjAxOTI...
+        limit: 10
+        page: 1
         items:
         - overdraftUsed: 130.0
           onHold: 500.0
@@ -14499,7 +14137,7 @@ components:
           version: 2
     _v1_organizations__organization_id__ledgers__ledger_id__accounts__account_id__operations_get_200_response:
       allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - $ref: '#/components/schemas/CursorPagination'
       - properties:
           items:
             items:
@@ -14507,10 +14145,10 @@ components:
             type: array
         type: object
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
+        prev_cursor: eyJpZCI6IjAxOTE...
+        next_cursor: eyJpZCI6IjAxOTI...
+        limit: 10
+        page: 1
         items:
         - accountAlias: '@person1'
           metadata:
@@ -14568,7 +14206,7 @@ components:
           status: "{}"
     _v1_organizations__organization_id__ledgers__ledger_id__asset_rates_from__asset_code__get_200_response:
       allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - $ref: '#/components/schemas/CursorPagination'
       - properties:
           items:
             items:
@@ -14576,10 +14214,10 @@ components:
             type: array
         type: object
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
+        prev_cursor: eyJpZCI6IjAxOTE...
+        next_cursor: eyJpZCI6IjAxOTI...
+        limit: 10
+        page: 1
         items:
         - metadata:
             key: "{}"
@@ -14611,7 +14249,7 @@ components:
           updatedAt: 2021-01-01T00:00:00Z
     _v1_organizations__organization_id__ledgers__ledger_id__assets_get_200_response:
       allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - $ref: '#/components/schemas/CursorPagination'
       - properties:
           items:
             items:
@@ -14619,10 +14257,10 @@ components:
             type: array
         type: object
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
+        prev_cursor: eyJpZCI6IjAxOTE...
+        next_cursor: eyJpZCI6IjAxOTI...
+        limit: 10
+        page: 1
         items:
         - ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -14650,7 +14288,7 @@ components:
           updatedAt: 2021-01-01T00:00:00Z
     _v1_organizations__organization_id__ledgers__ledger_id__operation_routes_get_200_response:
       allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - $ref: '#/components/schemas/CursorPagination'
       - properties:
           items:
             items:
@@ -14658,10 +14296,10 @@ components:
             type: array
         type: object
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
+        prev_cursor: eyJpZCI6IjAxOTE...
+        next_cursor: eyJpZCI6IjAxOTI...
+        limit: 10
+        page: 1
         items:
         - metadata:
             key: "{}"
@@ -14695,7 +14333,7 @@ components:
           updatedAt: 2021-01-01T00:00:00Z
     _v1_organizations__organization_id__ledgers__ledger_id__portfolios_get_200_response:
       allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - $ref: '#/components/schemas/CursorPagination'
       - properties:
           items:
             items:
@@ -14703,10 +14341,10 @@ components:
             type: array
         type: object
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
+        prev_cursor: eyJpZCI6IjAxOTE...
+        next_cursor: eyJpZCI6IjAxOTI...
+        limit: 10
+        page: 1
         items:
         - ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -14732,7 +14370,7 @@ components:
           updatedAt: 2021-01-01T00:00:00Z
     _v1_organizations__organization_id__ledgers__ledger_id__segments_get_200_response:
       allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - $ref: '#/components/schemas/CursorPagination'
       - properties:
           items:
             items:
@@ -14740,10 +14378,10 @@ components:
             type: array
         type: object
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
+        prev_cursor: eyJpZCI6IjAxOTE...
+        next_cursor: eyJpZCI6IjAxOTI...
+        limit: 10
+        page: 1
         items:
         - ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -14767,7 +14405,7 @@ components:
           updatedAt: 2021-01-01T00:00:00Z
     _v1_organizations__organization_id__ledgers__ledger_id__transaction_routes_get_200_response:
       allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - $ref: '#/components/schemas/CursorPagination'
       - properties:
           items:
             items:
@@ -14775,10 +14413,10 @@ components:
             type: array
         type: object
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
+        prev_cursor: eyJpZCI6IjAxOTE...
+        next_cursor: eyJpZCI6IjAxOTI...
+        limit: 10
+        page: 1
         items:
         - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -14864,7 +14502,7 @@ components:
           updatedAt: 2025-01-01T00:00:00Z
     _v1_organizations__organization_id__ledgers__ledger_id__transactions_get_200_response:
       allOf:
-      - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
+      - $ref: '#/components/schemas/CursorPagination'
       - properties:
           items:
             items:
@@ -14872,10 +14510,10 @@ components:
             type: array
         type: object
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
+        prev_cursor: eyJpZCI6IjAxOTE...
+        next_cursor: eyJpZCI6IjAxOTI...
+        limit: 10
+        page: 1
         items:
         - amount: 1500.0
           metadata:

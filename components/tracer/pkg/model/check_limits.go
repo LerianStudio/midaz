@@ -28,7 +28,7 @@ type CheckLimitsInput struct {
 	SegmentID            *uuid.UUID       `json:"segmentId,omitempty"`
 	PortfolioID          *uuid.UUID       `json:"portfolioId,omitempty"`
 	MerchantID           *uuid.UUID       `json:"merchantId,omitempty"`
-	TransactionType      *TransactionType `json:"transactionType,omitempty"`
+	TransactionType      *TransactionType `json:"transactionType,omitempty" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
 	SubType              *string          `json:"subType,omitempty" maxLength:"50"`
 	TransactionTimestamp time.Time        `json:"transactionTimestamp"`
 }

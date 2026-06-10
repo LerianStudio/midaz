@@ -254,7 +254,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/internal_manager_adapters_http_in.notificationResponse'
+                $ref: '#/components/schemas/NotificationResponse'
           description: OK
         "400":
           content:
@@ -484,7 +484,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/internal_manager_adapters_http_in.metricsResponse'
+                $ref: '#/components/schemas/MetricsResponse'
           description: OK
         "400":
           content:
@@ -1473,7 +1473,11 @@ components:
       - type
       type: object
     CreateReportInput:
-      description: CreateReportInput is the input payload to create a report.
+      description: "CreateReportInput is the input payload to create a report.  The\
+        \ Filters field is a three-level map keyed by datasource → table → field,\
+        \ with each leaf being a FilterCondition. Example: { \"accounts\": { \"account\"\
+        : { \"status\": {\"eq\": [\"ACTIVE\"]}, \"balance\": {\"gte\": [0], \"lte\"\
+        : [10000]} } } }"
       example:
         filters:
           key:
@@ -1669,6 +1673,20 @@ components:
           type: array
         condition:
           type: string
+      type: object
+    ErrorMetrics:
+      description: ErrorMetrics holds error counts for the requested period and the
+        preceding period of the same length.
+      properties:
+        previousPeriodTotal:
+          description: PreviousPeriodTotal is the error count for the same-length
+            window immediately before the current period.
+          example: 12
+          type: integer
+        total:
+          description: Total is the error count within the current period window.
+          example: 7
+          type: integer
       type: object
     FilterChain:
       example:
@@ -1920,11 +1938,165 @@ components:
             type: object
           type: object
       type: object
+    MetricsResponse:
+      description: MetricsResponse contains aggregated system counters returned by
+        GET /v1/metrics.
+      example:
+        reports: 156
+        templates: 42
+        dataSources: 3
+        errors: "{}"
+      properties:
+        dataSources:
+          description: DataSources is the number of external data sources currently
+            registered.
+          example: 3
+          type: integer
+        errors:
+          allOf:
+          - $ref: '#/components/schemas/ErrorMetrics'
+          description: Errors contains error counters for the current and previous
+            period.
+          type: object
+        reports:
+          description: Reports is the total number of report executions recorded.
+          example: 156
+          type: integer
+        templates:
+          description: Templates is the total number of report templates registered
+            in the system.
+          example: 42
+          type: integer
+      type: object
+    NotificationItem:
+      description: NotificationItem describes a deadline that has entered its notification
+        window.
+      example:
+        daysUntilDue: 3
+        severity: warning
+        color: '#ef4444'
+        dueDate: 2026-07-31T00:00:00Z
+        name: CADOC 4010
+        notifyDaysBefore: 5
+        description: Monthly regulatory report
+        id: 00000000-0000-0000-0000-000000000001
+        type: regulatory
+        monthsOfYear:
+        - 1
+        - 6
+        - 12
+        frequency: monthly
+      properties:
+        color:
+          description: Color is the hex colour code used in the UI for this deadline.
+          example: '#ef4444'
+          type: string
+        daysUntilDue:
+          description: DaysUntilDue is the number of days until (positive) or past
+            (negative) the due date.
+          example: 3
+          type: integer
+        description:
+          description: Description is an optional longer description of the deadline.
+          example: Monthly regulatory report
+          type: string
+        dueDate:
+          description: DueDate is the ISO-8601 timestamp when the deadline falls due.
+          example: 2026-07-31T00:00:00Z
+          type: string
+        frequency:
+          description: "Frequency describes how often the deadline recurs (e.g. \"\
+            monthly\", \"annual\")."
+          example: monthly
+          type: string
+        id:
+          description: ID is the unique identifier of the deadline.
+          example: 00000000-0000-0000-0000-000000000001
+          type: string
+        monthsOfYear:
+          description: "MonthsOfYear lists the months (1-12) the deadline applies\
+            \ to, when frequency is not every month."
+          example:
+          - 1
+          - 6
+          - 12
+          items:
+            type: integer
+          type: array
+        name:
+          description: Name is the human-readable label of the deadline.
+          example: CADOC 4010
+          type: string
+        notifyDaysBefore:
+          description: NotifyDaysBefore is how many days ahead of the due date this
+            notification window opens.
+          example: 5
+          type: integer
+        severity:
+          description: "Severity is the urgency level: \"overdue\", \"warning\", or\
+            \ \"info\"."
+          example: warning
+          type: string
+        type:
+          description: "Type categorises the deadline (e.g. \"regulatory\", \"custom\"\
+            )."
+          example: regulatory
+          type: string
+      type: object
+    NotificationResponse:
+      description: NotificationResponse wraps the list of active deadline notifications
+        with a total count.
+      example:
+        total: 3
+        items:
+        - daysUntilDue: 3
+          severity: warning
+          color: '#ef4444'
+          dueDate: 2026-07-31T00:00:00Z
+          name: CADOC 4010
+          notifyDaysBefore: 5
+          description: Monthly regulatory report
+          id: 00000000-0000-0000-0000-000000000001
+          type: regulatory
+          monthsOfYear:
+          - 1
+          - 6
+          - 12
+          frequency: monthly
+        - daysUntilDue: 3
+          severity: warning
+          color: '#ef4444'
+          dueDate: 2026-07-31T00:00:00Z
+          name: CADOC 4010
+          notifyDaysBefore: 5
+          description: Monthly regulatory report
+          id: 00000000-0000-0000-0000-000000000001
+          type: regulatory
+          monthsOfYear:
+          - 1
+          - 6
+          - 12
+          frequency: monthly
+      properties:
+        items:
+          description: "Items is the list of deadline notifications within their alert\
+            \ window, sorted by urgency."
+          items:
+            $ref: '#/components/schemas/NotificationItem'
+          type: array
+        total:
+          description: Total is the number of notifications returned.
+          example: 3
+          type: integer
+      type: object
     Pagination:
       description: Pagination is the struct designed to store the pagination data
         of an entity list.
       properties:
         items:
+          description: |-
+            Items holds the page of results. The element type is overridden per-endpoint via the
+            model.Pagination{items=[]X} generic annotation on each list endpoint.
           type: object
         limit:
           example: 10
@@ -2381,113 +2553,6 @@ components:
           description: Message is a human-readable description of the warning.
           type: string
       type: object
-    internal_manager_adapters_http_in.errorMetrics:
-      example:
-        previousPeriodTotal: 6
-        total: 1
-      properties:
-        previousPeriodTotal:
-          type: integer
-        total:
-          type: integer
-      type: object
-    internal_manager_adapters_http_in.metricsResponse:
-      example:
-        reports: 5
-        templates: 5
-        dataSources: 0
-        errors:
-          previousPeriodTotal: 6
-          total: 1
-      properties:
-        dataSources:
-          type: integer
-        errors:
-          $ref: '#/components/schemas/internal_manager_adapters_http_in.errorMetrics'
-        reports:
-          type: integer
-        templates:
-          type: integer
-      type: object
-    internal_manager_adapters_http_in.notificationItem:
-      example:
-        daysUntilDue: 0
-        severity: severity
-        color: color
-        dueDate: dueDate
-        name: name
-        notifyDaysBefore: 1
-        description: description
-        id: id
-        type: type
-        monthsOfYear:
-        - 6
-        - 6
-        frequency: frequency
-      properties:
-        color:
-          type: string
-        daysUntilDue:
-          type: integer
-        description:
-          type: string
-        dueDate:
-          type: string
-        frequency:
-          type: string
-        id:
-          type: string
-        monthsOfYear:
-          items:
-            type: integer
-          type: array
-        name:
-          type: string
-        notifyDaysBefore:
-          type: integer
-        severity:
-          type: string
-        type:
-          type: string
-      type: object
-    internal_manager_adapters_http_in.notificationResponse:
-      example:
-        total: 5
-        items:
-        - daysUntilDue: 0
-          severity: severity
-          color: color
-          dueDate: dueDate
-          name: name
-          notifyDaysBefore: 1
-          description: description
-          id: id
-          type: type
-          monthsOfYear:
-          - 6
-          - 6
-          frequency: frequency
-        - daysUntilDue: 0
-          severity: severity
-          color: color
-          dueDate: dueDate
-          name: name
-          notifyDaysBefore: 1
-          description: description
-          id: id
-          type: type
-          monthsOfYear:
-          - 6
-          - 6
-          frequency: frequency
-      properties:
-        items:
-          items:
-            $ref: '#/components/schemas/internal_manager_adapters_http_in.notificationItem'
-          type: array
-        total:
-          type: integer
-      type: object
     pkg.HTTPError:
       example:
         code: code
@@ -2515,17 +2580,11 @@ components:
             items:
               $ref: '#/components/schemas/Deadline'
             type: array
-          limit:
-            type: integer
-          page:
-            type: integer
-          total:
-            type: integer
         type: object
       example:
-        total: 1
-        limit: 0
-        page: 6
+        total: 10
+        limit: 10
+        page: 1
         items:
         - color: '#FF5733'
           dueDate: 2026-03-31T23:59:59Z
@@ -2571,17 +2630,11 @@ components:
             items:
               $ref: '#/components/schemas/Report'
             type: array
-          limit:
-            type: integer
-          page:
-            type: integer
-          total:
-            type: integer
         type: object
       example:
-        total: 1
-        limit: 0
-        page: 6
+        total: 10
+        limit: 10
+        page: 1
         items:
         - createdAt: createdAt
           completedAt: completedAt
@@ -2669,17 +2722,11 @@ components:
             items:
               $ref: '#/components/schemas/Template'
             type: array
-          limit:
-            type: integer
-          page:
-            type: integer
-          total:
-            type: integer
         type: object
       example:
-        total: 1
-        limit: 0
-        page: 6
+        total: 10
+        limit: 10
+        page: 1
         items:
         - createdAt: 2021-01-01T00:00:00Z
           fileName: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl

@@ -70,18 +70,19 @@ type QueryHeader struct {
 	Alias                                         *string
 }
 
-// Pagination entity from query parameter from get apis
+// CursorPagination is the cursor-shaped paginated list envelope returned by
+// list endpoints that page via opaque next/prev cursors rather than page/total.
 type Pagination struct {
 	Items      any       `json:"items"`
-	Limit      int       `json:"limit"`
-	Page       int       `json:"page,omitempty"`
+	Limit      int       `json:"limit" example:"10"`
+	Page       int       `json:"page,omitempty" example:"1"`
 	Cursor     string    `json:"-"`
 	SortOrder  string    `json:"-"`
 	StartDate  time.Time `json:"-"`
 	EndDate    time.Time `json:"-"`
-	NextCursor string    `json:"next_cursor,omitempty"`
-	PrevCursor string    `json:"prev_cursor,omitempty"`
-}
+	NextCursor string    `json:"next_cursor,omitempty" example:"eyJpZCI6IjAxOTI..."`
+	PrevCursor string    `json:"prev_cursor,omitempty" example:"eyJpZCI6IjAxOTE..."`
+} //	@name CursorPagination
 
 // SetItems sets the pagination items payload.
 func (p *Pagination) SetItems(items any) {

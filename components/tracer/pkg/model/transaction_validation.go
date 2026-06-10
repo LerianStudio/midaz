@@ -16,25 +16,67 @@ import (
 // TransactionValidation is the immutable audit record for compliance (SOX/GLBA).
 // Stores individual fields for explicit traceability and queryability.
 // Embeds EvaluationResult to avoid field duplication.
+//
+// swagger:model TransactionValidation
+//
+//	@Description	Persisted record of a completed transaction validation, combining the original request context with the evaluation outcome. Used for compliance auditing, idempotency replay, and historical querying. Embeds EvaluationResult fields (decision, reason, matchedRuleIds, etc.) directly.
 type TransactionValidation struct {
-	ID              uuid.UUID       `json:"validationId" swaggertype:"string" format:"uuid"`
-	RequestID       uuid.UUID       `json:"requestId" swaggertype:"string" format:"uuid"`
-	TransactionType TransactionType `json:"transactionType"`
+	// Unique identifier for this validation record
+	// format: uuid
+	ID uuid.UUID `json:"validationId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+
+	// Idempotency key from the originating validation request
+	// format: uuid
+	RequestID uuid.UUID `json:"requestId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+
+	// Type of the transaction that was validated
+	// example: CARD
+	TransactionType TransactionType `json:"transactionType" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
+
 	// SubType is stored in its lowercase canonical form; matching is case-insensitive.
-	SubType              *string           `json:"subType,omitempty" maxLength:"50" extensions:"x-normalization=lowercase"`
-	Amount               decimal.Decimal   `json:"amount" swaggertype:"string" example:"100.00"`
-	Currency             string            `json:"currency"`
-	TransactionTimestamp time.Time         `json:"transactionTimestamp" format:"date-time"`
-	Account              AccountContext    `json:"account"`
-	Segment              *SegmentContext   `json:"segment,omitempty"`
-	Portfolio            *PortfolioContext `json:"portfolio,omitempty"`
-	Merchant             *MerchantContext  `json:"merchant,omitempty"`
-	Metadata             map[string]any    `json:"metadata,omitempty"`
+	// example: purchase
+	// maxLength: 50
+	SubType *string `json:"subType,omitempty" maxLength:"50" extensions:"x-normalization=lowercase" example:"purchase"`
+
+	// Transaction amount that was validated
+	Amount decimal.Decimal `json:"amount" swaggertype:"string" example:"100.00"`
+
+	// ISO 4217 currency code of the transaction
+	// example: USD
+	Currency string `json:"currency" example:"USD"`
+
+	// Timestamp of the original transaction
+	// format: date-time
+	TransactionTimestamp time.Time `json:"transactionTimestamp" format:"date-time" example:"2021-01-01T00:00:00Z"`
+
+	// Account context from the validation request
+	Account AccountContext `json:"account"`
+
+	// Segment context from the validation request (optional)
+	Segment *SegmentContext `json:"segment,omitempty"`
+
+	// Portfolio context from the validation request (optional)
+	Portfolio *PortfolioContext `json:"portfolio,omitempty"`
+
+	// Merchant context from the validation request (optional)
+	Merchant *MerchantContext `json:"merchant,omitempty"`
+
+	// Additional metadata from the validation request
+	Metadata map[string]any `json:"metadata,omitempty"`
+
 	EvaluationResult
+
+	// Per-limit usage details captured at validation time
 	LimitUsageDetails []LimitUsageDetail `json:"limitUsageDetails"`
-	ProcessingTimeMs  float64            `json:"processingTimeMs"`
-	CreatedAt         time.Time          `json:"createdAt" format:"date-time"`
-}
+
+	// Time taken to evaluate rules and limits in milliseconds
+	// example: 12.5
+	ProcessingTimeMs float64 `json:"processingTimeMs" example:"12.5"`
+
+	// Timestamp when this validation record was created
+	// format: date-time
+	CreatedAt time.Time `json:"createdAt" format:"date-time" example:"2021-01-01T00:00:00Z"`
+} //	@name	TransactionValidation
 
 // NewTransactionValidation creates a TransactionValidation with initialized slices.
 // Ensures JSON serialization produces [] instead of null for empty arrays.

@@ -189,15 +189,6 @@
                                             "items": {
                                                 "$ref": "#/definitions/Deadline"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "page": {
-                                            "type": "integer"
-                                        },
-                                        "total": {
-                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -332,7 +323,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_manager_adapters_http_in.notificationResponse"
+                            "$ref": "#/definitions/NotificationResponse"
                         }
                     },
                     "400": {
@@ -612,7 +603,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_manager_adapters_http_in.metricsResponse"
+                            "$ref": "#/definitions/MetricsResponse"
                         }
                     },
                     "400": {
@@ -778,15 +769,6 @@
                                             "items": {
                                                 "$ref": "#/definitions/Report"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "page": {
-                                            "type": "integer"
-                                        },
-                                        "total": {
-                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -1121,15 +1103,6 @@
                                             "items": {
                                                 "$ref": "#/definitions/Template"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "page": {
-                                            "type": "integer"
-                                        },
-                                        "total": {
-                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -1793,7 +1766,7 @@
             }
         },
         "CreateReportInput": {
-            "description": "CreateReportInput is the input payload to create a report.",
+            "description": "CreateReportInput is the input payload to create a report.  The Filters field is a three-level map keyed by datasource → table → field, with each leaf being a FilterCondition. Example: { \"accounts\": { \"account\": { \"status\": {\"eq\": [\"ACTIVE\"]}, \"balance\": {\"gte\": [0], \"lte\": [10000]} } } }",
             "type": "object",
             "required": [
                 "filters",
@@ -1962,6 +1935,22 @@
                 }
             }
         },
+        "ErrorMetrics": {
+            "description": "ErrorMetrics holds error counts for the requested period and the preceding period of the same length.",
+            "type": "object",
+            "properties": {
+                "previousPeriodTotal": {
+                    "description": "PreviousPeriodTotal is the error count for the same-length window immediately before the current period.",
+                    "type": "integer",
+                    "example": 12
+                },
+                "total": {
+                    "description": "Total is the error count within the current period window.",
+                    "type": "integer",
+                    "example": 7
+                }
+            }
+        },
         "FilterChain": {
             "type": "object",
             "properties": {
@@ -2083,11 +2072,128 @@
                 }
             }
         },
+        "MetricsResponse": {
+            "description": "MetricsResponse contains aggregated system counters returned by GET /v1/metrics.",
+            "type": "object",
+            "properties": {
+                "dataSources": {
+                    "description": "DataSources is the number of external data sources currently registered.",
+                    "type": "integer",
+                    "example": 3
+                },
+                "errors": {
+                    "description": "Errors contains error counters for the current and previous period.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ErrorMetrics"
+                        }
+                    ]
+                },
+                "reports": {
+                    "description": "Reports is the total number of report executions recorded.",
+                    "type": "integer",
+                    "example": 156
+                },
+                "templates": {
+                    "description": "Templates is the total number of report templates registered in the system.",
+                    "type": "integer",
+                    "example": 42
+                }
+            }
+        },
+        "NotificationItem": {
+            "description": "NotificationItem describes a deadline that has entered its notification window.",
+            "type": "object",
+            "properties": {
+                "color": {
+                    "description": "Color is the hex colour code used in the UI for this deadline.",
+                    "type": "string",
+                    "example": "#ef4444"
+                },
+                "daysUntilDue": {
+                    "description": "DaysUntilDue is the number of days until (positive) or past (negative) the due date.",
+                    "type": "integer",
+                    "example": 3
+                },
+                "description": {
+                    "description": "Description is an optional longer description of the deadline.",
+                    "type": "string",
+                    "example": "Monthly regulatory report"
+                },
+                "dueDate": {
+                    "description": "DueDate is the ISO-8601 timestamp when the deadline falls due.",
+                    "type": "string",
+                    "example": "2026-07-31T00:00:00Z"
+                },
+                "frequency": {
+                    "description": "Frequency describes how often the deadline recurs (e.g. \"monthly\", \"annual\").",
+                    "type": "string",
+                    "example": "monthly"
+                },
+                "id": {
+                    "description": "ID is the unique identifier of the deadline.",
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000001"
+                },
+                "monthsOfYear": {
+                    "description": "MonthsOfYear lists the months (1-12) the deadline applies to, when frequency is not every month.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        6,
+                        12
+                    ]
+                },
+                "name": {
+                    "description": "Name is the human-readable label of the deadline.",
+                    "type": "string",
+                    "example": "CADOC 4010"
+                },
+                "notifyDaysBefore": {
+                    "description": "NotifyDaysBefore is how many days ahead of the due date this notification window opens.",
+                    "type": "integer",
+                    "example": 5
+                },
+                "severity": {
+                    "description": "Severity is the urgency level: \"overdue\", \"warning\", or \"info\".",
+                    "type": "string",
+                    "example": "warning"
+                },
+                "type": {
+                    "description": "Type categorises the deadline (e.g. \"regulatory\", \"custom\").",
+                    "type": "string",
+                    "example": "regulatory"
+                }
+            }
+        },
+        "NotificationResponse": {
+            "description": "NotificationResponse wraps the list of active deadline notifications with a total count.",
+            "type": "object",
+            "properties": {
+                "items": {
+                    "description": "Items is the list of deadline notifications within their alert window, sorted by urgency.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/NotificationItem"
+                    }
+                },
+                "total": {
+                    "description": "Total is the number of notifications returned.",
+                    "type": "integer",
+                    "example": 3
+                }
+            }
+        },
         "Pagination": {
             "description": "Pagination is the struct designed to store the pagination data of an entity list.",
             "type": "object",
             "properties": {
-                "items": {},
+                "items": {
+                    "description": "Items holds the page of results. The element type is overridden per-endpoint via the\nmodel.Pagination{items=[]X} generic annotation on each list endpoint."
+                },
                 "limit": {
                     "type": "integer",
                     "example": 10
@@ -2427,89 +2533,6 @@
                 "message": {
                     "description": "Message is a human-readable description of the warning.",
                     "type": "string"
-                }
-            }
-        },
-        "internal_manager_adapters_http_in.errorMetrics": {
-            "type": "object",
-            "properties": {
-                "previousPeriodTotal": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                }
-            }
-        },
-        "internal_manager_adapters_http_in.metricsResponse": {
-            "type": "object",
-            "properties": {
-                "dataSources": {
-                    "type": "integer"
-                },
-                "errors": {
-                    "$ref": "#/definitions/internal_manager_adapters_http_in.errorMetrics"
-                },
-                "reports": {
-                    "type": "integer"
-                },
-                "templates": {
-                    "type": "integer"
-                }
-            }
-        },
-        "internal_manager_adapters_http_in.notificationItem": {
-            "type": "object",
-            "properties": {
-                "color": {
-                    "type": "string"
-                },
-                "daysUntilDue": {
-                    "type": "integer"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "dueDate": {
-                    "type": "string"
-                },
-                "frequency": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "monthsOfYear": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "notifyDaysBefore": {
-                    "type": "integer"
-                },
-                "severity": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_manager_adapters_http_in.notificationResponse": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_manager_adapters_http_in.notificationItem"
-                    }
-                },
-                "total": {
-                    "type": "integer"
                 }
             }
         },

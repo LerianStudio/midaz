@@ -62,8 +62,19 @@ type FilterCondition struct {
 // swagger:model CreateReportInput
 //
 //	@Description	CreateReportInput is the input payload to create a report.
+//	@Description
+//	@Description	The Filters field is a three-level map keyed by datasource → table → field, with each leaf
+//	@Description	being a FilterCondition. Example:
+//	@Description	  {
+//	@Description	    "accounts": {
+//	@Description	      "account": {
+//	@Description	        "status": {"eq": ["ACTIVE"]},
+//	@Description	        "balance": {"gte": [0], "lte": [10000]}
+//	@Description	      }
+//	@Description	    }
+//	@Description	  }
 type CreateReportInput struct {
-	TemplateID string                                           `json:"templateId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
+	TemplateID string                                            `json:"templateId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
 	Filters    map[string]map[string]map[string]FilterCondition `json:"filters" validate:"required"`
 } //	@name	CreateReportInput
 

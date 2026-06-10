@@ -123,7 +123,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -564,7 +564,7 @@ const docTemplate = `{
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage"
+                                                "$ref": "#/definitions/BillingPackage"
                                             }
                                         },
                                         "limit": {
@@ -644,7 +644,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage"
+                            "$ref": "#/definitions/BillingPackage"
                         }
                     }
                 ],
@@ -652,7 +652,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Successfully created billing package",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage"
+                            "$ref": "#/definitions/BillingPackage"
                         }
                     },
                     "400": {
@@ -729,7 +729,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Successfully retrieved billing package",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage"
+                            "$ref": "#/definitions/BillingPackage"
                         }
                     },
                     "400": {
@@ -877,7 +877,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackageUpdate"
+                            "$ref": "#/definitions/BillingPackageUpdate"
                         }
                     }
                 ],
@@ -885,7 +885,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Successfully updated billing package",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage"
+                            "$ref": "#/definitions/BillingPackage"
                         }
                     },
                     "400": {
@@ -959,7 +959,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateRequest"
+                            "$ref": "#/definitions/BillingCalculateRequest"
                         }
                     }
                 ],
@@ -967,7 +967,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Billing calculation completed successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateResponse"
+                            "$ref": "#/definitions/BillingCalculateResponse"
                         }
                     },
                     "400": {
@@ -1188,7 +1188,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -2100,7 +2100,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -2293,7 +2293,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -2436,7 +2436,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -2941,7 +2941,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -3473,7 +3473,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -3743,7 +3743,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -3914,7 +3914,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -4361,7 +4361,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -4722,7 +4722,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -5046,7 +5046,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -5261,7 +5261,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -5800,7 +5800,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -6377,7 +6377,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -6834,7 +6834,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -7389,7 +7389,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -7891,7 +7891,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Successfully retrieved ledger settings",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.LedgerSettings"
+                            "$ref": "#/definitions/LedgerSettings"
                         }
                     },
                     "401": {
@@ -7972,7 +7972,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Successfully updated ledger settings",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.LedgerSettings"
+                            "$ref": "#/definitions/LedgerSettings"
                         }
                     },
                     "400": {
@@ -8089,7 +8089,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -8548,7 +8548,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -10671,6 +10671,30 @@ const docTemplate = `{
                 }
             }
         },
+        "AccountTarget": {
+            "description": "AccountTarget identifies which accounts a maintenance billing package targets. Exactly one of segmentId, portfolioId, or aliases must be set.",
+            "type": "object",
+            "properties": {
+                "aliases": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "account_alpha",
+                        "account_beta"
+                    ]
+                },
+                "portfolioId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "segmentId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                }
+            }
+        },
         "AccountType": {
             "description": "AccountType object",
             "type": "object",
@@ -10828,6 +10852,26 @@ const docTemplate = `{
                 }
             }
         },
+        "AccountingValidation": {
+            "type": "object",
+            "properties": {
+                "requireHolder": {
+                    "description": "RequireHolder enables enforcement that accounts must reference an existing holder.\nWhen true, account creation rejects accounts whose resolved holder does not exist.\nDefault: false (permissive - no validation)",
+                    "type": "boolean",
+                    "example": false
+                },
+                "validateAccountType": {
+                    "description": "ValidateAccountType enables validation of account types during transaction processing.\nWhen true, accounts must have types that match the operation route rules.\nDefault: false (permissive - no validation)",
+                    "type": "boolean",
+                    "example": false
+                },
+                "validateRoutes": {
+                    "description": "ValidateRoutes enables validation of transaction routes during processing.\nWhen true, transactions must specify valid route IDs that exist in the ledger.\nDefault: false (permissive - no validation)",
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
         "Address": {
             "description": "Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes). Used for organization physical locations and other address needs.",
             "type": "object",
@@ -10878,17 +10922,32 @@ const docTemplate = `{
             }
         },
         "Addresses": {
-            "description": "Addresses object",
+            "description": "Physical address collection for a holder, supporting one primary address and up to two additional addresses.",
             "type": "object",
             "properties": {
                 "additional1": {
-                    "$ref": "#/definitions/Address"
+                    "description": "First supplementary address (e.g. mailing address).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Address"
+                        }
+                    ]
                 },
                 "additional2": {
-                    "$ref": "#/definitions/Address"
+                    "description": "Second supplementary address (e.g. branch or alternate location).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Address"
+                        }
+                    ]
                 },
                 "primary": {
-                    "$ref": "#/definitions/Address"
+                    "description": "Primary registered address of the holder.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Address"
+                        }
+                    ]
                 }
             }
         },
@@ -11222,6 +11281,246 @@ const docTemplate = `{
         "BankingDetails": {
             "type": "object"
         },
+        "BillingCalculateRequest": {
+            "description": "BillingCalculateRequest carries the parameters required to trigger a billing calculation for a given ledger and period.",
+            "type": "object",
+            "required": [
+                "ledgerId",
+                "period"
+            ],
+            "properties": {
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "period": {
+                    "description": "YYYY-MM, YYYY-Www, or YYYY-MM-DD format",
+                    "type": "string",
+                    "example": "2026-01"
+                },
+                "type": {
+                    "description": "\"volume\", \"maintenance\", or empty for both",
+                    "type": "string",
+                    "example": "volume"
+                }
+            }
+        },
+        "BillingCalculateResponse": {
+            "description": "BillingCalculateResponse is the top-level response returned by the billing calculation endpoint.",
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/BillingCalculationResult"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/BillingCalculateSummary"
+                }
+            }
+        },
+        "BillingCalculateSummary": {
+            "description": "BillingCalculateSummary aggregates the totals across all billing calculation results for the requested period.",
+            "type": "object",
+            "properties": {
+                "totalMaintenance": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "totalNetAmount": {
+                    "type": "string",
+                    "example": "456.78"
+                },
+                "totalResults": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "totalVolume": {
+                    "type": "integer",
+                    "example": 7
+                }
+            }
+        },
+        "BillingCalculationResult": {
+            "description": "BillingCalculationResult represents the billing outcome for a single billing package within the requested period.",
+            "type": "object",
+            "properties": {
+                "billingPackageId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "billingPackageLabel": {
+                    "type": "string",
+                    "example": "Monthly Volume Billing"
+                },
+                "billingType": {
+                    "description": "\"volume\" or \"maintenance\"",
+                    "type": "string",
+                    "enum": [
+                        "volume",
+                        "maintenance"
+                    ],
+                    "example": "volume"
+                },
+                "period": {
+                    "type": "string",
+                    "example": "2026-01"
+                },
+                "totalAccounts": {
+                    "type": "integer",
+                    "example": 500
+                },
+                "totalCharged": {
+                    "type": "integer",
+                    "example": 480
+                },
+                "totalNetAmount": {
+                    "type": "string",
+                    "example": "123.45"
+                },
+                "totalSkipped": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "transactionPayload": {
+                    "type": "object"
+                }
+            }
+        },
+        "BillingPackage": {
+            "description": "BillingPackage is the full representation of a billing package, covering both volume and maintenance types.",
+            "type": "object",
+            "properties": {
+                "accountTarget": {
+                    "$ref": "#/definitions/AccountTarget"
+                },
+                "assetCode": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "countMode": {
+                    "type": "string",
+                    "enum": [
+                        "perRoute",
+                        "perAccount"
+                    ],
+                    "example": "perRoute"
+                },
+                "createdAt": {
+                    "description": "Timestamps.",
+                    "type": "string",
+                    "example": "2026-01-01T00:00:00Z"
+                },
+                "creditAccountAlias": {
+                    "type": "string",
+                    "example": "account_fees_credit"
+                },
+                "debitAccountAlias": {
+                    "type": "string",
+                    "example": "account_fees_debit"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "example": "2026-06-01T00:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Charges per completed transaction route"
+                },
+                "discountTiers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/DiscountTier"
+                    }
+                },
+                "enable": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "eventFilter": {
+                    "description": "Volume-specific fields.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/EventFilter"
+                        }
+                    ]
+                },
+                "feeAmount": {
+                    "description": "Maintenance-specific fields.",
+                    "type": "string",
+                    "example": "50.00"
+                },
+                "freeQuota": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "label": {
+                    "type": "string",
+                    "example": "Monthly Volume Billing"
+                },
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "maintenanceCreditAccount": {
+                    "type": "string",
+                    "example": "account_maintenance_credit"
+                },
+                "organizationId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "pricingModel": {
+                    "type": "string",
+                    "enum": [
+                        "tiered",
+                        "fixed"
+                    ],
+                    "example": "tiered"
+                },
+                "tiers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PricingTier"
+                    }
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "volume",
+                        "maintenance"
+                    ],
+                    "example": "volume"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2026-01-01T00:00:00Z"
+                }
+            }
+        },
+        "BillingPackageUpdate": {
+            "description": "BillingPackageUpdate is the request payload for partial updates to a billing package. Only provided fields are applied.",
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Updated description for the billing package"
+                },
+                "enable": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "label": {
+                    "type": "string",
+                    "example": "Updated Billing Label"
+                }
+            }
+        },
         "Calculation": {
             "description": "Calculation is a struct designed to store the calculation details of a fee from a pack.",
             "type": "object",
@@ -11234,7 +11533,8 @@ const docTemplate = `{
                     "enum": [
                         "percentage",
                         "flat"
-                    ]
+                    ],
+                    "example": "percentage"
                 },
                 "value": {
                     "type": "string",
@@ -11264,27 +11564,31 @@ const docTemplate = `{
             }
         },
         "Contact": {
-            "description": "Contact object",
+            "description": "Communication contact details for a holder, including email addresses and phone numbers.",
             "type": "object",
             "properties": {
                 "mobilePhone": {
-                    "description": "The mobile phone number of the holder, including country code.",
+                    "description": "The mobile phone number of the holder, including country code.\nexample: +1555555555\nmaxLength: 32",
                     "type": "string",
+                    "maxLength": 32,
                     "example": "+1555555555"
                 },
                 "otherPhone": {
-                    "description": "Any additional phone number of the holder.",
+                    "description": "Any additional phone number of the holder.\nexample: +1555555555\nmaxLength: 32",
                     "type": "string",
+                    "maxLength": 32,
                     "example": "+1555555555"
                 },
                 "primaryEmail": {
-                    "description": "The primary email address of the holder.",
+                    "description": "The primary email address of the holder.\nexample: john.doe@example.com\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "john.doe@example.com"
                 },
                 "secondaryEmail": {
-                    "description": "The secondary email address of the holder.",
+                    "description": "The secondary email address of the holder.\nexample: john.doe@example.com\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "john.doe@example.com"
                 }
             }
@@ -11541,7 +11845,7 @@ const docTemplate = `{
             "type": "object"
         },
         "CreateHolderRequest": {
-            "description": "CreateHolderRequest payload",
+            "description": "Request payload for creating a new holder. A holder represents an identified party (individual or legal entity) that can own accounts within the ledger system. The type field controls which person-type sub-object is applicable.",
             "type": "object",
             "required": [
                 "document",
@@ -11550,7 +11854,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "addresses": {
-                    "description": "Object of addresses.",
+                    "description": "Physical addresses associated with the holder (primary + up to two additional).\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/Addresses"
@@ -11558,7 +11862,7 @@ const docTemplate = `{
                     ]
                 },
                 "contact": {
-                    "description": "Object with contact information.",
+                    "description": "Contact details (email addresses and phone numbers) for the holder.\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/Contact"
@@ -11566,17 +11870,19 @@ const docTemplate = `{
                     ]
                 },
                 "document": {
-                    "description": "The holder's identification document.",
+                    "description": "National or tax identification document number of the holder.\nrequired: true\nexample: 91315026015\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "91315026015"
                 },
                 "externalId": {
-                    "description": "Optional field for an external identifier to client correlation purposes.",
+                    "description": "Optional client-supplied correlation key for idempotency and external system linking.\nrequired: false\nexample: G4K7N8M2\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "G4K7N8M2"
                 },
                 "legalPerson": {
-                    "description": "Object with legal person information.",
+                    "description": "Company-specific registration fields; populate only when type is LEGAL_PERSON.\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/LegalPerson"
@@ -11584,17 +11890,18 @@ const docTemplate = `{
                     ]
                 },
                 "metadata": {
-                    "description": "An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.",
+                    "description": "Custom key-value pairs for extending the holder information (flat map, max 100-char keys, max 2000-char values).\nrequired: false\nexample: {\"source\": \"onboarding\", \"region\": \"us-east\"}",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
-                    "description": "Holders name.\n**Notes:** If the person type is LEGAL_PERSON, this must be the full legal name. If the person type is NATURAL_PERSON, this should be the individuals full name.",
+                    "description": "Full legal name of the holder. For LEGAL_PERSON this must be the registered company name.\nrequired: true\nexample: John Doe\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "John Doe"
                 },
                 "naturalPerson": {
-                    "description": "Object with natural person information.",
+                    "description": "Individual-specific biographical fields; populate only when type is NATURAL_PERSON.\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/NaturalPerson"
@@ -11602,8 +11909,9 @@ const docTemplate = `{
                     ]
                 },
                 "type": {
-                    "description": "Type of person.\n* NATURAL_PERSON - Individual\n* LEGAL_PERSON - Company",
+                    "description": "Classification of the holder: NATURAL_PERSON for individuals, LEGAL_PERSON for companies.\nrequired: true\nexample: NATURAL_PERSON\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "enum": [
                         "NATURAL_PERSON",
                         "LEGAL_PERSON"
@@ -11613,7 +11921,7 @@ const docTemplate = `{
             }
         },
         "CreateInstrumentRequest": {
-            "description": "CreateInstrumentRequest payload",
+            "description": "Request payload for creating a new instrument that links a holder to a specific ledger account. An instrument captures banking details, regulatory fields, and the related parties authorized on the account.",
             "type": "object",
             "required": [
                 "accountId",
@@ -11621,12 +11929,13 @@ const docTemplate = `{
             ],
             "properties": {
                 "accountId": {
-                    "description": "Unique identifier of the related account on ledger.",
+                    "description": "Unique identifier of the ledger account this instrument is linked to (UUID format).\nrequired: true\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "bankingDetails": {
-                    "description": "Object with banking information of the related account.",
+                    "description": "Banking details for the account linked by this instrument.\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/BankingDetails"
@@ -11634,17 +11943,18 @@ const docTemplate = `{
                     ]
                 },
                 "ledgerId": {
-                    "description": "Unique identifier of the ledger of the related account.",
+                    "description": "Unique identifier of the ledger that contains the related account (UUID format).\nrequired: true\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
-                    "description": "An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.",
+                    "description": "Custom key-value pairs for extending the instrument information (flat map, max 100-char keys, max 2000-char values).\nrequired: false\nexample: {\"product\": \"checking\", \"region\": \"us-east\"}",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "regulatoryFields": {
-                    "description": "Object with regulatory fields.",
+                    "description": "Regulatory metadata identifying the participant entity.\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/RegulatoryFields"
@@ -11652,7 +11962,7 @@ const docTemplate = `{
                     ]
                 },
                 "relatedParties": {
-                    "description": "List of related parties to add at creation.",
+                    "description": "List of related parties to associate at instrument creation.\nrequired: false",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/RelatedParty"
@@ -11681,7 +11991,7 @@ const docTemplate = `{
                     "description": "Dynamic configuration settings for this ledger. When nil, no settings are persisted (optional).\nexample: {\"accounting\": {\"validateAccountType\": true}}",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.LedgerSettings"
+                            "$ref": "#/definitions/LedgerSettings"
                         }
                     ]
                 },
@@ -12171,12 +12481,48 @@ const docTemplate = `{
                 }
             }
         },
+        "CursorPagination": {
+            "type": "object",
+            "properties": {
+                "items": {},
+                "limit": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "next_cursor": {
+                    "type": "string",
+                    "example": "eyJpZCI6IjAxOTI..."
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "prev_cursor": {
+                    "type": "string",
+                    "example": "eyJpZCI6IjAxOTE..."
+                }
+            }
+        },
         "Date": {
             "description": "Date in YYYY-MM-DD format (e.g., \"2025-06-15\") or null",
             "type": "object",
             "properties": {
                 "time.Time": {
                     "type": "string"
+                }
+            }
+        },
+        "DiscountTier": {
+            "description": "DiscountTier defines a quantity threshold above which a discount percentage applies.",
+            "type": "object",
+            "properties": {
+                "discountPercentage": {
+                    "type": "string",
+                    "example": "10.00"
+                },
+                "minQuantity": {
+                    "type": "integer",
+                    "example": 1000
                 }
             }
         },
@@ -12232,6 +12578,27 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 100,
                     "example": "Bad Request"
+                }
+            }
+        },
+        "EventFilter": {
+            "description": "EventFilter identifies the transaction route and status used to match billing events.",
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "CREATED",
+                        "APPROVED",
+                        "PENDING",
+                        "CANCELED",
+                        "NOTED"
+                    ],
+                    "example": "APPROVED"
+                },
+                "transactionRoute": {
+                    "type": "string",
+                    "example": "payment_route"
                 }
             }
         },
@@ -12299,7 +12666,12 @@ const docTemplate = `{
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "transaction": {
-                    "$ref": "#/definitions/TransactionInput"
+                    "description": "Full transaction projection; rendered as TransactionInput in the API schema.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/TransactionInput"
+                        }
+                    ]
                 }
             }
         },
@@ -12320,7 +12692,12 @@ const docTemplate = `{
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "transaction": {
-                    "$ref": "#/definitions/TransactionInput"
+                    "description": "Full transaction projection; rendered as TransactionInput in the API schema.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/TransactionInput"
+                        }
+                    ]
                 }
             }
         },
@@ -12423,51 +12800,86 @@ const docTemplate = `{
             }
         },
         "HolderResponse": {
-            "description": "HolderResponse payload",
+            "description": "Complete holder entity returned by create, update, and get operations. Contains all holder fields including system-generated ID, person-type sub-objects, and audit timestamps.",
             "type": "object",
             "properties": {
                 "addresses": {
-                    "$ref": "#/definitions/Addresses"
+                    "description": "Physical addresses associated with the holder.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Addresses"
+                        }
+                    ]
                 },
                 "contact": {
-                    "$ref": "#/definitions/Contact"
+                    "description": "Contact details (email and phone) for the holder.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Contact"
+                        }
+                    ]
                 },
                 "createdAt": {
+                    "description": "Timestamp when the holder was created (RFC3339 format).\nexample: 2025-01-01T00:00:00Z\nformat: date-time",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2025-01-01T00:00:00Z"
                 },
                 "deletedAt": {
+                    "description": "Timestamp when the holder was soft-deleted; null if the holder is active (RFC3339 format).\nexample: null\nformat: date-time",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2025-01-01T00:00:00Z"
                 },
                 "document": {
+                    "description": "National or tax identification document number of the holder.\nexample: 91315026015\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "91315026015"
                 },
                 "externalId": {
+                    "description": "Client-supplied external correlation key.\nexample: G4K7N8M2\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "G4K7N8M2"
                 },
                 "id": {
+                    "description": "Unique system-generated identifier for the holder (UUID format).\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "legalPerson": {
-                    "$ref": "#/definitions/LegalPerson"
+                    "description": "Company-specific registration fields; present when type is LEGAL_PERSON.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/LegalPerson"
+                        }
+                    ]
                 },
                 "metadata": {
+                    "description": "Custom key-value pairs for extending the holder information.\nexample: {\"source\": \"onboarding\"}",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Full legal name of the holder.\nexample: John Doe\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "John Doe"
                 },
                 "naturalPerson": {
-                    "$ref": "#/definitions/NaturalPerson"
+                    "description": "Individual-specific biographical fields; present when type is NATURAL_PERSON.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/NaturalPerson"
+                        }
+                    ]
                 },
                 "type": {
+                    "description": "Classification of the holder: NATURAL_PERSON or LEGAL_PERSON.\nexample: NATURAL_PERSON\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "enum": [
                         "NATURAL_PERSON",
                         "LEGAL_PERSON"
@@ -12475,7 +12887,9 @@ const docTemplate = `{
                     "example": "NATURAL_PERSON"
                 },
                 "updatedAt": {
+                    "description": "Timestamp when the holder was last updated (RFC3339 format).\nexample: 2025-01-01T00:00:00Z\nformat: date-time",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2025-01-01T00:00:00Z"
                 }
             }
@@ -12514,59 +12928,89 @@ const docTemplate = `{
             }
         },
         "InstrumentResponse": {
-            "description": "InstrumentResponse payload",
+            "description": "Complete instrument entity returned by create, update, and get operations. Captures the link between a holder and a ledger account, together with banking details, regulatory fields, related parties, and audit timestamps.",
             "type": "object",
             "properties": {
                 "accountId": {
+                    "description": "Unique identifier of the ledger account this instrument is linked to (UUID format).\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "bankingDetails": {
-                    "$ref": "#/definitions/BankingDetails"
+                    "description": "Banking details for the account linked by this instrument.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/BankingDetails"
+                        }
+                    ]
                 },
                 "createdAt": {
+                    "description": "Timestamp when the instrument was created (RFC3339 format).\nexample: 2025-01-01T00:00:00Z\nformat: date-time",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2025-01-01T00:00:00Z"
                 },
                 "deletedAt": {
+                    "description": "Timestamp when the instrument was soft-deleted; null if the instrument is active (RFC3339 format).\nexample: null\nformat: date-time",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2025-01-01T00:00:00Z"
                 },
                 "document": {
+                    "description": "National or tax identification document of the holder linked to this instrument.\nexample: 91315026015\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "91315026015"
                 },
                 "holderId": {
+                    "description": "Unique identifier of the holder that owns this instrument (UUID format).\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "id": {
+                    "description": "Unique system-generated identifier for the instrument (UUID format).\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "ledgerId": {
+                    "description": "Unique identifier of the ledger that contains the linked account (UUID format).\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
+                    "description": "Custom key-value pairs for extending the instrument information.\nexample: {\"product\": \"checking\"}",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "regulatoryFields": {
-                    "$ref": "#/definitions/RegulatoryFields"
+                    "description": "Regulatory metadata identifying the participant entity.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/RegulatoryFields"
+                        }
+                    ]
                 },
                 "relatedParties": {
+                    "description": "List of parties associated with this instrument and their roles.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/RelatedParty"
                     }
                 },
                 "type": {
+                    "description": "Holder type (NATURAL_PERSON or LEGAL_PERSON), derived from the associated holder.\nexample: NATURAL_PERSON\nmaxLength: 100",
                     "type": "string",
-                    "example": "LEGAL_PERSON"
+                    "maxLength": 100,
+                    "example": "NATURAL_PERSON"
                 },
                 "updatedAt": {
+                    "description": "Timestamp when the instrument was last updated (RFC3339 format).\nexample: 2025-01-01T00:00:00Z\nformat: date-time",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2025-01-01T00:00:00Z"
                 }
             }
@@ -12614,7 +13058,7 @@ const docTemplate = `{
                     "description": "Dynamic configuration settings for this ledger\nexample: {\"accounting\": {\"validateAccountType\": true}}",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.LedgerSettings"
+                            "$ref": "#/definitions/LedgerSettings"
                         }
                     ]
                 },
@@ -12634,22 +13078,45 @@ const docTemplate = `{
                 }
             }
         },
+        "LedgerSettings": {
+            "type": "object",
+            "properties": {
+                "accounting": {
+                    "description": "Accounting contains validation settings for accounting operations.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingValidation"
+                        }
+                    ]
+                },
+                "tracer": {
+                    "description": "Tracer contains the per-ledger tracer-integration settings.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/TracerSettings"
+                        }
+                    ]
+                }
+            }
+        },
         "LegalPerson": {
-            "description": "LegalPerson is a struct designed to encapsulate response payload data.",
+            "description": "Legal entity (company) details for an organizational holder, used in both request and response payloads when the holder type is LEGAL_PERSON.",
             "type": "object",
             "properties": {
                 "activity": {
-                    "description": "The type of business or activity the company engages in.",
+                    "description": "The type of business or activity the company engages in.\nexample: Electronic devices development\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "Electronic devices development"
                 },
                 "foundingDate": {
-                    "description": "The date when the company was established.",
+                    "description": "The date when the company was established (YYYY-MM-DD format).\nexample: 2025-01-01\nformat: date",
                     "type": "string",
+                    "format": "date",
                     "example": "2025-01-01"
                 },
                 "representative": {
-                    "description": "Object with details of the company's legal representative.",
+                    "description": "Details of the company's legal representative.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/Representative"
@@ -12657,23 +13124,27 @@ const docTemplate = `{
                     ]
                 },
                 "size": {
-                    "description": "The size classification of the company.",
+                    "description": "The size classification of the company (e.g. Small, Medium, Large).\nexample: Medium\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "Medium"
                 },
                 "status": {
-                    "description": "The current status of the legal entity.",
+                    "description": "The current status of the legal entity.\nexample: Active\nmaxLength: 100",
                     "type": "string",
-                    "example": "Closed"
+                    "maxLength": 100,
+                    "example": "Active"
                 },
                 "tradeName": {
-                    "description": "The registered business name of the company, if applicable.",
+                    "description": "The registered business name of the company, if applicable.\nexample: Lerian Studio\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "Lerian Studio"
                 },
                 "type": {
-                    "description": "The legal structure of the company.",
+                    "description": "The legal structure of the company.\nexample: Limited Liability\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "Limited Liability"
                 }
             }
@@ -12718,52 +13189,61 @@ const docTemplate = `{
             }
         },
         "NaturalPerson": {
-            "description": "NaturalPerson object",
+            "description": "Individual (natural person) biographical and demographic details, used in both request and response payloads when the holder type is NATURAL_PERSON.",
             "type": "object",
             "properties": {
                 "birthDate": {
-                    "description": "Person's birth date, formatted as YYYY-MM-DD.",
+                    "description": "Person's birth date, formatted as YYYY-MM-DD.\nexample: 1990-01-01\nformat: date",
                     "type": "string",
+                    "format": "date",
                     "example": "1990-01-01"
                 },
                 "civilStatus": {
-                    "description": "Person's civil status, for example: \"Single\", \"Married\", or \"Divorced\".",
+                    "description": "Person's civil status, for example: \"Single\", \"Married\", or \"Divorced\".\nexample: Single\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "Single"
                 },
                 "fatherName": {
-                    "description": "The name of the person's father.",
+                    "description": "The name of the person's father.\nexample: John Doe\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "John Doe"
                 },
                 "favoriteName": {
-                    "description": "The person's nickname or preferred name.",
+                    "description": "The person's nickname or preferred name.\nexample: John\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "John"
                 },
                 "gender": {
-                    "description": "Person's gender.",
+                    "description": "Person's gender.\nexample: Male\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "Male"
                 },
                 "motherName": {
-                    "description": "The name of the person's mother.",
+                    "description": "The name of the person's mother.\nexample: Jane Doe\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "Jane Doe"
                 },
                 "nationality": {
-                    "description": "The nationality of the person, for example, \"Brazilian\".",
+                    "description": "The nationality of the person, for example, \"Brazilian\".\nexample: Brazilian\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "Brazilian"
                 },
                 "socialName": {
-                    "description": "The social name or alternate name used by the person, if applicable.",
+                    "description": "The social name or alternate name used by the person, if applicable.\nexample: John Doe\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "John Doe"
                 },
                 "status": {
-                    "description": "The current status of the individual.",
+                    "description": "The current status of the individual.\nexample: Active\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "Active"
                 }
             }
@@ -13257,6 +13737,24 @@ const docTemplate = `{
                 }
             }
         },
+        "PricingTier": {
+            "description": "PricingTier defines a quantity range and the unit price that applies within it.",
+            "type": "object",
+            "properties": {
+                "maxQuantity": {
+                    "type": "integer",
+                    "example": 999
+                },
+                "minQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "unitPrice": {
+                    "type": "string",
+                    "example": "1.50"
+                }
+            }
+        },
         "Rate": {
             "description": "Rate is the struct designed to represent the rate fields of an operation.",
             "type": "object",
@@ -13286,18 +13784,19 @@ const docTemplate = `{
             }
         },
         "RegulatoryFields": {
-            "description": "RegulatoryFields object",
+            "description": "Regulatory metadata for an instrument, carrying the participant document that identifies which financial-group entity owns the regulatory relationship.",
             "type": "object",
             "properties": {
                 "participantDocument": {
-                    "description": "Document of the participant (identifies which financial-group entity owns the relationship)",
+                    "description": "Document of the participant (identifies which financial-group entity owns the relationship).\nexample: 12345678912345\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "12345678912345"
                 }
             }
         },
         "RelatedParty": {
-            "description": "RelatedParty object",
+            "description": "A party associated with an instrument, defining the role (PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, or RESPONSIBLE_PARTY) and the time range during which the relationship is active.",
             "type": "object",
             "required": [
                 "document",
@@ -13307,29 +13806,33 @@ const docTemplate = `{
             ],
             "properties": {
                 "document": {
-                    "description": "Document of the related party.",
+                    "description": "National or tax identification document of the related party.\nrequired: true\nexample: 12345678900\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "12345678900"
                 },
                 "endDate": {
-                    "description": "End date of the relationship (optional). Accepts both \"2025-01-01\" and \"2025-01-01T00:00:00Z\" formats.",
+                    "description": "End date of the relationship (optional). Accepts both \"2025-01-01\" and \"2025-01-01T00:00:00Z\" formats.\nrequired: false\nformat: date",
                     "type": "string",
                     "format": "date",
                     "example": "2026-01-01"
                 },
                 "id": {
-                    "description": "Unique identifier of the related party.",
+                    "description": "Unique system-generated identifier of the related party (UUID format).\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "name": {
-                    "description": "Name of the related party.",
+                    "description": "Full legal name of the related party.\nrequired: true\nexample: John Smith\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "John Smith"
                 },
                 "role": {
-                    "description": "Role of the related party (PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, RESPONSIBLE_PARTY).",
+                    "description": "Role of the related party in the instrument relationship.\nrequired: true\nexample: PRIMARY_HOLDER\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "enum": [
                         "PRIMARY_HOLDER",
                         "LEGAL_REPRESENTATIVE",
@@ -13338,7 +13841,7 @@ const docTemplate = `{
                     "example": "PRIMARY_HOLDER"
                 },
                 "startDate": {
-                    "description": "Start date of the relationship. Accepts both \"2025-01-01\" and \"2025-01-01T00:00:00Z\" formats.",
+                    "description": "Start date of the relationship. Accepts both \"2025-01-01\" and \"2025-01-01T00:00:00Z\" formats.\nrequired: true\nformat: date",
                     "type": "string",
                     "format": "date",
                     "example": "2025-01-01"
@@ -13346,27 +13849,31 @@ const docTemplate = `{
             }
         },
         "Representative": {
-            "description": "Representative object from LegalPerson",
+            "description": "Legal representative details for a company-type holder, identifying the individual authorized to act on behalf of the legal entity.",
             "type": "object",
             "properties": {
                 "document": {
-                    "description": "The document number of the legal representative.",
+                    "description": "The identification document number of the legal representative.\nexample: 91315026015\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "91315026015"
                 },
                 "email": {
-                    "description": "The email address of the legal representative.",
+                    "description": "The email address of the legal representative.\nexample: john.doe@example.com\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "john.doe@example.com"
                 },
                 "name": {
-                    "description": "The legal representative’s name.",
+                    "description": "The legal representative's full name.\nexample: John Doe\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "John Doe"
                 },
                 "role": {
-                    "description": "The role of the legal representative within the company.",
+                    "description": "The role of the legal representative within the company.\nexample: CFO\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "CFO"
                 }
             }
@@ -13551,6 +14058,26 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 256,
                     "example": "Active status"
+                }
+            }
+        },
+        "TracerSettings": {
+            "type": "object",
+            "properties": {
+                "failPosture": {
+                    "description": "FailPosture controls behavior when the tracer is unavailable (timeout/breaker-open).\nOne of: \"open\" (proceed, record SKIPPED audit), \"closed\" (reject the transaction).\nDefault: \"open\".",
+                    "type": "string",
+                    "example": "open"
+                },
+                "mode": {
+                    "description": "Mode controls tracer participation in transaction processing.\nOne of: \"off\" (skip), \"advisory\" (call but never block), \"enforce\" (call and gate).\nDefault: \"off\".",
+                    "type": "string",
+                    "example": "off"
+                },
+                "timeoutMs": {
+                    "description": "TimeoutMs is the per-call tracer reserve timeout, in milliseconds.\nDefault: 250.",
+                    "type": "integer",
+                    "example": 250
                 }
             }
         },
@@ -13903,11 +14430,11 @@ const docTemplate = `{
             }
         },
         "UpdateHolderRequest": {
-            "description": "UpdateHolderRequest payload",
+            "description": "Request payload for updating an existing holder. All fields are optional — only provided fields are applied. Omitted fields remain unchanged, enabling partial updates to name, addresses, contact, person details, and metadata.",
             "type": "object",
             "properties": {
                 "addresses": {
-                    "description": "Object of addresses.",
+                    "description": "Updated physical addresses for the holder.\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/Addresses"
@@ -13915,7 +14442,7 @@ const docTemplate = `{
                     ]
                 },
                 "contact": {
-                    "description": "Object with contact information.",
+                    "description": "Updated contact details for the holder.\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/Contact"
@@ -13923,12 +14450,13 @@ const docTemplate = `{
                     ]
                 },
                 "externalId": {
-                    "description": "Optional field for an external identifier to client correlation purposes.",
+                    "description": "Updated client-supplied correlation key.\nrequired: false\nexample: G4K7N8M\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "G4K7N8M"
                 },
                 "legalPerson": {
-                    "description": "Object with legal person information.",
+                    "description": "Updated company-specific registration fields.\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/LegalPerson"
@@ -13936,17 +14464,18 @@ const docTemplate = `{
                     ]
                 },
                 "metadata": {
-                    "description": "An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.",
+                    "description": "Updated custom key-value pairs for extending the holder information.\nrequired: false\nexample: {\"source\": \"profile-update\", \"region\": \"us-west\"}",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
-                    "description": "Holders name.",
+                    "description": "Updated full legal name of the holder.\nrequired: false\nexample: Jonathan Doe\nmaxLength: 256",
                     "type": "string",
-                    "example": "John Doe"
+                    "maxLength": 256,
+                    "example": "Jonathan Doe"
                 },
                 "naturalPerson": {
-                    "description": "Object with natural person information.",
+                    "description": "Updated individual-specific biographical fields.\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/NaturalPerson"
@@ -13956,11 +14485,11 @@ const docTemplate = `{
             }
         },
         "UpdateInstrumentRequest": {
-            "description": "UpdateInstrumentRequest payload",
+            "description": "Request payload for updating an existing instrument. All fields are optional — only provided fields are applied. RelatedParties are appended to the existing list; existing entries are not removed.",
             "type": "object",
             "properties": {
                 "bankingDetails": {
-                    "description": "Object with banking information of the related account.",
+                    "description": "Updated banking details for the linked account.\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/BankingDetails"
@@ -13968,12 +14497,12 @@ const docTemplate = `{
                     ]
                 },
                 "metadata": {
-                    "description": "An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.",
+                    "description": "Updated custom key-value pairs for extending the instrument information.\nrequired: false\nexample: {\"product\": \"savings\", \"region\": \"us-west\"}",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "regulatoryFields": {
-                    "description": "Object with regulatory fields.",
+                    "description": "Updated regulatory metadata identifying the participant entity.\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/RegulatoryFields"
@@ -13981,7 +14510,7 @@ const docTemplate = `{
                     ]
                 },
                 "relatedParties": {
-                    "description": "List of related parties to add (appends to existing).",
+                    "description": "Additional related parties to append to the instrument (existing entries are not removed).\nrequired: false",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/RelatedParty"
@@ -14263,322 +14792,6 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 255,
                     "example": "Charge Settlement"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.AccountTarget": {
-            "type": "object",
-            "properties": {
-                "aliases": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "portfolioId": {
-                    "type": "string"
-                },
-                "segmentId": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateRequest": {
-            "type": "object",
-            "required": [
-                "ledgerId",
-                "period"
-            ],
-            "properties": {
-                "ledgerId": {
-                    "type": "string"
-                },
-                "period": {
-                    "description": "YYYY-MM, YYYY-Www, or YYYY-MM-DD format",
-                    "type": "string"
-                },
-                "type": {
-                    "description": "\"volume\", \"maintenance\", or empty for both",
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateResponse": {
-            "type": "object",
-            "properties": {
-                "results": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculationResult"
-                    }
-                },
-                "summary": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateSummary"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateSummary": {
-            "type": "object",
-            "properties": {
-                "totalMaintenance": {
-                    "type": "integer"
-                },
-                "totalNetAmount": {
-                    "type": "string",
-                    "example": "456.78"
-                },
-                "totalResults": {
-                    "type": "integer"
-                },
-                "totalVolume": {
-                    "type": "integer"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculationResult": {
-            "type": "object",
-            "properties": {
-                "billingPackageId": {
-                    "type": "string"
-                },
-                "billingPackageLabel": {
-                    "type": "string"
-                },
-                "billingType": {
-                    "description": "\"volume\" or \"maintenance\"",
-                    "type": "string"
-                },
-                "period": {
-                    "type": "string"
-                },
-                "totalAccounts": {
-                    "type": "integer"
-                },
-                "totalCharged": {
-                    "type": "integer"
-                },
-                "totalNetAmount": {
-                    "type": "string",
-                    "example": "123.45"
-                },
-                "totalSkipped": {
-                    "type": "integer"
-                },
-                "transactionPayload": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage": {
-            "type": "object",
-            "properties": {
-                "accountTarget": {
-                    "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.AccountTarget"
-                },
-                "assetCode": {
-                    "type": "string"
-                },
-                "countMode": {
-                    "type": "string"
-                },
-                "createdAt": {
-                    "description": "Timestamps.",
-                    "type": "string"
-                },
-                "creditAccountAlias": {
-                    "type": "string"
-                },
-                "debitAccountAlias": {
-                    "type": "string"
-                },
-                "deletedAt": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "discountTiers": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.DiscountTier"
-                    }
-                },
-                "enable": {
-                    "type": "boolean"
-                },
-                "eventFilter": {
-                    "description": "Volume-specific fields.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.EventFilter"
-                        }
-                    ]
-                },
-                "feeAmount": {
-                    "description": "Maintenance-specific fields.",
-                    "type": "string",
-                    "example": "50.00"
-                },
-                "freeQuota": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "label": {
-                    "type": "string"
-                },
-                "ledgerId": {
-                    "type": "string"
-                },
-                "maintenanceCreditAccount": {
-                    "type": "string"
-                },
-                "organizationId": {
-                    "type": "string"
-                },
-                "pricingModel": {
-                    "type": "string"
-                },
-                "tiers": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.PricingTier"
-                    }
-                },
-                "type": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackageUpdate": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "enable": {
-                    "type": "boolean"
-                },
-                "label": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.DiscountTier": {
-            "type": "object",
-            "properties": {
-                "discountPercentage": {
-                    "type": "string",
-                    "example": "10.00"
-                },
-                "minQuantity": {
-                    "type": "integer"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.EventFilter": {
-            "type": "object",
-            "properties": {
-                "status": {
-                    "type": "string"
-                },
-                "transactionRoute": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.PricingTier": {
-            "type": "object",
-            "properties": {
-                "maxQuantity": {
-                    "type": "integer"
-                },
-                "minQuantity": {
-                    "type": "integer"
-                },
-                "unitPrice": {
-                    "type": "string",
-                    "example": "1.50"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination": {
-            "type": "object",
-            "properties": {
-                "items": {},
-                "limit": {
-                    "type": "integer"
-                },
-                "next_cursor": {
-                    "type": "string"
-                },
-                "page": {
-                    "type": "integer"
-                },
-                "prev_cursor": {
-                    "type": "string"
-                }
-            }
-        },
-        "mmodel.AccountingValidation": {
-            "type": "object",
-            "properties": {
-                "requireHolder": {
-                    "description": "RequireHolder enables enforcement that accounts must reference an existing holder.\nWhen true, account creation rejects accounts whose resolved holder does not exist.\nDefault: false (permissive - no validation)",
-                    "type": "boolean"
-                },
-                "validateAccountType": {
-                    "description": "ValidateAccountType enables validation of account types during transaction processing.\nWhen true, accounts must have types that match the operation route rules.\nDefault: false (permissive - no validation)",
-                    "type": "boolean"
-                },
-                "validateRoutes": {
-                    "description": "ValidateRoutes enables validation of transaction routes during processing.\nWhen true, transactions must specify valid route IDs that exist in the ledger.\nDefault: false (permissive - no validation)",
-                    "type": "boolean"
-                }
-            }
-        },
-        "mmodel.LedgerSettings": {
-            "type": "object",
-            "properties": {
-                "accounting": {
-                    "description": "Accounting contains validation settings for accounting operations.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/mmodel.AccountingValidation"
-                        }
-                    ]
-                },
-                "tracer": {
-                    "description": "Tracer contains the per-ledger tracer-integration settings.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/mmodel.TracerSettings"
-                        }
-                    ]
-                }
-            }
-        },
-        "mmodel.TracerSettings": {
-            "type": "object",
-            "properties": {
-                "failPosture": {
-                    "description": "FailPosture controls behavior when the tracer is unavailable (timeout/breaker-open).\nOne of: \"open\" (proceed, record SKIPPED audit), \"closed\" (reject the transaction).\nDefault: \"open\".",
-                    "type": "string"
-                },
-                "mode": {
-                    "description": "Mode controls tracer participation in transaction processing.\nOne of: \"off\" (skip), \"advisory\" (call but never block), \"enforce\" (call and gate).\nDefault: \"off\".",
-                    "type": "string"
-                },
-                "timeoutMs": {
-                    "description": "TimeoutMs is the per-call tracer reserve timeout, in milliseconds.\nDefault: 250.",
-                    "type": "integer"
                 }
             }
         }

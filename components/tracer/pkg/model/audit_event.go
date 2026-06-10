@@ -14,7 +14,7 @@ import (
 )
 
 // ActorType represents the type of actor that performed an action.
-type ActorType string
+type ActorType string //	@name	ActorType
 
 const (
 	ActorTypeUser   ActorType = "user"
@@ -33,7 +33,7 @@ func (a ActorType) IsValid() bool {
 }
 
 // AuditEventType represents the type of audit event.
-type AuditEventType string
+type AuditEventType string //	@name	AuditEventType
 
 const (
 	// Transaction validation events
@@ -141,7 +141,7 @@ func (r AuditResult) IsValid() bool {
 }
 
 // ResourceType represents the type of resource affected.
-type ResourceType string
+type ResourceType string //	@name	ResourceType
 
 const (
 	ResourceTypeTransaction ResourceType = "transaction"
@@ -162,12 +162,12 @@ func (r ResourceType) IsValid() bool {
 
 // Actor represents who performed the action.
 type Actor struct {
-	ActorType ActorType `json:"actorType"`
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Role      string    `json:"role,omitempty"`
-	IPAddress string    `json:"ipAddress"`
-}
+	ActorType ActorType `json:"actorType" swaggertype:"string" enums:"user,api_key,system" example:"user"`
+	ID        string    `json:"id" example:"00000000-0000-0000-0000-000000000000"`
+	Name      string    `json:"name" example:"Jane Doe"`
+	Role      string    `json:"role,omitempty" example:"admin"`
+	IPAddress string    `json:"ipAddress" example:"203.0.113.42"`
+} //	@name	Actor
 
 // ValidationResponseContext holds additional validation-specific fields for context.response.
 // Used when event_type = TRANSACTION_VALIDATED.
@@ -179,35 +179,64 @@ type ValidationResponseContext struct {
 }
 
 // AuditEvent represents an immutable audit record for compliance (SOX/GLBA).
+//
+// swagger:model AuditEvent
+//
+//	@Description	Immutable audit record for SOX/GLBA compliance. Each event captures who performed what action on which resource, the outcome, and a full context snapshot. Events are hash-chained to detect tampering; the hash covers all core fields.
 type AuditEvent struct {
 	// Internal fields (system-managed)
-	ID           int64  `json:"-"` // Internal sequence, not exposed
-	Hash         string `json:"hash,omitempty"`
-	PreviousHash string `json:"previousHash,omitempty"`
+	ID int64 `json:"-"` // Internal sequence, not exposed
 
-	// Core fields
-	EventID   uuid.UUID      `json:"eventId" swaggertype:"string" format:"uuid"`
-	EventType AuditEventType `json:"eventType"`
-	CreatedAt time.Time      `json:"createdAt" format:"date-time"` // When event occurred
-	Action    AuditAction    `json:"action" swaggertype:"string"`
-	Result    AuditResult    `json:"result" swaggertype:"string"` // Unified: ALLOW/DENY/REVIEW for validations, SUCCESS/FAILED for CRUD
+	// SHA-256 hash of this event's fields for tamper detection
+	// example: a3f1e2b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2
+	Hash string `json:"hash,omitempty" example:"a3f1e2b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2"`
 
-	// Resource fields
-	ResourceID   string       `json:"resourceId"`
-	ResourceType ResourceType `json:"resourceType"`
+	// Hash of the preceding event in the chain, empty for the first event
+	// example: b4e2f3a5c6d7e8f9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3
+	PreviousHash string `json:"previousHash,omitempty" example:"b4e2f3a5c6d7e8f9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3"`
 
-	// Actor fields
+	// Unique identifier for this audit event
+	// format: uuid
+	EventID uuid.UUID `json:"eventId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+
+	// Type of event that occurred
+	// example: TRANSACTION_VALIDATED
+	// enums: TRANSACTION_VALIDATED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED
+	EventType AuditEventType `json:"eventType" swaggertype:"string" enums:"TRANSACTION_VALIDATED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED" example:"TRANSACTION_VALIDATED"`
+
+	// Timestamp when the event occurred
+	// format: date-time
+	CreatedAt time.Time `json:"createdAt" format:"date-time" example:"2021-01-01T00:00:00Z"`
+
+	// Action performed
+	// example: VALIDATE
+	// enums: VALIDATE,CREATE,UPDATE,DELETE,ACTIVATE,DEACTIVATE,DRAFT,RESERVE,CONFIRM,RELEASE,EXPIRE,SKIP
+	Action AuditAction `json:"action" swaggertype:"string" enums:"VALIDATE,CREATE,UPDATE,DELETE,ACTIVATE,DEACTIVATE,DRAFT,RESERVE,CONFIRM,RELEASE,EXPIRE,SKIP" example:"VALIDATE"`
+
+	// Outcome: ALLOW/DENY/REVIEW for validations; SUCCESS/FAILED for CRUD operations
+	// example: ALLOW
+	// enums: ALLOW,DENY,REVIEW,SUCCESS,FAILED
+	Result AuditResult `json:"result" swaggertype:"string" enums:"ALLOW,DENY,REVIEW,SUCCESS,FAILED" example:"ALLOW"`
+
+	// ID of the resource affected by this event
+	// example: 00000000-0000-0000-0000-000000000000
+	ResourceID string `json:"resourceId" example:"00000000-0000-0000-0000-000000000000"`
+
+	// Type of resource affected
+	// example: transaction
+	// enums: transaction,rule,limit,reservation
+	ResourceType ResourceType `json:"resourceType" swaggertype:"string" enums:"transaction,rule,limit,reservation" example:"transaction"`
+
+	// Actor who performed the action
 	Actor Actor `json:"actor"`
 
-	// Context (JSONB)
+	// Context (JSONB): for validations: { request: {...}, response: {reason, processingTimeMs, matchedRuleIds, ...} }; for CRUD: { before: {...}, after: {...}, reason: "..." }
 	// Note: accountId, segmentId, portfolioId are in context.request.account (not first-level fields)
-	// For validations: { request: {...}, response: {reason, processingTimeMs, matchedRuleIds, ...} }
-	// For CRUD: { before: {...}, after: {...}, reason: "..." }
 	Context map[string]any `json:"context,omitempty"`
 
-	// Metadata (JSONB) - additional info like ticketId, correlationId
+	// Additional metadata such as ticketId or correlationId
 	Metadata map[string]any `json:"metadata,omitempty"`
-}
+} //	@name	AuditEvent
 
 // NewAuditEvent creates a new AuditEvent with validation.
 // Returns error if:

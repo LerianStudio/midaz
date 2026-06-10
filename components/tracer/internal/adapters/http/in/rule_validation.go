@@ -119,9 +119,9 @@ type CreateRuleInput struct {
 	Name        string         `json:"name" validate:"required,min=1,max=255"`
 	Description string         `json:"description" validate:"max=1000"`
 	Expression  string         `json:"expression" validate:"required,min=1,max=5000"`
-	Action      model.Decision `json:"action" validate:"required,decision"`
+	Action      model.Decision `json:"action" validate:"required,decision" swaggertype:"string" enums:"ALLOW,DENY,REVIEW" example:"DENY"`
 	Scopes      []model.Scope  `json:"scopes" validate:"max=100,dive,scopenotempty"`
-}
+} //	@name	CreateRuleInput
 
 // Validate validates the CreateRuleInput struct using validator/v10.
 // All validations including scopenotempty are handled by validator tags.
@@ -145,9 +145,9 @@ type UpdateRuleInput struct {
 	Name        *string         `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
 	Description *string         `json:"description,omitempty" validate:"omitempty,max=1000"`
 	Expression  *string         `json:"expression,omitempty" validate:"omitempty,min=1,max=5000"`
-	Action      *model.Decision `json:"action,omitempty" validate:"omitempty,decision"`
+	Action      *model.Decision `json:"action,omitempty" validate:"omitempty,decision" swaggertype:"string" enums:"ALLOW,DENY,REVIEW" example:"DENY"`
 	Scopes      *[]model.Scope  `json:"scopes,omitempty" validate:"omitempty,max=100,dive,scopenotempty"`
-}
+} //	@name	UpdateRuleInput
 
 // Validate validates the UpdateRuleInput struct using validator/v10.
 func (u *UpdateRuleInput) Validate() error {
@@ -306,9 +306,9 @@ func (l *ListRulesInput) SetDefaults() {
 // Uses cursor-based pagination per PROJECT_RULES.md.
 type ListRulesResponse struct {
 	Rules      []model.Rule `json:"rules"`
-	NextCursor string       `json:"nextCursor,omitempty"`
-	HasMore    bool         `json:"hasMore"`
-}
+	NextCursor string       `json:"nextCursor,omitempty" example:"eyJpZCI6IjAxOTI4In0="`
+	HasMore    bool         `json:"hasMore" example:"true"`
+} //	@name	ListRulesResponse
 
 // toListFilter converts HTTP ListRulesInput to model.ListRulesFilter.
 // SortBy is passed as snake_case and maps directly to DB column names.

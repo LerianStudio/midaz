@@ -79,26 +79,6 @@ func TestNewNotificationHandler_ValidService(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// NotificationItem represents a single notification item in the response.
-type NotificationItem struct {
-	ID               string `json:"id"`
-	Name             string `json:"name"`
-	Description      string `json:"description,omitempty"`
-	Type             string `json:"type"`
-	DueDate          string `json:"dueDate"`
-	Frequency        string `json:"frequency"`
-	Color            string `json:"color"`
-	Severity         string `json:"severity"`
-	DaysUntilDue     int    `json:"daysUntilDue"`
-	NotifyDaysBefore int    `json:"notifyDaysBefore"`
-}
-
-// NotificationResponse represents the expected JSON response from GET /v1/deadlines/notifications.
-type NotificationResponse struct {
-	Items []NotificationItem `json:"items"`
-	Total int                `json:"total"`
-}
-
 func TestNotificationHandler_GetNotifications(t *testing.T) {
 	t.Parallel()
 

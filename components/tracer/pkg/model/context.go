@@ -14,11 +14,11 @@ import (
 // Type should be one of: "checking", "savings", "credit"
 // Status should be one of: "active", "suspended", "closed"
 type AccountContext struct {
-	ID       uuid.UUID      `json:"accountId" swaggertype:"string" format:"uuid"`
-	Type     string         `json:"type"`
-	Status   string         `json:"status"`
+	ID       uuid.UUID      `json:"accountId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+	Type     string         `json:"type" example:"checking"`
+	Status   string         `json:"status" example:"active"`
 	Metadata map[string]any `json:"metadata,omitempty"`
-}
+} //	@name	AccountContext
 
 // Clone creates a copy of AccountContext.
 // Returns nil if the receiver is nil.
@@ -59,12 +59,12 @@ func (a *AccountContext) ToMap() map[string]any {
 
 // MerchantContext contains merchant information for validation.
 type MerchantContext struct {
-	ID       uuid.UUID      `json:"merchantId" swaggertype:"string" format:"uuid"`
-	Name     string         `json:"name"`
-	Category string         `json:"category"` // e.g., ISO 18245 MCC code
-	Country  string         `json:"country"`  // ISO 3166-1 alpha-2 code
+	ID       uuid.UUID      `json:"merchantId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+	Name     string         `json:"name" example:"Acme Store"`
+	Category string         `json:"category" example:"5411"` // e.g., ISO 18245 MCC code
+	Country  string         `json:"country" example:"US"`    // ISO 3166-1 alpha-2 code
 	Metadata map[string]any `json:"metadata,omitempty"`
-}
+} //	@name	MerchantContext
 
 // Clone creates a copy of MerchantContext.
 // Returns nil if the receiver is nil.
@@ -106,10 +106,10 @@ func (m *MerchantContext) ToMap() map[string]any {
 
 // SegmentContext contains segment information for transaction categorization.
 type SegmentContext struct {
-	ID       uuid.UUID      `json:"segmentId" swaggertype:"string" format:"uuid"`
-	Name     string         `json:"name,omitempty"`
+	ID       uuid.UUID      `json:"segmentId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+	Name     string         `json:"name,omitempty" example:"retail"`
 	Metadata map[string]any `json:"metadata,omitempty"`
-}
+} //	@name	SegmentContext
 
 // Clone creates a copy of SegmentContext.
 // Returns nil if the receiver is nil.
@@ -149,10 +149,10 @@ func (s *SegmentContext) ToMap() map[string]any {
 
 // PortfolioContext contains portfolio information for transaction categorization.
 type PortfolioContext struct {
-	ID       uuid.UUID      `json:"portfolioId" swaggertype:"string" format:"uuid"`
-	Name     string         `json:"name,omitempty"`
+	ID       uuid.UUID      `json:"portfolioId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+	Name     string         `json:"name,omitempty" example:"growth"`
 	Metadata map[string]any `json:"metadata,omitempty"`
-}
+} //	@name	PortfolioContext
 
 // Clone creates a copy of PortfolioContext.
 // Returns nil if the receiver is nil.

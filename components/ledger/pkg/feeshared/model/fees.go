@@ -17,7 +17,7 @@ import (
 type FeeCalculate struct {
 	SegmentID   *uuid.UUID              `json:"segmentId" example:"00000000-0000-0000-0000-000000000000"`
 	LedgerID    uuid.UUID               `json:"ledgerId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
-	Transaction transaction.Transaction `json:"transaction"`
+	Transaction transaction.Transaction `json:"transaction"` // Full transaction projection; rendered as TransactionInput in the API schema.
 } //	@name	FeeCalculate
 
 // FeeEstimateResponse is a struct designed to encapsulate response of estimate fee.
@@ -38,5 +38,5 @@ type FeeEstimateResponse struct {
 type FeeEstimate struct {
 	PackageID   uuid.UUID               `json:"packageId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
 	LedgerID    uuid.UUID               `json:"ledgerId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
-	Transaction transaction.Transaction `json:"transaction"`
+	Transaction transaction.Transaction `json:"transaction"` // Full transaction projection; rendered as TransactionInput in the API schema.
 } //	@name	FeeEstimate

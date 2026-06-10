@@ -135,8 +135,8 @@ func (f *AuditEventFilters) SetDefaults() {
 
 // HashChainVerificationResult represents the result of hash chain verification.
 type HashChainVerificationResult struct {
-	IsValid        bool   `json:"isValid"`
-	FirstInvalidID *int64 `json:"firstInvalidId,omitempty"`
-	TotalChecked   int64  `json:"totalChecked"`
-	Message        string `json:"message"`
-}
+	IsValid        bool   `json:"isValid" example:"true"`
+	FirstInvalidID *int64 `json:"firstInvalidId,omitempty" example:"42"`
+	TotalChecked   int64  `json:"totalChecked" example:"1000"`
+	Message        string `json:"message" example:"hash chain intact"`
+} //	@name	HashChainVerificationResult

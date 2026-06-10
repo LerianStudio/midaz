@@ -14,7 +14,7 @@ import (
 )
 
 // RuleStatus represents the lifecycle status of a rule
-type RuleStatus string
+type RuleStatus string //	@name	RuleStatus
 
 const (
 	RuleStatusDraft    RuleStatus = "DRAFT"
@@ -40,26 +40,65 @@ func (s RuleStatus) String() string {
 
 // Rule represents a validation rule with CEL expression.
 // Note: priority field removed from MVP (TRD v1.2.4) - all rules evaluated, DENY takes precedence.
+//
+// swagger:model Rule
+//
+//	@Description	A validation rule containing a CEL expression evaluated against transaction context. Rules are created in DRAFT status, activated to apply enforcement, and produce a Decision (ALLOW/DENY/REVIEW) when matched.
 type Rule struct {
-	ID            uuid.UUID  `json:"ruleId" swaggertype:"string" format:"uuid"`
-	Name          string     `json:"name"`
-	Description   *string    `json:"description,omitempty"`
-	Expression    string     `json:"expression"`
-	Action        Decision   `json:"action"`
-	Scopes        []Scope    `json:"scopes"`
-	Status        RuleStatus `json:"status"`
-	CreatedAt     time.Time  `json:"createdAt" format:"date-time"`
-	UpdatedAt     time.Time  `json:"updatedAt" format:"date-time"`
-	ActivatedAt   *time.Time `json:"activatedAt,omitempty" format:"date-time"`
-	DeactivatedAt *time.Time `json:"deactivatedAt,omitempty" format:"date-time"`
-	DeletedAt     *time.Time `json:"deletedAt,omitempty" format:"date-time"`
+	// Unique identifier for the rule
+	// format: uuid
+	ID uuid.UUID `json:"ruleId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+
+	// Human-readable name of the rule
+	// example: Block high-value checking transactions
+	// maxLength: 255
+	Name string `json:"name" example:"Block high-value checking transactions" maxLength:"255"`
+
+	// Optional description of the rule's purpose
+	// example: Denies transactions over $1000 from checking accounts
+	Description *string `json:"description,omitempty" example:"Denies transactions over $1000 from checking accounts"`
+
+	// CEL expression evaluated against transaction context
+	// example: transaction.amount > 1000 && account.type == 'checking'
+	Expression string `json:"expression" example:"transaction.amount > 1000 && account.type == 'checking'"`
+
+	// Decision produced when this rule matches
+	// enums: ALLOW,DENY,REVIEW
+	Action Decision `json:"action" swaggertype:"string" enums:"ALLOW,DENY,REVIEW" example:"DENY"`
+
+	// Scopes that restrict which transactions this rule applies to
+	Scopes []Scope `json:"scopes"`
+
+	// Current lifecycle status of the rule
+	// enums: DRAFT,ACTIVE,INACTIVE,DELETED
+	Status RuleStatus `json:"status" swaggertype:"string" enums:"DRAFT,ACTIVE,INACTIVE,DELETED" example:"ACTIVE"`
+
+	// Timestamp when the rule was created
+	// format: date-time
+	CreatedAt time.Time `json:"createdAt" format:"date-time" example:"2021-01-01T00:00:00Z"`
+
+	// Timestamp when the rule was last updated
+	// format: date-time
+	UpdatedAt time.Time `json:"updatedAt" format:"date-time" example:"2021-01-01T00:00:00Z"`
+
+	// Timestamp when the rule was last activated, null if never activated
+	// format: date-time
+	ActivatedAt *time.Time `json:"activatedAt,omitempty" format:"date-time" example:"2021-01-01T00:00:00Z"`
+
+	// Timestamp when the rule was last deactivated, null if currently active or never deactivated
+	// format: date-time
+	DeactivatedAt *time.Time `json:"deactivatedAt,omitempty" format:"date-time" example:"2021-01-01T00:00:00Z"`
+
+	// Timestamp when the rule was soft deleted, null if not deleted
+	// format: date-time
+	DeletedAt *time.Time `json:"deletedAt,omitempty" format:"date-time" example:"2021-01-01T00:00:00Z"`
 
 	// CompiledProgram holds the pre-compiled CEL expression program.
 	// Transient field — not persisted, not serialized. Used to pass
 	// compiled programs from cache to evaluator, avoiding recompilation
 	// on the hot evaluation path.
 	CompiledProgram any `json:"-"`
-}
+} //	@name	Rule
 
 // MaxRuleNameLength defines the maximum length for rule names (aligned with VARCHAR(255) in database)
 const MaxRuleNameLength = 255

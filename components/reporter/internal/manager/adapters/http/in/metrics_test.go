@@ -82,20 +82,6 @@ func TestNewMetricsHandler_ValidService(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// MetricsResponse represents the expected JSON response from GET /v1/metrics.
-type MetricsResponse struct {
-	Templates   int64        `json:"templates"`
-	Reports     int64        `json:"reports"`
-	DataSources int64        `json:"dataSources"`
-	Errors      ErrorMetrics `json:"errors"`
-}
-
-// ErrorMetrics represents the error counters in the metrics response.
-type ErrorMetrics struct {
-	Total               int64 `json:"total"`
-	PreviousPeriodTotal int64 `json:"previousPeriodTotal"`
-}
-
 func TestMetricsHandler_GetMetrics(t *testing.T) {
 	t.Parallel()
 

@@ -57,7 +57,7 @@ const DefaultMaxTimestampAge = 24 * time.Hour
 var MaxTimestampAge = DefaultMaxTimestampAge
 
 // Decision represents the validation decision
-type Decision string
+type Decision string //	@name	Decision
 
 const (
 	DecisionAllow  Decision = "ALLOW"
@@ -70,19 +70,19 @@ const (
 // Use NewValidationRequest() to construct - ensures validation and normalization.
 // SubType is normalized to lowercase canonical form; matching is case-insensitive.
 type ValidationRequest struct {
-	RequestID       uuid.UUID       `json:"requestId" validate:"required" swaggertype:"string" format:"uuid"`
-	TransactionType TransactionType `json:"transactionType" validate:"required"`
+	RequestID       uuid.UUID       `json:"requestId" validate:"required" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+	TransactionType TransactionType `json:"transactionType" validate:"required" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
 	// SubType is normalized to lowercase canonical form; matching is case-insensitive.
-	SubType              *string           `json:"subType,omitempty" validate:"omitempty,max=50" maxLength:"50" extensions:"x-normalization=lowercase"`
+	SubType              *string           `json:"subType,omitempty" validate:"omitempty,max=50" maxLength:"50" extensions:"x-normalization=lowercase" example:"purchase"`
 	Amount               decimal.Decimal   `json:"amount" validate:"required" swaggertype:"string" example:"100.00"`
-	Currency             string            `json:"currency" validate:"required"`
-	TransactionTimestamp time.Time         `json:"transactionTimestamp" format:"date-time" validate:"required"`
+	Currency             string            `json:"currency" validate:"required" example:"USD"`
+	TransactionTimestamp time.Time         `json:"transactionTimestamp" format:"date-time" validate:"required" example:"2021-01-01T00:00:00Z"`
 	Account              AccountContext    `json:"account" validate:"required"`
 	Segment              *SegmentContext   `json:"segment,omitempty"`
 	Portfolio            *PortfolioContext `json:"portfolio,omitempty"`
 	Merchant             *MerchantContext  `json:"merchant,omitempty"`
 	Metadata             map[string]any    `json:"metadata,omitempty"`
-}
+} //	@name	ValidationRequest
 
 // NewValidationRequest creates a new ValidationRequest with validation and normalization.
 // Currency is normalized to uppercase and trimmed (auto-corrects case).
@@ -226,13 +226,13 @@ func (r *ValidationRequest) normalizeAndValidateWith(now time.Time, validate fun
 // Amounts are expressed as decimal values.
 // Note: RemainingAmount is calculated as (LimitAmount - CurrentUsage), not stored.
 type LimitUsageDetail struct {
-	LimitID     uuid.UUID       `json:"limitId" swaggertype:"string" format:"uuid"`
+	LimitID     uuid.UUID       `json:"limitId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 	LimitAmount decimal.Decimal `json:"limitAmount" swaggertype:"string" example:"1000.00"`
 	// Scope is a human-readable string representation of the limit's scope
 	// (e.g., "account:uuid" or "segment:uuid" or "global").
-	Scope string `json:"scope"`
+	Scope string `json:"scope" example:"account:00000000-0000-0000-0000-000000000000"`
 	// Period indicates the type of limit (DAILY, WEEKLY, MONTHLY, CUSTOM, PER_TRANSACTION).
-	Period LimitType `json:"period" swaggertype:"string"`
+	Period LimitType `json:"period" swaggertype:"string" enums:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" example:"DAILY"`
 	// CurrentUsage represents the PROJECTED usage after applying the transaction amount,
 	// not the actual persisted counter value. This is calculated as:
 	// (counter.CurrentUsage + input.Amount) for DAILY/WEEKLY/MONTHLY/CUSTOM limits, or 0 for PER_TRANSACTION.
@@ -263,19 +263,36 @@ type LimitUsageDetail struct {
 	// period key mismatch when rollback crosses a period boundary.
 	// Empty for PER_TRANSACTION limits (no period counters).
 	InternalPeriodKey string `json:"-"`
-}
+} //	@name	LimitUsageDetail
 
 // ValidationResponse is the output of transaction validation.
 // Embeds EvaluationResult to avoid field duplication.
 // Aligned with TRD v1.2.4: arrays for matched/evaluated rules and limit details.
+//
+// swagger:model ValidationResponse
+//
+//	@Description	Response returned after evaluating a transaction against the active rules and limits. Contains the evaluation decision, matched rule identifiers, per-limit usage details, and timing metadata. EvaluationResult fields (decision, reason, matchedRuleIds, evaluatedRuleIds, totalRulesLoaded, truncated) are promoted to the top level via Go embedding.
 type ValidationResponse struct {
-	ValidationID      uuid.UUID `json:"validationId" swaggertype:"string" format:"uuid"`
-	RequestID         uuid.UUID `json:"requestId" swaggertype:"string" format:"uuid"`
-	EvaluationResult  `swaggerignore:"true"`
+	// Unique identifier for this validation result
+	// format: uuid
+	ValidationID uuid.UUID `json:"validationId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+
+	// Idempotency key echoed from the request
+	// format: uuid
+	RequestID        uuid.UUID `json:"requestId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+	EvaluationResult `swaggertype:"object"`
+
+	// Per-limit usage details for every limit checked during this validation
 	LimitUsageDetails []LimitUsageDetail `json:"limitUsageDetails"`
-	ProcessingTimeMs  float64            `json:"processingTimeMs"`
-	EvaluatedAt       time.Time          `json:"evaluatedAt" format:"date-time"`
-}
+
+	// Time taken to evaluate rules and limits in milliseconds
+	// example: 12.5
+	ProcessingTimeMs float64 `json:"processingTimeMs" example:"12.5"`
+
+	// Timestamp when the evaluation was performed
+	// format: date-time
+	EvaluatedAt time.Time `json:"evaluatedAt" format:"date-time" example:"2021-01-01T00:00:00Z"`
+} //	@name	ValidationResponse
 
 // NewValidationResponse creates a ValidationResponse with initialized slices.
 // Ensures JSON serialization produces [] instead of null for empty arrays.

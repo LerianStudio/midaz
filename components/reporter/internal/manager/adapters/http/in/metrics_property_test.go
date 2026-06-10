@@ -365,7 +365,7 @@ func TestProperty_MetricsResponse_AlwaysCompleteStructure(t *testing.T) {
 			return false
 		}
 
-		var body metricsResponse
+		var body MetricsResponse
 		if decodeErr := json.NewDecoder(resp.Body).Decode(&body); decodeErr != nil {
 			t.Logf("Failed to decode response: %v", decodeErr)
 			return false

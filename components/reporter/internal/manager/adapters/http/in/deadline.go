@@ -97,7 +97,7 @@ func (dh *DeadlineHandler) CreateDeadline(p any, c *fiber.Ctx) error {
 //	@Param			status		query		string	false	"Deadline status"	Enums(pending, overdue, delivered)
 //	@Param			limit		query		int		false	"Limit"		default(10)
 //	@Param			page		query		int		false	"Page"		default(1)
-//	@Success		200			{object}	model.Pagination{items=[]deadline.Deadline,page=int,limit=int,total=int}
+//	@Success		200			{object}	model.Pagination{items=[]deadline.Deadline}
 //	@Failure		400			{object}	pkg.HTTPError
 //	@Failure		401			{object}	pkg.HTTPError
 //	@Failure		403			{object}	pkg.HTTPError

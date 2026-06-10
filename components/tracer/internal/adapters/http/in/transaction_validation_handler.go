@@ -449,19 +449,19 @@ func ToTransactionValidationFilters(input *ListTransactionValidationsInput) (*mo
 // Fields are flattened (accountId at root, not nested in account object).
 type ValidationSummary struct {
 	ID               uuid.UUID             `json:"validationId" swaggertype:"string" format:"uuid"`
-	Decision         model.Decision        `json:"decision"`
-	Reason           string                `json:"reason"`
+	Decision         model.Decision        `json:"decision" swaggertype:"string" enums:"ALLOW,DENY,REVIEW" example:"ALLOW"`
+	Reason           string                `json:"reason" example:"All rules passed"`
 	Amount           decimal.Decimal       `json:"amount" swaggertype:"string" example:"100.00"`
-	Currency         string                `json:"currency"`
-	TransactionType  model.TransactionType `json:"transactionType"`
+	Currency         string                `json:"currency" example:"USD"`
+	TransactionType  model.TransactionType `json:"transactionType" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
 	AccountID        uuid.UUID             `json:"accountId" swaggertype:"string" format:"uuid"`
 	SegmentID        *uuid.UUID            `json:"segmentId,omitempty" swaggertype:"string" format:"uuid"`
 	PortfolioID      *uuid.UUID            `json:"portfolioId,omitempty" swaggertype:"string" format:"uuid"`
 	MatchedRuleIDs   []uuid.UUID           `json:"matchedRuleIds" swaggertype:"array,string" format:"uuid"`
 	ExceededLimitIDs []uuid.UUID           `json:"exceededLimitIds" swaggertype:"array,string" format:"uuid"`
-	ProcessingTimeMs float64               `json:"processingTimeMs"`
+	ProcessingTimeMs float64               `json:"processingTimeMs" example:"12.5"`
 	CreatedAt        string                `json:"createdAt" format:"date-time"`
-}
+} //	@name	ValidationSummary
 
 // ToValidationSummary converts a TransactionValidation to a ValidationSummary.
 func ToValidationSummary(tv *model.TransactionValidation) *ValidationSummary {
@@ -510,9 +510,9 @@ func ToValidationSummary(tv *model.TransactionValidation) *ValidationSummary {
 // Per API Design v1.3.2: Returns ValidationSummary objects with flattened fields.
 type ListTransactionValidationsResponse struct {
 	TransactionValidations []*ValidationSummary `json:"transactionValidations"`
-	NextCursor             string               `json:"nextCursor,omitempty"`
-	HasMore                bool                 `json:"hasMore"`
-}
+	NextCursor             string               `json:"nextCursor,omitempty" example:"eyJpZCI6IjAxOTI4In0="`
+	HasMore                bool                 `json:"hasMore" example:"true"`
+} //	@name	ListTransactionValidationsResponse
 
 // ToListTransactionValidationsResponse converts the service result to HTTP response.
 func ToListTransactionValidationsResponse(result *query.ListTransactionValidationsResult) *ListTransactionValidationsResponse {

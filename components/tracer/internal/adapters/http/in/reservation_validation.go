@@ -32,9 +32,9 @@ type ReserveRequest struct {
 	// still-valid pending that has no existing sweep (R18). It is a sibling wire
 	// field, NOT part of the embedded ValidationRequest, so the relaxed reserve
 	// validation never sees it.
-	LongLived               bool `json:"longLived,omitempty"`
+	LongLived               bool `json:"longLived,omitempty" example:"false"`
 	model.ValidationRequest `swaggerignore:"true"`
-}
+} //	@name	ReserveRequest
 
 // NormalizeAndReserveValidate validates the reserve body: the transactionId must be
 // present, then the embedded validation-request fields are normalized and validated
@@ -65,9 +65,9 @@ func (r *ReserveRequest) ToReserveInput() *model.CheckLimitsInput {
 // release in phase two.
 type ReserveResponse struct {
 	TransactionID  uuid.UUID   `json:"transactionId" swaggertype:"string" format:"uuid"`
-	Denied         bool        `json:"denied"`
-	ReservationIDs []uuid.UUID `json:"reservationIds"`
-}
+	Denied         bool        `json:"denied" example:"false"`
+	ReservationIDs []uuid.UUID `json:"reservationIds" swaggertype:"array,string" format:"uuid"`
+} //	@name	ReserveResponse
 
 // ReservationActionResponse is the body returned by confirm and release. Status is
 // the terminal state the reservation resolves to (CONFIRMED or RELEASED). Confirm
@@ -75,8 +75,8 @@ type ReserveResponse struct {
 // returns the same terminal status with HTTP 200.
 type ReservationActionResponse struct {
 	ReservationID uuid.UUID `json:"reservationId" swaggertype:"string" format:"uuid"`
-	Status        string    `json:"status"`
-}
+	Status        string    `json:"status" enums:"CONFIRMED,RELEASED" example:"CONFIRMED"`
+} //	@name	ReservationActionResponse
 
 // TransactionActionResponse is the body returned by the by-transaction confirm and
 // release endpoints. The ledger /commit and /cancel address reservations by the
@@ -87,6 +87,6 @@ type ReservationActionResponse struct {
 // already terminal.
 type TransactionActionResponse struct {
 	TransactionID uuid.UUID `json:"transactionId" swaggertype:"string" format:"uuid"`
-	Status        string    `json:"status"`
-	Flipped       int       `json:"flipped"`
-}
+	Status        string    `json:"status" enums:"CONFIRMED,RELEASED" example:"CONFIRMED"`
+	Flipped       int       `json:"flipped" example:"2"`
+} //	@name	TransactionActionResponse

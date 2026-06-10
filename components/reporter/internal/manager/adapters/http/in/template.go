@@ -202,7 +202,7 @@ func (th *TemplateHandler) GetTemplateByID(c *fiber.Ctx) error {
 //	@Security		BearerAuth
 //	@Param			limit		query		int		false	"Limit"		default(10)
 //	@Param			page		query		int		false	"Page"		default(1)
-//	@Success		200			{object}	model.Pagination{items=[]template.Template,page=int,limit=int,total=int}
+//	@Success		200			{object}	model.Pagination{items=[]template.Template}
 //	@Failure		400			{object}	pkgErr.HTTPError
 //	@Failure		401			{object}	pkgErr.HTTPError
 //	@Failure		403			{object}	pkgErr.HTTPError

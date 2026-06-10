@@ -63,19 +63,29 @@ func NewMetricsHandler(service *services.UseCase) (*MetricsHandler, error) {
 	return &MetricsHandler{service: service}, nil
 }
 
-// metricsResponse represents the JSON response from GET /v1/metrics.
-type metricsResponse struct {
-	Templates   int64        `json:"templates"`
-	Reports     int64        `json:"reports"`
-	DataSources int64        `json:"dataSources"`
-	Errors      errorMetrics `json:"errors"`
-}
+// MetricsResponse represents the JSON response from GET /v1/metrics.
+//
+//	@Description	MetricsResponse contains aggregated system counters returned by GET /v1/metrics.
+type MetricsResponse struct {
+	// Templates is the total number of report templates registered in the system.
+	Templates int64 `json:"templates" example:"42"`
+	// Reports is the total number of report executions recorded.
+	Reports int64 `json:"reports" example:"156"`
+	// DataSources is the number of external data sources currently registered.
+	DataSources int64 `json:"dataSources" example:"3"`
+	// Errors contains error counters for the current and previous period.
+	Errors ErrorMetrics `json:"errors"`
+} //	@name	MetricsResponse
 
-// errorMetrics represents the error counters in the metrics response.
-type errorMetrics struct {
-	Total               int64 `json:"total"`
-	PreviousPeriodTotal int64 `json:"previousPeriodTotal"`
-}
+// ErrorMetrics represents the error counters in the metrics response.
+//
+//	@Description	ErrorMetrics holds error counts for the requested period and the preceding period of the same length.
+type ErrorMetrics struct {
+	// Total is the error count within the current period window.
+	Total int64 `json:"total" example:"7"`
+	// PreviousPeriodTotal is the error count for the same-length window immediately before the current period.
+	PreviousPeriodTotal int64 `json:"previousPeriodTotal" example:"12"`
+} //	@name	ErrorMetrics
 
 // GetMetrics returns aggregated metrics including template count, report count,
 // data source count, and error counts for the current and previous periods.
@@ -86,7 +96,7 @@ type errorMetrics struct {
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			errorPeriodDays	query		int	false	"Number of days for error period"	default(7)	minimum(1)	maximum(365)
-//	@Success		200				{object}	metricsResponse
+//	@Success		200				{object}	MetricsResponse
 //	@Failure		400				{object}	pkg.HTTPError
 //	@Failure		401				{object}	pkg.HTTPError
 //	@Failure		403				{object}	pkg.HTTPError
@@ -165,11 +175,11 @@ func (mh *MetricsHandler) GetMetrics(c *fiber.Ctx) error {
 		dataSourceCount = int64(mh.service.ExternalDataSources.Len())
 	}
 
-	response := metricsResponse{
+	response := MetricsResponse{
 		Templates:   templateCount,
 		Reports:     reportCount,
 		DataSources: dataSourceCount,
-		Errors: errorMetrics{
+		Errors: ErrorMetrics{
 			Total:               currentPeriodErrors,
 			PreviousPeriodTotal: previousPeriodErrors,
 		},

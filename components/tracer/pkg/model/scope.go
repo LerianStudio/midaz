@@ -115,15 +115,36 @@ func cloneAndNormalizeScope(s Scope) Scope {
 // At least one field must be set for a scope to be valid.
 // Validation tags are used by the HTTP layer for input validation.
 // SubType is normalized to lowercase canonical form on write; matching is case-insensitive.
+//
+// swagger:model Scope
+//
+//	@Description	Hierarchical scope that constrains which transactions a rule or limit applies to. At least one field must be set. When multiple fields are set, all must match (AND semantics). Nil fields match any value.
 type Scope struct {
-	SegmentID       *uuid.UUID       `json:"segmentId,omitempty" swaggertype:"string" format:"uuid"`
-	PortfolioID     *uuid.UUID       `json:"portfolioId,omitempty" swaggertype:"string" format:"uuid"`
-	AccountID       *uuid.UUID       `json:"accountId,omitempty" swaggertype:"string" format:"uuid"`
-	MerchantID      *uuid.UUID       `json:"merchantId,omitempty" swaggertype:"string" format:"uuid"`
-	TransactionType *TransactionType `json:"transactionType,omitempty" validate:"omitempty,transactiontype"`
+	// Segment the scope is restricted to (optional)
+	// format: uuid
+	SegmentID *uuid.UUID `json:"segmentId,omitempty" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+
+	// Portfolio the scope is restricted to (optional)
+	// format: uuid
+	PortfolioID *uuid.UUID `json:"portfolioId,omitempty" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+
+	// Account the scope is restricted to (optional)
+	// format: uuid
+	AccountID *uuid.UUID `json:"accountId,omitempty" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+
+	// Merchant the scope is restricted to (optional)
+	// format: uuid
+	MerchantID *uuid.UUID `json:"merchantId,omitempty" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+
+	// Transaction type the scope is restricted to (optional)
+	// example: CARD
+	TransactionType *TransactionType `json:"transactionType,omitempty" validate:"omitempty,transactiontype" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
+
 	// SubType is normalized to lowercase canonical form; matching is case-insensitive.
-	SubType *string `json:"subType,omitempty" validate:"omitempty,max=50" maxLength:"50" extensions:"x-normalization=lowercase"`
-}
+	// example: purchase
+	// maxLength: 50
+	SubType *string `json:"subType,omitempty" validate:"omitempty,max=50" maxLength:"50" extensions:"x-normalization=lowercase" example:"purchase"`
+} //	@name	Scope
 
 // IsEmpty returns true if all scope fields are nil.
 func (s *Scope) IsEmpty() bool {

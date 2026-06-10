@@ -36,7 +36,7 @@ type LedgerSettings struct {
 
 	// Tracer contains the per-ledger tracer-integration settings.
 	Tracer TracerSettings `json:"tracer"`
-}
+} //	@name LedgerSettings
 
 // AccountingValidation represents the accounting-related validation settings.
 // These settings control validation behavior during transaction processing.
@@ -44,18 +44,18 @@ type AccountingValidation struct {
 	// ValidateAccountType enables validation of account types during transaction processing.
 	// When true, accounts must have types that match the operation route rules.
 	// Default: false (permissive - no validation)
-	ValidateAccountType bool `json:"validateAccountType"`
+	ValidateAccountType bool `json:"validateAccountType" example:"false"`
 
 	// ValidateRoutes enables validation of transaction routes during processing.
 	// When true, transactions must specify valid route IDs that exist in the ledger.
 	// Default: false (permissive - no validation)
-	ValidateRoutes bool `json:"validateRoutes"`
+	ValidateRoutes bool `json:"validateRoutes" example:"false"`
 
 	// RequireHolder enables enforcement that accounts must reference an existing holder.
 	// When true, account creation rejects accounts whose resolved holder does not exist.
 	// Default: false (permissive - no validation)
-	RequireHolder bool `json:"requireHolder"`
-}
+	RequireHolder bool `json:"requireHolder" example:"false"`
+} //	@name AccountingValidation
 
 // defaultAccountingValidation is the canonical source of default validation settings.
 // All validation flags are false by default for backwards compatibility.
@@ -75,17 +75,17 @@ type TracerSettings struct {
 	// Mode controls tracer participation in transaction processing.
 	// One of: "off" (skip), "advisory" (call but never block), "enforce" (call and gate).
 	// Default: "off".
-	Mode string `json:"mode"`
+	Mode string `json:"mode" example:"off"`
 
 	// FailPosture controls behavior when the tracer is unavailable (timeout/breaker-open).
 	// One of: "open" (proceed, record SKIPPED audit), "closed" (reject the transaction).
 	// Default: "open".
-	FailPosture string `json:"failPosture"`
+	FailPosture string `json:"failPosture" example:"open"`
 
 	// TimeoutMs is the per-call tracer reserve timeout, in milliseconds.
 	// Default: 250.
-	TimeoutMs int `json:"timeoutMs"`
-}
+	TimeoutMs int `json:"timeoutMs" example:"250"`
+} //	@name TracerSettings
 
 // Allowed values for TracerSettings.Mode.
 const (

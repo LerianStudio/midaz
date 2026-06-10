@@ -18,7 +18,7 @@ import (
 )
 
 // LimitType represents the period type of a limit
-type LimitType string
+type LimitType string //	@name	LimitType
 
 const (
 	LimitTypeDaily          LimitType = "DAILY"
@@ -29,7 +29,7 @@ const (
 )
 
 // LimitStatus represents the lifecycle status of a limit
-type LimitStatus string
+type LimitStatus string //	@name	LimitStatus
 
 const (
 	LimitStatusDraft    LimitStatus = "DRAFT"
@@ -77,24 +77,72 @@ var safeDescriptionRegex = regexp.MustCompile(`^[^<>]*$`)
 //
 // CustomStartDate/CustomEndDate define the period for CUSTOM limits.
 // These are required for CUSTOM limitType and forbidden for other types.
+//
+// swagger:model Limit
+//
+//	@Description	A transaction spending limit enforced during validation. Limits accumulate usage across a configurable period (DAILY/WEEKLY/MONTHLY/CUSTOM/PER_TRANSACTION) and block or flag transactions that would exceed the configured MaxAmount for the matched currency and scope.
 type Limit struct {
-	ID              uuid.UUID       `json:"limitId" swaggertype:"string" format:"uuid"`
-	Name            string          `json:"name"`
-	Description     *string         `json:"description,omitempty"`
-	LimitType       LimitType       `json:"limitType"`
-	MaxAmount       decimal.Decimal `json:"maxAmount" swaggertype:"string" example:"1000.00"`
-	Currency        string          `json:"currency"`
-	Scopes          []Scope         `json:"scopes"`
-	Status          LimitStatus     `json:"status"`
-	ActiveTimeStart *TimeOfDay      `json:"activeTimeStart,omitempty" swaggertype:"string" example:"09:00"`
-	ActiveTimeEnd   *TimeOfDay      `json:"activeTimeEnd,omitempty" swaggertype:"string" example:"17:00"`
-	CustomStartDate *time.Time      `json:"customStartDate,omitempty" format:"date-time"`
-	CustomEndDate   *time.Time      `json:"customEndDate,omitempty" format:"date-time"`
-	ResetAt         *time.Time      `json:"resetAt,omitempty" format:"date-time"`
-	CreatedAt       time.Time       `json:"createdAt" format:"date-time"`
-	UpdatedAt       time.Time       `json:"updatedAt" format:"date-time"`
-	DeletedAt       *time.Time      `json:"deletedAt,omitempty" format:"date-time"`
-}
+	// Unique identifier for the limit
+	// format: uuid
+	ID uuid.UUID `json:"limitId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+
+	// Human-readable name of the limit
+	// example: Daily USD spending cap
+	// maxLength: 255
+	Name string `json:"name" example:"Daily USD spending cap" maxLength:"255"`
+
+	// Optional description of the limit's purpose
+	// example: Caps daily USD outflows for retail accounts
+	Description *string `json:"description,omitempty" example:"Caps daily USD outflows for retail accounts"`
+
+	// Period type for usage accumulation
+	// enums: DAILY,WEEKLY,MONTHLY,CUSTOM,PER_TRANSACTION
+	LimitType LimitType `json:"limitType" swaggertype:"string" enums:"DAILY,WEEKLY,MONTHLY,CUSTOM,PER_TRANSACTION" example:"DAILY"`
+
+	// Maximum amount allowed within the period
+	MaxAmount decimal.Decimal `json:"maxAmount" swaggertype:"string" example:"1000.00"`
+
+	// ISO 4217 currency code this limit applies to
+	// example: USD
+	Currency string `json:"currency" example:"USD"`
+
+	// Scopes that restrict which transactions this limit applies to
+	Scopes []Scope `json:"scopes"`
+
+	// Current lifecycle status of the limit
+	// enums: DRAFT,ACTIVE,INACTIVE,DELETED
+	Status LimitStatus `json:"status" swaggertype:"string" enums:"DRAFT,ACTIVE,INACTIVE,DELETED" example:"ACTIVE"`
+
+	// Start of the daily time window when the limit is active (HH:MM), null means 24/7
+	ActiveTimeStart *TimeOfDay `json:"activeTimeStart,omitempty" swaggertype:"string" example:"09:00"`
+
+	// End of the daily time window when the limit is active (HH:MM), null means 24/7
+	ActiveTimeEnd *TimeOfDay `json:"activeTimeEnd,omitempty" swaggertype:"string" example:"17:00"`
+
+	// Start of custom period (only for CUSTOM limitType)
+	// format: date-time
+	CustomStartDate *time.Time `json:"customStartDate,omitempty" format:"date-time" example:"2021-01-01T00:00:00Z"`
+
+	// End of custom period (only for CUSTOM limitType)
+	// format: date-time
+	CustomEndDate *time.Time `json:"customEndDate,omitempty" format:"date-time" example:"2021-12-31T23:59:59Z"`
+
+	// Next reset timestamp, null for PER_TRANSACTION limits
+	// format: date-time
+	ResetAt *time.Time `json:"resetAt,omitempty" format:"date-time" example:"2021-01-02T00:00:00Z"`
+
+	// Timestamp when the limit was created
+	// format: date-time
+	CreatedAt time.Time `json:"createdAt" format:"date-time" example:"2021-01-01T00:00:00Z"`
+
+	// Timestamp when the limit was last updated
+	// format: date-time
+	UpdatedAt time.Time `json:"updatedAt" format:"date-time" example:"2021-01-01T00:00:00Z"`
+
+	// Timestamp when the limit was soft deleted, null if not deleted
+	// format: date-time
+	DeletedAt *time.Time `json:"deletedAt,omitempty" format:"date-time" example:"2021-01-01T00:00:00Z"`
+} //	@name	Limit
 
 // UsageCounter tracks current usage for a limit within a specific scope and period.
 // CurrentUsage is expressed as a decimal value.
@@ -898,8 +946,8 @@ func (u *UsageCounter) Validate() error {
 // Cursor-based pagination: Cursor contains base64-encoded cursor with sort info.
 type ListLimitsFilter struct {
 	Name        *string      `json:"name,omitempty"` // Filter by name (case-insensitive partial match / contains)
-	Status      *LimitStatus `json:"status,omitempty"`
-	LimitType   *LimitType   `json:"limitType,omitempty"`
+	Status      *LimitStatus `json:"status,omitempty" swaggertype:"string" enums:"DRAFT,ACTIVE,INACTIVE,DELETED" example:"ACTIVE"`
+	LimitType   *LimitType   `json:"limitType,omitempty" swaggertype:"string" enums:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" example:"DAILY"`
 	Currency    *string      `json:"currency,omitempty"`
 	ScopeFilter *Scope       `json:"scopeFilter,omitempty"` // Optional scope filter for JSONB scope matching
 	Limit       int          `json:"limit"`
@@ -1008,7 +1056,7 @@ type UsageSnapshot struct {
 	NearLimit bool `json:"nearLimit" example:"false"`
 	// When counter resets (nil for PER_TRANSACTION)
 	ResetAt *time.Time `json:"resetAt,omitempty" format:"date-time"`
-}
+} //	@name	UsageSnapshot
 
 // NearLimitThreshold is the threshold percentage (80%) above which nearLimit is true.
 const NearLimitThreshold = 80.0

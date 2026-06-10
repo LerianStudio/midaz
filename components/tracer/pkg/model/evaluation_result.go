@@ -11,14 +11,33 @@ import (
 )
 
 // EvaluationResult contains the result of rule evaluation per API Design v1.3.0.
+//
+// swagger:model EvaluationResult
+//
+//	@Description	Result produced by evaluating transaction context against the active rule set. Contains the final decision, the identifiers of matched and evaluated rules, a human-readable reason, and truncation metadata when the rule set exceeded the per-request maximum.
 type EvaluationResult struct {
-	Decision         Decision    `json:"decision"`
-	MatchedRuleIDs   []uuid.UUID `json:"matchedRuleIds" swaggertype:"array,string" format:"uuid"`
+	// Final decision produced by rule evaluation
+	// enums: ALLOW,DENY,REVIEW
+	Decision Decision `json:"decision" swaggertype:"string" enums:"ALLOW,DENY,REVIEW" example:"ALLOW"`
+
+	// IDs of rules that matched the transaction scope and CEL expression
+	MatchedRuleIDs []uuid.UUID `json:"matchedRuleIds" swaggertype:"array,string" format:"uuid"`
+
+	// IDs of all rules evaluated during this request
 	EvaluatedRuleIDs []uuid.UUID `json:"evaluatedRuleIds" swaggertype:"array,string" format:"uuid"`
-	Reason           string      `json:"reason"`
-	TotalRulesLoaded int         `json:"totalRulesLoaded"`
-	Truncated        bool        `json:"truncated"`
-}
+
+	// Human-readable explanation of the decision
+	// example: Transaction denied by rule 'Block high-value checking transactions'
+	Reason string `json:"reason" example:"Transaction denied by rule 'Block high-value checking transactions'"`
+
+	// Total number of active rules loaded for evaluation before any truncation
+	// example: 42
+	TotalRulesLoaded int `json:"totalRulesLoaded" example:"42"`
+
+	// True when active rules exceeded MAX_RULES_PER_REQUEST and were truncated
+	// example: false
+	Truncated bool `json:"truncated" example:"false"`
+} //	@name	EvaluationResult
 
 // normalizeUUIDs converts nil slice to empty slice for consistent JSON serialization.
 func normalizeUUIDs(ids []uuid.UUID) []uuid.UUID {

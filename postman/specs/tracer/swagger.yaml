@@ -1,5 +1,250 @@
 basePath: /
 definitions:
+  AccountContext:
+    properties:
+      accountId:
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      status:
+        example: active
+        type: string
+      type:
+        example: checking
+        type: string
+    type: object
+  Actor:
+    properties:
+      actorType:
+        enum:
+        - user
+        - api_key
+        - system
+        example: user
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      ipAddress:
+        example: 203.0.113.42
+        type: string
+      name:
+        example: Jane Doe
+        type: string
+      role:
+        example: admin
+        type: string
+    type: object
+  AuditEvent:
+    description: Immutable audit record for SOX/GLBA compliance. Each event captures
+      who performed what action on which resource, the outcome, and a full context
+      snapshot. Events are hash-chained to detect tampering; the hash covers all core
+      fields.
+    properties:
+      action:
+        description: |-
+          Action performed
+          example: VALIDATE
+          enums: VALIDATE,CREATE,UPDATE,DELETE,ACTIVATE,DEACTIVATE,DRAFT,RESERVE,CONFIRM,RELEASE,EXPIRE,SKIP
+        enum:
+        - VALIDATE
+        - CREATE
+        - UPDATE
+        - DELETE
+        - ACTIVATE
+        - DEACTIVATE
+        - DRAFT
+        - RESERVE
+        - CONFIRM
+        - RELEASE
+        - EXPIRE
+        - SKIP
+        example: VALIDATE
+        type: string
+      actor:
+        allOf:
+        - $ref: '#/definitions/Actor'
+        description: Actor who performed the action
+      context:
+        additionalProperties: {}
+        description: |-
+          Context (JSONB): for validations: { request: {...}, response: {reason, processingTimeMs, matchedRuleIds, ...} }; for CRUD: { before: {...}, after: {...}, reason: "..." }
+          Note: accountId, segmentId, portfolioId are in context.request.account (not first-level fields)
+        type: object
+      createdAt:
+        description: |-
+          Timestamp when the event occurred
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+      eventId:
+        description: |-
+          Unique identifier for this audit event
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      eventType:
+        description: |-
+          Type of event that occurred
+          example: TRANSACTION_VALIDATED
+          enums: TRANSACTION_VALIDATED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED
+        enum:
+        - TRANSACTION_VALIDATED
+        - RULE_CREATED
+        - RULE_UPDATED
+        - RULE_ACTIVATED
+        - RULE_DEACTIVATED
+        - RULE_DRAFTED
+        - RULE_DELETED
+        - LIMIT_CREATED
+        - LIMIT_UPDATED
+        - LIMIT_DELETED
+        - LIMIT_ACTIVATED
+        - LIMIT_DEACTIVATED
+        - LIMIT_DRAFTED
+        - RESERVATION_RESERVED
+        - RESERVATION_CONFIRMED
+        - RESERVATION_RELEASED
+        - RESERVATION_EXPIRED
+        - RESERVATION_SKIPPED
+        example: TRANSACTION_VALIDATED
+        type: string
+      hash:
+        description: |-
+          SHA-256 hash of this event's fields for tamper detection
+          example: a3f1e2b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2
+        example: a3f1e2b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2
+        type: string
+      metadata:
+        additionalProperties: {}
+        description: Additional metadata such as ticketId or correlationId
+        type: object
+      previousHash:
+        description: |-
+          Hash of the preceding event in the chain, empty for the first event
+          example: b4e2f3a5c6d7e8f9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3
+        example: b4e2f3a5c6d7e8f9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3
+        type: string
+      resourceId:
+        description: |-
+          ID of the resource affected by this event
+          example: 00000000-0000-0000-0000-000000000000
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      resourceType:
+        description: |-
+          Type of resource affected
+          example: transaction
+          enums: transaction,rule,limit,reservation
+        enum:
+        - transaction
+        - rule
+        - limit
+        - reservation
+        example: transaction
+        type: string
+      result:
+        description: |-
+          Outcome: ALLOW/DENY/REVIEW for validations; SUCCESS/FAILED for CRUD operations
+          example: ALLOW
+          enums: ALLOW,DENY,REVIEW,SUCCESS,FAILED
+        enum:
+        - ALLOW
+        - DENY
+        - REVIEW
+        - SUCCESS
+        - FAILED
+        example: ALLOW
+        type: string
+    type: object
+  CreateLimitInput:
+    properties:
+      activeTimeEnd:
+        example: "17:00"
+        type: string
+      activeTimeStart:
+        example: "09:00"
+        type: string
+      currency:
+        example: USD
+        maxLength: 3
+        minLength: 3
+        type: string
+      customEndDate:
+        example: "2026-11-29T00:00:00Z"
+        format: date-time
+        type: string
+      customStartDate:
+        example: "2026-11-27T00:00:00Z"
+        format: date-time
+        type: string
+      description:
+        maxLength: 1000
+        type: string
+      limitType:
+        enum:
+        - DAILY
+        - MONTHLY
+        - PER_TRANSACTION
+        - WEEKLY
+        - CUSTOM
+        example: DAILY
+        type: string
+      maxAmount:
+        example: "1000.00"
+        type: string
+      name:
+        maxLength: 255
+        minLength: 1
+        type: string
+      scopes:
+        items:
+          $ref: '#/definitions/Scope'
+        maxItems: 100
+        minItems: 1
+        type: array
+    required:
+    - currency
+    - limitType
+    - maxAmount
+    - name
+    - scopes
+    type: object
+  CreateRuleInput:
+    properties:
+      action:
+        enum:
+        - ALLOW
+        - DENY
+        - REVIEW
+        example: DENY
+        type: string
+      description:
+        maxLength: 1000
+        type: string
+      expression:
+        maxLength: 5000
+        minLength: 1
+        type: string
+      name:
+        maxLength: 255
+        minLength: 1
+        type: string
+      scopes:
+        items:
+          $ref: '#/definitions/Scope'
+        maxItems: 100
+        type: array
+    required:
+    - action
+    - expression
+    - name
+    type: object
   ErrorResponse:
     properties:
       code:
@@ -15,6 +260,281 @@ definitions:
     - code
     - message
     - title
+    type: object
+  HashChainVerificationResult:
+    properties:
+      firstInvalidId:
+        example: 42
+        type: integer
+      isValid:
+        example: true
+        type: boolean
+      message:
+        example: hash chain intact
+        type: string
+      totalChecked:
+        example: 1000
+        type: integer
+    type: object
+  Limit:
+    description: A transaction spending limit enforced during validation. Limits accumulate
+      usage across a configurable period (DAILY/WEEKLY/MONTHLY/CUSTOM/PER_TRANSACTION)
+      and block or flag transactions that would exceed the configured MaxAmount for
+      the matched currency and scope.
+    properties:
+      activeTimeEnd:
+        description: End of the daily time window when the limit is active (HH:MM),
+          null means 24/7
+        example: "17:00"
+        type: string
+      activeTimeStart:
+        description: Start of the daily time window when the limit is active (HH:MM),
+          null means 24/7
+        example: "09:00"
+        type: string
+      createdAt:
+        description: |-
+          Timestamp when the limit was created
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+      currency:
+        description: |-
+          ISO 4217 currency code this limit applies to
+          example: USD
+        example: USD
+        type: string
+      customEndDate:
+        description: |-
+          End of custom period (only for CUSTOM limitType)
+          format: date-time
+        example: "2021-12-31T23:59:59Z"
+        format: date-time
+        type: string
+      customStartDate:
+        description: |-
+          Start of custom period (only for CUSTOM limitType)
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+      deletedAt:
+        description: |-
+          Timestamp when the limit was soft deleted, null if not deleted
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+      description:
+        description: |-
+          Optional description of the limit's purpose
+          example: Caps daily USD outflows for retail accounts
+        example: Caps daily USD outflows for retail accounts
+        type: string
+      limitId:
+        description: |-
+          Unique identifier for the limit
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      limitType:
+        description: |-
+          Period type for usage accumulation
+          enums: DAILY,WEEKLY,MONTHLY,CUSTOM,PER_TRANSACTION
+        enum:
+        - DAILY
+        - WEEKLY
+        - MONTHLY
+        - CUSTOM
+        - PER_TRANSACTION
+        example: DAILY
+        type: string
+      maxAmount:
+        description: Maximum amount allowed within the period
+        example: "1000.00"
+        type: string
+      name:
+        description: |-
+          Human-readable name of the limit
+          example: Daily USD spending cap
+          maxLength: 255
+        example: Daily USD spending cap
+        maxLength: 255
+        type: string
+      resetAt:
+        description: |-
+          Next reset timestamp, null for PER_TRANSACTION limits
+          format: date-time
+        example: "2021-01-02T00:00:00Z"
+        format: date-time
+        type: string
+      scopes:
+        description: Scopes that restrict which transactions this limit applies to
+        items:
+          $ref: '#/definitions/Scope'
+        type: array
+      status:
+        description: |-
+          Current lifecycle status of the limit
+          enums: DRAFT,ACTIVE,INACTIVE,DELETED
+        enum:
+        - DRAFT
+        - ACTIVE
+        - INACTIVE
+        - DELETED
+        example: ACTIVE
+        type: string
+      updatedAt:
+        description: |-
+          Timestamp when the limit was last updated
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+    type: object
+  LimitUsageDetail:
+    properties:
+      attemptedAmount:
+        description: |-
+          AttemptedAmount is the transaction amount being validated against this limit.
+          Matches the amount from the validation request.
+        example: "100.00"
+        type: string
+      currentUsage:
+        description: |-
+          CurrentUsage represents the PROJECTED usage after applying the transaction amount,
+          not the actual persisted counter value. This is calculated as:
+          (counter.CurrentUsage + input.Amount) for DAILY/WEEKLY/MONTHLY/CUSTOM limits, or 0 for PER_TRANSACTION.
+          When Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows
+          what the usage would have been if the transaction were allowed.
+        example: "500.00"
+        type: string
+      exceeded:
+        type: boolean
+      limitAmount:
+        example: "1000.00"
+        type: string
+      limitId:
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      period:
+        description: Period indicates the type of limit (DAILY, WEEKLY, MONTHLY, CUSTOM,
+          PER_TRANSACTION).
+        enum:
+        - DAILY
+        - MONTHLY
+        - PER_TRANSACTION
+        - WEEKLY
+        - CUSTOM
+        example: DAILY
+        type: string
+      scope:
+        description: |-
+          Scope is a human-readable string representation of the limit's scope
+          (e.g., "account:uuid" or "segment:uuid" or "global").
+        example: account:00000000-0000-0000-0000-000000000000
+        type: string
+      skipReason:
+        description: |-
+          SkipReason explains why the limit was skipped (only set when Skipped=true).
+          Values: "outside_time_window" (outside active hours), "outside_custom_period" (outside custom date range).
+        example: outside_time_window
+        type: string
+      skipped:
+        description: |-
+          Skipped indicates whether this limit was skipped during evaluation (not enforced).
+          When true, the counter was NOT incremented and Exceeded is always false.
+        type: boolean
+    type: object
+  ListAuditEventsResponse:
+    properties:
+      auditEvents:
+        items:
+          $ref: '#/definitions/AuditEvent'
+        maxItems: 1000
+        type: array
+      hasMore:
+        example: true
+        type: boolean
+      nextCursor:
+        example: eyJpZCI6IjAxOTI4In0=
+        type: string
+    type: object
+  ListLimitsResponse:
+    properties:
+      hasMore:
+        example: true
+        type: boolean
+      limits:
+        items:
+          $ref: '#/definitions/Limit'
+        type: array
+      nextCursor:
+        example: eyJpZCI6IjAxOTI4In0=
+        type: string
+    type: object
+  ListRulesResponse:
+    properties:
+      hasMore:
+        example: true
+        type: boolean
+      nextCursor:
+        example: eyJpZCI6IjAxOTI4In0=
+        type: string
+      rules:
+        items:
+          $ref: '#/definitions/Rule'
+        type: array
+    type: object
+  ListTransactionValidationsResponse:
+    properties:
+      hasMore:
+        example: true
+        type: boolean
+      nextCursor:
+        example: eyJpZCI6IjAxOTI4In0=
+        type: string
+      transactionValidations:
+        items:
+          $ref: '#/definitions/ValidationSummary'
+        type: array
+    type: object
+  MerchantContext:
+    properties:
+      category:
+        description: e.g., ISO 18245 MCC code
+        example: "5411"
+        type: string
+      country:
+        description: ISO 3166-1 alpha-2 code
+        example: US
+        type: string
+      merchantId:
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      name:
+        example: Acme Store
+        type: string
+    type: object
+  PortfolioContext:
+    properties:
+      metadata:
+        additionalProperties: {}
+        type: object
+      name:
+        example: growth
+        type: string
+      portfolioId:
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
     type: object
   ReadyzCheck:
     properties:
@@ -58,166 +578,368 @@ definitions:
         example: 1.2.3
         type: string
     type: object
-  VersionResponse:
+  ReservationActionResponse:
     properties:
-      buildTime:
-        example: "2025-01-01T00:00:00Z"
+      reservationId:
+        format: uuid
         type: string
-      commit:
-        example: a1b2c3d
+      status:
+        enum:
+        - CONFIRMED
+        - RELEASED
+        example: CONFIRMED
         type: string
-      dirty:
+    type: object
+  ReserveRequest:
+    properties:
+      longLived:
+        description: |-
+          LongLived selects the reservation lifetime. false (the default, a direct
+          transaction) gets the short reaper-swept TTL; true (a PENDING transaction)
+          gets the long-lived TTL so the reservation does not expire under a
+          still-valid pending that has no existing sweep (R18). It is a sibling wire
+          field, NOT part of the embedded ValidationRequest, so the relaxed reserve
+          validation never sees it.
         example: false
         type: boolean
-      requestDate:
-        example: "2025-01-01T00:00:00Z"
-        type: string
-      version:
-        example: 1.0.0
-        type: string
-    type: object
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AccountContext:
-    properties:
-      accountId:
+      transactionId:
+        description: |-
+          TransactionID is the ledger transaction correlation id. It is the
+          idempotency grain for retried reserves and the handle the ledger later
+          confirms or releases. Not a foreign key — the ledger transaction lives in a
+          different service.
         format: uuid
         type: string
-      metadata:
-        additionalProperties: {}
-        type: object
-      status:
-        type: string
-      type:
-        type: string
+    required:
+    - transactionId
     type: object
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Actor:
+  ReserveResponse:
     properties:
-      actorType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ActorType'
-      id:
-        type: string
-      ipAddress:
-        type: string
-      name:
-        type: string
-      role:
+      denied:
+        example: false
+        type: boolean
+      reservationIds:
+        items:
+          format: uuid
+          type: string
+        type: array
+      transactionId:
+        format: uuid
         type: string
     type: object
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ActorType:
-    enum:
-    - user
-    - api_key
-    - system
-    type: string
-    x-enum-varnames:
-    - ActorTypeUser
-    - ActorTypeAPIKey
-    - ActorTypeSystem
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEvent:
+  Rule:
+    description: A validation rule containing a CEL expression evaluated against transaction
+      context. Rules are created in DRAFT status, activated to apply enforcement,
+      and produce a Decision (ALLOW/DENY/REVIEW) when matched.
     properties:
       action:
-        type: string
-      actor:
-        allOf:
-        - $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Actor'
-        description: Actor fields
-      context:
-        additionalProperties: {}
         description: |-
-          Context (JSONB)
-          Note: accountId, segmentId, portfolioId are in context.request.account (not first-level fields)
-          For validations: { request: {...}, response: {reason, processingTimeMs, matchedRuleIds, ...} }
-          For CRUD: { before: {...}, after: {...}, reason: "..." }
-        type: object
-      createdAt:
-        description: When event occurred
+          Decision produced when this rule matches
+          enums: ALLOW,DENY,REVIEW
+        enum:
+        - ALLOW
+        - DENY
+        - REVIEW
+        example: DENY
+        type: string
+      activatedAt:
+        description: |-
+          Timestamp when the rule was last activated, null if never activated
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
         format: date-time
         type: string
-      eventId:
-        description: Core fields
+      createdAt:
+        description: |-
+          Timestamp when the rule was created
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+      deactivatedAt:
+        description: |-
+          Timestamp when the rule was last deactivated, null if currently active or never deactivated
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+      deletedAt:
+        description: |-
+          Timestamp when the rule was soft deleted, null if not deleted
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+      description:
+        description: |-
+          Optional description of the rule's purpose
+          example: Denies transactions over $1000 from checking accounts
+        example: Denies transactions over $1000 from checking accounts
+        type: string
+      expression:
+        description: |-
+          CEL expression evaluated against transaction context
+          example: transaction.amount > 1000 && account.type == 'checking'
+        example: transaction.amount > 1000 && account.type == 'checking'
+        type: string
+      name:
+        description: |-
+          Human-readable name of the rule
+          example: Block high-value checking transactions
+          maxLength: 255
+        example: Block high-value checking transactions
+        maxLength: 255
+        type: string
+      ruleId:
+        description: |-
+          Unique identifier for the rule
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
-      eventType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEventType'
-      hash:
+      scopes:
+        description: Scopes that restrict which transactions this rule applies to
+        items:
+          $ref: '#/definitions/Scope'
+        type: array
+      status:
+        description: |-
+          Current lifecycle status of the rule
+          enums: DRAFT,ACTIVE,INACTIVE,DELETED
+        enum:
+        - DRAFT
+        - ACTIVE
+        - INACTIVE
+        - DELETED
+        example: ACTIVE
         type: string
+      updatedAt:
+        description: |-
+          Timestamp when the rule was last updated
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+    type: object
+  Scope:
+    description: Hierarchical scope that constrains which transactions a rule or limit
+      applies to. At least one field must be set. When multiple fields are set, all
+      must match (AND semantics). Nil fields match any value.
+    properties:
+      accountId:
+        description: |-
+          Account the scope is restricted to (optional)
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      merchantId:
+        description: |-
+          Merchant the scope is restricted to (optional)
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      portfolioId:
+        description: |-
+          Portfolio the scope is restricted to (optional)
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      segmentId:
+        description: |-
+          Segment the scope is restricted to (optional)
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      subType:
+        description: |-
+          SubType is normalized to lowercase canonical form; matching is case-insensitive.
+          example: purchase
+          maxLength: 50
+        example: purchase
+        maxLength: 50
+        type: string
+        x-normalization: lowercase
+      transactionType:
+        description: |-
+          Transaction type the scope is restricted to (optional)
+          example: CARD
+        enum:
+        - CARD
+        - WIRE
+        - PIX
+        - CRYPTO
+        example: CARD
+        type: string
+    type: object
+  SegmentContext:
+    properties:
       metadata:
         additionalProperties: {}
-        description: Metadata (JSONB) - additional info like ticketId, correlationId
         type: object
-      previousHash:
+      name:
+        example: retail
         type: string
-      resourceId:
-        description: Resource fields
-        type: string
-      resourceType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ResourceType'
-      result:
-        description: 'Unified: ALLOW/DENY/REVIEW for validations, SUCCESS/FAILED for
-          CRUD'
+      segmentId:
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
     type: object
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEventType:
-    enum:
-    - TRANSACTION_VALIDATED
-    - RULE_CREATED
-    - RULE_UPDATED
-    - RULE_ACTIVATED
-    - RULE_DEACTIVATED
-    - RULE_DRAFTED
-    - RULE_DELETED
-    - LIMIT_CREATED
-    - LIMIT_UPDATED
-    - LIMIT_DELETED
-    - LIMIT_ACTIVATED
-    - LIMIT_DEACTIVATED
-    - LIMIT_DRAFTED
-    - RESERVATION_RESERVED
-    - RESERVATION_CONFIRMED
-    - RESERVATION_RELEASED
-    - RESERVATION_EXPIRED
-    - RESERVATION_SKIPPED
-    type: string
-    x-enum-varnames:
-    - AuditEventTransactionValidated
-    - AuditEventRuleCreated
-    - AuditEventRuleUpdated
-    - AuditEventRuleActivated
-    - AuditEventRuleDeactivated
-    - AuditEventRuleDrafted
-    - AuditEventRuleDeleted
-    - AuditEventLimitCreated
-    - AuditEventLimitUpdated
-    - AuditEventLimitDeleted
-    - AuditEventLimitActivated
-    - AuditEventLimitDeactivated
-    - AuditEventLimitDrafted
-    - AuditEventReservationReserved
-    - AuditEventReservationConfirmed
-    - AuditEventReservationReleased
-    - AuditEventReservationExpired
-    - AuditEventReservationSkipped
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision:
-    enum:
-    - ALLOW
-    - DENY
-    - REVIEW
-    type: string
-    x-enum-varnames:
-    - DecisionAllow
-    - DecisionDeny
-    - DecisionReview
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.HashChainVerificationResult:
+  TransactionActionResponse:
     properties:
-      firstInvalidId:
+      flipped:
+        example: 2
         type: integer
-      isValid:
-        type: boolean
-      message:
+      status:
+        enum:
+        - CONFIRMED
+        - RELEASED
+        example: CONFIRMED
         type: string
-      totalChecked:
-        type: integer
+      transactionId:
+        format: uuid
+        type: string
     type: object
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit:
+  TransactionValidation:
+    description: Persisted record of a completed transaction validation, combining
+      the original request context with the evaluation outcome. Used for compliance
+      auditing, idempotency replay, and historical querying. Embeds EvaluationResult
+      fields (decision, reason, matchedRuleIds, etc.) directly.
+    properties:
+      account:
+        allOf:
+        - $ref: '#/definitions/AccountContext'
+        description: Account context from the validation request
+      amount:
+        description: Transaction amount that was validated
+        example: "100.00"
+        type: string
+      createdAt:
+        description: |-
+          Timestamp when this validation record was created
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+      currency:
+        description: |-
+          ISO 4217 currency code of the transaction
+          example: USD
+        example: USD
+        type: string
+      decision:
+        description: |-
+          Final decision produced by rule evaluation
+          enums: ALLOW,DENY,REVIEW
+        enum:
+        - ALLOW
+        - DENY
+        - REVIEW
+        example: ALLOW
+        type: string
+      evaluatedRuleIds:
+        description: IDs of all rules evaluated during this request
+        items:
+          format: uuid
+          type: string
+        type: array
+      limitUsageDetails:
+        description: Per-limit usage details captured at validation time
+        items:
+          $ref: '#/definitions/LimitUsageDetail'
+        type: array
+      matchedRuleIds:
+        description: IDs of rules that matched the transaction scope and CEL expression
+        items:
+          format: uuid
+          type: string
+        type: array
+      merchant:
+        allOf:
+        - $ref: '#/definitions/MerchantContext'
+        description: Merchant context from the validation request (optional)
+      metadata:
+        additionalProperties: {}
+        description: Additional metadata from the validation request
+        type: object
+      portfolio:
+        allOf:
+        - $ref: '#/definitions/PortfolioContext'
+        description: Portfolio context from the validation request (optional)
+      processingTimeMs:
+        description: |-
+          Time taken to evaluate rules and limits in milliseconds
+          example: 12.5
+        example: 12.5
+        type: number
+      reason:
+        description: |-
+          Human-readable explanation of the decision
+          example: Transaction denied by rule 'Block high-value checking transactions'
+        example: Transaction denied by rule 'Block high-value checking transactions'
+        type: string
+      requestId:
+        description: |-
+          Idempotency key from the originating validation request
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      segment:
+        allOf:
+        - $ref: '#/definitions/SegmentContext'
+        description: Segment context from the validation request (optional)
+      subType:
+        description: |-
+          SubType is stored in its lowercase canonical form; matching is case-insensitive.
+          example: purchase
+          maxLength: 50
+        example: purchase
+        maxLength: 50
+        type: string
+        x-normalization: lowercase
+      totalRulesLoaded:
+        description: |-
+          Total number of active rules loaded for evaluation before any truncation
+          example: 42
+        example: 42
+        type: integer
+      transactionTimestamp:
+        description: |-
+          Timestamp of the original transaction
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+      transactionType:
+        description: |-
+          Type of the transaction that was validated
+          example: CARD
+        enum:
+        - CARD
+        - WIRE
+        - PIX
+        - CRYPTO
+        example: CARD
+        type: string
+      truncated:
+        description: |-
+          True when active rules exceeded MAX_RULES_PER_REQUEST and were truncated
+          example: false
+        example: false
+        type: boolean
+      validationId:
+        description: |-
+          Unique identifier for this validation record
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+    type: object
+  UpdateLimitInput:
     properties:
       activeTimeEnd:
         example: "17:00"
@@ -225,314 +947,58 @@ definitions:
       activeTimeStart:
         example: "09:00"
         type: string
-      createdAt:
-        format: date-time
-        type: string
-      currency:
-        type: string
       customEndDate:
+        example: "2026-11-29T00:00:00Z"
         format: date-time
         type: string
       customStartDate:
-        format: date-time
-        type: string
-      deletedAt:
+        example: "2026-11-27T00:00:00Z"
         format: date-time
         type: string
       description:
+        maxLength: 1000
         type: string
-      limitId:
-        format: uuid
-        type: string
-      limitType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitType'
       maxAmount:
         example: "1000.00"
         type: string
       name:
-        type: string
-      resetAt:
-        format: date-time
+        maxLength: 255
+        minLength: 1
         type: string
       scopes:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
+          $ref: '#/definitions/Scope'
+        maxItems: 100
+        minItems: 1
         type: array
-      status:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitStatus'
-      updatedAt:
-        format: date-time
-        type: string
     type: object
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitStatus:
-    enum:
-    - DRAFT
-    - ACTIVE
-    - INACTIVE
-    - DELETED
-    type: string
-    x-enum-varnames:
-    - LimitStatusDraft
-    - LimitStatusActive
-    - LimitStatusInactive
-    - LimitStatusDeleted
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitType:
-    enum:
-    - DAILY
-    - MONTHLY
-    - PER_TRANSACTION
-    - WEEKLY
-    - CUSTOM
-    type: string
-    x-enum-varnames:
-    - LimitTypeDaily
-    - LimitTypeMonthly
-    - LimitTypePerTransaction
-    - LimitTypeWeekly
-    - LimitTypeCustom
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitUsageDetail:
-    properties:
-      attemptedAmount:
-        description: |-
-          AttemptedAmount is the transaction amount being validated against this limit.
-          Matches the amount from the validation request.
-        example: "100.00"
-        type: string
-      currentUsage:
-        description: |-
-          CurrentUsage represents the PROJECTED usage after applying the transaction amount,
-          not the actual persisted counter value. This is calculated as:
-          (counter.CurrentUsage + input.Amount) for DAILY/WEEKLY/MONTHLY/CUSTOM limits, or 0 for PER_TRANSACTION.
-          When Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows
-          what the usage would have been if the transaction were allowed.
-        example: "500.00"
-        type: string
-      exceeded:
-        type: boolean
-      limitAmount:
-        example: "1000.00"
-        type: string
-      limitId:
-        format: uuid
-        type: string
-      period:
-        description: Period indicates the type of limit (DAILY, WEEKLY, MONTHLY, CUSTOM,
-          PER_TRANSACTION).
-        type: string
-      scope:
-        description: |-
-          Scope is a human-readable string representation of the limit's scope
-          (e.g., "account:uuid" or "segment:uuid" or "global").
-        type: string
-      skipReason:
-        description: |-
-          SkipReason explains why the limit was skipped (only set when Skipped=true).
-          Values: "outside_time_window" (outside active hours), "outside_custom_period" (outside custom date range).
-        example: outside_time_window
-        type: string
-      skipped:
-        description: |-
-          Skipped indicates whether this limit was skipped during evaluation (not enforced).
-          When true, the counter was NOT incremented and Exceeded is always false.
-        type: boolean
-    type: object
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.MerchantContext:
-    properties:
-      category:
-        description: e.g., ISO 18245 MCC code
-        type: string
-      country:
-        description: ISO 3166-1 alpha-2 code
-        type: string
-      merchantId:
-        format: uuid
-        type: string
-      metadata:
-        additionalProperties: {}
-        type: object
-      name:
-        type: string
-    type: object
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.PortfolioContext:
-    properties:
-      metadata:
-        additionalProperties: {}
-        type: object
-      name:
-        type: string
-      portfolioId:
-        format: uuid
-        type: string
-    type: object
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ResourceType:
-    enum:
-    - transaction
-    - rule
-    - limit
-    - reservation
-    type: string
-    x-enum-varnames:
-    - ResourceTypeTransaction
-    - ResourceTypeRule
-    - ResourceTypeLimit
-    - ResourceTypeReservation
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule:
+  UpdateRuleInput:
     properties:
       action:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision'
-      activatedAt:
-        format: date-time
-        type: string
-      createdAt:
-        format: date-time
-        type: string
-      deactivatedAt:
-        format: date-time
-        type: string
-      deletedAt:
-        format: date-time
+        enum:
+        - ALLOW
+        - DENY
+        - REVIEW
+        example: DENY
         type: string
       description:
+        maxLength: 1000
         type: string
       expression:
+        maxLength: 5000
+        minLength: 1
         type: string
       name:
-        type: string
-      ruleId:
-        format: uuid
+        maxLength: 255
+        minLength: 1
         type: string
       scopes:
         items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
+          $ref: '#/definitions/Scope'
+        maxItems: 100
         type: array
-      status:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.RuleStatus'
-      updatedAt:
-        format: date-time
-        type: string
     type: object
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.RuleStatus:
-    enum:
-    - DRAFT
-    - ACTIVE
-    - INACTIVE
-    - DELETED
-    type: string
-    x-enum-varnames:
-    - RuleStatusDraft
-    - RuleStatusActive
-    - RuleStatusInactive
-    - RuleStatusDeleted
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope:
-    properties:
-      accountId:
-        format: uuid
-        type: string
-      merchantId:
-        format: uuid
-        type: string
-      portfolioId:
-        format: uuid
-        type: string
-      segmentId:
-        format: uuid
-        type: string
-      subType:
-        description: SubType is normalized to lowercase canonical form; matching is
-          case-insensitive.
-        maxLength: 50
-        type: string
-        x-normalization: lowercase
-      transactionType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType'
-    type: object
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.SegmentContext:
-    properties:
-      metadata:
-        additionalProperties: {}
-        type: object
-      name:
-        type: string
-      segmentId:
-        format: uuid
-        type: string
-    type: object
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType:
-    enum:
-    - CARD
-    - WIRE
-    - PIX
-    - CRYPTO
-    type: string
-    x-enum-varnames:
-    - TransactionTypeCard
-    - TransactionTypeWire
-    - TransactionTypePix
-    - TransactionTypeCrypto
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionValidation:
-    properties:
-      account:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AccountContext'
-      amount:
-        example: "100.00"
-        type: string
-      createdAt:
-        format: date-time
-        type: string
-      currency:
-        type: string
-      decision:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision'
-      evaluatedRuleIds:
-        items:
-          format: uuid
-          type: string
-        type: array
-      limitUsageDetails:
-        items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitUsageDetail'
-        type: array
-      matchedRuleIds:
-        items:
-          format: uuid
-          type: string
-        type: array
-      merchant:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.MerchantContext'
-      metadata:
-        additionalProperties: {}
-        type: object
-      portfolio:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.PortfolioContext'
-      processingTimeMs:
-        type: number
-      reason:
-        type: string
-      requestId:
-        format: uuid
-        type: string
-      segment:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.SegmentContext'
-      subType:
-        description: SubType is stored in its lowercase canonical form; matching is
-          case-insensitive.
-        maxLength: 50
-        type: string
-        x-normalization: lowercase
-      totalRulesLoaded:
-        type: integer
-      transactionTimestamp:
-        format: date-time
-        type: string
-      transactionType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType'
-      truncated:
-        type: boolean
-      validationId:
-        format: uuid
-        type: string
-    type: object
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.UsageSnapshot:
+  UsageSnapshot:
     properties:
       currentUsage:
         description: Current usage amount (sum of all counters)
@@ -559,38 +1025,48 @@ definitions:
         example: 50
         type: number
     type: object
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationRequest:
+  ValidationRequest:
     properties:
       account:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AccountContext'
+        $ref: '#/definitions/AccountContext'
       amount:
         example: "100.00"
         type: string
       currency:
+        example: USD
         type: string
       merchant:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.MerchantContext'
+        $ref: '#/definitions/MerchantContext'
       metadata:
         additionalProperties: {}
         type: object
       portfolio:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.PortfolioContext'
+        $ref: '#/definitions/PortfolioContext'
       requestId:
+        example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       segment:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.SegmentContext'
+        $ref: '#/definitions/SegmentContext'
       subType:
         description: SubType is normalized to lowercase canonical form; matching is
           case-insensitive.
+        example: purchase
         maxLength: 50
         type: string
         x-normalization: lowercase
       transactionTimestamp:
+        example: "2021-01-01T00:00:00Z"
         format: date-time
         type: string
       transactionType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType'
+        enum:
+        - CARD
+        - WIRE
+        - PIX
+        - CRYPTO
+        example: CARD
+        type: string
     required:
     - account
     - amount
@@ -599,247 +1075,87 @@ definitions:
     - transactionTimestamp
     - transactionType
     type: object
-  github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationResponse:
+  ValidationResponse:
+    description: Response returned after evaluating a transaction against the active
+      rules and limits. Contains the evaluation decision, matched rule identifiers,
+      per-limit usage details, and timing metadata. EvaluationResult fields (decision,
+      reason, matchedRuleIds, evaluatedRuleIds, totalRulesLoaded, truncated) are promoted
+      to the top level via Go embedding.
     properties:
+      decision:
+        description: |-
+          Final decision produced by rule evaluation
+          enums: ALLOW,DENY,REVIEW
+        enum:
+        - ALLOW
+        - DENY
+        - REVIEW
+        example: ALLOW
+        type: string
       evaluatedAt:
-        format: date-time
-        type: string
-      limitUsageDetails:
-        items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitUsageDetail'
-        type: array
-      processingTimeMs:
-        type: number
-      requestId:
-        format: uuid
-        type: string
-      validationId:
-        format: uuid
-        type: string
-    type: object
-  internal_adapters_http_in.CreateLimitInput:
-    properties:
-      activeTimeEnd:
-        example: "17:00"
-        type: string
-      activeTimeStart:
-        example: "09:00"
-        type: string
-      currency:
-        example: USD
-        maxLength: 3
-        minLength: 3
-        type: string
-      customEndDate:
-        example: "2026-11-29T00:00:00Z"
-        format: date-time
-        type: string
-      customStartDate:
-        example: "2026-11-27T00:00:00Z"
-        format: date-time
-        type: string
-      description:
-        maxLength: 1000
-        type: string
-      limitType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.LimitType'
-      maxAmount:
-        example: "1000.00"
-        type: string
-      name:
-        maxLength: 255
-        minLength: 1
-        type: string
-      scopes:
-        items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
-        maxItems: 100
-        minItems: 1
-        type: array
-    required:
-    - currency
-    - limitType
-    - maxAmount
-    - name
-    - scopes
-    type: object
-  internal_adapters_http_in.CreateRuleInput:
-    properties:
-      action:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision'
-      description:
-        maxLength: 1000
-        type: string
-      expression:
-        maxLength: 5000
-        minLength: 1
-        type: string
-      name:
-        maxLength: 255
-        minLength: 1
-        type: string
-      scopes:
-        items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
-        maxItems: 100
-        type: array
-    required:
-    - action
-    - expression
-    - name
-    type: object
-  internal_adapters_http_in.ListAuditEventsResponse:
-    properties:
-      auditEvents:
-        items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEvent'
-        maxItems: 1000
-        type: array
-      hasMore:
-        type: boolean
-      nextCursor:
-        type: string
-    type: object
-  internal_adapters_http_in.ListLimitsResponse:
-    properties:
-      hasMore:
-        type: boolean
-      limits:
-        items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
-        type: array
-      nextCursor:
-        type: string
-    type: object
-  internal_adapters_http_in.ListRulesResponse:
-    properties:
-      hasMore:
-        type: boolean
-      nextCursor:
-        type: string
-      rules:
-        items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
-        type: array
-    type: object
-  internal_adapters_http_in.ListTransactionValidationsResponse:
-    properties:
-      hasMore:
-        type: boolean
-      nextCursor:
-        type: string
-      transactionValidations:
-        items:
-          $ref: '#/definitions/internal_adapters_http_in.ValidationSummary'
-        type: array
-    type: object
-  internal_adapters_http_in.ReservationActionResponse:
-    properties:
-      reservationId:
-        format: uuid
-        type: string
-      status:
-        type: string
-    type: object
-  internal_adapters_http_in.ReserveRequest:
-    properties:
-      longLived:
         description: |-
-          LongLived selects the reservation lifetime. false (the default, a direct
-          transaction) gets the short reaper-swept TTL; true (a PENDING transaction)
-          gets the long-lived TTL so the reservation does not expire under a
-          still-valid pending that has no existing sweep (R18). It is a sibling wire
-          field, NOT part of the embedded ValidationRequest, so the relaxed reserve
-          validation never sees it.
-        type: boolean
-      transactionId:
-        description: |-
-          TransactionID is the ledger transaction correlation id. It is the
-          idempotency grain for retried reserves and the handle the ledger later
-          confirms or releases. Not a foreign key — the ledger transaction lives in a
-          different service.
-        format: uuid
+          Timestamp when the evaluation was performed
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
-    required:
-    - transactionId
-    type: object
-  internal_adapters_http_in.ReserveResponse:
-    properties:
-      denied:
-        type: boolean
-      reservationIds:
+      evaluatedRuleIds:
+        description: IDs of all rules evaluated during this request
         items:
+          format: uuid
           type: string
         type: array
-      transactionId:
+      limitUsageDetails:
+        description: Per-limit usage details for every limit checked during this validation
+        items:
+          $ref: '#/definitions/LimitUsageDetail'
+        type: array
+      matchedRuleIds:
+        description: IDs of rules that matched the transaction scope and CEL expression
+        items:
+          format: uuid
+          type: string
+        type: array
+      processingTimeMs:
+        description: |-
+          Time taken to evaluate rules and limits in milliseconds
+          example: 12.5
+        example: 12.5
+        type: number
+      reason:
+        description: |-
+          Human-readable explanation of the decision
+          example: Transaction denied by rule 'Block high-value checking transactions'
+        example: Transaction denied by rule 'Block high-value checking transactions'
+        type: string
+      requestId:
+        description: |-
+          Idempotency key echoed from the request
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
-    type: object
-  internal_adapters_http_in.TransactionActionResponse:
-    properties:
-      flipped:
+      totalRulesLoaded:
+        description: |-
+          Total number of active rules loaded for evaluation before any truncation
+          example: 42
+        example: 42
         type: integer
-      status:
-        type: string
-      transactionId:
+      truncated:
+        description: |-
+          True when active rules exceeded MAX_RULES_PER_REQUEST and were truncated
+          example: false
+        example: false
+        type: boolean
+      validationId:
+        description: |-
+          Unique identifier for this validation result
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
     type: object
-  internal_adapters_http_in.UpdateLimitInput:
-    properties:
-      activeTimeEnd:
-        example: "17:00"
-        type: string
-      activeTimeStart:
-        example: "09:00"
-        type: string
-      customEndDate:
-        example: "2026-11-29T00:00:00Z"
-        format: date-time
-        type: string
-      customStartDate:
-        example: "2026-11-27T00:00:00Z"
-        format: date-time
-        type: string
-      description:
-        maxLength: 1000
-        type: string
-      maxAmount:
-        example: "1000.00"
-        type: string
-      name:
-        maxLength: 255
-        minLength: 1
-        type: string
-      scopes:
-        items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
-        maxItems: 100
-        minItems: 1
-        type: array
-    type: object
-  internal_adapters_http_in.UpdateRuleInput:
-    properties:
-      action:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision'
-      description:
-        maxLength: 1000
-        type: string
-      expression:
-        maxLength: 5000
-        minLength: 1
-        type: string
-      name:
-        maxLength: 255
-        minLength: 1
-        type: string
-      scopes:
-        items:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Scope'
-        maxItems: 100
-        type: array
-    type: object
-  internal_adapters_http_in.ValidationSummary:
+  ValidationSummary:
     properties:
       accountId:
         format: uuid
@@ -851,9 +1167,15 @@ definitions:
         format: date-time
         type: string
       currency:
+        example: USD
         type: string
       decision:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Decision'
+        enum:
+        - ALLOW
+        - DENY
+        - REVIEW
+        example: ALLOW
+        type: string
       exceededLimitIds:
         items:
           format: uuid
@@ -868,16 +1190,42 @@ definitions:
         format: uuid
         type: string
       processingTimeMs:
+        example: 12.5
         type: number
       reason:
+        example: All rules passed
         type: string
       segmentId:
         format: uuid
         type: string
       transactionType:
-        $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionType'
+        enum:
+        - CARD
+        - WIRE
+        - PIX
+        - CRYPTO
+        example: CARD
+        type: string
       validationId:
         format: uuid
+        type: string
+    type: object
+  VersionResponse:
+    properties:
+      buildTime:
+        example: "2025-01-01T00:00:00Z"
+        type: string
+      commit:
+        example: a1b2c3d
+        type: string
+      dirty:
+        example: false
+        type: boolean
+      requestDate:
+        example: "2025-01-01T00:00:00Z"
+        type: string
+      version:
+        example: 1.0.0
         type: string
     type: object
 host: localhost:4020
@@ -1078,7 +1426,7 @@ paths:
         "200":
           description: Audit events listed successfully
           schema:
-            $ref: '#/definitions/internal_adapters_http_in.ListAuditEventsResponse'
+            $ref: '#/definitions/ListAuditEventsResponse'
         "400":
           description: Invalid parameters
           schema:
@@ -1116,7 +1464,7 @@ paths:
         "200":
           description: Audit event retrieved successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.AuditEvent'
+            $ref: '#/definitions/AuditEvent'
         "400":
           description: Invalid event ID
           schema:
@@ -1158,7 +1506,7 @@ paths:
         "200":
           description: Hash chain verification completed
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.HashChainVerificationResult'
+            $ref: '#/definitions/HashChainVerificationResult'
         "400":
           description: Invalid event ID
           schema:
@@ -1277,7 +1625,7 @@ paths:
         "200":
           description: Limits listed successfully
           schema:
-            $ref: '#/definitions/internal_adapters_http_in.ListLimitsResponse'
+            $ref: '#/definitions/ListLimitsResponse'
         "400":
           description: Invalid parameters
           schema:
@@ -1307,14 +1655,14 @@ paths:
         name: limit
         required: true
         schema:
-          $ref: '#/definitions/internal_adapters_http_in.CreateLimitInput'
+          $ref: '#/definitions/CreateLimitInput'
       produces:
       - application/json
       responses:
         "201":
           description: Limit created successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
+            $ref: '#/definitions/Limit'
         "400":
           description: Invalid input
           schema:
@@ -1394,7 +1742,7 @@ paths:
         "200":
           description: Limit retrieved successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
+            $ref: '#/definitions/Limit'
         "400":
           description: Invalid limit ID
           schema:
@@ -1434,14 +1782,14 @@ paths:
         name: limit
         required: true
         schema:
-          $ref: '#/definitions/internal_adapters_http_in.UpdateLimitInput'
+          $ref: '#/definitions/UpdateLimitInput'
       produces:
       - application/json
       responses:
         "200":
           description: Limit updated successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
+            $ref: '#/definitions/Limit'
         "400":
           description: Invalid input
           schema:
@@ -1486,7 +1834,7 @@ paths:
         "200":
           description: Limit activated successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
+            $ref: '#/definitions/Limit'
         "400":
           description: Invalid limit ID or transition
           schema:
@@ -1527,7 +1875,7 @@ paths:
         "200":
           description: Limit deactivated successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
+            $ref: '#/definitions/Limit'
         "400":
           description: Invalid limit ID or transition
           schema:
@@ -1569,7 +1917,7 @@ paths:
         "200":
           description: Limit transitioned to draft successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Limit'
+            $ref: '#/definitions/Limit'
         "400":
           description: Invalid limit ID or transition
           schema:
@@ -1611,7 +1959,7 @@ paths:
         "200":
           description: Usage snapshot retrieved successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.UsageSnapshot'
+            $ref: '#/definitions/UsageSnapshot'
         "400":
           description: Invalid limit ID
           schema:
@@ -1647,14 +1995,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_adapters_http_in.ReserveRequest'
+          $ref: '#/definitions/ReserveRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Capacity reserved
           schema:
-            $ref: '#/definitions/internal_adapters_http_in.ReserveResponse'
+            $ref: '#/definitions/ReserveResponse'
         "400":
           description: Invalid input
           schema:
@@ -1699,7 +2047,7 @@ paths:
         "200":
           description: Reservation confirmed
           schema:
-            $ref: '#/definitions/internal_adapters_http_in.ReservationActionResponse'
+            $ref: '#/definitions/ReservationActionResponse'
         "400":
           description: Invalid path parameter
           schema:
@@ -1743,7 +2091,7 @@ paths:
         "200":
           description: Reservation released
           schema:
-            $ref: '#/definitions/internal_adapters_http_in.ReservationActionResponse'
+            $ref: '#/definitions/ReservationActionResponse'
         "400":
           description: Invalid path parameter
           schema:
@@ -1789,7 +2137,7 @@ paths:
         "200":
           description: Reservations confirmed
           schema:
-            $ref: '#/definitions/internal_adapters_http_in.TransactionActionResponse'
+            $ref: '#/definitions/TransactionActionResponse'
         "400":
           description: Invalid path parameter
           schema:
@@ -1830,7 +2178,7 @@ paths:
         "200":
           description: Reservations released
           schema:
-            $ref: '#/definitions/internal_adapters_http_in.TransactionActionResponse'
+            $ref: '#/definitions/TransactionActionResponse'
         "400":
           description: Invalid path parameter
           schema:
@@ -1948,7 +2296,7 @@ paths:
         "200":
           description: Rules listed successfully
           schema:
-            $ref: '#/definitions/internal_adapters_http_in.ListRulesResponse'
+            $ref: '#/definitions/ListRulesResponse'
         "400":
           description: Invalid parameters
           schema:
@@ -1978,14 +2326,14 @@ paths:
         name: rule
         required: true
         schema:
-          $ref: '#/definitions/internal_adapters_http_in.CreateRuleInput'
+          $ref: '#/definitions/CreateRuleInput'
       produces:
       - application/json
       responses:
         "201":
           description: Rule created successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
+            $ref: '#/definitions/Rule'
         "400":
           description: Invalid input
           schema:
@@ -2074,7 +2422,7 @@ paths:
         "200":
           description: Rule retrieved successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
+            $ref: '#/definitions/Rule'
         "400":
           description: Invalid rule ID
           schema:
@@ -2114,14 +2462,14 @@ paths:
         name: rule
         required: true
         schema:
-          $ref: '#/definitions/internal_adapters_http_in.UpdateRuleInput'
+          $ref: '#/definitions/UpdateRuleInput'
       produces:
       - application/json
       responses:
         "200":
           description: Rule updated successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
+            $ref: '#/definitions/Rule'
         "400":
           description: Invalid input
           schema:
@@ -2172,7 +2520,7 @@ paths:
         "200":
           description: Rule activated successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
+            $ref: '#/definitions/Rule'
         "400":
           description: Invalid rule ID or transition
           schema:
@@ -2218,7 +2566,7 @@ paths:
         "200":
           description: Rule deactivated successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
+            $ref: '#/definitions/Rule'
         "400":
           description: Invalid rule ID or transition
           schema:
@@ -2264,7 +2612,7 @@ paths:
         "200":
           description: Rule transitioned to draft successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.Rule'
+            $ref: '#/definitions/Rule'
         "400":
           description: Invalid rule ID or transition
           schema:
@@ -2380,7 +2728,7 @@ paths:
         "200":
           description: Transaction validations listed successfully
           schema:
-            $ref: '#/definitions/internal_adapters_http_in.ListTransactionValidationsResponse'
+            $ref: '#/definitions/ListTransactionValidationsResponse'
         "400":
           description: Invalid parameters
           schema:
@@ -2409,18 +2757,18 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationRequest'
+          $ref: '#/definitions/ValidationRequest'
       produces:
       - application/json
       responses:
         "200":
           description: Duplicate request (idempotent)
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationResponse'
+            $ref: '#/definitions/ValidationResponse'
         "201":
           description: New validation created
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.ValidationResponse'
+            $ref: '#/definitions/ValidationResponse'
         "400":
           description: Invalid input
           schema:
@@ -2469,7 +2817,7 @@ paths:
         "200":
           description: Transaction validation retrieved successfully
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_tracer_pkg_model.TransactionValidation'
+            $ref: '#/definitions/TransactionValidation'
         "400":
           description: Invalid transaction validation ID
           schema:
