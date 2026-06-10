@@ -1014,6 +1014,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Transaction Status",
 			Message:    "The transaction status does not allow the requested action. Please check the transaction status.",
 		},
+		constant.ErrPendingTransactionLocked: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrPendingTransactionLocked.Error(),
+			Title:      "Transaction Locked",
+			Message:    "This transaction is currently being processed by another request. Please retry shortly.",
+		},
 		constant.ErrOverFlowInt64: InternalServerError{
 			EntityType: entityType,
 			Code:       constant.ErrOverFlowInt64.Error(),

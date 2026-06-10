@@ -1573,7 +1573,8 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 }
 
 // TestCommitTransaction_LockNotAcquired_ReturnsError validates that when the transaction
-// lock cannot be acquired (already being processed), HTTP 422 is returned.
+// lock cannot be acquired (already being processed), HTTP 409 is returned with the
+// concurrency-specific error code (distinct from the status-conflict 0099).
 func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 	t.Parallel()
 
@@ -1677,8 +1678,8 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 	err = json.Unmarshal(body, &errResp)
 	require.NoError(t, err, "error response should be valid JSON")
 
-	assert.Equal(t, cn.ErrCommitTransactionNotPending.Error(), errResp["code"],
-		"expected error code 0099 (ErrCommitTransactionNotPending)")
+	assert.Equal(t, cn.ErrPendingTransactionLocked.Error(), errResp["code"],
+		"expected error code 0486 (ErrPendingTransactionLocked) for lock contention")
 }
 
 // TestCreateTransactionJSON_NonPositiveValue_Returns422 validates that creating a transaction
@@ -2883,8 +2884,8 @@ func TestCancelTransaction(t *testing.T) {
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
-				assert.Equal(t, cn.ErrCommitTransactionNotPending.Error(), errResp["code"],
-					"expected error code 0099 when transaction is locked")
+				assert.Equal(t, cn.ErrPendingTransactionLocked.Error(), errResp["code"],
+					"expected error code 0486 (lock contention) when transaction is locked")
 			},
 		},
 		{
