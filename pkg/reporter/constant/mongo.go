@@ -8,10 +8,9 @@ import "time"
 
 // MongoDB collection names.
 const (
-	MongoCollectionDeadline          = "deadline"
-	MongoCollectionReport            = "report"
-	MongoCollectionTemplate          = "template"
-	MongoCollectionExtractionMapping = "extraction_mapping"
+	MongoCollectionDeadline = "deadline"
+	MongoCollectionReport   = "report"
+	MongoCollectionTemplate = "template"
 )
 
 // MongoDB sampling and collection size thresholds for schema discovery.

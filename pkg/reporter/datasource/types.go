@@ -4,8 +4,6 @@
 
 package datasource
 
-import "time"
-
 // DataSourceInfo provides summary metadata about a registered data source.
 // Used by ListDataSources to enumerate available data sources without
 // exposing connection details or schema internals.
@@ -112,57 +110,4 @@ type ValidationWarning struct {
 
 	// Message is a human-readable description of the warning.
 	Message string `json:"message"`
-}
-
-// ExtractionJobRequest represents a request to extract data from a data source.
-type ExtractionJobRequest struct {
-	// DataSourceID identifies which data source to extract from.
-	DataSourceID string `json:"dataSourceId"`
-
-	// ReportID is the report that triggered this extraction.
-	ReportID string `json:"reportId"`
-
-	// TemplateID is the template associated with this extraction.
-	TemplateID string `json:"templateId"`
-
-	// TenantID is the tenant identity resolved from JWT context (D3 decision).
-	// This is deliberately TenantID (not OrganizationID) for multi-tenant isolation.
-	TenantID string `json:"tenantId"`
-
-	// Fields lists the specific fields to extract from the data source.
-	Fields []string `json:"fields,omitempty"`
-
-	// Filters contains key-value pairs for filtering extracted data.
-	Filters map[string]string `json:"filters,omitempty"`
-}
-
-// ExtractionMapping tracks the relationship between a Fetcher extraction job
-// and a report. This is the minimal field set per requirements: JobID, ReportID,
-// TemplateID, TenantID, Status, CreatedAt, CompletedAt.
-type ExtractionMapping struct {
-	// JobID is the unique identifier assigned by the Fetcher service.
-	JobID string `json:"jobId"`
-
-	// ReportID is the report this extraction is associated with.
-	ReportID string `json:"reportId"`
-
-	// TemplateID is the template used for this extraction.
-	TemplateID string `json:"templateId"`
-
-	// TenantID is the tenant identity resolved from JWT context (D3 decision).
-	// This is deliberately TenantID (not OrganizationID) for multi-tenant isolation.
-	TenantID string `json:"tenantId"`
-
-	// OutputFormat is the original report output format (e.g., "html", "pdf").
-	OutputFormat string `json:"outputFormat"`
-
-	// Status tracks the extraction job lifecycle (e.g., "pending", "completed", "failed").
-	Status string `json:"status"`
-
-	// CreatedAt is the timestamp when the extraction job was created.
-	CreatedAt time.Time `json:"createdAt"`
-
-	// CompletedAt is the timestamp when the extraction job finished.
-	// Nil when the job is still in progress.
-	CompletedAt *time.Time `json:"completedAt,omitempty"`
 }

@@ -63,7 +63,7 @@ func TestIsNonRetryableHandlerError(t *testing.T) {
 		},
 		{
 			name: "wrapped json.SyntaxError is non-retryable",
-			err:  fmt.Errorf("parse notification: %w", &json.SyntaxError{Offset: 5}),
+			err:  fmt.Errorf("parse report request: %w", &json.SyntaxError{Offset: 5}),
 			want: true,
 		},
 
@@ -301,11 +301,11 @@ func TestIsNonRetryableHandlerError(t *testing.T) {
 	}
 }
 
-func TestNotificationHandler_PermanentErrorsAreClassifiedNonRetryable(t *testing.T) {
+func TestReportHandler_PermanentErrorsAreClassifiedNonRetryable(t *testing.T) {
 	t.Parallel()
 
-	// Consumer 2 (notification handler) specific error scenarios:
-	// When ProcessFetcherNotification returns these errors, they must be
+	// Report-generation delivery handler error scenarios:
+	// When handlerGenerateReport returns these errors, they must be
 	// classified as non-retryable so the message is dropped instead of
 	// causing an infinite redelivery loop.
 	tests := []struct {
@@ -314,27 +314,27 @@ func TestNotificationHandler_PermanentErrorsAreClassifiedNonRetryable(t *testing
 		want bool
 	}{
 		{
-			name: "EntityNotFoundError from ProcessFetcherNotification",
-			err:  pkg.EntityNotFoundError{EntityType: "extraction_mapping", Message: "mapping not found for job"},
+			name: "EntityNotFoundError from handlerGenerateReport",
+			err:  pkg.EntityNotFoundError{EntityType: "report", Message: "report not found for delivery"},
 			want: true,
 		},
 		{
-			name: "wrapped EntityNotFoundError from notification handler",
-			err:  fmt.Errorf("process notification: %w", pkg.EntityNotFoundError{EntityType: "report", Message: "report not found"}),
+			name: "wrapped EntityNotFoundError from report handler",
+			err:  fmt.Errorf("generate report: %w", pkg.EntityNotFoundError{EntityType: "report", Message: "report not found"}),
 			want: true,
 		},
 		{
-			name: "ValidationError from notification payload parsing",
-			err:  pkg.ValidationError{Code: "0279", Message: "invalid notification payload"},
+			name: "ValidationError from report request payload parsing",
+			err:  pkg.ValidationError{Code: "0279", Message: "invalid report request payload"},
 			want: true,
 		},
 		{
-			name: "UnprocessableOperationError from stale extraction",
-			err:  pkg.UnprocessableOperationError{Message: "extraction already completed"},
+			name: "UnprocessableOperationError from report generation is non-retryable",
+			err:  pkg.UnprocessableOperationError{Message: "operation cannot be completed"},
 			want: true,
 		},
 		{
-			name: "transient DB error from notification handler is retryable",
+			name: "transient DB error from report handler is retryable",
 			err:  errors.New("mongo: connection reset by peer"),
 			want: false,
 		},
