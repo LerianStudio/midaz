@@ -490,7 +490,6 @@ func initHandlers(
 		RedisRepo:                 redisConsumerRepository,
 		RabbitMQExchange:          cfg.RabbitMQExchange,
 		RabbitMQGenerateReportKey: cfg.RabbitMQGenerateReportKey,
-		FetcherEnabled:            cfg.FetcherEnabled,
 	})
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to initialize report handler: %w", err)

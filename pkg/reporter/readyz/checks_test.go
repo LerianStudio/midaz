@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
 	mongoDB "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
 	libRedis "github.com/LerianStudio/midaz/v4/pkg/reporter/redis"
 
@@ -424,130 +423,6 @@ func TestStorageChecker_PopulatesLatency(t *testing.T) {
 }
 
 // ----------------------------------------------------------------------------
-// FetcherChecker
-// ----------------------------------------------------------------------------
-
-// stubFetcherProvider satisfies datasource.DataSourceProvider AND has a Ping
-// method, so the type assertion in FetcherChecker.Check succeeds.
-type stubFetcherProvider struct {
-	pingFn func(ctx context.Context) error
-}
-
-func (s *stubFetcherProvider) ListDataSources(context.Context) ([]datasource.DataSourceInfo, error) {
-	return nil, nil
-}
-
-func (s *stubFetcherProvider) GetDataSourceSchema(context.Context, string) (*datasource.DataSourceSchema, error) {
-	return nil, nil
-}
-
-func (s *stubFetcherProvider) ValidateSchema(context.Context, string, map[string][]string) (*datasource.ValidationResult, error) {
-	return nil, nil
-}
-
-func (s *stubFetcherProvider) HealthCheck(context.Context) (map[string]bool, error) {
-	return nil, nil
-}
-
-func (s *stubFetcherProvider) Ping(ctx context.Context) error {
-	if s.pingFn != nil {
-		return s.pingFn(ctx)
-	}
-
-	return nil
-}
-
-// stubDirectProvider satisfies datasource.DataSourceProvider WITHOUT a Ping
-// method — used to verify the type assertion fails and the checker reports
-// StatusSkipped.
-type stubDirectProvider struct{}
-
-func (s *stubDirectProvider) ListDataSources(context.Context) ([]datasource.DataSourceInfo, error) {
-	return nil, nil
-}
-
-func (s *stubDirectProvider) GetDataSourceSchema(context.Context, string) (*datasource.DataSourceSchema, error) {
-	return nil, nil
-}
-
-func (s *stubDirectProvider) ValidateSchema(context.Context, string, map[string][]string) (*datasource.ValidationResult, error) {
-	return nil, nil
-}
-
-func (s *stubDirectProvider) HealthCheck(context.Context) (map[string]bool, error) {
-	return nil, nil
-}
-
-func TestFetcherChecker_Name(t *testing.T) {
-	t.Parallel()
-
-	c := NewFetcherChecker(nil, "")
-	assert.Equal(t, "fetcher", c.Name())
-}
-
-func TestFetcherChecker_NilProvider_Skipped(t *testing.T) {
-	t.Parallel()
-
-	c := NewFetcherChecker(nil, "")
-
-	got := c.Check(context.Background())
-	assert.Equal(t, StatusSkipped, got.Status)
-	assert.Contains(t, got.Reason, "DirectProvider")
-}
-
-func TestFetcherChecker_DirectProvider_Skipped(t *testing.T) {
-	t.Parallel()
-
-	c := NewFetcherChecker(&stubDirectProvider{}, "")
-
-	got := c.Check(context.Background())
-	assert.Equal(t, StatusSkipped, got.Status)
-	assert.Contains(t, got.Reason, "DirectProvider")
-}
-
-func TestFetcherChecker_FetcherProvider_Up(t *testing.T) {
-	t.Parallel()
-
-	provider := &stubFetcherProvider{pingFn: func(_ context.Context) error { return nil }}
-	c := NewFetcherChecker(provider, "https://fetcher.example.com")
-
-	got := c.Check(context.Background())
-	assert.Equal(t, StatusUp, got.Status)
-	require.NotNil(t, got.TLS)
-}
-
-func TestFetcherChecker_FetcherProvider_PingFails_Down(t *testing.T) {
-	t.Parallel()
-
-	provider := &stubFetcherProvider{pingFn: func(_ context.Context) error { return errors.New("boom") }}
-	c := NewFetcherChecker(provider, "https://fetcher.example.com")
-
-	got := c.Check(context.Background())
-	assert.Equal(t, StatusDown, got.Status)
-	// Operator-visibility: the underlying error reaches the response.
-	assert.Contains(t, got.Error, "boom")
-}
-
-// TestFetcherChecker_PingErrorWithURL_RedactsCredentials verifies that if
-// the underlying Ping call returns an error containing a quoted URL with
-// userinfo (the standard net/http.Client format), the error reaching the
-// operator-facing response has the credentials redacted.
-func TestFetcherChecker_PingErrorWithURL_RedactsCredentials(t *testing.T) {
-	t.Parallel()
-
-	leaky := errors.New(`Get "https://alice:hunter2@fetcher.internal/readyz": context deadline exceeded`)
-	provider := &stubFetcherProvider{pingFn: func(_ context.Context) error { return leaky }}
-	c := NewFetcherChecker(provider, "https://fetcher.example.com")
-
-	got := c.Check(context.Background())
-	assert.Equal(t, StatusDown, got.Status)
-	assert.Contains(t, got.Error, "context deadline exceeded")
-	assert.NotContains(t, got.Error, "alice")
-	assert.NotContains(t, got.Error, "hunter2")
-	assert.Contains(t, got.Error, "REDACTED")
-}
-
-// ----------------------------------------------------------------------------
 // TenantManagerChecker
 // ----------------------------------------------------------------------------
 
@@ -645,46 +520,6 @@ func TestStorageChecker_HTTPEndpoint_TLSFalse(t *testing.T) {
 	t.Parallel()
 
 	c := NewStorageChecker(&stubStorage{}, "http://s3.local:8080")
-
-	got := c.Check(context.Background())
-	require.NotNil(t, got.TLS)
-	assert.False(t, *got.TLS)
-}
-
-// TestFetcherChecker_MalformedBaseURL_TLSNil verifies tri-state preservation
-// on the Fetcher checker. A baseURL missing the scheme is rejected by
-// DetectHTTPUpstreamTLS, so the resulting DependencyCheck.TLS must be nil.
-func TestFetcherChecker_MalformedBaseURL_TLSNil(t *testing.T) {
-	t.Parallel()
-
-	provider := &stubFetcherProvider{pingFn: func(_ context.Context) error { return nil }}
-	c := NewFetcherChecker(provider, "fetcher.internal") // no scheme
-
-	got := c.Check(context.Background())
-	assert.Nil(t, got.TLS,
-		"unknown TLS posture must surface as nil, never as &false")
-}
-
-// TestFetcherChecker_HTTPSBaseURL_TLSTrue verifies the positive path on the
-// Fetcher checker: a well-formed https:// base URL surfaces TLS == &true.
-func TestFetcherChecker_HTTPSBaseURL_TLSTrue(t *testing.T) {
-	t.Parallel()
-
-	provider := &stubFetcherProvider{pingFn: func(_ context.Context) error { return nil }}
-	c := NewFetcherChecker(provider, "https://fetcher.example.com")
-
-	got := c.Check(context.Background())
-	require.NotNil(t, got.TLS)
-	assert.True(t, *got.TLS)
-}
-
-// TestFetcherChecker_HTTPBaseURL_TLSFalse verifies the negative path: an
-// http:// base URL surfaces TLS == &false (distinct from nil).
-func TestFetcherChecker_HTTPBaseURL_TLSFalse(t *testing.T) {
-	t.Parallel()
-
-	provider := &stubFetcherProvider{pingFn: func(_ context.Context) error { return nil }}
-	c := NewFetcherChecker(provider, "http://fetcher.local")
 
 	got := c.Check(context.Background())
 	require.NotNil(t, got.TLS)

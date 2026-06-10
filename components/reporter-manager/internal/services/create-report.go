@@ -117,11 +117,10 @@ func (uc *UseCase) prepareReportCreation(ctx context.Context, span trace.Span, r
 		return uuid.Nil, nil, nil, "", err
 	}
 
-	// Validate filter fields against schema (direct mode only).
-	// In fetcher mode, filter validation is skipped because the fetcher handles
-	// schema-qualified table names internally and the reporter's filter table
-	// names (simple) don't match the fetcher's qualified names.
-	if reportInput.Filters != nil && !uc.isFetcherMode() {
+	// Validate filter fields against the data source schema. Schema discovery and
+	// validation always run in-process now that the remote fetcher is retired, so
+	// there is no mode that legitimately skips this check.
+	if reportInput.Filters != nil {
 		if err := uc.validateReportFilters(ctx, reportInput.Filters, span); err != nil {
 			return uuid.Nil, nil, nil, "", err
 		}

@@ -19,8 +19,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
 )
 
 // Layer 8 of the canonical 9-test-layer matrix in dev-readyz/SKILL.md.
@@ -146,58 +144,48 @@ func TestReadyz_ConnectionLoss_ReturnsDown(t *testing.T) {
 func TestReadyz_LatencyInjection_TimesOut(t *testing.T) {
 	t.Parallel()
 
-	// Build a real FetcherChecker fronted by a deliberately slow server so
-	// the per-probe context.WithTimeout(CheckTimeoutFetcher) actually fires.
-	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		// Hold the response open for longer than CheckTimeoutFetcher (2s).
-		time.Sleep(CheckTimeoutFetcher + 1*time.Second)
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer slow.Close()
-
-	provider := &slowFetcherProvider{
-		ping: func(ctx context.Context) error {
-			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, slow.URL, nil)
-
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				return err
+	// Build a real StorageChecker fronted by a deliberately slow Exists call so
+	// the per-probe context.WithTimeout(CheckTimeoutStorage) actually fires. The
+	// Fetcher checker was retired with the in-process schema migration; the
+	// per-probe-timeout chaos guarantee is now exercised through a remaining
+	// network-backed checker.
+	checker := NewStorageChecker(&slowStorage{
+		exists: func(ctx context.Context, _ string) (bool, error) {
+			// Block until the per-probe deadline fires, longer than
+			// CheckTimeoutStorage (2s).
+			select {
+			case <-ctx.Done():
+				return false, ctx.Err()
+			case <-time.After(CheckTimeoutStorage + 1*time.Second):
+				return true, nil
 			}
-
-			defer resp.Body.Close()
-
-			_, _ = io.Copy(io.Discard, resp.Body)
-
-			return nil
 		},
-	}
-
-	checker := NewFetcherChecker(provider, slow.URL)
+	}, "https://storage.example.com")
 
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})
 	app.Get("/readyz", NewHandler([]Checker{checker}, &DrainState{}, "1.0.0", "saas", nil))
 
 	start := time.Now()
-	resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/readyz", nil), int(CheckTimeoutFetcher.Milliseconds())+5_000)
+	resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/readyz", nil), int(CheckTimeoutStorage.Milliseconds())+5_000)
 	require.NoError(t, err)
 
 	defer resp.Body.Close()
 
 	elapsed := time.Since(start)
 
-	// Per-probe timeout MUST fire well before the slow server replies.
-	assert.Less(t, elapsed, CheckTimeoutFetcher+1500*time.Millisecond,
+	// Per-probe timeout MUST fire well before the slow Exists call replies.
+	assert.Less(t, elapsed, CheckTimeoutStorage+1500*time.Millisecond,
 		"checker did not enforce per-probe timeout (got %s)", elapsed)
 
 	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 
 	body := decodeReadyz(t, resp.Body)
-	fetcher, ok := body.Checks["fetcher"]
+	storage, ok := body.Checks["storage"]
 	require.True(t, ok)
 
-	assert.Equal(t, StatusDown, fetcher.Status)
-	assert.Contains(t, fetcher.Error, "deadline exceeded",
-		"error should reference per-probe timeout/deadline; got %q", fetcher.Error)
+	assert.Equal(t, StatusDown, storage.Status)
+	assert.Contains(t, storage.Error, "deadline exceeded",
+		"error should reference per-probe timeout/deadline; got %q", storage.Error)
 }
 
 // ---------------------------------------------------------------------------
@@ -303,34 +291,35 @@ func decodeReadyz(t *testing.T, r io.Reader) Response {
 	return body
 }
 
-// slowFetcherProvider is a DataSourceProvider stub used by the latency-injection
-// test. It satisfies datasource.DataSourceProvider AND has a Ping method, so
-// the type assertion in FetcherChecker.Check succeeds and the chaos handler
-// runs the slow HTTP path.
-type slowFetcherProvider struct {
-	ping func(ctx context.Context) error
+// slowStorage is an ObjectStorage stub used by the latency-injection test. Its
+// Exists call blocks until the per-probe context deadline fires, so the
+// StorageChecker's context.WithTimeout(CheckTimeoutStorage) is exercised. Only
+// Exists is meaningful; the remaining methods satisfy the interface and are
+// never called by the readiness probe.
+type slowStorage struct {
+	exists func(ctx context.Context, key string) (bool, error)
 }
 
-func (s *slowFetcherProvider) ListDataSources(context.Context) ([]datasource.DataSourceInfo, error) {
-	return nil, nil
-}
-
-func (s *slowFetcherProvider) GetDataSourceSchema(context.Context, string) (*datasource.DataSourceSchema, error) {
-	return nil, nil
-}
-
-func (s *slowFetcherProvider) ValidateSchema(context.Context, string, map[string][]string) (*datasource.ValidationResult, error) {
-	return nil, nil
-}
-
-func (s *slowFetcherProvider) HealthCheck(context.Context) (map[string]bool, error) {
-	return nil, nil
-}
-
-func (s *slowFetcherProvider) Ping(ctx context.Context) error {
-	if s.ping == nil {
-		return nil
+func (s *slowStorage) Exists(ctx context.Context, key string) (bool, error) {
+	if s.exists == nil {
+		return true, nil
 	}
 
-	return s.ping(ctx)
+	return s.exists(ctx, key)
+}
+
+func (s *slowStorage) Upload(context.Context, string, io.Reader, string) (string, error) {
+	return "", nil
+}
+
+func (s *slowStorage) UploadWithTTL(context.Context, string, io.Reader, string, string) (string, error) {
+	return "", nil
+}
+
+func (s *slowStorage) Download(context.Context, string) (io.ReadCloser, error) { return nil, nil }
+
+func (s *slowStorage) Delete(context.Context, string) error { return nil }
+
+func (s *slowStorage) GeneratePresignedURL(context.Context, string, time.Duration) (string, error) {
+	return "", nil
 }

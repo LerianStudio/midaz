@@ -14,14 +14,15 @@ import (
 
 	httpIn "github.com/LerianStudio/midaz/v4/components/reporter-manager/internal/adapters/http/in"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/auth"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/fetcher"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/multitenant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/readyz"
 	reportSeaweedFS "github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs/report"
 	templateSeaweedFS "github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs/template"
+
+	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
+	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	"github.com/LerianStudio/lib-observability/log"
@@ -94,12 +95,6 @@ type Config struct {
 	// Auth envs
 	AuthAddress string `env:"PLUGIN_AUTH_ADDRESS"`
 	AuthEnabled bool   `env:"PLUGIN_AUTH_ENABLED"`
-	// Outbound M2M application credentials for calling the Fetcher in
-	// single-tenant deployments. Exchanged for a bearer token via plugin-auth
-	// when PLUGIN_AUTH_ENABLED=true. Multi-tenant deployments resolve
-	// credentials per-tenant from AWS Secrets Manager instead.
-	ClientID     string `env:"FETCHER_M2M_CLIENT_ID"`
-	ClientSecret string `env:"FETCHER_M2M_CLIENT_SECRET"`
 	// CORS configuration envs
 	CORSAllowedOrigins string `env:"CORS_ALLOWED_ORIGINS"`
 	CORSAllowedMethods string `env:"CORS_ALLOWED_METHODS"`
@@ -113,15 +108,6 @@ type Config struct {
 	// default false = enforce. Use only for non-production or transitional
 	// environments that intentionally run plaintext dependencies.
 	AllowInsecureTLS bool `env:"ALLOW_INSECURE_TLS" default:"false"`
-	// Fetcher dual-mode configuration envs
-	FetcherEnabled bool   `env:"FETCHER_ENABLED" default:"false"`
-	FetcherURL     string `env:"FETCHER_URL"`
-	AppEncKey      string `env:"APP_ENC_KEY"`
-	// M2M auth (multi-tenant only)
-	AWSRegion                string `env:"AWS_REGION"`
-	M2MTargetService         string `env:"M2M_TARGET_SERVICE" default:"fetcher"`
-	M2MCredentialCacheTTLSec int    `env:"M2M_CREDENTIAL_CACHE_TTL_SEC" default:"300"`
-	M2MTokenCacheMarginSec   int    `env:"M2M_TOKEN_CACHE_MARGIN_SEC" default:"60"`
 	// Multi-tenant configuration envs
 	MultiTenantEnabled                  bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
 	MultiTenantURL                      string `env:"MULTI_TENANT_URL"`
@@ -533,164 +519,91 @@ func InitServers() (_ *Service, err error) {
 
 	cleanups = append(cleanups, redisCleanup)
 
-	// Log datasource mode
-	if cfg.FetcherEnabled {
+	// Schema discovery and validation run in-process (the remote Fetcher has
+	// been retired). The immutable datasource registry (IDs, types, schema
+	// lists, CRM/org-scope configuration) is always built from env config.
+	//   - Single-tenant: the registry's lazily-connected pools are the schema
+	//     source.
+	//   - Multi-tenant: the registry supplies datasource metadata only; the
+	//     schema source resolves the live per-tenant connection through the
+	//     lib-commons tenant managers (built below).
+	if cfg.MultiTenantEnabled {
 		logger.Log(context.Background(), log.LevelInfo,
-			"Datasource mode: FETCHER (delegated extraction)",
-			log.String("fetcher_url", cfg.FetcherURL))
+			"Datasource mode: DIRECT (in-process, multi-tenant per-tenant pools)")
 	} else {
 		logger.Log(context.Background(), log.LevelInfo,
-			"Datasource mode: DIRECT (local datasource connections)")
+			"Datasource mode: DIRECT (in-process, single-tenant env pools)")
 	}
 
-	// Only connect to external datasources in direct mode.
-	// In fetcher mode, the Fetcher service handles datasource connections.
-	var externalDataSources *pkg.SafeDataSources
+	externalDataSources := pkg.NewSafeDataSources(pkg.ExternalDatasourceConnectionsLazy(logger))
 
-	if !cfg.FetcherEnabled {
-		externalDataSources = pkg.NewSafeDataSources(pkg.ExternalDatasourceConnectionsLazy(logger))
+	// Register datasource pool cleanup for graceful shutdown. Under
+	// multi-tenancy the registry entries are never connected by the manager
+	// (per-tenant pools are owned by the tenant managers), so the per-entry
+	// repository handles are nil and these closes are no-ops.
+	cleanups = append(cleanups, func() {
+		ctx := context.Background()
+		logger.Log(ctx, log.LevelInfo, "Closing external datasource connection pools...")
 
-		// Register datasource pool cleanup for graceful shutdown
-		cleanups = append(cleanups, func() {
-			ctx := context.Background()
-			logger.Log(ctx, log.LevelInfo, "Closing external datasource connection pools...")
-
-			for name, ds := range externalDataSources.GetAll() {
-				switch ds.DatabaseType {
-				case pkg.PostgreSQLType:
-					if ds.PostgresRepository != nil {
-						if err := ds.PostgresRepository.CloseConnection(); err != nil {
-							logger.Log(ctx, log.LevelError, "Failed to close PostgreSQL pool", log.String("datasource", name), log.String("error", err.Error()))
-						} else {
-							logger.Log(ctx, log.LevelInfo, "Closed PostgreSQL pool", log.String("datasource", name))
-						}
+		for name, ds := range externalDataSources.GetAll() {
+			switch ds.DatabaseType {
+			case pkg.PostgreSQLType:
+				if ds.PostgresRepository != nil {
+					if err := ds.PostgresRepository.CloseConnection(); err != nil {
+						logger.Log(ctx, log.LevelError, "Failed to close PostgreSQL pool", log.String("datasource", name), log.String("error", err.Error()))
+					} else {
+						logger.Log(ctx, log.LevelInfo, "Closed PostgreSQL pool", log.String("datasource", name))
 					}
-				case pkg.MongoDBType:
-					if ds.MongoDBRepository != nil {
-						if err := ds.MongoDBRepository.CloseConnection(ctx); err != nil {
-							logger.Log(ctx, log.LevelError, "Failed to close MongoDB pool", log.String("datasource", name), log.String("error", err.Error()))
-						} else {
-							logger.Log(ctx, log.LevelInfo, "Closed MongoDB pool", log.String("datasource", name))
-						}
+				}
+			case pkg.MongoDBType:
+				if ds.MongoDBRepository != nil {
+					if err := ds.MongoDBRepository.CloseConnection(ctx); err != nil {
+						logger.Log(ctx, log.LevelError, "Failed to close MongoDB pool", log.String("datasource", name), log.String("error", err.Error()))
+					} else {
+						logger.Log(ctx, log.LevelInfo, "Closed MongoDB pool", log.String("datasource", name))
 					}
 				}
 			}
+		}
 
-			logger.Log(ctx, log.LevelInfo, "External datasource pools closed")
-		})
-	} else {
-		logger.Log(context.Background(), log.LevelInfo, "Fetcher mode enabled — skipping direct datasource connections")
-
-		externalDataSources = pkg.NewSafeDataSources(make(map[string]pkg.DataSource))
-	}
+		logger.Log(ctx, log.LevelInfo, "External datasource pools closed")
+	})
 
 	// AuthClient is constructed here (instead of later in the HTTP-server
-	// setup block) because the outbound M2M providers below also need it.
-	// In disabled mode (PLUGIN_AUTH_ENABLED=false or empty address) the
+	// setup block) because it is reused for inbound auth middleware. In
+	// disabled mode (PLUGIN_AUTH_ENABLED=false or empty address) the
 	// constructor returns a stub that does not touch the network — safe to
 	// build unconditionally.
 	authClient := middleware.NewAuthClient(cfg.AuthAddress, cfg.AuthEnabled, &logger)
 
-	// Build Fetcher OTel metrics (F3: auth-retry counter). Constructed once
-	// from the shared meter and injected into the Fetcher client through the
-	// datasource ProviderConfig.FetcherClientOptions. Falls back to NoopMetrics
-	// when telemetry is unavailable so the client never gets a nil emitter.
-	fetcherMetrics := fetcher.NoopMetrics()
+	// Create the in-process DataSourceProvider. Schema discovery and validation
+	// always run locally (the remote Fetcher has been retired). Multi-tenant
+	// mode resolves per-tenant connections through the lib-commons tenant
+	// managers (fail-closed); single-tenant mode uses the env-configured pools.
+	var dataSourceProvider datasource.DataSourceProvider
 
-	if telemetry != nil {
-		if meter, meterErr := telemetry.Meter(cfg.OtelLibraryName); meterErr == nil {
-			fm, fmErr := fetcher.NewMetrics(meter)
-			if fmErr != nil {
-				return nil, fmt.Errorf("failed to build fetcher metrics: %w", fmErr)
-			}
-
-			fetcherMetrics = fm
+	if cfg.MultiTenantEnabled {
+		tenantMongoManager, tenantPostgresManager, mtErr := initManagerSchemaTenantManagers(cfg, logger)
+		if mtErr != nil {
+			return nil, fmt.Errorf("failed to initialize multi-tenant schema discovery managers: %w", mtErr)
 		}
-	}
 
-	// Build M2M token provider for the Fetcher client.
-	//
-	// Three modes:
-	//   - multi-tenant + auth: tenant-aware M2MCredentialProvider resolves
-	//     per-tenant credentials from AWS Secrets Manager.
-	//   - single-tenant + auth: StaticAppTokenProvider exchanges the
-	//     CLIENT_ID/CLIENT_SECRET pair for an application token, mirroring
-	//     how plugin-fees authenticates against Midaz.
-	//   - auth disabled (any tenancy): nil provider → FetcherClient sends no
-	//     Authorization header (matches Fetcher's PLUGIN_AUTH_ENABLED=false).
-	var m2mTokenProvider fetcher.M2MTokenProvider
-
-	if cfg.FetcherEnabled && cfg.MultiTenantEnabled && cfg.AWSRegion != "" && cfg.AuthAddress != "" {
-		credFetcher, credErr := auth.BuildCredentialFetcher(context.Background(), auth.SMCredentialFetcherConfig{
-			AWSRegion:       cfg.AWSRegion,
-			Environment:     cfg.MultiTenantEnvironment,
-			ApplicationName: constant.ApplicationName,
+		dataSourceProvider = datasource.NewMultiTenantDirectProvider(
+			externalDataSources,
+			tenantPostgresManager,
+			tenantMongoManager,
+			nil, // health checker: the manager runs no datasource health loop
+			logger,
+		)
+	} else {
+		provider, providerErr := datasource.NewProvider(datasource.ProviderConfig{
+			SafeDataSources: externalDataSources,
 		})
-		if credErr != nil {
-			return nil, fmt.Errorf("failed to build M2M credential fetcher: %w", credErr)
+		if providerErr != nil {
+			return nil, fmt.Errorf("failed to create datasource provider: %w", providerErr)
 		}
 
-		if credFetcher != nil {
-			m2mCfg := auth.M2MProviderConfig{
-				AuthAddress:      cfg.AuthAddress,
-				TargetService:    cfg.M2MTargetService,
-				CredentialTTL:    time.Duration(cfg.M2MCredentialCacheTTLSec) * time.Second,
-				TokenCacheMargin: time.Duration(cfg.M2MTokenCacheMarginSec) * time.Second,
-			}
-			m2mMetrics := auth.NoopM2MMetrics()
-
-			if telemetry != nil {
-				if meter, meterErr := telemetry.Meter(cfg.OtelLibraryName); meterErr == nil {
-					if m, metricsErr := auth.NewM2MMetrics(meter); metricsErr == nil {
-						m2mMetrics = m
-					}
-				}
-			}
-
-			m2mTokenProvider = auth.NewM2MCredentialProvider(m2mCfg, credFetcher, logger, tracer, m2mMetrics)
-
-			logger.Log(context.Background(), log.LevelInfo,
-				"M2M token provider configured for Manager datasource provider",
-				log.String("auth_address", cfg.AuthAddress),
-				log.String("target_service", cfg.M2MTargetService))
-		}
-	}
-
-	// Single-tenant + auth-enabled outbound provider. No tenantId is present
-	// on the request context, so the tenant-aware M2MCredentialProvider
-	// (which extracts tenantId via tmcore.GetTenantIDContext) cannot be used.
-	// Instead exchange a fixed CLIENT_ID/CLIENT_SECRET pair against
-	// plugin-auth — same pattern plugin-fees uses to talk to Midaz.
-	if m2mTokenProvider == nil && cfg.FetcherEnabled && cfg.AuthEnabled && cfg.AuthAddress != "" && !cfg.MultiTenantEnabled {
-		staticProvider, staticErr := auth.NewStaticAppTokenProvider(authClient, cfg.ClientID, cfg.ClientSecret)
-		if staticErr != nil {
-			return nil, fmt.Errorf("failed to build single-tenant fetcher token provider: %w", staticErr)
-		}
-
-		m2mTokenProvider = staticProvider
-
-		logger.Log(context.Background(), log.LevelInfo,
-			"Static application token provider configured for Manager Fetcher client (single-tenant)",
-			log.String("auth_address", cfg.AuthAddress))
-	}
-
-	// Create DataSourceProvider based on mode. FetcherClientOptions carries
-	// the OTel metrics built above; buildFetcherProvider applies them when
-	// FetcherEnabled=true (no-op for DirectProvider).
-	providerCfg := datasource.ProviderConfig{
-		FetcherEnabled:     cfg.FetcherEnabled,
-		FetcherURL:         cfg.FetcherURL,
-		MultiTenantEnabled: cfg.MultiTenantEnabled,
-		SafeDataSources:    externalDataSources,
-		M2MTokenProvider:   m2mTokenProvider,
-		FetcherClientOptions: []fetcher.FetcherClientOption{
-			fetcher.WithMetrics(fetcherMetrics),
-		},
-	}
-
-	dataSourceProvider, err := datasource.NewProvider(providerCfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create datasource provider: %w", err)
+		dataSourceProvider = provider
 	}
 
 	// Use same storage client for both templates and reports (repositories handle prefixes)
@@ -750,8 +663,6 @@ func InitServers() (_ *Service, err error) {
 		RedisConnection:     redisConnection,
 		StorageClient:       storageClient,
 		StorageEndpoint:     cfg.ObjectStorageEndpoint,
-		DataSourceProvider:  dataSourceProvider,
-		FetcherURL:          cfg.FetcherURL,
 		TenantManagerClient: tenantManagerClient,
 		MultiTenantEnabled:  cfg.MultiTenantEnabled,
 		MongoURI:            cfg.MongoURI,
@@ -825,6 +736,57 @@ func InitServers() (_ *Service, err error) {
 	}, nil
 }
 
+// initManagerSchemaTenantManagers builds the per-tenant MongoDB and PostgreSQL
+// managers that back the Manager's in-process multi-tenant schema discovery.
+// They share one Tenant Manager client and the same MultiTenant* pool/idle
+// knobs, so a tenant resolves the SAME credentials and pool ceiling on both
+// backends — mirroring the worker's initMultiTenantManagers.
+//
+// Production templates and reports reference multi-tenant PostgreSQL and
+// MongoDB datasources, so real per-tenant pools are required: there is no
+// fail-closed stub and no fallback to a shared single-tenant pool. The managers
+// resolve database-per-tenant from the tenant ID carried on the request
+// context; an unresolvable tenant fails the schema request closed.
+//
+// Returns (nil, nil, nil) when multi-tenancy is disabled — single-tenant mode
+// uses the env-configured datasource pools instead.
+func initManagerSchemaTenantManagers(cfg *Config, logger log.Logger) (*tmmongo.Manager, *tmpostgres.Manager, error) {
+	if !cfg.MultiTenantEnabled {
+		return nil, nil, nil
+	}
+
+	if cfg.MultiTenantURL == "" {
+		return nil, nil, fmt.Errorf("MULTI_TENANT_URL is required when MULTI_TENANT_ENABLED=true")
+	}
+
+	tmClient, err := newTenantManagerClient(cfg, logger)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize tenant manager client for schema discovery: %w", err)
+	}
+
+	tenantMongoManager := tmmongo.NewManager(
+		tmClient,
+		constant.ApplicationName,
+		tmmongo.WithModule(constant.ModuleManager),
+		tmmongo.WithLogger(logger),
+		tmmongo.WithMaxTenantPools(cfg.MultiTenantMaxTenantPools),
+		tmmongo.WithIdleTimeout(time.Duration(cfg.MultiTenantIdleTimeoutSec)*time.Second),
+	)
+
+	tenantPostgresManager := tmpostgres.NewManager(
+		tmClient,
+		constant.ApplicationName,
+		tmpostgres.WithModule(constant.ModuleManager),
+		tmpostgres.WithLogger(logger),
+		tmpostgres.WithMaxTenantPools(cfg.MultiTenantMaxTenantPools),
+		tmpostgres.WithIdleTimeout(time.Duration(cfg.MultiTenantIdleTimeoutSec)*time.Second),
+	)
+
+	logger.Log(context.Background(), log.LevelInfo, "Manager: tenant schema discovery managers initialized (in-process multi-tenant)")
+
+	return tenantMongoManager, tenantPostgresManager, nil
+}
+
 // enforceManagerSaaSTLS runs the Gate-4 SaaS TLS enforcement for the Manager,
 // unless ALLOW_INSECURE_TLS bypasses it. When cfg.AllowInsecureTLS is true the
 // check is skipped entirely (returns nil) — mirroring the lib-commons
@@ -859,17 +821,6 @@ func buildManagerSaaSTLSDeps(cfg *Config) []readyz.SaaSTLSDep {
 		{Name: "rabbitmq", URI: synthesizeRabbitMQURI(cfg), DetectFn: readyz.DetectAMQPTLS},
 		{Name: "redis", URI: synthesizeRedisURI(cfg.RedisHost, cfg.RedisTLS), DetectFn: readyz.DetectRedisTLS},
 		{Name: "storage", URI: cfg.ObjectStorageEndpoint, DetectFn: readyz.DetectS3TLS},
-	}
-
-	// Fetcher is only enforced when explicitly enabled. When disabled, the
-	// FETCHER_URL may legitimately be unset (or pointing at a local stub) and
-	// must not block SaaS bootstrap.
-	if cfg.FetcherEnabled {
-		deps = append(deps, readyz.SaaSTLSDep{
-			Name:     "fetcher",
-			URI:      cfg.FetcherURL,
-			DetectFn: readyz.DetectHTTPUpstreamTLS,
-		})
 	}
 
 	// Multi-tenant deps are only enforced when MT is actually enabled AND

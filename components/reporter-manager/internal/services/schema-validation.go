@@ -23,10 +23,10 @@ import (
 // using the DataSourceProvider interface. For each data source referenced in
 // mappedFields, it passes the table→fields map to ValidateSchema on the provider.
 //
-// The provider performs table-aware validation:
-//   - DirectProvider: validates table existence, field-per-table, schema ambiguity (PostgreSQL),
-//     and plugin CRM organization-scoped collections (MongoDB).
-//   - FetcherProvider: flattens to field list and delegates to Fetcher API.
+// The provider performs table-aware validation in-process (DirectProvider):
+// table existence, field-per-table, schema ambiguity (PostgreSQL), and CRM
+// organization-scoped collections (MongoDB). Under multi-tenancy the schema is
+// resolved from the per-tenant connection via the lib-commons tenant managers.
 //
 // Per D7 decision, unavailable data sources produce warnings (not errors),
 // allowing template creation/update to proceed with partial validation.

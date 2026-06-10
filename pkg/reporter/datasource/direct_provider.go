@@ -26,21 +26,34 @@ import (
 // Compile-time interface satisfaction check.
 var _ DataSourceProvider = (*DirectProvider)(nil)
 
-// DirectProvider implements DataSourceProvider by wrapping SafeDataSources
-// for single-tenant (FETCHER_ENABLED=false) mode. It delegates schema
-// introspection to the existing PostgreSQL and MongoDB repository interfaces
-// stored inside each DataSource entry.
+// DirectProvider implements DataSourceProvider by running schema discovery and
+// validation in-process. It delegates schema introspection to the existing
+// PostgreSQL and MongoDB schema logic, and serves both single-tenant and
+// multi-tenant deployments:
 //
-// This provider does NOT contain any multi-tenant logic. It operates
-// exclusively with the global datasource map initialized at startup.
+//   - Single-tenant: introspects the global SafeDataSources map built at
+//     startup, using the repository handles stored on each DataSource entry.
+//   - Multi-tenant: resolves a per-tenant connection through the optional
+//     tenantSchemaSource (backed by the lib-commons tenant managers) and runs
+//     the SAME field-matching, schema-ambiguity, and CRM logic over the
+//     tenant-scoped snapshot. The global pool is never read in this mode.
+//
+// The registry of datasource IDs (for ListDataSources and the CRM/org-scope
+// decision) comes from SafeDataSources in both modes; only the SOURCE of the
+// schema snapshot changes under multi-tenancy.
 type DirectProvider struct {
 	safeDatasources       *pkg.SafeDataSources
 	circuitBreakerManager *pkg.CircuitBreakerManager
 	healthChecker         *pkg.HealthChecker
+	// tenantSchema is non-nil only in multi-tenant mode. When set, schema
+	// discovery resolves the per-tenant pool through it (fail-closed) instead
+	// of the global SafeDataSources connections.
+	tenantSchema schemaSource
 }
 
-// NewDirectProvider creates a DirectProvider wrapping the given SafeDataSources.
-// circuitBreakerManager and healthChecker are optional (may be nil).
+// NewDirectProvider creates a single-tenant DirectProvider wrapping the given
+// SafeDataSources. circuitBreakerManager and healthChecker are optional (may be
+// nil).
 func NewDirectProvider(
 	safeDatasources *pkg.SafeDataSources,
 	circuitBreakerManager *pkg.CircuitBreakerManager,
@@ -50,6 +63,26 @@ func NewDirectProvider(
 		safeDatasources:       safeDatasources,
 		circuitBreakerManager: circuitBreakerManager,
 		healthChecker:         healthChecker,
+	}
+}
+
+// NewMultiTenantDirectProvider creates a DirectProvider whose schema discovery
+// resolves per-tenant connections through the lib-commons tenant managers. The
+// SafeDataSources map still supplies the immutable datasource registry (IDs,
+// types, CRM/org-scope configuration); the tenant managers supply the live
+// per-tenant connection a schema read runs against. Both managers are required
+// — multi-tenant mode cannot fail open to a shared pool.
+func NewMultiTenantDirectProvider(
+	safeDatasources *pkg.SafeDataSources,
+	pg TenantPostgresManager,
+	mongo TenantMongoManager,
+	healthChecker *pkg.HealthChecker,
+	logger log.Logger,
+) *DirectProvider {
+	return &DirectProvider{
+		safeDatasources: safeDatasources,
+		healthChecker:   healthChecker,
+		tenantSchema:    newTenantSchemaSource(pg, mongo, logger),
 	}
 }
 
@@ -175,6 +208,25 @@ func (dp *DirectProvider) GetDataSourceSchema(ctx context.Context, dataSourceID 
 		log.String("data_source_id", dataSourceID),
 		log.String("database_type", ds.DatabaseType))
 
+	// Multi-tenant mode resolves the per-tenant connection inside the schema
+	// source (fail-closed), so the env-pool lazy-connect and initialized guards
+	// below do not apply: the global SafeDataSources entry carries no live
+	// per-tenant connection. Dispatch straight to the type-specific reader,
+	// which routes through the tenant source.
+	if dp.tenantSchema != nil {
+		switch ds.DatabaseType {
+		case pkg.PostgreSQLType:
+			return dp.getPostgresSchema(ctx, dataSourceID, ds)
+		case pkg.MongoDBType:
+			return dp.getMongoDBSchema(ctx, dataSourceID, ds)
+		default:
+			err := fmt.Errorf("unsupported database type %q for datasource %q", ds.DatabaseType, dataSourceID)
+			libOpentelemetry.HandleSpanError(span, "Unsupported database type", err)
+
+			return nil, err
+		}
+	}
+
 	// Ensure the datasource has an active connection (lazy initialization).
 	// ensureConnected uses graceful degradation: it never returns an error,
 	// but the datasource may remain uninitialized if connection failed.
@@ -240,6 +292,27 @@ func (dp *DirectProvider) ValidateSchema(ctx context.Context, dataSourceID strin
 		return nil, pkgErr.ValidateBusinessError(constant.ErrMissingDataSource, "", dataSourceID)
 	}
 
+	// Multi-tenant mode resolves the per-tenant connection inside the schema
+	// source (fail-closed). The env-pool lazy-connect and the D7 env-pool
+	// availability guard below do not apply, because the global SafeDataSources
+	// entry holds no live per-tenant connection. Dispatch straight to the
+	// type-specific validator. A tenant-resolution failure surfaces as a hard
+	// error (fail closed) rather than a D7 warning: under MT, an unresolvable
+	// tenant pool is a real failure, not a degraded-but-known datasource.
+	if dp.tenantSchema != nil {
+		switch ds.DatabaseType {
+		case pkg.PostgreSQLType:
+			return dp.validatePostgresSchema(ctx, dataSourceID, ds, tableFields)
+		case pkg.MongoDBType:
+			return dp.validateMongoDBSchema(ctx, dataSourceID, ds, tableFields)
+		default:
+			err := fmt.Errorf("unsupported database type %q for datasource %q", ds.DatabaseType, dataSourceID)
+			libOpentelemetry.HandleSpanError(span, "Unsupported database type", err)
+
+			return nil, err
+		}
+	}
+
 	// Ensure the datasource has an active connection (lazy initialization).
 	// ensureConnected uses graceful degradation: it never returns an error,
 	// but the datasource may remain uninitialized. The D7 check below
@@ -291,19 +364,7 @@ func (dp *DirectProvider) validatePostgresSchema(
 	ctx, span := tracer.Start(ctx, "provider.direct.validate_postgres_schema")
 	defer span.End()
 
-	if ds.PostgresRepository == nil {
-		err := fmt.Errorf("postgres repository not initialized for datasource %q", dataSourceID)
-		libOpentelemetry.HandleSpanError(span, "Nil PostgreSQL repository", err)
-
-		return nil, err
-	}
-
-	schemas := ds.Schemas
-	if len(schemas) == 0 {
-		schemas = []string{"public"}
-	}
-
-	dbSchema, err := ds.PostgresRepository.GetDatabaseSchema(ctx, schemas)
+	dbSchema, err := dp.postgresTableSchemas(ctx, dataSourceID, ds)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get PostgreSQL schema", err)
 
@@ -391,24 +452,12 @@ func (dp *DirectProvider) validateMongoDBSchema(
 	ctx, span := tracer.Start(ctx, "provider.direct.validate_mongodb_schema")
 	defer span.End()
 
-	if ds.MongoDBRepository == nil {
-		err := fmt.Errorf("mongodb repository not initialized for datasource %q", dataSourceID)
-		libOpentelemetry.HandleSpanError(span, "Nil MongoDB repository", err)
-
-		return nil, err
-	}
-
-	// For crm with MidazOrganizationID, use org-scoped schema discovery
-	var collectionSchemas []mongodb.CollectionSchema
-
-	var schemaErr error
-
-	if ds.MidazOrganizationID != "" {
-		collectionSchemas, schemaErr = ds.MongoDBRepository.GetDatabaseSchemaForOrganization(ctx, ds.MidazOrganizationID)
-	} else {
-		collectionSchemas, schemaErr = ds.MongoDBRepository.GetDatabaseSchema(ctx)
-	}
-
+	// Resolve the raw collection schema for validation: an org-scoped datasource
+	// uses the org-suffix filter, others use plain discovery. Validation does NOT
+	// use crm prefix-grouping — it relies on the org-suffix collection-name
+	// transformation applied below. Single-tenant reads the env pool;
+	// multi-tenant resolves the tenant-scoped database (fail-closed).
+	collectionSchemas, schemaErr := dp.mongoSchemaForValidation(ctx, dataSourceID, ds)
 	if schemaErr != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get MongoDB schema", schemaErr)
 

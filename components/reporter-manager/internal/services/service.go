@@ -70,13 +70,4 @@ type UseCase struct {
 
 	// RabbitMQGenerateReportKey is the routing key for report generation messages.
 	RabbitMQGenerateReportKey string
-
-	// FetcherEnabled indicates whether the reporter operates in fetcher mode
-	// (delegated extraction) vs direct mode (query databases directly).
-	FetcherEnabled bool
-}
-
-// isFetcherMode returns true when the reporter delegates data operations to the fetcher.
-func (uc *UseCase) isFetcherMode() bool {
-	return uc.FetcherEnabled
 }

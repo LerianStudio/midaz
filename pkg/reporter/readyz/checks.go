@@ -8,7 +8,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
 	mongoDB "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/redact"
 	libRedis "github.com/LerianStudio/midaz/v4/pkg/reporter/redis"
@@ -35,9 +34,6 @@ const (
 	// CheckTimeoutStorage is the per-probe budget for S3-compatible storage.
 	CheckTimeoutStorage = 2 * time.Second
 
-	// CheckTimeoutFetcher is the per-probe budget for the Fetcher HTTP API.
-	CheckTimeoutFetcher = 2 * time.Second
-
 	// CheckTimeoutTenantManager is the per-probe budget for the Tenant
 	// Manager dependency. Currently unused because the checker performs
 	// only a nil-check, but defined for symmetry with other dependencies.
@@ -46,10 +42,6 @@ const (
 	// reasonMultiTenant is the reason string used for Mongo/RabbitMQ in
 	// multi-tenant mode where per-tenant probing is not yet implemented.
 	reasonMultiTenant = "multi-tenant mode: per-tenant probing not implemented (deferred to future Gate 6)"
-
-	// reasonFetcherDisabled is the reason string when DataSourceProvider is
-	// not a *FetcherProvider (i.e., DirectProvider mode, FETCHER_ENABLED=false).
-	reasonFetcherDisabled = "FETCHER_ENABLED=false (DirectProvider mode)"
 
 	// reasonMultiTenantDisabled is the reason string when the Tenant Manager
 	// dependency is skipped because MULTI_TENANT_ENABLED=false.
@@ -72,7 +64,6 @@ const (
 	nameRabbitMQ      = "rabbitmq"
 	nameRedis         = "redis"
 	nameStorage       = "storage"
-	nameFetcher       = "fetcher"
 	nameTenantManager = "tenant_manager"
 )
 
@@ -459,70 +450,6 @@ func (c *StorageChecker) Check(ctx context.Context) DependencyCheck {
 	start := time.Now()
 
 	if _, err := c.client.Exists(probeCtx, readinessProbeKey); err != nil {
-		ms, d := latencyFields(start)
-
-		return DependencyCheck{
-			Status:    StatusDown,
-			LatencyMs: ms,
-			Latency:   d,
-			TLS:       tlsField,
-			Error:     redact.Error(err),
-		}
-	}
-
-	ms, d := latencyFields(start)
-
-	return DependencyCheck{
-		Status:    StatusUp,
-		LatencyMs: ms,
-		Latency:   d,
-		TLS:       tlsField,
-	}
-}
-
-// ----------------------------------------------------------------------------
-// FetcherChecker
-// ----------------------------------------------------------------------------
-
-// FetcherPinger is the minimal contract the FetcherChecker depends on. It is
-// satisfied by *datasource.FetcherProvider but kept as a local interface so
-// tests can inject lightweight stubs.
-type FetcherPinger interface {
-	Ping(ctx context.Context) error
-}
-
-// FetcherChecker probes the Fetcher HTTP API by calling Ping on the
-// FetcherProvider. When the provider is not a FetcherProvider (i.e. the
-// service is in DirectProvider mode), the checker reports StatusSkipped.
-type FetcherChecker struct {
-	provider datasource.DataSourceProvider
-	baseURL  string
-}
-
-// NewFetcherChecker constructs a FetcherChecker. baseURL is used only for
-// TLS posture detection.
-func NewFetcherChecker(provider datasource.DataSourceProvider, baseURL string) *FetcherChecker {
-	return &FetcherChecker{provider: provider, baseURL: baseURL}
-}
-
-// Name returns the JSON key used in the /readyz response.
-func (c *FetcherChecker) Name() string { return nameFetcher }
-
-// Check runs the Fetcher readiness probe.
-func (c *FetcherChecker) Check(ctx context.Context) DependencyCheck {
-	pinger, ok := c.provider.(FetcherPinger)
-	if !ok || c.provider == nil {
-		return DependencyCheck{Status: StatusSkipped, Reason: reasonFetcherDisabled}
-	}
-
-	tlsField := detectedTLSPtr(DetectHTTPUpstreamTLS(c.baseURL))
-
-	probeCtx, cancel := context.WithTimeout(ctx, CheckTimeoutFetcher)
-	defer cancel()
-
-	start := time.Now()
-
-	if err := pinger.Ping(probeCtx); err != nil {
 		ms, d := latencyFields(start)
 
 		return DependencyCheck{

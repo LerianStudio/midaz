@@ -5,7 +5,6 @@
 package in
 
 import (
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
 	mongoDB "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/readyz"
 	libRedis "github.com/LerianStudio/midaz/v4/pkg/reporter/redis"
@@ -45,15 +44,6 @@ type ManagerReadyzDeps struct {
 	// StorageEndpoint is the configured storage endpoint URL, used only by
 	// the StorageChecker for TLS posture detection (not for the probe).
 	StorageEndpoint string
-
-	// DataSourceProvider is the active provider (DirectProvider or
-	// FetcherProvider). The FetcherChecker uses a type-assertion to detect
-	// which is in use.
-	DataSourceProvider datasource.DataSourceProvider
-
-	// FetcherURL is the base URL of the Fetcher API (used for TLS posture
-	// detection only).
-	FetcherURL string
 
 	// TenantManagerClient is the Tenant Manager client. nil when
 	// MultiTenantEnabled=false. The TenantManagerChecker performs only a
@@ -95,11 +85,16 @@ type ManagerReadyzDeps struct {
 	SelfProbeState *readyz.SelfProbeState
 }
 
-// BuildManagerCheckers assembles the canonical six-dep checker list for the
+// BuildManagerCheckers assembles the canonical dependency checker list for the
 // Manager. Exported so bootstrap can reuse the exact same list for both
 // startup self-probe (Gate 7) and the runtime /readyz handler — keeping the
 // two surfaces in lock-step. nil deps yields the same defensive behavior as
 // the handler factory: every probe reports its own missing-dependency state.
+//
+// The remote Fetcher reachability checker has been removed: schema discovery
+// runs in-process, so there is no external Fetcher dependency to probe.
+// Per-tenant datasource connectivity is exercised lazily on the schema-read
+// path itself and surfaces there.
 func BuildManagerCheckers(deps *ManagerReadyzDeps) []readyz.Checker {
 	if deps == nil {
 		deps = &ManagerReadyzDeps{}
@@ -112,7 +107,6 @@ func BuildManagerCheckers(deps *ManagerReadyzDeps) []readyz.Checker {
 		// multi-tenant cache). A nil connection is a hard failure.
 		readyz.NewRedisChecker(deps.RedisConnection, true),
 		readyz.NewStorageChecker(deps.StorageClient, deps.StorageEndpoint),
-		readyz.NewFetcherChecker(deps.DataSourceProvider, deps.FetcherURL),
 		readyz.NewTenantManagerChecker(deps.MultiTenantEnabled, func() bool {
 			return deps.TenantManagerClient != nil
 		}),

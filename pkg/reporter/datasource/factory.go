@@ -5,112 +5,38 @@
 package datasource
 
 import (
-	"fmt"
-	"strings"
-
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/fetcher"
 )
 
-// ProviderConfig holds configuration for selecting and constructing the
-// appropriate DataSourceProvider. The factory function NewProvider uses this
-// to return either a DirectProvider (legacy, single-tenant) or a
-// FetcherProvider (dual-mode, single-tenant or multi-tenant).
+// ProviderConfig holds configuration for constructing a single-tenant
+// DataSourceProvider. The remote Fetcher path has been retired: schema
+// discovery and validation always run in-process. Multi-tenant deployments use
+// NewMultiTenantDirectProvider directly (it requires the lib-commons tenant
+// managers, which the bootstrap supplies), so this config covers the
+// single-tenant DirectProvider only.
 type ProviderConfig struct {
-	// FetcherEnabled selects FetcherProvider when true, DirectProvider when false.
-	FetcherEnabled bool
-
-	// FetcherURL is the base URL of the Fetcher API (required when FetcherEnabled=true).
-	FetcherURL string
-
-	// MultiTenantEnabled indicates multi-tenant mode. Requires FetcherEnabled=true
-	// because direct mode does not support multi-tenant isolation.
-	MultiTenantEnabled bool
-
-	// SafeDataSources is the thread-safe datasource map (used by DirectProvider).
-	// May be nil when FetcherEnabled=true.
+	// SafeDataSources is the thread-safe datasource registry built from env
+	// configuration. It supplies datasource IDs, types, schema lists, and
+	// CRM/org-scope configuration, plus the lazily-connected env pools used as
+	// the schema source in single-tenant mode.
 	SafeDataSources *pkg.SafeDataSources
 
-	// CircuitBreakerManager provides per-datasource circuit breakers (DirectProvider only).
+	// CircuitBreakerManager provides per-datasource circuit breakers.
 	// Optional — may be nil.
 	CircuitBreakerManager *pkg.CircuitBreakerManager
 
-	// HealthChecker provides background health monitoring (DirectProvider only).
+	// HealthChecker provides background health monitoring.
 	// Optional — may be nil.
 	HealthChecker *pkg.HealthChecker
-
-	// M2MTokenProvider provides M2M JWT tokens for inter-service auth.
-	// Required for multi-tenant FetcherProvider; nil in single-tenant mode.
-	M2MTokenProvider fetcher.M2MTokenProvider
-
-	// FetcherClientOptions allows callers to inject additional FetcherClient
-	// functional options (e.g., WithCircuitBreaker, WithHTTPClient).
-	FetcherClientOptions []fetcher.FetcherClientOption
 }
 
-// NewProvider creates the appropriate DataSourceProvider based on configuration.
-// Returns DirectProvider when FetcherEnabled=false, FetcherProvider when true.
-//
-// Startup validation:
-//
-//   - FETCHER_ENABLED=true requires FETCHER_URL to be set
-//
-//   - MULTI_TENANT_ENABLED=true requires FETCHER_ENABLED=true
-//
-//   - config_runtime.go: ExternalDatasourceConnections() only when FETCHER_ENABLED=false
-//
-//   - consumer.go: Consumer 2 for extraction callbacks when FETCHER_ENABLED=true
-//
-//   - Manager and Worker receive provider via bootstrap dependency injection
+// NewProvider creates a single-tenant in-process DirectProvider. Multi-tenant
+// callers use NewMultiTenantDirectProvider instead, since per-tenant schema
+// resolution requires the lib-commons tenant managers.
 func NewProvider(cfg ProviderConfig) (DataSourceProvider, error) {
-	if err := ValidateProviderConfig(cfg); err != nil {
-		return nil, err
-	}
-
-	if cfg.FetcherEnabled {
-		return buildFetcherProvider(cfg), nil
-	}
-
-	return buildDirectProvider(cfg), nil
-}
-
-// ValidateProviderConfig checks that the provider configuration is internally
-// consistent. Returns a descriptive error if any constraint is violated.
-func ValidateProviderConfig(cfg ProviderConfig) error {
-	if cfg.FetcherEnabled && strings.TrimSpace(cfg.FetcherURL) == "" {
-		return fmt.Errorf("FETCHER_ENABLED=true requires FETCHER_URL to be set")
-	}
-
-	if cfg.MultiTenantEnabled && !cfg.FetcherEnabled {
-		return fmt.Errorf(
-			"MULTI_TENANT_ENABLED=true requires FETCHER_ENABLED=true (Direct mode does not support multi-tenant)",
-		)
-	}
-
-	return nil
-}
-
-// buildDirectProvider constructs a DirectProvider from the configuration.
-func buildDirectProvider(cfg ProviderConfig) *DirectProvider {
 	return NewDirectProvider(
 		cfg.SafeDataSources,
 		cfg.CircuitBreakerManager,
 		cfg.HealthChecker,
-	)
-}
-
-// buildFetcherProvider constructs a FetcherProvider from the configuration.
-// It creates a FetcherClient with the configured URL and optional M2M auth.
-func buildFetcherProvider(cfg ProviderConfig) *FetcherProvider {
-	var opts []fetcher.FetcherClientOption
-
-	if cfg.M2MTokenProvider != nil {
-		opts = append(opts, fetcher.WithM2MTokenProvider(cfg.M2MTokenProvider))
-	}
-
-	opts = append(opts, cfg.FetcherClientOptions...)
-
-	client := fetcher.NewFetcherClient(cfg.FetcherURL, opts...)
-
-	return NewFetcherProvider(client)
+	), nil
 }

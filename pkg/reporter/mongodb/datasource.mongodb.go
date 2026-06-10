@@ -82,6 +82,36 @@ func NewDataSourceRepository(mongoURI string, dbName string, logger log.Logger) 
 	return &ExternalDataSource{connection: mongoConnection, Database: dbName}, nil
 }
 
+// NewDataSourceRepositoryFromDatabase builds an ExternalDataSource over an
+// already-resolved per-tenant *mongo.Database. It opens no connection and owns
+// no pool: the database (and its client) are owned by the caller — in
+// multi-tenant mode the lib-commons tenant manager — so CloseConnection here is
+// a no-op (see CloseConnection). It exists so the manager's schema-discovery
+// methods (GetDatabaseSchema, GetDatabaseSchemaForOrganization,
+// GetDatabaseSchemaForCRM) run unchanged against a tenant-scoped database
+// instead of the env-configured pool.
+//
+// The Database name is read off the resolved handle so collection lookups
+// target the same database the tenant manager resolved. A nil database is
+// rejected: a nil handle stored on the connection would nil-deref on the first
+// schema read, defeating the fail-closed contract at the resolution seam.
+func NewDataSourceRepositoryFromDatabase(db *mongo.Database, logger log.Logger) (*ExternalDataSource, error) {
+	if db == nil {
+		return nil, fmt.Errorf("mongodb database must not be nil")
+	}
+
+	dbName := db.Name()
+
+	return &ExternalDataSource{
+		connection: &MongoConnection{
+			Database: dbName,
+			Logger:   logger,
+			DB:       db.Client(),
+		},
+		Database: dbName,
+	}, nil
+}
+
 // Ping verifies connectivity using *mongo.Client.Ping, which issues a
 // db.runCommand({ping:1}) — the canonical lightweight reachability probe
 // for MongoDB. Replaces the previous GetDatabaseSchema-as-ping

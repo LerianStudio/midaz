@@ -143,46 +143,22 @@ func TestBuildManagerSaaSTLSDeps_BYOCModeBypassesEnforcement(t *testing.T) {
 	require.NoError(t, err, "DEPLOYMENT_MODE=byoc must NOT enforce TLS")
 }
 
-// TestBuildManagerSaaSTLSDeps_FetcherEnforcedOnlyWhenEnabled verifies that
-// the Fetcher dep is added to the list ONLY when FETCHER_ENABLED=true, so a
-// SaaS deployment with Fetcher disabled isn't accidentally blocked by an
-// unset/local FETCHER_URL.
-func TestBuildManagerSaaSTLSDeps_FetcherEnforcedOnlyWhenEnabled(t *testing.T) {
+// TestBuildManagerSaaSTLSDeps_FetcherDepRetired verifies that the remote
+// Fetcher is no longer a SaaS TLS-enforced dependency: schema discovery runs
+// in-process and the fetcher config fields are gone, so a SaaS deployment must
+// never carry a fetcher TLS dep.
+func TestBuildManagerSaaSTLSDeps_FetcherDepRetired(t *testing.T) {
 	t.Parallel()
 
-	t.Run("disabled fetcher with http URL is ignored", func(t *testing.T) {
-		t.Parallel()
+	cfg := validSaaSTLSManagerConfig()
 
-		cfg := validSaaSTLSManagerConfig()
-		cfg.FetcherEnabled = false
-		cfg.FetcherURL = "http://fetcher:4006" // plaintext, but disabled
+	deps := buildManagerSaaSTLSDeps(cfg)
+	for _, dep := range deps {
+		assert.NotEqual(t, "fetcher", dep.Name, "fetcher must no longer be a SaaS TLS dep")
+	}
 
-		err := readyz.ValidateSaaSTLS(cfg.DeploymentMode, buildManagerSaaSTLSDeps(cfg))
-		require.NoError(t, err)
-	})
-
-	t.Run("enabled fetcher with http URL blocks SaaS", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := validSaaSTLSManagerConfig()
-		cfg.FetcherEnabled = true
-		cfg.FetcherURL = "http://fetcher:4006"
-
-		err := readyz.ValidateSaaSTLS(cfg.DeploymentMode, buildManagerSaaSTLSDeps(cfg))
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "fetcher")
-	})
-
-	t.Run("enabled fetcher with https URL passes", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := validSaaSTLSManagerConfig()
-		cfg.FetcherEnabled = true
-		cfg.FetcherURL = "https://fetcher.example.com"
-
-		err := readyz.ValidateSaaSTLS(cfg.DeploymentMode, buildManagerSaaSTLSDeps(cfg))
-		require.NoError(t, err)
-	})
+	err := readyz.ValidateSaaSTLS(cfg.DeploymentMode, deps)
+	require.NoError(t, err, "a plaintext fetcher URL must not block SaaS after Fetcher retirement")
 }
 
 // TestBuildManagerSaaSTLSDeps_MultiTenantRedisOnlyWhenEnabled verifies that

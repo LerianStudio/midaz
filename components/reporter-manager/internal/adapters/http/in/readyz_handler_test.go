@@ -115,8 +115,9 @@ func TestManagerReadyzHandler_NilDeps_DoesNotPanic(t *testing.T) {
 
 	require.NoError(t, json.Unmarshal(body, &parsed))
 	assert.Equal(t, "unhealthy", parsed.Status)
-	// We expect 6 dependency entries: mongo, rabbitmq, redis, storage, fetcher, tenant_manager.
-	assert.Len(t, parsed.Checks, 6)
+	// We expect 5 dependency entries: mongo, rabbitmq, redis, storage, tenant_manager.
+	// The remote fetcher checker was retired with the in-process schema migration.
+	assert.Len(t, parsed.Checks, 5)
 }
 
 // TestManagerReadyzHandler_VersionAndDeploymentMode verifies that the
@@ -205,20 +206,17 @@ func TestManagerReadyzHandler_TenantManagerSkippedWhenMultiTenantDisabled(t *tes
 	assert.Contains(t, tm.Reason, "MULTI_TENANT_ENABLED=false")
 }
 
-// TestManagerReadyzHandler_FetcherSkippedWhenDirectProvider verifies that the
-// fetcher dependency is reported as skipped when the DataSourceProvider is
-// not a *FetcherProvider (DirectProvider mode).
-func TestManagerReadyzHandler_FetcherSkippedWhenDirectProvider(t *testing.T) {
+// TestManagerReadyzHandler_NoFetcherCheck verifies that the retired remote
+// Fetcher dependency no longer appears in the /readyz response — schema
+// discovery runs in-process, so there is no external Fetcher to probe.
+func TestManagerReadyzHandler_NoFetcherCheck(t *testing.T) {
 	t.Parallel()
 
-	// Use nil DataSourceProvider — same behavior as DirectProvider for
-	// the type-assertion path.
 	deps := &ManagerReadyzDeps{
 		MultiTenantEnabled: false,
 		Version:            "1.0",
 		DeploymentMode:     "local",
 		DrainState:         &readyz.DrainState{},
-		DataSourceProvider: nil,
 	}
 
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})
@@ -232,10 +230,9 @@ func TestManagerReadyzHandler_FetcherSkippedWhenDirectProvider(t *testing.T) {
 	var parsed readyz.Response
 
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&parsed))
-	fetcher, ok := parsed.Checks["fetcher"]
-	require.True(t, ok, "fetcher check must always be present")
-	assert.Equal(t, readyz.StatusSkipped, fetcher.Status)
-	assert.Contains(t, fetcher.Reason, "FETCHER_ENABLED=false")
+
+	_, ok := parsed.Checks["fetcher"]
+	assert.False(t, ok, "fetcher check must no longer be present after Fetcher retirement")
 }
 
 // TestManagerReadyzHandler_MongoNAInMultiTenantMode verifies that mongo
