@@ -44,31 +44,31 @@ func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID stri
 		}
 	}
 
-	alias := &mmodel.Instrument{
+	instrument := &mmodel.Instrument{
 		Metadata:       uai.Metadata,
 		BankingDetails: uai.BankingDetails,
 		UpdatedAt:      time.Now(),
 	}
 
 	if uai.RegulatoryFields != nil {
-		alias.RegulatoryFields = &mmodel.RegulatoryFields{
+		instrument.RegulatoryFields = &mmodel.RegulatoryFields{
 			ParticipantDocument: uai.RegulatoryFields.ParticipantDocument,
 		}
 	}
 
 	if len(uai.RelatedParties) > 0 {
-		existingAlias, err := uc.InstrumentRepo.Find(ctx, organizationID, holderID, id, false)
+		existingInstrument, err := uc.InstrumentRepo.Find(ctx, organizationID, holderID, id, false)
 		if err != nil {
-			recordSpanError(span, "Failed to fetch existing alias for related parties append", err)
+			recordSpanError(span, "Failed to fetch existing instrument for related parties append", err)
 
 			return nil, err
 		}
 
-		if existingAlias.RelatedParties == nil {
-			alias.RelatedParties = make([]*mmodel.RelatedParty, 0, len(uai.RelatedParties))
+		if existingInstrument.RelatedParties == nil {
+			instrument.RelatedParties = make([]*mmodel.RelatedParty, 0, len(uai.RelatedParties))
 		} else {
-			alias.RelatedParties = make([]*mmodel.RelatedParty, len(existingAlias.RelatedParties), len(existingAlias.RelatedParties)+len(uai.RelatedParties))
-			copy(alias.RelatedParties, existingAlias.RelatedParties)
+			instrument.RelatedParties = make([]*mmodel.RelatedParty, len(existingInstrument.RelatedParties), len(existingInstrument.RelatedParties)+len(uai.RelatedParties))
+			copy(instrument.RelatedParties, existingInstrument.RelatedParties)
 		}
 
 		for _, rp := range uai.RelatedParties {
@@ -79,7 +79,7 @@ func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID stri
 				return nil, rpErr
 			}
 
-			alias.RelatedParties = append(alias.RelatedParties, &mmodel.RelatedParty{
+			instrument.RelatedParties = append(instrument.RelatedParties, &mmodel.RelatedParty{
 				ID:        &rpID,
 				Document:  rp.Document,
 				Name:      rp.Name,
@@ -93,18 +93,18 @@ func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID stri
 	if uai.BankingDetails != nil && uai.BankingDetails.ClosingDate != nil {
 		err := uc.validateInstrumentClosingDate(ctx, organizationID, holderID, id, uai.BankingDetails.ClosingDate)
 		if err != nil {
-			recordSpanError(span, "Failed to validate alias closing date", err)
+			recordSpanError(span, "Failed to validate instrument closing date", err)
 
 			return nil, err
 		}
 	}
 
-	updatedAlias, err := uc.InstrumentRepo.Update(ctx, organizationID, holderID, id, alias, fieldsToRemove)
+	updatedInstrument, err := uc.InstrumentRepo.Update(ctx, organizationID, holderID, id, instrument, fieldsToRemove)
 	if err != nil {
-		recordSpanError(span, "Failed to update alias", err)
+		recordSpanError(span, "Failed to update instrument", err)
 
 		return nil, err
 	}
 
-	return updatedAlias, nil
+	return updatedInstrument, nil
 }

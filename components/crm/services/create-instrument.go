@@ -34,25 +34,27 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 		attribute.String("app.request.holder_id", holderID.String()),
 	)
 
-	aliasID, err := libCommons.GenerateUUIDv7()
+	instrumentID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to generate alias id", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to generate instrument id", err)
 
 		return nil, err
 	}
 
-	alias := &mmodel.Instrument{
-		ID:        &aliasID,
+	now := time.Now()
+
+	instrument := &mmodel.Instrument{
+		ID:        &instrumentID,
 		LedgerID:  &cai.LedgerID,
 		AccountID: &cai.AccountID,
 		HolderID:  &holderID,
 		Metadata:  cai.Metadata,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 
 	if cai.BankingDetails != nil {
-		alias.BankingDetails = &mmodel.BankingDetails{
+		instrument.BankingDetails = &mmodel.BankingDetails{
 			Branch:      cai.BankingDetails.Branch,
 			Account:     cai.BankingDetails.Account,
 			Type:        cai.BankingDetails.Type,
@@ -65,7 +67,7 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 	}
 
 	if cai.RegulatoryFields != nil {
-		alias.RegulatoryFields = &mmodel.RegulatoryFields{
+		instrument.RegulatoryFields = &mmodel.RegulatoryFields{
 			ParticipantDocument: cai.RegulatoryFields.ParticipantDocument,
 		}
 	}
@@ -88,7 +90,7 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 			rp.ID = &rpID
 		}
 
-		alias.RelatedParties = cai.RelatedParties
+		instrument.RelatedParties = cai.RelatedParties
 	}
 
 	holder, err := uc.GetHolderByID(ctx, organizationID, holderID, false)
@@ -98,15 +100,15 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
-	alias.Document = holder.Document
-	alias.Type = holder.Type
+	instrument.Document = holder.Document
+	instrument.Type = holder.Type
 
-	createdAlias, err := uc.InstrumentRepo.Create(ctx, organizationID, alias)
+	createdInstrument, err := uc.InstrumentRepo.Create(ctx, organizationID, instrument)
 	if err != nil {
-		recordSpanError(span, "Failed to create alias", err)
+		recordSpanError(span, "Failed to create instrument", err)
 
 		return nil, err
 	}
 
-	return createdAlias, nil
+	return createdInstrument, nil
 }

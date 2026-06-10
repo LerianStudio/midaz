@@ -23,7 +23,7 @@ import (
 func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string, holderID uuid.UUID, query http.QueryHeader, includeDeleted bool) ([]*mmodel.Instrument, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "mongodb.find_all_aliases")
+	ctx, span := tracer.Start(ctx, "mongodb.find_all_instruments")
 	defer span.End()
 
 	attributes := []attribute.KeyValue{
@@ -42,13 +42,14 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 		return nil, err
 	}
 
+	// Legacy collection name kept; renaming would orphan existing instrument documents.
 	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
 	limit := int64(query.Limit)
 	skip := int64(query.Page*query.Limit - query.Limit)
 	opts := options.Find().SetLimit(limit).SetSkip(skip).SetSort(bson.D{{Key: "_id", Value: 1}})
 
-	_, spanFind := tracer.Start(ctx, "mongodb.find_all_alias.find")
+	_, spanFind := tracer.Start(ctx, "mongodb.find_all_instruments.find")
 	defer spanFind.End()
 
 	spanFind.SetAttributes(attributes...)
@@ -190,7 +191,7 @@ func (am *MongoDBRepository) buildAliasFilter(query http.QueryHeader, holderID u
 func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, holderID uuid.UUID) (int64, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "mongodb.find_all_alias")
+	ctx, span := tracer.Start(ctx, "mongodb.count_instruments")
 	defer span.End()
 
 	attributes := []attribute.KeyValue{
@@ -210,7 +211,7 @@ func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, h
 
 	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
-	_, spanCount := tracer.Start(ctx, "mongodb.find_all_alias.find")
+	_, spanCount := tracer.Start(ctx, "mongodb.count_instruments.count")
 	defer spanCount.End()
 
 	spanCount.SetAttributes(attributes...)

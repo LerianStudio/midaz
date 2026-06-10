@@ -72,8 +72,8 @@ func TestInstrumentHandler_CreateInstrument(t *testing.T) {
 				instrumentRepo.EXPECT().
 					Create(gomock.Any(), orgID, gomock.Any()).
 					DoAndReturn(func(ctx any, org string, a *mmodel.Instrument) (*mmodel.Instrument, error) {
-						a.CreatedAt = time.Now()
-						a.UpdatedAt = time.Now()
+						a.CreatedAt = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+						a.UpdatedAt = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 						return a, nil
 					}).
 					Times(1)
@@ -383,8 +383,8 @@ func TestInstrumentHandler_GetInstrumentByID(t *testing.T) {
 						HolderID:  &holderID,
 						Document:  &document,
 						Type:      &holderType,
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
+						CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+						UpdatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 					}, nil).
 					Times(1)
 			},
@@ -417,8 +417,8 @@ func TestInstrumentHandler_GetInstrumentByID(t *testing.T) {
 						HolderID:  &holderID,
 						Document:  &document,
 						Type:      &holderType,
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
+						CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+						UpdatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 					}, nil).
 					Times(1)
 			},
@@ -554,8 +554,8 @@ func TestInstrumentHandler_UpdateInstrument(t *testing.T) {
 						Document:  &document,
 						Type:      &holderType,
 						Metadata:  map[string]any{"key": "value"},
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
+						CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+						UpdatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 					}, nil).
 					Times(1)
 			},
@@ -1065,8 +1065,8 @@ func TestInstrumentHandler_GetAllInstruments(t *testing.T) {
 							HolderID:  &holderID,
 							Document:  &document,
 							Type:      &holderType,
-							CreatedAt: time.Now(),
-							UpdatedAt: time.Now(),
+							CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+							UpdatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 						},
 						{
 							ID:        &instrument2ID,
@@ -1075,8 +1075,8 @@ func TestInstrumentHandler_GetAllInstruments(t *testing.T) {
 							HolderID:  &holderID,
 							Document:  &document,
 							Type:      &holderType,
-							CreatedAt: time.Now(),
-							UpdatedAt: time.Now(),
+							CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+							UpdatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 						},
 					}, nil).
 					Times(1)

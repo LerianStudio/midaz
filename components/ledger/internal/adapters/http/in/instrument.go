@@ -71,7 +71,7 @@ func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
 
 	out, err := handler.Service.CreateInstrument(ctx, organizationID.String(), holderID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to create alias", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to create instrument", err)
 
 		return http.WithError(c, err)
 	}
@@ -124,13 +124,13 @@ func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.holder_id", holderID.String()),
-		attribute.String("app.request.alias_id", id.String()),
+		attribute.String("app.request.instrument_id", id.String()),
 		attribute.Bool("app.request.include_deleted", includeDeleted),
 	)
 
 	alias, err := handler.Service.GetInstrumentByID(ctx, organizationID.String(), holderID, id, includeDeleted)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to retrieve alias", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to retrieve instrument", err)
 
 		return http.WithError(c, err)
 	}
@@ -196,13 +196,13 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.holder_id", holderID.String()),
-		attribute.String("app.request.alias_id", id.String()),
+		attribute.String("app.request.instrument_id", id.String()),
 		attribute.Int("app.request.fields_to_remove_count", len(fieldsToRemove)),
 	)
 
 	alias, err := handler.Service.UpdateInstrumentByID(ctx, organizationID.String(), holderID, id, payload, fieldsToRemove)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to update alias", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to update instrument", err)
 
 		return http.WithError(c, err)
 	}
@@ -254,13 +254,13 @@ func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.holder_id", holderID.String()),
-		attribute.String("app.request.alias_id", id.String()),
+		attribute.String("app.request.instrument_id", id.String()),
 		attribute.Bool("app.request.hard_delete", hardDelete),
 	)
 
 	err = handler.Service.DeleteInstrumentByID(ctx, organizationID.String(), holderID, id, hardDelete)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to delete alias", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to delete instrument", err)
 
 		return http.WithError(c, err)
 	}
@@ -407,7 +407,7 @@ func (handler *InstrumentHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.holder_id", holderID.String()),
-		attribute.String("app.request.alias_id", aliasID.String()),
+		attribute.String("app.request.instrument_id", aliasID.String()),
 		attribute.String("app.request.related_party_id", relatedPartyID.String()),
 	)
 

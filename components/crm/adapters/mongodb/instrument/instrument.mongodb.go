@@ -171,7 +171,7 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID),
 		attribute.String("app.request.holder_id", holderID.String()),
-		attribute.String("app.request.alias_id", id.String()),
+		attribute.String("app.request.instrument_id", id.String()),
 	}
 
 	span.SetAttributes(attributes...)
@@ -230,7 +230,7 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID),
 		attribute.String("app.request.holder_id", holderID.String()),
-		attribute.String("app.request.alias_id", id.String()),
+		attribute.String("app.request.instrument_id", id.String()),
 		attribute.StringSlice("app.request.fields_to_remove", fieldsToRemove),
 	}
 
@@ -336,7 +336,7 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID),
 		attribute.String("app.request.holder_id", holderID.String()),
-		attribute.String("app.request.alias_id", id.String()),
+		attribute.String("app.request.instrument_id", id.String()),
 		attribute.Bool("app.request.hard_delete", hardDelete),
 	}
 

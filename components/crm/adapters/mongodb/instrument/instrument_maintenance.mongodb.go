@@ -31,7 +31,7 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID),
 		attribute.String("app.request.holder_id", holderID.String()),
-		attribute.String("app.request.alias_id", aliasID.String()),
+		attribute.String("app.request.instrument_id", aliasID.String()),
 		attribute.String("app.request.related_party_id", relatedPartyID.String()),
 	}
 

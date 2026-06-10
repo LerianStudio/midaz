@@ -29,12 +29,12 @@ func (uc *UseCase) GetAllInstruments(ctx context.Context, organizationID string,
 		span.SetAttributes(attribute.String("app.request.holder_id", holderID.String()))
 	}
 
-	aliases, err := uc.InstrumentRepo.FindAll(ctx, organizationID, holderID, filter, includeDeleted)
+	instruments, err := uc.InstrumentRepo.FindAll(ctx, organizationID, holderID, filter, includeDeleted)
 	if err != nil {
-		recordSpanError(span, "Failed to get aliases", err)
+		recordSpanError(span, "Failed to get instruments", err)
 
 		return nil, err
 	}
 
-	return aliases, nil
+	return instruments, nil
 }
